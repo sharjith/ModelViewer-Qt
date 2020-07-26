@@ -1566,3 +1566,15 @@ void ModelViewer::on_doubleSpinBoxSZ_valueChanged(double)
     setTransformation();
     _glWidget->update();
 }
+
+void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
+{
+    _glWidget->setShowVertexNormals(checked);
+    _glWidget->update();
+}
+
+void ModelViewer::on_toolButtonFaceNormal_clicked(bool checked)
+{
+    _glWidget->setShowFaceNormals(checked);
+    _glWidget->update();
+}

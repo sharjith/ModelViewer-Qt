@@ -1,4 +1,4 @@
-#version 400 core
+#version 450 core
 
 out vec2 v_uv;
 

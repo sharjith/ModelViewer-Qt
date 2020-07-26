@@ -1,5 +1,7 @@
 #version 450 core
 
+layout(triangles) in;
+layout(triangle_strip, max_vertices=6) out;
 
 in vec3 v_position[];
 in vec3 v_normal[];
@@ -24,9 +26,6 @@ out float g_clipDistY;
 out float g_clipDistZ;
 out float g_clipDist;
 
-layout(triangles) in;
-layout(triangle_strip, max_vertices=3) out;
-
 void main()
 {
     if(displayMode == 0 || displayMode == 1)
@@ -49,8 +48,8 @@ void main()
 	    gl_ClipDistance[3] = g_clipDist;
 
 	    EmitVertex();
-	}
-	EndPrimitive();
+        }
+        EndPrimitive();
     }
     else
     {

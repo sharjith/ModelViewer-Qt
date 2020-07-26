@@ -12,6 +12,8 @@ public:
 
     virtual ~TriangleMesh();
 
+    virtual void setProg(QOpenGLShaderProgram *prog);
+
     virtual void setName(const QString& name)
     {
         _name = name;

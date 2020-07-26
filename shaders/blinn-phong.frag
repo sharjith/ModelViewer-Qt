@@ -1,3 +1,4 @@
+#version 450 core
 
 varying vec3 normalInterp;
 varying vec3 vertPos;

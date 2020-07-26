@@ -53,5 +53,7 @@
         <file>res/hideAxis.png</file>
         <file>res/showAxis.png</file>
         <file>res/wireshaded.png</file>
+        <file>res/faceNormal.png</file>
+        <file>res/vertexNormal.png</file>
     </qresource>
 </RCC>

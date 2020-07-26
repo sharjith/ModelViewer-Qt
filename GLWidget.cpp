@@ -66,6 +66,9 @@ GLWidget::GLWidget(QWidget *parent, const char * /*name*/) : QOpenGLWidget(paren
 {
     _fgShader = new QOpenGLShaderProgram(this);
     _axisShader = new QOpenGLShaderProgram(this);
+    _vertexNormalShader = new QOpenGLShaderProgram(this);
+    _faceNormalShader = new QOpenGLShaderProgram(this);
+
     _viewBoundingSphereDia = 200.0f;
     _viewRange = _viewBoundingSphereDia;
     _rubberBandZoomRatio = 1.0f;
@@ -114,6 +117,9 @@ GLWidget::GLWidget(QWidget *parent, const char * /*name*/) : QOpenGLWidget(paren
     _clipXFlipped = false;
     _clipYFlipped = false;
     _clipZFlipped = false;
+
+    _showVertexNormals = false;
+    _showFaceNormals = false;
 
     _clipXCoeff = 0.0f;
     _clipYCoeff = 0.0f;
@@ -182,6 +188,12 @@ GLWidget::~GLWidget()
 
     if (_axisShader)
         delete _axisShader;
+
+    if(_vertexNormalShader)
+        delete _vertexNormalShader;
+
+    if(_faceNormalShader)
+        delete _faceNormalShader;
 
     _axisVBO.destroy();
     _axisVAO.destroy();
@@ -415,6 +427,42 @@ void GLWidget::createShaderPrograms()
     if (!_axisShader->link())
     {
         qDebug() << "Error linking shader program:" << _axisShader->log();
+    }
+
+    // Vertex Normal
+    if (!_vertexNormalShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/vertex_normal.vert"))
+    {
+        qDebug() << "Error in vertex shader:" << _vertexNormalShader->log();
+    }
+    if (!_vertexNormalShader->addShaderFromSourceFile(QOpenGLShader::Geometry, "shaders/vertex_normal.geom"))
+    {
+        qDebug() << "Error in geometry shader:" << _vertexNormalShader->log();
+    }
+    if (!_vertexNormalShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/vertex_normal.frag"))
+    {
+        qDebug() << "Error in fragment shader:" << _vertexNormalShader->log();
+    }
+    if (!_vertexNormalShader->link())
+    {
+        qDebug() << "Error linking shader program:" << _vertexNormalShader->log();
+    }
+
+    // Face Normal
+    if (!_faceNormalShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/face_normal.vert"))
+    {
+        qDebug() << "Error in vertex shader:" << _faceNormalShader->log();
+    }
+    if (!_faceNormalShader->addShaderFromSourceFile(QOpenGLShader::Geometry, "shaders/face_normal.geom"))
+    {
+        qDebug() << "Error in geometry shader:" << _faceNormalShader->log();
+    }
+    if (!_faceNormalShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/face_normal.frag"))
+    {
+        qDebug() << "Error in fragment shader:" << _faceNormalShader->log();
+    }
+    if (!_faceNormalShader->link())
+    {
+        qDebug() << "Error linking shader program:" << _faceNormalShader->log();
     }
 
     // Text shader program
@@ -952,12 +1000,57 @@ void GLWidget::render()
     _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
                                                       pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 
+
+    // Vertex Normal
+    _vertexNormalShader->bind();
+    _vertexNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+    _vertexNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
+    _vertexNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
+                                                       (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
+    _vertexNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
+                                                       (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
+    _vertexNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
+                                                       (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
+    _vertexNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+                                                      pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+
+    // Face Normal
+    _faceNormalShader->bind();
+    _faceNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+    _faceNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
+    _faceNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
+                                                       (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
+    _faceNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
+                                                       (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
+    _faceNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
+                                                       (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
+    _faceNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+                                                      pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+
     // Render
     if (_meshStore.size() != 0)
-    {
+    {        
         for (int i : _displayedObjectsIds)
         {
-            _meshStore.at(i)->render();
+            TriangleMesh* mesh = _meshStore.at(i);
+            mesh->setProg(_fgShader);
+            mesh->render();
+
+            if(_showVertexNormals)
+            {
+                _vertexNormalShader->bind();
+                _vertexNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius()/2));
+                mesh->setProg(_vertexNormalShader);
+                mesh->render();
+            }
+
+            if(_showFaceNormals)
+            {
+                _faceNormalShader->bind();
+                _faceNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius()/2));
+                mesh->setProg(_faceNormalShader);
+                mesh->render();
+            }
         }
     }
 
@@ -1292,6 +1385,26 @@ void GLWidget::closeEvent(QCloseEvent *event)
         _springEditor->close();
     }
     event->accept();
+}
+
+void GLWidget::setShowFaceNormals(bool showFaceNormals)
+{
+    _showFaceNormals = showFaceNormals;
+}
+
+bool GLWidget::isFaceNormalsShown() const
+{
+    return _showFaceNormals;
+}
+
+bool GLWidget::isVertexNormalsShown() const
+{
+    return _showVertexNormals;
+}
+
+void GLWidget::setShowVertexNormals(bool showVertexNormals)
+{
+    _showVertexNormals = showVertexNormals;
 }
 
 bool GLWidget::isShaded() const

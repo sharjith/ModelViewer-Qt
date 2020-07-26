@@ -1,4 +1,4 @@
-#version 400
+#version 450 core
 
 in vec3 vertexPosition;
 in vec3 vertexNormal;

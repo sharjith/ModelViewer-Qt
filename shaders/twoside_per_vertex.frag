@@ -1,4 +1,4 @@
-#version 400
+#version 450 core
 
 vec3 v_color;
 uniform bool b_texEnabled;

@@ -41,11 +41,11 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
 }
 
 void TriangleMesh::initBuffers(
-    std::vector<GLuint> *indices,
-    std::vector<GLfloat> *points,
-    std::vector<GLfloat> *normals,
-    std::vector<GLfloat> *texCoords,
-    std::vector<GLfloat> *tangents)
+        std::vector<GLuint> *indices,
+        std::vector<GLfloat> *points,
+        std::vector<GLfloat> *normals,
+        std::vector<GLfloat> *texCoords,
+        std::vector<GLfloat> *tangents)
 {
     // Must have data for indices, points, and normals
     if (indices == nullptr || points == nullptr || normals == nullptr)
@@ -123,6 +123,45 @@ void TriangleMesh::initBuffers(
         _prog->enableAttributeArray("tangentCoord");
         _prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 4);
     }
+
+    _vertexArrayObject.release();
+}
+
+void TriangleMesh::setProg(QOpenGLShaderProgram *prog)
+{
+    _prog = prog;
+
+    _vertexArrayObject.bind();
+
+    //_indexBuffer.bind();
+
+    // _position
+    _positionBuffer.bind();
+    //glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(0);  // Vertex position
+    _prog->enableAttributeArray("vertexPosition");
+    _prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+    // Normal
+    _normalBuffer.bind();
+    //glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(1);  // Normal
+    _prog->enableAttributeArray("vertexNormal");
+    _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+
+    _texCoordBuffer.bind();
+    //glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(2);  // Tex coord
+    _prog->enableAttributeArray("texCoord2d");
+    _prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
+
+    _tangentBuf.bind();
+    //glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
+    //glEnableVertexAttribArray(3);  // Tangents
+    _prog->enableAttributeArray("tangentCoord");
+    _prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 4);
+
 
     _vertexArrayObject.release();
 }

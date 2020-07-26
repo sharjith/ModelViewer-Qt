@@ -1,3 +1,5 @@
+#version 450 core
+
 attribute vec3 inputPosition;
 attribute vec2 inputTexCoord;
 attribute vec3 inputNormal;

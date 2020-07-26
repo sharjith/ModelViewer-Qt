@@ -173,4 +173,10 @@ shaders/blinn-phong.vert  shaders/twoside_per_vertex.vert \
 shaders/splitScreen.vert  shaders/wireframe.vert \
 shaders/text.vert
 
-DISTFILES +=
+DISTFILES += \
+    shaders/face_normal.frag \
+    shaders/face_normal.geom \
+    shaders/face_normal.vert \
+    shaders/vertex_normal.frag \
+    shaders/vertex_normal.geom \
+    shaders/vertex_normal.vert

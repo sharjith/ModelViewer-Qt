@@ -1,4 +1,4 @@
-#version 400 core
+#version 450 core
 
 uniform vec4 top_color;
 uniform vec4 bot_color;

@@ -108,6 +108,10 @@ private slots:
 
 	void on_toolButtonShowHideAxis_toggled(bool checked);
 
+    void on_toolButtonVertexNormal_clicked(bool checked);
+
+    void on_toolButtonFaceNormal_clicked(bool checked);
+
 protected:
 	void showEvent(QShowEvent *event);
 

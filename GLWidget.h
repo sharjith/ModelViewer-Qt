@@ -127,6 +127,12 @@ public:
     bool isShaded() const;
     void setDisplayMode(DisplayMode mode);
 
+    bool isVertexNormalsShown() const;
+    void setShowVertexNormals(bool showVertexNormals);
+
+    bool isFaceNormalsShown() const;
+    void setShowFaceNormals(bool showFaceNormals);
+
 signals:
     void windowZoomEnded();
 
@@ -202,6 +208,9 @@ private:
     bool _clipYFlipped;
     bool _clipZFlipped;
 
+    bool _showVertexNormals;
+    bool _showFaceNormals;
+
     GLfloat _xTran;
     GLfloat _yTran;
     GLfloat _zTran;
@@ -226,6 +235,8 @@ private:
 
     QOpenGLShaderProgram*     _fgShader;
     QOpenGLShaderProgram*     _axisShader;
+    QOpenGLShaderProgram*     _vertexNormalShader;
+    QOpenGLShaderProgram*     _faceNormalShader;
 
     QOpenGLShaderProgram     _textShader;
 
