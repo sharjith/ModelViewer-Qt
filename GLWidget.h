@@ -133,6 +133,11 @@ public:
     bool isFaceNormalsShown() const;
     void setShowFaceNormals(bool showFaceNormals);
 
+    void drawVertexNormals();
+    void drawFaceNormals();
+    
+    void drawMesh();
+
 signals:
     void windowZoomEnded();
 

@@ -819,7 +819,8 @@
                     </property>
                     <property name="icon">
                      <iconset resource="ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/vertexNormal.png</normaloff>:/new/prefix1/res/vertexNormal.png</iconset>
+                      <normaloff>:/new/prefix1/res/hideVertexNormal.png</normaloff>
+                      <normalon>:/new/prefix1/res/showVertexNormal.png</normalon>:/new/prefix1/res/hideVertexNormal.png</iconset>
                     </property>
                     <property name="iconSize">
                      <size>
@@ -854,7 +855,8 @@
                     </property>
                     <property name="icon">
                      <iconset resource="ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/faceNormal.png</normaloff>:/new/prefix1/res/faceNormal.png</iconset>
+                      <normaloff>:/new/prefix1/res/hideFaceNormal.png</normaloff>
+                      <normalon>:/new/prefix1/res/showFaceNormal.png</normalon>:/new/prefix1/res/hideFaceNormal.png</iconset>
                     </property>
                     <property name="iconSize">
                      <size>
@@ -931,8 +933,8 @@
                     </property>
                     <property name="icon">
                      <iconset resource="ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/showAxis.png</normaloff>
-                      <normalon>:/new/prefix1/res/hideAxis.png</normalon>:/new/prefix1/res/showAxis.png</iconset>
+                      <normaloff>:/new/prefix1/res/hideAxis.png</normaloff>
+                      <normalon>:/new/prefix1/res/showAxis.png</normalon>:/new/prefix1/res/hideAxis.png</iconset>
                     </property>
                     <property name="iconSize">
                      <size>
