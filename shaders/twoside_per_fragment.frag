@@ -96,10 +96,7 @@ void main()
     }
     else if(displayMode == 1) // wireframe
     {
-        fragColor = vec4(material.ambient * lightSource.ambient +
-                         lightSource.diffuse +
-                         lightSource.specular,
-                         1.0);
+        fragColor = vec4(1.0, 1.0, 1.0, 0.75);
     }
     else // wireshaded
     {
