@@ -5,9 +5,17 @@
 TEMPLATE = app
 TARGET = MatlEditor_OpenGL-4.0
 INCLUDEPATH += .
-INCLUDEPATH += /usr/include/freetype2/
 
-LIBS += -lfreetype
+unix {
+    INCLUDEPATH += /usr/include/freetype2/
+    LIBS += -lfreetype
+}
+
+win32 {
+    INCLUDEPATH += D:\software\libs\glm
+    INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
+    LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
+}
 
 CONFIG += c++17
 QT += core gui widgets opengl

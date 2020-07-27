@@ -556,8 +556,12 @@ void GLWidget::createGeometry()
     _sphericalHarmonicsEditor = new SphericalHarmonicsEditor(sph, this);
     _upperLayout->addWidget(_sphericalHarmonicsEditor);
 
+#ifdef WIN32
+    STLMesh *mesh = new STLMesh(_fgShader, QString("D:/work/progs/qt5/ModelViewer/data/Logo.stl"));
+#else
     STLMesh *mesh = new STLMesh(_fgShader, QString("/home/sharjith/work/progs/qt/stlviewer/data/Logo.stl"));
-    //STLMesh* mesh = new STLMesh(_fgShader, QString("/home/sharjith/TestFEM_Mesh.stl"));
+#endif
+
     _meshStore.push_back(mesh);
 }
 

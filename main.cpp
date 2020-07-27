@@ -11,6 +11,7 @@ int main(int argc, char** argv)
 
     QApplication app(argc, argv);
 #ifdef WIN32
+    //qDebug() << QStyleFactory::keys();
     app.setStyle(QStyleFactory::create("Fusion"));
 #endif
 
