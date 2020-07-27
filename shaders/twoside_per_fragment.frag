@@ -120,6 +120,10 @@ void main()
             float x = d - (Line.Width - 1);
             mixVal = exp2(-2.0 * (x*x));
         }
-        fragColor = mix(v_color, Line.Color, mixVal);
+
+        if(b_texEnabled == true)
+            fragColor = mix(v_color * texture2D(texUnit, g_texCoord2d), Line.Color, mixVal);
+        else
+            fragColor = mix(v_color, Line.Color, mixVal);
     }
 }
