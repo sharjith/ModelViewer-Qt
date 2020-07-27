@@ -35,9 +35,9 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
     _texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
 
     glGenTextures(1, &_texture);
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-    glActiveTexture(GL_TEXTURE0);
 }
 
 void TriangleMesh::initBuffers(

@@ -206,18 +206,7 @@ GLWidget::~GLWidget()
 
 void GLWidget::updateView()
 {
-    if (_fgShader->isLinked())
-    {
-        makeCurrent();
-        _fgShader->bind();
-        _fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-        _fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-        _fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-        _fgShader->setUniformValue("lightSource.position", _lightPosition);
-        _fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
-        _fgShader->release();
-        update();
-    }
+    update();
 }
 
 void GLWidget::setTexture(QImage img)
