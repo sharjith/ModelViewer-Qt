@@ -7,14 +7,14 @@ TARGET = MatlEditor_OpenGL-4.0
 INCLUDEPATH += .
 
 unix {
-    INCLUDEPATH += /usr/include/freetype2/
-    LIBS += -lfreetype
+INCLUDEPATH += /usr/include/freetype2/
+LIBS += -lfreetype
 }
 
 win32 {
-    INCLUDEPATH += D:\software\libs\glm
-    INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
-    LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
+INCLUDEPATH += D:\software\libs\glm
+INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
+LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
 }
 
 CONFIG += c++17
@@ -51,7 +51,7 @@ Drawable.h \
 Figure8KleinBottle.h \
 Folium.h \
 GLCamera.h \
-    GLWidget.h \
+GLWidget.h \
 GraysKlein.h \
 Horn.h \
 IDrawable.h \
@@ -59,8 +59,8 @@ IParametricSurface.h \
 KleinBottle.h \
 LimpetTorus.h \
 MainWindow.h \
-    MeshProperties.h \
-    ModelViewer.h \
+MeshProperties.h \
+ModelViewer.h \
 ObjMesh.h \
 ParametricSurface.h \
 Periwinkle.h \
@@ -68,7 +68,7 @@ Plane.h \
 Point.h \
 QuadMesh.h \
 Resource.h \
-    STLMesh.h \
+STLMesh.h \
 SaddleTorus.h \
 Sphere.h \
 SphericalHarmonic.h \
@@ -80,7 +80,7 @@ Spring.h \
 Teapot.h \
 TeapotData.h \
 TextRenderer.h \
-    ToolPanel.h \
+ToolPanel.h \
 TopShell.h \
 Torus.h \
 TriangleMesh.h \
@@ -98,10 +98,10 @@ GraysKleinEditor.h \
 SuperToroidEditor.h \
 SuperEllipsoidEditor.h \
 SpringEditor.h \
-    stl_reader.h
+stl_reader.h
 FORMS += \
 MainWindow.ui \
-    ModelViewer.ui \
+ModelViewer.ui \
 SphericalHarmonicsEditor.ui \
 ClippingPlanesEditor.ui \
 GraysKleinEditor.ui \
@@ -123,15 +123,15 @@ DoubleCone.cpp \
 Figure8KleinBottle.cpp \
 Folium.cpp \
 GLCamera.cpp \
-    GLWidget.cpp \
+GLWidget.cpp \
 GraysKlein.cpp \
 Horn.cpp \
 KleinBottle.cpp \
 LimpetTorus.cpp \
-    MeshProperties.cpp \
-    ModelViewer.cpp \
-    STLMesh.cpp \
-    ToolPanel.cpp \
+MeshProperties.cpp \
+ModelViewer.cpp \
+STLMesh.cpp \
+ToolPanel.cpp \
 main.cpp \
 MainWindow.cpp \
 ObjMesh.cpp \
@@ -167,7 +167,7 @@ SuperToroidEditor.cpp \
 SuperEllipsoidEditor.cpp \
 SpringEditor.cpp
 RESOURCES += \
-    ModelViewer.qrc
+ModelViewer.qrc
 
 OTHER_FILES += \
 shaders/background.frag   shaders/twoside_per_fragment.frag \
@@ -182,9 +182,9 @@ shaders/splitScreen.vert  shaders/wireframe.vert \
 shaders/text.vert
 
 DISTFILES += \
-    shaders/face_normal.frag \
-    shaders/face_normal.geom \
-    shaders/face_normal.vert \
-    shaders/vertex_normal.frag \
-    shaders/vertex_normal.geom \
-    shaders/vertex_normal.vert
+shaders/face_normal.frag \
+shaders/face_normal.geom \
+shaders/face_normal.vert \
+shaders/vertex_normal.frag \
+shaders/vertex_normal.geom \
+shaders/vertex_normal.vert

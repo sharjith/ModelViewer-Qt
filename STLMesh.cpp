@@ -145,13 +145,11 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
             zCoords.push_back(points[var + 5]);
             zCoords.push_back(points[var + 8]);
 
-            texcords.push_back(0.0f);
-            texcords.push_back(0.0f);
+            texcords.push_back(0);
+            texcords.push_back(0);
             texcords.push_back(1.0f);
             texcords.push_back(0.0f);
-            texcords.push_back(1.0f);
-            texcords.push_back(1.0f);
-            texcords.push_back(0.0f);
+            texcords.push_back(0.5f);
             texcords.push_back(1.0f);
         }
 

@@ -41,7 +41,7 @@ bool ToolPanel::eventFilter(QObject * object, QEvent * event)
                     _animation->setStartValue(this->geometry());
                     connect(_animation, SIGNAL(finished()), this, SLOT(hide()));
                     _animation->start();
-                    hide();
+                    //hide();
                 }
             }
         }
