@@ -55,6 +55,7 @@ void MainWindow::showEvent(QShowEvent *event)
         std::vector<int> mod = {5};
         _viewers[0]->getGLView()->setDisplayList(mod);
         _viewers[0]->showMaximized();
+        _viewers[0]->updateDisplayList();
         _bFirstTime = false;
     }
 }
@@ -75,6 +76,7 @@ void MainWindow::on_actionNew_triggered()
     viewer->showMaximized();
     std::vector<int> mod = {5};
     viewer->getGLView()->setDisplayList(mod);
+    viewer->updateDisplayList();
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()
