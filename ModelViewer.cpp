@@ -80,6 +80,7 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
     _glWidget->installEventFilter(tabWidget_2);
     tabWidget_2->setParent(_glWidget);
     _glWidget->layout()->addWidget(tabWidget_2);
+    //connect(_glWidget, SIGNAL(displayListSet()), this, SLOT(updateDisplayList()));
 
     QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
 
@@ -1378,9 +1379,19 @@ void ModelViewer::updateDisplayList()
 {
     listWidgetModel->clear();
     std::vector<TriangleMesh *> store = _glWidget->getMeshStore();
+    std::vector<int> ids = _glWidget->getDisplayedObjectsIds();
+    int id = 0;
     for (TriangleMesh *mesh : store)
     {
-        listWidgetModel->addItem(mesh->getName());
+        QListWidgetItem* item = new QListWidgetItem(mesh->getName());
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable); // set checkable flag
+        // AND initialize check state
+        if(std::count(ids.begin(), ids.end(), id))
+            item->setCheckState(Qt::Checked);
+        else
+            item->setCheckState(Qt::Unchecked);
+        listWidgetModel->addItem(item);
+        id++;
     }
 }
 
@@ -1438,10 +1449,37 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
-        for (QListWidgetItem *i : listWidgetModel->selectedItems())
+        /*for (QListWidgetItem *i : listWidgetModel->selectedItems())
         {
             int rowId = listWidgetModel->row(i);
             ids.push_back(rowId);
+        }*/
+        for (int i = 0; i < listWidgetModel->count(); i++)
+        {
+            QListWidgetItem* item = listWidgetModel->item(i);
+            if(item->checkState() == Qt::Checked)
+            {
+                int rowId = listWidgetModel->row(item);
+                ids.push_back(rowId);
+            }
+        }
+        _glWidget->setDisplayList(ids);
+    }
+}
+
+void ModelViewer::on_listWidgetModel_itemClicked(QListWidgetItem */*item*/)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        for (int i = 0; i < listWidgetModel->count(); i++)
+        {
+            QListWidgetItem* item = listWidgetModel->item(i);
+            if(item->checkState() == Qt::Checked)
+            {
+                int rowId = listWidgetModel->row(item);
+                ids.push_back(rowId);
+            }
         }
         _glWidget->setDisplayList(ids);
     }
@@ -1578,3 +1616,4 @@ void ModelViewer::on_toolButtonFaceNormal_clicked(bool checked)
     _glWidget->setShowFaceNormals(checked);
     _glWidget->update();
 }
+

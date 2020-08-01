@@ -19,6 +19,9 @@ public:
 	void setMaterialProps(const GLMaterialProps &mat);
 	void setTransformation();
 
+public slots:
+    void updateDisplayList();
+
 private slots:
 	void on_checkTexture_toggled(bool checked);	
 	void on_textureButton_clicked();
@@ -112,6 +115,9 @@ private slots:
 
     void on_toolButtonFaceNormal_clicked(bool checked);
 
+    void on_listWidgetModel_itemClicked(QListWidgetItem *);
+
+
 protected:
 	void showEvent(QShowEvent *event);
 
@@ -140,8 +146,7 @@ private:
 	QString _lastOpenedDir;
 
 private:
-	void updateControls();
-	void updateDisplayList();
+	void updateControls();	
 };
 
 #endif
