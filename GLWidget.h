@@ -138,8 +138,11 @@ public:
     
     void drawMesh();
 
+    std::vector<int> getDisplayedObjectsIds() const;
+
 signals:
     void windowZoomEnded();
+    void displayListSet();
 
 public slots:
     void animateViewChange();

@@ -363,6 +363,8 @@ void GLWidget::setDisplayList(const std::vector<int> &ids)
     fitAll();
     //qDebug() << "Bounding Sphere Dia " << _viewBoundingSphereDia;
     update();
+
+    emit displayListSet();
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -1407,6 +1409,11 @@ void GLWidget::closeEvent(QCloseEvent *event)
         _springEditor->close();
     }
     event->accept();
+}
+
+std::vector<int> GLWidget::getDisplayedObjectsIds() const
+{
+    return _displayedObjectsIds;
 }
 
 void GLWidget::setShowFaceNormals(bool showFaceNormals)
