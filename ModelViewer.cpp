@@ -1506,7 +1506,8 @@ void ModelViewer::on_toolButtonOpen_clicked()
     }
     if (mesh)
     {
-        listWidgetModel->addItem(mesh->getName());
+        updateDisplayList();
+        //listWidgetModel->addItem(mesh->getName());
         listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
 
         MeshProperties props(mesh);
