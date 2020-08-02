@@ -100,7 +100,7 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
 
     _specRef = {1.0f, 1.0f, 1.0f, 1.0f};
 
-    _shine = 128 * 0.2;
+    _shine = 128 * 0.2f;
     _bHasTexture = false;
 
     updateControls();
@@ -180,7 +180,7 @@ void ModelViewer::on_defaultButton_clicked()
     _diffMat = {0.7109375f, 0.62890625f, 0.55078125f, _opacity}; // 182 161 141
     _specMat = {0.37890625f, 0.390625f, 0.3359375f, _opacity};   // 97 100 86
     _emmiMat = {0, 0, 0, 1};
-    _shine = 128 * 0.2;
+    _shine = 128 * 0.2f;
     _glWidget->setLightPosition({0.0, 0.0, 50.0f});
 
     GLMaterialProps mat = {_ambiMat,
@@ -1467,7 +1467,7 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
     }
 }
 
-void ModelViewer::on_listWidgetModel_itemClicked(QListWidgetItem */*item*/)
+void ModelViewer::on_listWidgetModel_itemClicked(QListWidgetItem* /*item*/)
 {
     if (listWidgetModel->count())
     {
