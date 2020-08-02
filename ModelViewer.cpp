@@ -142,7 +142,7 @@ void ModelViewer::on_textureButton_clicked()
         this,
         "Choose an image for texture",
         _lastOpenedDir,
-        "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm)");
+        "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
     if (str != "")
     {
         if (!buf.load(str))
@@ -1509,6 +1509,8 @@ void ModelViewer::on_toolButtonOpen_clicked()
         updateDisplayList();
         //listWidgetModel->addItem(mesh->getName());
         listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+        listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+        updateDisplayList();
 
         MeshProperties props(mesh);
         std::cout << "Mesh Volume = " << props.volume() << "\nSurface Area = " << props.surfaceArea() << std::endl;
