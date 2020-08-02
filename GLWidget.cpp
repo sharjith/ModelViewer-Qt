@@ -54,7 +54,7 @@
 using glm::mat4;
 using glm::vec3;
 
-GLWidget::GLWidget(QWidget *parent, const char * /*name*/) : QOpenGLWidget(parent, 0),
+GLWidget::GLWidget(QWidget *parent, const char * /*name*/) : QOpenGLWidget(parent),
                                                              _textRenderer(nullptr),
                                                              _axisTextRenderer(nullptr),
                                                              _sphericalHarmonicsEditor(nullptr),
@@ -759,7 +759,7 @@ void GLWidget::paintGL()
         _projectionMatrix = _camera->getProjectionMatrix();
         _viewMatrix = _camera->getViewMatrix();
         render();
-        _textRenderer->RenderText("Top", -50, 5, 1.6, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+        _textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
         // Front View
         _projectionMatrix.setToIdentity();
@@ -770,7 +770,7 @@ void GLWidget::paintGL()
         _projectionMatrix = _camera->getProjectionMatrix();
         _viewMatrix = _camera->getViewMatrix();
         render();
-        _textRenderer->RenderText("Front", -50, 5, 1.6, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+        _textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
         // Left View
         _projectionMatrix.setToIdentity();
@@ -781,7 +781,7 @@ void GLWidget::paintGL()
         _projectionMatrix = _camera->getProjectionMatrix();
         _viewMatrix = _camera->getViewMatrix();
         render();
-        _textRenderer->RenderText("Left", -50, 5, 1.6, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+        _textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
         // Isometric View
         _projectionMatrix.setToIdentity();
@@ -792,7 +792,7 @@ void GLWidget::paintGL()
         _projectionMatrix = _camera->getProjectionMatrix();
         _viewMatrix = _camera->getViewMatrix();
         render();
-        _textRenderer->RenderText("Isometric", -50, 5, 1.6, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+        _textRenderer->RenderText("Isometric", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
         // draw screen partitioning lines
         splitScreen();
@@ -1215,7 +1215,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
 
 void GLWidget::wheelEvent(QWheelEvent *e)
 {
-    int delta = static_cast<GLfloat>(e->delta());
+    int delta = static_cast<GLfloat>(e->angleDelta().y());
 
     if (delta < 0)
         _viewRange *= abs(delta) / 114.2857142857;
