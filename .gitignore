@@ -1,3 +1,12 @@
 
+ui_*.h
 *.user*
+.qmake.stash
+.vs/
+ModelViewer.sln
+ModelViewer.vcxproj
+ModelViewer.vcxproj.filters
+debug/
+release/
+
 
