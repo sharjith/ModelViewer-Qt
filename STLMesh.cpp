@@ -89,7 +89,6 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
 STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh(prog, "STLMesh"),
                                                                     _stlFilePath(stlfilepath)
 {
-
     QFileInfo fi(stlfilepath);
     QString fileName = fi.baseName();
     setName(fileName);
@@ -159,7 +158,7 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
         const size_t numTris = points.size() / 3;
         //std::cout << "Triangles: " << numTris << std::endl;
 
-        for (size_t itri = 0; itri < numTris; ++itri)
+        for (GLuint itri = 0; itri < numTris; ++itri)
         {
             elements.push_back(itri);
         }
