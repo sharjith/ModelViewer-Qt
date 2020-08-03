@@ -1215,12 +1215,15 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
 
 void GLWidget::wheelEvent(QWheelEvent *e)
 {
-    int delta = static_cast<GLfloat>(e->angleDelta().y());
+    QPoint numDegrees = e->angleDelta() / 8;
+    QPoint numSteps = numDegrees / 15;
+    float zoomStep = numSteps.y();
+    float zoomFactor = abs(zoomStep) + 0.05;
 
-    if (delta < 0)
-        _viewRange *= abs(delta) / 114.2857142857;
+    if (zoomStep < 0)
+        _viewRange *= zoomFactor;
     else
-        _viewRange /= abs(delta) / 114.2857142857;
+        _viewRange /= zoomFactor;
 
     if (_viewRange < 0.05)
         _viewRange = 0.05f;
