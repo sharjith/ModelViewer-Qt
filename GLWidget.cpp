@@ -600,7 +600,8 @@ TriangleMesh *GLWidget::loadOBJMesh(QString fileName)
     makeCurrent();
     std::unique_ptr<ObjMesh> obj = ObjMesh::load(_fgShader, fileName.toLocal8Bit().data());
     TriangleMesh *mesh = static_cast<TriangleMesh *>(obj.release());
-    addToDisplay(mesh);
+    if(mesh)
+        addToDisplay(mesh);
     return mesh;
 }
 
