@@ -94,6 +94,8 @@ private slots:
 
 	void showContextMenu(const QPoint &pos);
 	void deleteItem();
+	void showPropertiesPage();
+	void showTransformationsPage();
 
 	void on_listWidgetModel_itemSelectionChanged();
 
