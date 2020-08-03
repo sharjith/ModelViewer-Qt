@@ -87,7 +87,8 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
  */
 
 STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh(prog, "STLMesh"),
-                                                                    _stlFilePath(stlfilepath)
+                                                                    _stlFilePath(stlfilepath),
+                                                                    _loaded(false)
 {
     QFileInfo fi(stlfilepath);
     QString fileName = fi.baseName();
@@ -107,69 +108,78 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
 
     try
     {
-        stl_reader::ReadStlFile(_stlFilePath.toLocal8Bit().data(), points, normals, tris, solids);
+        bool success = stl_reader::ReadStlFile(_stlFilePath.toLocal8Bit().data(), points, normals, tris, solids);
 
-        for (size_t var = 0; var < points.size(); var += 9)
+        if (success && points.size())
         {
-            QVector3D o(points[var + 0], points[var + 1], points[var + 2]);
-            QVector3D p(points[var + 3], points[var + 4], points[var + 5]);
-            QVector3D q(points[var + 6], points[var + 7], points[var + 8]);
+            for (size_t var = 0; var < points.size(); var += 9)
+            {
+                QVector3D o(points[var + 0], points[var + 1], points[var + 2]);
+                QVector3D p(points[var + 3], points[var + 4], points[var + 5]);
+                QVector3D q(points[var + 6], points[var + 7], points[var + 8]);
 
-            QVector3D op = p - o;
-            QVector3D oq = q - o;
+                QVector3D op = p - o;
+                QVector3D oq = q - o;
 
-            QVector3D n = QVector3D::crossProduct(op, oq);
+                QVector3D n = QVector3D::crossProduct(op, oq);
 
-            norms.push_back(n.x());
-            norms.push_back(n.y());
-            norms.push_back(n.z());
+                norms.push_back(n.x());
+                norms.push_back(n.y());
+                norms.push_back(n.z());
 
-            norms.push_back(n.x());
-            norms.push_back(n.y());
-            norms.push_back(n.z());
+                norms.push_back(n.x());
+                norms.push_back(n.y());
+                norms.push_back(n.z());
 
-            norms.push_back(n.x());
-            norms.push_back(n.y());
-            norms.push_back(n.z());
+                norms.push_back(n.x());
+                norms.push_back(n.y());
+                norms.push_back(n.z());
 
-            xCoords.push_back(points[var + 0]);
-            xCoords.push_back(points[var + 3]);
-            xCoords.push_back(points[var + 6]);
+                xCoords.push_back(points[var + 0]);
+                xCoords.push_back(points[var + 3]);
+                xCoords.push_back(points[var + 6]);
 
-            yCoords.push_back(points[var + 1]);
-            yCoords.push_back(points[var + 4]);
-            yCoords.push_back(points[var + 7]);
+                yCoords.push_back(points[var + 1]);
+                yCoords.push_back(points[var + 4]);
+                yCoords.push_back(points[var + 7]);
 
-            zCoords.push_back(points[var + 2]);
-            zCoords.push_back(points[var + 5]);
-            zCoords.push_back(points[var + 8]);
+                zCoords.push_back(points[var + 2]);
+                zCoords.push_back(points[var + 5]);
+                zCoords.push_back(points[var + 8]);
 
-            texcords.push_back(0);
-            texcords.push_back(0);
-            texcords.push_back(1.0f);
-            texcords.push_back(0.0f);
-            texcords.push_back(0.5f);
-            texcords.push_back(1.0f);
+                texcords.push_back(0);
+                texcords.push_back(0);
+                texcords.push_back(1.0f);
+                texcords.push_back(0.0f);
+                texcords.push_back(0.5f);
+                texcords.push_back(1.0f);
+            }
+
+            //std::cout << "Coords " << points.size() << std::endl;
+            //std::cout << "Normals " << norms.size() << std::endl;
+
+            const size_t numTris = points.size() / 3;
+            //std::cout << "Triangles: " << numTris << std::endl;
+
+            for (GLuint itri = 0; itri < numTris; ++itri)
+            {
+                elements.push_back(itri);
+            }
+
+            //std::cout << "Elements " << elements.size() << std::endl;
+
+            initBuffers(&elements, &points, &norms, &texcords);
+            computeBoundingSphere(points);
+            _loaded = true;
         }
-
-        //std::cout << "Coords " << points.size() << std::endl;
-        //std::cout << "Normals " << norms.size() << std::endl;
-
-        const size_t numTris = points.size() / 3;
-        //std::cout << "Triangles: " << numTris << std::endl;
-
-        for (GLuint itri = 0; itri < numTris; ++itri)
-        {
-            elements.push_back(itri);
-        }
-
-        //std::cout << "Elements " << elements.size() << std::endl;
     }
     catch (std::exception &e)
     {
         std::cout << e.what() << std::endl;
     }
+}
 
-    initBuffers(&elements, &points, &norms, &texcords);
-    computeBoundingSphere(points);
+bool STLMesh::loaded() const
+{
+    return _loaded;
 }
