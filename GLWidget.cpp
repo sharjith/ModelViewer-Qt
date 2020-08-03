@@ -1227,8 +1227,8 @@ void GLWidget::wheelEvent(QWheelEvent *e)
 
     if (_viewRange < 0.05)
         _viewRange = 0.05f;
-    if (_viewRange > 50000.0)
-        _viewRange = 50000.0f;
+    if (_viewRange > 500000.0)
+        _viewRange = 500000.0f;
     _currentViewRange = _viewRange;
 
     resizeGL(width(), height());
