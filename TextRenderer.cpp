@@ -129,9 +129,9 @@ void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
     if(hAlignment == HAlignment::HLEFT)
         hoffset = 0;
     else if(hAlignment == HAlignment::HRIGHT)
-        hoffset = _width - (text.length()*this->_characters['H'].Size.x);
+        hoffset = static_cast<GLuint>(_width - (text.length()*this->_characters['H'].Size.x));
     else
-        hoffset = _width/2 - (text.length()*this->_characters['H'].Size.x)/2;
+        hoffset = static_cast<GLuint>(_width/2 - (text.length()*this->_characters['H'].Size.x)/2);
 
     // Iterate through all characters
     std::string::const_iterator c;
