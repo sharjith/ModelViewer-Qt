@@ -138,14 +138,15 @@ void ModelViewer::on_checkTexture_toggled(bool checked)
 void ModelViewer::on_textureButton_clicked()
 {
     QImage buf;
-    QString str = QFileDialog::getOpenFileName(
+    QString fileName = QFileDialog::getOpenFileName(
         this,
         "Choose an image for texture",
         _lastOpenedDir,
         "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
-    if (str != "")
+    _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+    if (fileName != "")
     {
-        if (!buf.load(str))
+        if (!buf.load(fileName))
         { // Load first image from file
             qWarning("Could not read image file, using single-color instead.");
             QImage dummy(128, 128, (QImage::Format)5);
