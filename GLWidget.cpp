@@ -591,7 +591,8 @@ TriangleMesh *GLWidget::loadSTLMesh(QString fileName)
 {
     makeCurrent();
     STLMesh *mesh = new STLMesh(_fgShader, fileName);
-    addToDisplay(mesh);
+    if(mesh)
+        addToDisplay(mesh);
     return mesh;
 }
 
