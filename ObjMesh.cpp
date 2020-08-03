@@ -45,43 +45,50 @@ void ObjMesh::render()
 
 std::unique_ptr<ObjMesh> ObjMesh::load(QOpenGLShaderProgram *prog, const char *fileName, bool center, bool genTangents)
 {
+    try
+    {
+        std::unique_ptr<ObjMesh> mesh(new ObjMesh(prog));
 
-    std::unique_ptr<ObjMesh> mesh(new ObjMesh(prog));
+        ObjMeshData meshData;
+        meshData.load(fileName, mesh->bbox);
 
-    ObjMeshData meshData;
-    meshData.load(fileName, mesh->bbox);
+        // Generate normals
+        meshData.generateNormalsIfNeeded();
 
-    // Generate normals
-    meshData.generateNormalsIfNeeded();
+        // Generate tangents?
+        if (genTangents)
+            meshData.generateTangents();
 
-    // Generate tangents?
-    if (genTangents)
-        meshData.generateTangents();
+        // Convert to GL format
+        GlMeshData glMesh;
+        meshData.toGlMesh(glMesh);
 
-    // Convert to GL format
-    GlMeshData glMesh;
-    meshData.toGlMesh(glMesh);
+        if (center)
+            glMesh.center(mesh->bbox);
 
-    if (center)
-        glMesh.center(mesh->bbox);
+        // Load into VAO
+        mesh->initBuffers(
+            &(glMesh.faces), &glMesh.points, &glMesh.normals,
+            glMesh.texCoords.empty() ? nullptr : (&glMesh.texCoords),
+            glMesh.tangents.empty() ? nullptr : (&glMesh.tangents));
 
-    // Load into VAO
-    mesh->initBuffers(
-        &(glMesh.faces), &glMesh.points, &glMesh.normals,
-        glMesh.texCoords.empty() ? nullptr : (&glMesh.texCoords),
-        glMesh.tangents.empty() ? nullptr : (&glMesh.tangents));
+        /*
+        cout << "Loaded mesh from: " << fileName
+             << " vertices = " << (glMesh.points.size() / 3)
+             << " triangles = " << (glMesh.faces.size() / 3) << endl;
+             */
 
-    /*
-    cout << "Loaded mesh from: " << fileName
-         << " vertices = " << (glMesh.points.size() / 3)
-         << " triangles = " << (glMesh.faces.size() / 3) << endl;
-         */
-
-    QFileInfo fi(fileName);
-    QString fName = fi.baseName();
-    mesh->setName(fName);
-    mesh->computeBoundingSphere(glMesh.points);
-    return mesh;
+        QFileInfo fi(fileName);
+        QString fName = fi.baseName();
+        mesh->setName(fName);
+        mesh->computeBoundingSphere(glMesh.points);
+        return mesh;
+    }
+    catch (...)
+    {
+        std::cout << "Exception raised in ObjMesh::load" << std::endl;
+        return nullptr;
+    }
 }
 
 std::unique_ptr<ObjMesh> ObjMesh::loadWithAdjacency(QOpenGLShaderProgram *prog, const char *fileName, bool center)
@@ -317,51 +324,59 @@ void ObjMesh::ObjMeshData::generateTangents()
 
 void ObjMesh::ObjMeshData::toGlMesh(GlMeshData &data)
 {
-    data.clear();
-
-    std::map<std::string, GLuint> vertexMap;
-    for (auto &vert : faces)
+    try
     {
-        auto vertStr = vert.str();
-        auto it = vertexMap.find(vertStr);
-        if (it == vertexMap.end())
+        data.clear();
+
+        std::map<std::string, GLuint> vertexMap;
+        for (auto& vert : faces)
         {
-            auto vIdx = data.points.size() / 3;
-
-            auto &pt = points[vert.pIdx];
-            data.points.push_back(pt.x);
-            data.points.push_back(pt.y);
-            data.points.push_back(pt.z);
-
-            auto &n = normals[vert.nIdx];
-            data.normals.push_back(n.x);
-            data.normals.push_back(n.y);
-            data.normals.push_back(n.z);
-
-            if (!texCoords.empty())
+            auto vertStr = vert.str();
+            auto it = vertexMap.find(vertStr);
+            if (it == vertexMap.end())
             {
-                auto &tc = texCoords[vert.tcIdx];
-                data.texCoords.push_back(tc.x);
-                data.texCoords.push_back(tc.y);
-            }
+                auto vIdx = data.points.size() / 3;
 
-            if (!tangents.empty())
+                auto& pt = points.at(vert.pIdx);
+                data.points.push_back(pt.x);
+                data.points.push_back(pt.y);
+                data.points.push_back(pt.z);
+
+                auto& n = normals.at(vert.nIdx);
+                data.normals.push_back(n.x);
+                data.normals.push_back(n.y);
+                data.normals.push_back(n.z);
+
+                if (!texCoords.empty())
+                {
+                    auto& tc = texCoords.at(vert.tcIdx);
+                    data.texCoords.push_back(tc.x);
+                    data.texCoords.push_back(tc.y);
+                }
+
+                if (!tangents.empty())
+                {
+                    // We use the point index for tangents
+                    auto& tang = tangents.at(vert.pIdx);
+                    data.tangents.push_back(tang.x);
+                    data.tangents.push_back(tang.y);
+                    data.tangents.push_back(tang.z);
+                    data.tangents.push_back(tang.w);
+                }
+
+                data.faces.push_back((GLuint)vIdx);
+                vertexMap[vertStr] = (GLuint)vIdx;
+            }
+            else
             {
-                // We use the point index for tangents
-                auto &tang = tangents[vert.pIdx];
-                data.tangents.push_back(tang.x);
-                data.tangents.push_back(tang.y);
-                data.tangents.push_back(tang.z);
-                data.tangents.push_back(tang.w);
+                data.faces.push_back(it->second);
             }
-
-            data.faces.push_back((GLuint)vIdx);
-            vertexMap[vertStr] = (GLuint)vIdx;
         }
-        else
-        {
-            data.faces.push_back(it->second);
-        }
+    }
+    catch (std::out_of_range outOfRange)
+    {
+        std::cout << "Exception raised in ObjMeshData::toGlMesh\n" << outOfRange.what() << std::endl;
+        throw(outOfRange);
     }
 }
 
