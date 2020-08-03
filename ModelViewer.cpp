@@ -1516,6 +1516,10 @@ void ModelViewer::on_toolButtonOpen_clicked()
         MeshProperties props(mesh);
         std::cout << "Mesh Volume = " << props.volume() << "\nSurface Area = " << props.surfaceArea() << std::endl;
     }
+    else
+    {
+        QMessageBox::critical(this, "Error", "Model load unsuccessful!");
+    }
 }
 
 void ModelViewer::setMaterialProps(const GLMaterialProps &mat)
