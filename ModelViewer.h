@@ -118,6 +118,8 @@ private slots:
     void on_listWidgetModel_itemClicked(QListWidgetItem *);
 
 
+    void on_checkBoxSelectAll_toggled(bool checked);
+
 protected:
 	void showEvent(QShowEvent *event);
 
