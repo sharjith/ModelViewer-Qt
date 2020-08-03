@@ -1500,7 +1500,17 @@ void ModelViewer::on_toolButtonOpen_clicked()
     {
         QFileInfo fi(fileName);
         if (fi.suffix().toLower() == "stl")
+        {
             mesh = _glWidget->loadSTLMesh(fileName);
+            if (mesh)
+            {
+                if (!static_cast<STLMesh*>(mesh)->loaded())
+                {
+                    delete mesh;
+                    mesh = nullptr;
+                }
+            }
+        }
         if (fi.suffix().toLower() == "obj")
             mesh = _glWidget->loadOBJMesh(fileName);
         _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
