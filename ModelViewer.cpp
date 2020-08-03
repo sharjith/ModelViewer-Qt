@@ -1625,3 +1625,16 @@ void ModelViewer::on_toolButtonFaceNormal_clicked(bool checked)
     _glWidget->update();
 }
 
+
+void ModelViewer::on_checkBoxSelectAll_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        for (int i = 0; i < listWidgetModel->count(); i++)
+        {
+            QListWidgetItem* item = listWidgetModel->item(i);
+            item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+        }
+        on_listWidgetModel_itemClicked(nullptr);
+    }
+}
