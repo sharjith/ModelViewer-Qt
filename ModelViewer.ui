@@ -1078,7 +1078,7 @@
               </sizepolicy>
              </property>
              <attribute name="label">
-              <string>Visualization</string>
+              <string>Visualization Properties</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_4">
               <item row="0" column="0">
