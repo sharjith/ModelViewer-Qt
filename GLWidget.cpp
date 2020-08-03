@@ -336,30 +336,40 @@ void GLWidget::setProjection(ViewProjection proj)
 
 void GLWidget::setDisplayList(const std::vector<int> &ids)
 {
+    _displayedObjectsIds = ids;
+    _currentTranslation = _camera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
 
     if (_meshStore.size() == 0)
     {
         _boundingSphere.setRadius(1.0);
+        _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
+        _viewRange = _viewBoundingSphereDia;
         return;
     }
-    else
-        _boundingSphere.setRadius(0.0);
-
-    _displayedObjectsIds = ids;
-
-    for (int i : _displayedObjectsIds)
+    else if (ids.size() == 0)
     {
-        try
+        _boundingSphere.setRadius(10.0);    
+        _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
+        _viewRange = _viewBoundingSphereDia;
+    }
+    else
+    {
+        _boundingSphere.setRadius(0.0);       
+
+        for (int i : _displayedObjectsIds)
         {
-            _boundingSphere.addSphere(_meshStore.at(i)->getBoundingSphere());
-        }
-        catch (std::out_of_range &ex)
-        {
-            std::cout << ex.what() << std::endl;
+            try
+            {
+                _boundingSphere.addSphere(_meshStore.at(i)->getBoundingSphere());
+            }
+            catch (std::out_of_range& ex)
+            {
+                std::cout << ex.what() << std::endl;
+            }
         }
     }
-    _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
+    
     fitAll();
     //qDebug() << "Bounding Sphere Dia " << _viewBoundingSphereDia;
     update();
