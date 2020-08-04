@@ -19,11 +19,13 @@ LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib
 
 CONFIG += c++17
 
+win32{
 CONFIG(release, debug|release) {
  CONFIG -= console
 }
 CONFIG(debug, debug|release) {
   CONFIG += console
+}
 }
 
 
