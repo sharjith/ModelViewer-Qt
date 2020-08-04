@@ -1429,7 +1429,8 @@ void ModelViewer::deleteItem()
     if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
     {
         // If multiple selection is on, we need to erase all selected items
-        for (QListWidgetItem *i : listWidgetModel->selectedItems())
+        QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+        for (QListWidgetItem *i : selectedItems)
         {
             int rowId = listWidgetModel->row(i);
 
@@ -1482,7 +1483,7 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
     */
 }
 
-void ModelViewer::on_listWidgetModel_itemClicked(QListWidgetItem* item)
+void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 {    
     if (listWidgetModel->count())
     {
@@ -1659,6 +1660,6 @@ void ModelViewer::on_checkBoxSelectAll_toggled(bool checked)
             QListWidgetItem* item = listWidgetModel->item(i);
             item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         }
-        on_listWidgetModel_itemClicked(nullptr);
+        on_listWidgetModel_itemChanged(nullptr);
     }
 }
