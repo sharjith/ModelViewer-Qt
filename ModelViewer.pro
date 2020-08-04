@@ -3,7 +3,7 @@
 ######################################################################
 
 TEMPLATE = app
-TARGET = MatlEditor_OpenGL-4.0
+TARGET = ModelViewer
 INCLUDEPATH += .
 
 unix {
