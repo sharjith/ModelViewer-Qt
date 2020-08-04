@@ -97,8 +97,6 @@ private slots:
 	void showPropertiesPage();
 	void showTransformationsPage();
 
-	void on_listWidgetModel_itemSelectionChanged();
-
 	void on_doubleSpinBoxDX_valueChanged(double);
 	void on_doubleSpinBoxDY_valueChanged(double);
 	void on_doubleSpinBoxDZ_valueChanged(double);

@@ -1458,32 +1458,7 @@ void ModelViewer::showTransformationsPage()
     toolBox->setCurrentIndex(2);
 }
 
-void ModelViewer::on_listWidgetModel_itemSelectionChanged()
-{
-    /*
-    if (listWidgetModel->count())
-    {
-        std::vector<int> ids;
-        /*for (QListWidgetItem *i : listWidgetModel->selectedItems())
-        {
-            int rowId = listWidgetModel->row(i);
-            ids.push_back(rowId);
-        }*//*
-        for (int i = 0; i < listWidgetModel->count(); i++)
-        {
-            QListWidgetItem* item = listWidgetModel->item(i);
-            if(item->checkState() == Qt::Checked)
-            {
-                int rowId = listWidgetModel->row(item);
-                ids.push_back(rowId);
-            }
-        }
-        _glWidget->setDisplayList(ids);
-    }
-    */
-}
-
-void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
+void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
 {    
     if (listWidgetModel->count())
     {
