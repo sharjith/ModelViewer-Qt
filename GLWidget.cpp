@@ -747,119 +747,128 @@ void GLWidget::resizeGL(int width, int height)
 
 void GLWidget::paintGL()
 {
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	try
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
-                       0.925f, 0.913f, 0.847f, 1.0f);
+		gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
+			0.925f, 0.913f, 0.847f, 1.0f);
 
-    /*gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
-                       0.8515625f, 0.8515625f, 0.8515625f, 1.0f);*/
+		/*gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
+						   0.8515625f, 0.8515625f, 0.8515625f, 1.0f);*/
 
-    glViewport(0, 0, width(), height());
+		glViewport(0, 0, width(), height());
 
-    _modelMatrix.setToIdentity();
-    if (_bMultiView)
-    {
-        // Top View
-        _projectionMatrix.setToIdentity();
-        _viewMatrix.setToIdentity();
-        _modelMatrix.setToIdentity();
-        glViewport(0, height() / 2, width() / 2, height() / 2);
-        _camera->setScreenSize(width() / 2, height() / 2);
-        glViewport(0, 0, width() / 2, height() / 2);
-        _camera->setView(GLCamera::ViewProjection::TOP_VIEW);
-        _projectionMatrix = _camera->getProjectionMatrix();
-        _viewMatrix = _camera->getViewMatrix();
-        render();
-        _textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+		_modelMatrix.setToIdentity();
+		if (_bMultiView)
+		{
+			// Top View
+			_projectionMatrix.setToIdentity();
+			_viewMatrix.setToIdentity();
+			_modelMatrix.setToIdentity();
+			glViewport(0, height() / 2, width() / 2, height() / 2);
+			_camera->setScreenSize(width() / 2, height() / 2);
+			glViewport(0, 0, width() / 2, height() / 2);
+			_camera->setView(GLCamera::ViewProjection::TOP_VIEW);
+			_projectionMatrix = _camera->getProjectionMatrix();
+			_viewMatrix = _camera->getViewMatrix();
+			render();
+			_textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-        // Front View
-        _projectionMatrix.setToIdentity();
-        _viewMatrix.setToIdentity();
-        _modelMatrix.setToIdentity();
-        glViewport(0, height() / 2, width() / 2, height() / 2);
-        _camera->setView(GLCamera::ViewProjection::FRONT_VIEW);
-        _projectionMatrix = _camera->getProjectionMatrix();
-        _viewMatrix = _camera->getViewMatrix();
-        render();
-        _textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+			// Front View
+			_projectionMatrix.setToIdentity();
+			_viewMatrix.setToIdentity();
+			_modelMatrix.setToIdentity();
+			glViewport(0, height() / 2, width() / 2, height() / 2);
+			_camera->setView(GLCamera::ViewProjection::FRONT_VIEW);
+			_projectionMatrix = _camera->getProjectionMatrix();
+			_viewMatrix = _camera->getViewMatrix();
+			render();
+			_textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-        // Left View
-        _projectionMatrix.setToIdentity();
-        _viewMatrix.setToIdentity();
-        _modelMatrix.setToIdentity();
-        glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
-        _camera->setView(GLCamera::ViewProjection::LEFT_VIEW);
-        _projectionMatrix = _camera->getProjectionMatrix();
-        _viewMatrix = _camera->getViewMatrix();
-        render();
-        _textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+			// Left View
+			_projectionMatrix.setToIdentity();
+			_viewMatrix.setToIdentity();
+			_modelMatrix.setToIdentity();
+			glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
+			_camera->setView(GLCamera::ViewProjection::LEFT_VIEW);
+			_projectionMatrix = _camera->getProjectionMatrix();
+			_viewMatrix = _camera->getViewMatrix();
+			render();
+			_textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-        // Isometric View
-        _projectionMatrix.setToIdentity();
-        _viewMatrix.setToIdentity();
-        _modelMatrix.setToIdentity();
-        glViewport(width() / 2, 0, width() / 2, height() / 2);
-        _camera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
-        _projectionMatrix = _camera->getProjectionMatrix();
-        _viewMatrix = _camera->getViewMatrix();
-        render();
-        _textRenderer->RenderText("Isometric", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+			// Isometric View
+			_projectionMatrix.setToIdentity();
+			_viewMatrix.setToIdentity();
+			_modelMatrix.setToIdentity();
+			glViewport(width() / 2, 0, width() / 2, height() / 2);
+			_camera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
+			_projectionMatrix = _camera->getProjectionMatrix();
+			_viewMatrix = _camera->getViewMatrix();
+			render();
+			_textRenderer->RenderText("Isometric", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-        // draw screen partitioning lines
-        splitScreen();
-    }
-    else
-    {
-        QMatrix4x4 projection;
-        projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
-        _textShader.bind();
-        _textShader.setUniformValue("projection", projection);
-        _textShader.release();
+			// draw screen partitioning lines
+			splitScreen();
+		}
+		else
+		{
+			QMatrix4x4 projection;
+			projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
+			_textShader.bind();
+			_textShader.setUniformValue("projection", projection);
+			_textShader.release();
 
-        render();
-    }
+			render();
+		}
 
-    // Text rendering
-    if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
-    {
-        int num = _displayedObjectsIds[0];
-        _textRenderer->RenderText(_meshStore.at(num)->getName().toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
-    }
+		// Text rendering
+		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
+		{
 
-    if (_meshStore.size() && _displayedObjectsIds.size() != 0)
-    {
-        int num = _displayedObjectsIds[0];
-        // Display Harmonics Editor
-        if (dynamic_cast<SphericalHarmonic *>(_meshStore.at(num)))
-            _sphericalHarmonicsEditor->show();
-        else
-            _sphericalHarmonicsEditor->hide();
+			int num = _displayedObjectsIds.at(0);
+			_textRenderer->RenderText(_meshStore.at(num)->getName().toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
 
-        // Display Gray's Klein Editor
-        if (dynamic_cast<GraysKlein *>(_meshStore.at(num)))
-            _graysKleinEditor->show();
-        else
-            _graysKleinEditor->hide();
+		}
 
-        // Display Super Toroid Editor
-        if (dynamic_cast<SuperToroid *>(_meshStore.at(num)))
-            _superToroidEditor->show();
-        else
-            _superToroidEditor->hide();
+		if (_meshStore.size() && _displayedObjectsIds.size() != 0)
+		{
+			int num = _displayedObjectsIds[0];
+			// Display Harmonics Editor
+			if (dynamic_cast<SphericalHarmonic*>(_meshStore.at(num)))
+				_sphericalHarmonicsEditor->show();
+			else
+				_sphericalHarmonicsEditor->hide();
 
-        // Display Super Ellipsoid Editor
-        if (dynamic_cast<SuperEllipsoid *>(_meshStore.at(num)))
-            _superEllipsoidEditor->show();
-        else
-            _superEllipsoidEditor->hide();
+			// Display Gray's Klein Editor
+			if (dynamic_cast<GraysKlein*>(_meshStore.at(num)))
+				_graysKleinEditor->show();
+			else
+				_graysKleinEditor->hide();
 
-        // Display Spring Editor
-        if (dynamic_cast<Spring *>(_meshStore.at(num)))
-            _springEditor->show();
-        else
-            _springEditor->hide();
-    }
+			// Display Super Toroid Editor
+			if (dynamic_cast<SuperToroid*>(_meshStore.at(num)))
+				_superToroidEditor->show();
+			else
+				_superToroidEditor->hide();
+
+			// Display Super Ellipsoid Editor
+			if (dynamic_cast<SuperEllipsoid*>(_meshStore.at(num)))
+				_superEllipsoidEditor->show();
+			else
+				_superEllipsoidEditor->hide();
+
+			// Display Spring Editor
+			if (dynamic_cast<Spring*>(_meshStore.at(num)))
+				_springEditor->show();
+			else
+				_springEditor->hide();
+		}
+	}
+	catch (const std::exception& ex)
+	{
+		std::cout << "Exception raised in GLWidget::paintGL\n" << ex.what() << std::endl;
+	}
 }
 
 void GLWidget::drawAxis()
@@ -1030,9 +1039,19 @@ void GLWidget::drawMesh()
     {
         for (int i : _displayedObjectsIds)
         {
-            TriangleMesh* mesh = _meshStore.at(i);
-            mesh->setProg(_fgShader);
-            mesh->render();
+            try
+            {
+                TriangleMesh* mesh = _meshStore.at(i);
+                if (mesh)
+                {
+                    mesh->setProg(_fgShader);
+                    mesh->render();
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                std::cout << "Exception raised in GLWidget::drawMesh\n" << ex.what() << std::endl;
+            }
         }
     }
 }
