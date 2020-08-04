@@ -373,7 +373,7 @@ void ObjMesh::ObjMeshData::toGlMesh(GlMeshData &data)
             }
         }
     }
-    catch (std::out_of_range outOfRange)
+    catch (std::out_of_range& outOfRange)
     {
         std::cout << "Exception raised in ObjMeshData::toGlMesh\n" << outOfRange.what() << std::endl;
         throw(outOfRange);
