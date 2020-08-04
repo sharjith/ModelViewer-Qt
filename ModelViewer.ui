@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1304</width>
+    <width>1323</width>
     <height>584</height>
    </rect>
   </property>
@@ -1038,18 +1038,25 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>432</height>
+               <width>326</width>
+               <height>444</height>
               </rect>
              </property>
              <attribute name="label">
               <string>Display List</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_15">
-              <item row="0" column="0">
+              <item row="1" column="0">
                <widget class="QListWidget" name="listWidgetModel">
                 <property name="selectionMode">
                  <enum>QAbstractItemView::ExtendedSelection</enum>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="0">
+               <widget class="QCheckBox" name="checkBoxSelectAll">
+                <property name="text">
+                 <string>Select/Deselect All</string>
                 </property>
                </widget>
               </item>
@@ -1060,8 +1067,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>315</width>
-               <height>766</height>
+               <width>312</width>
+               <height>728</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1071,7 +1078,7 @@
               </sizepolicy>
              </property>
              <attribute name="label">
-              <string>Visualization</string>
+              <string>Visualization Properties</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_4">
               <item row="0" column="0">
@@ -2399,8 +2406,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>315</width>
-               <height>441</height>
+               <width>326</width>
+               <height>444</height>
               </rect>
              </property>
              <property name="sizePolicy">

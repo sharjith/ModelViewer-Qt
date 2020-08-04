@@ -1414,7 +1414,9 @@ void ModelViewer::showContextMenu(const QPoint &pos)
         QPoint globalPos = listWidgetModel->mapToGlobal(pos);
 
         // Create menu and insert some actions
-        QMenu myMenu;
+        QMenu myMenu;        
+        myMenu.addAction("Visualization Properties", this, SLOT(showPropertiesPage()));
+        myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
         myMenu.addAction("Delete", this, SLOT(deleteItem()));
 
         // Show context menu at handling position
@@ -1427,7 +1429,8 @@ void ModelViewer::deleteItem()
     if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
     {
         // If multiple selection is on, we need to erase all selected items
-        for (QListWidgetItem *i : listWidgetModel->selectedItems())
+        QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+        for (QListWidgetItem *i : selectedItems)
         {
             int rowId = listWidgetModel->row(i);
 
@@ -1445,8 +1448,19 @@ void ModelViewer::deleteItem()
     }
 }
 
+void ModelViewer::showPropertiesPage()
+{
+    toolBox->setCurrentIndex(1);
+}
+
+void ModelViewer::showTransformationsPage()
+{
+    toolBox->setCurrentIndex(2);
+}
+
 void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 {
+    /*
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -1454,7 +1468,7 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
         {
             int rowId = listWidgetModel->row(i);
             ids.push_back(rowId);
-        }*/
+        }*//*
         for (int i = 0; i < listWidgetModel->count(); i++)
         {
             QListWidgetItem* item = listWidgetModel->item(i);
@@ -1466,17 +1480,18 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
         }
         _glWidget->setDisplayList(ids);
     }
+    */
 }
 
-void ModelViewer::on_listWidgetModel_itemClicked(QListWidgetItem* /*item*/)
-{
+void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
+{    
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
         for (int i = 0; i < listWidgetModel->count(); i++)
         {
             QListWidgetItem* item = listWidgetModel->item(i);
-            if(item->checkState() == Qt::Checked)
+            if (item->checkState() == Qt::Checked)
             {
                 int rowId = listWidgetModel->row(item);
                 ids.push_back(rowId);
@@ -1500,7 +1515,17 @@ void ModelViewer::on_toolButtonOpen_clicked()
     {
         QFileInfo fi(fileName);
         if (fi.suffix().toLower() == "stl")
+        {
             mesh = _glWidget->loadSTLMesh(fileName);
+            if (mesh)
+            {
+                if (!static_cast<STLMesh*>(mesh)->loaded())
+                {
+                    delete mesh;
+                    mesh = nullptr;
+                }
+            }
+        }
         if (fi.suffix().toLower() == "obj")
             mesh = _glWidget->loadOBJMesh(fileName);
         _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
@@ -1625,3 +1650,16 @@ void ModelViewer::on_toolButtonFaceNormal_clicked(bool checked)
     _glWidget->update();
 }
 
+
+void ModelViewer::on_checkBoxSelectAll_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        for (int i = 0; i < listWidgetModel->count(); i++)
+        {
+            QListWidgetItem* item = listWidgetModel->item(i);
+            item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+        }
+        on_listWidgetModel_itemChanged(nullptr);
+    }
+}

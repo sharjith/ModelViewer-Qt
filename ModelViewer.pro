@@ -3,7 +3,7 @@
 ######################################################################
 
 TEMPLATE = app
-TARGET = MatlEditor_OpenGL-4.0
+TARGET = ModelViewer
 INCLUDEPATH += .
 
 unix {
@@ -18,6 +18,15 @@ LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib
 }
 
 CONFIG += c++17
+
+CONFIG(release, debug|release) {
+ CONFIG -= console
+}
+CONFIG(debug, debug|release) {
+  CONFIG += console
+}
+
+
 QT += core gui widgets opengl
 
 win32:RC_ICONS += res\ModelViewer.ico
