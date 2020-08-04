@@ -21,10 +21,10 @@ CONFIG += c++17
 
 win32{
 CONFIG(release, debug|release) {
- CONFIG -= console
+CONFIG -= console
 }
 CONFIG(debug, debug|release) {
-  CONFIG += console
+CONFIG += console
 }
 }
 
