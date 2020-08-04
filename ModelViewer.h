@@ -117,7 +117,7 @@ private slots:
 
     void on_toolButtonFaceNormal_clicked(bool checked);
 
-    void on_listWidgetModel_itemClicked(QListWidgetItem *);
+    void on_listWidgetModel_itemChanged(QListWidgetItem *);
 
 
     void on_checkBoxSelectAll_toggled(bool checked);
