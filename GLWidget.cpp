@@ -573,8 +573,8 @@ void GLWidget::createGeometry()
 #else
     STLMesh *mesh = new STLMesh(_fgShader, QString("/home/sharjith/work/progs/qt/stlviewer/data/Logo.stl"));
 #endif
-
-    _meshStore.push_back(mesh);
+    if(mesh && mesh->loaded())
+        _meshStore.push_back(mesh);
 }
 
 void GLWidget::addToDisplay(TriangleMesh *mesh)
