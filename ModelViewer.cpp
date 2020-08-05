@@ -1430,18 +1430,18 @@ void ModelViewer::deleteItem()
     {
         // If multiple selection is on, we need to erase all selected items
         QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-        for (QListWidgetItem *i : selectedItems)
+        for (QListWidgetItem *item : selectedItems)
         {
-			i->setCheckState(Qt::Unchecked);
-            int rowId = listWidgetModel->row(i);
+            item->setCheckState(Qt::Unchecked);
+            int rowId = listWidgetModel->row(item);
 
             // Remove the displayed object
             _glWidget->removeFromDisplay(rowId);
 
             // Get curent item on selected row
-            QListWidgetItem *item = listWidgetModel->takeItem(rowId);
+            QListWidgetItem *curItem = listWidgetModel->takeItem(rowId);
             // And remove it
-            delete item;
+            delete curItem;
         }        
         if (listWidgetModel->count())
             listWidgetModel->setCurrentRow(0);
@@ -1505,21 +1505,23 @@ void ModelViewer::on_toolButtonOpen_clicked()
         if (fi.suffix().toLower() == "obj")
             mesh = _glWidget->loadOBJMesh(fileName);
         _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-    }
-    if (mesh)
-    {
-        updateDisplayList();
-        //listWidgetModel->addItem(mesh->getName());
-        listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-        listWidgetModel->currentItem()->setCheckState(Qt::Checked);
-        updateDisplayList();
 
-        MeshProperties props(mesh);
-        std::cout << "Mesh Volume = " << props.volume() << "\nSurface Area = " << props.surfaceArea() << std::endl;
-    }
-    else
-    {
-        QMessageBox::critical(this, "Error", "Model load unsuccessful!");
+        if (mesh)
+        {
+            updateDisplayList();
+
+            listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+            listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+
+            updateDisplayList();
+
+            MeshProperties props(mesh);
+            std::cout << "Mesh Volume = " << props.volume() << "\nSurface Area = " << props.surfaceArea() << std::endl;
+        }
+        else
+        {
+            QMessageBox::critical(this, "Error", "Model load unsuccessful!");
+        }
     }
 }
 
