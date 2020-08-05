@@ -569,7 +569,7 @@ void GLWidget::createGeometry()
     _upperLayout->addWidget(_sphericalHarmonicsEditor);
 
 #ifdef WIN32
-    STLMesh *mesh = new STLMesh(_fgShader, QString("D:/work/progs/qt5/ModelViewer/data/Logo.stl"));
+    STLMesh *mesh = new STLMesh(_fgShader, QString("D:/work/progs/qt5/ModelViewer-1.0/data/Logo.stl"));
 #else
     STLMesh *mesh = new STLMesh(_fgShader, QString("/home/sharjith/work/progs/qt/stlviewer/data/Logo.stl"));
 #endif
@@ -586,7 +586,7 @@ void GLWidget::removeFromDisplay(int index)
 {
     TriangleMesh *mesh = _meshStore[index];
     _meshStore.erase(_meshStore.begin() + index);
-
+    
     int j = 0;
     for (int i : _displayedObjectsIds)
     {
