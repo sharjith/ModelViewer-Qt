@@ -1432,6 +1432,7 @@ void ModelViewer::deleteItem()
         QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
         for (QListWidgetItem *i : selectedItems)
         {
+			i->setCheckState(Qt::Unchecked);
             int rowId = listWidgetModel->row(i);
 
             // Remove the displayed object
@@ -1441,7 +1442,7 @@ void ModelViewer::deleteItem()
             QListWidgetItem *item = listWidgetModel->takeItem(rowId);
             // And remove it
             delete item;
-        }
+        }        
         if (listWidgetModel->count())
             listWidgetModel->setCurrentRow(0);
         _glWidget->update();
