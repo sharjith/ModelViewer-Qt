@@ -345,17 +345,21 @@ void GLWidget::setDisplayList(const std::vector<int> &ids)
         _boundingSphere.setRadius(1.0);
         _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
         _viewRange = _viewBoundingSphereDia;
+        _currentViewRange = _viewRange;
         return;
     }
     else if (ids.size() == 0)
     {
-        _boundingSphere.setRadius(10.0);    
+        _camera->setPosition(0,0,0);
+        _currentTranslation = _camera->getPosition();
+        _boundingSphere.setRadius(1.0);
         _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
-        _viewRange = _viewBoundingSphereDia;
+        _viewRange = _viewBoundingSphereDia;        
+        _currentViewRange = _viewRange;
     }
     else
     {
-        _boundingSphere.setRadius(0.0);       
+        _boundingSphere.setRadius(0.0);
 
         for (int i : _displayedObjectsIds)
         {
@@ -519,7 +523,7 @@ void GLWidget::createGeometry()
     _meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
     _meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
     _meshStore.push_back(new Figure8KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
-    _meshStore.push_back(new BoySurface(_fgShader, 60.0f, 150.0f, 150.0f));
+    _meshStore.push_back(new BoySurface(_fgShader, 60.0f, 250.0f, 250.0f));
     _meshStore.push_back(new TwistedTriaxial(_fgShader, 110.0f, 150.0f, 150.0f));
     _meshStore.push_back(new SteinerSurface(_fgShader, 150.0f, 150.0f, 150.0f));
     _meshStore.push_back(new AppleSurface(_fgShader, 7.5f, 150.0f, 150.0f));
@@ -1382,28 +1386,26 @@ void GLWidget::setZoomAndPan(GLfloat zoom, QVector3D pan)
 
     if (qFuzzyCompare(_slerpStep, 1.0f))
     {
-        // position the camera for rotation center
-        //QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        //Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-        //QPoint point = geometry().center();
-        //QVector3D p(point.x(), height() - point.y(), Z.z());
-        //QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-        //_camera->setPosition(P.x(), P.y(), P.z());
-
-        // Translation
-        QVector3D curPos = pan * _slerpFrac;
-        _camera->move(curPos.x(), curPos.y(), curPos.z());
-
-        // Set zoom
-        GLfloat scaleStep = (_currentViewRange - zoom) * _slerpFrac;
-        _viewRange -= scaleStep;
-
         // Set all defaults
         _currentTranslation = _camera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
 
+        // position the camera for rotation center
+        /*
+        _viewMatrix = _camera->getViewMatrix();
+        _projectionMatrix = _camera->getProjectionMatrix();
+        QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        QPoint point = geometry().center();
+        QVector3D p(point.x(), height() - point.y(), Z.z());
+        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        _camera->setPosition(P.x(), P.y(), P.z());
+        */
+
+
+        // Stop the animation
         _animateFitAllTimer->stop();
         _animateWindowZoomTimer->stop();
     }
