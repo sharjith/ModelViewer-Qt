@@ -74,6 +74,7 @@ public:
 
     void addToDisplay(TriangleMesh*);
     void removeFromDisplay(int index);
+    void centerScreen(int index);
 
     TriangleMesh* loadSTLMesh(QString fileName);
     TriangleMesh* loadOBJMesh(QString fileName);
@@ -148,6 +149,7 @@ public slots:
     void animateViewChange();
     void animateFitAll();
     void animateWindowZoom();    
+    void animateCenterScreen();
 
 protected:
     void initializeGL();
@@ -263,6 +265,7 @@ private:
 
     std::vector<TriangleMesh*> _meshStore;
     std::vector<int> _displayedObjectsIds;
+    int _centerScreenObjectId;
 
 
     QVBoxLayout* _editorLayout;
@@ -284,6 +287,7 @@ private:
     QTimer* _animateViewTimer;
     QTimer* _animateFitAllTimer;
     QTimer* _animateWindowZoomTimer;
+    QTimer* _animateCenterScreenTimer;
 
     BoundingSphere _boundingSphere;
 

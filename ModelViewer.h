@@ -93,6 +93,7 @@ private slots:
 	void setListRow(int index);
 
 	void showContextMenu(const QPoint &pos);
+    void centerScreen();
 	void deleteItem();
 	void showPropertiesPage();
 	void showTransformationsPage();

@@ -1414,7 +1414,12 @@ void ModelViewer::showContextMenu(const QPoint &pos)
         QPoint globalPos = listWidgetModel->mapToGlobal(pos);
 
         // Create menu and insert some actions
-        QMenu myMenu;        
+        QMenu myMenu;
+
+        QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+        if(selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+            myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
+
         myMenu.addAction("Visualization Properties", this, SLOT(showPropertiesPage()));
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
         myMenu.addAction("Delete", this, SLOT(deleteItem()));
@@ -1422,6 +1427,13 @@ void ModelViewer::showContextMenu(const QPoint &pos)
         // Show context menu at handling position
         myMenu.exec(globalPos);
     }
+}
+
+void ModelViewer::centerScreen()
+{
+    QListWidgetItem* item = listWidgetModel->currentItem();
+    int rowId = listWidgetModel->row(item);
+    _glWidget->centerScreen(rowId);
 }
 
 void ModelViewer::deleteItem()

@@ -153,6 +153,10 @@ GLWidget::GLWidget(QWidget *parent, const char * /*name*/) : QOpenGLWidget(paren
     _animateWindowZoomTimer->setTimerType(Qt::PreciseTimer);
     connect(_animateWindowZoomTimer, SIGNAL(timeout()), this, SLOT(animateWindowZoom()));
 
+    _animateCenterScreenTimer = new QTimer(this);
+    _animateCenterScreenTimer->setTimerType(Qt::PreciseTimer);
+    connect(_animateCenterScreenTimer, SIGNAL(timeout()), this, SLOT(animateCenterScreen()));
+
     _editorLayout = new QVBoxLayout(this);
     _upperLayout = new QFormLayout();
     _upperLayout->setFormAlignment(Qt::AlignTop | Qt::AlignLeft);
@@ -599,6 +603,16 @@ void GLWidget::removeFromDisplay(int index)
         j++;
     }
     delete mesh;
+}
+
+void GLWidget::centerScreen(int index)
+{
+    _centerScreenObjectId = index;
+    if (!_animateCenterScreenTimer->isActive())
+    {
+        _animateCenterScreenTimer->start(5);
+        _slerpStep = 0.0f;
+    }
 }
 
 TriangleMesh *GLWidget::loadSTLMesh(QString fileName)
@@ -1327,6 +1341,17 @@ void GLWidget::animateWindowZoom()
     resizeGL(width(), height());
 }
 
+void GLWidget::animateCenterScreen()
+{
+    TriangleMesh* mesh = _meshStore.at(_centerScreenObjectId);
+    if(mesh)
+    {
+        BoundingSphere sph = mesh->getBoundingSphere();
+        setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
+        resizeGL(width(), height());
+    }
+}
+
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
 {
     _camera->setView(viewPos, viewDir, upDir, rightDir);
@@ -1408,6 +1433,7 @@ void GLWidget::setZoomAndPan(GLfloat zoom, QVector3D pan)
         // Stop the animation
         _animateFitAllTimer->stop();
         _animateWindowZoomTimer->stop();
+        _animateCenterScreenTimer->stop();
     }
 }
 
