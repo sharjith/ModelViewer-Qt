@@ -10,6 +10,7 @@ int main(int argc, char** argv)
     QApplication::setDesktopSettingsAware(true);
 
     QApplication app(argc, argv);
+
 #ifdef WIN32
     //qDebug() << QStyleFactory::keys();
     //app.setStyle(QStyleFactory::create("windows"));
