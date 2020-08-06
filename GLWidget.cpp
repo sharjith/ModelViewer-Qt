@@ -385,6 +385,30 @@ void GLWidget::setDisplayList(const std::vector<int> &ids)
     emit displayListSet();
 }
 
+void GLWidget::updateBoundingSphere()
+{
+    _currentTranslation = _camera->getPosition();
+    _boundingSphere.setCenter(0, 0, 0);
+
+
+    _boundingSphere.setRadius(0.0);
+
+    for (int i : _displayedObjectsIds)
+    {
+        try
+        {
+            _boundingSphere.addSphere(_meshStore.at(i)->getBoundingSphere());
+        }
+        catch (std::out_of_range& ex)
+        {
+            std::cout << ex.what() << std::endl;
+        }
+    }
+
+    fitAll();
+    update();
+}
+
 void GLWidget::showClippingPlaneEditor(bool show)
 {
     if (!_clippingPlanesEditor)
@@ -671,6 +695,7 @@ void GLWidget::setTransformation(const std::vector<int> &ids, const QMatrix4x4 &
             std::cout << "Exception!" << std::endl;
         }
     }
+    updateBoundingSphere();
 }
 
 void GLWidget::initializeGL()

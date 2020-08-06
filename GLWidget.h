@@ -62,6 +62,7 @@ public:
     void endWindowZoom();
 
     void setDisplayList(const std::vector<int>& ids);
+    void updateBoundingSphere();
     int getModelNum() const
     {
         return _modelNum;
