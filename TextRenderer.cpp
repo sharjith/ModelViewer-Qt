@@ -122,9 +122,9 @@ void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
     if(vAlignment == VAlignment::VTOP)
         voffset = 0;
     else if(vAlignment == VAlignment::VBOTTOM)
-        voffset = _fontSize;
+        voffset = _fontSize * scale;
     else
-        voffset = _fontSize/2;
+        voffset = _fontSize/2 * scale;
 
     if(hAlignment == HAlignment::HLEFT)
         hoffset = 0;
