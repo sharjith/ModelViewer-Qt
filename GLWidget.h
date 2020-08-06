@@ -144,6 +144,9 @@ public:
 
 signals:
     void windowZoomEnded();
+    void rotationsSet();
+    void zoomAndPanSet();
+    void viewSet();
     void displayListSet();
 
 public slots:
