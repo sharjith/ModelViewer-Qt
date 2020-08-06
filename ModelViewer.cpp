@@ -1558,7 +1558,7 @@ void ModelViewer::setTransformation()
     {
         std::vector<int> ids;
         QList<QListWidgetItem *> items = listWidgetModel->selectedItems();
-        for (QListWidgetItem *i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+        for (QListWidgetItem *i : items)
         {
             int rowId = listWidgetModel->row(i);
             ids.push_back(rowId);
@@ -1566,9 +1566,6 @@ void ModelViewer::setTransformation()
         QMatrix4x4 mat;
         mat.translate(doubleSpinBoxDX->value(), doubleSpinBoxDY->value(), doubleSpinBoxDZ->value());
         mat.rotate(QQuaternion::fromEulerAngles(doubleSpinBoxRX->value(), doubleSpinBoxRY->value(), doubleSpinBoxRZ->value()));
-        //mat.rotate(doubleSpinBoxRX->value(), QVector3D(1, 0, 0));
-        //mat.rotate(doubleSpinBoxRY->value(), QVector3D(0, 1, 0));
-        //mat.rotate(doubleSpinBoxRZ->value(), QVector3D(0, 0, 1));
         mat.scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
         _glWidget->setTransformation(ids, mat);
     }
