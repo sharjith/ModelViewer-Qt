@@ -866,6 +866,7 @@ void GLWidget::paintGL()
 			_textShader.release();
 
 			render();
+            drawCornerAxis();
 		}
 
 		// Text rendering
@@ -992,6 +993,92 @@ void GLWidget::drawAxis()
 
     _axisVAO.release();
     _axisShader->release();
+}
+
+void GLWidget::drawCornerAxis()
+{
+    glViewport(width()-width()/10, height()-height()/10, width()/10, height()/10);
+    QMatrix4x4 mat = _modelViewMatrix;
+    mat.setColumn(3, QVector4D(0,0,0,1));
+    mat.setRow(3, QVector4D(0,0,0,1));
+
+    GLfloat size = 3.5;
+    // Labels
+    QVector3D xAxis(_viewRange / size, 0, 0);
+    xAxis = xAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
+    _axisTextRenderer->RenderText("X", xAxis.x(), height() - xAxis.y(), 7, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+
+    QVector3D yAxis(0, _viewRange / size, 0);
+    yAxis = yAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
+    _axisTextRenderer->RenderText("Y", yAxis.x(), height() - yAxis.y(), 7, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+
+    QVector3D zAxis(0, 0, _viewRange / size);
+    zAxis = zAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
+    _axisTextRenderer->RenderText("Z", zAxis.x(), height() - zAxis.y(), 7, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+
+    // Axes
+    if (!_axisVAO.isCreated())
+    {
+        _axisVAO.create();
+        _axisVAO.bind();
+    }
+
+    // Vertex Buffer
+    if (!_axisVBO.isCreated())
+    {
+        _axisVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+        _axisVBO.create();
+    }
+    _axisVBO.bind();
+    _axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    std::vector<GLfloat> vertices = {
+        0, 0, 0,
+        _viewRange / size, 0, 0,
+        0, 0, 0,
+        0, _viewRange / size, 0,
+        0, 0, 0,
+        0, 0, _viewRange / size};
+    _axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(GLfloat)));
+
+    // Color Buffer
+    if (!_axisCBO.isCreated())
+    {
+        _axisCBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+        _axisCBO.create();
+    }
+    _axisCBO.bind();
+    _axisCBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    std::vector<GLfloat> colors = {
+        1, 1, 1,
+        1, 1, 1,
+        1, 1, 1,
+        1, 1, 1,
+        1, 1, 1,
+        1, 1, 1};
+    _axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(GLfloat)));
+
+    _axisShader->bind();
+
+    _axisVBO.bind();
+    _axisShader->enableAttributeArray("vertexPosition");
+    _axisShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+    _axisCBO.bind();
+    _axisShader->enableAttributeArray("vertexColor");
+    _axisShader->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
+
+    _axisShader->setUniformValue("modelViewMatrix", mat);
+    _axisShader->setUniformValue("projectionMatrix", _projectionMatrix);
+
+    _axisVAO.bind();
+    glLineWidth(2.0);
+    glDrawArrays(GL_LINES, 0, 6);
+    glLineWidth(1);
+
+    _axisVAO.release();
+    _axisShader->release();
+
+    glViewport(0, 0, width(), height());
 }
 
 void GLWidget::drawVertexNormals()

@@ -113,6 +113,7 @@ public:
     void setZScale(const GLfloat &zScale);
 
     void drawAxis();
+    void drawCornerAxis();
     
     QVector4D getAmbientLight() const;
     void setAmbientLight(const QVector4D &ambientLight);
