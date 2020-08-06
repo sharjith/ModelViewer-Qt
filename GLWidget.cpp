@@ -671,7 +671,6 @@ void GLWidget::setTransformation(const std::vector<int> &ids, const QMatrix4x4 &
             std::cout << "Exception!" << std::endl;
         }
     }
-    setDisplayList(ids);
 }
 
 void GLWidget::initializeGL()
