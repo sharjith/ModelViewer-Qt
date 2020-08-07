@@ -1456,7 +1456,10 @@ void ModelViewer::deleteItem()
             delete curItem;
         }        
         if (listWidgetModel->count())
+        {
             listWidgetModel->setCurrentRow(0);
+            on_listWidgetModel_itemChanged(nullptr);
+        }
         _glWidget->update();
     }
 }
