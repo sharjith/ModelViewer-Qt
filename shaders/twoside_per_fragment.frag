@@ -127,6 +127,6 @@ void main()
 
     if(selected)
     {
-        fragColor = mix(fragColor, vec4(1.0, .64705882352941176470, 0.0, 1.0), 0.5);
+        fragColor = mix(fragColor, vec4(1.0, .65, 0.0, 1.0), 0.5);
     }
 }
