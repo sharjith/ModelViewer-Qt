@@ -11,6 +11,7 @@ uniform bool b_texEnabled;
 uniform sampler2D texUnit;
 uniform bool b_SectionActive;
 uniform int displayMode;
+uniform bool selected;
 
 struct LineInfo
 {
@@ -122,5 +123,10 @@ void main()
             fragColor = mix(v_color * texture2D(texUnit, g_texCoord2d), Line.Color, mixVal);
         else
             fragColor = mix(v_color, Line.Color, mixVal);
+    }
+
+    if(selected)
+    {
+        fragColor = mix(fragColor, vec4(1.0, .64705882352941176470, 0.0, 1.0), 0.5);
     }
 }

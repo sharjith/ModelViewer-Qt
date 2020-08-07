@@ -635,6 +635,24 @@ void GLWidget::centerScreen(int index)
     }
 }
 
+void GLWidget::select(int id)
+{
+    try {
+        _meshStore.at(id)->select();
+    } catch(std::exception& ex) {
+        std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
+    }
+}
+
+void GLWidget::deselect(int id)
+{
+    try {
+        _meshStore.at(id)->deselect();
+    } catch(std::exception& ex) {
+        std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
+    }
+}
+
 TriangleMesh *GLWidget::loadSTLMesh(QString fileName)
 {
     makeCurrent();

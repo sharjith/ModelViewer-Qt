@@ -20,6 +20,15 @@ public:
     }
 
     virtual void render();
+    virtual void select()
+    {
+        _selected = true;
+    }
+    virtual void deselect()
+    {
+        _selected = false;
+    }
+
     virtual BoundingSphere getBoundingSphere() const { return _boundingSphere; }
 
     virtual QOpenGLVertexArrayObject& getVAO();
@@ -111,4 +120,6 @@ protected:
     std::vector<GLfloat> _trsfpoints;
     std::vector<GLfloat> _trsfnormals;
     QMatrix4x4 _transformation;
+
+    bool _selected;
 };

@@ -27,6 +27,7 @@ void QuadMesh::render()
     _prog->setUniformValue("material.shininess", _shininess);
     _prog->setUniformValue("b_texEnabled", _bHasTexture);
     _prog->setUniformValue("f_alpha", _opacity);
+    _prog->setUniformValue("selected", _selected);
 
     _vertexArrayObject.bind();
     glDrawElements(GL_QUADS, _nVerts, GL_UNSIGNED_INT, 0);

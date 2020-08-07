@@ -76,6 +76,8 @@ public:
     void addToDisplay(TriangleMesh*);
     void removeFromDisplay(int index);
     void centerScreen(int index);
+    void select(int id);
+    void deselect(int id);
 
     TriangleMesh* loadSTLMesh(QString fileName);
     TriangleMesh* loadOBJMesh(QString fileName);

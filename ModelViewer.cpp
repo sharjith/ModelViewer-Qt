@@ -1475,22 +1475,37 @@ void ModelViewer::showTransformationsPage()
 }
 
 void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
-{    
+{
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
         for (int i = 0; i < listWidgetModel->count(); i++)
-        {
-            QListWidgetItem* item = listWidgetModel->item(i);
+        {            
+            QListWidgetItem* item = listWidgetModel->item(i);            
             if (item->checkState() == Qt::Checked)
             {
                 int rowId = listWidgetModel->row(item);
                 ids.push_back(rowId);
-            }
+            }            
         }
         _glWidget->setDisplayList(ids);
     }
 }
+
+void ModelViewer::on_listWidgetModel_itemSelectionChanged()
+{
+    for (int i = 0; i < listWidgetModel->count(); i++)
+    {
+        QListWidgetItem* item = listWidgetModel->item(i);
+        int rowId = listWidgetModel->row(item);
+        if(item->isSelected())
+            _glWidget->select(rowId);
+        else
+            _glWidget->deselect(rowId);
+    }
+    _glWidget->update();
+}
+
 
 #include "STLMesh.h"
 #include "MeshProperties.h"
@@ -1653,3 +1668,5 @@ void ModelViewer::on_checkBoxSelectAll_toggled(bool checked)
         on_listWidgetModel_itemChanged(nullptr);
     }
 }
+
+

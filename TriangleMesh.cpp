@@ -2,7 +2,10 @@
 #include <algorithm>
 #include <iostream>
 
-TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Drawable(prog), _name(name), _opacity(1.0f), _bHasTexture(false)
+TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Drawable(prog), _name(name),
+    _opacity(1.0f),
+    _bHasTexture(false),
+    _selected(false)
 {
     _transformation.setToIdentity();
 
@@ -188,6 +191,8 @@ void TriangleMesh::render()
     _prog->setUniformValue("material.shininess", _shininess);
     _prog->setUniformValue("b_texEnabled", _bHasTexture);
     _prog->setUniformValue("f_alpha", _opacity);
+    _prog->setUniformValue("selected", _selected);
+
 
     _vertexArrayObject.bind();
     glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
