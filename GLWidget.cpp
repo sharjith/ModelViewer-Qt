@@ -622,14 +622,6 @@ void GLWidget::removeFromDisplay(int index)
 {
     TriangleMesh *mesh = _meshStore[index];
     _meshStore.erase(_meshStore.begin() + index);
-    
-    int j = 0;
-    for (int i : _displayedObjectsIds)
-    {
-        if (i == index)
-            _displayedObjectsIds.erase(_displayedObjectsIds.begin() + j);
-        j++;
-    }
     delete mesh;
 }
 
