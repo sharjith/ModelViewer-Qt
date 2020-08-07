@@ -1264,8 +1264,7 @@ void GLWidget::render()
 void GLWidget::mousePressEvent(QMouseEvent *e)
 {
     if (e->button() & Qt::LeftButton)
-    {
-        setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
+    {        
         _bLeftButtonDown = true;
         _leftButtonPoint.setX(e->x());
         _leftButtonPoint.setY(e->y());
@@ -1283,16 +1282,14 @@ void GLWidget::mousePressEvent(QMouseEvent *e)
     }
 
     if (e->button() & Qt::RightButton)
-    {
-        setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
+    {        
         _bRightButtonDown = true;
         _rightButtonPoint.setX(e->x());
         _rightButtonPoint.setY(e->y());
     }
 
     if (e->button() & Qt::MiddleButton)
-    {
-        setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
+    {        
         _bMiddleButtonDown = true;
         _middleButtonPoint.setX(e->x());
         _middleButtonPoint.setY(e->y());
@@ -1336,13 +1333,14 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
             setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
         }
         else
-        {
+        {            
             QPoint rotate = _leftButtonPoint - downPoint;
 
             _camera->rotateX(rotate.y() / 2.0);
             _camera->rotateY(rotate.x() / 2.0);
             _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
             _leftButtonPoint = downPoint;
+            setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
         }
     }
 
@@ -1361,6 +1359,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
         _currentTranslation = _camera->getPosition();
 
         _rightButtonPoint = downPoint;
+        setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
     }
 
     if (_bMiddleButtonDown)
@@ -1380,6 +1379,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
         resizeGL(width(), height());
 
         _middleButtonPoint = downPoint;
+        setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
     }
 
     update();
