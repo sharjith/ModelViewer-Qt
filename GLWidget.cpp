@@ -1269,22 +1269,11 @@ void GLWidget::mousePressEvent(QMouseEvent *e)
         _leftButtonPoint.setX(e->x());
         _leftButtonPoint.setY(e->y());
 
-
-        // Selection
-        int id = mouseSelect(QPoint(e->x(), e->y()));
-        if (id != -1)
+        if(!(e->modifiers() & Qt::ControlModifier))
         {
-            if (_meshStore.at(id)->isSelected())
-            {
-                _meshStore.at(id)->deselect();
-            }
-            else
-            {
-                _meshStore.at(id)->select();
-            }
-            update();
+            // Selection
+            mouseSelect(QPoint(e->x(), e->y()));
         }
-
 
         if (_bWindowZoomActive)
         {
@@ -1349,7 +1338,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
             _rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
             setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
         }
-        else
+        else if(e->modifiers() & Qt::ControlModifier)
         {            
             QPoint rotate = _leftButtonPoint - downPoint;
 
@@ -1361,7 +1350,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
         }
     }
 
-    if (_bRightButtonDown)
+    if (_bRightButtonDown && e->modifiers() & Qt::ControlModifier)
     {
         //QPoint translate = downPoint - _rightButtonPoint;
 
@@ -1379,7 +1368,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent *e)
         setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
     }
 
-    if (_bMiddleButtonDown)
+    if (_bMiddleButtonDown && e->modifiers() & Qt::ControlModifier)
     {
         //QPoint zoom = downPoint - _middleButtonPoint;
 
