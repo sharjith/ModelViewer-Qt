@@ -70,6 +70,8 @@ public:
 
     std::vector<GLfloat> getNormals() const;
 
+    bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
+
 protected: // methods
     virtual void initBuffers(
             std::vector<GLuint> * indices,
@@ -82,6 +84,14 @@ protected: // methods
     virtual void deleteBuffers();
 
     void computeBoundingSphere(std::vector<GLfloat> points);
+
+private:
+    bool rayIntersectsTriangle(const QVector3D& rayOrigin,
+                                             const QVector3D& rayVector,
+                                             const QVector3D& vertex0,
+                                             const QVector3D& vertex1,
+                                             const QVector3D& vertex2,
+                                             QVector3D& outIntersectionPoint);
 
 protected:
 

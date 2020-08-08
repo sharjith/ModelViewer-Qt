@@ -458,3 +458,57 @@ QOpenGLVertexArrayObject &TriangleMesh::getVAO()
 {
     return _vertexArrayObject;
 }
+
+bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
+{
+    bool intersects = false;
+    for (size_t i = 0; i < _points.size(); i += 9)
+    {
+        QVector3D v0(_points[i + 0], _points[i + 1], _points[i + 2]);
+        QVector3D v1(_points[i + 3], _points[i + 4], _points[i + 5]);
+        QVector3D v2(_points[i + 6], _points[i + 7], _points[i + 8]);
+
+        intersects = rayIntersectsTriangle(rayPos, rayDir, v0, v1, v2, outIntersectionPoint);
+        if(intersects)
+            break;
+    }
+
+    return intersects;
+}
+
+// Möller–Trumbore intersection algorithm
+bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
+                                         const QVector3D& rayVector,
+                                         const QVector3D& vertex0,
+                                         const QVector3D& vertex1,
+                                         const QVector3D& vertex2,
+                                         QVector3D& outIntersectionPoint)
+{
+    const float EPSILON = 0.0000001;
+    QVector3D edge1, edge2, h, s, q;
+    float a,f,u,v;
+    edge1 = vertex1 - vertex0;
+    edge2 = vertex2 - vertex0;
+    h = QVector3D::crossProduct(rayVector, edge2);
+    a = QVector3D::dotProduct(edge1, h);
+    if (a > -EPSILON && a < EPSILON)
+        return false;    // This ray is parallel to this triangle.
+    f = 1.0/a;
+    s = rayOrigin - vertex0;
+    u = f * QVector3D::dotProduct(s, h);
+    if (u < 0.0 || u > 1.0)
+        return false;
+    q = QVector3D::crossProduct(s, edge1);
+    v = f * QVector3D::dotProduct(rayVector, q);
+    if (v < 0.0 || u + v > 1.0)
+        return false;
+    // At this stage we can compute t to find out where the intersection point is on the line.
+    float t = f * QVector3D::dotProduct(edge2, q);
+    if (t > EPSILON) // ray intersection
+    {
+        outIntersectionPoint = rayOrigin + rayVector * t;
+        return true;
+    }
+    else // This means that there is a line intersection but not a ray intersection.
+        return false;
+}
