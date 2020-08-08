@@ -151,6 +151,7 @@ signals:
     void zoomAndPanSet();
     void viewSet();
     void displayListSet();
+    void objectSelectionChanged(int);
 
 public slots:
     void animateViewChange();

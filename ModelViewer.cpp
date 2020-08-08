@@ -83,6 +83,7 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
     //connect(_glWidget, SIGNAL(displayListSet()), this, SLOT(updateDisplayList()));
 
     QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
+    QObject::connect(_glWidget, SIGNAL(objectSelectionChanged(int)), this, SLOT(setListRow(int)));
 
     listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
@@ -116,7 +117,11 @@ ModelViewer::~ModelViewer()
 
 void ModelViewer::setListRow(int index)
 {
-    listWidgetModel->setCurrentRow(index);
+	if (index != -1)
+	{
+		QListWidgetItem* item = listWidgetModel->item(index);
+		listWidgetModel->setItemSelected(item, item->isSelected());
+	}
 }
 
 void ModelViewer::on_checkTexture_toggled(bool checked)

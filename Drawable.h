@@ -7,10 +7,10 @@
 class Drawable : public IDrawable, public QOpenGLFunctions_4_5_Core
 {
 public:
-	Drawable(QOpenGLShaderProgram* prog) : _prog(prog)
-	{		
-		initializeOpenGLFunctions();
-	}
+    Drawable(QOpenGLShaderProgram* prog) : _prog(prog), _selected(false)
+    {
+        initializeOpenGLFunctions();
+    }
 
     QOpenGLShaderProgram *prog() const
     {
@@ -22,8 +22,14 @@ public:
         _prog = prog;
     }
 
+    bool isSelected() const
+    {
+        return _selected;
+    }
+
 protected:
     QOpenGLShaderProgram* _prog;
-};
 
+    bool _selected;
+};
 

@@ -1272,6 +1272,18 @@ void GLWidget::mousePressEvent(QMouseEvent *e)
 
         // Selection
         int id = mouseSelect(QPoint(e->x(), e->y()));
+        if (id != -1)
+        {
+            if (_meshStore.at(id)->isSelected())
+            {
+                _meshStore.at(id)->deselect();
+            }
+            else
+            {
+                _meshStore.at(id)->select();
+            }
+            update();
+        }
 
 
         if (_bWindowZoomActive)
@@ -1487,12 +1499,12 @@ void GLWidget::convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D
     QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
     Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
 
-    QVector3D p(pixel.x(), height() - pixel.y(), Z.z());
+    QVector3D p(pixel.x(), height() - pixel.y(), 0.0f);
     QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
 
     orig = QVector3D(P.x(), P.y(), P.z());
     QVector3D viewDir = _camera->getViewDir();
-    dir = viewDir - orig;
+    dir = viewDir;
 }
 
 
@@ -1512,12 +1524,13 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         bool intersects = _meshStore.at(i)->intersectsWithRay(rayPos, rayDir, intPoint);
         if(intersects)
         {
-            id = i;
-            std::cout << "Selected id: " << id << std::endl;
+            id = i;            
             break;
         }
     }
 
+    std::cout << "Selected id: " << id << std::endl;
+    emit objectSelectionChanged(id);
     return id;
 }
 

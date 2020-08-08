@@ -70,7 +70,7 @@ public:
 
     std::vector<GLfloat> getNormals() const;
 
-    bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
+    virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 protected: // methods
     virtual void initBuffers(
@@ -85,7 +85,6 @@ protected: // methods
 
     void computeBoundingSphere(std::vector<GLfloat> points);
 
-private:
     bool rayIntersectsTriangle(const QVector3D& rayOrigin,
                                              const QVector3D& rayVector,
                                              const QVector3D& vertex0,
@@ -131,5 +130,4 @@ protected:
     std::vector<GLfloat> _trsfnormals;
     QMatrix4x4 _transformation;
 
-    bool _selected;
 };
