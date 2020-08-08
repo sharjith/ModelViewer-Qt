@@ -805,7 +805,7 @@ void GLWidget::paintGL()
 {
 	try
 	{
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
 			0.925f, 0.913f, 0.847f, 1.0f);
@@ -1269,6 +1269,11 @@ void GLWidget::mousePressEvent(QMouseEvent *e)
         _leftButtonPoint.setX(e->x());
         _leftButtonPoint.setY(e->y());
 
+
+        // Selection
+        int id = mouseSelect(QPoint(e->x(), e->y()));
+
+
         if (_bWindowZoomActive)
         {
             if (!_rubberBand)
@@ -1475,6 +1480,45 @@ void GLWidget::animateCenterScreen()
         setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
         resizeGL(width(), height());
     }
+}
+
+void GLWidget::convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D& dir)
+{
+    QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+    Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+
+    QVector3D p(pixel.x(), height() - pixel.y(), Z.z());
+    QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+
+    orig = QVector3D(P.x(), P.y(), P.z());
+    QVector3D viewDir = _camera->getViewDir();
+    dir = viewDir - orig;
+}
+
+
+int GLWidget::mouseSelect(const QPoint& pixel)
+{
+    int id = -1;
+
+    if(!_displayedObjectsIds.size())
+        return id;
+
+    QVector3D rayPos, rayDir;
+    convertClickToRay(pixel, rayPos, rayDir);
+
+    for(int i : _displayedObjectsIds)
+    {
+        QVector3D intPoint;
+        bool intersects = _meshStore.at(i)->intersectsWithRay(rayPos, rayDir, intPoint);
+        if(intersects)
+        {
+            id = i;
+            std::cout << "Selected id: " << id << std::endl;
+            break;
+        }
+    }
+
+    return id;
 }
 
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)

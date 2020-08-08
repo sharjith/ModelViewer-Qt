@@ -307,6 +307,9 @@ private:
     void setZoomAndPan(GLfloat zoom, QVector3D pan);
     void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 
+    void convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D& dir);
+    int mouseSelect(const QPoint& pixel);
+
     void gradientBackground(float top_r, float top_g, float top_b, float top_a,
                             float bot_r, float bot_g, float bot_b, float bot_a);
 
