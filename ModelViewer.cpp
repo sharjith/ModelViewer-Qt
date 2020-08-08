@@ -122,6 +122,13 @@ void ModelViewer::setListRow(int index)
 		QListWidgetItem* item = listWidgetModel->item(index);
         listWidgetModel->setItemSelected(item, !item->isSelected());
 	}
+    else
+    {
+        for (QListWidgetItem* item : listWidgetModel->selectedItems())
+        {
+            listWidgetModel->setItemSelected(item, false);
+        }
+    }
 }
 
 void ModelViewer::on_checkTexture_toggled(bool checked)
