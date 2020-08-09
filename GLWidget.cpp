@@ -1479,7 +1479,7 @@ void GLWidget::convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D
 	QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
 	Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
 
-	QVector3D p(pixel.x(), height() - pixel.y(), 0.0f);
+	QVector3D p(pixel.x(), height() - pixel.y(), -1.0f);
 	QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
 
 	orig = QVector3D(P.x(), P.y(), P.z());
@@ -1496,11 +1496,11 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 		return id;
 
 	QVector3D rayPos, rayDir;
+	QVector3D intPoint;
 	convertClickToRay(pixel, rayPos, rayDir);
 
 	for (int i : _displayedObjectsIds)
-	{
-		QVector3D intPoint;
+	{		
 		bool intersects = _meshStore.at(i)->intersectsWithRay(rayPos, rayDir, intPoint);
 		if (intersects)
 		{
@@ -1509,7 +1509,11 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 		}
 	}
 
-	std::cout << "Selected id: " << id << std::endl;
+	/*qDebug() << "RayPos :" << rayPos;
+	qDebug() << "RayDir :" << rayDir;
+	qDebug() << "Inter Point: " << intPoint;
+	std::cout << "Selected id: " << id << std::endl;*/
+
 	emit objectSelectionChanged(id);
 	return id;
 }
