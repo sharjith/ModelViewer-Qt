@@ -64,10 +64,10 @@ glm::vec3 ParametricSurface::normalAtParameter(const float& u, const float& v)
 	return normal;
 }
 
-void ParametricSurface::buildMesh(GLuint nSlices, GLuint nStacks)
+void ParametricSurface::buildMesh()
 {
-	int nVerts = ((nSlices + 1) * (nStacks + 1));
-	int elements = ((nSlices * (nStacks)) * 4);
+	int nVerts = ((_slices + 1) * (_stacks + 1));
+	int elements = ((_slices * (_stacks)) * 4);
 
 	// Verts
 	std::vector<GLfloat> p(3 * nVerts);
@@ -80,17 +80,17 @@ void ParametricSurface::buildMesh(GLuint nSlices, GLuint nStacks)
 
 	// Generate positions and normals
 	GLfloat u = firstUParameter(), v = firstVParameter();
-	GLfloat uFac = abs(lastUParameter() - firstUParameter()) / nSlices;
-	GLfloat vFac = abs(lastVParameter() - firstVParameter() ) / nStacks;
+	GLfloat uFac = abs(lastUParameter() - firstUParameter()) / _slices;
+	GLfloat vFac = abs(lastVParameter() - firstVParameter() ) / _stacks;
 	GLfloat s, t;
 	GLuint idx = 0, tIdx = 0;
-	for (GLuint i = 0; i <= nSlices; i++)
+	for (GLuint i = 0; i <= _slices; i++)
 	{
 		v = firstVParameter();
-		s = (GLfloat)i / nSlices;
-		for (GLuint j = 0; j <= nStacks; j++)
+		s = (GLfloat)i / _slices;
+		for (GLuint j = 0; j <= _stacks; j++)
 		{
-			t = (GLfloat)j / nStacks;
+			t = (GLfloat)j / _stacks;
 			Point pt = pointAtParameter(u, v);
 			p[idx] = pt.getX(); p[idx + 1] = pt.getY(); p[idx + 2] = pt.getZ();
 			glm::vec3 normal = normalAtParameter(u, v);
@@ -109,33 +109,58 @@ void ParametricSurface::buildMesh(GLuint nSlices, GLuint nStacks)
 	// Generate the element list
 	// Body
 	idx = 0;
-	for (GLuint i = 0; i < nSlices; i++)
+	for (GLuint i = 0; i < _slices; i++)
 	{
-		GLuint stackStart = i * (nStacks + 1);
-		GLuint nextStackStart = (i + 1) * (nStacks + 1);
-		for (GLuint j = 0; j < nStacks; j++)
+		GLuint stackStart = i * (_stacks + 1);
+		GLuint nextStackStart = (i + 1) * (_stacks + 1);
+		for (GLuint j = 0; j < _stacks; j++)
 		{
-			// For triangle mesh
-			/*el[idx + 0] = stackStart + j;
-			el[idx + 1] = stackStart + j + 1;
-			el[idx + 2] = nextStackStart + j + 1;
-			el[idx + 3] = nextStackStart + j;
-			el[idx + 4] = stackStart + j;
-			el[idx + 5] = nextStackStart + j + 1;
-			idx += 6;*/
-
 			// For quad mesh
 			el[idx + 0] = stackStart + j;
 			el[idx + 1] = stackStart + j + 1;
 			el[idx + 2] = nextStackStart + j + 1;
-			el[idx + 3] = nextStackStart + j; 			
-			//el[idx + 4] = stackStart + j;
-			//el[idx + 5] = nextStackStart + j + 1;
+			el[idx + 3] = nextStackStart + j; 		
+			
 			idx += 4;
 		}
 	}
 
 	initBuffers(&el, &p, &n, &tex);
 	computeBoundingSphere(p);
+}
+
+bool ParametricSurface::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
+{
+	bool intersects = false;
+	
+	GLuint idx = 0;
+	for (GLuint i = 0; i < _slices; i++)
+	{
+		GLuint stackStart = i * (_stacks + 1);
+		GLuint nextStackStart = (i + 1) * (_stacks + 1);
+		for (GLuint j = 0; j < _stacks; j++)
+		{
+			QVector3D v0(_trsfpoints[stackStart + j + 0], _trsfpoints[stackStart + j + 1], _trsfpoints[stackStart + j + 2]);
+			QVector3D v1(_trsfpoints[stackStart + j + 1 + 3], _trsfpoints[stackStart + j + 1 + 4], _trsfpoints[stackStart + j + 1 + 5]);
+			QVector3D v2(_trsfpoints[nextStackStart + j + 1 + 6], _trsfpoints[nextStackStart + j + 1 + 7], _trsfpoints[nextStackStart + j + 1 + 8]);
+
+			intersects = rayIntersectsTriangle(rayPos, rayDir, v0, v1, v2, outIntersectionPoint);
+			if (intersects)
+				break;
+
+			QVector3D v3(_trsfpoints[stackStart + j + 0], _trsfpoints[stackStart + j + 1], _trsfpoints[stackStart + j + 2]);
+			QVector3D v4(_trsfpoints[stackStart + j + 1 + 3], _trsfpoints[stackStart + j + 1 + 4], _trsfpoints[stackStart + j + 1 + 5]);
+			QVector3D v5(_trsfpoints[nextStackStart + j + 9], _trsfpoints[nextStackStart + j + 10], _trsfpoints[nextStackStart + j + 11]);
+
+			intersects = rayIntersectsTriangle(rayPos, rayDir, v3, v4, v5, outIntersectionPoint);
+			if (intersects)
+				break;
+			
+			
+			idx += 4;
+		}
+	}
+
+	return intersects;
 }
 
