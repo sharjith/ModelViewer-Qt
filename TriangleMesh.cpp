@@ -53,6 +53,7 @@ void TriangleMesh::initBuffers(
     if (indices == nullptr || points == nullptr || normals == nullptr)
         return;
 
+    _indices = *indices;
     _points = *points;
     _trsfpoints = _points;
     _normals = *normals;

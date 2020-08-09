@@ -124,6 +124,7 @@ protected:
     GLuint _texture;
     GLboolean _bHasTexture;
 
+    std::vector<GLuint> _indices;
     std::vector<GLfloat> _points;
     std::vector<GLfloat> _normals;
     std::vector<GLfloat> _trsfpoints;
