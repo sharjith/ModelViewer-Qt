@@ -11,7 +11,7 @@ SaddleTorus::SaddleTorus(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSli
 	_radius(radius)
 {
 	_name = "Saddle Torus";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

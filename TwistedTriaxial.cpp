@@ -11,7 +11,7 @@ TwistedTriaxial::TwistedTriaxial(QOpenGLShaderProgram* prog, GLfloat radius, GLu
 	_radius(radius)
 {
 	_name = "Twisted Triaxial";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

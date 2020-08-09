@@ -14,7 +14,7 @@ GraysKlein::GraysKlein(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlice
     _radius(radius)
 {
 	_name = "Gray's Klein Bottle";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

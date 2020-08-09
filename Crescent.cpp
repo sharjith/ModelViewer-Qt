@@ -11,7 +11,7 @@ Crescent::Crescent(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, G
 	_radius(radius)
 {
 	_name = "Crescent";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

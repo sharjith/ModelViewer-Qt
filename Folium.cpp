@@ -11,7 +11,7 @@ Folium::Folium(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuin
 	_radius(radius)
 {
 	_name = "Folium";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

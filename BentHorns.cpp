@@ -11,7 +11,7 @@ BentHorns::BentHorns(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices,
 	_radius(radius)
 {
 	_name = "Bent Horns";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

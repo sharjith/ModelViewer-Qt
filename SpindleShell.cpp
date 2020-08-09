@@ -11,7 +11,7 @@ SpindleShell::SpindleShell(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nS
 	_radius(radius)
 {
 	_name = "Spindle Sea Shell";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

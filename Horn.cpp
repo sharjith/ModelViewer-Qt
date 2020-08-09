@@ -11,7 +11,7 @@ Horn::Horn(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nS
 	_radius(radius)
 {
 	_name = "Horn";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

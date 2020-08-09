@@ -11,7 +11,7 @@ TurretShell::TurretShell(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSli
 	_radius(radius)
 {
 	_name = "Turret Shell";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

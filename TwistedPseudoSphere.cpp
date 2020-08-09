@@ -12,7 +12,7 @@ TwistedPseudoSphere::TwistedPseudoSphere(QOpenGLShaderProgram* prog, GLfloat rad
 	_radius(radius)
 {
 	_name = "Twisted Pseudo Sphere";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

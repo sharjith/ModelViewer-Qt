@@ -11,7 +11,7 @@ BoySurface::BoySurface(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlice
 	_radius(radius)
 {
 	_name = "Boy's Surface";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

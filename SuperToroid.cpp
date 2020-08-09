@@ -14,7 +14,7 @@ SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloa
 	_n2(n2)
 {
 	_name = "Super Toroid";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

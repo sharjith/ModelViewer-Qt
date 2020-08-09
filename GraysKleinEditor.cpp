@@ -23,20 +23,20 @@ GraysKleinEditor::~GraysKleinEditor()
 void GraysKleinEditor::on_doubleSpinBoxA_valueChanged(double val)
 {
 	_graysKlein->_A = val;
-	_graysKlein->buildMesh(_graysKlein->getSlices(), _graysKlein->getStacks());
+	_graysKlein->buildMesh();
 	dynamic_cast<GLWidget*>(parent())->update();
 }
 
 void GraysKleinEditor::on_doubleSpinBoxM_valueChanged(double val)
 {
 	_graysKlein->_M = val;
-	_graysKlein->buildMesh(_graysKlein->getSlices(), _graysKlein->getStacks());
+	_graysKlein->buildMesh();
 	dynamic_cast<GLWidget*>(parent())->update();
 }
 
 void GraysKleinEditor::on_doubleSpinBoxN_valueChanged(double val)
 {
 	_graysKlein->_N = val;
-	_graysKlein->buildMesh(_graysKlein->getSlices(), _graysKlein->getStacks());
+	_graysKlein->buildMesh();
 	dynamic_cast<GLWidget*>(parent())->update();
 }

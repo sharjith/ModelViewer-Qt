@@ -11,7 +11,7 @@ KleinBottle::KleinBottle(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSli
 	_radius(radius)
 {
 	_name = "Klein Bottle";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

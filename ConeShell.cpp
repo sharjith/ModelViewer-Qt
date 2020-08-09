@@ -11,7 +11,7 @@ ConeShell::ConeShell(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices,
 	_radius(radius)
 {
 	_name = "Cone Sea Shell";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

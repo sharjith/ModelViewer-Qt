@@ -11,7 +11,7 @@ AppleSurface::AppleSurface(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nS
 	_radius(radius)
 {
 	_name = "Apple Surface";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

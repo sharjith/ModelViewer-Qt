@@ -11,7 +11,7 @@ LimpetTorus::LimpetTorus(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSli
 	_radius(radius)
 {
 	_name = "Limpet Torus";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

@@ -9,7 +9,7 @@ BowTie::BowTie(QOpenGLShaderProgram *prog, GLfloat radius, GLuint nSlices, GLuin
 																							 _radius(radius)
 {
 	_name = "Bow Tie";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 BowTie::~BowTie()

@@ -11,7 +11,7 @@ SteinerSurface::SteinerSurface(QOpenGLShaderProgram* prog, GLfloat radius, GLuin
 	_radius(radius)
 {
 	_name = "Steiner Surface";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

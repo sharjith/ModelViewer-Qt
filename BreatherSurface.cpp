@@ -11,7 +11,7 @@ BreatherSurface::BreatherSurface(QOpenGLShaderProgram* prog, GLfloat radius, GLu
 	_radius(radius)
 {
 	_name = "Breather Surface";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

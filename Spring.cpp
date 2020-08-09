@@ -14,7 +14,7 @@ Spring::Spring(QOpenGLShaderProgram* prog, GLfloat sectionRadius, GLfloat coilRa
 	_turns(turns)
 {
 	_name = "Spring";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

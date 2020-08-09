@@ -11,7 +11,7 @@ WrinkledPeriwinkle::WrinkledPeriwinkle(QOpenGLShaderProgram* prog, GLfloat radiu
 	_radius(radius)
 {
 	_name = "Wrinkled Periwinkle";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

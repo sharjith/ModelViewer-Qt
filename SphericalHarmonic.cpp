@@ -21,7 +21,7 @@ SphericalHarmonic::SphericalHarmonic(QOpenGLShaderProgram* prog, GLfloat radius,
 	_power3 = 3.0f;
 	_power4 = 4.0f;
 
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

@@ -11,7 +11,7 @@ Figure8KleinBottle::Figure8KleinBottle(QOpenGLShaderProgram* prog, GLfloat radiu
 	_radius(radius)
 {
 	_name = "Figure 8 Klein Bottle";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 

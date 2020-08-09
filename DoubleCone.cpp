@@ -11,7 +11,7 @@ DoubleCone::DoubleCone(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlice
 	_radius(radius)
 {
 	_name = "Double Cone";
-	buildMesh(nSlices, nStacks);
+	buildMesh();
 }
 
 
