@@ -781,11 +781,8 @@ void GLWidget::initializeGL()
 	createGeometry();
 
     loadEnvMap();
-    glActiveTexture(GL_TEXTURE1);
+    glActiveTexture(GL_TEXTURE31);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
-    {
-        _fgShader->setUniformValue("envMap", 1);
-    }
 
 	_textShader.bind();
 	_textRenderer = new TextRenderer(&_textShader, width(), height());
@@ -801,6 +798,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.position", _lightPosition);
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+    _fgShader->setUniformValue("envMap", 31);
 	_fgShader->release();
 
 	_viewMatrix.setToIdentity();
