@@ -118,8 +118,10 @@ _clippingPlanesEditor(nullptr)
 	_clipYFlipped = false;
 	_clipZFlipped = false;
 
-	_showVertexNormals = false;
+    _showVertexNormals = false;
 	_showFaceNormals = false;
+
+    _envMapEnabled = true;
 
 	_clipXCoeff = 0.0f;
 	_clipYCoeff = 0.0f;
@@ -613,6 +615,43 @@ void GLWidget::createGeometry()
 		_meshStore.push_back(mesh);
 }
 
+void GLWidget::loadEnvMap()
+{
+    vector<QString> faces
+    {
+        QString("textures/envmap/lposx.png"),
+        QString("textures/envmap/lnegx.png"),
+        QString("textures/envmap/lposy.png"),
+        QString("textures/envmap/lnegy.png"),
+        QString("textures/envmap/lposz.png"),
+        QString("textures/envmap/lnegz.png")
+    };
+
+    glGenTextures(1, &_envTexture);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
+
+    for (unsigned int i = 0; i < faces.size(); i++)
+    {
+        if (!_texBuffer.load(faces.at(i)))
+        { // Load first image from file
+            qWarning("Could not read image file, using single-color instead.");
+            QImage dummy(128, 128, static_cast<QImage::Format>(5));
+            dummy.fill(Qt::white);
+            _texBuffer = dummy;
+        }
+        else
+        {
+            _texImage = QGLWidget::convertToGLFormat(_texBuffer).mirrored(); // flipped 32bit RGBA
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+        }
+    }
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+}
+
 void GLWidget::addToDisplay(TriangleMesh* mesh)
 {
 	_meshStore.push_back(mesh);
@@ -738,8 +777,15 @@ void GLWidget::initializeGL()
 
 	makeCurrent();
 
-	createShaderPrograms();
+    createShaderPrograms();
 	createGeometry();
+
+    loadEnvMap();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
+    {
+        _fgShader->setUniformValue("envMap", 0);
+    }
 
 	_textShader.bind();
 	_textRenderer = new TextRenderer(&_textShader, width(), height());
@@ -1160,11 +1206,11 @@ void GLWidget::drawMesh()
 
 	if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
-		_fgShader->setUniformValue("b_SectionActive", true);
+        _fgShader->setUniformValue("sectionActive", true);
 	}
 	else
 	{
-		_fgShader->setUniformValue("b_SectionActive", false);
+        _fgShader->setUniformValue("sectionActive", false);
 	}
 
 	_fgShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
@@ -1175,7 +1221,6 @@ void GLWidget::drawMesh()
 		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
 	_fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-
 
 	// Render
 	if (_meshStore.size() != 0)
@@ -1188,6 +1233,7 @@ void GLWidget::drawMesh()
 				if (mesh)
 				{
 					mesh->setProg(_fgShader);
+                    glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
 					mesh->render();
 				}
 			}
@@ -1228,6 +1274,9 @@ void GLWidget::render()
 	_fgShader->setUniformValue("Line.Width", 0.75f);
 	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _fgShader->setUniformValue("cameraPos", _camera->getPosition());
+    _fgShader->setUniformValue("modelMatrix", _modelMatrix);
 
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);

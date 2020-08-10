@@ -229,6 +229,8 @@ private:
     bool _showVertexNormals;
     bool _showFaceNormals;
 
+    bool _envMapEnabled;
+
     GLfloat _xTran;
     GLfloat _yTran;
     GLfloat _zTran;
@@ -258,7 +260,7 @@ private:
 
     QOpenGLShaderProgram     _textShader;
 
-    GLuint                   _texture;
+    GLuint                   _envTexture;
 
     QOpenGLShaderProgram     _bgShader;
     QOpenGLVertexArrayObject _bgVAO;
@@ -303,6 +305,7 @@ private:
 
     void createShaderPrograms();
     void createGeometry();
+    void loadEnvMap();
 
     void setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot);
     void setZoomAndPan(GLfloat zoom, QVector3D pan);
