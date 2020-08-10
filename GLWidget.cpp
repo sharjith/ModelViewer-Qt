@@ -781,10 +781,10 @@ void GLWidget::initializeGL()
 	createGeometry();
 
     loadEnvMap();
-    glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
     {
-        _fgShader->setUniformValue("envMap", 0);
+        _fgShader->setUniformValue("envMap", 1);
     }
 
 	_textShader.bind();
