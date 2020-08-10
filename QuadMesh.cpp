@@ -25,8 +25,8 @@ void QuadMesh::render()
     _prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
     _prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
     _prog->setUniformValue("material.shininess", _shininess);
-    _prog->setUniformValue("b_texEnabled", _bHasTexture);
-    _prog->setUniformValue("f_alpha", _opacity);
+    _prog->setUniformValue("texEnabled", _bHasTexture);
+    _prog->setUniformValue("alpha", _opacity);
     _prog->setUniformValue("selected", _selected);
 
     _vertexArrayObject.bind();
