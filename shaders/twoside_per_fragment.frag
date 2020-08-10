@@ -133,7 +133,7 @@ void main()
     {
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, normalize(g_normal));
-        fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0), material.shininess/256);
+        fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
     }
 
     if(selected)
