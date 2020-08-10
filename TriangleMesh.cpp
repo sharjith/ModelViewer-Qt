@@ -27,6 +27,7 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
     _specularMaterial = {0.37890625f, 0.390625f, 0.3359375f, 1.0f};
     _shininess = fabs(128.0f * 0.2f);
 
+    /*
     if (!_texBuffer.load("textures/opengllogo.png"))
     { // Load first image from file
         qWarning("Could not read image file, using single-color instead.");
@@ -40,6 +41,7 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    */
 }
 
 void TriangleMesh::initBuffers(
@@ -175,6 +177,7 @@ void TriangleMesh::render()
     if (!_vertexArrayObject.isCreated())
         return;
 
+    /*
     glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -182,6 +185,7 @@ void TriangleMesh::render()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    */
 
     _prog->bind();
     _prog->setUniformValue("texUnit", 0);
@@ -190,8 +194,8 @@ void TriangleMesh::render()
     _prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
     _prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
     _prog->setUniformValue("material.shininess", _shininess);
-    _prog->setUniformValue("b_texEnabled", _bHasTexture);
-    _prog->setUniformValue("f_alpha", _opacity);
+    _prog->setUniformValue("texEnabled", _bHasTexture);
+    _prog->setUniformValue("alpha", _opacity);
     _prog->setUniformValue("selected", _selected);
 
 
