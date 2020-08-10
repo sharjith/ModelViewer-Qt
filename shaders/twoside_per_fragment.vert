@@ -4,6 +4,7 @@ layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexNormal;
 in vec2 texCoord2d;
 
+uniform mat4 modelMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat3 normalMatrix;
 uniform mat4 projectionMatrix;

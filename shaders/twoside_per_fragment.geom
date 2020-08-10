@@ -27,7 +27,7 @@ out float g_clipDistZ;
 out float g_clipDist;
 
 void main()
-{
+{    
     if(displayMode == 0 || displayMode == 1)
     {
 	for(int i=0; i<gl_in.length(); i++)

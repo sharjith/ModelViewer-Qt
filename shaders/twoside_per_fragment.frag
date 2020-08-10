@@ -5,11 +5,15 @@ in vec3 g_normal;
 in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 
+
 vec4 v_color;
-uniform float f_alpha;
-uniform bool b_texEnabled;
+uniform float alpha;
+uniform bool texEnabled;
 uniform sampler2D texUnit;
-uniform bool b_SectionActive;
+uniform samplerCube envMap;
+uniform bool envMapEnabled;
+uniform vec3 cameraPos;
+uniform bool sectionActive;
 uniform int displayMode;
 uniform bool selected;
 
@@ -72,8 +76,8 @@ void main()
     vec4 v_color_back;
 
 
-    v_color_front = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal), f_alpha);
-    v_color_back  = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal), f_alpha);
+    v_color_front = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal), alpha);
+    v_color_back  = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal), alpha);
 
 
     if( gl_FrontFacing )
@@ -82,7 +86,7 @@ void main()
     }
     else
     {
-        if(b_SectionActive)
+        if(sectionActive)
             v_color = v_color_back + 0.15;
         else
             v_color = v_color_back;
@@ -90,7 +94,7 @@ void main()
 
     if(displayMode == 0) // shaded
     {
-        if(b_texEnabled == true)
+        if(texEnabled == true)
             fragColor = v_color * texture2D(texUnit, g_texCoord2d);
         else
             fragColor = v_color;
@@ -119,10 +123,17 @@ void main()
             mixVal = exp2(-2.0 * (x*x));
         }
 
-        if(b_texEnabled == true)
+        if(texEnabled == true)
             fragColor = mix(v_color * texture2D(texUnit, g_texCoord2d), Line.Color, mixVal);
         else
             fragColor = mix(v_color, Line.Color, mixVal);
+    }
+
+    if(envMapEnabled)
+    {
+        vec3 I = normalize(g_position - cameraPos);
+        vec3 R = reflect(I, normalize(g_normal));
+        fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0), material.shininess/256);
     }
 
     if(selected)
