@@ -4,8 +4,8 @@ in vec3 vertexPosition;
 in vec3 vertexNormal;
 in vec2 texCoord2d;
 
-uniform float f_alpha;
-out float alpha;
+uniform float alpha;
+out float f_alpha;
 
 uniform mat4 modelViewMatrix;
 uniform mat3 normalMatrix;
@@ -73,7 +73,7 @@ void main()
 
 	v_texCoord2d = texCoord2d;
 
-	alpha = f_alpha;
+        f_alpha = alpha;
 	gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1);
 	
 	gl_ClipDistance[0] = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));

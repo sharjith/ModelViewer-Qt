@@ -5,10 +5,10 @@ in vec3 v_normal;
 in vec2 v_texCoord2d;
 
 vec4 v_color;
-uniform float f_alpha;
-uniform bool b_texEnabled;
+uniform float alpha;
+uniform bool texEnabled;
 uniform sampler2D texUnit;
-uniform bool b_SectionActive;
+uniform bool sectionActive;
 uniform bool b_wireframe;
 
 
@@ -79,15 +79,15 @@ void main()
     // Mix the surface color with the line color
     if(b_wireframe == true)
     {
-        v_color_front = vec4(shadeBlinnPhong(GPosition, GNormal), f_alpha);
-        v_color_back = vec4(shadeBlinnPhong(GPosition, -GNormal), f_alpha);
+        v_color_front = vec4(shadeBlinnPhong(GPosition, GNormal), alpha);
+        v_color_back = vec4(shadeBlinnPhong(GPosition, -GNormal), alpha);
         v_color_front = mix( Line.Color, v_color_front, mixVal);
         v_color_back = mix( Line.Color, v_color_back, mixVal);
     }
     else
     {
-        v_color_front =vec4( shadeBlinnPhong(v_position, v_normal), f_alpha);
-        v_color_back = vec4(shadeBlinnPhong(v_position, -v_normal), f_alpha);
+        v_color_front =vec4( shadeBlinnPhong(v_position, v_normal), alpha);
+        v_color_back = vec4(shadeBlinnPhong(v_position, -v_normal), alpha);
     }
 
     if( gl_FrontFacing )
@@ -96,13 +96,13 @@ void main()
     }
     else
     {
-        if(b_SectionActive)
+        if(sectionActive)
             v_color = v_color_back + 0.15;
         else
             v_color = v_color_back;
     }
 
-    if(b_texEnabled == true)
+    if(texEnabled= true)
         fragColor = v_color * texture2D(texUnit, v_texCoord2d);
     else
         fragColor = v_color;
