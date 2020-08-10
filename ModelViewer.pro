@@ -180,7 +180,7 @@ SpringEditor.cpp
 RESOURCES += \
 ModelViewer.qrc
 
-OTHER_FILES += \
+DISTFILES += \
 shaders/background.frag   shaders/twoside_per_fragment.frag \
 shaders/blinn-phong.frag  shaders/twoside_per_vertex.frag \
 shaders/splitScreen.frag  shaders/wireframe.frag \
@@ -190,9 +190,7 @@ shaders/background.vert   shaders/twoside_per_fragment.vert \
 shaders/twoside_per_fragment.geom \
 shaders/blinn-phong.vert  shaders/twoside_per_vertex.vert \
 shaders/splitScreen.vert  shaders/wireframe.vert \
-shaders/text.vert
-
-DISTFILES += \
+shaders/text.vert \
 shaders/face_normal.frag \
 shaders/face_normal.geom \
 shaders/face_normal.vert \
