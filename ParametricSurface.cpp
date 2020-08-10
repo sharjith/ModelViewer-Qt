@@ -133,8 +133,8 @@ bool ParametricSurface::intersectsWithRay(const QVector3D& rayPos, const QVector
 {
 	bool intersects = false;
 
-    int offset = _stacks * 3;
-    for(size_t i = 0; i < _trsfpoints.size(); i++)
+    int offset = (_stacks + 1) * 3;
+    for(size_t i = 0; i < _trsfpoints.size()-offset-3; i++)
     {
         QVector3D v0(_trsfpoints[i + 0], _trsfpoints[i + 1], _trsfpoints[i + 2]);
         QVector3D v1(_trsfpoints[i + 3], _trsfpoints[i + 4], _trsfpoints[i + 5]);
