@@ -1332,7 +1332,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	QPoint downPoint(e->x(), e->y());
 	if (_bLeftButtonDown)
 	{
-		_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
+		if (e->modifiers() == Qt::NoModifier)
+		{
+			_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
+		}
 		if (_bWindowZoomActive)
 		{
 			setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
