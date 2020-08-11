@@ -57,5 +57,6 @@
         <file>res/showVertexNormal.png</file>
         <file>res/hideFaceNormal.png</file>
         <file>res/hideVertexNormal.png</file>
+        <file>res/realshaded.png</file>
     </qresource>
 </RCC>
