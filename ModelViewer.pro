@@ -181,19 +181,24 @@ RESOURCES += \
 ModelViewer.qrc
 
 DISTFILES += \
-shaders/background.frag   shaders/twoside_per_fragment.frag \
-shaders/blinn-phong.frag  shaders/twoside_per_vertex.frag \
-shaders/splitScreen.frag  shaders/wireframe.frag \
-shaders/axis.vert shaders/axis.frag \
-shaders/text.frag \
-shaders/background.vert   shaders/twoside_per_fragment.vert \
-shaders/twoside_per_fragment.geom \
-shaders/blinn-phong.vert  shaders/twoside_per_vertex.vert \
-shaders/splitScreen.vert  shaders/wireframe.vert \
+shaders/background.frag \
+shaders/background.vert \
+shaders/splitScreen.frag \
+shaders/splitScreen.vert \
 shaders/text.vert \
-shaders/face_normal.frag \
-shaders/face_normal.geom \
+shaders/text.frag \
+shaders/axis.vert \
+shaders/axis.frag \
 shaders/face_normal.vert \
-shaders/vertex_normal.frag \
+shaders/face_normal.geom \
+shaders/face_normal.frag \
+shaders/vertex_normal.vert \
 shaders/vertex_normal.geom \
-shaders/vertex_normal.vert
+shaders/vertex_normal.frag \
+shaders/twoside_per_fragment.vert \
+shaders/twoside_per_fragment.geom \
+shaders/twoside_per_fragment.frag \
+shaders/blinn-phong.vert shaders/blinn-phong.frag \
+
+
+
