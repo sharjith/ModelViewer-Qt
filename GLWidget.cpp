@@ -51,6 +51,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "Plane.h"
+
 using glm::mat4;
 using glm::vec3;
 
@@ -383,6 +385,12 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 			}
 		}
 	}
+
+    if(_floorPlane)
+    {
+        float psize = _boundingSphere.getRadius();
+        _floorPlane->setPlane(_fgShader, psize*5, psize*5, 10, 10, -psize-10);
+    }
 
 	fitAll();
 	//qDebug() << "Bounding Sphere Dia " << _viewBoundingSphereDia;
@@ -780,6 +788,9 @@ void GLWidget::initializeGL()
     createShaderPrograms();
 	createGeometry();
 
+    float psize = _boundingSphere.getRadius();
+    _floorPlane= new Plane(_fgShader, psize*100, psize*100, 10, 10, -psize);
+
     loadEnvMap();
     glActiveTexture(GL_TEXTURE31);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
@@ -853,11 +864,11 @@ void GLWidget::paintGL()
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
-			0.925f, 0.913f, 0.847f, 1.0f);
+        gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
+            0.925f, 0.913f, 0.847f, 1.0f);
 
-		/*gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
-						   0.8515625f, 0.8515625f, 0.8515625f, 1.0f);*/
+        /*gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
+                           0.8515625f, 0.8515625f, 0.8515625f, 1.0f);*/
 
 		glViewport(0, 0, width(), height());
 
@@ -1137,6 +1148,19 @@ void GLWidget::drawCornerAxis()
 	glViewport(0, 0, width(), height());
 }
 
+void GLWidget::drawFloor()
+{
+    glEnable(GL_DEPTH_TEST);
+    _fgShader->bind();
+    _fgShader->setUniformValue("envMapEnabled", false);
+    QMatrix4x4 mat = _camera->getViewMatrix();
+    mat.setRow(3, QVector4D(0,0,0,1));
+    mat.setColumn(3, QVector4D(0,0,0,1));
+    //_fgShader->setUniformValue("modelViewMatrix", mat);
+    _floorPlane->render();
+    glDisable((GL_DEPTH_TEST));
+}
+
 void GLWidget::drawVertexNormals()
 {
 	QVector3D pos = _camera->getPosition();
@@ -1303,6 +1327,11 @@ void GLWidget::render()
 	glDisable(GL_CLIP_DISTANCE1);
 	glDisable(GL_CLIP_DISTANCE2);
 	glDisable(GL_CLIP_DISTANCE3);
+
+    if(_displayMode == DisplayMode::REALSHADED)
+    {
+        drawFloor();
+    }
 
 	if (_bShowAxis)
 		drawAxis();

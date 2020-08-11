@@ -22,6 +22,7 @@ class SpringEditor;
 class ClippingPlanesEditor;
 class GraysKleinEditor;
 class STLMesh;
+class Plane;
 
 struct GLMaterialProps
 {
@@ -38,7 +39,7 @@ struct GLMaterialProps
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
-enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED };
+enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
@@ -116,6 +117,7 @@ public:
 
     void drawAxis();
     void drawCornerAxis();
+    void drawFloor();
     
     QVector4D getAmbientLight() const;
     void setAmbientLight(const QVector4D &ambientLight);
@@ -300,6 +302,7 @@ private:
     QTimer* _animateCenterScreenTimer;
 
     BoundingSphere _boundingSphere;
+    Plane* _floorPlane;
 
 private:
 
