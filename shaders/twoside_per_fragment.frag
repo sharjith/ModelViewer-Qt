@@ -92,7 +92,7 @@ void main()
             v_color = v_color_back;
     }
 
-    if(displayMode == 0) // shaded
+    if(displayMode == 0 || displayMode == 3) // shaded
     {
         if(texEnabled == true)
             fragColor = v_color * texture2D(texUnit, g_texCoord2d);
@@ -129,10 +129,11 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
-    if(envMapEnabled)
+    if(envMapEnabled && displayMode == 3)
     {
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, normalize(g_normal));
+        //vec3 R = refract(I, normalize(g_normal), 0.658);
         fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
     }
 
