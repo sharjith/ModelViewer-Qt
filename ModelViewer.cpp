@@ -32,6 +32,10 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
     displayWireShaded->setObjectName(QString::fromUtf8("displayWireShaded"));
     displayWireShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_W));
 
+    displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), "Real Shaded", this);
+    displayRealShaded->setObjectName(QString::fromUtf8("displayRealShaded"));
+    displayRealShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_R));
+
 
     setupUi(this);
 
@@ -52,13 +56,16 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
 
     // Shading
     QMenu *dispMenu = new QMenu;
+    dispMenu->addAction(displayRealShaded);
     dispMenu->addAction(displayShaded);
     dispMenu->addAction(displayWireframe);
-    dispMenu->addAction(displayWireShaded);
+    dispMenu->addAction(displayWireShaded);    
     // add action to widget as well
+    addAction(displayRealShaded);
     addAction(displayShaded);
     addAction(displayWireframe);
     addAction(displayWireShaded);
+
 
     toolButtonDisplayMode->setMenu(dispMenu);
     toolButtonDisplayMode->setDefaultAction(displayShaded);
@@ -275,6 +282,13 @@ void ModelViewer::on_displayWireShaded_triggered(bool)
     _glWidget->setDisplayMode(DisplayMode::WIRESHADED);
     _glWidget->updateView();
     displayShaded->setToolTip("Wire Shaded");
+}
+
+void ModelViewer::on_displayRealShaded_triggered(bool)
+{
+    _glWidget->setDisplayMode(DisplayMode::REALSHADED);
+    _glWidget->updateView();
+    displayShaded->setToolTip("Real Shaded");
 }
 
 void ModelViewer::on_toolButtonFitAll_clicked(bool /*checked*/)

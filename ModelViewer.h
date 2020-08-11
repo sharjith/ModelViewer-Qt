@@ -46,6 +46,7 @@ private slots:
     void on_displayShaded_triggered(bool);
     void on_displayWireframe_triggered(bool);
     void on_displayWireShaded_triggered(bool);
+    void on_displayRealShaded_triggered(bool);
 
 	void on_pushButtonLightAmbient_clicked();
 	void on_pushButtonLightDiffuse_clicked();
@@ -134,6 +135,7 @@ private:
     QAction *displayShaded;
     QAction *displayWireframe;
     QAction *displayWireShaded;
+    QAction *displayRealShaded;
 
 	QVector4D _ambiMat;
 	QVector4D _diffMat;
