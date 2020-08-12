@@ -115,10 +115,6 @@ public:
     GLfloat getZScale() const;
     void setZScale(const GLfloat &zScale);
 
-    void drawAxis();
-    void drawCornerAxis();
-    void drawFloor();
-    
     QVector4D getAmbientLight() const;
     void setAmbientLight(const QVector4D &ambientLight);
 
@@ -163,6 +159,7 @@ public slots:
 
 protected:
     void initializeGL();
+    void loadFloor();
     void resizeGL(int width, int height);
     void paintGL();
 
@@ -309,6 +306,11 @@ private:
     void createShaderPrograms();
     void createGeometry();
     void loadEnvMap();
+
+    void drawAxis();
+    void drawCornerAxis();
+    void drawFloor();
+    float lowestModelZ();
 
     void setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot);
     void setZoomAndPan(GLfloat zoom, QVector3D pan);

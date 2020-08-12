@@ -389,7 +389,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     if(_floorPlane)
     {
         float psize = _boundingSphere.getRadius();
-        _floorPlane->setPlane(_fgShader, psize*5, psize*5, 10, 10, -psize);
+		_floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 10, 10, lowestModelZ() - 1.0f);
     }
 
 	fitAll();
@@ -417,6 +417,12 @@ void GLWidget::updateBoundingSphere()
 		{
 			std::cout << ex.what() << std::endl;
 		}
+	}
+
+	if (_floorPlane)
+	{
+		float psize = _boundingSphere.getRadius();
+		_floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 10, 10, lowestModelZ() - 1.0f);
 	}
 
 	fitAll();
@@ -788,9 +794,7 @@ void GLWidget::initializeGL()
     createShaderPrograms();
 	createGeometry();
 
-    float psize = _boundingSphere.getRadius();
-    _floorPlane= new Plane(_fgShader, psize*100, psize*100, 10, 10, -psize);
-
+	loadFloor();
     loadEnvMap();
     glActiveTexture(GL_TEXTURE31);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
@@ -820,6 +824,16 @@ void GLWidget::initializeGL()
 	// Enable blending
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void GLWidget::loadFloor()
+{
+	float psize = _boundingSphere.getRadius();
+	_floorPlane = new Plane(_fgShader, psize * 10.0f, psize * 10.0f, 10, 10, -psize);
+	_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+	_floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+	_floorPlane->setShininess(10.0f);
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -1151,6 +1165,8 @@ void GLWidget::drawCornerAxis()
 void GLWidget::drawFloor()
 {
     glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
     _fgShader->bind();
     _fgShader->setUniformValue("envMapEnabled", false);
     QMatrix4x4 mat = _camera->getViewMatrix();
@@ -1158,7 +1174,29 @@ void GLWidget::drawFloor()
     mat.setColumn(3, QVector4D(0,0,0,1));
     //_fgShader->setUniformValue("modelViewMatrix", mat);
     _floorPlane->render();
+	glDisable(GL_CULL_FACE);
     glDisable((GL_DEPTH_TEST));
+}
+
+float GLWidget::lowestModelZ()
+{
+	float lowestZ = std::numeric_limits<float>::max();
+	for (int i : _displayedObjectsIds)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore.at(i);
+			float z = mesh->getLowestZValue();
+			if (z < lowestZ)
+				lowestZ = z;
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception raised in GLWidget::lowestModelZ\n" << ex.what() << std::endl;
+			lowestZ = -_boundingSphere.getRadius();
+		}
+	}
+	return lowestZ;
 }
 
 void GLWidget::drawVertexNormals()
