@@ -317,6 +317,18 @@ void TriangleMesh::computeBoundingSphere(std::vector<GLfloat> points)
     _boundingSphere.setRadius(radius);
 }
 
+float TriangleMesh::getLowestZValue() const
+{
+    float lowestZ = std::numeric_limits<float>::max();
+    for (int i = 2; i < _trsfpoints.size(); i+=3)
+    {
+        float z = _trsfpoints[i];
+        if (z < lowestZ)
+            lowestZ = z;
+    }
+    return lowestZ;
+}
+
 std::vector<GLfloat> TriangleMesh::getNormals() const
 {
     return _normals;

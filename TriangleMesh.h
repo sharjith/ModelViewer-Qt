@@ -63,12 +63,15 @@ public:
 
     void setTexureImage(const QImage &texImage);
 
+    float getLowestZValue() const;
+
     QMatrix4x4 getTransformation() const;
     void setTransformation(const QMatrix4x4 &transformation);
 
     std::vector<GLfloat> getPoints() const;
-
     std::vector<GLfloat> getNormals() const;
+
+    
 
     virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
