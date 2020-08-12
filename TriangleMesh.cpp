@@ -320,7 +320,7 @@ void TriangleMesh::computeBoundingSphere(std::vector<GLfloat> points)
 float TriangleMesh::getLowestZValue() const
 {
     float lowestZ = std::numeric_limits<float>::max();
-    for (int i = 2; i < _trsfpoints.size(); i+=3)
+    for (size_t i = 2; i < _trsfpoints.size(); i+=3)
     {
         float z = _trsfpoints[i];
         if (z < lowestZ)

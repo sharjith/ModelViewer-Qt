@@ -70,6 +70,7 @@ _clippingPlanesEditor(nullptr)
 	_axisShader = new QOpenGLShaderProgram(this);
 	_vertexNormalShader = new QOpenGLShaderProgram(this);
 	_faceNormalShader = new QOpenGLShaderProgram(this);
+    _shadowMappingShader = new QOpenGLShaderProgram(this);
 
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
@@ -95,7 +96,7 @@ _clippingPlanesEditor(nullptr)
 	_diffuseLight = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_specularLight = { 0.5f, 0.5f, 0.5f, 0.5f };
 
-	_lightPosition = { 0.0f, 0.0f, 50.0f };
+    _lightPosition = { 0.0f, 0.0f, 50.0f };
 
 	_displayMode = DisplayMode::SHADED;
 
@@ -185,35 +186,38 @@ _clippingPlanesEditor(nullptr)
 
 GLWidget::~GLWidget()
 {
-	if (_textRenderer)
-		delete _textRenderer;
+    if (_textRenderer)
+        delete _textRenderer;
 
-	for (auto a : _meshStore)
-	{
-		delete a;
-	}
-	if (_camera)
-		delete _camera;
+    for (auto a : _meshStore)
+    {
+        delete a;
+    }
+    if (_camera)
+        delete _camera;
 
-	if (_fgShader)
-		delete _fgShader;
+    if (_fgShader)
+        delete _fgShader;
 
-	if (_axisShader)
-		delete _axisShader;
+    if (_axisShader)
+        delete _axisShader;
 
-	if (_vertexNormalShader)
-		delete _vertexNormalShader;
+    if (_vertexNormalShader)
+        delete _vertexNormalShader;
 
-	if (_faceNormalShader)
-		delete _faceNormalShader;
+    if (_faceNormalShader)
+        delete _faceNormalShader;
 
-	_axisVBO.destroy();
-	_axisVAO.destroy();
+    if (_shadowMappingShader)
+        delete _shadowMappingShader;
 
-	_bgSplitVBO.destroy();
-	_bgSplitVAO.destroy();
+    _axisVBO.destroy();
+    _axisVAO.destroy();
 
-	_bgVAO.destroy();
+    _bgSplitVBO.destroy();
+    _bgSplitVAO.destroy();
+
+    _bgVAO.destroy();
 }
 
 void GLWidget::updateView()
@@ -518,6 +522,20 @@ void GLWidget::createShaderPrograms()
 		qDebug() << "Error linking shader program:" << _faceNormalShader->log();
 	}
 
+    // Shadow mapping
+    if (!_shadowMappingShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/shadow_mapping_depth.vert"))
+    {
+        qDebug() << "Error in vertex shader:" << _shadowMappingShader->log();
+    }
+    if (!_shadowMappingShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/shadow_mapping_depth.frag"))
+    {
+        qDebug() << "Error in fragment shader:" << _shadowMappingShader->log();
+    }
+    if (!_shadowMappingShader->link())
+    {
+        qDebug() << "Error linking shader program:" << _shadowMappingShader->log();
+    }
+
 	// Text shader program
 	if (!_textShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/text.vert"))
 	{
@@ -641,8 +659,8 @@ void GLWidget::loadEnvMap()
         QString("textures/envmap/lnegz.png")
     };
 
-    glGenTextures(1, &_envTexture);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
+    glGenTextures(1, &_environmentMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
     for (unsigned int i = 0; i < faces.size(); i++)
     {
@@ -794,10 +812,16 @@ void GLWidget::initializeGL()
     createShaderPrograms();
 	createGeometry();
 
-	loadFloor();
+    // Shadow mapping
+    loadFloor();
+    glActiveTexture(GL_TEXTURE30);
+    glBindTexture(GL_TEXTURE_2D, _shadowMap);
+
+
+    // Environment Mapping
     loadEnvMap();
     glActiveTexture(GL_TEXTURE31);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	_textShader.bind();
 	_textRenderer = new TextRenderer(&_textShader, width(), height());
@@ -813,6 +837,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.position", _lightPosition);
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+    _fgShader->setUniformValue("shadowMap", 30);
     _fgShader->setUniformValue("envMap", 31);
 	_fgShader->release();
 
@@ -823,11 +848,36 @@ void GLWidget::initializeGL()
 
 	// Enable blending
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void GLWidget::loadFloor()
 {
+    // configure depth map FBO
+    // -----------------------
+    const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+    glGenFramebuffers(1, &_shadowMapFBO);
+    // create depth texture
+    glGenTextures(1, &_shadowMap);
+    glBindTexture(GL_TEXTURE_2D, _shadowMap);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
+    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+    // attach depth texture as FBO's depth buffer
+    glBindFramebuffer(GL_FRAMEBUFFER, _shadowMapFBO);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
+    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status == GL_FRAMEBUFFER_COMPLETE)
+        std::cout << "Frame buffer created!" << std::endl;
+    glDrawBuffer(GL_NONE);
+    glReadBuffer(GL_NONE);
+    glBindFramebuffer(GL_FRAMEBUFFER, 2);
+    //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, default_draw_fbo);
+
 	float psize = _boundingSphere.getRadius();
 	_floorPlane = new Plane(_fgShader, psize * 10.0f, psize * 10.0f, 10, 10, -psize);
 	_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
@@ -875,16 +925,14 @@ void GLWidget::resizeGL(int width, int height)
 void GLWidget::paintGL()
 {
 	try
-	{
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
             0.925f, 0.913f, 0.847f, 1.0f);
 
         /*gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
                            0.8515625f, 0.8515625f, 0.8515625f, 1.0f);*/
-
-		glViewport(0, 0, width(), height());
 
 		_modelMatrix.setToIdentity();
 		if (_bMultiView)
@@ -946,7 +994,7 @@ void GLWidget::paintGL()
 			_textShader.setUniformValue("projection", projection);
 			_textShader.release();
 
-			render();
+            render();
 			drawCornerAxis();
 		}
 
@@ -1168,7 +1216,7 @@ void GLWidget::drawFloor()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
     _fgShader->bind();
-    _fgShader->setUniformValue("envMapEnabled", false);
+    //_fgShader->setUniformValue("envMapEnabled", false);
     QMatrix4x4 mat = _camera->getViewMatrix();
     mat.setRow(3, QVector4D(0,0,0,1));
     mat.setColumn(3, QVector4D(0,0,0,1));
@@ -1293,7 +1341,7 @@ void GLWidget::drawMesh()
 				if (mesh)
 				{
 					mesh->setProg(_fgShader);
-                    glBindTexture(GL_TEXTURE_CUBE_MAP, _envTexture);
+                    glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 					mesh->render();
 				}
 			}
@@ -1303,78 +1351,136 @@ void GLWidget::drawMesh()
 			}
 		}
 	}
-}
-
-void GLWidget::render()
-{
-	glEnable(GL_DEPTH_TEST);
-
-	_viewMatrix.setToIdentity();
-	_viewMatrix = _camera->getViewMatrix();
-
-	// model transformations
-	/*_modelMatrix.translate(QVector3D(_xTran, _yTran, _zTran));
-	_modelMatrix.rotate(_xRot, 1, 0, 0);
-	_modelMatrix.rotate(_yRot, 0, 1, 0);
-	_modelMatrix.rotate(_zRot, 0, 0, 1);
-	_modelMatrix.scale(_xScale, _yScale, _zScale);*/
-
-	_modelViewMatrix = _viewMatrix * _modelMatrix;
-
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.position", _lightPosition);
-	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
-	_fgShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
-	_fgShader->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
-	_fgShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_fgShader->setUniformValue("viewportMatrix", _viewportMatrix);
-	_fgShader->setUniformValue("Line.Width", 0.75f);
-	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
-	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
-    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-    _fgShader->setUniformValue("cameraPos", _camera->getPosition());
-    _fgShader->setUniformValue("modelMatrix", _modelMatrix);
-
-	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
-	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
-
-	// Clipping Planes
-	if (_clipXEnabled)
-		glEnable(GL_CLIP_DISTANCE0);
-	if (_clipYEnabled)
-		glEnable(GL_CLIP_DISTANCE1);
-	if (_clipZEnabled)
-		glEnable(GL_CLIP_DISTANCE2);
-
-	if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
-	{
-		glEnable(GL_CLIP_DISTANCE3);
-	}
-
-	// Mesh
-	drawMesh();
-	// Vertex Normal
-	drawVertexNormals();
-	// Face Normal
-	drawFaceNormals();
-
-	glDisable(GL_CLIP_DISTANCE0);
-	glDisable(GL_CLIP_DISTANCE1);
-	glDisable(GL_CLIP_DISTANCE2);
-	glDisable(GL_CLIP_DISTANCE3);
 
     if(_displayMode == DisplayMode::REALSHADED)
     {
         drawFloor();
     }
+}
 
-	if (_bShowAxis)
-		drawAxis();
+void GLWidget::render()
+{
+    renderToShadowBuffer();
+    renderObjects();
+}
 
-	_fgShader->release();
+void GLWidget::renderToShadowBuffer()
+{
+    /// Shadow Mapping
+    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    // 1. render depth of scene to texture (from light's perspective)
+    // --------------------------------------------------------------
+    QMatrix4x4 lightProjection, lightView;
+    float near_plane = 1.0f, far_plane = 7.5f;
+    lightProjection.ortho(-10.0f, 10.0f, -10.0f, 10.0f, near_plane, far_plane);
+    lightView.lookAt(_lightPosition, QVector3D(0,0,0), QVector3D(0.0, 1.0, 0.0));
+    _lightSpaceMatrix = lightProjection * lightView;
+    // render scene from light's point of view
+    _fgShader->release();
+    _shadowMappingShader->bind();
+    _shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
+    glViewport(0, 0, 1024, 1024);
+    glBindFramebuffer(GL_FRAMEBUFFER, _shadowMapFBO);
+        glClear(GL_DEPTH_BUFFER_BIT);
+
+        if (_meshStore.size() != 0)
+        {
+            for (int i : _displayedObjectsIds)
+            {
+                try
+                {
+                    TriangleMesh* mesh = _meshStore.at(i);
+                    if (mesh)
+                    {
+                        mesh->setProg(_fgShader);
+                        glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+                        mesh->render();
+                    }
+                }
+                catch (const std::exception& ex)
+                {
+                    std::cout << "Exception raised in GLWidget::drawMesh\n" << ex.what() << std::endl;
+                }
+            }
+        }
+
+        drawFloor();
+
+        //int default_draw_fbo, default_read_fbo;
+        //glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &default_draw_fbo);
+        //glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &default_read_fbo);
+        //glBindFramebuffer(GL_DRAW_FRAMEBUFFER, default_draw_fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    // End Shadow Mapping
+}
+
+void GLWidget::renderObjects()
+{
+    glEnable(GL_DEPTH_TEST);
+
+    _viewMatrix.setToIdentity();
+    _viewMatrix = _camera->getViewMatrix();
+
+    // model transformations
+    /*_modelMatrix.translate(QVector3D(_xTran, _yTran, _zTran));
+    _modelMatrix.rotate(_xRot, 1, 0, 0);
+    _modelMatrix.rotate(_yRot, 0, 1, 0);
+    _modelMatrix.rotate(_zRot, 0, 0, 1);
+    _modelMatrix.scale(_xScale, _yScale, _zScale);*/
+
+    _modelViewMatrix = _viewMatrix * _modelMatrix;
+
+    _fgShader->bind();
+    _fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+    _fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+    _fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+    _fgShader->setUniformValue("lightSource.position", _lightPosition);
+    _fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+    _fgShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+    _fgShader->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
+    _fgShader->setUniformValue("projectionMatrix", _projectionMatrix);
+    _fgShader->setUniformValue("viewportMatrix", _viewportMatrix);
+    _fgShader->setUniformValue("Line.Width", 0.75f);
+    _fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
+    _fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _fgShader->setUniformValue("cameraPos", _camera->getPosition());
+    _fgShader->setUniformValue("modelMatrix", _modelMatrix);
+
+    glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
+    glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
+
+    // Clipping Planes
+    if (_clipXEnabled)
+        glEnable(GL_CLIP_DISTANCE0);
+    if (_clipYEnabled)
+        glEnable(GL_CLIP_DISTANCE1);
+    if (_clipZEnabled)
+        glEnable(GL_CLIP_DISTANCE2);
+
+    if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    {
+        glEnable(GL_CLIP_DISTANCE3);
+    }
+
+    // Mesh
+    drawMesh();
+
+    // Vertex Normal
+    drawVertexNormals();
+    // Face Normal
+    drawFaceNormals();
+
+    glDisable(GL_CLIP_DISTANCE0);
+    glDisable(GL_CLIP_DISTANCE1);
+    glDisable(GL_CLIP_DISTANCE2);
+    glDisable(GL_CLIP_DISTANCE3);
+
+    if (_bShowAxis)
+        drawAxis();
+
+    _fgShader->release();
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* e)

@@ -16,6 +16,9 @@ uniform mat4 viewportMatrix; // Viewport matrix
 
 uniform int displayMode;
 
+in vec4 fragPosLightSpace[];
+out vec4 g_fragPosLightSpace;
+
 in float clipDistX[];
 in float clipDistY[];
 in float clipDistZ[];
@@ -28,6 +31,13 @@ out float g_clipDist;
 
 void main()
 {    
+    // pass through for fragPosLightSpace
+    for(int i=0; i<gl_in.length(); i++)
+    {
+        g_fragPosLightSpace = fragPosLightSpace[i];
+    }
+
+
     if(displayMode == 0 || displayMode == 1)
     {
 	for(int i=0; i<gl_in.length(); i++)

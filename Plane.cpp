@@ -59,6 +59,7 @@ Plane::Plane(QOpenGLShaderProgram* prog, float xsize, float ysize, int xdivs, in
 
 void Plane::setPlane(QOpenGLShaderProgram* prog, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax)
 {
+    setProg(prog);
     std::vector<GLfloat> p(3 * (xdivs + 1) * (ydivs + 1));
     std::vector<GLfloat> n(3 * (xdivs + 1) * (ydivs + 1));
     std::vector<GLfloat> tex(2 * (xdivs + 1) * (ydivs + 1));

@@ -11,6 +11,7 @@ uniform mat4 projectionMatrix;
 uniform vec4 clipPlaneX;
 uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
+uniform mat4 lightSpaceMatrix;
 
 // user defined clip plane
 uniform vec4 clipPlane;
@@ -24,6 +25,8 @@ out vec3 v_normal;
 out vec3 v_position;
 out vec2 v_texCoord2d;	
 out mat4 MVP;
+
+out vec4 fragPosLightSpace;
 
 void main()
 {
@@ -39,6 +42,8 @@ void main()
     clipDistZ = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
 
     clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
+
+    fragPosLightSpace = lightSpaceMatrix * vec4(vertexPosition, 1.0);
 
     // Moved this to geometry shader
     /*gl_ClipDistance[0] = clipDistX;

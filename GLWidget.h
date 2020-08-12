@@ -248,6 +248,8 @@ private:
 
     QVector3D _lightPosition;
 
+    QMatrix4x4 _lightSpaceMatrix;
+
     QMatrix4x4 _projectionMatrix, _viewMatrix, _modelMatrix;
     QMatrix4x4 _modelViewMatrix;
     QMatrix4x4 _viewportMatrix;
@@ -256,10 +258,13 @@ private:
     QOpenGLShaderProgram*     _axisShader;
     QOpenGLShaderProgram*     _vertexNormalShader;
     QOpenGLShaderProgram*     _faceNormalShader;
+    QOpenGLShaderProgram*     _shadowMappingShader;
 
     QOpenGLShaderProgram     _textShader;
 
-    GLuint                   _envTexture;
+    GLuint                   _environmentMap;
+    GLuint                   _shadowMap;
+    GLuint                   _shadowMapFBO;
 
     QOpenGLShaderProgram     _bgShader;
     QOpenGLVertexArrayObject _bgVAO;
@@ -311,6 +316,9 @@ private:
     void drawCornerAxis();
     void drawFloor();
     float lowestModelZ();
+
+    void renderToShadowBuffer();
+    void renderObjects();
 
     void setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot);
     void setZoomAndPan(GLfloat zoom, QVector3D pan);

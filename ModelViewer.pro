@@ -198,6 +198,8 @@ shaders/vertex_normal.frag \
 shaders/twoside_per_fragment.vert \
 shaders/twoside_per_fragment.geom \
 shaders/twoside_per_fragment.frag \
+shaders/shadow_mapping_depth.vert \
+shaders/shadow_mapping_depth.frag
 
 
 
