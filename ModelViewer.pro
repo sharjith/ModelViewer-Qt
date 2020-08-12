@@ -198,7 +198,6 @@ shaders/vertex_normal.frag \
 shaders/twoside_per_fragment.vert \
 shaders/twoside_per_fragment.geom \
 shaders/twoside_per_fragment.frag \
-shaders/blinn-phong.vert shaders/blinn-phong.frag \
 
 
 
