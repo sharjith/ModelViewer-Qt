@@ -389,7 +389,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     if(_floorPlane)
     {
         float psize = _boundingSphere.getRadius();
-        _floorPlane->setPlane(_fgShader, psize*5, psize*5, 10, 10, -psize-10);
+        _floorPlane->setPlane(_fgShader, psize*5, psize*5, 10, 10, -psize);
     }
 
 	fitAll();
