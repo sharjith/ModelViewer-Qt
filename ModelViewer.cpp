@@ -75,7 +75,11 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
     setAttribute(Qt::WA_DeleteOnClose);
 
     QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setDepthBufferSize(24);
+    format.setStencilBufferSize(8);
     format.setSamples(4);
+    format.setSwapInterval(0);
     format.setStereo(true);
     _glWidget = new GLWidget(glframe, "glwidget");
     _glWidget->setAttribute(Qt::WA_DeleteOnClose);
