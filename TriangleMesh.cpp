@@ -27,7 +27,6 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
     _specularMaterial = {0.37890625f, 0.390625f, 0.3359375f, 1.0f};
     _shininess = fabs(128.0f * 0.2f);
 
-
     if (!_texBuffer.load("textures/opengllogo.png"))
     { // Load first image from file
         qWarning("Could not read image file, using single-color instead.");
