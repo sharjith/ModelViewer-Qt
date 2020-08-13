@@ -199,7 +199,8 @@ shaders/twoside_per_fragment.vert \
 shaders/twoside_per_fragment.geom \
 shaders/twoside_per_fragment.frag \
 shaders/shadow_mapping_depth.vert \
-shaders/shadow_mapping_depth.frag
-
+shaders/shadow_mapping_depth.frag \
+shaders/3.1.3.debug_quad.vs \
+shaders/3.1.3.debug_quad_depth.fs
 
 

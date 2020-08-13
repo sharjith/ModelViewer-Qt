@@ -176,7 +176,7 @@ void main()
         float shadow = shadowCalculation(g_fragPosLightSpace);
         fragColor = vec4((lightSource.ambient + (1.0 - shadow) * (lightSource.diffuse + lightSource.specular)), 1.0) * fragColor;
     }
-
+    
     if(selected)
     {
         fragColor = mix(fragColor, vec4(1.0, .65, 0.0, 1.0), 0.5);

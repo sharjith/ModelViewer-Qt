@@ -306,6 +306,8 @@ private:
     BoundingSphere _boundingSphere;
     Plane* _floorPlane;
 
+    QOpenGLShaderProgram     _debugShader;
+
 private:
 
     void createShaderPrograms();
@@ -331,6 +333,11 @@ private:
                             float bot_r, float bot_g, float bot_b, float bot_a);
 
     void splitScreen();
+
+
+    unsigned int quadVAO;
+    unsigned int quadVBO;
+    void renderQuad();
 };
 
 #endif
