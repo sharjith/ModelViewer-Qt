@@ -166,13 +166,16 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
-    if(envMapEnabled && displayMode == 3)
+    if(envMapEnabled && displayMode == 3) // Environment mapping
     {
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, normalize(g_normal));
         //vec3 R = refract(I, normalize(g_normal), 0.658);
         fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
+    }
 
+    //if(displayMode == 3) // Shadow mapping
+    {
         float shadow = shadowCalculation(g_fragPosLightSpace);
         fragColor = vec4((lightSource.ambient + (1.0 - shadow) * (lightSource.diffuse + lightSource.specular)), 1.0) * fragColor;
     }
