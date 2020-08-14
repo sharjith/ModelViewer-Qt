@@ -6,7 +6,7 @@ class Point;
 class Periwinkle : public ParametricSurface
 {
 public:
-	Periwinkle(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks);
+	Periwinkle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
 	~Periwinkle();
 
 	virtual float firstUParameter() const;
@@ -16,6 +16,6 @@ public:
 	virtual Point pointAtParameter(const float& u, const float& v);
 	
 private:
-	GLfloat _radius;
+	float _radius;
 };
 

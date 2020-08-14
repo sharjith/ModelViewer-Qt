@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-GraysKlein::GraysKlein(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks) :
+GraysKlein::GraysKlein(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),	
 	_A(2),
 	_M(1),

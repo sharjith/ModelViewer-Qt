@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, GLuint nSlices, GLuint nStacks) : 
+ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks) : 
         QuadMesh(prog, "Prametric Surface"),
         _slices(nSlices),
         _stacks(nStacks)
@@ -70,27 +70,27 @@ void ParametricSurface::buildMesh()
 	int elements = ((_slices * (_stacks)) * 4);
 
 	// Verts
-	std::vector<GLfloat> p(3 * nVerts);
+	std::vector<float> p(3 * nVerts);
 	// Normals
-	std::vector<GLfloat> n(3 * nVerts);
+	std::vector<float> n(3 * nVerts);
 	// Tex coords
-	std::vector<GLfloat> tex(2 * nVerts);
+	std::vector<float> tex(2 * nVerts);
 	// Elements
-	std::vector<GLuint> el(elements);
+	std::vector<unsigned int> el(elements);
 
 	// Generate positions and normals
-	GLfloat u = firstUParameter(), v = firstVParameter();
-	GLfloat uFac = abs(lastUParameter() - firstUParameter()) / _slices;
-	GLfloat vFac = abs(lastVParameter() - firstVParameter() ) / _stacks;
-	GLfloat s, t;
-	GLuint idx = 0, tIdx = 0;
-	for (GLuint i = 0; i <= _slices; i++)
+	float u = firstUParameter(), v = firstVParameter();
+	float uFac = abs(lastUParameter() - firstUParameter()) / _slices;
+	float vFac = abs(lastVParameter() - firstVParameter() ) / _stacks;
+	float s, t;
+	unsigned int idx = 0, tIdx = 0;
+	for (unsigned int i = 0; i <= _slices; i++)
 	{
 		v = firstVParameter();
-		s = (GLfloat)i / _slices;
-		for (GLuint j = 0; j <= _stacks; j++)
+		s = (float)i / _slices;
+		for (unsigned int j = 0; j <= _stacks; j++)
 		{
-			t = (GLfloat)j / _stacks;
+			t = (float)j / _stacks;
 			Point pt = pointAtParameter(u, v);
 			p[idx] = pt.getX(); p[idx + 1] = pt.getY(); p[idx + 2] = pt.getZ();
 			glm::vec3 normal = normalAtParameter(u, v);
@@ -109,11 +109,11 @@ void ParametricSurface::buildMesh()
 	// Generate the element list
 	// Body
 	idx = 0;
-	for (GLuint i = 0; i < _slices; i++)
+	for (unsigned int i = 0; i < _slices; i++)
 	{
-        GLuint stackStart = i * (_stacks + 1);
-        GLuint nextStackStart = (i + 1) * (_stacks + 1);
-		for (GLuint j = 0; j < _stacks; j++)
+        unsigned int stackStart = i * (_stacks + 1);
+        unsigned int nextStackStart = (i + 1) * (_stacks + 1);
+		for (unsigned int j = 0; j < _stacks; j++)
 		{
 			// For quad mesh
 			el[idx + 0] = stackStart + j;

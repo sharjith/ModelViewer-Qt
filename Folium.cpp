@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-Folium::Folium(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks) :
+Folium::Folium(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
 {

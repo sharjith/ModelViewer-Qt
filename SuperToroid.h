@@ -7,7 +7,7 @@ class SuperToroid : public ParametricSurface
 {
 	friend class SuperToroidEditor;
 public:
-	SuperToroid(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloat innerRadius, GLfloat sinPower, GLfloat cosPower, GLuint nSlices, GLuint nStacks);
+	SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, float sinPower, float cosPower, unsigned int nSlices, unsigned int nStacks);
 	~SuperToroid();
 
 	virtual float firstUParameter() const;
@@ -17,9 +17,9 @@ public:
 	virtual Point pointAtParameter(const float& u, const float& v);
 	
 private:
-	GLfloat _outerRadius;
-	GLfloat _innerRadius;
-	GLfloat _n1;
-	GLfloat _n2;
+	float _outerRadius;
+	float _innerRadius;
+	float _n1;
+	float _n2;
 };
 

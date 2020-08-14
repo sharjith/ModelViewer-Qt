@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-Spring::Spring(QOpenGLShaderProgram* prog, GLfloat sectionRadius, GLfloat coilRadius, GLfloat pitch, GLfloat turns, GLuint nSlices, GLuint nStacks) :
+Spring::Spring(QOpenGLShaderProgram* prog, float sectionRadius, float coilRadius, float pitch, float turns, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_sectionRadius(sectionRadius),
 	_coilRadius(coilRadius),

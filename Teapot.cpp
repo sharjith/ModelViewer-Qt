@@ -15,10 +15,10 @@ Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4 & li
 {
     int verts = 32 * (grid + 1) * (grid + 1);
     int faces = grid * grid * 32;
-    std::vector<GLfloat> p( verts * 3 );
-    std::vector<GLfloat> n( verts * 3 );
-    std::vector<GLfloat> tc( verts * 2 );
-    std::vector<GLuint> el( faces * 6 );
+    std::vector<float> p( verts * 3 );
+    std::vector<float> n( verts * 3 );
+    std::vector<float> tc( verts * 2 );
+    std::vector<unsigned int> el( faces * 6 );
 
     generatePatches( p, n, tc, el, grid );
     moveLid(grid, p, lidTransform);
@@ -28,14 +28,14 @@ Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4 & li
 }
 
 void Teapot::generatePatches(
-        std::vector<GLfloat> & p,
-        std::vector<GLfloat> & n,
-        std::vector<GLfloat> & tc,
-        std::vector<GLuint> & el,
+        std::vector<float> & p,
+        std::vector<float> & n,
+        std::vector<float> & tc,
+        std::vector<unsigned int> & el,
         int grid)
 {
-    std::vector<GLfloat> B(4*(grid+1));  // Pre-computed Bernstein basis functions
-    std::vector<GLfloat> dB(4*(grid+1)); // Pre-computed derivitives of basis functions
+    std::vector<float> B(4*(grid+1));  // Pre-computed Bernstein basis functions
+    std::vector<float> dB(4*(grid+1)); // Pre-computed derivitives of basis functions
 
     int idx = 0, elIndex = 0, tcIndex = 0;
 
@@ -62,7 +62,7 @@ void Teapot::generatePatches(
     buildPatchReflect(9, B, dB, p, n, tc, el, idx, elIndex, tcIndex, grid, false, true);
 }
 
-void Teapot::moveLid(int grid, std::vector<GLfloat> & p, const mat4 & lidTransform) {
+void Teapot::moveLid(int grid, std::vector<float> & p, const mat4 & lidTransform) {
 
     int start = 3 * 12 * (grid+1) * (grid+1);
     int end = 3 * 20 * (grid+1) * (grid+1);
@@ -78,9 +78,9 @@ void Teapot::moveLid(int grid, std::vector<GLfloat> & p, const mat4 & lidTransfo
 }
 
 void Teapot::buildPatchReflect(int patchNum,
-                               std::vector<GLfloat> & B, std::vector<GLfloat> & dB,
-                               std::vector<GLfloat> & v, std::vector<GLfloat> & n,
-                               std::vector<GLfloat> & tc, std::vector<GLuint> & el,
+                               std::vector<float> & B, std::vector<float> & dB,
+                               std::vector<float> & v, std::vector<float> & n,
+                               std::vector<float> & tc, std::vector<unsigned int> & el,
                                int &index, int &elIndex, int &tcIndex, int grid,
                                bool reflectX, bool reflectY)
 {
@@ -119,9 +119,9 @@ void Teapot::buildPatchReflect(int patchNum,
 }
 
 void Teapot::buildPatch(vec3 patch[][4],
-                        std::vector<GLfloat> & B, std::vector<GLfloat> & dB,
-                        std::vector<GLfloat> & v, std::vector<GLfloat> & n,
-                        std::vector<GLfloat> & tc, std::vector<GLuint> & el,
+                        std::vector<float> & B, std::vector<float> & dB,
+                        std::vector<float> & v, std::vector<float> & n,
+                        std::vector<float> & tc, std::vector<unsigned int> & el,
                         int &index, int &elIndex, int &tcIndex, int grid, mat3 reflect,
                         bool invertNormal)
 {
@@ -202,7 +202,7 @@ void Teapot::getPatch( int patchNum, vec3 patch[][4], bool reverseV )
     }
 }
 
-void Teapot::computeBasisFunctions( std::vector<GLfloat> & B, std::vector<GLfloat> & dB, int grid ) {
+void Teapot::computeBasisFunctions( std::vector<float> & B, std::vector<float> & dB, int grid ) {
     float inc = 1.0f / grid;
     for( int i = 0; i <= grid; i++ )
     {
@@ -224,7 +224,7 @@ void Teapot::computeBasisFunctions( std::vector<GLfloat> & B, std::vector<GLfloa
 }
 
 
-vec3 Teapot::evaluate( int gridU, int gridV, std::vector<GLfloat> & B, vec3 patch[][4] )
+vec3 Teapot::evaluate( int gridU, int gridV, std::vector<float> & B, vec3 patch[][4] )
 {
     vec3 p(0.0f,0.0f,0.0f);
     for( int i = 0; i < 4; i++) {
@@ -235,7 +235,7 @@ vec3 Teapot::evaluate( int gridU, int gridV, std::vector<GLfloat> & B, vec3 patc
     return p;
 }
 
-vec3 Teapot::evaluateNormal( int gridU, int gridV, std::vector<GLfloat> & B, std::vector<GLfloat> & dB, vec3 patch[][4] )
+vec3 Teapot::evaluateNormal( int gridU, int gridV, std::vector<float> & B, std::vector<float> & dB, vec3 patch[][4] )
 {
     vec3 du(0.0f,0.0f,0.0f);
     vec3 dv(0.0f,0.0f,0.0f);

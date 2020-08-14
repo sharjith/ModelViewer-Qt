@@ -6,7 +6,7 @@
 class ParametricSurface : public QuadMesh, public IParametricSurface
 {
 public:
-	ParametricSurface(QOpenGLShaderProgram *prog, GLuint nSlices, GLuint nStacks);
+	ParametricSurface(QOpenGLShaderProgram *prog, unsigned int nSlices, unsigned int nStacks);
 	virtual ~ParametricSurface();
 
 	virtual Point pointAtParameter(const float &u, const float &v) = 0;

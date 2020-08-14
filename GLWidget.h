@@ -31,10 +31,10 @@ struct GLMaterialProps
     QVector4D specularMaterial;
     QVector4D specularReflectivity;
     QVector4D emmissiveMaterial;
-    GLfloat   shininess;
-    GLfloat   opacity;
+    float   shininess;
+    float   opacity;
 
-    GLboolean bHasTexture;
+    bool bHasTexture;
 };
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
@@ -91,32 +91,32 @@ public:
     void setTexture(const std::vector<int>& ids, const QImage& texImage);
 
 public:
-    GLfloat getXTran() const;
-    void setXTran(const GLfloat &xTran);
+    float getXTran() const;
+    void setXTran(const float &xTran);
 
-    GLfloat getYTran() const;
-    void setYTran(const GLfloat &yTran);
+    float getYTran() const;
+    void setYTran(const float &yTran);
 
-    GLfloat getZTran() const;
-    void setZTran(const GLfloat &zTran);
+    float getZTran() const;
+    void setZTran(const float &zTran);
 
-    GLfloat getXRot() const;
-    void setXRot(const GLfloat &xRot);
+    float getXRot() const;
+    void setXRot(const float &xRot);
 
-    GLfloat getYRot() const;
-    void setYRot(const GLfloat &yRot);
+    float getYRot() const;
+    void setYRot(const float &yRot);
 
-    GLfloat getZRot() const;
-    void setZRot(const GLfloat &zRot);
+    float getZRot() const;
+    void setZRot(const float &zRot);
 
-    GLfloat getXScale() const;
-    void setXScale(const GLfloat &xScale);
+    float getXScale() const;
+    void setXScale(const float &xScale);
 
-    GLfloat getYScale() const;
-    void setYScale(const GLfloat &yScale);
+    float getYScale() const;
+    void setYScale(const float &yScale);
 
-    GLfloat getZScale() const;
-    void setZScale(const GLfloat &zScale);
+    float getZScale() const;
+    void setZScale(const float &zScale);
 
     QVector4D getAmbientLight() const;
     void setAmbientLight(const QVector4D &ambientLight);
@@ -177,15 +177,15 @@ private:
 
     QVector3D _currentTranslation;
     QQuaternion _currentRotation;
-    GLfloat _slerpStep;
-    GLfloat _slerpFrac;
+    float _slerpStep;
+    float _slerpFrac;
 
-    GLfloat _currentViewRange;
-    GLfloat _scaleFrac;
+    float _currentViewRange;
+    float _scaleFrac;
 
-    GLfloat _viewRange;
+    float _viewRange;
     float _viewBoundingSphereDia;
-    GLfloat _FOV;
+    float _FOV;
 
     bool _bLeftButtonDown;
     QPoint _leftButtonPoint;
@@ -198,19 +198,19 @@ private:
 
     QRubberBand* _rubberBand;
     QVector3D _rubberBandPan;
-    GLfloat _rubberBandZoomRatio;
+    float _rubberBandZoomRatio;
 
     bool _bMultiView;
 
     bool _bShowAxis;
 
-    GLfloat _clipXCoeff;
-    GLfloat _clipYCoeff;
-    GLfloat _clipZCoeff;
+    float _clipXCoeff;
+    float _clipYCoeff;
+    float _clipZCoeff;
 
-    GLfloat _clipDX;
-    GLfloat _clipDY;
-    GLfloat _clipDZ;
+    float _clipDX;
+    float _clipDY;
+    float _clipDZ;
 
     bool _clipXEnabled;
     bool _clipYEnabled;
@@ -229,17 +229,17 @@ private:
     unsigned int _shadowWidth;
     unsigned int _shadowHeight;
 
-    GLfloat _xTran;
-    GLfloat _yTran;
-    GLfloat _zTran;
+    float _xTran;
+    float _yTran;
+    float _zTran;
 
-    GLfloat _xRot;
-    GLfloat _yRot;
-    GLfloat _zRot;
+    float _xRot;
+    float _yRot;
+    float _zRot;
 
-    GLfloat _xScale;
-    GLfloat _yScale;
-    GLfloat _zScale;
+    float _xScale;
+    float _yScale;
+    float _zScale;
 
     QVector4D _ambientLight;
     QVector4D _diffuseLight;
@@ -261,9 +261,9 @@ private:
 
     QOpenGLShaderProgram     _textShader;
 
-    GLuint                   _environmentMap;
-    GLuint                   _shadowMap;
-    GLuint                   _shadowMapFBO;
+    unsigned int                   _environmentMap;
+    unsigned int                   _shadowMap;
+    unsigned int                   _shadowMapFBO;
     float                    _floorSize;
     QVector3D                _floorCenter;
 
@@ -330,8 +330,8 @@ private:
         float bot_r, float bot_g, float bot_b, float bot_a);
     void splitScreen();
 
-    void setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot);
-    void setZoomAndPan(GLfloat zoom, QVector3D pan);
+    void setRotations(float xRot, float yRot, float zRot);
+    void setZoomAndPan(float zoom, QVector3D pan);
     void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 
     void convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D& dir);

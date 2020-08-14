@@ -7,7 +7,7 @@ class SuperEllipsoid : public ParametricSurface
 {
 	friend class SuperEllipsoidEditor;
 public:
-	SuperEllipsoid(QOpenGLShaderProgram* prog, GLfloat radius, GLfloat scaleX, GLfloat scaleY, GLfloat scaleZ, GLfloat sinPower, GLfloat cosPower, GLuint nSlices, GLuint nStacks);
+	SuperEllipsoid(QOpenGLShaderProgram* prog, float radius, float scaleX, float scaleY, float scaleZ, float sinPower, float cosPower, unsigned int nSlices, unsigned int nStacks);
 	~SuperEllipsoid();
 
 	virtual float firstUParameter() const;
@@ -17,11 +17,11 @@ public:
 	virtual Point pointAtParameter(const float& u, const float& v);
 	
 private:
-	GLfloat _radius;
-	GLfloat _scaleX;
-	GLfloat _scaleY;
-	GLfloat _scaleZ;
-	GLfloat _n1;
-	GLfloat _n2;
+	float _radius;
+	float _scaleX;
+	float _scaleY;
+	float _scaleZ;
+	float _n1;
+	float _n2;
 };
 

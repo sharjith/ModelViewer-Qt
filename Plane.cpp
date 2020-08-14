@@ -18,10 +18,10 @@ void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, 
 
 void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax)
 {
-    std::vector<GLfloat> p(3 * (xdivs + 1) * (ydivs + 1));
-    std::vector<GLfloat> n(3 * (xdivs + 1) * (ydivs + 1));
-    std::vector<GLfloat> tex(2 * (xdivs + 1) * (ydivs + 1));
-    std::vector<GLuint> el(6 * xdivs * ydivs);
+    std::vector<float> p(3 * (xdivs + 1) * (ydivs + 1));
+    std::vector<float> n(3 * (xdivs + 1) * (ydivs + 1));
+    std::vector<float> tex(2 * (xdivs + 1) * (ydivs + 1));
+    std::vector<unsigned int> el(6 * xdivs * ydivs);
 
     float x2 = xsize / 2.0f;
     float y2 = ysize / 2.0f;
@@ -50,11 +50,11 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
         }
     }
 
-    GLuint rowStart, nextRowStart;
+    unsigned int rowStart, nextRowStart;
     int idx = 0;
     for( int i = 0; i < ydivs; i++ ) {
-        rowStart = (GLuint)( i * (xdivs+1) );
-        nextRowStart = (GLuint)( (i+1) * (xdivs+1));
+        rowStart = (unsigned int)( i * (xdivs+1) );
+        nextRowStart = (unsigned int)( (i+1) * (xdivs+1));
         for( int j = 0; j < xdivs; j++ ) {
             el[idx] = rowStart + j;
             el[idx+1] = nextRowStart + j;

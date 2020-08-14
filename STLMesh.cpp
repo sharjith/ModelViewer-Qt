@@ -94,10 +94,10 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
     QString fileName = fi.baseName();
     setName(fileName);
 
-    std::vector<GLuint> elements;
-    std::vector<GLfloat> points;
-    std::vector<GLfloat> norms;
-    std::vector<GLfloat> texcords;
+    std::vector<unsigned int> elements;
+    std::vector<float> points;
+    std::vector<float> norms;
+    std::vector<float> texcords;
 
     std::vector<float> normals;
     std::vector<unsigned int> tris, solids;
@@ -161,7 +161,7 @@ STLMesh::STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath) : TriangleMesh
             const size_t numTris = points.size() / 3;
             //std::cout << "Triangles: " << numTris << std::endl;
 
-            for (GLuint itri = 0; itri < numTris; ++itri)
+            for (unsigned int itri = 0; itri < numTris; ++itri)
             {
                 elements.push_back(itri);
             }

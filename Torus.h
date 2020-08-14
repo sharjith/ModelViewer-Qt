@@ -5,5 +5,5 @@
 class Torus : public QuadMesh
 {
 public:
-    Torus(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloat innerRadius, GLuint nsides, GLuint nrings);
+    Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings);
 };

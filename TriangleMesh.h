@@ -52,14 +52,14 @@ public:
     QVector4D specularReflectivity() const;
     void setSpecularReflectivity(const QVector4D &specularReflectivity);
 
-    GLfloat opacity() const;
-    void setOpacity(const GLfloat &opacity);
+    float opacity() const;
+    void setOpacity(const float &opacity);
 
-    GLfloat shininess() const;
-    void setShininess(const GLfloat &shininess);
+    float shininess() const;
+    void setShininess(const float &shininess);
 
-    GLboolean hasTexture() const;
-    void enableTexture(const GLboolean &bHasTexture);
+    bool hasTexture() const;
+    void enableTexture(const bool &bHasTexture);
 
     void setTexureImage(const QImage &texImage);
 
@@ -68,8 +68,8 @@ public:
     QMatrix4x4 getTransformation() const;
     void setTransformation(const QMatrix4x4 &transformation);
 
-    std::vector<GLfloat> getPoints() const;
-    std::vector<GLfloat> getNormals() const;
+    std::vector<float> getPoints() const;
+    std::vector<float> getNormals() const;
 
     
 
@@ -77,16 +77,16 @@ public:
 
 protected: // methods
     virtual void initBuffers(
-            std::vector<GLuint> * indices,
-            std::vector<GLfloat> * points,
-            std::vector<GLfloat> * normals,
-            std::vector<GLfloat> * texCoords = nullptr,
-            std::vector<GLfloat> * tangents = nullptr
+            std::vector<unsigned int> * indices,
+            std::vector<float> * points,
+            std::vector<float> * normals,
+            std::vector<float> * texCoords = nullptr,
+            std::vector<float> * tangents = nullptr
             );
 
     virtual void deleteBuffers();
 
-    void computeBoundingSphere(std::vector<GLfloat> points);
+    void computeBoundingSphere(std::vector<float> points);
 
     bool rayIntersectsTriangle(const QVector3D& rayOrigin,
                                              const QVector3D& rayVector,
@@ -105,7 +105,7 @@ protected:
 
     QOpenGLBuffer _coordBuf;
 
-    GLuint _nVerts;     // Number of vertices
+    unsigned int _nVerts;     // Number of vertices
     QOpenGLVertexArrayObject _vertexArrayObject;        // The Vertex Array Object
 
     // Vertex buffers
@@ -120,18 +120,18 @@ protected:
     QVector4D _specularMaterial;
     QVector4D _emmissiveMaterial;
     QVector4D _specularReflectivity;
-    GLfloat _opacity;
-    GLfloat _shininess;
+    float _opacity;
+    float _shininess;
 
     QImage _texImage, _texBuffer;
-    GLuint _texture;
-    GLboolean _bHasTexture;
+    unsigned int _texture;
+    bool _bHasTexture;
 
-    std::vector<GLuint> _indices;
-    std::vector<GLfloat> _points;
-    std::vector<GLfloat> _normals;
-    std::vector<GLfloat> _trsfpoints;
-    std::vector<GLfloat> _trsfnormals;
+    std::vector<unsigned int> _indices;
+    std::vector<float> _points;
+    std::vector<float> _normals;
+    std::vector<float> _trsfpoints;
+    std::vector<float> _trsfnormals;
     QMatrix4x4 _transformation;
 
 };

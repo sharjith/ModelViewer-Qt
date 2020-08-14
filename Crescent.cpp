@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-Crescent::Crescent(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks) :
+Crescent::Crescent(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
 {

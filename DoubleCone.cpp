@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-DoubleCone::DoubleCone(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks) :
+DoubleCone::DoubleCone(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
 {

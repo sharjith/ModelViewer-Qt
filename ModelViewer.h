@@ -146,8 +146,8 @@ private:
 	QVector4D _specMat;
 	QVector4D _emmiMat;
 	QVector4D _specRef;
-	GLfloat _opacity;
-	GLfloat _shine;
+	float _opacity;
+	float _shine;
 	bool _bHasTexture;
 
 	bool _bFirstTime;

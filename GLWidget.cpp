@@ -798,9 +798,9 @@ void GLWidget::initializeGL()
 		<< endl;
 
 	/*
-	GLint n = 0;
+	int n = 0;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-	for (GLint i = 0; i < n; i++)
+	for (int i = 0; i < n; i++)
 	{
 		const char* extension =
 				(const char*)glGetStringi(GL_EXTENSIONS, i);
@@ -933,8 +933,8 @@ void GLWidget::loadEnvMap()
 
 void GLWidget::resizeGL(int width, int height)
 {
-	GLfloat w = (GLfloat)width;
-	GLfloat h = (GLfloat)height;
+	float w = (float)width;
+	float h = (float)height;
 
 	glViewport(0, 0, w, h);
 	_viewportMatrix = QMatrix4x4(w / 2, 0.0f, 0.0f, 0.0f,
@@ -1231,7 +1231,7 @@ void GLWidget::drawFaceNormals()
 
 void GLWidget::drawAxis()
 {
-	GLfloat size = 15;
+	float size = 15;
 	// Labels
 	QVector3D xAxis(_viewRange / size, 0, 0);
 	xAxis = xAxis.project(_modelViewMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
@@ -1260,14 +1260,14 @@ void GLWidget::drawAxis()
 	}
 	_axisVBO.bind();
 	_axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	std::vector<GLfloat> vertices = {
+	std::vector<float> vertices = {
 		0, 0, 0,
 		_viewRange / size, 0, 0,
 		0, 0, 0,
 		0, _viewRange / size, 0,
 		0, 0, 0,
 		0, 0, _viewRange / size };
-	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(GLfloat)));
+	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
 	// Color Buffer
 	if (!_axisCBO.isCreated())
@@ -1277,14 +1277,14 @@ void GLWidget::drawAxis()
 	}
 	_axisCBO.bind();
 	_axisCBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	std::vector<GLfloat> colors = {
+	std::vector<float> colors = {
 		1, 0, 0,
 		1, 0, 0,
 		0, 1, 0,
 		0, 1, 0,
 		0, 0, 1,
 		0, 0, 1 };
-	_axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(GLfloat)));
+	_axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
 
 	_axisShader->bind();
 
@@ -1315,7 +1315,7 @@ void GLWidget::drawCornerAxis()
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 
-	GLfloat size = 3.5;
+	float size = 3.5;
 	// Labels
 	QVector3D xAxis(_viewRange / size, 0, 0);
 	xAxis = xAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
@@ -1344,14 +1344,14 @@ void GLWidget::drawCornerAxis()
 	}
 	_axisVBO.bind();
 	_axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	std::vector<GLfloat> vertices = {
+	std::vector<float> vertices = {
 		0, 0, 0,
 		_viewRange / size, 0, 0,
 		0, 0, 0,
 		0, _viewRange / size, 0,
 		0, 0, 0,
 		0, 0, _viewRange / size };
-	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(GLfloat)));
+	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
 	// Color Buffer
 	if (!_axisCBO.isCreated())
@@ -1361,14 +1361,14 @@ void GLWidget::drawCornerAxis()
 	}
 	_axisCBO.bind();
 	_axisCBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	std::vector<GLfloat> colors = {
+	std::vector<float> colors = {
 		1, 1, 1,
 		1, 1, 1,
 		1, 1, 1,
 		1, 1, 1,
 		1, 1, 1,
 		1, 1, 1 };
-	_axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(GLfloat)));
+	_axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
 
 	_axisShader->bind();
 
@@ -1473,7 +1473,7 @@ void GLWidget::render()
 void GLWidget::renderToShadowBuffer()
 {
     // save current viewport
-    GLint viewport[4];
+    int viewport[4];
     glGetIntegerv(GL_VIEWPORT,viewport);
 
 	/// Shadow Mapping
@@ -1562,18 +1562,18 @@ void GLWidget::splitScreen()
 		_bgSplitVBO.bind();
 		_bgSplitVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
 
-		static const std::vector<GLfloat> vertices = {
-			-static_cast<GLfloat>(width()) / 2,
+		static const std::vector<float> vertices = {
+			-static_cast<float>(width()) / 2,
 			0,
-			static_cast<GLfloat>(width()) / 2,
+			static_cast<float>(width()) / 2,
 			0,
 			0,
-			-static_cast<GLfloat>(height()) / 2,
+			-static_cast<float>(height()) / 2,
 			0,
-			static_cast<GLfloat>(height()) / 2,
+			static_cast<float>(height()) / 2,
 		};
 
-		_bgSplitVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(GLfloat)));
+		_bgSplitVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
 		_bgSplitShader.bind();
 		_bgSplitShader.enableAttributeArray("vertexPosition");
@@ -1861,7 +1861,7 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 	emit viewSet();
 }
 
-void GLWidget::setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot)
+void GLWidget::setRotations(float xRot, float yRot, float zRot)
 {
 	// Rotation
 	QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
@@ -1878,7 +1878,7 @@ void GLWidget::setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot)
 	_camera->setView(curPos, viewDir, upDir, rightDir);
 
 	// Set zoom
-	GLfloat scaleStep = (_currentViewRange - _viewBoundingSphereDia) * _slerpFrac;
+	float scaleStep = (_currentViewRange - _viewBoundingSphereDia) * _slerpFrac;
 	_viewRange -= scaleStep;
 
 	if (qFuzzyCompare(_slerpStep, 1.0f))
@@ -1902,7 +1902,7 @@ void GLWidget::setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot)
 	}
 }
 
-void GLWidget::setZoomAndPan(GLfloat zoom, QVector3D pan)
+void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
 	_slerpStep += _slerpFrac;
 
@@ -1911,7 +1911,7 @@ void GLWidget::setZoomAndPan(GLfloat zoom, QVector3D pan)
 	_camera->move(curPos.x(), curPos.y(), curPos.z());
 
 	// Set zoom
-	GLfloat scaleStep = (_currentViewRange - zoom) * _slerpFrac;
+	float scaleStep = (_currentViewRange - zoom) * _slerpFrac;
 	_viewRange -= scaleStep;
 
 	if (qFuzzyCompare(_slerpStep, 1.0f))
@@ -2008,92 +2008,92 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 	_displayMode = mode;
 }
 
-GLfloat GLWidget::getZScale() const
+float GLWidget::getZScale() const
 {
 	return _zScale;
 }
 
-void GLWidget::setZScale(const GLfloat& zScale)
+void GLWidget::setZScale(const float& zScale)
 {
 	_zScale = zScale;
 }
 
-GLfloat GLWidget::getYScale() const
+float GLWidget::getYScale() const
 {
 	return _yScale;
 }
 
-void GLWidget::setYScale(const GLfloat& yScale)
+void GLWidget::setYScale(const float& yScale)
 {
 	_yScale = yScale;
 }
 
-GLfloat GLWidget::getXScale() const
+float GLWidget::getXScale() const
 {
 	return _xScale;
 }
 
-void GLWidget::setXScale(const GLfloat& xScale)
+void GLWidget::setXScale(const float& xScale)
 {
 	_xScale = xScale;
 }
 
-GLfloat GLWidget::getZRot() const
+float GLWidget::getZRot() const
 {
 	return _zRot;
 }
 
-void GLWidget::setZRot(const GLfloat& zRot)
+void GLWidget::setZRot(const float& zRot)
 {
 	_zRot = zRot;
 }
 
-GLfloat GLWidget::getYRot() const
+float GLWidget::getYRot() const
 {
 	return _yRot;
 }
 
-void GLWidget::setYRot(const GLfloat& yRot)
+void GLWidget::setYRot(const float& yRot)
 {
 	_yRot = yRot;
 }
 
-GLfloat GLWidget::getXRot() const
+float GLWidget::getXRot() const
 {
 	return _xRot;
 }
 
-void GLWidget::setXRot(const GLfloat& xRot)
+void GLWidget::setXRot(const float& xRot)
 {
 	_xRot = xRot;
 }
 
-GLfloat GLWidget::getZTran() const
+float GLWidget::getZTran() const
 {
 	return _zTran;
 }
 
-void GLWidget::setZTran(const GLfloat& zTran)
+void GLWidget::setZTran(const float& zTran)
 {
 	_zTran = zTran;
 }
 
-GLfloat GLWidget::getYTran() const
+float GLWidget::getYTran() const
 {
 	return _yTran;
 }
 
-void GLWidget::setYTran(const GLfloat& yTran)
+void GLWidget::setYTran(const float& yTran)
 {
 	_yTran = yTran;
 }
 
-GLfloat GLWidget::getXTran() const
+float GLWidget::getXTran() const
 {
 	return _xTran;
 }
 
-void GLWidget::setXTran(const GLfloat& xTran)
+void GLWidget::setXTran(const float& xTran)
 {
 	_xTran = xTran;
 }

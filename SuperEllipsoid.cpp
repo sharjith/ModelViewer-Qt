@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-SuperEllipsoid::SuperEllipsoid(QOpenGLShaderProgram* prog, GLfloat radius, GLfloat scaleX, GLfloat scaleY, GLfloat scaleZ, GLfloat n1, GLfloat n2, GLuint nSlices, GLuint nStacks) :
+SuperEllipsoid::SuperEllipsoid(QOpenGLShaderProgram* prog, float radius, float scaleX, float scaleY, float scaleZ, float n1, float n2, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius),
 	_scaleX(scaleX),

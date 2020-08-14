@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-SteinerSurface::SteinerSurface(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks) :
+SteinerSurface::SteinerSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
 {

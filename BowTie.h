@@ -6,7 +6,7 @@ class Point;
 class BowTie : public ParametricSurface
 {
 public:
-	BowTie(QOpenGLShaderProgram *prog, GLfloat radius, GLuint nSlices, GLuint nStacks);
+	BowTie(QOpenGLShaderProgram *prog, float radius, unsigned int nSlices, unsigned int nStacks);
 	~BowTie();
 
 	virtual float firstUParameter() const;
@@ -16,5 +16,5 @@ public:
 	virtual Point pointAtParameter(const float &u, const float &v);
 
 private:
-	GLfloat _radius;
+	float _radius;
 };

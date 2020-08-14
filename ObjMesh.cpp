@@ -247,7 +247,7 @@ void ObjMesh::ObjMeshData::generateNormalsIfNeeded()
 
     normals.resize(points.size());
 
-    for (GLuint i = 0; i < faces.size(); i += 3)
+    for (unsigned int i = 0; i < faces.size(); i += 3)
     {
         const vec3 &p1 = points[faces[i].pIdx];
         const vec3 &p2 = points[faces[i + 1].pIdx];
@@ -267,7 +267,7 @@ void ObjMesh::ObjMeshData::generateNormalsIfNeeded()
         faces[i + 2].nIdx = faces[i + 2].pIdx;
     }
 
-    for (GLuint i = 0; i < normals.size(); i++)
+    for (unsigned int i = 0; i < normals.size(); i++)
     {
         normals[i] = glm::normalize(normals[i]);
     }
@@ -280,7 +280,7 @@ void ObjMesh::ObjMeshData::generateTangents()
     tangents.resize(points.size());
 
     // Compute the tangent std::vector
-    for (GLuint i = 0; i < faces.size(); i += 3)
+    for (unsigned int i = 0; i < faces.size(); i += 3)
     {
         const vec3 &p1 = points[faces[i].pIdx];
         const vec3 &p2 = points[faces[i + 1].pIdx];
@@ -309,7 +309,7 @@ void ObjMesh::ObjMeshData::generateTangents()
         tan2Accum[faces[i + 2].pIdx] += tan2;
     }
 
-    for (GLuint i = 0; i < points.size(); ++i)
+    for (unsigned int i = 0; i < points.size(); ++i)
     {
         const vec3 &n = normals[i];
         vec3 &t1 = tan1Accum[i];
@@ -328,7 +328,7 @@ void ObjMesh::ObjMeshData::toGlMesh(GlMeshData &data)
     {
         data.clear();
 
-        std::map<std::string, GLuint> vertexMap;
+        std::map<std::string, unsigned int> vertexMap;
         for (auto& vert : faces)
         {
             auto vertStr = vert.str();
@@ -364,8 +364,8 @@ void ObjMesh::ObjMeshData::toGlMesh(GlMeshData &data)
                     data.tangents.push_back(tang.w);
                 }
 
-                data.faces.push_back((GLuint)vIdx);
-                vertexMap[vertStr] = (GLuint)vIdx;
+                data.faces.push_back((unsigned int)vIdx);
+                vertexMap[vertStr] = (unsigned int)vIdx;
             }
             else
             {
@@ -383,33 +383,33 @@ void ObjMesh::ObjMeshData::toGlMesh(GlMeshData &data)
 void ObjMesh::GlMeshData::convertFacesToAdjancencyFormat()
 {
     // Elements with adjacency info
-    std::vector<GLuint> elAdj(faces.size() * 2);
+    std::vector<unsigned int> elAdj(faces.size() * 2);
 
     // Copy and make room for adjacency info
-    for (GLuint i = 0; i < faces.size(); i += 3)
+    for (unsigned int i = 0; i < faces.size(); i += 3)
     {
         elAdj[i * 2 + 0] = faces[i];
-        elAdj[i * 2 + 1] = std::numeric_limits<GLuint>::max();
+        elAdj[i * 2 + 1] = std::numeric_limits<unsigned int>::max();
         elAdj[i * 2 + 2] = faces[i + 1];
-        elAdj[i * 2 + 3] = std::numeric_limits<GLuint>::max();
+        elAdj[i * 2 + 3] = std::numeric_limits<unsigned int>::max();
         elAdj[i * 2 + 4] = faces[i + 2];
-        elAdj[i * 2 + 5] = std::numeric_limits<GLuint>::max();
+        elAdj[i * 2 + 5] = std::numeric_limits<unsigned int>::max();
     }
 
     // Find matching edges
-    for (GLuint i = 0; i < elAdj.size(); i += 6)
+    for (unsigned int i = 0; i < elAdj.size(); i += 6)
     {
         // A triangle
-        GLuint a1 = elAdj[i];
-        GLuint b1 = elAdj[i + 2];
-        GLuint c1 = elAdj[i + 4];
+        unsigned int a1 = elAdj[i];
+        unsigned int b1 = elAdj[i + 2];
+        unsigned int c1 = elAdj[i + 4];
 
         // Scan subsequent triangles
-        for (GLuint j = i + 6; j < elAdj.size(); j += 6)
+        for (unsigned int j = i + 6; j < elAdj.size(); j += 6)
         {
-            GLuint a2 = elAdj[j];
-            GLuint b2 = elAdj[j + 2];
-            GLuint c2 = elAdj[j + 4];
+            unsigned int a2 = elAdj[j];
+            unsigned int b2 = elAdj[j + 2];
+            unsigned int c2 = elAdj[j + 4];
 
             // Edge 1 == Edge 1
             if ((a1 == a2 && b1 == b2) || (a1 == b2 && b1 == a2))
@@ -469,13 +469,13 @@ void ObjMesh::GlMeshData::convertFacesToAdjancencyFormat()
     }
 
     // Look for any outside edges
-    for (GLuint i = 0; i < elAdj.size(); i += 6)
+    for (unsigned int i = 0; i < elAdj.size(); i += 6)
     {
-        if (elAdj[i + 1] == std::numeric_limits<GLuint>::max())
+        if (elAdj[i + 1] == std::numeric_limits<unsigned int>::max())
             elAdj[i + 1] = elAdj[i + 4];
-        if (elAdj[i + 3] == std::numeric_limits<GLuint>::max())
+        if (elAdj[i + 3] == std::numeric_limits<unsigned int>::max())
             elAdj[i + 3] = elAdj[i];
-        if (elAdj[i + 5] == std::numeric_limits<GLuint>::max())
+        if (elAdj[i + 5] == std::numeric_limits<unsigned int>::max())
             elAdj[i + 5] = elAdj[i + 2];
     }
 

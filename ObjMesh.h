@@ -28,11 +28,11 @@ protected:
     class GlMeshData
     {
     public:
-        std::vector<GLfloat> points;
-        std::vector<GLfloat> normals;
-        std::vector<GLfloat> texCoords;
-        std::vector<GLuint> faces;
-        std::vector<GLfloat> tangents;
+        std::vector<float> points;
+        std::vector<float> normals;
+        std::vector<float> texCoords;
+        std::vector<unsigned int> faces;
+        std::vector<float> tangents;
 
         void clear()
         {

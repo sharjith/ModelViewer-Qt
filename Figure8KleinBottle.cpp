@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-Figure8KleinBottle::Figure8KleinBottle(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks) :
+Figure8KleinBottle::Figure8KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
 {

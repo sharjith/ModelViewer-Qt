@@ -5,5 +5,5 @@
 class Sphere : public QuadMesh
 {
 public:
-    Sphere(QOpenGLShaderProgram* prog, float rad, GLuint sl, GLuint st);
+    Sphere(QOpenGLShaderProgram* prog, float rad, unsigned int sl, unsigned int st);
 };

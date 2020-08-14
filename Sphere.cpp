@@ -5,32 +5,32 @@
 
 #include <glm/gtc/constants.hpp>
 
-Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, GLuint nSlices, GLuint nStacks) : QuadMesh(prog, "Sphere")
+Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) : QuadMesh(prog, "Sphere")
 {
     int nVerts = (nSlices+1) * (nStacks + 1);
     int elements = (nSlices * 2 * (nStacks-1) ) * 3;
 
     // Verts
-    std::vector<GLfloat> p(3 * nVerts);
+    std::vector<float> p(3 * nVerts);
     // Normals
-    std::vector<GLfloat> n(3 * nVerts);
+    std::vector<float> n(3 * nVerts);
     // Tex coords
-    std::vector<GLfloat> tex(2 * nVerts);
+    std::vector<float> tex(2 * nVerts);
     // Elements
-    std::vector<GLuint> el(elements);
+    std::vector<unsigned int> el(elements);
 
 	// Generate positions and normals
-	GLfloat theta, phi;
-	GLfloat thetaFac = glm::two_pi<float>() / nSlices;
-	GLfloat phiFac = glm::pi<float>() / nStacks;
-	GLfloat nx, ny, nz, s, t;
-	GLuint idx = 0, tIdx = 0;
-	for( GLuint i = 0; i <= nSlices; i++ ) {
+	float theta, phi;
+	float thetaFac = glm::two_pi<float>() / nSlices;
+	float phiFac = glm::pi<float>() / nStacks;
+	float nx, ny, nz, s, t;
+	unsigned int idx = 0, tIdx = 0;
+	for( unsigned int i = 0; i <= nSlices; i++ ) {
 		theta = i * thetaFac;
-                s = (GLfloat)i / nSlices;
-		for( GLuint j = 0; j <= nStacks; j++ ) {
+                s = (float)i / nSlices;
+		for( unsigned int j = 0; j <= nStacks; j++ ) {
 			phi = j * phiFac;
-                        t = (GLfloat)j / nStacks;
+                        t = (float)j / nStacks;
 			nx = sinf(phi) * cosf(theta);
 			ny = sinf(phi) * sinf(theta);
 			nz = cosf(phi);
@@ -46,10 +46,10 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, GLuint nSlices, GLuint 
 
 	// Generate the element list
 	idx = 0;
-	/*for( GLuint i = 0; i < nSlices; i++ ) {
-		GLuint stackStart = i * (nStacks + 1);
-		GLuint nextStackStart = (i+1) * (nStacks+1);
-		for( GLuint j = 0; j < nStacks; j++ ) {
+	/*for( unsigned int i = 0; i < nSlices; i++ ) {
+		unsigned int stackStart = i * (nStacks + 1);
+		unsigned int nextStackStart = (i+1) * (nStacks+1);
+		for( unsigned int j = 0; j < nStacks; j++ ) {
 			if( j == 0 ) {
 				el[idx] = stackStart;
 				el[idx+1] = stackStart + 1;
@@ -71,10 +71,10 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, GLuint nSlices, GLuint 
 			}
 		}
 	}*/
-	for (GLuint i = 0; i < nSlices; i++) {
-		GLuint stackStart = i * (nStacks + 1);
-		GLuint nextStackStart = (i + 1) * (nStacks + 1);
-		for (GLuint j = 0; j < nStacks; j++) {
+	for (unsigned int i = 0; i < nSlices; i++) {
+		unsigned int stackStart = i * (nStacks + 1);
+		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
+		for (unsigned int j = 0; j < nStacks; j++) {
 			if (j == 0) {
 				el[idx] = stackStart;
 				el[idx + 1] = stackStart + 1;

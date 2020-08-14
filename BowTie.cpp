@@ -5,7 +5,7 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-BowTie::BowTie(QOpenGLShaderProgram *prog, GLfloat radius, GLuint nSlices, GLuint nStacks) : ParametricSurface(prog, nSlices, nStacks),
+BowTie::BowTie(QOpenGLShaderProgram *prog, float radius, unsigned int nSlices, unsigned int nStacks) : ParametricSurface(prog, nSlices, nStacks),
 																							 _radius(radius)
 {
 	_name = "Bow Tie";

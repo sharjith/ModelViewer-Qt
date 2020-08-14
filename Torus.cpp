@@ -3,29 +3,29 @@
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
-Torus::Torus(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloat innerRadius, GLuint nsides, GLuint nrings):QuadMesh(prog, "Torus")
+Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings):QuadMesh(prog, "Torus")
 {
-    GLuint faces = nsides * nrings;
+    unsigned int faces = nsides * nrings;
     int nVerts  = nsides * (nrings+1);   // One extra ring to duplicate first ring
 
     // Points
-    std::vector<GLfloat> p(3 * nVerts);
+    std::vector<float> p(3 * nVerts);
     // Normals
-    std::vector<GLfloat> n(3 * nVerts);
+    std::vector<float> n(3 * nVerts);
     // Tex coords
-    std::vector<GLfloat> tex(2 * nVerts);
+    std::vector<float> tex(2 * nVerts);
     // Elements
-    std::vector<GLuint> el(6 * faces);
+    std::vector<unsigned int> el(6 * faces);
 
     // Generate the vertex data
     float ringFactor = glm::two_pi<float>() / nrings;
 	float sideFactor = glm::two_pi<float>() / nsides;
     int idx = 0, tidx = 0;
-    for( GLuint ring = 0; ring <= nrings; ring++ ) {
+    for( unsigned int ring = 0; ring <= nrings; ring++ ) {
         float u = ring * ringFactor;
         float cu = cos(u);
         float su = sin(u);
-        for( GLuint side = 0; side < nsides; side++ ) {
+        for( unsigned int side = 0; side < nsides; side++ ) {
             float v = side * sideFactor;
             float cv = cos(v);
             float sv = sin(v);
@@ -51,10 +51,10 @@ Torus::Torus(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloat innerRadiu
     }
 
     idx = 0;
-    //for( GLuint ring = 0; ring < nrings; ring++ ) {
-    //    GLuint ringStart = ring * nsides;
-    //    GLuint nextRingStart = (ring + 1) * nsides;
-    //    for( GLuint side = 0; side < nsides; side++ ) {
+    //for( unsigned int ring = 0; ring < nrings; ring++ ) {
+    //    unsigned int ringStart = ring * nsides;
+    //    unsigned int nextRingStart = (ring + 1) * nsides;
+    //    for( unsigned int side = 0; side < nsides; side++ ) {
     //        int nextSide = (side+1) % nsides;
     //        // The quad
     //        el[idx] = (ringStart + side);
@@ -66,10 +66,10 @@ Torus::Torus(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloat innerRadiu
     //        idx += 6;
     //    }
     //}
-	for (GLuint ring = 0; ring < nrings; ring++) {
-		GLuint ringStart = ring * nsides;
-		GLuint nextRingStart = (ring + 1) * nsides;
-		for (GLuint side = 0; side < nsides; side++) {
+	for (unsigned int ring = 0; ring < nrings; ring++) {
+		unsigned int ringStart = ring * nsides;
+		unsigned int nextRingStart = (ring + 1) * nsides;
+		for (unsigned int side = 0; side < nsides; side++) {
 			int nextSide = (side + 1) % nsides;
 			// The quad
 			el[idx] = (ringStart + side);

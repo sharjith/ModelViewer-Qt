@@ -8,13 +8,13 @@
 #include "TextRenderer.h"
 
 
-TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, GLuint width, GLuint height) : _prog(prog), _width(width), _height(height)
+TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsigned int height) : _prog(prog), _width(width), _height(height)
 {
     initializeOpenGLFunctions();
     _charVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
     // Load and configure shader
     QMatrix4x4 projection;
-    GLuint ratio = (_width <= _height) ? _height / _width : _width / _height;
+    unsigned int ratio = (_width <= _height) ? _height / _width : _width / _height;
     if(_width <= _height)
         projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(_width), static_cast<float>(_height)*ratio));
     else
@@ -30,20 +30,20 @@ TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, GLuint width, GLuint heig
     _charVAO.bind();
     //glBindBuffer(GL_ARRAY_BUFFER, this->VBO);
     _charVBO.bind();
-    //glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
+    //glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
     _charVBO.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-    _charVBO.allocate(NULL, sizeof(GLfloat) * 6 * 4);
+    _charVBO.allocate(NULL, sizeof(float) * 6 * 4);
     //glEnableVertexAttribArray(0);
     _prog->enableAttributeArray(0);
-    //glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), 0);
-    _prog->setAttributeBuffer(0, GL_FLOAT, 0, 4, 4 * sizeof(GLfloat));
+    //glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float), 0);
+    _prog->setAttributeBuffer(0, GL_FLOAT, 0, 4, 4 * sizeof(float));
     //glBindBuffer(GL_ARRAY_BUFFER, 0);
     _charVBO.release();
     //glBindVertexArray(0);
     _charVAO.release();
 }
 
-void TextRenderer::Load(std::string font, GLuint fontSize)
+void TextRenderer::Load(std::string font, unsigned int fontSize)
 {
     _fontSize = fontSize;
     // First clear the previously loaded Characters
@@ -70,7 +70,7 @@ void TextRenderer::Load(std::string font, GLuint fontSize)
             continue;
         }
         // Generate texture
-        GLuint texture;
+        unsigned int texture;
         glGenTextures(1, &texture);
         glBindTexture(GL_TEXTURE_2D, texture);
         glTexImage2D(
@@ -95,7 +95,7 @@ void TextRenderer::Load(std::string font, GLuint fontSize)
             texture,
             glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
             glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
-            static_cast<GLuint>(face->glyph->advance.x)
+            static_cast<unsigned int>(face->glyph->advance.x)
         };
         _characters.insert(std::pair<GLchar, Character>(c, character));
     }
@@ -105,7 +105,7 @@ void TextRenderer::Load(std::string font, GLuint fontSize)
     FT_Done_FreeType(ft);
 }
 
-void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color,
+void TextRenderer::RenderText(std::string text, float x, float y, float scale, glm::vec3 color,
                               VAlignment vAlignment, HAlignment hAlignment)
 {
     // Activate corresponding updateMatrix state
@@ -118,7 +118,7 @@ void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
     glDisable(GL_DEPTH_TEST);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    GLuint voffset, hoffset;
+    unsigned int voffset, hoffset;
     if(vAlignment == VAlignment::VTOP)
         voffset = 0;
     else if(vAlignment == VAlignment::VBOTTOM)
@@ -129,9 +129,9 @@ void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
     if(hAlignment == HAlignment::HLEFT)
         hoffset = 0;
     else if(hAlignment == HAlignment::HRIGHT)
-        hoffset = static_cast<GLuint>(_width - (text.length()*this->_characters['H'].Size.x));
+        hoffset = static_cast<unsigned int>(_width - (text.length()*this->_characters['H'].Size.x));
     else
-        hoffset = static_cast<GLuint>(_width/2 - (text.length()*this->_characters['H'].Size.x)/2);
+        hoffset = static_cast<unsigned int>(_width/2 - (text.length()*this->_characters['H'].Size.x)/2);
 
     // Iterate through all characters
     std::string::const_iterator c;
@@ -139,13 +139,13 @@ void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
     {
         Character ch = _characters[*c];
 
-        GLfloat xpos = x + hoffset + ch.Bearing.x * scale;
-        GLfloat ypos = y - voffset + (this->_characters['H'].Bearing.y - ch.Bearing.y) * scale;
+        float xpos = x + hoffset + ch.Bearing.x * scale;
+        float ypos = y - voffset + (this->_characters['H'].Bearing.y - ch.Bearing.y) * scale;
 
-        GLfloat w = ch.Size.x * scale;
-        GLfloat h = ch.Size.y * scale;
+        float w = ch.Size.x * scale;
+        float h = ch.Size.y * scale;
         // Update VBO for each character
-        GLfloat vertices[6][4] = {
+        float vertices[6][4] = {
             { xpos,     ypos + h,   0.0, 1.0 },
             { xpos + w, ypos,       1.0, 0.0 },
             { xpos,     ypos,       0.0, 0.0 },
@@ -176,22 +176,22 @@ void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
     _prog->release();
 }
 
-GLuint TextRenderer::width() const
+unsigned int TextRenderer::width() const
 {
     return _width;
 }
 
-void TextRenderer::setWidth(const GLuint &width)
+void TextRenderer::setWidth(const unsigned int &width)
 {
     _width = width;
 }
 
-GLuint TextRenderer::height() const
+unsigned int TextRenderer::height() const
 {
     return _height;
 }
 
-void TextRenderer::setHeight(const GLuint &height)
+void TextRenderer::setHeight(const unsigned int &height)
 {
     _height = height;
 }

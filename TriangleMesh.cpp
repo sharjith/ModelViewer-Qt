@@ -45,11 +45,11 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
 }
 
 void TriangleMesh::initBuffers(
-        std::vector<GLuint> *indices,
-        std::vector<GLfloat> *points,
-        std::vector<GLfloat> *normals,
-        std::vector<GLfloat> *texCoords,
-        std::vector<GLfloat> *tangents)
+        std::vector<unsigned int> *indices,
+        std::vector<float> *points,
+        std::vector<float> *normals,
+        std::vector<float> *texCoords,
+        std::vector<float> *tangents)
 {
     // Must have data for indices, points, and normals
     if (indices == nullptr || points == nullptr || normals == nullptr)
@@ -60,29 +60,29 @@ void TriangleMesh::initBuffers(
     _trsfpoints = _points;
     _normals = *normals;
 
-    _nVerts = (GLuint)indices->size();
+    _nVerts = (unsigned int)indices->size();
 
     _buffers.push_back(_indexBuffer);
     _indexBuffer.bind();
     _indexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-    _indexBuffer.allocate(indices->data(), static_cast<int>(indices->size() * sizeof(GLuint)));
+    _indexBuffer.allocate(indices->data(), static_cast<int>(indices->size() * sizeof(unsigned int)));
 
     _buffers.push_back(_positionBuffer);
     _positionBuffer.bind();
     _positionBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-    _positionBuffer.allocate(points->data(), static_cast<int>(points->size() * sizeof(GLfloat)));
+    _positionBuffer.allocate(points->data(), static_cast<int>(points->size() * sizeof(float)));
 
     _buffers.push_back(_normalBuffer);
     _normalBuffer.bind();
     _normalBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-    _normalBuffer.allocate(normals->data(), static_cast<int>(normals->size() * sizeof(GLfloat)));
+    _normalBuffer.allocate(normals->data(), static_cast<int>(normals->size() * sizeof(float)));
 
     if (texCoords != nullptr)
     {
         _buffers.push_back(_texCoordBuffer);
         _texCoordBuffer.bind();
         _texCoordBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-        _texCoordBuffer.allocate(texCoords->data(), static_cast<int>(texCoords->size() * sizeof(GLfloat)));
+        _texCoordBuffer.allocate(texCoords->data(), static_cast<int>(texCoords->size() * sizeof(float)));
     }
 
     if (tangents != nullptr)
@@ -90,7 +90,7 @@ void TriangleMesh::initBuffers(
         _buffers.push_back(_tangentBuf);
         _tangentBuf.bind();
         _tangentBuf.setUsagePattern(QOpenGLBuffer::StaticDraw);
-        _tangentBuf.allocate(tangents->data(), static_cast<int>(tangents->size() * sizeof(GLfloat)));
+        _tangentBuf.allocate(tangents->data(), static_cast<int>(tangents->size() * sizeof(float)));
     }
 
     _vertexArrayObject.bind();
@@ -226,7 +226,7 @@ void TriangleMesh::deleteBuffers()
     }
 }
 
-void TriangleMesh::computeBoundingSphere(std::vector<GLfloat> points)
+void TriangleMesh::computeBoundingSphere(std::vector<float> points)
 {
     /*
     float minX = 0, maxX = 0, minY = 0, maxY = 0, minZ = 0, maxZ = 0;
@@ -329,12 +329,12 @@ float TriangleMesh::getLowestZValue() const
     return lowestZ;
 }
 
-std::vector<GLfloat> TriangleMesh::getNormals() const
+std::vector<float> TriangleMesh::getNormals() const
 {
     return _normals;
 }
 
-std::vector<GLfloat> TriangleMesh::getPoints() const
+std::vector<float> TriangleMesh::getPoints() const
 {
     return _points;
 }
@@ -361,7 +361,7 @@ void TriangleMesh::setTransformation(const QMatrix4x4 &transformation)
         _trsfpoints.push_back(tp.z());
     }
     _positionBuffer.bind();
-    _positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(GLfloat)));
+    _positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(float)));
     _prog->enableAttributeArray("vertexPosition");
     _prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
@@ -378,7 +378,7 @@ void TriangleMesh::setTransformation(const QMatrix4x4 &transformation)
         _trsfnormals.push_back(tn.z());
     }
     _normalBuffer.bind();
-    _normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(GLfloat)));
+    _normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(float)));
     _prog->enableAttributeArray("vertexNormal");
     _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
@@ -390,32 +390,32 @@ void TriangleMesh::setTexureImage(const QImage &texImage)
     _texImage = texImage;
 }
 
-GLboolean TriangleMesh::hasTexture() const
+bool TriangleMesh::hasTexture() const
 {
     return _bHasTexture;
 }
 
-void TriangleMesh::enableTexture(const GLboolean &bHasTexture)
+void TriangleMesh::enableTexture(const bool &bHasTexture)
 {
     _bHasTexture = bHasTexture;
 }
 
-GLfloat TriangleMesh::shininess() const
+float TriangleMesh::shininess() const
 {
     return _shininess;
 }
 
-void TriangleMesh::setShininess(const GLfloat &shine)
+void TriangleMesh::setShininess(const float &shine)
 {
     _shininess = shine;
 }
 
-GLfloat TriangleMesh::opacity() const
+float TriangleMesh::opacity() const
 {
     return _opacity;
 }
 
-void TriangleMesh::setOpacity(const GLfloat &opacity)
+void TriangleMesh::setOpacity(const float &opacity)
 {
     _opacity = opacity;
 }

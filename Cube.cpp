@@ -1,11 +1,11 @@
 #include "Cube.h"
 #include <cstdio>
 
-Cube::Cube(QOpenGLShaderProgram *prog, GLfloat size) : QuadMesh(prog, "Cube")
+Cube::Cube(QOpenGLShaderProgram *prog, float size) : QuadMesh(prog, "Cube")
 {
-    GLfloat side = size / 2.0f;
+    float side = size / 2.0f;
 
-    std::vector<GLfloat> p = {
+    std::vector<float> p = {
         // Front
         -side, -side, side, side, -side, side, side, side, side, -side, side, side,
         // Right
@@ -19,7 +19,7 @@ Cube::Cube(QOpenGLShaderProgram *prog, GLfloat size) : QuadMesh(prog, "Cube")
         // Top
         -side, side, side, side, side, side, side, side, -side, -side, side, -side};
 
-    std::vector<GLfloat> n = {
+    std::vector<float> n = {
         // Front
         0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
         // Right
@@ -33,7 +33,7 @@ Cube::Cube(QOpenGLShaderProgram *prog, GLfloat size) : QuadMesh(prog, "Cube")
         // Top
         0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
 
-    std::vector<GLfloat> tex = {
+    std::vector<float> tex = {
         // Front
         0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f,
         // Right
@@ -47,7 +47,7 @@ Cube::Cube(QOpenGLShaderProgram *prog, GLfloat size) : QuadMesh(prog, "Cube")
         // Top
         0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f};
 
-    /*std::vector<GLuint> el = {
+    /*std::vector<unsigned int> el = {
         0,1,2,0,2,3,
         4,5,6,4,6,7,
         8,9,10,8,10,11,
@@ -55,7 +55,7 @@ Cube::Cube(QOpenGLShaderProgram *prog, GLfloat size) : QuadMesh(prog, "Cube")
         16,17,18,16,18,19,
         20,21,22,20,22,23
     };*/
-    std::vector<GLuint> el = {
+    std::vector<unsigned int> el = {
         0, 1, 2, 3,
         4, 5, 6, 7,
         8, 9, 10, 11,

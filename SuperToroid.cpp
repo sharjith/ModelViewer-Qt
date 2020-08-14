@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 
-SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, GLfloat outerRadius, GLfloat innerRadius, GLfloat n1, GLfloat n2, GLuint nSlices, GLuint nStacks) :
+SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, float n1, float n2, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_outerRadius(outerRadius),
 	_innerRadius(innerRadius),

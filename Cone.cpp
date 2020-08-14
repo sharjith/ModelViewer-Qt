@@ -7,38 +7,38 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, GLuint nSlices, GLuint nStacks):QuadMesh(prog, "Cone")
+Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks):QuadMesh(prog, "Cone")
 {
 	int nVerts = ((nSlices + 1) * (nStacks + 1)) + nSlices + 2;
 	int elements = ((nSlices * 2 * (nStacks)) * 3) + (nSlices) * 3;
 
 	// Verts
-	std::vector<GLfloat> p(3 * nVerts);
+	std::vector<float> p(3 * nVerts);
 	// Normals
-	std::vector<GLfloat> n(3 * nVerts);
+	std::vector<float> n(3 * nVerts);
 	// Tex coords
-	std::vector<GLfloat> tex(2 * nVerts);
+	std::vector<float> tex(2 * nVerts);
 	// Elements
-	std::vector<GLuint> el(elements);
+	std::vector<unsigned int> el(elements);
 
 	// Generate positions and normals
-	GLfloat theta, phi;
-	GLfloat thetaFac = glm::two_pi<float>() / nSlices;
-	GLfloat phiFac = height / nStacks;
-	GLfloat nx, ny, nz, s, t;
-	GLuint idx = 0, tIdx = 0;
+	float theta, phi;
+	float thetaFac = glm::two_pi<float>() / nSlices;
+	float phiFac = height / nStacks;
+	float nx, ny, nz, s, t;
+	unsigned int idx = 0, tIdx = 0;
 
-	GLfloat ang = atan((radius) / height);
+	float ang = atan((radius) / height);
 
-	for (GLuint i = 0; i <= nSlices; i++)
+	for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-		s = (GLfloat)i / nSlices;
+		s = (float)i / nSlices;
 		
-		for (GLuint j = 0; j <= nStacks; j++)
+		for (unsigned int j = 0; j <= nStacks; j++)
 		{
 			phi = j * phiFac;
-			t = (GLfloat)j / nStacks;
+			t = (float)j / nStacks;
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
@@ -58,10 +58,10 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, GLuint nSlice
 	}
 
 	// bottom face
-	for (GLuint i = 0; i <= nSlices; i++)
+	for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-		s = (GLfloat)i / nSlices;
+		s = (float)i / nSlices;
 		nx = cosf(theta);
 		ny = sinf(theta);
 		nz = 0;
@@ -86,11 +86,11 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, GLuint nSlice
 
 	// Generate the element list
 	idx = 0;
-	/*for (GLuint i = 0; i < nSlices; i++)
+	/*for (unsigned int i = 0; i < nSlices; i++)
 	{
-		GLuint stackStart = i * (nStacks + 1);
-		GLuint nextStackStart = (i + 1) * (nStacks + 1);
-		for (GLuint j = 0; j < nStacks; j++)
+		unsigned int stackStart = i * (nStacks + 1);
+		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
+		for (unsigned int j = 0; j < nStacks; j++)
 		{
 			el[idx + 0] = stackStart + j;
 			el[idx + 1] = stackStart + j + 1;
@@ -101,11 +101,11 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, GLuint nSlice
 			idx += 6;
 		}
 	}*/
-	for (GLuint i = 0; i < nSlices; i++)
+	for (unsigned int i = 0; i < nSlices; i++)
 	{
-		GLuint stackStart = i * (nStacks + 1);
-		GLuint nextStackStart = (i + 1) * (nStacks + 1);
-		for (GLuint j = 0; j < nStacks; j++)
+		unsigned int stackStart = i * (nStacks + 1);
+		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
+		for (unsigned int j = 0; j < nStacks; j++)
 		{
 			el[idx + 0] = stackStart + j;
 			el[idx + 1] = stackStart + j + 1;
@@ -118,8 +118,8 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, GLuint nSlice
 	}
 
 	// Bottom face
-	GLuint j = ((nSlices + 1) * (nStacks + 1));
-	for (GLuint i = 0; i < nSlices; i++, j++)
+	unsigned int j = ((nSlices + 1) * (nStacks + 1));
+	for (unsigned int i = 0; i < nSlices; i++, j++)
 	{
 		el[idx + 0] = j;
 		el[idx + 1] = ((nSlices + 1) * (nStacks + 1)) + nSlices + 1;

@@ -6,7 +6,7 @@ class Point;
 class GraysKlein : public ParametricSurface
 {
 public:
-	GraysKlein(QOpenGLShaderProgram* prog, GLfloat radius, GLuint nSlices, GLuint nStacks);
+	GraysKlein(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
 	~GraysKlein();
 
 	virtual float firstUParameter() const;
@@ -15,11 +15,11 @@ public:
 	virtual float lastVParameter() const ;
 	virtual Point pointAtParameter(const float& u, const float& v);
 
-	GLfloat _A;
-	GLfloat _M;
-	GLfloat _N;
+	float _A;
+	float _M;
+	float _N;
 	
 private:
-	GLfloat _radius;
+	float _radius;
 };
 
