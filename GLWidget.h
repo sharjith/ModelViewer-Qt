@@ -273,6 +273,8 @@ private:
     GLuint                   _environmentMap;
     GLuint                   _shadowMap;
     GLuint                   _shadowMapFBO;
+    float                    _floorSize;
+    QVector3D                _floorCenter;
 
     QOpenGLShaderProgram     _bgShader;
     QOpenGLVertexArrayObject _bgVAO;

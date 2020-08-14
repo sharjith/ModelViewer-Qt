@@ -402,8 +402,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
     if(_floorPlane)
     {
-        float psize = _boundingSphere.getRadius();
-        _floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
+        _floorSize = _boundingSphere.getRadius();
+        _floorCenter = _boundingSphere.getCenter();
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
     }
 
 	fitAll();
@@ -434,8 +435,9 @@ void GLWidget::updateBoundingSphere()
 
 	if (_floorPlane)
 	{
-		float psize = _boundingSphere.getRadius();
-        _floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
+        _floorSize = _boundingSphere.getRadius();
+        _floorCenter = _boundingSphere.getCenter();
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
 	}
 
 	fitAll();
@@ -917,8 +919,9 @@ void GLWidget::loadFloor()
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, _shadowMap);
 
-	float psize = _boundingSphere.getRadius();
-    _floorPlane = new Plane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, -psize - 5, 25, 25);
+    _floorSize = _boundingSphere.getRadius();
+    _floorCenter = _boundingSphere.getCenter();
+    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1000, 1000, -_floorSize - 5, 25, 25);
 	_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
@@ -1503,7 +1506,7 @@ void GLWidget::renderToShadowBuffer()
     float radius = _boundingSphere.getRadius();
     float near_plane = -radius*2, far_plane = radius*2;
     lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
-	lightView.lookAt(_lightPosition, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
+    lightView.lookAt(_lightPosition + _floorCenter, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
     _lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
 	_shadowMappingShader->bind();
