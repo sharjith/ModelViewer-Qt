@@ -57,7 +57,7 @@ using namespace std;
 class GLCamera
 {
 public:
-    enum ViewProjection
+    enum class ViewProjection
     {
         TOP_VIEW	= 0,
         BOTTOM_VIEW	= ( TOP_VIEW + 1 ) ,
@@ -73,7 +73,7 @@ public:
         TRIMETRIC_VIEW	= ( DIMETRIC_VIEW + 1 )
     };
 
-	enum ProjectionType
+	enum class ProjectionType
 	{
 		ORTHOGRAPHIC = 0,
 		PERSPECTIVE = (ORTHOGRAPHIC + 1)

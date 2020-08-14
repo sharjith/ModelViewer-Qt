@@ -183,62 +183,62 @@ void GLCamera::setView(ViewProjection iProj)
 	_viewProj = iProj;
 	switch (_viewProj)
 	{
-	case TOP_VIEW:
+	case ViewProjection::TOP_VIEW:
 		_viewDir = QVector3D(0.0, 0.0, -1.0);
 		_rightVector = QVector3D(1.0, 0.0, 0.0);
 		_upVector = QVector3D(0.0, 1.0, 0.0);
 		break;
-	case BOTTOM_VIEW:
+	case ViewProjection::BOTTOM_VIEW:
 		_viewDir = QVector3D(0.0, 0.0, 1.0);
 		_rightVector = QVector3D(1.0, 0.0, 0.0);
 		_upVector = QVector3D(0.0, -1.0, 0.0);
 		break;
-	case FRONT_VIEW:
+	case ViewProjection::FRONT_VIEW:
 		_viewDir = QVector3D(0.0, 1.0, 0.0);
 		_rightVector = QVector3D(1.0, 0.0, 0.0);
 		_upVector = QVector3D(0.0, 0.0, 1.0);
 		break;
-	case REAR_VIEW:
+	case ViewProjection::REAR_VIEW:
 		_viewDir = QVector3D(0.0, -1.0, 0.0);
 		_rightVector = QVector3D(-1.0, 0.0, 0.0);
 		_upVector = QVector3D(0.0, 0.0, 1.0);
 		break;
-	case LEFT_VIEW:
+	case ViewProjection::LEFT_VIEW:
 		_viewDir = QVector3D(-1.0, 0.0, 0.0);
 		_rightVector = QVector3D(0.0, 1.0, 0.0);
 		_upVector = QVector3D(0.0, 0.0, 1.0);
 		break;
-	case RIGHT_VIEW:
+	case ViewProjection::RIGHT_VIEW:
 		_viewDir = QVector3D(1.0, 0.0, 0.0);
 		_rightVector = QVector3D(0.0, -1.0, 0.0);
 		_upVector = QVector3D(0.0, 0.0, 1.0);
 		break;
-	case DIMETRIC_VIEW:
+	case ViewProjection::DIMETRIC_VIEW:
 		_viewDir = QVector3D(-2.0, 2.0, -1);
 		_rightVector = QVector3D(1, 1, 0);
 		_upVector = QVector3D(-1, 1, 0);
 		break;
-	case TRIMETRIC_VIEW:
+	case ViewProjection::TRIMETRIC_VIEW:
 		_viewDir = QVector3D(-0.486f, 0.732f, -0.477f);
 		_rightVector = QVector3D(1.181f, 0.778f, 0.010f);
 		_upVector = QVector3D(-0.363f, 0.568f, 1.243f);
 		break;
-	case NW_ISOMETRIC_VIEW:
+	case ViewProjection::NW_ISOMETRIC_VIEW:
 		_viewDir = QVector3D(1, -1, -1);
 		_rightVector = QVector3D(-1, -1, 0);
 		_upVector = QVector3D(1, -1, 1);
 		break;
-	case SW_ISOMETRIC_VIEW:
+	case ViewProjection::SW_ISOMETRIC_VIEW:
 		_viewDir = QVector3D(1, 1, -1);
 		_rightVector = QVector3D(1, -1, 0);
 		_upVector = QVector3D(1, 1, 0);
 		break;
-	case NE_ISOMETRIC_VIEW:
+	case ViewProjection::NE_ISOMETRIC_VIEW:
 		_viewDir = QVector3D(-1, -1, -1);
 		_rightVector = QVector3D(-1, 1, 0);
 		_upVector = QVector3D(-1, -1, 1);
 		break;
-	case SE_ISOMETRIC_VIEW:
+	case ViewProjection::SE_ISOMETRIC_VIEW:
 	default:
 		_viewDir = QVector3D(-1, 1, -1);
 		_rightVector = QVector3D(1, 1, 0);
