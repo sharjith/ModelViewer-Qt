@@ -404,11 +404,10 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     {
         _floorSize = _boundingSphere.getRadius();
         _floorCenter = _boundingSphere.getCenter();
-        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - 5.0f, 1, 1);
     }
 
-	fitAll();
-	//qDebug() << "Bounding Sphere Dia " << _viewBoundingSphereDia;
+	fitAll();	
 	update();
 
 	emit displayListSet();
@@ -437,7 +436,7 @@ void GLWidget::updateBoundingSphere()
 	{
         _floorSize = _boundingSphere.getRadius();
         _floorCenter = _boundingSphere.getCenter();
-        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - 5.0f, 1, 1);
 	}
 
 	fitAll();
@@ -921,11 +920,12 @@ void GLWidget::loadFloor()
 
     _floorSize = _boundingSphere.getRadius();
     _floorCenter = _boundingSphere.getCenter();
-    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1000, 1000, -_floorSize - 5, 25, 25);
+    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - 5, 1, 1);
 	_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setShininess(10.0f);
+	_floorPlane->setOpacity(0.8);
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -1477,13 +1477,14 @@ void GLWidget::render()
     glDisable(GL_CLIP_DISTANCE2);
     glDisable(GL_CLIP_DISTANCE3);
 
-    if (_bShowAxis)
-        drawAxis();
-
+	// Shadow mapped floor
     if(_displayMode == DisplayMode::REALSHADED)
     {
        drawFloor();
     }
+
+	if (_bShowAxis)
+		drawAxis();
 
     _fgShader->release();
 }
