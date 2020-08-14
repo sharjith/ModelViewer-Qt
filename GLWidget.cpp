@@ -98,7 +98,7 @@ _clippingPlanesEditor(nullptr)
 	_diffuseLight = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_specularLight = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    _lightPosition = { 10.0f, 10.0f, 50.0f };
+    _lightPosition = { 0.0f, 0.0f, 50.0f };
 
 	_displayMode = DisplayMode::SHADED;
 
@@ -126,7 +126,11 @@ _clippingPlanesEditor(nullptr)
     _showVertexNormals = false;
 	_showFaceNormals = false;
 
-    _envMapEnabled = true;
+    _envMapEnabled = false;
+    _shadowsEnabled = false;
+
+    _shadowWidth = 1024;
+    _shadowHeight = 1024;
 
 	_environmentMap = 0;
 	_shadowMap = 0;
@@ -399,7 +403,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     if(_floorPlane)
     {
         float psize = _boundingSphere.getRadius();
-		_floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 1.0f, 25, 25);
+        _floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
     }
 
 	fitAll();
@@ -431,7 +435,7 @@ void GLWidget::updateBoundingSphere()
 	if (_floorPlane)
 	{
 		float psize = _boundingSphere.getRadius();
-		_floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 1.0f, 25, 25);
+        _floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 5.0f, 25, 25);
 	}
 
 	fitAll();
@@ -454,6 +458,18 @@ void GLWidget::showAxis(bool show)
 {
 	_bShowAxis = show;
 	update();
+}
+
+void GLWidget::showShadows(bool show)
+{
+    _shadowsEnabled = show;
+    update();
+}
+
+void GLWidget::showEnvironment(bool show)
+{
+    _envMapEnabled = show;
+    update();
 }
 
 void GLWidget::createShaderPrograms()
@@ -607,7 +623,7 @@ void GLWidget::createGeometry()
 	_meshStore.push_back(new Cone(_fgShader, 60.0f, 100.0f, 100.0f, 1.0f));
 	_meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f));
 	_meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
-	_meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
+    _meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
 	_meshStore.push_back(new Figure8KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
 	_meshStore.push_back(new BoySurface(_fgShader, 60.0f, 250.0f, 250.0f));
 	_meshStore.push_back(new TwistedTriaxial(_fgShader, 110.0f, 150.0f, 150.0f));
@@ -876,11 +892,10 @@ void GLWidget::loadFloor()
 {
     // configure depth map FBO
     // -----------------------
-    const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
     // create depth texture
     glGenTextures(1, &_shadowMap);
     glBindTexture(GL_TEXTURE_2D, _shadowMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -903,7 +918,7 @@ void GLWidget::loadFloor()
 	glBindTexture(GL_TEXTURE_2D, _shadowMap);
 
 	float psize = _boundingSphere.getRadius();
-	_floorPlane = new Plane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, -psize, 25, 25);
+    _floorPlane = new Plane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, -psize - 5, 25, 25);
 	_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
@@ -948,11 +963,8 @@ void GLWidget::resizeGL(int width, int height)
 
 void GLWidget::paintGL()
 {
-	
 	try
     {
-        
-
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
@@ -964,7 +976,7 @@ void GLWidget::paintGL()
 		_modelMatrix.setToIdentity();
 		if (_bMultiView)
         {
-			// Top View
+            // Top View
 			_projectionMatrix.setToIdentity();
 			_viewMatrix.setToIdentity();
 			_modelMatrix.setToIdentity();
@@ -977,7 +989,7 @@ void GLWidget::paintGL()
 			render();
 			_textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-			// Front View
+            // Front View
 			_projectionMatrix.setToIdentity();
 			_viewMatrix.setToIdentity();
 			_modelMatrix.setToIdentity();
@@ -988,7 +1000,7 @@ void GLWidget::paintGL()
 			render();
 			_textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-			// Left View
+            // Left View
 			_projectionMatrix.setToIdentity();
 			_viewMatrix.setToIdentity();
 			_modelMatrix.setToIdentity();
@@ -999,7 +1011,7 @@ void GLWidget::paintGL()
 			render();
 			_textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-			// Isometric View
+            // Isometric View
 			_projectionMatrix.setToIdentity();
 			_viewMatrix.setToIdentity();
 			_modelMatrix.setToIdentity();
@@ -1024,8 +1036,8 @@ void GLWidget::paintGL()
 			renderToShadowBuffer();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-			gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
-				0.925f, 0.913f, 0.847f, 1.0f);
+            gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
+                0.925f, 0.913f, 0.847f, 1.0f);
             render();
 			drawCornerAxis();
 		}
@@ -1255,7 +1267,6 @@ void GLWidget::drawCornerAxis()
 	glViewport(0, 0, width(), height());
 }
 
-
 void GLWidget::drawFloor()
 {
     glEnable(GL_DEPTH_TEST);
@@ -1263,8 +1274,6 @@ void GLWidget::drawFloor()
     glCullFace(GL_FRONT);
     _fgShader->bind();
     _fgShader->setUniformValue("envMapEnabled", false);
-	float psize = _boundingSphere.getRadius();
-	_floorPlane->setPlane(_fgShader, psize * 10.0f, psize * 10.0f, 1000, 1000, lowestModelZ() - 1.0f, 25, 25);
     //_floorPlane->enableTexture(true);	
     glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, _shadowMap);
@@ -1272,56 +1281,6 @@ void GLWidget::drawFloor()
     glDisable(GL_CULL_FACE);
     glDisable((GL_DEPTH_TEST));	
 }
-
-
-/*
-void GLWidget::drawFloor()
-{
-	float psize = _boundingSphere.getRadius() * 10;
-	float planeVertices[] = {
-		// positions								// normals         // texcoords
-		 psize,  psize, lowestModelZ() - 1.0f,  0.0f, 0.0f, 1.0f,  25.0f,  0.0f,
-		-psize,  psize, lowestModelZ() - 1.0f,  0.0f, 0.0f, 1.0f,   0.0f,  0.0f,
-		-psize, -psize, lowestModelZ() - 1.0f,  0.0f, 0.0f, 1.0f,   0.0f, 25.0f,
-
-		 psize,  psize, lowestModelZ() - 1.0f,  0.0f, 0.0f, 1.0f,  25.0f,  0.0f,
-		-psize, -psize, lowestModelZ() - 1.0f,  0.0f, 0.0f, 1.0f,   0.0f, 25.0f,
-		 psize, -psize, lowestModelZ() - 1.0f,  0.0f, 0.0f, 1.0f,  25.0f, 25.0f
-	};
-	// plane VAO
-	unsigned int planeVBO;
-	if(_planeVAO == 0)
-		glGenVertexArrays(1, &_planeVAO);
-	glGenBuffers(1, &planeVBO);
-	glBindVertexArray(_planeVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, planeVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(planeVertices), planeVertices, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-	glBindVertexArray(0);
-
-
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
-	_fgShader->bind();
-	_fgShader->setUniformValue("material.ambient", QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_fgShader->setUniformValue("material.diffuse", QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_fgShader->setUniformValue("material.specular", QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_fgShader->setUniformValue("material.shininess", 10.0f);
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, _shadowMap);
-	glBindVertexArray(_planeVAO);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-	glDisable(GL_CULL_FACE);
-	glDisable((GL_DEPTH_TEST));
-}
-*/
-
 
 float GLWidget::lowestModelZ()
 {
@@ -1449,77 +1408,11 @@ void GLWidget::drawMesh()
 			}
 		}
 	}
-    if(_displayMode == DisplayMode::REALSHADED)
-    {
-       drawFloor();
-    }
 }
 
 void GLWidget::render()
-{    
+{
     //renderToShadowBuffer();
-    renderObjects();	
-}
-
-void GLWidget::renderToShadowBuffer()
-{
-    // save current viewport
-    GLint viewport[4];
-    glGetIntegerv(GL_VIEWPORT,viewport);
-
-	/// Shadow Mapping
-	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, 1024, 1024);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
-    glClear(GL_DEPTH_BUFFER_BIT);
-	// 1. render depth of scene to texture (from light's perspective)
-	// --------------------------------------------------------------
-	QMatrix4x4 lightProjection, lightView;
-    float radius = _boundingSphere.getRadius();
-    float near_plane = 1.0f, far_plane = radius*2;
-    lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
-	lightView.lookAt(_lightPosition, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
-    _lightSpaceMatrix = lightProjection * lightView;
-	// render scene from light's point of view
-	_shadowMappingShader->bind();
-	_shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
-	_shadowMappingShader->setUniformValue("model", _modelMatrix);
-
-	if (_meshStore.size() != 0)
-	{
-		for (int i : _displayedObjectsIds)
-		{
-			try
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
-                {
-					mesh->setProg(_shadowMappingShader);                    
-					mesh->render();
-				}
-			}
-			catch (const std::exception& ex)
-			{
-				std::cout << "Exception raised in GLWidget::renderToShadowBuffer\n" << ex.what() << std::endl;
-			}
-		}
-	}
-
-	// Floor
-    /*float psize = _boundingSphere.getRadius();
-	_floorPlane->setPlane(_shadowMappingShader, psize * 10.0f, psize * 1.0f, 1, 10, lowestModelZ() - 1.0f);
-    _floorPlane->render();*/
-
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-	// End Shadow Mapping
-
-    // restore viewport
-    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-}
-
-void GLWidget::renderObjects()
-{
     glEnable(GL_DEPTH_TEST);
 
     _viewMatrix.setToIdentity();
@@ -1548,9 +1441,10 @@ void GLWidget::renderObjects()
     _fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
     _fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
     _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _fgShader->setUniformValue("shadowsEnabled", _shadowsEnabled);
     _fgShader->setUniformValue("cameraPos", _camera->getPosition());
     _fgShader->setUniformValue("modelMatrix", _modelMatrix);
-	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
+    _fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 
     glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
     glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
@@ -1570,7 +1464,6 @@ void GLWidget::renderObjects()
 
     // Mesh
     drawMesh();
-
     // Vertex Normal
     drawVertexNormals();
     // Face Normal
@@ -1584,7 +1477,63 @@ void GLWidget::renderObjects()
     if (_bShowAxis)
         drawAxis();
 
+    if(_displayMode == DisplayMode::REALSHADED)
+    {
+       drawFloor();
+    }
+
     _fgShader->release();
+}
+
+void GLWidget::renderToShadowBuffer()
+{
+    // save current viewport
+    GLint viewport[4];
+    glGetIntegerv(GL_VIEWPORT,viewport);
+
+	/// Shadow Mapping
+	glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, _shadowWidth, _shadowHeight);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+	// 1. render depth of scene to texture (from light's perspective)
+	// --------------------------------------------------------------
+	QMatrix4x4 lightProjection, lightView;
+    float radius = _boundingSphere.getRadius();
+    float near_plane = -radius*2, far_plane = radius*2;
+    lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
+	lightView.lookAt(_lightPosition, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
+    _lightSpaceMatrix = lightProjection * lightView;
+	// render scene from light's point of view
+	_shadowMappingShader->bind();
+	_shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
+	_shadowMappingShader->setUniformValue("model", _modelMatrix);
+
+	if (_meshStore.size() != 0)
+	{
+		for (int i : _displayedObjectsIds)
+		{
+			try
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				if (mesh)
+                {
+					mesh->setProg(_shadowMappingShader);                    
+					mesh->render();
+				}
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception raised in GLWidget::renderToShadowBuffer\n" << ex.what() << std::endl;
+			}
+		}
+	}
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+	// End Shadow Mapping
+
+    // restore viewport
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* e)

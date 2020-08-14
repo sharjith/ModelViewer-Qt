@@ -1068,7 +1068,7 @@
                <x>0</x>
                <y>0</y>
                <width>315</width>
-               <height>766</height>
+               <height>797</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1553,6 +1553,24 @@
                    </size>
                   </property>
                  </spacer>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_4">
+                  <item>
+                   <widget class="QCheckBox" name="checkBoxShadowMapping">
+                    <property name="text">
+                     <string>Shadows</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QCheckBox" name="checkBoxEnvMapping">
+                    <property name="text">
+                     <string>Environment</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
                 </item>
                 <item>
                  <layout class="QHBoxLayout" name="horizontalLayout">

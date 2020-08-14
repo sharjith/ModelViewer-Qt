@@ -13,6 +13,7 @@ uniform sampler2D texUnit;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 uniform bool envMapEnabled;
+uniform bool shadowsEnabled;
 uniform vec3 cameraPos;
 uniform bool sectionActive;
 uniform int displayMode;
@@ -96,7 +97,7 @@ float shadowCalculation(vec4 fragPosLightSpace)
             shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
         }
     }
-    shadow /= 100.0;
+    shadow /= 125.0;
 
     // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
     if(projCoords.z > 1.0)
@@ -175,10 +176,30 @@ void main()
         fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
     }
 
-    if(displayMode == 3) // Shadow mapping
+
+    if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {
+        vec3 color = fragColor.rgb;
+        vec3 normal = normalize(g_normal);
+        vec3 lightColor = lightSource.ambient;
+        // ambient
+        vec3 ambient = lightSource.ambient;
+        // diffuse
+        vec3 lightDir = normalize(lightSource.position - g_position);
+        float diff = max(dot(lightDir, normal), 0.0);
+        vec3 diffuse = lightSource.diffuse;
+        // specular
+        vec3 viewDir = normalize(cameraPos - lightSource.position);
+        vec3 reflectDir = reflect(-lightDir, normal);
+        float spec = 0.0;
+        vec3 halfwayDir = normalize(lightDir + viewDir);
+        spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
+        vec3 specular = spec * lightColor;
+        // calculate shadow
         float shadow = shadowCalculation(g_fragPosLightSpace);
-        fragColor = vec4((lightSource.ambient + (1.0 - shadow) * (lightSource.diffuse + lightSource.specular)), 1.0) * fragColor;
+        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
+
+        fragColor = vec4(lighting, alpha);
     }
     
     if(selected)

@@ -72,6 +72,9 @@ public:
     void showClippingPlaneEditor(bool show);
     void showAxis(bool show);
 
+    void showShadows(bool show);
+    void showEnvironment(bool show);
+
     std::vector<TriangleMesh*> getMeshStore() const { return _meshStore; }
 
     void addToDisplay(TriangleMesh*);
@@ -164,6 +167,7 @@ protected:
     void paintGL();
 
     void render();
+    void renderToShadowBuffer();
 
     void mousePressEvent(QMouseEvent *);
     void mouseReleaseEvent(QMouseEvent *);
@@ -229,6 +233,10 @@ private:
     bool _showFaceNormals;
 
     bool _envMapEnabled;
+    bool _shadowsEnabled;
+
+    unsigned int _shadowWidth;
+    unsigned int _shadowHeight;
 
     GLfloat _xTran;
     GLfloat _yTran;
@@ -317,10 +325,7 @@ private:
     void drawAxis();
     void drawCornerAxis();
     void drawFloor();
-    float lowestModelZ();
-
-    void renderToShadowBuffer();
-    void renderObjects();
+    float lowestModelZ(); 
 
     void setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot);
     void setZoomAndPan(GLfloat zoom, QVector3D pan);

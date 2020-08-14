@@ -269,6 +269,8 @@ void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
 
 void ModelViewer::on_displayShaded_triggered(bool)
 {
+    checkBoxEnvMapping->setChecked(false);
+    checkBoxShadowMapping->setChecked(false);
     _glWidget->setDisplayMode(DisplayMode::SHADED);
     _glWidget->updateView();
     displayShaded->setToolTip("Wireframe");
@@ -276,6 +278,8 @@ void ModelViewer::on_displayShaded_triggered(bool)
 
 void ModelViewer::on_displayWireframe_triggered(bool)
 {
+    checkBoxEnvMapping->setChecked(false);
+    checkBoxShadowMapping->setChecked(false);
     _glWidget->setDisplayMode(DisplayMode::WIREFRAME);
     _glWidget->updateView();
     displayShaded->setToolTip("Shaded");
@@ -283,6 +287,8 @@ void ModelViewer::on_displayWireframe_triggered(bool)
 
 void ModelViewer::on_displayWireShaded_triggered(bool)
 {
+    checkBoxEnvMapping->setChecked(false);
+    checkBoxShadowMapping->setChecked(false);
     _glWidget->setDisplayMode(DisplayMode::WIRESHADED);
     _glWidget->updateView();
     displayShaded->setToolTip("Wire Shaded");
@@ -290,6 +296,8 @@ void ModelViewer::on_displayWireShaded_triggered(bool)
 
 void ModelViewer::on_displayRealShaded_triggered(bool)
 {
+    checkBoxEnvMapping->setChecked(true);
+    checkBoxShadowMapping->setChecked(true);
     _glWidget->setDisplayMode(DisplayMode::REALSHADED);
     _glWidget->updateView();
     displayShaded->setToolTip("Real Shaded");
@@ -1700,3 +1708,14 @@ void ModelViewer::on_checkBoxSelectAll_toggled(bool checked)
 }
 
 
+void ModelViewer::on_checkBoxShadowMapping_toggled(bool checked)
+{
+    _glWidget->showShadows(checked);
+    _glWidget->update();
+}
+
+void ModelViewer::on_checkBoxEnvMapping_toggled(bool checked)
+{
+    _glWidget->showEnvironment(checked);
+    _glWidget->update();
+}
