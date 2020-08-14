@@ -61,7 +61,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
     // Disable byte-alignment restriction
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     // Then for the first 128 ASCII characters, pre-load/compile their characters and store them
-    for (GLubyte c = 0; c < 128; c++)
+    for (unsigned char c = 0; c < 128; c++)
     {
         // Load character glyph
         if (FT_Load_Char(face, c, FT_LOAD_RENDER))

@@ -874,7 +874,7 @@ void GLWidget::loadFloor()
 		glGenFramebuffers(1, &_shadowMapFBO);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
-		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 		if (status == GL_FRAMEBUFFER_COMPLETE)
 			std::cout << "Frame buffer created!" << std::endl;
 		glDrawBuffer(GL_NONE);
