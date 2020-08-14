@@ -11,6 +11,7 @@ void QuadMesh::render()
     if (!_vertexArrayObject.isCreated())
         return;
 
+    /*
     glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0,
                  GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
     glGenerateMipmap(GL_TEXTURE_2D);
@@ -18,8 +19,10 @@ void QuadMesh::render()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    */
 
     _prog->bind();
+    _prog->setUniformValue("texUnit", 0);
     _prog->setUniformValue("material.emission", _emmissiveMaterial.toVector3D());
     _prog->setUniformValue("material.ambient", _ambientMaterial.toVector3D());
     _prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());

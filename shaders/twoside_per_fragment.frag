@@ -84,7 +84,7 @@ float shadowCalculation(vec4 fragPosLightSpace)
     vec3 lightDir = normalize(lightSource.position - g_position);
     float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
     // check whether current frag pos is in shadow
-    // float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
+    //float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
     // PCF
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
@@ -96,7 +96,7 @@ float shadowCalculation(vec4 fragPosLightSpace)
             shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
         }
     }
-    shadow /= 9.0;
+    shadow /= 100.0;
 
     // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
     if(projCoords.z > 1.0)
@@ -112,10 +112,10 @@ void main()
     vec4 v_color_front;
     vec4 v_color_back;
 
+    
 
     v_color_front = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal), alpha);
     v_color_back  = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal), alpha);
-
 
     if( gl_FrontFacing )
     {
@@ -166,6 +166,7 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
+
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {
         vec3 I = normalize(g_position - cameraPos);
@@ -174,7 +175,7 @@ void main()
         fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
     }
 
-    //if(displayMode == 3) // Shadow mapping
+    if(displayMode == 3) // Shadow mapping
     {
         float shadow = shadowCalculation(g_fragPosLightSpace);
         fragColor = vec4((lightSource.ambient + (1.0 - shadow) * (lightSource.diffuse + lightSource.specular)), 1.0) * fragColor;

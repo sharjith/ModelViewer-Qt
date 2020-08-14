@@ -334,6 +334,7 @@ private:
 
     void splitScreen();
 
+    unsigned int _planeVAO;
 
     unsigned int quadVAO;
     unsigned int quadVBO;
