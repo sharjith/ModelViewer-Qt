@@ -684,44 +684,7 @@ void GLWidget::createGeometry()
 		_meshStore.push_back(mesh);
 }
 
-void GLWidget::loadEnvMap()
-{
-    vector<QString> faces
-    {
-        QString("textures/envmap/lposx.png"),
-        QString("textures/envmap/lnegx.png"),
-        QString("textures/envmap/lposy.png"),
-        QString("textures/envmap/lnegy.png"),
-        QString("textures/envmap/lposz.png"),
-        QString("textures/envmap/lnegz.png")
-    };
 
-    glGenTextures(1, &_environmentMap);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-
-    for (unsigned int i = 0; i < faces.size(); i++)
-    {
-        if (!_texBuffer.load(faces.at(i)))
-        { // Load first image from file
-            qWarning("Could not read image file, using single-color instead.");
-            QImage dummy(128, 128, static_cast<QImage::Format>(5));
-            dummy.fill(Qt::white);
-            _texBuffer = dummy;
-        }
-        else
-        {
-            _texImage = QGLWidget::convertToGLFormat(_texBuffer).mirrored(); // flipped 32bit RGBA
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-        }
-    }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-}
 
 void GLWidget::addToDisplay(TriangleMesh* mesh)
 {
@@ -894,38 +857,78 @@ void GLWidget::loadFloor()
     // configure depth map FBO
     // -----------------------
     // create depth texture
-    glGenTextures(1, &_shadowMap);
-    glBindTexture(GL_TEXTURE_2D, _shadowMap);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-    float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
-    glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+	if (_shadowMap == 0)
+	{
+		glGenTextures(1, &_shadowMap);
+		glBindTexture(GL_TEXTURE_2D, _shadowMap);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+		//glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+		float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
+		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 
-    // attach depth texture as FBO's depth buffer
-    glGenFramebuffers(1, &_shadowMapFBO);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status == GL_FRAMEBUFFER_COMPLETE)
-        std::cout << "Frame buffer created!" << std::endl;
-    glDrawBuffer(GL_NONE);
-    glReadBuffer(GL_NONE);
-    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+		// attach depth texture as FBO's depth buffer
+		glGenFramebuffers(1, &_shadowMapFBO);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status == GL_FRAMEBUFFER_COMPLETE)
+			std::cout << "Frame buffer created!" << std::endl;
+		glDrawBuffer(GL_NONE);
+		glReadBuffer(GL_NONE);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 
-	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, _shadowMap);
+		_floorSize = _boundingSphere.getRadius();
+		_floorCenter = _boundingSphere.getCenter();
+		_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - 5, 1, 1);
+		_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+		_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+		_floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+		_floorPlane->setShininess(10.0f);
+		_floorPlane->setOpacity(0.8f);
+	}
+}
 
-    _floorSize = _boundingSphere.getRadius();
-    _floorCenter = _boundingSphere.getCenter();
-    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - 5, 1, 1);
-	_floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-    _floorPlane->setShininess(10.0f);
-	_floorPlane->setOpacity(0.8);
+void GLWidget::loadEnvMap()
+{
+	vector<QString> faces
+	{
+		QString("textures/envmap/lposx.png"),
+		QString("textures/envmap/lnegx.png"),
+		QString("textures/envmap/lposy.png"),
+		QString("textures/envmap/lnegy.png"),
+		QString("textures/envmap/lposz.png"),
+		QString("textures/envmap/lnegz.png")
+	};
+
+	glGenTextures(1, &_environmentMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+	for (unsigned int i = 0; i < faces.size(); i++)
+	{
+		if (!_texBuffer.load(faces.at(i)))
+		{ // Load first image from file
+			qWarning("Could not read image file, using single-color instead.");
+			QImage dummy(128, 128, static_cast<QImage::Format>(5));
+			dummy.fill(Qt::white);
+			_texBuffer = dummy;
+		}
+		else
+		{
+			_texImage = QGLWidget::convertToGLFormat(_texBuffer).mirrored(); // flipped 32bit RGBA
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+		}
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -1105,6 +1108,127 @@ void GLWidget::paintGL()
     //renderQuad();
 }
 
+void GLWidget::drawFloor()
+{
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    _fgShader->bind();
+    _fgShader->setUniformValue("envMapEnabled", false);    
+    glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, _shadowMap);
+    _floorPlane->render();
+    glDisable(GL_CULL_FACE);
+    glDisable((GL_DEPTH_TEST));	
+}
+
+void GLWidget::drawMesh()
+{
+	QVector3D pos = _camera->getPosition();
+
+	if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+	{
+        _fgShader->setUniformValue("sectionActive", true);
+	}
+	else
+	{
+        _fgShader->setUniformValue("sectionActive", false);
+	}
+
+	_fgShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
+		(_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
+	_fgShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
+		(_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
+	_fgShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
+		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
+	_fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+
+	// Render
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	//glBindTexture(GL_TEXTURE_2D, _shadowMap);
+	if (_meshStore.size() != 0)
+	{
+		for (int i : _displayedObjectsIds)
+		{
+			try
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				if (mesh)
+				{                    
+                    mesh->setProg(_fgShader);
+					mesh->render();
+				}
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception raised in GLWidget::drawMesh\n" << ex.what() << std::endl;
+			}
+		}
+	}
+}
+
+void GLWidget::drawVertexNormals()
+{
+	QVector3D pos = _camera->getPosition();
+	_vertexNormalShader->bind();
+	_vertexNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+	_vertexNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_vertexNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
+		(_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
+	_vertexNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
+		(_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
+	_vertexNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
+		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
+	_vertexNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+	if (_meshStore.size() != 0)
+	{
+		for (int i : _displayedObjectsIds)
+		{
+			if (_showVertexNormals)
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				_vertexNormalShader->bind();
+				_vertexNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius() / 2));
+				mesh->setProg(_vertexNormalShader);
+				mesh->render();
+			}
+		}
+	}
+}
+
+void GLWidget::drawFaceNormals()
+{
+	QVector3D pos = _camera->getPosition();
+	_faceNormalShader->bind();
+	_faceNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+	_faceNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_faceNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
+		(_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
+	_faceNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
+		(_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
+	_faceNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
+		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
+	_faceNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+
+	if (_meshStore.size() != 0)
+	{
+		for (int i : _displayedObjectsIds)
+		{
+			if (_showFaceNormals)
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				_faceNormalShader->bind();
+				_faceNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius() / 2));
+				mesh->setProg(_faceNormalShader);
+				mesh->render();
+			}
+		}
+	}
+}
+
 void GLWidget::drawAxis()
 {
 	GLfloat size = 15;
@@ -1270,149 +1394,6 @@ void GLWidget::drawCornerAxis()
 	glViewport(0, 0, width(), height());
 }
 
-void GLWidget::drawFloor()
-{
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_FRONT);
-    _fgShader->bind();
-    _fgShader->setUniformValue("envMapEnabled", false);
-    //_floorPlane->enableTexture(true);	
-    glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, _shadowMap);
-    _floorPlane->render();
-    glDisable(GL_CULL_FACE);
-    glDisable((GL_DEPTH_TEST));	
-}
-
-float GLWidget::lowestModelZ()
-{
-	float lowestZ = std::numeric_limits<float>::max();
-	for (int i : _displayedObjectsIds)
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore.at(i);
-			float z = mesh->getLowestZValue();
-			if (z < lowestZ)
-				lowestZ = z;
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in GLWidget::lowestModelZ\n" << ex.what() << std::endl;
-			lowestZ = -_boundingSphere.getRadius();
-		}
-	}
-	return lowestZ;
-}
-
-void GLWidget::drawVertexNormals()
-{
-	QVector3D pos = _camera->getPosition();
-	_vertexNormalShader->bind();
-	_vertexNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
-	_vertexNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_vertexNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-		(_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-	_vertexNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-		(_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-	_vertexNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-	_vertexNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-	if (_meshStore.size() != 0)
-	{
-		for (int i : _displayedObjectsIds)
-		{
-			if (_showVertexNormals)
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				_vertexNormalShader->bind();
-				_vertexNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius() / 2));
-				mesh->setProg(_vertexNormalShader);
-				mesh->render();
-			}
-		}
-	}
-}
-
-void GLWidget::drawFaceNormals()
-{
-	QVector3D pos = _camera->getPosition();
-	_faceNormalShader->bind();
-	_faceNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
-	_faceNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_faceNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-		(_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-	_faceNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-		(_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-	_faceNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-	_faceNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-
-	if (_meshStore.size() != 0)
-	{
-		for (int i : _displayedObjectsIds)
-		{
-			if (_showFaceNormals)
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				_faceNormalShader->bind();
-				_faceNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius() / 2));
-				mesh->setProg(_faceNormalShader);
-				mesh->render();
-			}
-		}
-	}
-}
-
-void GLWidget::drawMesh()
-{
-	QVector3D pos = _camera->getPosition();
-
-	if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
-	{
-        _fgShader->setUniformValue("sectionActive", true);
-	}
-	else
-	{
-        _fgShader->setUniformValue("sectionActive", false);
-	}
-
-	_fgShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-		(_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-	_fgShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-		(_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-	_fgShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-		(_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-	_fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-
-	// Render
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-	//glBindTexture(GL_TEXTURE_2D, _shadowMap);
-	if (_meshStore.size() != 0)
-	{
-		for (int i : _displayedObjectsIds)
-		{
-			try
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
-				{                    
-                    mesh->setProg(_fgShader);
-					mesh->render();
-				}
-			}
-			catch (const std::exception& ex)
-			{
-				std::cout << "Exception raised in GLWidget::drawMesh\n" << ex.what() << std::endl;
-			}
-		}
-	}
-}
-
 void GLWidget::render()
 {
     //renderToShadowBuffer();
@@ -1538,6 +1519,82 @@ void GLWidget::renderToShadowBuffer()
 
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+}
+
+void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
+	float bot_r, float bot_g, float bot_b, float bot_a)
+{
+	glViewport(0, 0, width(), height());
+	if (!_bgVAO.isCreated())
+	{
+		_bgVAO.create();
+	}
+
+	glDisable(GL_DEPTH_TEST);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	_bgShader.bind();
+
+	_bgShader.setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
+	_bgShader.setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
+
+	_bgVAO.bind();
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+
+	glEnable(GL_DEPTH_TEST);
+
+	_bgVAO.release();
+	_bgShader.release();
+}
+
+void GLWidget::splitScreen()
+{
+	if (!_bgSplitVAO.isCreated())
+	{
+		_bgSplitVAO.create();
+		_bgSplitVAO.bind();
+	}
+
+	if (!_bgSplitVBO.isCreated())
+	{
+		_bgSplitVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+		_bgSplitVBO.create();
+		_bgSplitVBO.bind();
+		_bgSplitVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+
+		static const std::vector<GLfloat> vertices = {
+			-static_cast<GLfloat>(width()) / 2,
+			0,
+			static_cast<GLfloat>(width()) / 2,
+			0,
+			0,
+			-static_cast<GLfloat>(height()) / 2,
+			0,
+			static_cast<GLfloat>(height()) / 2,
+		};
+
+		_bgSplitVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(GLfloat)));
+
+		_bgSplitShader.bind();
+		_bgSplitShader.enableAttributeArray("vertexPosition");
+		_bgSplitShader.setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 2);
+
+		_bgSplitVBO.release();
+	}
+
+	glViewport(0, 0, width(), height());
+
+	glDisable(GL_DEPTH_TEST);
+
+	_bgSplitVAO.bind();
+	glLineWidth(0.5);
+	glDrawArrays(GL_LINES, 0, 4);
+	glLineWidth(1);
+
+	glEnable(GL_DEPTH_TEST);
+
+	_bgSplitVAO.release();
+	_bgSplitShader.release();
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* e)
@@ -2041,82 +2098,26 @@ void GLWidget::setXTran(const GLfloat& xTran)
 	_xTran = xTran;
 }
 
-void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
-	float bot_r, float bot_g, float bot_b, float bot_a)
+float GLWidget::lowestModelZ()
 {
-	glViewport(0, 0, width(), height());
-	if (!_bgVAO.isCreated())
+	float lowestZ = std::numeric_limits<float>::max();
+	for (int i : _displayedObjectsIds)
 	{
-		_bgVAO.create();
+		try
+		{
+			TriangleMesh* mesh = _meshStore.at(i);
+			float z = mesh->getLowestZValue();
+			if (z < lowestZ)
+				lowestZ = z;
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception raised in GLWidget::lowestModelZ\n" << ex.what() << std::endl;
+			lowestZ = -_boundingSphere.getRadius();
+		}
 	}
-
-	glDisable(GL_DEPTH_TEST);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-	_bgShader.bind();
-
-	_bgShader.setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
-	_bgShader.setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
-
-	_bgVAO.bind();
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-
-	glEnable(GL_DEPTH_TEST);
-
-	_bgVAO.release();
-	_bgShader.release();
+	return lowestZ;
 }
-
-void GLWidget::splitScreen()
-{
-	if (!_bgSplitVAO.isCreated())
-	{
-		_bgSplitVAO.create();
-		_bgSplitVAO.bind();
-	}
-
-	if (!_bgSplitVBO.isCreated())
-	{
-		_bgSplitVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-		_bgSplitVBO.create();
-		_bgSplitVBO.bind();
-		_bgSplitVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-
-		static const std::vector<GLfloat> vertices = {
-			-static_cast<GLfloat>(width()) / 2,
-			0,
-			static_cast<GLfloat>(width()) / 2,
-			0,
-			0,
-			-static_cast<GLfloat>(height()) / 2,
-			0,
-			static_cast<GLfloat>(height()) / 2,
-		};
-
-		_bgSplitVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(GLfloat)));
-
-		_bgSplitShader.bind();
-		_bgSplitShader.enableAttributeArray("vertexPosition");
-		_bgSplitShader.setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 2);
-
-		_bgSplitVBO.release();
-	}
-
-	glViewport(0, 0, width(), height());
-
-	glDisable(GL_DEPTH_TEST);
-
-	_bgSplitVAO.bind();
-	glLineWidth(0.5);
-	glDrawArrays(GL_LINES, 0, 4);
-	glLineWidth(1);
-
-	glEnable(GL_DEPTH_TEST);
-
-	_bgSplitVAO.release();
-	_bgSplitShader.release();
-}
-
 
 void GLWidget::renderQuad()
 {

@@ -139,11 +139,6 @@ public:
     bool isFaceNormalsShown() const;
     void setShowFaceNormals(bool showFaceNormals);
 
-    void drawVertexNormals();
-    void drawFaceNormals();
-    
-    void drawMesh();
-
     std::vector<int> getDisplayedObjectsIds() const;
 
 signals:
@@ -161,13 +156,9 @@ public slots:
     void animateCenterScreen();
 
 protected:
-    void initializeGL();
-    void loadFloor();
+    void initializeGL();    
     void resizeGL(int width, int height);
     void paintGL();
-
-    void render();
-    void renderToShadowBuffer();
 
     void mousePressEvent(QMouseEvent *);
     void mouseReleaseEvent(QMouseEvent *);
@@ -323,11 +314,21 @@ private:
     void createShaderPrograms();
     void createGeometry();
     void loadEnvMap();
-
+    void loadFloor();
+        
+    void drawMesh();
+    void drawFloor();
+    void drawVertexNormals();
+    void drawFaceNormals();
     void drawAxis();
     void drawCornerAxis();
-    void drawFloor();
-    float lowestModelZ(); 
+    
+    void render();
+    void renderToShadowBuffer();
+
+    void gradientBackground(float top_r, float top_g, float top_b, float top_a,
+        float bot_r, float bot_g, float bot_b, float bot_a);
+    void splitScreen();
 
     void setRotations(GLfloat xRot, GLfloat yRot, GLfloat zRot);
     void setZoomAndPan(GLfloat zoom, QVector3D pan);
@@ -336,10 +337,7 @@ private:
     void convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D& dir);
     int mouseSelect(const QPoint& pixel);
 
-    void gradientBackground(float top_r, float top_g, float top_b, float top_a,
-                            float bot_r, float bot_g, float bot_b, float bot_a);
-
-    void splitScreen();
+    float lowestModelZ();
 
     unsigned int _planeVAO;
 
