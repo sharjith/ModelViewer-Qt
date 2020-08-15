@@ -6,7 +6,6 @@ in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 in vec4 g_fragPosLightSpace;
 
-vec4 v_color;
 uniform float alpha;
 uniform bool texEnabled;
 uniform sampler2D texUnit;
@@ -52,11 +51,13 @@ struct Material {
 };
 uniform Material material;
 
+layout( location = 0 ) out vec4 fragColor;
+
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
     vec3 halfVector = normalize(source.position + vec3(0,0,1));                // light half vector
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
-    float nDotHV    = max(0.f, dot(normal,  halfVector));                           // normal . light half vector
+    float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
 
     vec3 ambient    = source.ambient;
@@ -70,7 +71,7 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
                  specular * mat.specular, 0.f, 1.f );
 }
 
-float shadowCalculation(vec4 fragPosLightSpace)
+float calculateShadow(vec4 fragPosLightSpace)
 {
     // perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -106,14 +107,11 @@ float shadowCalculation(vec4 fragPosLightSpace)
     return shadow;
 }
 
-layout( location = 0 ) out vec4 fragColor;
-
 void main()
 {
     vec4 v_color_front;
     vec4 v_color_back;
-
-    
+    vec4 v_color;
 
     v_color_front = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal), alpha);
     v_color_back  = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal), alpha);
@@ -196,7 +194,7 @@ void main()
         spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
         vec3 specular = spec * lightColor;
         // calculate shadow
-        float shadow = shadowCalculation(g_fragPosLightSpace);
+        float shadow = calculateShadow(g_fragPosLightSpace);
         vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
 
         fragColor = vec4(lighting, alpha);
