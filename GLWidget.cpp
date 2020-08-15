@@ -812,14 +812,14 @@ void GLWidget::initializeGL()
 	makeCurrent();
 
     createShaderPrograms();
-	createGeometry();
 
     // Environment Mapping
-    loadEnvMap();    
+    loadEnvMap();
 
-	// Shadow mapping
-	loadFloor();	
+    // Shadow mapping
+    loadFloor();
 
+	createGeometry();
 
 	_textShader.bind();
 	_textRenderer = new TextRenderer(&_textShader, width(), height());
@@ -858,11 +858,11 @@ void GLWidget::loadFloor()
     // -----------------------
     // create depth texture
 	if (_shadowMap == 0)
-	{
+    {
 		glGenTextures(1, &_shadowMap);
-		glBindTexture(GL_TEXTURE_2D, _shadowMap);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-		//glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+		glBindTexture(GL_TEXTURE_2D, _shadowMap);        
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR_MIPMAP_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -873,16 +873,16 @@ void GLWidget::loadFloor()
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
 
 
-		// attach depth texture as FBO's depth buffer
-		glGenFramebuffers(1, &_shadowMapFBO);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
-		unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status == GL_FRAMEBUFFER_COMPLETE)
-			std::cout << "Frame buffer created!" << std::endl;
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+        // attach depth texture as FBO's depth buffer
+        glGenFramebuffers(1, &_shadowMapFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
+        unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status == GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "Frame buffer created!" << std::endl;
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 
 		_floorSize = _boundingSphere.getRadius();
 		_floorCenter = _boundingSphere.getCenter();
