@@ -602,11 +602,11 @@ void GLWidget::createShaderPrograms()
 
 	//_debugShader
 	// Background split shader program
-	if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/3.1.3.debug_quad.vs"))
+    if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/debug_quad.vert"))
 	{
 		qDebug() << "Error in vertex shader:" << _debugShader.log();
 	}
-	if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/3.1.3.debug_quad_depth.fs"))
+    if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/debug_quad_depth.frag"))
 	{
 		qDebug() << "Error in fragment shader:" << _debugShader.log();
 	}
@@ -623,7 +623,7 @@ void GLWidget::createGeometry()
 	_meshStore.push_back(new Cylinder(_fgShader, 60.0f, 100.0f, 100.0f, 1.0f));
 	_meshStore.push_back(new Cone(_fgShader, 60.0f, 100.0f, 100.0f, 1.0f));
 	_meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f));
-	_meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
+    _meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
     _meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
 	_meshStore.push_back(new Figure8KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f));
 	_meshStore.push_back(new BoySurface(_fgShader, 60.0f, 250.0f, 250.0f));
