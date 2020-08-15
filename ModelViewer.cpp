@@ -7,6 +7,7 @@
 ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
 {
     _bFirstTime = true;
+    _bDeletionInProgress = false;
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
     isometricView->setShortcut(QKeySequence(Qt::Key_Home));
@@ -1478,11 +1479,15 @@ void ModelViewer::deleteItem()
 {
     if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
     {
+        _bDeletionInProgress = true;
         // If multiple selection is on, we need to erase all selected items
         QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
         for (QListWidgetItem *item : selectedItems)
         {
             item->setCheckState(Qt::Unchecked);
+        }
+        for (QListWidgetItem *item : selectedItems)
+        {            
             int rowId = listWidgetModel->row(item);
 
             // Remove the displayed object
@@ -1499,6 +1504,7 @@ void ModelViewer::deleteItem()
             on_listWidgetModel_itemChanged(nullptr);
         }
         _glWidget->update();
+        _bDeletionInProgress = false;
     }
 }
 
@@ -1532,16 +1538,19 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
 
 void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 {
-    for (int i = 0; i < listWidgetModel->count(); i++)
+    if(!_bDeletionInProgress) // check to avoid unnecessary selection triggering in view
     {
-        QListWidgetItem* item = listWidgetModel->item(i);
-        int rowId = listWidgetModel->row(item);
-        if(item->isSelected())
-            _glWidget->select(rowId);
-        else
-            _glWidget->deselect(rowId);
+        for (int i = 0; i < listWidgetModel->count(); i++)
+        {
+            QListWidgetItem* item = listWidgetModel->item(i);
+            int rowId = listWidgetModel->row(item);
+            if(item->isSelected())
+                _glWidget->select(rowId);
+            else
+                _glWidget->deselect(rowId);
+        }
+        _glWidget->update();
     }
-    _glWidget->update();
 }
 
 

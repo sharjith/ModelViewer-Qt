@@ -151,6 +151,7 @@ private:
 	bool _bHasTexture;
 
 	bool _bFirstTime;
+    bool _bDeletionInProgress;
 
 	QString _lastOpenedDir;
 
