@@ -927,10 +927,10 @@ void GLWidget::loadEnvMap()
     /*
         QString("textures/envmap/lposx.png"),
                 QString("textures/envmap/lnegx.png"),
-                QString("textures/envmap/lposy.png"),
-                QString("textures/envmap/lnegy.png"),
                 QString("textures/envmap/lposz.png"),
-                QString("textures/envmap/lnegz.png")
+                QString("textures/envmap/lnegz.png"),
+                QString("textures/envmap/lposy.png"),
+                QString("textures/envmap/lnegy.png")
 
         QString("textures/envmap/left.jpg"),
                 QString("textures/envmap/right.jpg"),
@@ -943,12 +943,12 @@ void GLWidget::loadEnvMap()
     {
     vector<QString> faces
     {
-        QString("textures/envmap/lnegx.png"),
-                QString("textures/envmap/lposx.png"),
-                QString("textures/envmap/lposz.png"),
-                QString("textures/envmap/lnegz.png"),
-                QString("textures/envmap/lposy.png"),
-                QString("textures/envmap/lnegy.png")
+        QString("textures/envmap/right.jpg"),
+                QString("textures/envmap/left.jpg"),
+                QString("textures/envmap/front.jpg"),
+                QString("textures/envmap/back.jpg"),
+                QString("textures/envmap/top.jpg"),
+                QString("textures/envmap/bottom.jpg")
     };
 
     glGenTextures(1, &_environmentMap);
@@ -966,7 +966,7 @@ void GLWidget::loadEnvMap()
         }
         else
         {
-            _texImage = QGLWidget::convertToGLFormat(_texBuffer).mirrored(); // flipped 32bit RGBA
+            _texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         }
     }
@@ -983,12 +983,12 @@ void GLWidget::loadEnvMap()
     {
     vector<QString> faces
     {
-        QString("textures/envmap/lnegx.png"),
-                QString("textures/envmap/lposx.png"),
-                QString("textures/envmap/lposz.png"),
-                QString("textures/envmap/lnegz.png"),
-                QString("textures/envmap/lposy.png"),
-                QString("textures/envmap/lnegy.png")
+        QString("textures/envmap/right.jpg"),
+                QString("textures/envmap/left.jpg"),
+                QString("textures/envmap/front.jpg"),
+                QString("textures/envmap/back.jpg"),
+                QString("textures/envmap/top.jpg"),
+                QString("textures/envmap/bottom.jpg")
     };
 
     glGenTextures(1, &_skyBoxMap);
@@ -1006,7 +1006,7 @@ void GLWidget::loadEnvMap()
         }
         else
         {
-            _texImage = QGLWidget::convertToGLFormat(_texBuffer).mirrored(); // flipped 32bit RGBA
+            _texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         }
     }
