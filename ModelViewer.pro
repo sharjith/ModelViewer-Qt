@@ -183,8 +183,8 @@ ModelViewer.qrc
 DISTFILES += \
 shaders/background.frag \
 shaders/background.vert \
-    shaders/debug_quad.vert \
-    shaders/debug_quad_depth.frag \
+shaders/debug_quad.vert \
+shaders/debug_quad_depth.frag \
 shaders/splitScreen.frag \
 shaders/splitScreen.vert \
 shaders/text.vert \
@@ -201,6 +201,8 @@ shaders/twoside_per_fragment.vert \
 shaders/twoside_per_fragment.geom \
 shaders/twoside_per_fragment.frag \
 shaders/shadow_mapping_depth.vert \
-shaders/shadow_mapping_depth.frag
+shaders/shadow_mapping_depth.frag \
+shaders/skybox.vert \
+shaders/skybox.frag
 
 

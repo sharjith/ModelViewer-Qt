@@ -7,31 +7,31 @@ Cube::Cube(QOpenGLShaderProgram *prog, float size) : QuadMesh(prog, "Cube")
 
     std::vector<float> p = {
         // Front
-        -side, -side, side, side, -side, side, side, side, side, -side, side, side,
+        -side, -side, side, -side, -side, -side, side, -side, -side, side, -side, side,
         // Right
         side, -side, side, side, -side, -side, side, side, -side, side, side, side,
         // Back
-        -side, -side, -side, -side, side, -side, side, side, -side, side, -side, -side,
+        -side, side, side, side, side, side, side, side, -side, -side, side, -side,
         // Left
         -side, -side, side, -side, side, side, -side, side, -side, -side, -side, -side,
         // Bottom
-        -side, -side, side, -side, -side, -side, side, -side, -side, side, -side, side,
+        -side, -side, -side, -side, side, -side, side, side, -side, side, -side, -side,
         // Top
-        -side, side, side, side, side, side, side, side, -side, -side, side, -side};
+        -side, -side, side, side, -side, side, side, side, side, -side, side, side};
 
     std::vector<float> n = {
         // Front
-        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f,
         // Right
         1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
         // Back
-        0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f,
+        0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         // Left
         -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
         // Bottom
-        0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f,
+        0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f, -1.0f,
         // Top
-        0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f};
+        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f};
 
     std::vector<float> tex = {
         // Front

@@ -5,6 +5,7 @@ in vec3 g_normal;
 in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 in vec4 g_fragPosLightSpace;
+out vec3 g_reflectionNormal;
 
 uniform float alpha;
 uniform bool texEnabled;
@@ -14,6 +15,7 @@ uniform sampler2D shadowMap;
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
 uniform vec3 cameraPos;
+uniform mat4 viewMatrix;
 uniform bool sectionActive;
 uniform int displayMode;
 uniform bool selected;
@@ -169,8 +171,9 @@ void main()
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {
         vec3 I = normalize(g_position - cameraPos);
-        vec3 R = reflect(I, normalize(g_normal));        
-        fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
+        vec3 R = reflect(I, (g_reflectionNormal));
+        vec3 worldR = inverse(mat3(viewMatrix)) * R;
+        fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);
     }
 
 

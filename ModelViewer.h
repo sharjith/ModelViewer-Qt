@@ -126,6 +126,8 @@ private slots:
 
     void on_checkBoxEnvMapping_toggled(bool checked);
 
+    void on_checkBoxSkyBox_toggled(bool checked);
+
 protected:
 	void showEvent(QShowEvent *event);
 

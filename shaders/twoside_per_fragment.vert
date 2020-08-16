@@ -27,12 +27,15 @@ out vec2 v_texCoord2d;
 out mat4 MVP;
 
 out vec4 fragPosLightSpace;
+out vec3 reflectionNormal;
 
 void main()
 {
     v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
     v_position   = vec3(modelViewMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
+
+    reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
 
     MVP = projectionMatrix * modelViewMatrix;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1);

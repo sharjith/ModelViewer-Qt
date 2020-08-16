@@ -23,6 +23,7 @@ class ClippingPlanesEditor;
 class GraysKleinEditor;
 class STLMesh;
 class Plane;
+class Cube;
 
 struct GLMaterialProps
 {
@@ -74,6 +75,7 @@ public:
 
     void showShadows(bool show);
     void showEnvironment(bool show);
+    void showSkyBox(bool show);
 
     std::vector<TriangleMesh*> getMeshStore() const { return _meshStore; }
 
@@ -226,6 +228,8 @@ private:
     bool _envMapEnabled;
     bool _shadowsEnabled;
 
+    bool _skyBoxEnabled;
+
     unsigned int _shadowWidth;
     unsigned int _shadowHeight;
 
@@ -258,10 +262,12 @@ private:
     QOpenGLShaderProgram*     _vertexNormalShader;
     QOpenGLShaderProgram*     _faceNormalShader;
     QOpenGLShaderProgram*     _shadowMappingShader;
+    QOpenGLShaderProgram*     _skyBoxShader;
 
     QOpenGLShaderProgram     _textShader;
 
     unsigned int                   _environmentMap;
+    unsigned int                   _skyBoxMap;
     unsigned int                   _shadowMap;
     unsigned int                   _shadowMapFBO;
     float                    _floorSize;
@@ -306,6 +312,7 @@ private:
 
     BoundingSphere _boundingSphere;
     Plane* _floorPlane;
+    Cube*  _skyBox;
 
     QOpenGLShaderProgram     _debugShader;
 
@@ -318,6 +325,7 @@ private:
         
     void drawMesh();
     void drawFloor();
+    void drawSkyBox();
     void drawVertexNormals();
     void drawFaceNormals();
     void drawAxis();

@@ -1,7 +1,6 @@
 #version 450 core
 
 layout(location = 0) in vec3 vertexPosition;
-in vec2 texCoord2d;
 
 out vec3 texCoords;
 

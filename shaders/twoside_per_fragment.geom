@@ -19,6 +19,9 @@ uniform int displayMode;
 in vec4 fragPosLightSpace[];
 out vec4 g_fragPosLightSpace;
 
+in vec3 reflectionNormal[];
+out vec3 g_reflectionNormal;
+
 in float clipDistX[];
 in float clipDistY[];
 in float clipDistZ[];
@@ -35,6 +38,7 @@ void main()
     for(int i=0; i<gl_in.length(); i++)
     {
         g_fragPosLightSpace = fragPosLightSpace[i];
+        g_reflectionNormal = reflectionNormal[i];
     }
 
 

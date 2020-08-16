@@ -8,6 +8,7 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
 {
     _bFirstTime = true;
     _bDeletionInProgress = false;
+
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
     isometricView->setShortcut(QKeySequence(Qt::Key_Home));
@@ -1726,5 +1727,11 @@ void ModelViewer::on_checkBoxShadowMapping_toggled(bool checked)
 void ModelViewer::on_checkBoxEnvMapping_toggled(bool checked)
 {
     _glWidget->showEnvironment(checked);
+    _glWidget->update();
+}
+
+void ModelViewer::on_checkBoxSkyBox_toggled(bool checked)
+{
+    _glWidget->showSkyBox(checked);
     _glWidget->update();
 }

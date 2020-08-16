@@ -27,6 +27,14 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
     _specularMaterial = {0.37890625f, 0.390625f, 0.3359375f, 1.0f};
     _shininess = fabs(128.0f * 0.2f);
 
+    /*
+    // set to chrome for skybox debugging
+    _ambientMaterial = {0.25f, 0.25f, 0.25f, 1.0f};
+    _diffuseMaterial = {0.4f, 0.4f, 0.4f, 1.0f};
+    _specularMaterial = {0.774597f, 0.774597f, 0.774597f, 1.0f};
+    _shininess = fabs(128.0 * 0.6);
+    */
+
 
     if (!_texBuffer.load("textures/opengllogo.png"))
     { // Load first image from file
