@@ -932,8 +932,8 @@ void GLWidget::loadEnvMap()
                 QString("textures/envmap/lposy.png"),
                 QString("textures/envmap/lnegy.png")
 
-        QString("textures/envmap/left.jpg"),
-                QString("textures/envmap/right.jpg"),
+        QString("textures/envmap/right.jpg"),
+                QString("textures/envmap/left.jpg"),
                 QString("textures/envmap/front.jpg"),
                 QString("textures/envmap/back.jpg"),
                 QString("textures/envmap/top.jpg"),
@@ -943,12 +943,12 @@ void GLWidget::loadEnvMap()
     {
     vector<QString> faces
     {
-        QString("textures/envmap/right.jpg"),
-                QString("textures/envmap/left.jpg"),
-                QString("textures/envmap/front.jpg"),
-                QString("textures/envmap/back.jpg"),
-                QString("textures/envmap/top.jpg"),
-                QString("textures/envmap/bottom.jpg")
+        QString("textures/envmap/lposx.png"),
+                QString("textures/envmap/lnegx.png"),
+                QString("textures/envmap/lposz.png"),
+                QString("textures/envmap/lnegz.png"),
+                QString("textures/envmap/lposy.png"),
+                QString("textures/envmap/lnegy.png")
     };
 
     glGenTextures(1, &_environmentMap);
@@ -983,12 +983,12 @@ void GLWidget::loadEnvMap()
     {
     vector<QString> faces
     {
-        QString("textures/envmap/right.jpg"),
-                QString("textures/envmap/left.jpg"),
-                QString("textures/envmap/front.jpg"),
-                QString("textures/envmap/back.jpg"),
-                QString("textures/envmap/top.jpg"),
-                QString("textures/envmap/bottom.jpg")
+        QString("textures/envmap/lposx.png"),
+                QString("textures/envmap/lnegx.png"),
+                QString("textures/envmap/lposz.png"),
+                QString("textures/envmap/lnegz.png"),
+                QString("textures/envmap/lposy.png"),
+                QString("textures/envmap/lnegy.png")
     };
 
     glGenTextures(1, &_skyBoxMap);
