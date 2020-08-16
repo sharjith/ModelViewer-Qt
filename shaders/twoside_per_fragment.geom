@@ -16,16 +16,16 @@ uniform mat4 viewportMatrix; // Viewport matrix
 
 uniform int displayMode;
 
-in vec4 fragPosLightSpace[];
+in vec4  v_fragPosLightSpace[];
 out vec4 g_fragPosLightSpace;
 
-in vec3 reflectionNormal[];
+in vec3  v_reflectionNormal[];
 out vec3 g_reflectionNormal;
 
-in float clipDistX[];
-in float clipDistY[];
-in float clipDistZ[];
-in float clipDist[];
+in float v_clipDistX[];
+in float v_clipDistY[];
+in float v_clipDistZ[];
+in float v_clipDist[];
 
 out float g_clipDistX;
 out float g_clipDistY;
@@ -34,13 +34,12 @@ out float g_clipDist;
 
 void main()
 {    
-    // pass through for fragPosLightSpace
+    // pass through for v_ fragPosLightSpace & v_reflectionNormal
     for(int i=0; i<gl_in.length(); i++)
     {
-        g_fragPosLightSpace = fragPosLightSpace[i];
-        g_reflectionNormal = reflectionNormal[i];
+        g_fragPosLightSpace = v_fragPosLightSpace[i];       
+		//g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work
     }
-
 
     if(displayMode == 0 || displayMode == 1)
     {
@@ -51,10 +50,10 @@ void main()
 			g_position = v_position[i];
 			gl_Position = gl_in[i].gl_Position;
 
-			g_clipDistX = clipDistX[i];
-			g_clipDistY = clipDistY[i];
-			g_clipDistZ = clipDistZ[i];
-			g_clipDist = clipDist[i];
+			g_clipDistX = v_clipDistX[i];
+			g_clipDistY = v_clipDistY[i];
+			g_clipDistZ = v_clipDistZ[i];
+			g_clipDist =  v_clipDist[i];
 
 			gl_ClipDistance[0] = g_clipDistX;
 			gl_ClipDistance[1] = g_clipDistY;
@@ -90,10 +89,10 @@ void main()
 		g_texCoord2d = v_texCoord2d[0];
 		g_position = v_position[0];
         gl_Position = gl_in[0].gl_Position;
-        g_clipDistX = clipDistX[0];
-        g_clipDistY = clipDistY[0];
-        g_clipDistZ = clipDistZ[0];
-        g_clipDist = clipDist[0];
+        g_clipDistX = v_clipDistX[0];
+        g_clipDistY = v_clipDistY[0];
+        g_clipDistZ = v_clipDistZ[0];
+        g_clipDist =  v_clipDist[0];
 
         gl_ClipDistance[0] = g_clipDistX;
         gl_ClipDistance[1] = g_clipDistY;
@@ -106,10 +105,10 @@ void main()
 		g_texCoord2d = v_texCoord2d[1];
 		g_position = v_position[1];
         gl_Position = gl_in[1].gl_Position;
-        g_clipDistX = clipDistX[1];
-        g_clipDistY = clipDistY[1];
-        g_clipDistZ = clipDistZ[1];
-        g_clipDist = clipDist[1];
+        g_clipDistX = v_clipDistX[1];
+        g_clipDistY = v_clipDistY[1];
+        g_clipDistZ = v_clipDistZ[1];
+        g_clipDist =  v_clipDist[1];
 
         gl_ClipDistance[0] = g_clipDistX;
         gl_ClipDistance[1] = g_clipDistY;
@@ -122,10 +121,10 @@ void main()
 		g_texCoord2d = v_texCoord2d[2];
 		g_position = v_position[2];
         gl_Position = gl_in[2].gl_Position;
-        g_clipDistX = clipDistX[2];
-        g_clipDistY = clipDistY[2];
-        g_clipDistZ = clipDistZ[2];
-        g_clipDist = clipDist[2];
+        g_clipDistX = v_clipDistX[2];
+        g_clipDistY = v_clipDistY[2];
+        g_clipDistZ = v_clipDistZ[2];
+        g_clipDist =  v_clipDist[2];
 
         gl_ClipDistance[0] = g_clipDistX;
         gl_ClipDistance[1] = g_clipDistY;

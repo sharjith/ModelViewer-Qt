@@ -16,18 +16,17 @@ uniform mat4 lightSpaceMatrix;
 // user defined clip plane
 uniform vec4 clipPlane;
 
-out float clipDistX;
-out float clipDistY;
-out float clipDistZ;
-out float clipDist;
+out float v_clipDistX;
+out float v_clipDistY;
+out float v_clipDistZ;
+out float v_clipDist;
 
 out vec3 v_normal;
 out vec3 v_position;
 out vec2 v_texCoord2d;	
-out mat4 MVP;
 
-out vec4 fragPosLightSpace;
-out vec3 reflectionNormal;
+out vec4 v_fragPosLightSpace;
+out vec3 v_reflectionNormal;
 
 void main()
 {
@@ -35,24 +34,25 @@ void main()
     v_position   = vec3(modelViewMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
 
-    reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
-
-    MVP = projectionMatrix * modelViewMatrix;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1);
 
-    clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
-    clipDistY = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));
-    clipDistZ = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
+    v_clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
+    v_clipDistY = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));
+    v_clipDistZ = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
+    v_clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
 
-    clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
+    // for shadow mapping
+    v_fragPosLightSpace = lightSpaceMatrix * vec4(vertexPosition, 1.0);
 
-    fragPosLightSpace = lightSpaceMatrix * vec4(vertexPosition, 1.0);
+    // for reflection mapping
+    v_reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
 
     // Moved this to geometry shader
-    /*gl_ClipDistance[0] = clipDistX;
+    /*
+    gl_ClipDistance[0] = clipDistX;
     gl_ClipDistance[1] = clipDistY;
     gl_ClipDistance[2] = clipDistZ;
-
-    gl_ClipDistance[3] = clipDist;*/
+    gl_ClipDistance[3] = clipDist;
+    */
 }
 

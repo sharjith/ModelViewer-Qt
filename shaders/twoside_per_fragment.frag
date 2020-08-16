@@ -5,7 +5,7 @@ in vec3 g_normal;
 in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 in vec4 g_fragPosLightSpace;
-out vec3 g_reflectionNormal;
+in vec3 g_reflectionNormal;
 
 uniform float alpha;
 uniform bool texEnabled;
