@@ -169,8 +169,7 @@ void main()
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {
         vec3 I = normalize(g_position - cameraPos);
-        vec3 R = reflect(I, normalize(g_normal));
-        //vec3 R = refract(I, normalize(g_normal), 0.658);
+        vec3 R = reflect(I, normalize(g_normal));        
         fragColor = mix(fragColor, vec4(texture(envMap, R).rgba), material.shininess/256);
     }
 
