@@ -6,10 +6,12 @@ layout(triangle_strip, max_vertices=6) out;
 in vec3 v_position[];
 in vec3 v_normal[];
 in vec2 v_texCoord2d[];
+in vec4 v_clipSpace[];
 
 out vec3 g_normal;
 out vec3 g_position;
 out vec2 g_texCoord2d;
+out vec4 g_clipSpace;
 
 noperspective out vec3 g_edgeDistance;
 uniform mat4 viewportMatrix; // Viewport matrix
@@ -39,6 +41,7 @@ void main()
     {
         g_fragPosLightSpace = v_fragPosLightSpace[i];       
 		//g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work
+		g_clipSpace = v_clipSpace[i];
     }
 
     if(displayMode == 0 || displayMode == 1)

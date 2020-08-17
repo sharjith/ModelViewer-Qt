@@ -270,7 +270,7 @@ private:
     unsigned int             _shadowMap;
     unsigned int             _shadowMapFBO;
     unsigned int             _reflectionMap;
-    unsigned int             _reflectionFBO;
+    unsigned int             _reflectionMapFBO;
     float                    _floorSize;
     QVector3D                _floorCenter;
 
@@ -322,7 +322,9 @@ private:
     void createShaderPrograms();
     void createGeometry();
     void loadEnvMap();
+    void loadReflectionMap();
     void loadFloor();
+    
         
     void drawMesh();
     void drawFloor();
@@ -334,6 +336,7 @@ private:
     
     void render();
     void renderToShadowBuffer();
+    void renderToReflectionMap();
 
     void gradientBackground(float top_r, float top_g, float top_b, float top_a,
         float bot_r, float bot_g, float bot_b, float bot_a);

@@ -6,14 +6,17 @@ in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 in vec4 g_fragPosLightSpace;
 in vec3 g_reflectionNormal;
+in vec4 g_clipSpace;
 
 uniform float alpha;
 uniform bool texEnabled;
 uniform sampler2D texUnit;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
+uniform sampler2D reflectionMap;
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
+uniform bool reflectionsEnabled;
 uniform vec3 cameraPos;
 uniform mat4 viewMatrix;
 uniform bool sectionActive;
@@ -173,7 +176,7 @@ void main()
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, (g_reflectionNormal));
         vec3 worldR = inverse(mat3(viewMatrix)) * R;
-        fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);
+        fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);        
     }
 
 
@@ -200,6 +203,13 @@ void main()
         vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
 
         fragColor = vec4(lighting, alpha);
+
+        if(reflectionsEnabled)
+        {
+            vec2 ndc = (g_clipSpace.xy/g_clipSpace.w)/2.0 + 0.5;
+            vec2 reflectCoord = vec2(ndc.x, -ndc.y);
+            //fragColor = mix(vec4(texture2D(reflectionMap, ndc).rgba),  fragColor, 0.5);
+        }
     }
     
     if(selected)
