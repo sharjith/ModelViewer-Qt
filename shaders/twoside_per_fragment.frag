@@ -176,12 +176,12 @@ void main()
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, (g_reflectionNormal));
         vec3 worldR = inverse(mat3(viewMatrix)) * R;
-        fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);        
+        fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);
     }
 
 
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
-    {
+    {        
         vec3 color = fragColor.rgb;
         vec3 normal = normalize(g_normal);
         vec3 lightColor = lightSource.ambient;
@@ -202,14 +202,14 @@ void main()
         float shadow = calculateShadow(g_fragPosLightSpace);
         vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
 
-        fragColor = vec4(lighting, alpha);
+        fragColor = vec4(lighting, alpha);        
+    }
 
-        if(reflectionsEnabled)
-        {
-            vec2 ndc = (g_clipSpace.xy/g_clipSpace.w)/2.0 + 0.5;
-            vec2 reflectCoord = vec2(ndc.x, -ndc.y);
-            //fragColor = mix(vec4(texture2D(reflectionMap, ndc).rgba),  fragColor, 0.5);
-        }
+    if(reflectionsEnabled)
+    {
+        vec2 ndc = (g_clipSpace.xy/g_clipSpace.w)/2.0 + 0.5;
+        vec2 reflectCoord = vec2(ndc.x, -ndc.y);
+        //fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgba),  fragColor, 0.5);
     }
     
     if(selected)

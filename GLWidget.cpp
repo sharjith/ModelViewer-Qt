@@ -76,6 +76,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _faceNormalShader = new QOpenGLShaderProgram(this);
     _shadowMappingShader = new QOpenGLShaderProgram(this);
     _skyBoxShader = new QOpenGLShaderProgram(this);
+    _reflectionMappingShader = new QOpenGLShaderProgram(this);
 
     _viewBoundingSphereDia = 200.0f;
     _viewRange = _viewBoundingSphereDia;
@@ -229,6 +230,9 @@ GLWidget::~GLWidget()
 
     if(_skyBoxShader)
         delete _skyBoxShader;
+
+    if(_reflectionMappingShader)
+        delete _reflectionMappingShader;
 
     _axisVBO.destroy();
     _axisVAO.destroy();
@@ -589,6 +593,20 @@ void GLWidget::createShaderPrograms()
         qDebug() << "Error linking shader program:" << _skyBoxShader->log();
     }
 
+    //_reflectionMappingShader
+    if (!_reflectionMappingShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/reflection_mapping.vert"))
+    {
+        qDebug() << "Error in vertex shader:" << _reflectionMappingShader->log();
+    }
+    if (!_reflectionMappingShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/reflection_mapping.frag"))
+    {
+        qDebug() << "Error in fragment shader:" << _reflectionMappingShader->log();
+    }
+    if (!_reflectionMappingShader->link())
+    {
+        qDebug() << "Error linking shader program:" << _reflectionMappingShader->log();
+    }
+
     // Text shader program
     if (!_textShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/text.vert"))
     {
@@ -939,17 +957,17 @@ void GLWidget::loadReflectionMap()
     {
         glGenTextures(1, &_reflectionMap);
         glBindTexture(GL_TEXTURE_2D, _reflectionMap);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width(), height(), 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _shadowWidth, _shadowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
         //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);               
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
         
         glGenFramebuffers(1, &_reflectionMapFBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
         // Set "renderedTexture" as our colour attachement #0
-        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _reflectionMap, 0);  
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, _reflectionMap, 0);
 
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     }
@@ -1040,7 +1058,7 @@ void GLWidget::paintGL()
 {
     try
     {
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
                            0.925f, 0.913f, 0.847f, 1.0f);
@@ -1634,20 +1652,20 @@ void GLWidget::renderToReflectionMap()
     glClear(GL_COLOR_BUFFER_BIT);
     // 1. render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
-    QMatrix4x4 floorProjection, floorView;
-    floorProjection = _camera->getProjectionMatrix();
-    floorView = _camera->getViewMatrix();
-    float radius = _boundingSphere.getRadius();   
-    float near_plane = -radius * 2, far_plane = radius * 2;
-    floorProjection.ortho(-radius * 2, radius * 2, -radius * 2, radius * 2, near_plane, far_plane);
-    floorView.lookAt(_floorCenter, _lightPosition, QVector3D(0.0, -1.0, 0.0));
-    QMatrix4x4 floorSpaceMatrix = floorProjection * floorView;
+    QMatrix4x4 lightProjection, lightView;
+    float radius = _boundingSphere.getRadius();
+    float near_plane = 1.0f, far_plane = radius*2;
+    lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
+    lightView.lookAt(-_lightPosition, QVector3D(0,0,0), QVector3D(0.0, -1.0, 0.0));
+    GLCamera camera = *_camera;
+    camera.setView(_lightPosition, _floorCenter, QVector3D(0.0, -1.0, 0.0), QVector3D(1.0, 0.0, 0.0));
+    QMatrix4x4 view = camera.getViewMatrix();
+    QMatrix4x4 lightSpaceMatrix = _projectionMatrix * lightView;
     // render scene from light's point of view
     _fgShader->bind();
-    _fgShader->setUniformValue("modelViewMatrix", floorView);
-    _fgShader->setUniformValue("projectionMatrix", floorProjection);
-    //_fgShader->setUniformValue("modelViewMatrix", floorSpaceMatrix);
-    //_fgShader->setUniformValue("normalMatrix", floorSpaceMatrix.normalMatrix());
+    //_fgShader->setUniformValue("modelViewMatrix", lightSpaceMatrix);
+    //_fgShader->setUniformValue("normalMatrix", lightSpaceMatrix.normalMatrix());
+    //_fgShader->setUniformValue("projectionMatrix", lightProjection);
 
     if (_meshStore.size() != 0)
     {

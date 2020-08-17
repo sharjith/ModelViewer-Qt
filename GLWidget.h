@@ -263,6 +263,7 @@ private:
     QOpenGLShaderProgram*     _faceNormalShader;
     QOpenGLShaderProgram*     _shadowMappingShader;
     QOpenGLShaderProgram*     _skyBoxShader;
+    QOpenGLShaderProgram*     _reflectionMappingShader;
 
     QOpenGLShaderProgram     _textShader;
 
