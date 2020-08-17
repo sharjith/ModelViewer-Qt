@@ -202,6 +202,8 @@ shaders/twoside_per_fragment.geom \
 shaders/twoside_per_fragment.frag \
 shaders/shadow_mapping_depth.vert \
 shaders/shadow_mapping_depth.frag \
+shaders/reflection_mapping.vert \
+shaders/reflection_mapping.frag \
 shaders/skybox.vert \
 shaders/skybox.frag
 
