@@ -266,10 +266,11 @@ private:
 
     QOpenGLShaderProgram     _textShader;
 
-    unsigned int                   _environmentMap;
-    unsigned int                   _skyBoxMap;
-    unsigned int                   _shadowMap;
-    unsigned int                   _shadowMapFBO;
+    unsigned int             _environmentMap;   
+    unsigned int             _shadowMap;
+    unsigned int             _shadowMapFBO;
+    unsigned int             _reflectionMap;
+    unsigned int             _reflectionFBO;
     float                    _floorSize;
     QVector3D                _floorCenter;
 

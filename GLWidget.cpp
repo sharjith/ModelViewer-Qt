@@ -139,6 +139,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _environmentMap = 0;
     _shadowMap = 0;
     _shadowMapFBO = 0;
+    _reflectionMap = 0;
+    _reflectionFBO = 0;
 
     _clipXCoeff = 0.0f;
     _clipYCoeff = 0.0f;
@@ -910,37 +912,20 @@ void GLWidget::loadFloor()
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-
-        _floorSize = _boundingSphere.getRadius();
-        _floorCenter = _boundingSphere.getCenter();
-        _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - 5, 1, 1);
-        _floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-        _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-        _floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-        _floorPlane->setShininess(10.0f);
-        _floorPlane->setOpacity(0.8f);
     }
+    _floorSize = _boundingSphere.getRadius();
+    _floorCenter = _boundingSphere.getCenter();
+    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - 5, 1, 1);
+    _floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+    _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+    _floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+    _floorPlane->setShininess(10.0f);
+    _floorPlane->setOpacity(0.8f);
 }
 
 void GLWidget::loadEnvMap()
 {
-    /*
-        QString("textures/envmap/lposx.png"),
-                QString("textures/envmap/lnegx.png"),
-                QString("textures/envmap/lposz.png"),
-                QString("textures/envmap/lnegz.png"),
-                QString("textures/envmap/lposy.png"),
-                QString("textures/envmap/lnegy.png")
-
-        QString("textures/envmap/right.jpg"),
-                QString("textures/envmap/left.jpg"),
-                QString("textures/envmap/front.jpg"),
-                QString("textures/envmap/back.jpg"),
-                QString("textures/envmap/top.jpg"),
-                QString("textures/envmap/bottom.jpg")
-*/
-    // Env Map
-    {
+    // Env Map    
     vector<QString> faces
     {
         QString("textures/envmap/lposx.png"),
@@ -977,51 +962,10 @@ void GLWidget::loadEnvMap()
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-    }
-
-    // Skybox Map
-    {
-    vector<QString> faces
-    {
-        QString("textures/envmap/lposx.png"),
-                QString("textures/envmap/lnegx.png"),
-                QString("textures/envmap/lposz.png"),
-                QString("textures/envmap/lnegz.png"),
-                QString("textures/envmap/lposy.png"),
-                QString("textures/envmap/lnegy.png")
-    };
-
-    glGenTextures(1, &_skyBoxMap);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, _skyBoxMap);
-
-    for (unsigned int i = 0; i < faces.size(); i++)
-    {
-        if (!_texBuffer.load(faces.at(i)))
-        { // Load first image from file
-            qWarning("Could not read image file, using single-color instead.");
-            QImage dummy(128, 128, static_cast<QImage::Format>(5));
-            dummy.fill(Qt::white);
-            _texBuffer = dummy;
-        }
-        else
-        {
-            _texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-        }
-    }
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_CUBE_MAP, _skyBoxMap);
-    }
 
     _skyBox = new Cube(_skyBoxShader, 1);
     _skyBoxShader->bind();
-    _skyBoxShader->setUniformValue("skybox", 3);
+    _skyBoxShader->setUniformValue("skybox", 1);
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -1227,8 +1171,8 @@ void GLWidget::drawSkyBox()
     _skyBoxShader->setUniformValue("projectionMatrix", projection);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
-    glActiveTexture(GL_TEXTURE3);
-    glBindTexture(GL_TEXTURE_2D, _skyBoxMap);
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D, _environmentMap);
     _skyBox->render();
     glDepthFunc(GL_LESS); // set depth function back to default
     glDisable((GL_DEPTH_TEST));
