@@ -207,8 +207,7 @@ void ModelViewer::on_defaultButton_clicked()
     _specMat = {0.37890625f, 0.390625f, 0.3359375f, _opacity};   // 97 100 86
     _emmiMat = {0, 0, 0, 1};
     _shine = 128 * 0.2f;
-    _glWidget->setLightPosition({0.0, 0.0, 50.0f});
-
+    
     GLMaterialProps mat = {_ambiMat,
                            _diffMat,
                            _specMat,
@@ -1379,9 +1378,9 @@ void ModelViewer::updateControls()
 {
     sliderShine->setValue((int)_shine);
     sliderTransparency->setValue((int)(255 * _opacity));
-    sliderLightPosX->setValue((int)_glWidget->getLightPosition().x());
-    sliderLightPosY->setValue((int)_glWidget->getLightPosition().y());
-    sliderLightPosZ->setValue((int)_glWidget->getLightPosition().z());
+    sliderLightPosX->setValue(0);
+    sliderLightPosY->setValue(0);
+    sliderLightPosZ->setValue(0);
 
     QColor col;
     QVector4D ambientLight = _glWidget->getAmbientLight();

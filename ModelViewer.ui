@@ -1038,8 +1038,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>432</height>
+               <width>326</width>
+               <height>444</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1067,8 +1067,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>315</width>
-               <height>797</height>
+               <width>312</width>
+               <height>755</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1352,13 +1352,13 @@
                          <item>
                           <widget class="QSlider" name="sliderLightPosZ">
                            <property name="minimum">
-                            <number>1</number>
+                            <number>-100</number>
                            </property>
                            <property name="maximum">
                             <number>100</number>
                            </property>
                            <property name="value">
-                            <number>50</number>
+                            <number>0</number>
                            </property>
                            <property name="orientation">
                             <enum>Qt::Horizontal</enum>
@@ -2431,8 +2431,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>315</width>
-               <height>441</height>
+               <width>326</width>
+               <height>444</height>
               </rect>
              </property>
              <property name="sizePolicy">
