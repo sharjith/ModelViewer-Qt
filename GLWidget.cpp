@@ -1664,12 +1664,12 @@ void GLWidget::renderToReflectionMap()
     QMatrix4x4 lightProjection, lightView, lightSpaceMatrix;
     float radius = _boundingSphere.getRadius();
     float near_plane = radius*2, far_plane = -radius*2;
-    lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
+    lightProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
     QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
     QVector3D center = _floorCenter;
-    lightView.lookAt(eye, center, QVector3D(0.0, -1.0, 0.0));
+    lightView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
     QMatrix4x4 model;    
-    model.scale(0.8, -0.8, 0.8);
+    model.scale(0.8f, -0.8f, 0.8f);
     lightSpaceMatrix = lightProjection * lightView;
     // render scene from light's point of view
     _reflectionMappingShader->bind();
