@@ -1068,7 +1068,7 @@
                <x>0</x>
                <y>0</y>
                <width>315</width>
-               <height>797</height>
+               <height>828</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1557,25 +1557,40 @@
                 <item>
                  <layout class="QHBoxLayout" name="horizontalLayout_4">
                   <item>
-                   <widget class="QCheckBox" name="checkBoxShadowMapping">
-                    <property name="text">
-                     <string>Shadows</string>
-                    </property>
-                   </widget>
+                   <layout class="QVBoxLayout" name="verticalLayout_9">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxShadowMapping">
+                      <property name="text">
+                       <string>Shadows</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxReflections">
+                      <property name="text">
+                       <string>Reflections</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
                   </item>
                   <item>
-                   <widget class="QCheckBox" name="checkBoxEnvMapping">
-                    <property name="text">
-                     <string>Environment</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QCheckBox" name="checkBoxSkyBox">
-                    <property name="text">
-                     <string>Sky Box</string>
-                    </property>
-                   </widget>
+                   <layout class="QVBoxLayout" name="verticalLayout_10">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxSkyBox">
+                      <property name="text">
+                       <string>Sky Box</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxEnvMapping">
+                      <property name="text">
+                       <string>Environment</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
                   </item>
                  </layout>
                 </item>

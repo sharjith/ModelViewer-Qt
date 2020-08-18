@@ -23,6 +23,7 @@ void QuadMesh::render()
     _prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
     _prog->setUniformValue("material.shininess", _shininess);
     _prog->setUniformValue("texEnabled", _bHasTexture);
+    //_prog->setUniformValue("reflectionMapEnabled", false);
     _prog->setUniformValue("alpha", _opacity);
     _prog->setUniformValue("selected", _selected);
 

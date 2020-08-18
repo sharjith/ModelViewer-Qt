@@ -299,6 +299,7 @@ void ModelViewer::on_displayRealShaded_triggered(bool)
 {
     checkBoxEnvMapping->setChecked(true);
     checkBoxShadowMapping->setChecked(true);
+    checkBoxReflections->setChecked(true);
     _glWidget->setDisplayMode(DisplayMode::REALSHADED);
     _glWidget->updateView();
     displayShaded->setToolTip("Real Shaded");
@@ -1732,5 +1733,11 @@ void ModelViewer::on_checkBoxEnvMapping_toggled(bool checked)
 void ModelViewer::on_checkBoxSkyBox_toggled(bool checked)
 {
     _glWidget->showSkyBox(checked);
+    _glWidget->update();
+}
+
+void ModelViewer::on_checkBoxReflections_toggled(bool checked)
+{
+    _glWidget->showReflections(checked);
     _glWidget->update();
 }
