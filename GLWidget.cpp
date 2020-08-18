@@ -419,7 +419,6 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     {
         _floorSize = _boundingSphere.getRadius();
         _floorCenter = _boundingSphere.getCenter();
-        //_lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
         _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - (_floorSize* 0.05f), 1, 1);
     }
 
@@ -452,7 +451,6 @@ void GLWidget::updateBoundingSphere()
     {
         _floorSize = _boundingSphere.getRadius();
         _floorCenter = _boundingSphere.getCenter();
-        //_lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
         _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - (_floorSize* 0.05f), 1, 1);
     }
 
@@ -945,7 +943,6 @@ void GLWidget::loadFloor()
     }
     _floorSize = _boundingSphere.getRadius();
     _floorCenter = _boundingSphere.getCenter();
-    //_lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
     _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - (_floorSize* 0.05f), 1, 1);
     _floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
