@@ -16,6 +16,7 @@ uniform sampler2D shadowMap;
 uniform sampler2D reflectionMap;
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
+uniform float shadowSamples;
 uniform bool reflectionMapEnabled;
 uniform vec3 cameraPos;
 uniform mat4 viewMatrix;
@@ -103,7 +104,7 @@ float calculateShadow(vec4 fragPosLightSpace)
             shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
         }
     }
-    shadow /= 50.0;
+    shadow /= shadowSamples;
 
     // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
     if(projCoords.z > 1.0)
@@ -207,7 +208,7 @@ void main()
 
     if(reflectionMapEnabled && displayMode == 3)
     {
-        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 0.1),  fragColor, 0.5);
+        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 0.5),  fragColor, 0.5);
     }
     
     if(selected)

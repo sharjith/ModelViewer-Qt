@@ -920,7 +920,7 @@ void GLWidget::loadFloor()
     {
         glGenTextures(1, &_shadowMap);
         glBindTexture(GL_TEXTURE_2D, _shadowMap);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth * 4.0f, _shadowHeight * 4.0f, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
         //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         glGenerateTextureMipmap(_shadowMap);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
@@ -960,7 +960,7 @@ void GLWidget::loadReflectionMap()
     {
         glGenTextures(1, &_reflectionMap);
         glBindTexture(GL_TEXTURE_2D, _reflectionMap);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _shadowWidth, _shadowHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _shadowWidth * 4.0f, _shadowHeight * 4.0f, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
         //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -1212,6 +1212,7 @@ void GLWidget::drawFloor()
     _fgShader->bind();
     _fgShader->setUniformValue("envMapEnabled", false);
     _fgShader->setUniformValue("reflectionMapEnabled", _reflectionsEnabled);
+    _fgShader->setUniformValue("shadowSamples", 25.0f);
     glActiveTexture(GL_TEXTURE2);
     glBindTexture(GL_TEXTURE_2D, _shadowMap);
     glActiveTexture(GL_TEXTURE3);
@@ -1261,7 +1262,7 @@ void GLWidget::drawMesh()
                                                        (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
     _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
                                                       pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-
+    _fgShader->setUniformValue("shadowSamples", 150.0f);
     // Render    
     if (_meshStore.size() != 0)
     {
@@ -1604,7 +1605,7 @@ void GLWidget::renderToShadowBuffer()
     /// Shadow Mapping
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, _shadowWidth, _shadowHeight);
+    glViewport(0, 0, _shadowWidth * 4.0f, _shadowHeight * 4.0f);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
     // 1. render depth of scene to texture (from light's perspective)
@@ -1655,7 +1656,7 @@ void GLWidget::renderToReflectionMap()
     /// Shadow Mapping
     glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, _shadowWidth, _shadowHeight);
+    glViewport(0, 0, _shadowWidth*4, _shadowHeight*4);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
