@@ -1777,7 +1777,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
         _leftButtonPoint.setX(e->x());
         _leftButtonPoint.setY(e->y());
 
-        if (!(e->modifiers() & Qt::ControlModifier) && !_rubberBand)
+        if (!(e->modifiers() & Qt::ControlModifier) && !_bWindowZoomActive)
         {
             // Selection
             mouseSelect(QPoint(e->x(), e->y()));
