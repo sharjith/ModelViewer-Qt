@@ -1212,7 +1212,7 @@ void GLWidget::drawFloor()
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     _fgShader->bind();
-    _fgShader->setUniformValue("envMapEnabled", false);
+    //_fgShader->setUniformValue("envMapEnabled", false);
     _fgShader->setUniformValue("reflectionMapEnabled", _reflectionsEnabled);
     _fgShader->setUniformValue("shadowSamples", 25.0f);
     glActiveTexture(GL_TEXTURE2);
@@ -1686,10 +1686,24 @@ void GLWidget::renderToReflectionMap()
     _reflectionMappingShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
     _reflectionMappingShader->setUniformValue("lightSource.position", _lightPosition);
     _reflectionMappingShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+
+    _reflectionMappingShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+    _reflectionMappingShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _reflectionMappingShader->setUniformValue("cameraPos", eye);
+
     _reflectionMappingShader->setUniformValue("viewMatrix", lightView);
     _reflectionMappingShader->setUniformValue("normalMatrix", (model * lightView).normalMatrix());
     _reflectionMappingShader->setUniformValue("projectionMatrix", lightProjection);
     _reflectionMappingShader->setUniformValue("modelMatrix", model);
+
+    _reflectionMappingShader->setUniformValue("clipPlaneX", QVector4D((model * lightView) * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + eye),
+                                                       (_clipXFlipped ? -1 : 1) * eye.x() + _clipXCoeff));
+    _reflectionMappingShader->setUniformValue("clipPlaneY", QVector4D((model * lightView) * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + eye),
+                                                       (_clipYFlipped ? -1 : 1) * eye.y() + _clipYCoeff));
+    _reflectionMappingShader->setUniformValue("clipPlaneZ", QVector4D((model * lightView) * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + eye),
+                                                       (_clipZFlipped ? -1 : 1) * eye.z() + _clipZCoeff));
+    _reflectionMappingShader->setUniformValue("clipPlane", QVector4D((model * lightView) * (QVector3D(_clipDX, _clipDY, _clipDZ) + eye),
+                                                      eye.x() * _clipDX + eye.y() * _clipDY + eye.z() * _clipDZ));
 
     if (_meshStore.size() != 0)
     {
@@ -1700,6 +1714,8 @@ void GLWidget::renderToReflectionMap()
                 TriangleMesh* mesh = _meshStore.at(i);
                 if (mesh)
                 {
+                    //glActiveTexture(GL_TEXTURE1);
+                    //glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
                     mesh->setProg(_reflectionMappingShader);
                     mesh->render();
                 }
@@ -1712,7 +1728,6 @@ void GLWidget::renderToReflectionMap()
     }
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     // End Shadow Mapping
-
     glDisable(GL_CULL_FACE);
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);

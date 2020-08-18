@@ -2,6 +2,7 @@
 in vec3 v_position;
 in vec3 v_normal;
 in vec2 v_texCoord2d;
+in vec3 v_reflectionNormal;
 
 
 uniform float alpha;
@@ -77,4 +78,12 @@ void main()
      fragColor = vec4(shadeBlinnPhong(lightSource, lightModel, material, v_position, v_normal), alpha);
      if(texEnabled == true)
          fragColor = fragColor * texture2D(texUnit, v_texCoord2d);
+
+     if(envMapEnabled && displayMode == 3) // Environment mapping
+     {
+         vec3 I = normalize(v_position - cameraPos);
+         vec3 R = reflect(I, (v_reflectionNormal));
+         vec3 worldR = inverse(mat3(viewMatrix)) * R;
+         fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);
+     }
 }

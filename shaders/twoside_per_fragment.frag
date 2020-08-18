@@ -61,7 +61,7 @@ layout( location = 0 ) out vec4 fragColor;
 
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec3 halfVector = normalize(source.position + vec3(0,0,1));                // light half vector
+    vec3 halfVector = normalize(source.position + vec3(0.0f, 0.0f, 1.0f));                // light half vector
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
@@ -82,7 +82,7 @@ float calculateShadow(vec4 fragPosLightSpace)
     // perform perspective divide
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     // transform to [0,1] range
-    projCoords = projCoords * 0.5 + 0.5;
+    projCoords = projCoords * 0.5f + 0.5f;
     // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
     float closestDepth = texture(shadowMap, projCoords.xy).r;
     // get depth of current fragment from light's perspective
@@ -90,25 +90,25 @@ float calculateShadow(vec4 fragPosLightSpace)
     // calculate bias (based on depth map resolution and slope)
     vec3 normal = normalize(g_normal);
     vec3 lightDir = normalize(lightSource.position - g_position);
-    float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    float bias = max(0.05f * (1.0f - dot(normal, lightDir)), 0.005f);
     // check whether current frag pos is in shadow
     //float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
     // PCF
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    float shadow = 0.0f;
+    vec2 texelSize = 1 / textureSize(shadowMap, 0);
     for(int x = -1; x <= 1; ++x)
     {
         for(int y = -1; y <= 1; ++y)
         {
             float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
+            shadow += currentDepth - bias > pcfDepth  ? 1.0f : 0.0f;
         }
     }
     shadow /= shadowSamples;
 
     // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
-    if(projCoords.z > 1.0)
-        shadow = 0.0;
+    if(projCoords.z > 1.0f)
+        shadow = 0.0f;
 
     return shadow;
 }
@@ -129,7 +129,7 @@ void main()
     else
     {
         if(sectionActive)
-            v_color = v_color_back + 0.15;
+            v_color = v_color_back + 0.15f;
         else
             v_color = v_color_back;
     }
@@ -143,7 +143,7 @@ void main()
     }
     else if(displayMode == 1) // wireframe
     {
-        fragColor = vec4(1.0, 1.0, 1.0, 0.75);
+        fragColor = vec4(1.0f, 1.0f, 1.0f, 0.75f);
     }
     else // wireshaded
     {
@@ -152,17 +152,17 @@ void main()
         d = min( d, g_edgeDistance.z );
 
         float mixVal;
-        if( d < Line.Width - 1 )
+        if( d < Line.Width - 1.0f )
         {
-            mixVal = 1.0;
-        } else if( d > Line.Width + 1 )
+            mixVal = 1.0f;
+        } else if( d > Line.Width + 1.0f )
         {
-            mixVal = 0.0;
+            mixVal = 0.0f;
         }
         else
         {
-            float x = d - (Line.Width - 1);
-            mixVal = exp2(-2.0 * (x*x));
+            float x = d - (Line.Width - 1.0f);
+            mixVal = exp2(-2.0f * (x*x));
         }
 
         if(texEnabled == true)
@@ -190,29 +190,29 @@ void main()
         vec3 ambient = lightSource.ambient;
         // diffuse
         vec3 lightDir = normalize(lightSource.position - g_position);
-        float diff = max(dot(lightDir, normal), 0.0);
+        float diff = max(dot(lightDir, normal), 0.0f);
         vec3 diffuse = lightSource.diffuse;
         // specular
         vec3 viewDir = normalize(cameraPos - lightSource.position);
         vec3 reflectDir = reflect(-lightDir, normal);
-        float spec = 0.0;
+        float spec = 0.0f;
         vec3 halfwayDir = normalize(lightDir + viewDir);
-        spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
+        spec = pow(max(dot(normal, halfwayDir), 0.0f), 64.0f);
         vec3 specular = spec * lightColor;
         // calculate shadow
         float shadow = calculateShadow(g_fragPosLightSpace);
-        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
+        vec3 lighting = (ambient + (1.0f - shadow) * (diffuse + specular)) * color;
 
         fragColor = vec4(lighting, alpha);        
     }
 
     if(reflectionMapEnabled && displayMode == 3)
     {
-        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0),  fragColor, 0.5);
+        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f),  fragColor, 0.5);
     }
     
     if(selected)
     {
-        fragColor = mix(fragColor, vec4(1.0, .65, 0.0, 1.0), 0.5);
+        fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
     }
 }
