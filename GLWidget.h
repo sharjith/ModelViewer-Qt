@@ -251,6 +251,7 @@ private:
     QVector4D _specularLight;
 
     QVector3D _lightPosition;
+    QVector3D _prevLightPosition;
 
     QMatrix4x4 _lightSpaceMatrix;
 

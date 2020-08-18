@@ -103,6 +103,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _specularLight = { 0.5f, 0.5f, 0.5f, 1.0f };
 
     _lightPosition = { 0.0f, 0.0f, 50.0f };
+    _prevLightPosition = _lightPosition;
 
     _displayMode = DisplayMode::SHADED;
 
@@ -277,7 +278,7 @@ QVector3D GLWidget::getLightPosition() const
 
 void GLWidget::setLightPosition(const QVector3D& lightPosition)
 {
-    _lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize) + lightPosition;
+    _lightPosition = _prevLightPosition + lightPosition;
 }
 
 QVector4D GLWidget::getSpecularLight() const
@@ -418,7 +419,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     {
         _floorSize = _boundingSphere.getRadius();
         _floorCenter = _boundingSphere.getCenter();
-        _lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
+        //_lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
         _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - 5.0f, 1, 1);
     }
 
@@ -451,7 +452,7 @@ void GLWidget::updateBoundingSphere()
     {
         _floorSize = _boundingSphere.getRadius();
         _floorCenter = _boundingSphere.getCenter();
-        _lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
+        //_lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
         _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - 5.0f, 1, 1);
     }
 
@@ -944,7 +945,7 @@ void GLWidget::loadFloor()
     }
     _floorSize = _boundingSphere.getRadius();
     _floorCenter = _boundingSphere.getCenter();
-    _lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
+    //_lightPosition = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
     _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - 5, 1, 1);
     _floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
@@ -1613,7 +1614,7 @@ void GLWidget::renderToShadowBuffer()
     float radius = _boundingSphere.getRadius();
     float near_plane = -radius*2, far_plane = radius*2;
     lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
-    lightView.lookAt(_lightPosition, _floorCenter, QVector3D(0.0, 1.0, 0.0));
+    lightView.lookAt(_lightPosition, QVector3D(0,0,0), QVector3D(0.0, 1.0, 0.0));
     _lightSpaceMatrix = lightProjection * lightView;
     // render scene from light's point of view
     _shadowMappingShader->bind();
@@ -1665,9 +1666,12 @@ void GLWidget::renderToReflectionMap()
     float radius = _boundingSphere.getRadius();
     float near_plane = -radius*2, far_plane = radius*2;
     lightProjection.ortho(-radius*2, radius*2, -radius*2, radius*2, near_plane, far_plane);
-    lightView.lookAt(_lightPosition, _floorCenter, QVector3D(0.0, 1.0, 0.0));
-    QMatrix4x4 model;
-    model.scale(0.8, 0.8, -0.8);
+    QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
+    QVector3D center = _floorCenter;
+    lightView.lookAt(eye, center, QVector3D(0.0, -1.0, 0.0));
+    QMatrix4x4 model;    
+    model.scale(0.8, -0.8, 0.8);
+    //model.rotate(180, 0,0,1);
     lightSpaceMatrix = lightProjection * lightView;
     // render scene from light's point of view
     _reflectionMappingShader->bind();
