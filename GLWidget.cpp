@@ -948,7 +948,7 @@ void GLWidget::loadFloor()
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setShininess(10.0f);    
-    _floorPlane->setOpacity(0.5f);
+    //_floorPlane->setOpacity(0.5f);
 }
 
 void GLWidget::loadReflectionMap()
@@ -971,8 +971,10 @@ void GLWidget::loadReflectionMap()
         
         glGenFramebuffers(1, &_reflectionMapFBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
+
         // Set "renderedTexture" as our colour attachement #0
         glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, _reflectionMap, 0);
+
         unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE)
             std::cout << "Frame buffer creation failed!" << std::endl;
@@ -1660,6 +1662,11 @@ void GLWidget::renderToReflectionMap()
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
+    // Accept fragment if it closer to the camera than the former one
+    glDepthFunc(GL_LESS);
+    // Cull triangles which normal is not towards the camera
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
     // 1. render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
     QMatrix4x4 lightProjection, lightView, lightSpaceMatrix;
@@ -1669,7 +1676,7 @@ void GLWidget::renderToReflectionMap()
     QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
     QVector3D center = _floorCenter;
     lightView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
-    QMatrix4x4 model;    
+    QMatrix4x4 model;
     model.scale(0.8f, -0.8f, 0.8f);
     lightSpaceMatrix = lightProjection * lightView;
     // render scene from light's point of view
@@ -1706,6 +1713,7 @@ void GLWidget::renderToReflectionMap()
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     // End Shadow Mapping
 
+    glDisable(GL_CULL_FACE);
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
