@@ -133,13 +133,13 @@ void ModelViewer::setListRow(int index)
 	if (index != -1)
 	{
 		QListWidgetItem* item = listWidgetModel->item(index);
-        listWidgetModel->setItemSelected(item, !item->isSelected());
+        item->setSelected(!item->isSelected());
 	}
     else
     {
         for (QListWidgetItem* item : listWidgetModel->selectedItems())
         {
-            listWidgetModel->setItemSelected(item, false);
+            item->setSelected(false);
         }
     }
 }
