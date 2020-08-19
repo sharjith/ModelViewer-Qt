@@ -22,10 +22,16 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
 
     _vertexArrayObject.create();
 
-    _ambientMaterial = {0.2109375f, 0.125f, 0.05078125f, 1.0f};
-    _diffuseMaterial = {0.7109375f, 0.62890625f, 0.55078125f, 1.0f};
+    _ambientMaterial  = {0.2109375f, 0.125f, 0.05078125f, 1.0f};
+    _diffuseMaterial  = {0.7109375f, 0.62890625f, 0.55078125f, 1.0f};
     _specularMaterial = {0.37890625f, 0.390625f, 0.3359375f, 1.0f};
-    _shininess = fabs(128.0f * 0.2f);
+    _shininess        = fabs(128.0f * 0.2f);
+
+    // Polished silver
+    /*_ambientMaterial  = {0.23125, 0.23125, 0.23125, 1};
+    _diffuseMaterial  = {0.2775, 0.2775, 0.2775, 1};
+    _specularMaterial = {0.773911, 0.773911, 0.773911, 1};
+    _shininess        = {89.6};*/
 
     /*
     // set to chrome for skybox debugging
@@ -48,12 +54,12 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram *prog, const QString name) : Dra
     glGenTextures(1, &_texture);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
-    glGenerateMipmap(GL_TEXTURE_2D);
+
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);    
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 }
 
 void TriangleMesh::initBuffers(
@@ -191,7 +197,8 @@ void TriangleMesh::render()
 
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
-    glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+    glGenerateMipmap(GL_TEXTURE_2D);
 
     _prog->bind();
     _prog->setUniformValue("texUnit", 0);
@@ -395,6 +402,10 @@ void TriangleMesh::setTransformation(const QMatrix4x4 &transformation)
 void TriangleMesh::setTexureImage(const QImage &texImage)
 {
     _texImage = texImage;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, _texture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+
 }
 
 bool TriangleMesh::hasTexture() const

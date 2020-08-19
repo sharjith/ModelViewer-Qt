@@ -1505,6 +1505,9 @@
                          </item>
                          <item>
                           <widget class="QSlider" name="sliderTransparency">
+                           <property name="minimum">
+                            <number>10</number>
+                           </property>
                            <property name="maximum">
                             <number>100</number>
                            </property>

@@ -27,14 +27,14 @@ Cylinder::Cylinder(QOpenGLShaderProgram *prog, float radius, float height, unsig
 	float phiFac = 1.0f / nStacks;
 	float nx, ny, nz, s, t;
 	unsigned int idx = 0, tIdx = 0;
-	for (unsigned int i = 0; i <= nSlices; i++)
+    for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-		s = (float)i / nSlices;
-		for (unsigned int j = 0; j <= nStacks; j++)
+        s = (float)i / nSlices;
+        for (unsigned int j = 0; j <= nStacks; j++)
 		{
 			phi = j * phiFac;
-			t = (float)j / nStacks;
+            t = (float)j / nStacks;
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
@@ -51,8 +51,8 @@ Cylinder::Cylinder(QOpenGLShaderProgram *prog, float radius, float height, unsig
 			n[idx + 2] = normal.z;
 			idx += 3;
 
-			tex[tIdx] = s;
-			tex[tIdx + 1] = t;
+            tex[tIdx] = s;
+            tex[tIdx + 1] = t;
 			tIdx += 2;
 		}
 	}

@@ -173,7 +173,7 @@ void main()
 
 
     if(envMapEnabled && displayMode == 3) // Environment mapping
-    {
+    {        
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, (g_reflectionNormal));
         vec3 worldR = inverse(mat3(viewMatrix)) * R;
@@ -208,7 +208,7 @@ void main()
 
     if(reflectionMapEnabled && displayMode == 3)
     {
-        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f),  fragColor, 0.5);
+        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f),  fragColor, 0.75);
     }
     
     if(selected)
