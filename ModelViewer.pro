@@ -11,10 +11,16 @@ INCLUDEPATH += /usr/include/freetype2/
 LIBS += -lfreetype
 }
 
-win32 {
+win32-msvc*{
 INCLUDEPATH += D:\software\libs\glm
 INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
 LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
+}
+
+win32-g++{
+INCLUDEPATH += D:\software\libs\glm
+INCLUDEPATH += D:\Software\libs\freetype-2.10.1\include
+LIBS += -L"D:\Software\libs\freetype-2.10.1\build" -lfreetype
 }
 
 CONFIG += c++17
