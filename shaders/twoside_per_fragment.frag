@@ -208,7 +208,7 @@ void main()
 
     if(reflectionMapEnabled && displayMode == 3)
     {
-        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f),  fragColor, 0.75);
+        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f),  fragColor, 0.8);
     }
     
     if(selected)
