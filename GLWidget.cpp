@@ -1024,12 +1024,12 @@ void GLWidget::loadEnvMap()
 
     vector<QString> faces
     {
-        QString("textures/envmap/miramar_ft.tga"),
-                QString("textures/envmap/miramar_bk.tga"),
-                QString("textures/envmap/miramar_rt.tga"),
-                QString("textures/envmap/miramar_lf.tga"),
-                QString("textures/envmap/miramar_up.tga"),
-                QString("textures/envmap/miramar_dn.tga")
+        QString("textures/envmap/miramar_ft.png"),
+                QString("textures/envmap/miramar_bk.png"),
+                QString("textures/envmap/miramar_rt.png"),
+                QString("textures/envmap/miramar_lf.png"),
+                QString("textures/envmap/miramar_up.png"),
+                QString("textures/envmap/miramar_dn.png")
     };
 
 
