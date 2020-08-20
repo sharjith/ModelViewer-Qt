@@ -12,6 +12,7 @@ uniform vec4 clipPlaneX;
 uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
 uniform mat4 lightSpaceMatrix;
+uniform mat4 reflectionSpaceMatrix;
 
 // user defined clip plane
 uniform vec4 clipPlane;
@@ -26,6 +27,7 @@ out vec3 v_position;
 out vec2 v_texCoord2d;	
 
 out vec4 v_fragPosLightSpace;
+out vec4 v_fragPosReflSpace;
 out vec3 v_reflectionNormal;
 out vec4 v_clipSpace;
 
@@ -48,6 +50,7 @@ void main()
 
     // for reflection mapping
     v_reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+    v_fragPosReflSpace = reflectionSpaceMatrix * vec4(vertexPosition, 1.0);
 
     // Moved this to geometry shader
     /*

@@ -144,6 +144,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _shadowMapFBO = 0;
     _reflectionMap = 0;
     _reflectionMapFBO = 0;
+    _reflectionDepthMap = 0;
+    _reflectionMapDBO = 0;
 
     _clipXCoeff = 0.0f;
     _clipYCoeff = 0.0f;
@@ -663,6 +665,7 @@ void GLWidget::initializeGL()
     _fgShader->setUniformValue("envMap", 1);
     _fgShader->setUniformValue("shadowMap", 2);
     _fgShader->setUniformValue("reflectionMap", 3);
+    _fgShader->setUniformValue("reflectionDepthMap", 4);
 
     _debugShader.bind();
     _debugShader.setUniformValue("depthMap", 0);
@@ -968,7 +971,7 @@ void GLWidget::loadFloor()
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setShininess(25.0f);
-    _floorPlane->enableTexture(true);
+    //_floorPlane->enableTexture(true);
     _floorPlane->setTexureImage(_texImage);
     _floorPlane->setOpacity(0.95f);
 }
@@ -992,16 +995,40 @@ void GLWidget::loadReflectionMap()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
         float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-        
+        // Reflection Texture
         glGenFramebuffers(1, &_reflectionMapFBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
-
         // Set "renderedTexture" as our colour attachement #0
         glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, _reflectionMap, 0);
-
         unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
         if (status != GL_FRAMEBUFFER_COMPLETE)
-            std::cout << "Frame buffer creation failed!" << std::endl;
+            std::cout << "Frame buffer _reflectionMapFBO creation failed!" << std::endl;
+    }
+    // create reflection depth texture
+    if(_reflectionDepthMap == 0)
+    {
+        glGenTextures(1, &_reflectionDepthMap);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(GL_TEXTURE_2D, _reflectionDepthMap);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+        glGenerateMipmap(GL_TEXTURE_2D);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+        float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
+        glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
+        // Reflection Depth
+        // attach depth texture as FBO's depth buffer
+        glGenFramebuffers(1, &_reflectionMapDBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapDBO);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _reflectionDepthMap, 0);
+        unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+        if (status != GL_FRAMEBUFFER_COMPLETE)
+            std::cout << "Frame buffer _reflectionMapDBO creation failed!" << std::endl;
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
 
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     }
@@ -1176,6 +1203,7 @@ void GLWidget::paintGL()
             glViewport(0, 0, width(), height());
             renderToShadowBuffer();
             renderToReflectionMap();
+            renderToReflectionDepthMap();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
@@ -1236,7 +1264,7 @@ void GLWidget::paintGL()
     _debugShader.setUniformValue("far_plane", _viewRange);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _reflectionMap);
-    //renderQuad();
+    renderQuad();
 }
 
 void GLWidget::drawFloor()
@@ -1245,6 +1273,7 @@ void GLWidget::drawFloor()
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
     _fgShader->bind();
+    _fgShader->setUniformValue("envMapEnabled", true);
     _fgShader->setUniformValue("reflectionMapEnabled", _reflectionsEnabled);
     _fgShader->setUniformValue("shadowSamples", 25.0f);
     _floorPlane->render();
@@ -1625,13 +1654,14 @@ void GLWidget::renderToShadowBuffer()
     // save current viewport
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT,viewport);
-
     /// Shadow Mapping
     glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, _shadowWidth, _shadowHeight);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
     glClear(GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.0f, 4.0f);
     // 1. render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
     QMatrix4x4 lightProjection, lightView;
@@ -1644,7 +1674,6 @@ void GLWidget::renderToShadowBuffer()
     _shadowMappingShader->bind();
     _shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
     _shadowMappingShader->setUniformValue("model", _modelMatrix);
-
     if (_meshStore.size() != 0)
     {
         for (int i : _displayedObjectsIds)
@@ -1664,9 +1693,9 @@ void GLWidget::renderToShadowBuffer()
             }
         }
     }
+    glDisable(GL_POLYGON_OFFSET_FILL);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     // End Shadow Mapping
-
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
@@ -1680,7 +1709,7 @@ void GLWidget::renderToReflectionMap()
     /// Shadow Mapping
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    glViewport(0, 0, _shadowWidth*4, _shadowHeight*4);
+    glViewport(0, 0, _shadowWidth * 4.0f, _shadowHeight * 4.0f);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
     glClear(GL_COLOR_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);
@@ -1689,18 +1718,21 @@ void GLWidget::renderToReflectionMap()
     // Cull triangles which normal is not towards the camera
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
-    // 1. render depth of scene to texture (from light's perspective)
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.0f, 4.0f);
+    glDisable(GL_BLEND);
+    // 1. render depth of scene to texture (from floor perspective)
     // --------------------------------------------------------------
-    QMatrix4x4 lightProjection, lightView, lightSpaceMatrix;
+    QMatrix4x4 floorProjection, floorView, floorSpaceMatrix;
     float radius = _boundingSphere.getRadius();
     float near_plane = -radius*2, far_plane = radius*2;
-    lightProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
+    floorProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
     QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
     QVector3D center = _floorCenter;
-    lightView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
+    floorView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
     QMatrix4x4 model;
     model.scale(0.8f, -0.8f, 0.8f);
-    lightSpaceMatrix = lightProjection * lightView;
+    floorSpaceMatrix = floorProjection * floorView;
     // render scene from light's point of view
     _reflectionMappingShader->bind();
     _reflectionMappingShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
@@ -1713,18 +1745,19 @@ void GLWidget::renderToReflectionMap()
     _reflectionMappingShader->setUniformValue("envMapEnabled", _envMapEnabled);
     _reflectionMappingShader->setUniformValue("cameraPos", eye);
 
-    _reflectionMappingShader->setUniformValue("viewMatrix", lightView);
-    _reflectionMappingShader->setUniformValue("normalMatrix", (model * lightView).normalMatrix());
-    _reflectionMappingShader->setUniformValue("projectionMatrix", lightProjection);
+    _reflectionMappingShader->setUniformValue("viewMatrix", floorView);
+    _reflectionMappingShader->setUniformValue("normalMatrix", (model * floorView).normalMatrix());
+    _reflectionMappingShader->setUniformValue("projectionMatrix", floorProjection);
     _reflectionMappingShader->setUniformValue("modelMatrix", model);
+    _reflectionMappingShader->setUniformValue("reflectionSpaceMatrix", floorProjection * floorView);
 
-    _reflectionMappingShader->setUniformValue("clipPlaneX", QVector4D((model * lightView) * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + eye),
+    _reflectionMappingShader->setUniformValue("clipPlaneX", QVector4D((model * floorView) * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + eye),
                                                                       (_clipXFlipped ? -1 : 1) * eye.x() + _clipXCoeff));
-    _reflectionMappingShader->setUniformValue("clipPlaneY", QVector4D((model * lightView) * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + eye),
+    _reflectionMappingShader->setUniformValue("clipPlaneY", QVector4D((model * floorView) * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + eye),
                                                                       (_clipYFlipped ? -1 : 1) * eye.y() + _clipYCoeff));
-    _reflectionMappingShader->setUniformValue("clipPlaneZ", QVector4D((model * lightView) * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + eye),
+    _reflectionMappingShader->setUniformValue("clipPlaneZ", QVector4D((model * floorView) * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + eye),
                                                                       (_clipZFlipped ? -1 : 1) * eye.z() + _clipZCoeff));
-    _reflectionMappingShader->setUniformValue("clipPlane", QVector4D((model * lightView) * (QVector3D(_clipDX, _clipDY, _clipDZ) + eye),
+    _reflectionMappingShader->setUniformValue("clipPlane", QVector4D((model * floorView) * (QVector3D(_clipDX, _clipDY, _clipDZ) + eye),
                                                                      eye.x() * _clipDX + eye.y() * _clipDY + eye.z() * _clipDZ));
 
     if (_meshStore.size() != 0)
@@ -1736,8 +1769,6 @@ void GLWidget::renderToReflectionMap()
                 TriangleMesh* mesh = _meshStore.at(i);
                 if (mesh)
                 {
-                    //glActiveTexture(GL_TEXTURE1);
-                    //glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
                     mesh->setProg(_reflectionMappingShader);
                     mesh->render();
                 }
@@ -1751,6 +1782,65 @@ void GLWidget::renderToReflectionMap()
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     // End Shadow Mapping
     glDisable(GL_CULL_FACE);
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_BLEND);
+    // restore viewport
+    glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+}
+
+void GLWidget::renderToReflectionDepthMap()
+{
+    // save current viewport
+    int viewport[4];
+    glGetIntegerv(GL_VIEWPORT, viewport);
+
+    /// Reflection Depth Mapping
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glViewport(0, 0, _shadowWidth, _shadowHeight);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapDBO);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(2.0f, 4.0f);
+    // 1. render depth of scene to texture (from floor perspective)
+    // --------------------------------------------------------------
+
+    QMatrix4x4 lightProjection, lightView, lightSpaceMatrix;
+    float radius = _boundingSphere.getRadius();
+    float near_plane = -radius*2, far_plane = radius*2;
+    lightProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
+    QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
+    QVector3D center = _floorCenter;
+    lightView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
+    QMatrix4x4 model;
+    model.scale(0.8f, -0.8f, 0.8f);
+    lightSpaceMatrix = lightProjection * lightView;
+    // render scene from light's point of view
+    _shadowMappingShader->bind();
+    _shadowMappingShader->setUniformValue("lightSpaceMatrix", lightSpaceMatrix);
+    _shadowMappingShader->setUniformValue("model", model);
+    if (_meshStore.size() != 0)
+    {
+        for (int i : _displayedObjectsIds)
+        {
+            try
+            {
+                TriangleMesh* mesh = _meshStore.at(i);
+                if (mesh)
+                {
+                    mesh->setProg(_shadowMappingShader);
+                    mesh->render();
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                std::cout << "Exception raised in GLWidget::renderToReflectionDepthMap\n" << ex.what() << std::endl;
+            }
+        }
+    }
+    glDisable(GL_POLYGON_OFFSET_FILL);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+    // End Depth Mapping
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }

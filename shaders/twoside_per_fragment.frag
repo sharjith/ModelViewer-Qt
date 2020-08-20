@@ -5,6 +5,7 @@ in vec3 g_normal;
 in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 in vec4 g_fragPosLightSpace;
+in vec4 g_fragPosReflSpace;
 in vec3 g_reflectionNormal;
 in vec4 g_clipSpace;
 
@@ -14,6 +15,7 @@ uniform sampler2D texUnit;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 uniform sampler2D reflectionMap;
+uniform sampler2D reflectionDepthMap;
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
 uniform float shadowSamples;
@@ -101,6 +103,42 @@ float calculateShadow(vec4 fragPosLightSpace)
         for(int y = -1; y <= 1; ++y)
         {
             float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth  ? 1.0f : 0.0f;
+        }
+    }
+    shadow /= shadowSamples;
+
+    // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
+    if(projCoords.z > 1.0f)
+        shadow = 0.0f;
+
+    return shadow;
+}
+
+float calculateReflection(vec4 fragPosReflSpace)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosReflSpace.xyz / fragPosReflSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5f + 0.5f;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(reflectionMap, projCoords.xy).r;
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+    // calculate bias (based on depth map resolution and slope)
+    vec3 normal = normalize(g_normal);
+    vec3 lightDir = normalize(lightSource.position - g_position);
+    float bias = max(0.05f * (1.0f - dot(normal, lightDir)), 0.005f);
+    // check whether current frag pos is in shadow
+    //float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
+    // PCF
+    float shadow = 0.0f;
+    vec2 texelSize = 1 / textureSize(reflectionMap, 0);
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(reflectionMap, projCoords.xy + vec2(x, y) * texelSize).r;
             shadow += currentDepth - bias > pcfDepth  ? 1.0f : 0.0f;
         }
     }
@@ -208,7 +246,18 @@ void main()
 
     if(reflectionMapEnabled && displayMode == 3)
     {
-        fragColor = mix(vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f),  fragColor, 0.8);
+        // calculate depth
+        // perform perspective divide
+        vec3 projCoords = g_fragPosReflSpace.xyz / g_fragPosReflSpace.w;
+        // transform to [0,1] range
+        projCoords = projCoords * 0.5f + 0.5f;
+        // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+        float depth = texture(reflectionDepthMap, projCoords.xy).r;
+
+        vec3 I = normalize(g_position - cameraPos);
+        vec3 worldR = inverse(mat3(viewMatrix)) * I;
+        vec2 ndc = (g_fragPosReflSpace.xy / g_fragPosReflSpace.z) / 2.0 + 0.5;
+        fragColor = mix(fragColor, vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f), clamp(1.0f - depth, 0.5f, 1.0f));
     }
     
     if(selected)

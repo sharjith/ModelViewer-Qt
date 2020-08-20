@@ -21,6 +21,9 @@ uniform int displayMode;
 in vec4  v_fragPosLightSpace[];
 out vec4 g_fragPosLightSpace;
 
+in vec4 v_fragPosReflSpace[];
+out vec4 g_fragPosReflSpace;
+
 in vec3  v_reflectionNormal[];
 out vec3 g_reflectionNormal;
 
@@ -39,9 +42,11 @@ void main()
     // pass through for v_ fragPosLightSpace & v_reflectionNormal
     for(int i=0; i<gl_in.length(); i++)
     {
-        g_fragPosLightSpace = v_fragPosLightSpace[i];       
-		//g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work
-		g_clipSpace = v_clipSpace[i];
+        g_fragPosLightSpace = v_fragPosLightSpace[i];
+        //g_fragPosReflSpace = v_fragPosReflSpace[i];
+
+        //g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work
+        g_clipSpace = v_clipSpace[i];
     }
 
     if(displayMode == 0 || displayMode == 1)
