@@ -1267,7 +1267,7 @@ void GLWidget::paintGL()
     _debugShader.setUniformValue("near_plane", 1.0f);
     _debugShader.setUniformValue("far_plane", _viewRange);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, _reflectionDepthMap);
+    glBindTexture(GL_TEXTURE_2D, _reflectionMap);
     //renderQuad();
 }
 
@@ -1297,6 +1297,7 @@ void GLWidget::drawSkyBox()
     _skyBoxShader->setUniformValue("projectionMatrix", projection);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     _skyBox->render();
     glDepthFunc(GL_LESS); // set depth function back to default
     glDisable((GL_DEPTH_TEST));
