@@ -257,7 +257,7 @@ void main()
         vec3 I = normalize(g_position - cameraPos);
         vec3 worldR = inverse(mat3(viewMatrix)) * I;
         vec2 ndc = (g_fragPosReflSpace.xy / g_fragPosReflSpace.z) / 2.0 + 0.5;
-        fragColor = mix(fragColor, vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f), clamp(1.0f - depth, 0.5f, 1.0f));
+        fragColor = mix(fragColor, vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f), clamp(depth, 0.1f, 1.0f) * 0.2f);
     }
     
     if(selected)

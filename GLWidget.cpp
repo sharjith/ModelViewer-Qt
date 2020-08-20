@@ -971,7 +971,7 @@ void GLWidget::loadFloor()
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setShininess(25.0f);
-    //_floorPlane->enableTexture(true);
+    _floorPlane->enableTexture(true);
     _floorPlane->setTexureImage(_texImage);
     _floorPlane->setOpacity(0.95f);
 }
@@ -1264,7 +1264,7 @@ void GLWidget::paintGL()
     _debugShader.setUniformValue("far_plane", _viewRange);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _reflectionMap);
-    renderQuad();
+    //renderQuad();
 }
 
 void GLWidget::drawFloor()
@@ -1655,7 +1655,7 @@ void GLWidget::renderToShadowBuffer()
     int viewport[4];
     glGetIntegerv(GL_VIEWPORT,viewport);
     /// Shadow Mapping
-    glClearColor(0.1f, 0.1f, 0.1f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glViewport(0, 0, _shadowWidth, _shadowHeight);
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
@@ -1805,19 +1805,19 @@ void GLWidget::renderToReflectionDepthMap()
     // 1. render depth of scene to texture (from floor perspective)
     // --------------------------------------------------------------
 
-    QMatrix4x4 lightProjection, lightView, lightSpaceMatrix;
+    QMatrix4x4 floorProjection, floorView, floorSpaceMatrix;
     float radius = _boundingSphere.getRadius();
     float near_plane = -radius*2, far_plane = radius*2;
-    lightProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
+    floorProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
     QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
     QVector3D center = _floorCenter;
-    lightView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
+    floorView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
     QMatrix4x4 model;
     model.scale(0.8f, -0.8f, 0.8f);
-    lightSpaceMatrix = lightProjection * lightView;
+    floorSpaceMatrix = floorProjection * floorView;
     // render scene from light's point of view
     _shadowMappingShader->bind();
-    _shadowMappingShader->setUniformValue("lightSpaceMatrix", lightSpaceMatrix);
+    _shadowMappingShader->setUniformValue("lightSpaceMatrix", floorSpaceMatrix);
     _shadowMappingShader->setUniformValue("model", model);
     if (_meshStore.size() != 0)
     {
