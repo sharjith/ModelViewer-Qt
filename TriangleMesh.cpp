@@ -198,7 +198,6 @@ void TriangleMesh::render()
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, _texImage.width(), _texImage.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, _texImage.bits());
     glGenerateMipmap(GL_TEXTURE_2D);
 
     _prog->bind();
@@ -208,8 +207,7 @@ void TriangleMesh::render()
     _prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
     _prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
     _prog->setUniformValue("material.shininess", _shininess);
-    _prog->setUniformValue("texEnabled", _bHasTexture);
-    //_prog->setUniformValue("reflectionMapEnabled", false);
+    _prog->setUniformValue("texEnabled", _bHasTexture);    
     _prog->setUniformValue("alpha", _opacity);
     _prog->setUniformValue("selected", _selected);
 

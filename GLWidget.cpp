@@ -929,7 +929,8 @@ void GLWidget::loadFloor()
         glGenTextures(1, &_shadowMap);
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, _shadowMap);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        //glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
@@ -983,10 +984,12 @@ void GLWidget::loadReflectionMap()
     // create reflection texture
     if (_reflectionMap == 0)
     {
+        // Reflection Texture
         glGenTextures(1, &_reflectionMap);
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D, _reflectionMap);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _shadowWidth * 4.0f, _shadowHeight * 4.0f, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, _shadowWidth * 4.0f, _shadowHeight * 4.0f, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, _shadowWidth * 4.0f, _shadowHeight * 4.0f, 0, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
         //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -995,7 +998,7 @@ void GLWidget::loadReflectionMap()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
         float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-        // Reflection Texture
+        // Attach color texture as FBO's color buffer
         glGenFramebuffers(1, &_reflectionMapFBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapFBO);
         // Set "renderedTexture" as our colour attachement #0
@@ -1007,10 +1010,12 @@ void GLWidget::loadReflectionMap()
     // create reflection depth texture
     if(_reflectionDepthMap == 0)
     {
+        // Reflection Depth Texture
         glGenTextures(1, &_reflectionDepthMap);
         glActiveTexture(GL_TEXTURE4);
         glBindTexture(GL_TEXTURE_2D, _reflectionDepthMap);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        //glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
         //glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1019,8 +1024,8 @@ void GLWidget::loadReflectionMap()
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
         float borderColor[] = { 1.0, 1.0, 1.0, 1.0 };
         glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-        // Reflection Depth
-        // attach depth texture as FBO's depth buffer
+        
+        // Attach depth texture as FBO's depth buffer
         glGenFramebuffers(1, &_reflectionMapDBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _reflectionMapDBO);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _reflectionDepthMap, 0);
@@ -1029,9 +1034,8 @@ void GLWidget::loadReflectionMap()
             std::cout << "Frame buffer _reflectionMapDBO creation failed!" << std::endl;
         glDrawBuffer(GL_NONE);
         glReadBuffer(GL_NONE);
-
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
     }
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 }
 
 void GLWidget::loadEnvMap()
@@ -1263,7 +1267,7 @@ void GLWidget::paintGL()
     _debugShader.setUniformValue("near_plane", 1.0f);
     _debugShader.setUniformValue("far_plane", _viewRange);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, _reflectionMap);
+    glBindTexture(GL_TEXTURE_2D, _reflectionDepthMap);
     //renderQuad();
 }
 
