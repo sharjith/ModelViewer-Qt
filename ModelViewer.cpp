@@ -1434,6 +1434,13 @@ void ModelViewer::updateDisplayList()
         listWidgetModel->addItem(item);
         id++;
     }
+    float range = _glWidget->getBoundingSphere().getRadius();
+    sliderLightPosX->setRange(-range, range);
+    sliderLightPosX->setSingleStep(range/100);
+    sliderLightPosY->setRange(-range, range);
+    sliderLightPosY->setSingleStep(range/100);
+    sliderLightPosZ->setRange(-range, range);
+    sliderLightPosZ->setSingleStep(range/100);
 }
 
 void ModelViewer::showEvent(QShowEvent *)
