@@ -148,6 +148,12 @@ public:
 
     BoundingSphere getBoundingSphere() const;
 
+    QColor getBgTopColor() const;
+    void setBgTopColor(const QColor &bgTopColor);
+
+    QColor getBgBotColor() const;
+    void setBgBotColor(const QColor &bgBotColor);
+
 signals:
     void windowZoomEnded();
     void rotationsSet();
@@ -168,6 +174,7 @@ private slots:
     void deleteItem();
     void showPropertiesPage();
     void showTransformationsPage();
+    void setBackgroundColor();
 
 protected:
     void initializeGL();    
@@ -182,6 +189,8 @@ protected:
 
 private:
     DisplayMode _displayMode;
+    QColor      _bgTopColor;
+    QColor      _bgBotColor;
     bool _bWindowZoomActive;
     int _modelNum;
     QImage _texImage, _texBuffer;
@@ -201,13 +210,8 @@ private:
     float _viewBoundingSphereDia;
     float _FOV;
 
-    bool _bLeftButtonDown;
     QPoint _leftButtonPoint;
-
-    bool _bRightButtonDown;
     QPoint _rightButtonPoint;
-
-    bool _bMiddleButtonDown;
     QPoint _middleButtonPoint;
 
     QRubberBand* _rubberBand;
@@ -333,6 +337,8 @@ private:
 
     QOpenGLShaderProgram     _debugShader;
 
+     ModelViewer* _viewer;
+
 private:
 
     void createShaderPrograms();
@@ -373,7 +379,6 @@ private:
     unsigned int quadVAO;
     unsigned int quadVBO;
     void renderQuad();
-    ModelViewer* _viewer;
 };
 
 #endif

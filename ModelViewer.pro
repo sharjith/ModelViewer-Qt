@@ -7,31 +7,31 @@ TARGET = ModelViewer
 INCLUDEPATH += .
 
 unix {
-INCLUDEPATH += /usr/include/freetype2/
-LIBS += -lfreetype
+    INCLUDEPATH += /usr/include/freetype2/
+    LIBS += -lfreetype
 }
 
 win32-msvc*{
-INCLUDEPATH += D:\software\libs\glm
-INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
-LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
+    INCLUDEPATH += D:\software\libs\glm
+    INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
+    LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
 }
 
 win32-g++{
-INCLUDEPATH += D:\software\libs\glm
-INCLUDEPATH += D:\Software\libs\freetype-2.10.1\include
-LIBS += -L"D:\Software\libs\freetype-2.10.1\build" -lfreetype
+    INCLUDEPATH += D:\software\libs\glm
+    INCLUDEPATH += D:\Software\libs\freetype-2.10.1\include
+    LIBS += -L"D:\Software\libs\freetype-2.10.1\build" -lfreetype
 }
 
 CONFIG += c++17
 
 win32{
-CONFIG(release, debug|release) {
-CONFIG -= console
-}
-CONFIG(debug, debug|release) {
-CONFIG += console
-}
+    CONFIG(release, debug|release) {
+        CONFIG -= console
+    }
+    CONFIG(debug, debug|release) {
+        CONFIG += console
+    }
 }
 
 
@@ -52,165 +52,167 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 # Input
 HEADERS += AABB.h \
-AppleSurface.h \
-BentHorns.h \
-BoundingSphere.h \
-BowTie.h \
-BoySurface.h \
-BreatherSurface.h \
-Cone.h \
-ConeShell.h \
-Crescent.h \
-Cube.h \
-Cylinder.h \
-DoubleCone.h \
-Drawable.h \
-Figure8KleinBottle.h \
-Folium.h \
-GLCamera.h \
-GLWidget.h \
-GraysKlein.h \
-Horn.h \
-IDrawable.h \
-IParametricSurface.h \
-KleinBottle.h \
-LimpetTorus.h \
-MainWindow.h \
-MeshProperties.h \
-ModelViewer.h \
-ObjMesh.h \
-ParametricSurface.h \
-Periwinkle.h \
-Plane.h \
-Point.h \
-QuadMesh.h \
-Resource.h \
-STLMesh.h \
-SaddleTorus.h \
-Sphere.h \
-SphericalHarmonic.h \
-SpindleShell.h \
-SteinerSurface.h \
-SuperToroid.h \
-SuperEllipsoid.h \
-Spring.h \
-Teapot.h \
-TeapotData.h \
-TextRenderer.h \
-ToolPanel.h \
-TopShell.h \
-Torus.h \
-TriangleMesh.h \
-TriaxialHexatorus.h \
-TriaxialTritorus.h \
-TwistedPseudoSphere.h \
-TwistedTriaxial.h \
-TurretShell.h \
-VerrillMinimal.h \
-WrinkledPeriwinkle.h \
-ParametricSurface.h \
-SphericalHarmonicsEditor.h \
-ClippingPlanesEditor.h \
-GraysKleinEditor.h \
-SuperToroidEditor.h \
-SuperEllipsoidEditor.h \
-SpringEditor.h \
-stl_reader.h
+    AppleSurface.h \
+    BackgroundColor.h \
+    BentHorns.h \
+    BoundingSphere.h \
+    BowTie.h \
+    BoySurface.h \
+    BreatherSurface.h \
+    Cone.h \
+    ConeShell.h \
+    Crescent.h \
+    Cube.h \
+    Cylinder.h \
+    DoubleCone.h \
+    Drawable.h \
+    Figure8KleinBottle.h \
+    Folium.h \
+    GLCamera.h \
+    GLWidget.h \
+    GraysKlein.h \
+    Horn.h \
+    IDrawable.h \
+    IParametricSurface.h \
+    KleinBottle.h \
+    LimpetTorus.h \
+    MainWindow.h \
+    MeshProperties.h \
+    ModelViewer.h \
+    ObjMesh.h \
+    ParametricSurface.h \
+    Periwinkle.h \
+    Plane.h \
+    Point.h \
+    QuadMesh.h \
+    Resource.h \
+    STLMesh.h \
+    SaddleTorus.h \
+    Sphere.h \
+    SphericalHarmonic.h \
+    SpindleShell.h \
+    SteinerSurface.h \
+    SuperToroid.h \
+    SuperEllipsoid.h \
+    Spring.h \
+    Teapot.h \
+    TeapotData.h \
+    TextRenderer.h \
+    ToolPanel.h \
+    TopShell.h \
+    Torus.h \
+    TriangleMesh.h \
+    TriaxialHexatorus.h \
+    TriaxialTritorus.h \
+    TwistedPseudoSphere.h \
+    TwistedTriaxial.h \
+    TurretShell.h \
+    VerrillMinimal.h \
+    WrinkledPeriwinkle.h \
+    ParametricSurface.h \
+    SphericalHarmonicsEditor.h \
+    ClippingPlanesEditor.h \
+    GraysKleinEditor.h \
+    SuperToroidEditor.h \
+    SuperEllipsoidEditor.h \
+    SpringEditor.h \
+    stl_reader.h
 FORMS += \
-MainWindow.ui \
-ModelViewer.ui \
-SphericalHarmonicsEditor.ui \
-ClippingPlanesEditor.ui \
-GraysKleinEditor.ui \
-SuperToroidEditor.ui \
-SuperEllipsoidEditor.ui \
-SpringEditor.ui
+    BackgroundColor.ui \
+    MainWindow.ui \
+    ModelViewer.ui \
+    SphericalHarmonicsEditor.ui \
+    ClippingPlanesEditor.ui \
+    GraysKleinEditor.ui \
+    SuperToroidEditor.ui \
+    SuperEllipsoidEditor.ui \
+    SpringEditor.ui
 SOURCES += AppleSurface.cpp \
-BentHorns.cpp \
-BoundingSphere.cpp \
-BowTie.cpp \
-BoySurface.cpp \
-BreatherSurface.cpp \
-Cone.cpp \
-ConeShell.cpp \
-Crescent.cpp \
-Cube.cpp \
-Cylinder.cpp \
-DoubleCone.cpp \
-Figure8KleinBottle.cpp \
-Folium.cpp \
-GLCamera.cpp \
-GLWidget.cpp \
-GraysKlein.cpp \
-Horn.cpp \
-KleinBottle.cpp \
-LimpetTorus.cpp \
-MeshProperties.cpp \
-ModelViewer.cpp \
-STLMesh.cpp \
-ToolPanel.cpp \
-main.cpp \
-MainWindow.cpp \
-ObjMesh.cpp \
-ParametricSurface.cpp \
-Periwinkle.cpp \
-Plane.cpp \
-Point.cpp \
-QuadMesh.cpp \
-SaddleTorus.cpp \
-Sphere.cpp \
-SphericalHarmonic.cpp \
-SpindleShell.cpp \
-SteinerSurface.cpp \
-SuperToroid.cpp \
-SuperEllipsoid.cpp \
-Spring.cpp \
-Teapot.cpp \
-TextRenderer.cpp \
-TopShell.cpp \
-Torus.cpp \
-TriangleMesh.cpp \
-TriaxialHexatorus.cpp \
-TriaxialTritorus.cpp \
-TwistedPseudoSphere.cpp \
-TwistedTriaxial.cpp \
-TurretShell.cpp \
-VerrillMinimal.cpp \
-WrinkledPeriwinkle.cpp \
-SphericalHarmonicsEditor.cpp \
-ClippingPlanesEditor.cpp \
-GraysKleinEditor.cpp \
-SuperToroidEditor.cpp \
-SuperEllipsoidEditor.cpp \
-SpringEditor.cpp
+    BackgroundColor.cpp \
+    BentHorns.cpp \
+    BoundingSphere.cpp \
+    BowTie.cpp \
+    BoySurface.cpp \
+    BreatherSurface.cpp \
+    Cone.cpp \
+    ConeShell.cpp \
+    Crescent.cpp \
+    Cube.cpp \
+    Cylinder.cpp \
+    DoubleCone.cpp \
+    Figure8KleinBottle.cpp \
+    Folium.cpp \
+    GLCamera.cpp \
+    GLWidget.cpp \
+    GraysKlein.cpp \
+    Horn.cpp \
+    KleinBottle.cpp \
+    LimpetTorus.cpp \
+    MeshProperties.cpp \
+    ModelViewer.cpp \
+    STLMesh.cpp \
+    ToolPanel.cpp \
+    main.cpp \
+    MainWindow.cpp \
+    ObjMesh.cpp \
+    ParametricSurface.cpp \
+    Periwinkle.cpp \
+    Plane.cpp \
+    Point.cpp \
+    QuadMesh.cpp \
+    SaddleTorus.cpp \
+    Sphere.cpp \
+    SphericalHarmonic.cpp \
+    SpindleShell.cpp \
+    SteinerSurface.cpp \
+    SuperToroid.cpp \
+    SuperEllipsoid.cpp \
+    Spring.cpp \
+    Teapot.cpp \
+    TextRenderer.cpp \
+    TopShell.cpp \
+    Torus.cpp \
+    TriangleMesh.cpp \
+    TriaxialHexatorus.cpp \
+    TriaxialTritorus.cpp \
+    TwistedPseudoSphere.cpp \
+    TwistedTriaxial.cpp \
+    TurretShell.cpp \
+    VerrillMinimal.cpp \
+    WrinkledPeriwinkle.cpp \
+    SphericalHarmonicsEditor.cpp \
+    ClippingPlanesEditor.cpp \
+    GraysKleinEditor.cpp \
+    SuperToroidEditor.cpp \
+    SuperEllipsoidEditor.cpp \
+    SpringEditor.cpp
+
 RESOURCES += \
-ModelViewer.qrc
+    ModelViewer.qrc
 
 DISTFILES += \
-shaders/background.frag \
-shaders/background.vert \
-shaders/debug_quad.vert \
-shaders/debug_quad_depth.frag \
-shaders/splitScreen.frag \
-shaders/splitScreen.vert \
-shaders/text.vert \
-shaders/text.frag \
-shaders/axis.vert \
-shaders/axis.frag \
-shaders/face_normal.vert \
-shaders/face_normal.geom \
-shaders/face_normal.frag \
-shaders/vertex_normal.vert \
-shaders/vertex_normal.geom \
-shaders/vertex_normal.frag \
-shaders/twoside_per_fragment.vert \
-shaders/twoside_per_fragment.geom \
-shaders/twoside_per_fragment.frag \
-shaders/shadow_mapping_depth.vert \
-shaders/shadow_mapping_depth.frag \
-shaders/reflection_mapping.vert \
-shaders/reflection_mapping.frag \
-shaders/skybox.vert \
-shaders/skybox.frag
-
-
+    shaders/background.frag \
+    shaders/background.vert \
+    shaders/debug_quad.vert \
+    shaders/debug_quad_depth.frag \
+    shaders/splitScreen.frag \
+    shaders/splitScreen.vert \
+    shaders/text.vert \
+    shaders/text.frag \
+    shaders/axis.vert \
+    shaders/axis.frag \
+    shaders/face_normal.vert \
+    shaders/face_normal.geom \
+    shaders/face_normal.frag \
+    shaders/vertex_normal.vert \
+    shaders/vertex_normal.geom \
+    shaders/vertex_normal.frag \
+    shaders/twoside_per_fragment.vert \
+    shaders/twoside_per_fragment.geom \
+    shaders/twoside_per_fragment.frag \
+    shaders/shadow_mapping_depth.vert \
+    shaders/shadow_mapping_depth.frag \
+    shaders/reflection_mapping.vert \
+    shaders/reflection_mapping.frag \
+    shaders/skybox.vert \
+    shaders/skybox.frag

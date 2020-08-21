@@ -71,6 +71,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _skyBox(nullptr)
 {
     _viewer = static_cast<ModelViewer*>(parent);
+    _bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
+    _bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
     quadVAO = 0;
     _planeVAO = 0;
     _fgShader = new QOpenGLShaderProgram(this);
@@ -116,10 +118,6 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
 
     _bWindowZoomActive = false;
     _rubberBand = nullptr;
-
-    _bLeftButtonDown = false;
-    _bRightButtonDown = false;
-    _bMiddleButtonDown = false;
 
     _modelName = "Model";
 
@@ -360,6 +358,11 @@ void GLWidget::endWindowZoom()
         QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
 
         QRect zoomRect = _rubberBand->geometry();
+        if(zoomRect.width() == 0 || zoomRect.height() == 0)
+        {
+            emit windowZoomEnded();
+            return;
+        }
         QPoint zoomWinCen = zoomRect.center();
         QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
         QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
@@ -1148,8 +1151,9 @@ void GLWidget::paintGL()
     {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-        gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
-                           0.925f, 0.913f, 0.847f, 1.0f);
+
+        gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
+                           _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
 
         //gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
         //                 0.8515625f, 0.8515625f, 0.8515625f, 1.0f);
@@ -1219,8 +1223,8 @@ void GLWidget::paintGL()
             renderToReflectionDepthMap();
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            gradientBackground(0.3f, 0.3f, 0.3f, 1.0f,
-                               0.925f, 0.913f, 0.847f, 1.0f);
+            gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
+                               _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
             render();
             drawCornerAxis();
         }
@@ -1938,8 +1942,7 @@ void GLWidget::splitScreen()
 void GLWidget::mousePressEvent(QMouseEvent* e)
 {
     if (e->button() & Qt::LeftButton)
-    {
-        _bLeftButtonDown = true;
+    {        
         _leftButtonPoint.setX(e->x());
         _leftButtonPoint.setY(e->y());
 
@@ -1960,14 +1963,12 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
     if (e->button() & Qt::RightButton)
     {
-        _bRightButtonDown = true;
         _rightButtonPoint.setX(e->x());
         _rightButtonPoint.setY(e->y());
     }
 
     if (e->button() & Qt::MiddleButton)
     {
-        _bMiddleButtonDown = true;
         _middleButtonPoint.setX(e->x());
         _middleButtonPoint.setY(e->y());
     }
@@ -1978,7 +1979,6 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
     setCursor(QCursor(Qt::ArrowCursor));
     if (e->button() & Qt::LeftButton)
     {
-        _bLeftButtonDown = false;
         _rubberBand->hide();
         if (_bWindowZoomActive)
         {
@@ -1987,13 +1987,11 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
     }
 
     if (e->button() & Qt::RightButton)
-    {
-        _bRightButtonDown = false;
+    {        
     }
 
     if (e->button() & Qt::MiddleButton)
     {
-        _bMiddleButtonDown = false;
     }
 }
 
@@ -2002,7 +2000,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
     _animateViewTimer->stop();
 
     QPoint downPoint(e->x(), e->y());
-    if (_bLeftButtonDown)
+    if (e->buttons() == Qt::LeftButton)
     {
         if (e->modifiers() == Qt::NoModifier)
         {
@@ -2024,7 +2022,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         }
     }
 
-    if (_bRightButtonDown && e->modifiers() & Qt::ControlModifier)
+    if (e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier)
     {
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
         Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
@@ -2040,7 +2038,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
     }
 
-    if (_bMiddleButtonDown && e->modifiers() & Qt::ControlModifier)
+    if (e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier)
     {
         if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
             _viewRange /= 1.05f;
@@ -2311,6 +2309,28 @@ void GLWidget::closeEvent(QCloseEvent* event)
     event->accept();
 }
 
+QColor GLWidget::getBgBotColor() const
+{
+    return _bgBotColor;
+}
+
+void GLWidget::setBgBotColor(const QColor &bgBotColor)
+{
+    _bgBotColor = bgBotColor;
+    update();
+}
+
+QColor GLWidget::getBgTopColor() const
+{
+    return _bgTopColor;
+}
+
+void GLWidget::setBgTopColor(const QColor &bgTopColor)
+{
+    _bgTopColor = bgTopColor;
+    update();
+}
+
 BoundingSphere GLWidget::getBoundingSphere() const
 {
     return _boundingSphere;
@@ -2491,28 +2511,27 @@ void GLWidget::renderQuad()
 
 void GLWidget::showContextMenu(const QPoint &pos)
 {
-    QListWidget* listWidgetModel = _viewer->getListModel();
-    if(listWidgetModel)
+    if(QApplication::keyboardModifiers() != Qt::ControlModifier)
     {
-        if (listWidgetModel->selectedItems().count() != 0 && _displayedObjectsIds.size() != 0)
-        {
-            // Handle global position
-            QPoint globalPos = mapToGlobal(pos);
+    // Create menu and insert some actions
+    QMenu myMenu;
+    QListWidget* listWidgetModel = _viewer->getListModel();
+    if (listWidgetModel->selectedItems().count() != 0 && _displayedObjectsIds.size() != 0)
+    {
+        QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+        if(selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+            myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
 
-            // Create menu and insert some actions
-            QMenu myMenu;
-
-            QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-            if(selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
-                myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
-
-            myMenu.addAction("Object Properties", this, SLOT(showPropertiesPage()));
-            myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
-            myMenu.addAction("Delete", this, SLOT(deleteItem()));
-
-            // Show context menu at handling position
-            myMenu.exec(globalPos);
-        }
+        myMenu.addAction("Object Properties", this, SLOT(showPropertiesPage()));
+        myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
+        myMenu.addAction("Delete", this, SLOT(deleteItem()));
+    }
+    else
+    {
+        myMenu.addAction("Bagkground Color", this, SLOT(setBackgroundColor()));
+    }
+    // Show context menu at handling position
+    myMenu.exec(mapToGlobal(pos));
     }
 }
 
@@ -2539,4 +2558,11 @@ void GLWidget::showPropertiesPage()
 void GLWidget::showTransformationsPage()
 {
     _viewer->showTransformationsPage();
+}
+
+#include "BackgroundColor.h"
+void GLWidget::setBackgroundColor()
+{
+    BackgroundColor bgCol(this);
+    bgCol.exec();
 }
