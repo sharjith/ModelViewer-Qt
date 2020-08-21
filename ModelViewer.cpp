@@ -1477,9 +1477,6 @@ void ModelViewer::showContextMenu(const QPoint &pos)
 {
     if (listWidgetModel->selectedItems().count() != 0)
     {
-        // Handle global position
-        QPoint globalPos = listWidgetModel->mapToGlobal(pos);
-
         // Create menu and insert some actions
         QMenu myMenu;
 
@@ -1489,10 +1486,11 @@ void ModelViewer::showContextMenu(const QPoint &pos)
 
         myMenu.addAction("Object Properties", this, SLOT(showObjectsPropertiesPage()));
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
+        myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
         myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
         // Show context menu at handling position
-        myMenu.exec(globalPos);
+        myMenu.exec(mapToGlobal(pos));
     }
 }
 
@@ -1533,6 +1531,15 @@ void ModelViewer::deleteSelectedItems()
         }
         _glWidget->update();
         _bDeletionInProgress = false;
+    }
+}
+
+void ModelViewer::hideSelectedItems()
+{
+    QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+    for (QListWidgetItem *item : selectedItems)
+    {
+        item->setCheckState(Qt::Unchecked);
     }
 }
 

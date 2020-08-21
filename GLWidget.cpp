@@ -2531,7 +2531,8 @@ void GLWidget::showContextMenu(const QPoint &pos)
 
         myMenu.addAction("Object Properties", this, SLOT(showPropertiesPage()));
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
-        myMenu.addAction("Delete", this, SLOT(deleteItem()));
+        myMenu.addAction("Hide", this, SLOT(hideSelectedItem()));
+        myMenu.addAction("Delete", this, SLOT(deleteSelectedItem()));
     }
     else
     {
@@ -2552,9 +2553,14 @@ void GLWidget::centerDisplayList()
     }
 }
 
-void GLWidget::deleteItem()
+void GLWidget::deleteSelectedItem()
 {
     _viewer->deleteSelectedItems();
+}
+
+void GLWidget::hideSelectedItem()
+{
+    _viewer->hideSelectedItems();
 }
 
 void GLWidget::showPropertiesPage()

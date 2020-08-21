@@ -172,7 +172,8 @@ public slots:
 private slots:
     void showContextMenu(const QPoint &pos);
     void centerDisplayList();
-    void deleteItem();
+    void hideSelectedItem();
+    void deleteSelectedItem();
     void showPropertiesPage();
     void showTransformationsPage();
     void setBackgroundColor();

@@ -1032,14 +1032,17 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
               <string>Display List</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_15">
+              <property name="spacing">
+               <number>2</number>
+              </property>
               <item row="1" column="0">
                <widget class="QListWidget" name="listWidgetModel">
                 <property name="selectionMode">
@@ -1061,8 +1064,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>315</width>
+               <height>688</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1075,10 +1078,19 @@
               <string>Object Properties</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_23">
+              <property name="spacing">
+               <number>2</number>
+              </property>
               <item row="0" column="0">
                <layout class="QVBoxLayout" name="verticalLayout">
+                <property name="spacing">
+                 <number>2</number>
+                </property>
                 <item>
                  <layout class="QGridLayout" name="gridLayout_22">
+                  <property name="spacing">
+                   <number>2</number>
+                  </property>
                   <item row="0" column="0" colspan="2">
                    <widget class="QPushButton" name="pushButtonDefaultMatls">
                     <property name="sizePolicy">
@@ -2065,16 +2077,22 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
               <string>Environment Settings</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_19">
+              <property name="spacing">
+               <number>2</number>
+              </property>
               <item row="0" column="0">
                <layout class="QGridLayout" name="gridLayout_18">
+                <property name="spacing">
+                 <number>2</number>
+                </property>
                 <item row="2" column="0" colspan="2">
                  <widget class="QGroupBox" name="groupBox_2">
                   <property name="title">
@@ -2298,8 +2316,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2312,6 +2330,9 @@
               <string>Transformations</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_11">
+              <property name="spacing">
+               <number>2</number>
+              </property>
               <item row="0" column="0">
                <widget class="QGroupBox" name="groupBox_5">
                 <property name="title">

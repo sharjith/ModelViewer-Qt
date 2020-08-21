@@ -23,6 +23,7 @@ public:
 
 public slots:
     void updateDisplayList();
+    void hideSelectedItems();
     void deleteSelectedItems();
     void showObjectDisplayList();
     void showObjectsPropertiesPage();
