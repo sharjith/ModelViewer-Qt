@@ -31,6 +31,13 @@ out vec4 v_fragPosReflSpace;
 out vec3 v_reflectionNormal;
 out vec4 v_clipSpace;
 
+out VS_OUT_SHADOW {
+    vec3 FragPos;
+    vec3 Normal;
+    vec2 TexCoords;
+    vec4 FragPosLightSpace;
+} vs_out_shadow;
+
 void main()
 {
     v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
@@ -46,7 +53,10 @@ void main()
     v_clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
 
     // for shadow mapping
-    v_fragPosLightSpace = lightSpaceMatrix * vec4(vertexPosition, 1.0);
+    vs_out_shadow.FragPos = vec3(modelMatrix * vec4(vertexPosition, 1.0));
+    vs_out_shadow.Normal = transpose(inverse(mat3(modelMatrix))) * vertexNormal;
+    vs_out_shadow.TexCoords = v_texCoord2d;
+    vs_out_shadow.FragPosLightSpace = lightSpaceMatrix * vec4(vs_out_shadow.FragPos, 1.0);
 
     // for reflection mapping
     v_reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
