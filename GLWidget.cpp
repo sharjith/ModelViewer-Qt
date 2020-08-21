@@ -424,6 +424,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
         _lightPosition.setX(_floorSize/4);
         _lightPosition.setY(_floorSize/4);
         _lightPosition.setZ(_floorSize);
+        _prevLightPosition = _lightPosition;
         _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - (_floorSize* 0.05f), 1, 1);
     }
 
@@ -459,6 +460,7 @@ void GLWidget::updateBoundingSphere()
         _lightPosition.setX(_floorSize/4);
         _lightPosition.setY(_floorSize/4);
         _lightPosition.setZ(_floorSize);
+        _prevLightPosition = _lightPosition;
         _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - (_floorSize* 0.05f), 1, 1);
     }
 
@@ -968,13 +970,14 @@ void GLWidget::loadFloor()
     _floorCenter = _boundingSphere.getCenter();
     _lightPosition.setZ(_floorSize);
     _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - (_floorSize* 0.05f), 1, 1);
-    _floorPlane->setAmbientMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+
+    _floorPlane->setAmbientMaterial(QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-    _floorPlane->setSpecularMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-    _floorPlane->setShininess(25.0f);
+    _floorPlane->setSpecularMaterial(QVector4D(0.5f, 0.5f, 0.5f, 1.0f));
+    _floorPlane->setShininess(32.0f);
     _floorPlane->enableTexture(true);
     _floorPlane->setTexureImage(_texImage);
-    _floorPlane->setOpacity(0.95f);
+    //_floorPlane->setOpacity(0.95f);
 }
 
 void GLWidget::loadReflectionMap()
@@ -2300,6 +2303,11 @@ void GLWidget::closeEvent(QCloseEvent* event)
         _springEditor->close();
     }
     event->accept();
+}
+
+BoundingSphere GLWidget::getBoundingSphere() const
+{
+    return _boundingSphere;
 }
 
 std::vector<int> GLWidget::getDisplayedObjectsIds() const
