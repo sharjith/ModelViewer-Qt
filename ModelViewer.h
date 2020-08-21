@@ -26,6 +26,7 @@ public slots:
     void deleteSelectedItems();
     void showObjectDisplayList();
     void showObjectsPropertiesPage();
+	void showEnvironmentPage();
     void showTransformationsPage();
 
 private slots:
@@ -33,6 +34,7 @@ private slots:
 	void on_textureButton_clicked();
     void on_pushButtonDefaultLights_clicked();
     void on_pushButtonDefaultMatls_clicked();
+	void on_pushButtonApplyTransformations_clicked();
 
 	void on_toolButtonFitAll_clicked(bool checked);
 	void on_toolButtonWindowZoom_clicked(bool checked);
@@ -103,22 +105,8 @@ private slots:
 	void showContextMenu(const QPoint &pos);
     void centerScreen();	
 
-	void on_doubleSpinBoxDX_valueChanged(double);
-	void on_doubleSpinBoxDY_valueChanged(double);
-	void on_doubleSpinBoxDZ_valueChanged(double);
-
-	void on_doubleSpinBoxRX_valueChanged(double);
-	void on_doubleSpinBoxRY_valueChanged(double);
-	void on_doubleSpinBoxRZ_valueChanged(double);
-
-	void on_doubleSpinBoxSX_valueChanged(double);
-	void on_doubleSpinBoxSY_valueChanged(double);
-	void on_doubleSpinBoxSZ_valueChanged(double);
-
 	void on_toolButtonShowHideAxis_toggled(bool checked);
-
     void on_toolButtonVertexNormal_clicked(bool checked);
-
     void on_toolButtonFaceNormal_clicked(bool checked);
 
     void on_checkBoxSelectAll_toggled(bool checked);
@@ -127,11 +115,8 @@ private slots:
     void on_listWidgetModel_itemSelectionChanged();
 
     void on_checkBoxShadowMapping_toggled(bool checked);
-
     void on_checkBoxEnvMapping_toggled(bool checked);
-
     void on_checkBoxSkyBox_toggled(bool checked);
-
     void on_checkBoxReflections_toggled(bool checked);
 
 protected:

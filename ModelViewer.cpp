@@ -229,6 +229,12 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
     _glWidget->updateView();
 }
 
+void ModelViewer::on_pushButtonApplyTransformations_clicked()
+{
+    setTransformation();
+    _glWidget->update();
+}
+
 void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 {
     buttonGroup->setExclusive(false);
@@ -1533,9 +1539,14 @@ void ModelViewer::showObjectsPropertiesPage()
     toolBox->setCurrentIndex(1);
 }
 
-void ModelViewer::showTransformationsPage()
+void ModelViewer::showEnvironmentPage()
 {
     toolBox->setCurrentIndex(2);
+}
+
+void ModelViewer::showTransformationsPage()
+{
+    toolBox->setCurrentIndex(3);
 }
 
 void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
@@ -1654,60 +1665,6 @@ void ModelViewer::setTransformation()
         mat.scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
         _glWidget->setTransformation(ids, mat);
     }
-}
-
-void ModelViewer::on_doubleSpinBoxDX_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxDY_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxDZ_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxRX_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxRY_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxRZ_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxSX_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxSY_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
-}
-
-void ModelViewer::on_doubleSpinBoxSZ_valueChanged(double)
-{
-    setTransformation();
-    _glWidget->update();
 }
 
 void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
