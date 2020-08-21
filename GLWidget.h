@@ -144,6 +144,8 @@ public:
 
     std::vector<int> getDisplayedObjectsIds() const;
 
+    BoundingSphere getBoundingSphere() const;
+
 signals:
     void windowZoomEnded();
     void rotationsSet();
