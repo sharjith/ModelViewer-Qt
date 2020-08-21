@@ -135,6 +135,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _envMapEnabled = false;
     _shadowsEnabled = false;
     _reflectionsEnabled = false;
+    _floorDisplayed = false;
     _skyBoxEnabled = false;
 
     _shadowWidth = 1024;
@@ -516,6 +517,12 @@ void GLWidget::showSkyBox(bool show)
 void GLWidget::showReflections(bool show)
 {
     _reflectionsEnabled = show;
+    update();
+}
+
+void GLWidget::showFloor(bool show)
+{
+    _floorDisplayed = show;
     update();
 }
 
@@ -1653,7 +1660,7 @@ void GLWidget::render()
     glDisable(GL_CLIP_DISTANCE3);
 
     // Shadow mapped floor
-    if(_displayMode == DisplayMode::REALSHADED && !_skyBoxEnabled)
+    if(_displayMode == DisplayMode::REALSHADED && _floorDisplayed)
     {
         drawFloor();
     }

@@ -118,6 +118,7 @@ private slots:
     void on_checkBoxEnvMapping_toggled(bool checked);
     void on_checkBoxSkyBox_toggled(bool checked);
     void on_checkBoxReflections_toggled(bool checked);
+	void on_checkBoxFloor_toggled(bool checked);
 
 protected:
 	void showEvent(QShowEvent *event);

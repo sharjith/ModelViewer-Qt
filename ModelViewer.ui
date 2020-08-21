@@ -1061,8 +1061,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>316</width>
-               <height>682</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2084,6 +2084,13 @@
                    <bool>true</bool>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_17">
+                   <item row="1" column="0">
+                    <widget class="QCheckBox" name="checkBoxReflections">
+                     <property name="text">
+                      <string>Reflections</string>
+                     </property>
+                    </widget>
+                   </item>
                    <item row="0" column="0">
                     <widget class="QCheckBox" name="checkBoxShadowMapping">
                      <property name="text">
@@ -2098,17 +2105,17 @@
                      </property>
                     </widget>
                    </item>
-                   <item row="1" column="0">
-                    <widget class="QCheckBox" name="checkBoxReflections">
-                     <property name="text">
-                      <string>Reflections</string>
-                     </property>
-                    </widget>
-                   </item>
                    <item row="1" column="1">
                     <widget class="QCheckBox" name="checkBoxEnvMapping">
                      <property name="text">
-                      <string>Environment</string>
+                      <string>Environment Mapping</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item row="2" column="0">
+                    <widget class="QCheckBox" name="checkBoxFloor">
+                     <property name="text">
+                      <string>Floor</string>
                      </property>
                     </widget>
                    </item>

@@ -79,6 +79,7 @@ public:
     void showEnvironment(bool show);
     void showSkyBox(bool show);
     void showReflections(bool show);
+    void showFloor(bool show);
 
     std::vector<TriangleMesh*> getMeshStore() const { return _meshStore; }
 
@@ -244,6 +245,7 @@ private:
     bool _envMapEnabled;
     bool _shadowsEnabled;
     bool _reflectionsEnabled;
+    bool _floorDisplayed;
     bool _skyBoxEnabled;
 
     unsigned int _shadowWidth;
