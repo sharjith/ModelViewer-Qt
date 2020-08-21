@@ -7,7 +7,7 @@
 #include <GLWidget.h>
 
 class SphericalHarmonicsEditor;
-class ModelViewer : public QWidget, private Ui::ModelViewer
+class ModelViewer : public QWidget, public Ui::ModelViewer
 {
 	Q_OBJECT
 public:
@@ -19,13 +19,20 @@ public:
 	void setMaterialProps(const GLMaterialProps &mat);
 	void setTransformation();
 
+    QListWidget* getListModel() { return listWidgetModel; }
+
 public slots:
     void updateDisplayList();
+    void deleteSelectedItems();
+    void showObjectDisplayList();
+    void showObjectsPropertiesPage();
+    void showTransformationsPage();
 
 private slots:
 	void on_checkTexture_toggled(bool checked);	
 	void on_textureButton_clicked();
-	void on_defaultButton_clicked();
+    void on_pushButtonDefaultLights_clicked();
+    void on_pushButtonDefaultMatls_clicked();
 
 	void on_toolButtonFitAll_clicked(bool checked);
 	void on_toolButtonWindowZoom_clicked(bool checked);
@@ -94,10 +101,7 @@ private slots:
 	void setListRow(int index);
 
 	void showContextMenu(const QPoint &pos);
-    void centerScreen();
-	void deleteItem();
-	void showPropertiesPage();
-	void showTransformationsPage();
+    void centerScreen();	
 
 	void on_doubleSpinBoxDX_valueChanged(double);
 	void on_doubleSpinBoxDY_valueChanged(double);

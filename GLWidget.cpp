@@ -53,6 +53,8 @@
 
 #include "Plane.h"
 
+#include "ModelViewer.h"
+
 using glm::mat4;
 using glm::vec3;
 
@@ -68,6 +70,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _floorPlane(nullptr),
     _skyBox(nullptr)
 {
+    _viewer = static_cast<ModelViewer*>(parent);
     quadVAO = 0;
     _planeVAO = 0;
     _fgShader = new QOpenGLShaderProgram(this);
@@ -203,6 +206,9 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _lowerLayout->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
 
     _displayedObjectsIds.push_back(0);
+
+    setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(this, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 }
 
 GLWidget::~GLWidget()
@@ -2481,4 +2487,56 @@ void GLWidget::renderQuad()
     glBindVertexArray(quadVAO);
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glBindVertexArray(0);
+}
+
+void GLWidget::showContextMenu(const QPoint &pos)
+{
+    QListWidget* listWidgetModel = _viewer->getListModel();
+    if(listWidgetModel)
+    {
+        if (listWidgetModel->selectedItems().count() != 0 && _displayedObjectsIds.size() != 0)
+        {
+            // Handle global position
+            QPoint globalPos = mapToGlobal(pos);
+
+            // Create menu and insert some actions
+            QMenu myMenu;
+
+            QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+            if(selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+                myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
+
+            myMenu.addAction("Object Properties", this, SLOT(showPropertiesPage()));
+            myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
+            myMenu.addAction("Delete", this, SLOT(deleteItem()));
+
+            // Show context menu at handling position
+            myMenu.exec(globalPos);
+        }
+    }
+}
+
+void GLWidget::centerDisplayList()
+{
+    QListWidget* listWidgetModel = _viewer->getListModel();
+    if(listWidgetModel)
+    {
+        _viewer->showObjectDisplayList();
+        listWidgetModel->scrollToItem(listWidgetModel->selectedItems().at(0));
+    }
+}
+
+void GLWidget::deleteItem()
+{
+    _viewer->deleteSelectedItems();
+}
+
+void GLWidget::showPropertiesPage()
+{
+    _viewer->showObjectsPropertiesPage();
+}
+
+void GLWidget::showTransformationsPage()
+{
+    _viewer->showTransformationsPage();
 }

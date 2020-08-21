@@ -25,6 +25,8 @@ class STLMesh;
 class Plane;
 class Cube;
 
+class ModelViewer;
+
 struct GLMaterialProps
 {
     QVector4D ambientMaterial;
@@ -159,6 +161,13 @@ public slots:
     void animateFitAll();
     void animateWindowZoom();    
     void animateCenterScreen();
+
+private slots:
+    void showContextMenu(const QPoint &pos);
+    void centerDisplayList();
+    void deleteItem();
+    void showPropertiesPage();
+    void showTransformationsPage();
 
 protected:
     void initializeGL();    
@@ -364,6 +373,7 @@ private:
     unsigned int quadVAO;
     unsigned int quadVBO;
     void renderQuad();
+    ModelViewer* _viewer;
 };
 
 #endif

@@ -83,7 +83,7 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
     format.setSamples(4);
     format.setSwapInterval(0);
     format.setStereo(true);
-    _glWidget = new GLWidget(glframe, "glwidget");
+    _glWidget = new GLWidget(this, "glwidget");
     _glWidget->setAttribute(Qt::WA_DeleteOnClose);
     _glWidget->setFormat(format);
     _glWidget->setMouseTracking(true);
@@ -101,7 +101,7 @@ ModelViewer::ModelViewer(QWidget *parent) : QWidget(parent)
     listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
     QShortcut *shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
-    connect(shortcut, SIGNAL(activated()), this, SLOT(deleteItem()));
+    connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
 
     shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_O), this);
     connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonOpen_clicked()));
@@ -196,18 +196,25 @@ void ModelViewer::on_textureButton_clicked()
     }
 }
 
-void ModelViewer::on_defaultButton_clicked()
+void ModelViewer::on_pushButtonDefaultLights_clicked()
 {
-    _opacity = 1.0;
     _glWidget->setAmbientLight({0.0f, 0.0f, 0.0f, 1.0f});
     _glWidget->setDiffuseLight({1.0f, 1.0f, 1.0f, 1.0f});
     _glWidget->setSpecularLight({0.5f, 0.5f, 0.5f, 1.0f});
+
+    updateControls();
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_pushButtonDefaultMatls_clicked()
+{
+    _opacity = 1.0;
     _ambiMat = {0.2109375f, 0.125f, 0.05078125f, _opacity};      // 54 32 13
     _diffMat = {0.7109375f, 0.62890625f, 0.55078125f, _opacity}; // 182 161 141
     _specMat = {0.37890625f, 0.390625f, 0.3359375f, _opacity};   // 97 100 86
     _emmiMat = {0, 0, 0, 1};
     _shine = 128 * 0.2f;
-    
+
     GLMaterialProps mat = {_ambiMat,
                            _diffMat,
                            _specMat,
@@ -1467,9 +1474,9 @@ void ModelViewer::showContextMenu(const QPoint &pos)
         if(selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
             myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
 
-        myMenu.addAction("Visualization Properties", this, SLOT(showPropertiesPage()));
+        myMenu.addAction("Object Properties", this, SLOT(showObjectsPropertiesPage()));
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
-        myMenu.addAction("Delete", this, SLOT(deleteItem()));
+        myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
         // Show context menu at handling position
         myMenu.exec(globalPos);
@@ -1483,7 +1490,7 @@ void ModelViewer::centerScreen()
     _glWidget->centerScreen(rowId);
 }
 
-void ModelViewer::deleteItem()
+void ModelViewer::deleteSelectedItems()
 {
     if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
     {
@@ -1516,7 +1523,12 @@ void ModelViewer::deleteItem()
     }
 }
 
-void ModelViewer::showPropertiesPage()
+void ModelViewer::showObjectDisplayList()
+{
+    toolBox->setCurrentIndex(0);
+}
+
+void ModelViewer::showObjectsPropertiesPage()
 {
     toolBox->setCurrentIndex(1);
 }

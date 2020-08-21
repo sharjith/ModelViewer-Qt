@@ -1027,19 +1027,13 @@
          <layout class="QGridLayout" name="gridLayout_6">
           <item row="0" column="0">
            <widget class="QToolBox" name="toolBox">
-            <property name="sizePolicy">
-             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-              <horstretch>0</horstretch>
-              <verstretch>0</verstretch>
-             </sizepolicy>
-            </property>
             <widget class="QWidget" name="toolBoxPage1">
              <property name="geometry">
               <rect>
                <x>0</x>
                <y>0</y>
                <width>328</width>
-               <height>432</height>
+               <height>401</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1068,7 +1062,7 @@
                <x>0</x>
                <y>0</y>
                <width>315</width>
-               <height>828</height>
+               <height>658</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1078,73 +1072,72 @@
               </sizepolicy>
              </property>
              <attribute name="label">
-              <string>Visualization Properties</string>
+              <string>Object Properties</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_4">
               <item row="0" column="0">
                <layout class="QVBoxLayout" name="verticalLayout">
                 <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_2">
+                 <widget class="QPushButton" name="pushButtonDefaultMatls">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Reset to default light and material</string>
+                  </property>
+                  <property name="text">
+                   <string>Default Values</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="verticalSpacer">
+                  <property name="orientation">
+                   <enum>Qt::Vertical</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>13</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout">
                   <item>
-                   <widget class="QGroupBox" name="groupBox_2">
+                   <widget class="QCheckBox" name="checkTexture">
+                    <property name="toolTip">
+                     <string>Enable/Disable Texture</string>
+                    </property>
+                    <property name="text">
+                     <string>Texture</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QPushButton" name="textureButton">
                     <property name="sizePolicy">
-                     <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                       <horstretch>0</horstretch>
                       <verstretch>0</verstretch>
                      </sizepolicy>
                     </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>0</height>
-                     </size>
+                    <property name="toolTip">
+                     <string>Select the image file for texture</string>
                     </property>
-                    <property name="title">
-                     <string>Light Colours</string>
+                    <property name="text">
+                     <string>Select Texture Image</string>
                     </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_5">
-                     <property name="leftMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="topMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="rightMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="bottomMargin">
-                      <number>0</number>
-                     </property>
-                     <item row="0" column="0">
-                      <widget class="QPushButton" name="pushButtonLightAmbient">
-                       <property name="styleSheet">
-                        <string notr="true"/>
-                       </property>
-                       <property name="text">
-                        <string>Ambient Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QPushButton" name="pushButtonLightDiffuse">
-                       <property name="text">
-                        <string>Diffuse Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QPushButton" name="pushButtonLightSpecular">
-                       <property name="text">
-                        <string>Specular Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
                    </widget>
                   </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_2">
                   <item>
                    <widget class="QGroupBox" name="groupBox_3">
                     <property name="sizePolicy">
@@ -1181,24 +1174,10 @@
                      <property name="spacing">
                       <number>6</number>
                      </property>
-                     <item row="3" column="0">
-                      <widget class="QPushButton" name="pushButtonMaterialEmissive">
-                       <property name="text">
-                        <string>Emissive Color</string>
-                       </property>
-                      </widget>
-                     </item>
                      <item row="1" column="0">
                       <widget class="QPushButton" name="pushButtonMaterialDiffuse">
                        <property name="text">
                         <string>Diffuse Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QPushButton" name="pushButtonMaterialSpecular">
-                       <property name="text">
-                        <string>Specular Color</string>
                        </property>
                       </widget>
                      </item>
@@ -1209,177 +1188,19 @@
                        </property>
                       </widget>
                      </item>
-                    </layout>
-                   </widget>
-                  </item>
-                 </layout>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_5">
-                  <item>
-                   <widget class="QGroupBox" name="groupBox_13">
-                    <property name="title">
-                     <string>Light Position</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="_3">
-                     <property name="leftMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="topMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="rightMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="bottomMargin">
-                      <number>0</number>
-                     </property>
-                     <property name="spacing">
-                      <number>5</number>
-                     </property>
-                     <item row="0" column="0">
-                      <layout class="QHBoxLayout" name="_4">
-                       <property name="spacing">
-                        <number>6</number>
+                     <item row="3" column="0">
+                      <widget class="QPushButton" name="pushButtonMaterialEmissive">
+                       <property name="text">
+                        <string>Emissive Color</string>
                        </property>
-                       <property name="leftMargin">
-                        <number>0</number>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QPushButton" name="pushButtonMaterialSpecular">
+                       <property name="text">
+                        <string>Specular Color</string>
                        </property>
-                       <property name="topMargin">
-                        <number>0</number>
-                       </property>
-                       <property name="rightMargin">
-                        <number>0</number>
-                       </property>
-                       <property name="bottomMargin">
-                        <number>0</number>
-                       </property>
-                       <item>
-                        <layout class="QVBoxLayout" name="_5">
-                         <property name="spacing">
-                          <number>6</number>
-                         </property>
-                         <property name="leftMargin">
-                          <number>0</number>
-                         </property>
-                         <property name="topMargin">
-                          <number>0</number>
-                         </property>
-                         <property name="rightMargin">
-                          <number>0</number>
-                         </property>
-                         <property name="bottomMargin">
-                          <number>0</number>
-                         </property>
-                         <item>
-                          <widget class="QLabel" name="lightPosX">
-                           <property name="text">
-                            <string>X</string>
-                           </property>
-                           <property name="alignment">
-                            <set>Qt::AlignCenter</set>
-                           </property>
-                          </widget>
-                         </item>
-                         <item>
-                          <widget class="QLabel" name="lightPosY">
-                           <property name="text">
-                            <string>Y</string>
-                           </property>
-                           <property name="alignment">
-                            <set>Qt::AlignCenter</set>
-                           </property>
-                          </widget>
-                         </item>
-                         <item>
-                          <widget class="QLabel" name="lightPosZ">
-                           <property name="text">
-                            <string>Z</string>
-                           </property>
-                           <property name="alignment">
-                            <set>Qt::AlignCenter</set>
-                           </property>
-                          </widget>
-                         </item>
-                        </layout>
-                       </item>
-                       <item>
-                        <layout class="QVBoxLayout" name="_6">
-                         <property name="spacing">
-                          <number>6</number>
-                         </property>
-                         <property name="leftMargin">
-                          <number>0</number>
-                         </property>
-                         <property name="topMargin">
-                          <number>0</number>
-                         </property>
-                         <property name="rightMargin">
-                          <number>0</number>
-                         </property>
-                         <property name="bottomMargin">
-                          <number>0</number>
-                         </property>
-                         <item>
-                          <widget class="QSlider" name="sliderLightPosX">
-                           <property name="minimum">
-                            <number>-200</number>
-                           </property>
-                           <property name="maximum">
-                            <number>200</number>
-                           </property>
-                           <property name="orientation">
-                            <enum>Qt::Horizontal</enum>
-                           </property>
-                          </widget>
-                         </item>
-                         <item>
-                          <widget class="QSlider" name="sliderLightPosY">
-                           <property name="minimum">
-                            <number>-200</number>
-                           </property>
-                           <property name="maximum">
-                            <number>200</number>
-                           </property>
-                           <property name="orientation">
-                            <enum>Qt::Horizontal</enum>
-                           </property>
-                          </widget>
-                         </item>
-                         <item>
-                          <widget class="QSlider" name="sliderLightPosZ">
-                           <property name="minimum">
-                            <number>-100</number>
-                           </property>
-                           <property name="maximum">
-                            <number>100</number>
-                           </property>
-                           <property name="value">
-                            <number>0</number>
-                           </property>
-                           <property name="orientation">
-                            <enum>Qt::Horizontal</enum>
-                           </property>
-                           <property name="invertedAppearance">
-                            <bool>false</bool>
-                           </property>
-                           <property name="invertedControls">
-                            <bool>false</bool>
-                           </property>
-                           <property name="tickPosition">
-                            <enum>QSlider::NoTicks</enum>
-                           </property>
-                           <property name="tickInterval">
-                            <number>0</number>
-                           </property>
-                          </widget>
-                         </item>
-                        </layout>
-                       </item>
-                      </layout>
+                      </widget>
                      </item>
                     </layout>
                    </widget>
@@ -1428,7 +1249,7 @@
                           <number>0</number>
                          </property>
                          <item>
-                          <widget class="QLabel" name="valueShine_2">
+                          <widget class="QLabel" name="valueShine">
                            <property name="text">
                             <string>Value</string>
                            </property>
@@ -1494,7 +1315,7 @@
                           <number>0</number>
                          </property>
                          <item>
-                          <widget class="QLabel" name="valueOpacity_2">
+                          <widget class="QLabel" name="valueOpacity">
                            <property name="text">
                             <string>Value</string>
                            </property>
@@ -1525,105 +1346,6 @@
                      </widget>
                     </item>
                    </layout>
-                  </item>
-                 </layout>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="defaultButton">
-                  <property name="sizePolicy">
-                   <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                    <horstretch>0</horstretch>
-                    <verstretch>0</verstretch>
-                   </sizepolicy>
-                  </property>
-                  <property name="toolTip">
-                   <string>Reset to default light and material</string>
-                  </property>
-                  <property name="text">
-                   <string>Default Values</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="verticalSpacer">
-                  <property name="orientation">
-                   <enum>Qt::Vertical</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>20</width>
-                    <height>13</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout_4">
-                  <item>
-                   <layout class="QVBoxLayout" name="verticalLayout_9">
-                    <item>
-                     <widget class="QCheckBox" name="checkBoxShadowMapping">
-                      <property name="text">
-                       <string>Shadows</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QCheckBox" name="checkBoxReflections">
-                      <property name="text">
-                       <string>Reflections</string>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </item>
-                  <item>
-                   <layout class="QVBoxLayout" name="verticalLayout_10">
-                    <item>
-                     <widget class="QCheckBox" name="checkBoxSkyBox">
-                      <property name="text">
-                       <string>Sky Box</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QCheckBox" name="checkBoxEnvMapping">
-                      <property name="text">
-                       <string>Environment</string>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </item>
-                 </layout>
-                </item>
-                <item>
-                 <layout class="QHBoxLayout" name="horizontalLayout">
-                  <item>
-                   <widget class="QCheckBox" name="checkTexture">
-                    <property name="toolTip">
-                     <string>Enable/Disable Texture</string>
-                    </property>
-                    <property name="text">
-                     <string>Texture</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QPushButton" name="textureButton">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="toolTip">
-                     <string>Select the image file for texture</string>
-                    </property>
-                    <property name="text">
-                     <string>Select Texture Image</string>
-                    </property>
-                   </widget>
                   </item>
                  </layout>
                 </item>
@@ -2449,8 +2171,244 @@
               <rect>
                <x>0</x>
                <y>0</y>
+               <width>328</width>
+               <height>401</height>
+              </rect>
+             </property>
+             <attribute name="label">
+              <string>Environment Settings</string>
+             </attribute>
+             <layout class="QGridLayout" name="gridLayout_17">
+              <item row="0" column="0">
+               <layout class="QVBoxLayout" name="verticalLayout_9">
+                <item>
+                 <widget class="QPushButton" name="pushButtonDefaultLights">
+                  <property name="sizePolicy">
+                   <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                    <horstretch>0</horstretch>
+                    <verstretch>0</verstretch>
+                   </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Reset to default light and material</string>
+                  </property>
+                  <property name="text">
+                   <string>Default Values</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_4">
+                  <item>
+                   <widget class="QGroupBox" name="groupBox_9">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Preferred" vsizetype="MinimumExpanding">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>0</height>
+                     </size>
+                    </property>
+                    <property name="title">
+                     <string>Light Colours</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_5">
+                     <item row="1" column="0">
+                      <widget class="QPushButton" name="pushButtonLightDiffuse">
+                       <property name="text">
+                        <string>Diffuse Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="0">
+                      <widget class="QPushButton" name="pushButtonLightAmbient">
+                       <property name="styleSheet">
+                        <string notr="true"/>
+                       </property>
+                       <property name="text">
+                        <string>Ambient Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QPushButton" name="pushButtonLightSpecular">
+                       <property name="text">
+                        <string>Specular Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QGroupBox" name="groupBox_14">
+                    <property name="title">
+                     <string>Light Position</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_16">
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="lightPosX">
+                       <property name="text">
+                        <string>X</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QSlider" name="sliderLightPosX">
+                       <property name="minimum">
+                        <number>-200</number>
+                       </property>
+                       <property name="maximum">
+                        <number>200</number>
+                       </property>
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QLabel" name="lightPosY">
+                       <property name="text">
+                        <string>Y</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="1">
+                      <widget class="QSlider" name="sliderLightPosY">
+                       <property name="minimum">
+                        <number>-200</number>
+                       </property>
+                       <property name="maximum">
+                        <number>200</number>
+                       </property>
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QLabel" name="lightPosZ">
+                       <property name="text">
+                        <string>Z</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QSlider" name="sliderLightPosZ">
+                       <property name="minimum">
+                        <number>-100</number>
+                       </property>
+                       <property name="maximum">
+                        <number>100</number>
+                       </property>
+                       <property name="value">
+                        <number>0</number>
+                       </property>
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                       <property name="invertedAppearance">
+                        <bool>false</bool>
+                       </property>
+                       <property name="invertedControls">
+                        <bool>false</bool>
+                       </property>
+                       <property name="tickPosition">
+                        <enum>QSlider::NoTicks</enum>
+                       </property>
+                       <property name="tickInterval">
+                        <number>0</number>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_17">
+                  <item>
+                   <layout class="QVBoxLayout" name="verticalLayout_11">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxShadowMapping">
+                      <property name="text">
+                       <string>Shadows</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxReflections">
+                      <property name="text">
+                       <string>Reflections</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item>
+                   <layout class="QVBoxLayout" name="verticalLayout_12">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxSkyBox">
+                      <property name="text">
+                       <string>Sky Box</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxEnvMapping">
+                      <property name="text">
+                       <string>Environment</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <spacer name="verticalSpacer_3">
+                  <property name="orientation">
+                   <enum>Qt::Vertical</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>40</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+             </layout>
+            </widget>
+            <widget class="QWidget" name="toolBoxPage4">
+             <property name="geometry">
+              <rect>
+               <x>0</x>
+               <y>0</y>
                <width>315</width>
-               <height>441</height>
+               <height>446</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2791,6 +2749,19 @@
                    </item>
                   </layout>
                  </widget>
+                </item>
+                <item>
+                 <spacer name="verticalSpacer_4">
+                  <property name="orientation">
+                   <enum>Qt::Vertical</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>20</width>
+                    <height>40</height>
+                   </size>
+                  </property>
+                 </spacer>
                 </item>
                </layout>
               </item>
