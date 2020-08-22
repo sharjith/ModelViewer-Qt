@@ -966,7 +966,7 @@ void GLWidget::loadFloor()
 	}
 
 	// Floor texture
-	if (!_texBuffer.load(QString("textures/envmap/Granite#3593.jpg")))
+	if (!_texBuffer.load(QString("textures/envmap/grey-white-checkered-squares1800x1800.jpg")))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, static_cast<QImage::Format>(5));
