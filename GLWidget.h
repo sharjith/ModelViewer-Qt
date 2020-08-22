@@ -344,7 +344,7 @@ private:
 	ModelViewer* _viewer;
 
 	unsigned int quadVAO;
-	unsigned int quadVBO;
+    unsigned int quadVBO;
 
 private:
 	void createShaderPrograms();

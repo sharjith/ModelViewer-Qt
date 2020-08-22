@@ -2047,7 +2047,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		QVector3D p2(_rightButtonPoint.x(), height() - _rightButtonPoint.y(), Z.z());
 		QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
 		QVector3D OP = P - O;
-		_camera->move(OP.x(), OP.y(), OP.z());
+        _camera->move(OP.x(), OP.y(), OP.z());
 		_currentTranslation = _camera->getPosition();
 
 		_rightButtonPoint = downPoint;
@@ -2100,72 +2100,73 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 void GLWidget::keyPressEvent(QKeyEvent* event)
 {
-	if (_camera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
-	{
-		switch (event->key())
-		{
-		case Qt::Key_A:
-			_camera->moveAcross(2.0f);
-			break;
-		case Qt::Key_D:
-			_camera->moveAcross(-2.0f);
-			break;
-		case Qt::Key_W:
-			_camera->moveForward(-2.0f);
-			break;
-		case Qt::Key_S:
-			_camera->moveForward(2.0);
-			break;
-		}
-	}
-	else
-	{
-		switch (event->key())
-		{
-		case Qt::Key_A:
-			_camera->moveAcross(2.0f);
-			break;
-		case Qt::Key_D:
-			_camera->moveAcross(-2.0f);
-			break;
-		case Qt::Key_W:
-			_camera->moveUpward(-2.0f);
-			break;
-		case Qt::Key_S:
-			_camera->moveUpward(2.0f);
-			break;
-		}
-	}
-	switch (event->key())
-	{
-	case Qt::Key_Left:
-		_camera->rotateY(2.0f);
-		break;
-	case Qt::Key_Right:
-		_camera->rotateY(-2.0f);
-		break;
-	case Qt::Key_Up:
-		_camera->rotateX(2.0f);
-		break;
-	case Qt::Key_Down:
-		_camera->rotateX(-2.0f);
-		break;
-	case Qt::Key_PageUp:
-		_camera->rotateZ(2.0f);
-		break;
-	case Qt::Key_PageDown:
-		_camera->rotateZ(-2.0f);
-		break;
-	default:
-		break;
-	}
-	_currentTranslation = _camera->getPosition();
-	_currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
-	update();
+    if (_camera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+    {
+        switch (event->key())
+        {
+        case Qt::Key_A:
+            _camera->moveAcross(5.0f);
+            break;
+        case Qt::Key_D:
+            _camera->moveAcross(-5.0f);
+            break;
+        case Qt::Key_W:
+            _camera->moveForward(-5.0f);
+            break;
+        case Qt::Key_S:
+            _camera->moveForward(5.0);
+            break;
+        }
+    }
+    else
+    {
+        switch (event->key())
+        {
+        case Qt::Key_A:
+            _camera->moveAcross(5.0f);
+            break;
+        case Qt::Key_D:
+            _camera->moveAcross(-5.0f);
+            break;
+        case Qt::Key_W:
+            _camera->moveUpward(-5.0f);
+            break;
+        case Qt::Key_S:
+            _camera->moveUpward(5.0f);
+            break;
+        }
+    }
+    switch (event->key())
+    {
+    case Qt::Key_Left:
+        _camera->rotateY(2.0f);
+        break;
+    case Qt::Key_Right:
+        _camera->rotateY(-2.0f);
+        break;
+    case Qt::Key_Up:
+        _camera->rotateX(2.0f);
+        break;
+    case Qt::Key_Down:
+        _camera->rotateX(-2.0f);
+        break;
+    case Qt::Key_PageUp:
+        _camera->rotateZ(2.0f);
+        break;
+    case Qt::Key_PageDown:
+        _camera->rotateZ(-2.0f);
+        break;
+    default:
+        break;
+    }
+    _currentTranslation = _camera->getPosition();
+    _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
+    update();
 }
 
 void GLWidget::keyReleaseEvent(QKeyEvent* event)
 {
+
 }
 
 void GLWidget::animateViewChange()
@@ -2218,7 +2219,12 @@ void GLWidget::animateFitAll()
 
 void GLWidget::animateWindowZoom()
 {
-	setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
+    float fov = _camera->getFOV();
+    float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio*fov/100);
+    QVector3D panRatio = (_rubberBandPan*fov/100);
+    float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
+    QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;
+    setZoomAndPan(_currentViewRange / zoom, pan);
 	resizeGL(width(), height());
 }
 
