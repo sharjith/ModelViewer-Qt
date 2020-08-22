@@ -5,18 +5,16 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 GraysKlein::GraysKlein(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
-	ParametricSurface(prog, nSlices, nStacks),	
+	ParametricSurface(prog, nSlices, nStacks),
 	_A(2),
 	_M(1),
-    _N(2),
-    _radius(radius)
+	_N(2),
+	_radius(radius)
 {
 	_name = "Gray's Klein Bottle";
 	buildMesh();
 }
-
 
 GraysKlein::~GraysKlein()
 {
@@ -50,10 +48,10 @@ Point GraysKlein::pointAtParameter(const float& u, const float& v)
 	// Gray's Klein bottle
 	//0 <= u <= 4 PI
 	//0 <= v <= 2 PI
-	//A = 2, N = 2, M = 1	
-	x = _radius * (_A + cos(_N*u / 2.0) * sin(v) - sin(_N*u / 2.0) * sin(2 * v)) * cos(_M*u / 2.0);
-	y = _radius * (_A + cos(_N*u / 2.0) * sin(v) - sin(_N*u / 2.0) * sin(2 * v)) * sin(_M*u / 2.0);
-	z = _radius * sin(_N*u / 2.0) * sin(v) + cos(_N*u / 2.0) * sin(2 * v);
+	//A = 2, N = 2, M = 1
+	x = _radius * (_A + cos(_N * u / 2.0) * sin(v) - sin(_N * u / 2.0) * sin(2 * v)) * cos(_M * u / 2.0);
+	y = _radius * (_A + cos(_N * u / 2.0) * sin(v) - sin(_N * u / 2.0) * sin(2 * v)) * sin(_M * u / 2.0);
+	z = _radius * sin(_N * u / 2.0) * sin(v) + cos(_N * u / 2.0) * sin(2 * v);
 
 	P.setParam(x, y, z);
 	return P;

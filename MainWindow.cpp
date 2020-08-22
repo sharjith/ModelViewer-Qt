@@ -6,119 +6,119 @@
 
 int MainWindow::_viewerCount = 1;
 
-MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent)
+MainWindow::MainWindow(QWidget* parent)
+	: QMainWindow(parent)
 {
-    ui = new Ui::MainWindow();
-    ui->setupUi(this);
+	ui = new Ui::MainWindow();
+	ui->setupUi(this);
 
-    setAttribute(Qt::WA_DeleteOnClose);
+	setAttribute(Qt::WA_DeleteOnClose);
 
-    Q_INIT_RESOURCE(ModelViewer);
+	Q_INIT_RESOURCE(ModelViewer);
 
-    //setCentralWidget(_editor);
-    setCentralWidget((ui->mdiArea));
-    ModelViewer *viewer = new ModelViewer(nullptr);
-    viewer->setAttribute(Qt::WA_DeleteOnClose);
-    _viewers.append(viewer);
-    ui->mdiArea->addSubWindow(viewer);
-    _bFirstTime = true;
+	//setCentralWidget(_editor);
+	setCentralWidget((ui->mdiArea));
+	ModelViewer* viewer = new ModelViewer(nullptr);
+	viewer->setAttribute(Qt::WA_DeleteOnClose);
+	_viewers.append(viewer);
+	ui->mdiArea->addSubWindow(viewer);
+	_bFirstTime = true;
 }
 
 MainWindow::~MainWindow()
 {
-    delete ui;
+	delete ui;
 }
 
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
 {
-    close();
-    qApp->exit();
+	close();
+	qApp->exit();
 }
 
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
-    QMessageBox::about(this, "About 3D Model Viewer", "Application to visualize variour 3D Models like OBJ and StereoLithography models");
+	QMessageBox::about(this, "About 3D Model Viewer", "Application to visualize variour 3D Models like OBJ and StereoLithography models");
 }
 
 void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)
 {
-    QMessageBox::aboutQt(this, "About Qt");
+	QMessageBox::aboutQt(this, "About Qt");
 }
 
-void MainWindow::showEvent(QShowEvent *event)
+void MainWindow::showEvent(QShowEvent* event)
 {
-    QWidget::showEvent(event);
+	QWidget::showEvent(event);
 
-    if (_bFirstTime)
-    {
-        std::vector<int> mod = {5};
-        _viewers[0]->getGLView()->setDisplayList(mod);
-        _viewers[0]->showMaximized();
-        _viewers[0]->updateDisplayList();
-        _bFirstTime = false;
-    }
+	if (_bFirstTime)
+	{
+		std::vector<int> mod = { 5 };
+		_viewers[0]->getGLView()->setDisplayList(mod);
+		_viewers[0]->showMaximized();
+		_viewers[0]->updateDisplayList();
+		_bFirstTime = false;
+	}
 }
 
-void MainWindow::closeEvent(QCloseEvent * /*event*/)
+void MainWindow::closeEvent(QCloseEvent* /*event*/)
 {
-    ui->mdiArea->closeAllSubWindows();
-    qApp->exit();
+	ui->mdiArea->closeAllSubWindows();
+	qApp->exit();
 }
 
 void MainWindow::on_actionNew_triggered()
 {
-    ModelViewer *viewer = new ModelViewer(nullptr);
-    viewer->setAttribute(Qt::WA_DeleteOnClose);
-    viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
-    _viewers.append(viewer);
-    ui->mdiArea->addSubWindow(viewer);
-    viewer->showMaximized();
-    std::vector<int> mod = {5};
-    viewer->getGLView()->setDisplayList(mod);
-    viewer->updateDisplayList();
+	ModelViewer* viewer = new ModelViewer(nullptr);
+	viewer->setAttribute(Qt::WA_DeleteOnClose);
+	viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
+	_viewers.append(viewer);
+	ui->mdiArea->addSubWindow(viewer);
+	viewer->showMaximized();
+	std::vector<int> mod = { 5 };
+	viewer->getGLView()->setDisplayList(mod);
+	viewer->updateDisplayList();
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()
 {
-    QMdiArea *mdiArea = ui->mdiArea;
-    if (mdiArea->subWindowList().isEmpty())
-        return;
+	QMdiArea* mdiArea = ui->mdiArea;
+	if (mdiArea->subWindowList().isEmpty())
+		return;
 
-    QPoint position(0, 0);
+	QPoint position(0, 0);
 
-    foreach (QMdiSubWindow *window, mdiArea->subWindowList())
-    {
-        QRect rect(0, 0, mdiArea->width() / mdiArea->subWindowList().count(), mdiArea->height());
-        window->setGeometry(rect);
-        window->move(position);
-        position.setX(position.x() + window->width());
-    }
+	foreach(QMdiSubWindow * window, mdiArea->subWindowList())
+	{
+		QRect rect(0, 0, mdiArea->width() / mdiArea->subWindowList().count(), mdiArea->height());
+		window->setGeometry(rect);
+		window->move(position);
+		position.setX(position.x() + window->width());
+	}
 }
 
 void MainWindow::on_actionTile_Vertically_triggered()
 {
-    QMdiArea *mdiArea = ui->mdiArea;
-    if (mdiArea->subWindowList().isEmpty())
-        return;
+	QMdiArea* mdiArea = ui->mdiArea;
+	if (mdiArea->subWindowList().isEmpty())
+		return;
 
-    QPoint position(0, 0);
+	QPoint position(0, 0);
 
-    foreach (QMdiSubWindow *window, mdiArea->subWindowList())
-    {
-        QRect rect(0, 0, mdiArea->width(), mdiArea->height() / mdiArea->subWindowList().count());
-        window->setGeometry(rect);
-        window->move(position);
-        position.setY(position.y() + window->height());
-    }
+	foreach(QMdiSubWindow * window, mdiArea->subWindowList())
+	{
+		QRect rect(0, 0, mdiArea->width(), mdiArea->height() / mdiArea->subWindowList().count());
+		window->setGeometry(rect);
+		window->move(position);
+		position.setY(position.y() + window->height());
+	}
 }
 
 void MainWindow::on_actionTile_triggered()
 {
-    ui->mdiArea->tileSubWindows();
+	ui->mdiArea->tileSubWindows();
 }
 
 void MainWindow::on_actionCascade_triggered()
 {
-    ui->mdiArea->cascadeSubWindows();
+	ui->mdiArea->cascadeSubWindows();
 }

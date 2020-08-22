@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 WrinkledPeriwinkle::WrinkledPeriwinkle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ WrinkledPeriwinkle::WrinkledPeriwinkle(QOpenGLShaderProgram* prog, float radius,
 	_name = "Wrinkled Periwinkle";
 	buildMesh();
 }
-
 
 WrinkledPeriwinkle::~WrinkledPeriwinkle()
 {
@@ -52,10 +50,10 @@ Point WrinkledPeriwinkle::pointAtParameter(const float& u, const float& v)
 	float F = 80;   // wave frequency
 	float A = 0.2f;  // wave amplitude
 	float p = 1.9f;  // power
-	auto W = [R](auto u) {return u / (2 * glm::pi<float>())*R; };
-	x = _radius * W(u)*cos(N*u)*(1 + cos(v) + cos(F*u)*A);
-	y = _radius * W(u)*sin(N*u)*(1 + cos(v) + cos(F*u)*A);
-	z = _radius * W(u)*sin(v) + H * pow((u / (2 * glm::pi<float>())), p);
+	auto W = [R](auto u) {return u / (2 * glm::pi<float>()) * R; };
+	x = _radius * W(u) * cos(N * u) * (1 + cos(v) + cos(F * u) * A);
+	y = _radius * W(u) * sin(N * u) * (1 + cos(v) + cos(F * u) * A);
+	z = _radius * W(u) * sin(v) + H * pow((u / (2 * glm::pi<float>())), p);
 
 	P.setParam(x, y, z);
 	return P;

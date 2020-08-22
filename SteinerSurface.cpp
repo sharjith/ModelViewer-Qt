@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 SteinerSurface::SteinerSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ SteinerSurface::SteinerSurface(QOpenGLShaderProgram* prog, float radius, unsigne
 	_name = "Steiner Surface";
 	buildMesh();
 }
-
 
 SteinerSurface::~SteinerSurface()
 {
@@ -47,8 +45,8 @@ Point SteinerSurface::pointAtParameter(const float& u, const float& v)
 	// Steiner surface
 	// Where 0 <= u <= pi, 0 <= v <= pi
 	x = _radius * cos(v) * cos(v) * sin(2 * u) / 2;
-	y = _radius * sin(u)* sin(2 * v) / 2;
-	z = _radius * cos(u)* sin(2 * v) / 2;
+	y = _radius * sin(u) * sin(2 * v) / 2;
+	z = _radius * cos(u) * sin(2 * v) / 2;
 
 	P.setParam(x, y, z);
 	return P;

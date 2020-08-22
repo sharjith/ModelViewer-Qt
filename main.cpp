@@ -4,19 +4,18 @@
 
 #include "MainWindow.h"
 
-
 int main(int argc, char** argv)
-{   
-    QApplication::setDesktopSettingsAware(true);
+{
+	QApplication::setDesktopSettingsAware(true);
 
-    QApplication app(argc, argv);
+	QApplication app(argc, argv);
 
 #ifdef WIN32
-    //qDebug() << QStyleFactory::keys();
-    //app.setStyle(QStyleFactory::create("windows"));
+	//qDebug() << QStyleFactory::keys();
+	//app.setStyle(QStyleFactory::create("windows"));
 #endif
 
 	MainWindow* mw = new MainWindow();
-    mw->showMaximized();
-    return app.exec();
+	mw->showMaximized();
+	return app.exec();
 }

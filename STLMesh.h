@@ -7,13 +7,13 @@
 class STLMesh : public TriangleMesh
 {
 public:
-    STLMesh(QOpenGLShaderProgram *prog, QString stlfilepath);
+	STLMesh(QOpenGLShaderProgram* prog, QString stlfilepath);
 
-    bool loaded() const;
+	bool loaded() const;
 
 private:
-    QString _stlFilePath;
-    bool _loaded;
+	QString _stlFilePath;
+	bool _loaded;
 };
 
 #endif // STLMESH_H

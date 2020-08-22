@@ -9,7 +9,7 @@ class GraysKleinEditor : public QWidget
 	Q_OBJECT
 
 public:
-	GraysKleinEditor(GraysKlein* klein, QWidget *parent = Q_NULLPTR);
+	GraysKleinEditor(GraysKlein* klein, QWidget* parent = Q_NULLPTR);
 	~GraysKleinEditor();
 
 protected slots:
@@ -18,6 +18,6 @@ protected slots:
 	void on_doubleSpinBoxN_valueChanged(double val);
 
 private:
-	Ui::GraysKleinEditor *ui;
+	Ui::GraysKleinEditor* ui;
 	GraysKlein* _graysKlein;
 };

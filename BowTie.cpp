@@ -5,8 +5,8 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-BowTie::BowTie(QOpenGLShaderProgram *prog, float radius, unsigned int nSlices, unsigned int nStacks) : ParametricSurface(prog, nSlices, nStacks),
-																							 _radius(radius)
+BowTie::BowTie(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) : ParametricSurface(prog, nSlices, nStacks),
+_radius(radius)
 {
 	_name = "Bow Tie";
 	buildMesh();
@@ -36,7 +36,7 @@ float BowTie::lastVParameter() const
 	return glm::two_pi<float>();
 }
 
-Point BowTie::pointAtParameter(const float &u, const float &v)
+Point BowTie::pointAtParameter(const float& u, const float& v)
 {
 	Point P;
 	float x, y, z;

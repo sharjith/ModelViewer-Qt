@@ -3,9 +3,9 @@
 #include "SuperEllipsoid.h"
 #include "GLWidget.h"
 
-SuperEllipsoidEditor::SuperEllipsoidEditor(SuperEllipsoid* sellipsoid, QWidget *parent)
-    :QWidget(parent),
-      _ellipsoid(sellipsoid)
+SuperEllipsoidEditor::SuperEllipsoidEditor(SuperEllipsoid* sellipsoid, QWidget* parent)
+	:QWidget(parent),
+	_ellipsoid(sellipsoid)
 {
 	ui = new Ui::SuperEllipsoidEditor();
 	ui->setupUi(this);

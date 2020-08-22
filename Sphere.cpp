@@ -7,17 +7,17 @@
 
 Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) : QuadMesh(prog, "Sphere")
 {
-    int nVerts = (nSlices+1) * (nStacks + 1);
-    int elements = (nSlices * 2 * (nStacks-1) ) * 3;
+	int nVerts = (nSlices + 1) * (nStacks + 1);
+	int elements = (nSlices * 2 * (nStacks - 1)) * 3;
 
-    // Verts
-    std::vector<float> p(3 * nVerts);
-    // Normals
-    std::vector<float> n(3 * nVerts);
-    // Tex coords
-    std::vector<float> tex(2 * nVerts);
-    // Elements
-    std::vector<unsigned int> el(elements);
+	// Verts
+	std::vector<float> p(3 * nVerts);
+	// Normals
+	std::vector<float> n(3 * nVerts);
+	// Tex coords
+	std::vector<float> tex(2 * nVerts);
+	// Elements
+	std::vector<unsigned int> el(elements);
 
 	// Generate positions and normals
 	float theta, phi;
@@ -25,21 +25,21 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	float phiFac = glm::pi<float>() / nStacks;
 	float nx, ny, nz, s, t;
 	unsigned int idx = 0, tIdx = 0;
-	for( unsigned int i = 0; i <= nSlices; i++ ) {
+	for (unsigned int i = 0; i <= nSlices; i++) {
 		theta = i * thetaFac;
-                s = (float)i / nSlices;
-		for( unsigned int j = 0; j <= nStacks; j++ ) {
+		s = (float)i / nSlices;
+		for (unsigned int j = 0; j <= nStacks; j++) {
 			phi = j * phiFac;
-                        t = (float)j / nStacks;
+			t = (float)j / nStacks;
 			nx = sinf(phi) * cosf(theta);
 			ny = sinf(phi) * sinf(theta);
 			nz = cosf(phi);
-			p[idx] = radius * nx; p[idx+1] = radius * ny; p[idx+2] = radius * nz;
-			n[idx] = nx; n[idx+1] = ny; n[idx+2] = nz;
+			p[idx] = radius * nx; p[idx + 1] = radius * ny; p[idx + 2] = radius * nz;
+			n[idx] = nx; n[idx + 1] = ny; n[idx + 2] = nz;
 			idx += 3;
 
 			tex[tIdx] = s;
-			tex[tIdx+1] = t;
+			tex[tIdx + 1] = t;
 			tIdx += 2;
 		}
 	}

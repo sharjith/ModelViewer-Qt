@@ -1,4 +1,3 @@
-
 #ifndef __MODELVIEWER_H__
 #define __MODELVIEWER_H__
 
@@ -11,30 +10,30 @@ class ModelViewer : public QWidget, public Ui::ModelViewer
 {
 	Q_OBJECT
 public:
-	ModelViewer(QWidget *parent = 0);
+	ModelViewer(QWidget* parent = 0);
 	~ModelViewer();
 
-	GLWidget *getGLView() const { return _glWidget; }
+	GLWidget* getGLView() const { return _glWidget; }
 
-	void setMaterialProps(const GLMaterialProps &mat);
+	void setMaterialProps(const GLMaterialProps& mat);
 	void setTransformation();
 
-    QListWidget* getListModel() { return listWidgetModel; }
+	QListWidget* getListModel() { return listWidgetModel; }
 
 public slots:
-    void updateDisplayList();
-    void hideSelectedItems();
-    void deleteSelectedItems();
-    void showObjectDisplayList();
-    void showObjectsPropertiesPage();
+	void updateDisplayList();
+	void hideSelectedItems();
+	void deleteSelectedItems();
+	void showObjectDisplayList();
+	void showObjectsPropertiesPage();
 	void showEnvironmentPage();
-    void showTransformationsPage();
+	void showTransformationsPage();
 
 private slots:
-	void on_checkTexture_toggled(bool checked);	
+	void on_checkTexture_toggled(bool checked);
 	void on_textureButton_clicked();
-    void on_pushButtonDefaultLights_clicked();
-    void on_pushButtonDefaultMatls_clicked();
+	void on_pushButtonDefaultLights_clicked();
+	void on_pushButtonDefaultMatls_clicked();
 	void on_pushButtonApplyTransformations_clicked();
 
 	void on_toolButtonFitAll_clicked(bool checked);
@@ -53,10 +52,10 @@ private slots:
 	void on_dimetricView_triggered(bool checked);
 	void on_trimetricView_triggered(bool checked);
 
-    void on_displayShaded_triggered(bool);
-    void on_displayWireframe_triggered(bool);
-    void on_displayWireShaded_triggered(bool);
-    void on_displayRealShaded_triggered(bool);
+	void on_displayShaded_triggered(bool);
+	void on_displayWireframe_triggered(bool);
+	void on_displayWireShaded_triggered(bool);
+	void on_displayRealShaded_triggered(bool);
 
 	void on_pushButtonLightAmbient_clicked();
 	void on_pushButtonLightDiffuse_clicked();
@@ -103,38 +102,38 @@ private slots:
 
 	void setListRow(int index);
 
-	void showContextMenu(const QPoint &pos);
-    void centerScreen();	
+	void showContextMenu(const QPoint& pos);
+	void centerScreen();
 
 	void on_toolButtonShowHideAxis_toggled(bool checked);
-    void on_toolButtonVertexNormal_clicked(bool checked);
-    void on_toolButtonFaceNormal_clicked(bool checked);
+	void on_toolButtonVertexNormal_clicked(bool checked);
+	void on_toolButtonFaceNormal_clicked(bool checked);
 
-    void on_checkBoxSelectAll_toggled(bool checked);
+	void on_checkBoxSelectAll_toggled(bool checked);
 
-    void on_listWidgetModel_itemChanged(QListWidgetItem *);
-    void on_listWidgetModel_itemSelectionChanged();
+	void on_listWidgetModel_itemChanged(QListWidgetItem*);
+	void on_listWidgetModel_itemSelectionChanged();
 
-    void on_checkBoxShadowMapping_toggled(bool checked);
-    void on_checkBoxEnvMapping_toggled(bool checked);
-    void on_checkBoxSkyBox_toggled(bool checked);
-    void on_checkBoxReflections_toggled(bool checked);
+	void on_checkBoxShadowMapping_toggled(bool checked);
+	void on_checkBoxEnvMapping_toggled(bool checked);
+	void on_checkBoxSkyBox_toggled(bool checked);
+	void on_checkBoxReflections_toggled(bool checked);
 	void on_checkBoxFloor_toggled(bool checked);
 
 protected:
-	void showEvent(QShowEvent *event);
+	void showEvent(QShowEvent* event);
 
 private:
-	GLWidget *_glWidget;
+	GLWidget* _glWidget;
 
-	QAction *isometricView;
-	QAction *dimetricView;
-	QAction *trimetricView;
+	QAction* isometricView;
+	QAction* dimetricView;
+	QAction* trimetricView;
 
-    QAction *displayShaded;
-    QAction *displayWireframe;
-    QAction *displayWireShaded;
-    QAction *displayRealShaded;
+	QAction* displayShaded;
+	QAction* displayWireframe;
+	QAction* displayWireShaded;
+	QAction* displayRealShaded;
 
 	QVector4D _ambiMat;
 	QVector4D _diffMat;
@@ -146,12 +145,12 @@ private:
 	bool _bHasTexture;
 
 	bool _bFirstTime;
-    bool _bDeletionInProgress;
+	bool _bDeletionInProgress;
 
 	QString _lastOpenedDir;
 
 private:
-	void updateControls();	
+	void updateControls();
 };
 
 #endif

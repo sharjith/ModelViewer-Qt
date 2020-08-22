@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 Horn::Horn(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ Horn::Horn(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsig
 	_name = "Horn";
 	buildMesh();
 }
-
 
 Horn::~Horn()
 {
@@ -44,8 +42,6 @@ Point Horn::pointAtParameter(const float& u, const float& v)
 	Point P;
 	float x, y, z;
 
-	
-
 	//http://paulbourke.net/geometry/spiral/
 	/*Horn
 	Where 0 <= u <= 1, 0 <= v <= 2pi
@@ -53,7 +49,7 @@ Point Horn::pointAtParameter(const float& u, const float& v)
 	x = _radius * (2 + u * cos(v)) * sin(2 * glm::pi<float>() * u);
 	y = _radius * (2 + u * cos(v)) * cos(2 * glm::pi<float>() * u) + 2 * u;
 	z = _radius * u * sin(v);
-	
+
 	P.setParam(x, y, z);
 	return P;
 }

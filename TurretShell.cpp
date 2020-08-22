@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 TurretShell::TurretShell(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ TurretShell::TurretShell(QOpenGLShaderProgram* prog, float radius, unsigned int 
 	_name = "Turret Shell";
 	buildMesh();
 }
-
 
 TurretShell::~TurretShell()
 {
@@ -53,13 +51,12 @@ Point TurretShell::pointAtParameter(const float& u, const float& v)
 	float T = 0.8f;  // Triangleness of cross section
 	float A = 0.1f;  // Angle of tilt of cross section (radians)
 	float S = 1.5;  // Stretch
-	
-	auto W = [R, P1](auto u) {return pow((u / (2 * glm::pi<float>())*R), P1); };
 
-	x = _radius * (W(u)*cos(N*u)*(1 + cos(v + A) + sin(2 * v + A)*T / 4));
-	y = _radius * (W(u)*sin(N*u)*(1 + cos(v + A) + sin(2 * v + A)*T / 4));
-	z = _radius * (S * W(u)*(sin(v + A) + cos(2 * v + A)*T / 4) + S * H* pow((u / (2 * glm::pi<float>())), P)) -(_radius*4.5);
-	
+	auto W = [R, P1](auto u) {return pow((u / (2 * glm::pi<float>()) * R), P1); };
+
+	x = _radius * (W(u) * cos(N * u) * (1 + cos(v + A) + sin(2 * v + A) * T / 4));
+	y = _radius * (W(u) * sin(N * u) * (1 + cos(v + A) + sin(2 * v + A) * T / 4));
+	z = _radius * (S * W(u) * (sin(v + A) + cos(2 * v + A) * T / 4) + S * H * pow((u / (2 * glm::pi<float>())), P)) - (_radius * 4.5);
 
 	point.setParam(x, y, z);
 	return point;

@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 Figure8KleinBottle::Figure8KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ Figure8KleinBottle::Figure8KleinBottle(QOpenGLShaderProgram* prog, float radius,
 	_name = "Figure 8 Klein Bottle";
 	buildMesh();
 }
-
 
 Figure8KleinBottle::~Figure8KleinBottle()
 {
@@ -44,13 +42,12 @@ Point Figure8KleinBottle::pointAtParameter(const float& u, const float& v)
 	Point P;
 	float x, y, z;
 
-	//http://paulbourke.net/geometry/toroidal/	
+	//http://paulbourke.net/geometry/toroidal/
 	// Figure-8 Klein bottle
 	// Where u = 0 - 2PI and v = 0 - 2PI
-	x = _radius * (2 + cos(v / 2)* sin(u) - sin(v / 2)* sin(2 * u))* cos(v);
-	y = _radius * (2 + cos(v / 2)* sin(u) - sin(v / 2)* sin(2 * u))* sin(v);
-	z = _radius * (sin(v / 2)* sin(u) + cos(v / 2) *sin(2 * u));
-
+	x = _radius * (2 + cos(v / 2) * sin(u) - sin(v / 2) * sin(2 * u)) * cos(v);
+	y = _radius * (2 + cos(v / 2) * sin(u) - sin(v / 2) * sin(2 * u)) * sin(v);
+	z = _radius * (sin(v / 2) * sin(u) + cos(v / 2) * sin(2 * u));
 
 	P.setParam(x, y, z);
 	return P;

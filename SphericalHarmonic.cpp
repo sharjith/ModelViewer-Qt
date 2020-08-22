@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 SphericalHarmonic::SphericalHarmonic(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -23,7 +22,6 @@ SphericalHarmonic::SphericalHarmonic(QOpenGLShaderProgram* prog, float radius, u
 
 	buildMesh();
 }
-
 
 SphericalHarmonic::~SphericalHarmonic()
 {

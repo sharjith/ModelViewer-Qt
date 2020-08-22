@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 Folium::Folium(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ Folium::Folium(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	_name = "Folium";
 	buildMesh();
 }
-
 
 Folium::~Folium()
 {
@@ -44,14 +42,12 @@ Point Folium::pointAtParameter(const float& u, const float& v)
 	Point P;
 	float x, y, z;
 
-	
 	// Folium
 	// Where -pi <= u <= pi -pi <= v <= pi
 	x = _radius * (cos(u) * (2 * v / glm::pi<float>() - tanh(v)));
 	y = _radius * (cos(u + 2 * glm::pi<float>() / 3) / cosh(v));
 	z = _radius * (cos(u - 2 * glm::pi<float>() / 3) / cosh(v));
 
-	
 	P.setParam(x, y, z);
 	return P;
 }

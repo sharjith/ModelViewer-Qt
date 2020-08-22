@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 KleinBottle::KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ KleinBottle::KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int 
 	_name = "Klein Bottle";
 	buildMesh();
 }
-
 
 KleinBottle::~KleinBottle()
 {
@@ -48,18 +46,17 @@ Point KleinBottle::pointAtParameter(const float& u, const float& v)
 	// Klein Bottle
 	// Where u = 0 - 2PI and v = 0 - 2PI
 	float r = 4 * (1 - cos(u) / 2);
-	if(u >= 0 && u < glm::pi<float>())
-		x = -_radius / 6 * (6 * cos(u)*(1 + sin(u)) + r * cos(u)*cos(v));
+	if (u >= 0 && u < glm::pi<float>())
+		x = -_radius / 6 * (6 * cos(u) * (1 + sin(u)) + r * cos(u) * cos(v));
 	else
-		x = -_radius / 6 * (6 * cos(u)*(1 + sin(u)) + r * cos(v + glm::pi<float>()));
+		x = -_radius / 6 * (6 * cos(u) * (1 + sin(u)) + r * cos(v + glm::pi<float>()));
 
 	if (u >= 0 && u < glm::pi<float>())
-		z = -_radius / 6 * (16 * sin(u) + r * sin(u)*cos(v));
+		z = -_radius / 6 * (16 * sin(u) + r * sin(u) * cos(v));
 	else
 		z = -_radius / 6 * (16 * sin(u));
 
 	y = -_radius / 6 * (r * sin(v));
-	
 
 	P.setParam(x, y, z);
 	return P;

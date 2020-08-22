@@ -9,7 +9,7 @@ class SuperToroidEditor : public QWidget, public Ui::SuperToroidEditor
 	Q_OBJECT
 
 public:
-	SuperToroidEditor(SuperToroid* storoid, QWidget *parent = Q_NULLPTR);
+	SuperToroidEditor(SuperToroid* storoid, QWidget* parent = Q_NULLPTR);
 	~SuperToroidEditor();
 
 protected slots:

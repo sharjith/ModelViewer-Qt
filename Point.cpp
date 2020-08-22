@@ -1,14 +1,12 @@
 #include "Point.h"
 #include <glm/glm.hpp>
 
-
 Point::Point(const float& x, const float& y, const float& z)
 {
 	_x = x;
 	_y = y;
 	_z = z;
 }
-
 
 Point::~Point()
 {

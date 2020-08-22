@@ -6,5 +6,5 @@
 class Cube : public QuadMesh
 {
 public:
-    Cube(QOpenGLShaderProgram *prog, float size = 1.0f);
+	Cube(QOpenGLShaderProgram* prog, float size = 1.0f);
 };

@@ -7,7 +7,7 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks):QuadMesh(prog, "Cone")
+Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks) :QuadMesh(prog, "Cone")
 {
 	int nVerts = ((nSlices + 1) * (nStacks + 1)) + nSlices + 2;
 	int elements = ((nSlices * 2 * (nStacks)) * 3) + (nSlices) * 3;
@@ -34,7 +34,7 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 	{
 		theta = i * thetaFac;
 		s = (float)i / nSlices;
-		
+
 		for (unsigned int j = 0; j <= nStacks; j++)
 		{
 			phi = j * phiFac;
@@ -42,10 +42,10 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
-			p[idx] = (radius - phi*tan(ang)) * nx; p[idx + 1] = (radius - phi * tan(ang)) * ny; p[idx + 2] = nz - height / 2.0f;
-			glm::vec3 o(0, 0, (nz*height) - height / 2.0f);
-			glm::vec3 v((nx*radius), (ny*radius), (nz*height) - height / 2.0f);
-			glm::vec3 normal = v - o;			
+			p[idx] = (radius - phi * tan(ang)) * nx; p[idx + 1] = (radius - phi * tan(ang)) * ny; p[idx + 2] = nz - height / 2.0f;
+			glm::vec3 o(0, 0, (nz * height) - height / 2.0f);
+			glm::vec3 v((nx * radius), (ny * radius), (nz * height) - height / 2.0f);
+			glm::vec3 normal = v - o;
 			normal = glm::normalize(normal);
 			normal = -normal;
 			n[idx] = normal.x; n[idx + 1] = normal.y; n[idx + 2] = normal.z;
@@ -69,8 +69,8 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 		p[idx] = radius * nx; p[idx + 1] = radius * ny; p[idx + 2] = nz - height / 2.0f;
 		n[idx] = 0; n[idx + 1] = 0; n[idx + 2] = -1.0f;
 		idx += 3;
-		s = (-nx + 1.0f)*0.5f;
-		t = (ny + 1.0f)*0.5f;
+		s = (-nx + 1.0f) * 0.5f;
+		t = (ny + 1.0f) * 0.5f;
 		tex[tIdx] = s;
 		tex[tIdx + 1] = t;
 		tIdx += 2;
@@ -129,7 +129,6 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-	
-	computeBoundingSphere(p);
 
+	computeBoundingSphere(p);
 }

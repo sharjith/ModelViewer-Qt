@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 TriaxialTritorus::TriaxialTritorus(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ TriaxialTritorus::TriaxialTritorus(QOpenGLShaderProgram* prog, float radius, uns
 	_name = "Triaxial Tritorus";
 	buildMesh();
 }
-
 
 TriaxialTritorus::~TriaxialTritorus()
 {
@@ -45,7 +43,6 @@ Point TriaxialTritorus::pointAtParameter(const float& u, const float& v)
 	float x, y, z;
 
 	//http://paulbourke.net/geometry/toroidal/
-	
 
 	/*The Triaxial Tritorus is defined parametrically as
 	Where

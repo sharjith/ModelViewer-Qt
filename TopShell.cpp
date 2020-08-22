@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 TopShell::TopShell(QOpenGLShaderProgram* prog, Point center, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius),
@@ -14,7 +13,6 @@ TopShell::TopShell(QOpenGLShaderProgram* prog, Point center, float radius, unsig
 	_name = "Top Sea Shell";
 	buildMesh();
 }
-
 
 TopShell::~TopShell()
 {
@@ -51,11 +49,11 @@ Point TopShell::pointAtParameter(const float& u, const float& v)
 	float N = 7.6f;  // number of turns
 	float H = 2.5f;  // height
 	float p = 1.3f;  // power
-	auto W = [R](auto u) {return u / (2 * glm::pi<float>())*R; };
-	x = _center.getX() + (_radius * (W(u)*cos(N*u)*(1 + cos(v))));
-	y = _center.getY() + (_radius * (W(u)*sin(N*u)*(1 + cos(v))));
-	z = _center.getZ() + (_radius * (W(u)*sin(v) + H * pow((u / (2 * glm::pi<float>())), p)) - _radius * 1.75);
+	auto W = [R](auto u) {return u / (2 * glm::pi<float>()) * R; };
+	x = _center.getX() + (_radius * (W(u) * cos(N * u) * (1 + cos(v))));
+	y = _center.getY() + (_radius * (W(u) * sin(N * u) * (1 + cos(v))));
+	z = _center.getZ() + (_radius * (W(u) * sin(v) + H * pow((u / (2 * glm::pi<float>())), p)) - _radius * 1.75);
 
-	P.setParam(x, y, z);	
+	P.setParam(x, y, z);
 	return P;
 }

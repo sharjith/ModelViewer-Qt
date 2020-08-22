@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, float n1, float n2, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_outerRadius(outerRadius),
@@ -16,7 +15,6 @@ SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float in
 	_name = "Super Toroid";
 	buildMesh();
 }
-
 
 SuperToroid::~SuperToroid()
 {
@@ -71,7 +69,6 @@ Point SuperToroid::pointAtParameter(const float& u, const float& v)
 	x = power(cos(u), _n1) * (_outerRadius + _innerRadius * power(cos(v), _n2));
 	y = power(sin(u), _n1) * (_outerRadius + _innerRadius * power(cos(v), _n2));
 	z = _innerRadius * power(sin(v), _n2);
-	
 
 	P.setParam(x, y, z);
 	return P;

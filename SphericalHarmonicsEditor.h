@@ -4,17 +4,17 @@
 #include <QWidget>
 
 namespace Ui {
-class SphericalHarmonicsEditor;
+	class SphericalHarmonicsEditor;
 }
 
 class SphericalHarmonic;
 class SphericalHarmonicsEditor : public QWidget
 {
-    Q_OBJECT
+	Q_OBJECT
 
 public:
-    explicit SphericalHarmonicsEditor(SphericalHarmonic* sphere, QWidget *parent = nullptr);
-    ~SphericalHarmonicsEditor();
+	explicit SphericalHarmonicsEditor(SphericalHarmonic* sphere, QWidget* parent = nullptr);
+	~SphericalHarmonicsEditor();
 
 protected slots:
 	void on_doubleSpinBoxM0_valueChanged(double val);
@@ -27,7 +27,7 @@ protected slots:
 	void on_doubleSpinBoxM7_valueChanged(double val);
 
 private:
-    Ui::SphericalHarmonicsEditor *ui;
+	Ui::SphericalHarmonicsEditor* ui;
 	SphericalHarmonic* _sphere;
 };
 

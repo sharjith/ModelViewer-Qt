@@ -3,7 +3,7 @@
 #include "Spring.h"
 #include "GLWidget.h"
 
-SpringEditor::SpringEditor(Spring* spring, QWidget *parent)
+SpringEditor::SpringEditor(Spring* spring, QWidget* parent)
 	: QWidget(parent),
 	_spring(spring)
 {
@@ -14,7 +14,6 @@ SpringEditor::SpringEditor(Spring* spring, QWidget *parent)
 	ui->doubleSpinBoxCoilRad->setValue(_spring->_coilRadius);
 	ui->doubleSpinBoxPitch->setValue(_spring->_pitch);
 	ui->doubleSpinBoxTurns->setValue(_spring->_turns);
-	
 }
 
 SpringEditor::~SpringEditor()

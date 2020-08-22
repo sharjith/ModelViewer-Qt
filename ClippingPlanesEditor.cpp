@@ -5,23 +5,23 @@
 
 #include <QKeyEvent>
 
-ClippingPlanesEditor::ClippingPlanesEditor(QWidget *parent) :
-    QWidget(parent),
-    ui(new Ui::ClippingPlanesEditor),
+ClippingPlanesEditor::ClippingPlanesEditor(QWidget* parent) :
+	QWidget(parent),
+	ui(new Ui::ClippingPlanesEditor),
 	_glView(dynamic_cast<GLWidget*>(parent))
 {
-    ui->setupUi(this);
+	ui->setupUi(this);
 }
 
 ClippingPlanesEditor::~ClippingPlanesEditor()
 {
-    delete ui;
+	delete ui;
 }
 
-void ClippingPlanesEditor::keyPressEvent(QKeyEvent *e)
+void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 {
 	if (e->key() != Qt::Key_Escape)
-        QWidget::keyPressEvent(e);
+		QWidget::keyPressEvent(e);
 	else {/* minimize */ }
 }
 
@@ -81,19 +81,18 @@ void ClippingPlanesEditor::on_doubleSpinBoxZXCoeff_valueChanged(double val)
 
 void ClippingPlanesEditor::on_doubleSpinBoxDX_valueChanged(double arg1)
 {
-    _glView->_clipDX = arg1;
-    _glView->update();
+	_glView->_clipDX = arg1;
+	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxDY_valueChanged(double arg1)
 {
-    _glView->_clipDY = arg1;
-    _glView->update();
+	_glView->_clipDY = arg1;
+	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxDZ_valueChanged(double arg1)
 {
-    _glView->_clipDZ = arg1;
-    _glView->update();
+	_glView->_clipDZ = arg1;
+	_glView->update();
 }
-

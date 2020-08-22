@@ -3,7 +3,7 @@
 #include "GraysKlein.h"
 #include "GLWidget.h"
 
-GraysKleinEditor::GraysKleinEditor(GraysKlein* klein, QWidget *parent)
+GraysKleinEditor::GraysKleinEditor(GraysKlein* klein, QWidget* parent)
 	: QWidget(parent),
 	ui(new Ui::GraysKleinEditor()),
 	_graysKlein(klein)

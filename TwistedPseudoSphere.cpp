@@ -15,7 +15,6 @@ TwistedPseudoSphere::TwistedPseudoSphere(QOpenGLShaderProgram* prog, float radiu
 	buildMesh();
 }
 
-
 TwistedPseudoSphere::~TwistedPseudoSphere()
 {
 }
@@ -49,12 +48,12 @@ Point TwistedPseudoSphere::pointAtParameter(const float& u, const float& v)
 	//http://paulbourke.net/geometry/toroidal/
 	//Dini's Surface or Twisted Pseudo-sphere
 	// Where 0 <= u, 0 < v
-	
+
 	float b = 6;
 	x = _radius * cos(u) * sin(v);
 	y = _radius * sin(u) * sin(v);
-	z = _radius * (cos(v) + log(tan(v / 2))) + b * u + _radius/3;
-	
+	z = _radius * (cos(v) + log(tan(v / 2))) + b * u + _radius / 3;
+
 	P.setParam(x, y, z);
 	return P;
 }

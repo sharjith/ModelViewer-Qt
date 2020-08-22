@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 Spring::Spring(QOpenGLShaderProgram* prog, float sectionRadius, float coilRadius, float pitch, float turns, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_sectionRadius(sectionRadius),
@@ -16,7 +15,6 @@ Spring::Spring(QOpenGLShaderProgram* prog, float sectionRadius, float coilRadius
 	_name = "Spring";
 	buildMesh();
 }
-
 
 Spring::~Spring()
 {
@@ -51,7 +49,7 @@ Point Spring::pointAtParameter(const float& u, const float& v)
 	// Spring
 
 	float h = (1 / glm::pi<float>()) / _sectionRadius * _pitch;
-	
+
 	x = (_coilRadius + _sectionRadius * cos(v)) * cos(u);
 	y = (_coilRadius + _sectionRadius * cos(v)) * sin(u);
 	z = _sectionRadius * (sin(v) + u * h);

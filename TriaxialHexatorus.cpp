@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 TriaxialHexatorus::TriaxialHexatorus(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ TriaxialHexatorus::TriaxialHexatorus(QOpenGLShaderProgram* prog, float radius, u
 	_name = "Triaxial Hexatorus";
 	buildMesh();
 }
-
 
 TriaxialHexatorus::~TriaxialHexatorus()
 {
@@ -52,7 +50,7 @@ Point TriaxialHexatorus::pointAtParameter(const float& u, const float& v)
 	x = _radius * sin(u) / (sqrt(2) + cos(v));
 	y = _radius * sin(u + 2 * glm::pi<float>() / 3) / (sqrt(2) + cos(v + 2 * glm::pi<float>() / 3));
 	z = _radius * cos(u - 2 * glm::pi<float>() / 3) / (sqrt(2) + cos(v - 2 * glm::pi<float>() / 3));
-	
+
 	P.setParam(x, y, z);
 	return P;
 }

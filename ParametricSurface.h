@@ -6,11 +6,11 @@
 class ParametricSurface : public QuadMesh, public IParametricSurface
 {
 public:
-	ParametricSurface(QOpenGLShaderProgram *prog, unsigned int nSlices, unsigned int nStacks);
+	ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks);
 	virtual ~ParametricSurface();
 
-	virtual Point pointAtParameter(const float &u, const float &v) = 0;
-	virtual glm::vec3 normalAtParameter(const float &u, const float &v);
+	virtual Point pointAtParameter(const float& u, const float& v) = 0;
+	virtual glm::vec3 normalAtParameter(const float& u, const float& v);
 
 	void buildMesh();
 

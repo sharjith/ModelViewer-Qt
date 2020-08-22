@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 DoubleCone::DoubleCone(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ DoubleCone::DoubleCone(QOpenGLShaderProgram* prog, float radius, unsigned int nS
 	_name = "Double Cone";
 	buildMesh();
 }
-
 
 DoubleCone::~DoubleCone()
 {

@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 SuperEllipsoid::SuperEllipsoid(QOpenGLShaderProgram* prog, float radius, float scaleX, float scaleY, float scaleZ, float n1, float n2, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius),
@@ -19,19 +18,18 @@ SuperEllipsoid::SuperEllipsoid(QOpenGLShaderProgram* prog, float radius, float s
 	buildMesh();
 }
 
-
 SuperEllipsoid::~SuperEllipsoid()
 {
 }
 
 float SuperEllipsoid::firstUParameter() const
 {
-	return -glm::pi<float>()/2;
+	return -glm::pi<float>() / 2;
 }
 
 float SuperEllipsoid::lastUParameter() const
 {
-	return glm::pi<float>()/2;
+	return glm::pi<float>() / 2;
 }
 
 float SuperEllipsoid::firstVParameter() const
@@ -56,7 +54,7 @@ Point SuperEllipsoid::pointAtParameter(const float& u, const float& v)
 	// z = r * sin^n1(u)
 	// Where u = -2PI - 2PI and v = -PI - PI
 
-    /*
+	/*
 	auto power = [](double f, double p)->double
 	{
 		int sign;
@@ -71,11 +69,9 @@ Point SuperEllipsoid::pointAtParameter(const float& u, const float& v)
 			return(sign * pow(absf, p));
 	};
 
-    x = _radius * power(cos(u), _n1) * power(cos(v), _n2);
+	x = _radius * power(cos(u), _n1) * power(cos(v), _n2);
 	y = _radius * power(cos(u), _n1) * power(sin(v), _n2);
 	z = _radius * power(sin(u), _n1);*/
-
-	
 
 	auto sign = [](float f)->float
 	{

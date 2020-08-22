@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 SpindleShell::SpindleShell(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ SpindleShell::SpindleShell(QOpenGLShaderProgram* prog, float radius, unsigned in
 	_name = "Spindle Sea Shell";
 	buildMesh();
 }
-
 
 SpindleShell::~SpindleShell()
 {
@@ -52,10 +50,10 @@ Point SpindleShell::pointAtParameter(const float& u, const float& v)
 	float p = 1.4f;  // power
 	float L = 4;    // Controls spike length
 	float K = 9;    // Controls spike sharpness
-	auto W = [R](auto u) { return u / pow(((2 * glm::pi<float>())*R), 0.9); };
-	x = _radius * (W(u)*cos(N*u)*(1 + cos(v)));
-	y = _radius * (W(u)*sin(N*u)*(1 + cos(v)));
-	z = _radius * (W(u)*(sin(v) + L * pow((sin(v / 2)), K) + H * pow((u / (2 * glm::pi<float>())*R), p))) - _radius * 3.8;
+	auto W = [R](auto u) { return u / pow(((2 * glm::pi<float>()) * R), 0.9); };
+	x = _radius * (W(u) * cos(N * u) * (1 + cos(v)));
+	y = _radius * (W(u) * sin(N * u) * (1 + cos(v)));
+	z = _radius * (W(u) * (sin(v) + L * pow((sin(v / 2)), K) + H * pow((u / (2 * glm::pi<float>()) * R), p))) - _radius * 3.8;
 
 	P.setParam(x, y, z);
 	return P;

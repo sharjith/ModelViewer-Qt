@@ -9,7 +9,7 @@ class SpringEditor : public QWidget
 	Q_OBJECT
 
 public:
-	SpringEditor(Spring* spring, QWidget *parent = Q_NULLPTR);
+	SpringEditor(Spring* spring, QWidget* parent = Q_NULLPTR);
 	~SpringEditor();
 
 protected slots:
@@ -19,7 +19,7 @@ protected slots:
 	void on_doubleSpinBoxTurns_valueChanged(double val);
 
 private:
-	Ui::SpringEditor *ui;
+	Ui::SpringEditor* ui;
 
 	Spring* _spring;
 };

@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 AppleSurface::AppleSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ AppleSurface::AppleSurface(QOpenGLShaderProgram* prog, float radius, unsigned in
 	_name = "Apple Surface";
 	buildMesh();
 }
-
 
 AppleSurface::~AppleSurface()
 {
@@ -50,7 +48,6 @@ Point AppleSurface::pointAtParameter(const float& u, const float& v)
 	x = _radius * (cos(u) * (4 + 3.8 * cos(v)));
 	y = _radius * (sin(u) * (4 + 3.8 * cos(v)));
 	z = _radius * ((cos(v) + sin(v) - 1) * (1 + sin(v)) * log(1 - glm::pi<float>() * v / 10) + 7.5 * sin(v));
-		
 
 	P.setParam(x, y, z);
 	return P;

@@ -70,12 +70,12 @@ void GLCamera::updateProjectionMatrix(void)
 	{
 		if (w <= h)
 			_projectionMatrix.ortho(-halfRange, halfRange,
-									-halfRange * h / w, halfRange * h / w,
-									-halfRange * 1000, halfRange * 1000);
+				-halfRange * h / w, halfRange * h / w,
+				-halfRange * 1000, halfRange * 1000);
 		else
 			_projectionMatrix.ortho(-halfRange * w / h, halfRange * w / h,
-									-halfRange, halfRange,
-									-halfRange * 1000, halfRange * 1000);
+				-halfRange, halfRange,
+				-halfRange * 1000, halfRange * 1000);
 	}
 	else
 	{
@@ -289,7 +289,7 @@ void GLCamera::setPosition(QVector3D pos)
 	setPosition(pos.x(), pos.y(), pos.z());
 }
 
-void GLCamera::getRotationAngles(float *oPitch, float *oYaw, float *oRoll)
+void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
 {
 	QQuaternion quat = QQuaternion::fromRotationMatrix(_viewMatrix.toGenericMatrix<3, 3>());
 	QVector3D euler = quat.toEulerAngles();
@@ -328,12 +328,12 @@ void GLCamera::computeStereoViewProjectionMatrices(int width, int height, float 
 	// update the view matrix
 	QVector3D viewPoint = _position + _viewDir;
 	_viewMatrix.lookAt(_position - _viewDir +
-						   QVector3D(left_right_direction * IOD / 2, 0, 0),
-					   //eye position
-					   viewPoint +
-						   QVector3D(left_right_direction * IOD / 2, 0, 0),
-					   //centre position
-					   _upVector //up direction
+		QVector3D(left_right_direction * IOD / 2, 0, 0),
+		//eye position
+		viewPoint +
+		QVector3D(left_right_direction * IOD / 2, 0, 0),
+		//centre position
+		_upVector //up direction
 	);
 }
 

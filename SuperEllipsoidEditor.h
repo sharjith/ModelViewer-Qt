@@ -9,7 +9,7 @@ class SuperEllipsoidEditor : public QWidget
 	Q_OBJECT
 
 public:
-	SuperEllipsoidEditor(SuperEllipsoid* sellipsoid, QWidget *parent = Q_NULLPTR);
+	SuperEllipsoidEditor(SuperEllipsoid* sellipsoid, QWidget* parent = Q_NULLPTR);
 	~SuperEllipsoidEditor();
 
 protected slots:
@@ -17,10 +17,10 @@ protected slots:
 	void on_doubleSpinBoxScaleY_valueChanged(double val);
 	void on_doubleSpinBoxScaleZ_valueChanged(double val);
 	void on_doubleSpinBoxN1_valueChanged(double val);
-	void on_doubleSpinBoxN2_valueChanged(double val);	
+	void on_doubleSpinBoxN2_valueChanged(double val);
 	void on_doubleSpinBoxRad_valueChanged(double val);
 
 private:
 	SuperEllipsoid* _ellipsoid;
-	Ui::SuperEllipsoidEditor *ui;
+	Ui::SuperEllipsoidEditor* ui;
 };

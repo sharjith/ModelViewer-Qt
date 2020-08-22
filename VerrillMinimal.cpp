@@ -5,7 +5,6 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-
 VerrillMinimal::VerrillMinimal(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
 	ParametricSurface(prog, nSlices, nStacks),
 	_radius(radius)
@@ -13,7 +12,6 @@ VerrillMinimal::VerrillMinimal(QOpenGLShaderProgram* prog, float radius, unsigne
 	_name = "Verrill Minimal Surface";
 	buildMesh();
 }
-
 
 VerrillMinimal::~VerrillMinimal()
 {
@@ -46,9 +44,9 @@ Point VerrillMinimal::pointAtParameter(const float& u, const float& v)
 
 	//http://paulbourke.net/geometry/toroidal/
 	//Verrill minimal surface
-	// Where 0 <= u <= 2 pi and 0.5 <= v <= 1 
-	x = _radius * (-2 * v * cos(u) + (2 * cos(u)) / v - (2 * v*v*v * cos(3 * u)) / 3);
-	y = _radius * (6 * v * sin(u) - (2 * sin(u)) / v - (2 * v*v*v * sin(3 * u)) / 3);
+	// Where 0 <= u <= 2 pi and 0.5 <= v <= 1
+	x = _radius * (-2 * v * cos(u) + (2 * cos(u)) / v - (2 * v * v * v * cos(3 * u)) / 3);
+	y = _radius * (6 * v * sin(u) - (2 * sin(u)) / v - (2 * v * v * v * sin(3 * u)) / 3);
 	z = _radius * (4 * log(v)) + _radius * 1.5;
 
 	P.setParam(x, y, z);

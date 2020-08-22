@@ -7,19 +7,17 @@
 class QPropertyAnimation;
 class ToolPanel : public QTabWidget
 {
-    Q_OBJECT
+	Q_OBJECT
 public:
-    explicit ToolPanel(QWidget * parent = nullptr);
+	explicit ToolPanel(QWidget* parent = nullptr);
 
 protected:
-    bool eventFilter(QObject * object, QEvent * event);
+	bool eventFilter(QObject* object, QEvent* event);
 
 private:
-    QPropertyAnimation * _animation;
-
+	QPropertyAnimation* _animation;
 
 signals:
-
 };
 
 #endif // TOOLPANEL_H

@@ -2,7 +2,7 @@
 #include "SuperToroid.h"
 #include "GLWidget.h"
 
-SuperToroidEditor::SuperToroidEditor(SuperToroid* storoid, QWidget *parent)
+SuperToroidEditor::SuperToroidEditor(SuperToroid* storoid, QWidget* parent)
 	: QWidget(parent),
 	_toroid(storoid)
 {
