@@ -117,6 +117,8 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
 
     glDisable(GL_DEPTH_TEST);
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     unsigned int voffset, hoffset;
     if(vAlignment == VAlignment::VTOP)
@@ -174,6 +176,8 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
     glBindTexture(GL_TEXTURE_2D, 0);
 
     _prog->release();
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_BLEND);
 }
 
 unsigned int TextRenderer::width() const

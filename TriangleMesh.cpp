@@ -211,10 +211,21 @@ void TriangleMesh::render()
     _prog->setUniformValue("alpha", _opacity);
     _prog->setUniformValue("selected", _selected);
 
+    if(_opacity < 1.0f)
+    {
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
+    else
+    {
+        glDisable(GL_BLEND);
+    }
+
     _vertexArrayObject.bind();
     glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
     _vertexArrayObject.release();
     _prog->release();
+    glDisable(GL_BLEND);
 }
 
 TriangleMesh::~TriangleMesh()
