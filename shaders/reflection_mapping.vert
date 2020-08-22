@@ -10,7 +10,6 @@ uniform mat4 projectionMatrix;
 uniform vec4 clipPlaneX;
 uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
-
 // user defined clip plane
 uniform vec4 clipPlane;
 
