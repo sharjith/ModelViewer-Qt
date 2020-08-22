@@ -166,7 +166,7 @@ signals:
 public slots:
     void animateViewChange();
     void animateFitAll();
-    void animateWindowZoom();    
+    void animateWindowZoom();
     void animateCenterScreen();
 
 private slots:
@@ -179,7 +179,7 @@ private slots:
     void setBackgroundColor();
 
 protected:
-    void initializeGL();    
+    void initializeGL();
     void resizeGL(int width, int height);
     void paintGL();
 
@@ -187,6 +187,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent *);
     void mouseMoveEvent(QMouseEvent *);
     void wheelEvent(QWheelEvent *);
+    void keyPressEvent(QKeyEvent *event);
+    void keyReleaseEvent(QKeyEvent *event);
     void closeEvent(QCloseEvent *event);
 
 private:
@@ -285,9 +287,7 @@ private:
     QOpenGLShaderProgram*     _skyBoxShader;
     QOpenGLShaderProgram*     _reflectionMappingShader;
 
-    QOpenGLShaderProgram     _textShader;
-
-    unsigned int             _environmentMap;   
+    unsigned int             _environmentMap;
     unsigned int             _shadowMap;
     unsigned int             _shadowMapFBO;
     unsigned int             _reflectionMap;
@@ -296,6 +296,8 @@ private:
     unsigned int             _reflectionMapDBO;
     float                    _floorSize;
     QVector3D                _floorCenter;
+
+    QOpenGLShaderProgram     _textShader;
 
     QOpenGLShaderProgram     _bgShader;
     QOpenGLVertexArrayObject _bgVAO;
@@ -340,17 +342,18 @@ private:
 
     QOpenGLShaderProgram     _debugShader;
 
-     ModelViewer* _viewer;
+    ModelViewer* _viewer;
+
+    unsigned int quadVAO;
+    unsigned int quadVBO;
 
 private:
-
     void createShaderPrograms();
     void createGeometry();
     void loadEnvMap();
     void loadReflectionMap();
     void loadFloor();
-    
-        
+
     void drawMesh();
     void drawFloor();
     void drawSkyBox();
@@ -365,7 +368,7 @@ private:
     void renderToReflectionDepthMap();
 
     void gradientBackground(float top_r, float top_g, float top_b, float top_a,
-        float bot_r, float bot_g, float bot_b, float bot_a);
+                            float bot_r, float bot_g, float bot_b, float bot_a);
     void splitScreen();
 
     void setRotations(float xRot, float yRot, float zRot);
@@ -377,10 +380,6 @@ private:
 
     float lowestModelZ();
 
-    unsigned int _planeVAO;
-
-    unsigned int quadVAO;
-    unsigned int quadVBO;
     void renderQuad();
 };
 

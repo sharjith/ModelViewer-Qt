@@ -71,10 +71,12 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _skyBox(nullptr)
 {
     _viewer = static_cast<ModelViewer*>(parent);
+
     _bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
     _bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
+
     quadVAO = 0;
-    _planeVAO = 0;
+
     _fgShader = new QOpenGLShaderProgram(this);
     _axisShader = new QOpenGLShaderProgram(this);
     _vertexNormalShader = new QOpenGLShaderProgram(this);
@@ -692,10 +694,6 @@ void GLWidget::initializeGL()
     glEnable(GL_DEPTH_TEST);
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.f);
-
-    // Enable blending
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 }
 
 void GLWidget::createShaderPrograms()
@@ -970,7 +968,7 @@ void GLWidget::loadFloor()
     }
 
     // Floor texture
-    if (!_texBuffer.load(QString("textures/envmap/Granite#3577.jpg")))
+    if (!_texBuffer.load(QString("textures/envmap/Granite#3593.jpg")))
     { // Load first image from file
         qWarning("Could not read image file, using single-color instead.");
         QImage dummy(128, 128, static_cast<QImage::Format>(5));
@@ -1132,11 +1130,11 @@ void GLWidget::resizeGL(int width, int height)
     _camera->setViewRange(_viewRange);
     if (_projection == ViewProjection::ORTHOGRAPHIC)
     {
-        _camera->setProjection(GLCamera::ProjectionType::ORTHOGRAPHIC);
+        _camera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
     }
     else
     {
-        _camera->setProjection(GLCamera::ProjectionType::PERSPECTIVE);
+        _camera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
     }
     _projectionMatrix = _camera->getProjectionMatrix();
 
@@ -1785,6 +1783,18 @@ void GLWidget::renderToReflectionMap()
     _reflectionMappingShader->setUniformValue("clipPlane", QVector4D((model * floorView) * (QVector3D(_clipDX, _clipDY, _clipDZ) + eye),
                                                                      eye.x() * _clipDX + eye.y() * _clipDY + eye.z() * _clipDZ));
 
+    // Clipping Planes
+    if (_clipXEnabled)
+        glEnable(GL_CLIP_DISTANCE0);
+    if (_clipYEnabled)
+        glEnable(GL_CLIP_DISTANCE1);
+    if (_clipZEnabled)
+        glEnable(GL_CLIP_DISTANCE2);
+
+    if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    {
+        glEnable(GL_CLIP_DISTANCE3);
+    }
     if (_meshStore.size() != 0)
     {
         for (int i : _displayedObjectsIds)
@@ -1809,6 +1819,10 @@ void GLWidget::renderToReflectionMap()
     glDisable(GL_CULL_FACE);
     glDisable(GL_POLYGON_OFFSET_FILL);
     glEnable(GL_BLEND);
+    glDisable(GL_CLIP_DISTANCE0);
+    glDisable(GL_CLIP_DISTANCE1);
+    glDisable(GL_CLIP_DISTANCE2);
+    glDisable(GL_CLIP_DISTANCE3);
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
@@ -1948,6 +1962,7 @@ void GLWidget::splitScreen()
 
 void GLWidget::mousePressEvent(QMouseEvent* e)
 {
+    setFocus();
     if (e->button() & Qt::LeftButton)
     {        
         _leftButtonPoint.setX(e->x());
@@ -2087,6 +2102,75 @@ void GLWidget::wheelEvent(QWheelEvent* e)
     resizeGL(width(), height());
 
     update();
+}
+
+void GLWidget::keyPressEvent(QKeyEvent *event)
+{
+    float delta = 2.0f;
+    float factor = 1.1;
+
+    if(_camera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+    {
+        switch(event->key())
+        {
+        case Qt::Key_A:
+            _camera->moveAcross(2.0f);
+            break;
+        case Qt::Key_D:
+            _camera->moveAcross(-2.0f);
+            break;
+        case Qt::Key_W:
+            _camera->moveForward(-2.0f);
+            break;
+        case Qt::Key_S:
+            _camera->moveForward(2.0);
+            break;
+        }
+    }
+    else
+    {
+        switch(event->key())
+        {
+        case Qt::Key_A:
+            _camera->moveAcross(2.0f);
+            break;
+        case Qt::Key_D:
+            _camera->moveAcross(-2.0f);
+            break;
+        case Qt::Key_W:
+            _camera->moveUpward(-2.0f);
+            break;
+        case Qt::Key_S:
+            _camera->moveUpward(2.0f);
+            break;
+        case Qt::Key_Left:
+            _camera->rotateY(2.0f);
+            break;
+        case Qt::Key_Right:
+            _camera->rotateY(-2.0f);
+            break;
+        case Qt::Key_Up:
+            _camera->rotateX(2.0f);
+            break;
+        case Qt::Key_Down:
+            _camera->rotateX(-2.0f);
+            break;
+        case Qt::Key_PageUp:
+            _camera->rotateZ(2.0f);
+            break;
+        case Qt::Key_PageDown:
+            _camera->rotateZ(-2.0f);
+            break;
+        }
+    }
+    _currentTranslation = _camera->getPosition();
+    _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
+    update();
+}
+
+void GLWidget::keyReleaseEvent(QKeyEvent *event)
+{
+
 }
 
 void GLWidget::animateViewChange()
