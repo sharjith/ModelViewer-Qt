@@ -1,4 +1,4 @@
-// GLCamera.cpp: implementation of the VGLCamera class.
+// GLCamera.cpp: implementation of the GLCamera class.
 //
 //////////////////////////////////////////////////////////////////////
 

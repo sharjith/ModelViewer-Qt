@@ -109,11 +109,16 @@ public:
 		updateProjectionMatrix();
 	}
 
-	void setProjection(ProjectionType proj)
+    void setProjectionType(ProjectionType proj)
 	{
 		_projectionType = proj;
 		updateProjectionMatrix();
 	}
+
+    ProjectionType getProjectionType() const
+    {
+        return _projectionType;
+    }
 
     void resetAll(void);
     void updateViewMatrix(void);
