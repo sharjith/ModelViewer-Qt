@@ -1470,6 +1470,7 @@ void ModelViewer::showEvent(QShowEvent*)
 
 void ModelViewer::showContextMenu(const QPoint& pos)
 {
+	setFocus();
 	if (listWidgetModel->selectedItems().count() != 0)
 	{
 		// Create menu and insert some actions
@@ -1485,7 +1486,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
 		// Show context menu at handling position
-		myMenu.exec(mapToGlobal(pos));
+		myMenu.exec(listWidgetModel->mapToGlobal(pos));
 	}
 }
 
