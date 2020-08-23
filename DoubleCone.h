@@ -6,7 +6,7 @@ class Point;
 class DoubleCone : public ParametricSurface
 {
 public:
-	DoubleCone(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
+    DoubleCone(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~DoubleCone();
 
 	virtual float firstUParameter() const;

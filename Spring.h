@@ -7,7 +7,7 @@ class Spring : public ParametricSurface
 {
 	friend class SpringEditor;
 public:
-	Spring(QOpenGLShaderProgram* prog, float sectionRadius, float coilRadius, float pitch, float turns, unsigned int nSlices, unsigned int nStacks);
+    Spring(QOpenGLShaderProgram* prog, float sectionRadius, float coilRadius, float pitch, float turns, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~Spring();
 
 	virtual float firstUParameter() const;

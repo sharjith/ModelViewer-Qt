@@ -6,7 +6,7 @@ class Point;
 class BreatherSurface : public ParametricSurface
 {
 public:
-	BreatherSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
+    BreatherSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~BreatherSurface();
 
 	virtual float firstUParameter() const;

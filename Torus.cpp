@@ -3,8 +3,10 @@
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
-Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings) :QuadMesh(prog, "Torus")
+Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings, unsigned int sMax, unsigned int tMax) :QuadMesh(prog, "Torus")
 {
+    _sMax = sMax;
+    _tMax = tMax;
 	unsigned int faces = nsides * nrings;
 	int nVerts = nsides * (nrings + 1);   // One extra ring to duplicate first ring
 
@@ -19,25 +21,25 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 
 	// Generate the vertex data
 	float ringFactor = glm::two_pi<float>() / nrings;
-	float sideFactor = glm::two_pi<float>() / nsides;
+    float sideFactor = glm::two_pi<float>() / nsides;
 	int idx = 0, tidx = 0;
-	for (unsigned int ring = 0; ring <= nrings; ring++) {
-		float u = ring * ringFactor;
+    for (unsigned int ring = 0; ring <= nrings; ring++) {
+        float u = ring * ringFactor;
 		float cu = cos(u);
-		float su = sin(u);
-		for (unsigned int side = 0; side < nsides; side++) {
+        float su = sin(u);
+        for (unsigned int side = 0; side < nsides; side++) {
 			float v = side * sideFactor;
 			float cv = cos(v);
 			float sv = sin(v);
-			float r = (outerRadius + innerRadius * cv);
+            float r = (outerRadius + innerRadius * cv);
 			p[idx] = r * cu;
 			p[idx + 1] = r * su;
 			p[idx + 2] = innerRadius * sv;
 			n[idx] = cv * cu * r;
 			n[idx + 1] = cv * su * r;
 			n[idx + 2] = sv * r;
-			tex[tidx] = u / glm::two_pi<float>();
-			tex[tidx + 1] = v / glm::two_pi<float>();
+            tex[tidx] = u / glm::two_pi<float>() * _sMax;
+            tex[tidx + 1] = v / glm::two_pi<float>() * _tMax;
 			tidx += 2;
 			// Normalize
 			float len = sqrt(n[idx] * n[idx] +

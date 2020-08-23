@@ -5,8 +5,8 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Periwinkle::Periwinkle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) :
-	ParametricSurface(prog, nSlices, nStacks),
+Periwinkle::Periwinkle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :
+	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
 	_name = "Periwinkle Sea Shell";

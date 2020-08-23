@@ -5,8 +5,10 @@
 
 #include <glm/gtc/constants.hpp>
 
-Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks) : QuadMesh(prog, "Sphere")
+Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Sphere")
 {
+    _sMax = sMax;
+    _tMax = tMax;
 	int nVerts = (nSlices + 1) * (nStacks + 1);
 	int elements = (nSlices * 2 * (nStacks - 1)) * 3;
 
@@ -27,10 +29,10 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	unsigned int idx = 0, tIdx = 0;
 	for (unsigned int i = 0; i <= nSlices; i++) {
 		theta = i * thetaFac;
-		s = (float)i / nSlices;
+        s = (float)i / nSlices * _sMax;
 		for (unsigned int j = 0; j <= nStacks; j++) {
 			phi = j * phiFac;
-			t = (float)j / nStacks;
+            t = (float)j / nStacks * _tMax;
 			nx = sinf(phi) * cosf(theta);
 			ny = sinf(phi) * sinf(theta);
 			nz = cosf(phi);

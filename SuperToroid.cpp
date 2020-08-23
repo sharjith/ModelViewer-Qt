@@ -5,8 +5,8 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, float n1, float n2, unsigned int nSlices, unsigned int nStacks) :
-	ParametricSurface(prog, nSlices, nStacks),
+SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, float n1, float n2, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :
+	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_outerRadius(outerRadius),
 	_innerRadius(innerRadius),
 	_n1(n1),

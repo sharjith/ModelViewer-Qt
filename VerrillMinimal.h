@@ -6,7 +6,7 @@ class Point;
 class VerrillMinimal : public ParametricSurface
 {
 public:
-	VerrillMinimal(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
+    VerrillMinimal(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~VerrillMinimal();
 
 	virtual float firstUParameter() const;

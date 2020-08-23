@@ -6,7 +6,7 @@ class Point;
 class SpindleShell : public ParametricSurface
 {
 public:
-	SpindleShell(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
+    SpindleShell(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~SpindleShell();
 
 	virtual float firstUParameter() const;

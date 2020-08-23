@@ -123,6 +123,8 @@ protected:
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;
 	bool _bHasTexture;
+    unsigned int _sMax;
+    unsigned int _tMax;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

@@ -10,11 +10,13 @@
 
 #include <iostream>
 
-ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks) :
+ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :
 	QuadMesh(prog, "Prametric Surface"),
 	_slices(nSlices),
 	_stacks(nStacks)
 {
+    _sMax = sMax;
+    _tMax = tMax;
 }
 
 ParametricSurface::~ParametricSurface()
@@ -84,10 +86,10 @@ void ParametricSurface::buildMesh()
 	for (unsigned int i = 0; i <= _slices; i++)
 	{
 		v = firstVParameter();
-		s = (float)i / _slices;
+        s = (float)i / _slices * _sMax;
 		for (unsigned int j = 0; j <= _stacks; j++)
 		{
-			t = (float)j / _stacks;
+            t = (float)j / _stacks * _tMax;
 			Point pt = pointAtParameter(u, v);
 			p[idx] = pt.getX(); p[idx + 1] = pt.getY(); p[idx + 2] = pt.getZ();
 			glm::vec3 normal = normalAtParameter(u, v);

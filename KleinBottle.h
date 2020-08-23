@@ -6,7 +6,7 @@ class Point;
 class KleinBottle : public ParametricSurface
 {
 public:
-	KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks);
+    KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~KleinBottle();
 
 	virtual float firstUParameter() const;
