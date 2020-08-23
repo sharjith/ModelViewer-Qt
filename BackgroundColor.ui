@@ -31,35 +31,41 @@
   <property name="modal">
    <bool>true</bool>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
+  <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
-    <layout class="QVBoxLayout" name="verticalLayout_2">
+    <layout class="QVBoxLayout" name="verticalLayout">
      <item>
-      <layout class="QVBoxLayout" name="verticalLayout">
-       <item>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="1" column="1">
         <widget class="QPushButton" name="pushButtonTop">
          <property name="styleSheet">
           <string notr="true"/>
          </property>
          <property name="text">
+          <string>Choose</string>
+         </property>
+         <property name="autoDefault">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelTopColor">
+         <property name="frameShape">
+          <enum>QFrame::Panel</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Raised</enum>
+         </property>
+         <property name="text">
           <string>Top Color</string>
          </property>
-         <property name="autoDefault">
-          <bool>false</bool>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
-       <item>
-        <widget class="QPushButton" name="pushButtonBottom">
-         <property name="text">
-          <string>Bottom Color</string>
-         </property>
-         <property name="autoDefault">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
+       <item row="4" column="0">
         <widget class="QCheckBox" name="checkBoxGrad">
          <property name="text">
           <string>Gradient</string>
@@ -69,10 +75,36 @@
          </property>
         </widget>
        </item>
-       <item>
+       <item row="4" column="1">
         <widget class="QPushButton" name="pushButtonDefaultColor">
          <property name="text">
           <string>Default Color</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="pushButtonBottom">
+         <property name="text">
+          <string>Choose</string>
+         </property>
+         <property name="autoDefault">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="labelBotColor">
+         <property name="frameShape">
+          <enum>QFrame::Panel</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Raised</enum>
+         </property>
+         <property name="text">
+          <string>Bottom Color</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
@@ -86,7 +118,7 @@
        <property name="sizeHint" stdset="0">
         <size>
          <width>20</width>
-         <height>40</height>
+         <height>72</height>
         </size>
        </property>
       </spacer>
@@ -137,12 +169,11 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>okButton</tabstop>
-  <tabstop>cancelButton</tabstop>
   <tabstop>checkBoxGrad</tabstop>
-  <tabstop>pushButtonTop</tabstop>
-  <tabstop>pushButtonBottom</tabstop>
   <tabstop>pushButtonDefaultColor</tabstop>
+  <tabstop>okButton</tabstop>
+  <tabstop>applyButton</tabstop>
+  <tabstop>cancelButton</tabstop>
  </tabstops>
  <resources/>
  <connections>

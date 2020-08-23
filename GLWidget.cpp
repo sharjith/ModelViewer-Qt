@@ -2093,15 +2093,15 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	QPoint numSteps = numDegrees / 15;
 	float zoomStep = numSteps.y();
 	float zoomFactor = abs(zoomStep) + 0.05;
-
+	
 	if (zoomStep < 0)
 		_viewRange *= zoomFactor;
 	else
 		_viewRange /= zoomFactor;
 
-	if (_viewRange < 0.05)
+	if (_viewRange < 0.05f)
 		_viewRange = 0.05f;
-	if (_viewRange > 500000.0)
+	if (_viewRange > 500000.0f)
 		_viewRange = 500000.0f;
 	_currentViewRange = _viewRange;
 
@@ -2128,6 +2128,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         case Qt::Key_S:
             _camera->moveForward(5.0);
             break;
+		default:
+			break;
         }
     }
     else
@@ -2146,6 +2148,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         case Qt::Key_S:
             _camera->moveUpward(5.0f);
             break;
+		default:
+			break;
         }
     }
     switch (event->key())
@@ -2168,6 +2172,28 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     case Qt::Key_PageDown:
         _camera->rotateZ(-2.0f);
         break;
+	case Qt::Key_Plus:
+	{
+		_viewRange /= 1.05f;
+		if (_viewRange < 0.05)
+			_viewRange = 0.05f;
+		if (_viewRange > 500000.0)
+			_viewRange = 500000.0f;
+		_currentViewRange = _viewRange;
+		resizeGL(width(), height());
+		break;
+	}
+	case Qt::Key_Minus:
+	{
+		_viewRange *= 1.05f;
+		if (_viewRange < 0.05)
+			_viewRange = 0.05f;
+		if (_viewRange > 500000.0)
+			_viewRange = 500000.0f;
+		_currentViewRange = _viewRange;
+		resizeGL(width(), height());
+		break;
+	}
     default:
         break;
     }

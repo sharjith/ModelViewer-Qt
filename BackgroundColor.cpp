@@ -16,18 +16,18 @@ BackgroundColor::BackgroundColor(QWidget* parent) :
 	if (glWidget)
 	{
 		topColor = glWidget->getBgTopColor();
-		QPalette pal = ui->pushButtonTop->palette();
-		pal.setColor(QPalette::Button, topColor);
-		ui->pushButtonTop->setAutoFillBackground(true);
-		ui->pushButtonTop->setPalette(pal);
-		ui->pushButtonTop->update();
+		QPalette pal = ui->labelTopColor->palette();
+		pal.setColor(QPalette::Window, topColor);
+		ui->labelTopColor->setAutoFillBackground(true);
+		ui->labelTopColor->setPalette(pal);
+		ui->labelTopColor->update();
 
-		pal = ui->pushButtonBottom->palette();
+		pal = ui->labelBotColor->palette();
 		bottomColor = glWidget->getBgBotColor();
-		pal.setColor(QPalette::Button, bottomColor);
-		ui->pushButtonBottom->setAutoFillBackground(true);
-		ui->pushButtonBottom->setPalette(pal);
-		ui->pushButtonBottom->update();
+		pal.setColor(QPalette::Window, bottomColor);
+		ui->labelBotColor->setAutoFillBackground(true);
+		ui->labelBotColor->setPalette(pal);
+		ui->labelBotColor->update();
 	}
 }
 
@@ -46,13 +46,13 @@ void BackgroundColor::applyBgColors()
 	GLWidget* glWidget = dynamic_cast<GLWidget*>(parent());
 	if (glWidget)
 	{
-		QPalette pal = ui->pushButtonTop->palette();
-		QColor topColor = pal.color(QPalette::Button);
+		QPalette pal = ui->labelTopColor->palette();
+		QColor topColor = pal.color(QPalette::Window);
 		glWidget->setBgTopColor(topColor);
 		if (hasGradient())
 		{
-			pal = ui->pushButtonBottom->palette();
-			QColor botColor = pal.color(QPalette::Button);
+			pal = ui->labelBotColor->palette();
+			QColor botColor = pal.color(QPalette::Window);
 			glWidget->setBgBotColor(botColor);
 		}
 		else
@@ -87,11 +87,11 @@ void BackgroundColor::on_pushButtonTop_clicked()
 		{
 			initColor = glWidget->getBgTopColor();
 
-			QPalette pal = ui->pushButtonTop->palette();
-			pal.setColor(QPalette::Button, topColor);
-			ui->pushButtonTop->setAutoFillBackground(true);
-			ui->pushButtonTop->setPalette(pal);
-			ui->pushButtonTop->update();
+			QPalette pal = ui->labelTopColor->palette();
+			pal.setColor(QPalette::Window, topColor);
+			ui->labelTopColor->setAutoFillBackground(true);
+			ui->labelTopColor->setPalette(pal);
+			ui->labelTopColor->update();
 		}
 	}
 }
@@ -107,11 +107,11 @@ void BackgroundColor::on_pushButtonBottom_clicked()
 		{
 			initColor = glWidget->getBgBotColor();
 
-			QPalette pal = ui->pushButtonBottom->palette();
-			pal.setColor(QPalette::Button, bottomColor);
-			ui->pushButtonBottom->setAutoFillBackground(true);
-			ui->pushButtonBottom->setPalette(pal);
-			ui->pushButtonBottom->update();
+			QPalette pal = ui->labelBotColor->palette();
+			pal.setColor(QPalette::Window, bottomColor);
+			ui->labelBotColor->setAutoFillBackground(true);
+			ui->labelBotColor->setPalette(pal);
+			ui->labelBotColor->update();
 		}
 	}
 }
@@ -119,16 +119,16 @@ void BackgroundColor::on_pushButtonBottom_clicked()
 void BackgroundColor::on_pushButtonDefaultColor_clicked()
 {
 	QColor col = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
-	QPalette pal = ui->pushButtonTop->palette();
-	pal.setColor(QPalette::Button, col);
-	ui->pushButtonTop->setAutoFillBackground(true);
-	ui->pushButtonTop->setPalette(pal);
-	ui->pushButtonTop->update();
+	QPalette pal = ui->labelTopColor->palette();
+	pal.setColor(QPalette::Window, col);
+	ui->labelTopColor->setAutoFillBackground(true);
+	ui->labelTopColor->setPalette(pal);
+	ui->labelTopColor->update();
 
 	col = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
-	pal = ui->pushButtonBottom->palette();
-	pal.setColor(QPalette::Button, col);
-	ui->pushButtonBottom->setAutoFillBackground(true);
-	ui->pushButtonBottom->setPalette(pal);
-	ui->pushButtonBottom->update();
+	pal = ui->labelBotColor->palette();
+	pal.setColor(QPalette::Window, col);
+	ui->labelBotColor->setAutoFillBackground(true);
+	ui->labelBotColor->setPalette(pal);
+	ui->labelBotColor->update();
 }
