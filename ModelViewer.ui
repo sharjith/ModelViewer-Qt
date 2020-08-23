@@ -2364,6 +2364,9 @@
                      <verstretch>0</verstretch>
                     </sizepolicy>
                    </property>
+                   <property name="suffix">
+                    <string> mm</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -2390,6 +2393,9 @@
                      <verstretch>0</verstretch>
                     </sizepolicy>
                    </property>
+                   <property name="suffix">
+                    <string> mm</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -2415,6 +2421,9 @@
                      <horstretch>0</horstretch>
                      <verstretch>0</verstretch>
                     </sizepolicy>
+                   </property>
+                   <property name="suffix">
+                    <string> mm</string>
                    </property>
                    <property name="decimals">
                     <number>3</number>
@@ -2454,6 +2463,9 @@
                      <verstretch>0</verstretch>
                     </sizepolicy>
                    </property>
+                   <property name="suffix">
+                    <string> deg</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -2480,6 +2492,9 @@
                      <verstretch>0</verstretch>
                     </sizepolicy>
                    </property>
+                   <property name="suffix">
+                    <string> deg</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -2505,6 +2520,9 @@
                      <horstretch>0</horstretch>
                      <verstretch>0</verstretch>
                     </sizepolicy>
+                   </property>
+                   <property name="suffix">
+                    <string> deg</string>
                    </property>
                    <property name="decimals">
                     <number>3</number>
@@ -2544,6 +2562,9 @@
                      <verstretch>0</verstretch>
                     </sizepolicy>
                    </property>
+                   <property name="suffix">
+                    <string> mm</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -2573,6 +2594,9 @@
                      <verstretch>0</verstretch>
                     </sizepolicy>
                    </property>
+                   <property name="suffix">
+                    <string> mm</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -2601,6 +2625,9 @@
                      <horstretch>0</horstretch>
                      <verstretch>0</verstretch>
                     </sizepolicy>
+                   </property>
+                   <property name="suffix">
+                    <string> mm</string>
                    </property>
                    <property name="decimals">
                     <number>3</number>
