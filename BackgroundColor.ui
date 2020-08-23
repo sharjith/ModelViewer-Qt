@@ -184,12 +184,28 @@
    <slot>setVisible(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>98</x>
-     <y>121</y>
+     <x>108</x>
+     <y>93</y>
     </hint>
     <hint type="destinationlabel">
-     <x>130</x>
-     <y>88</y>
+     <x>290</x>
+     <y>64</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxGrad</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>labelBotColor</receiver>
+   <slot>setVisible(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>58</x>
+     <y>84</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>79</x>
+     <y>55</y>
     </hint>
    </hints>
   </connection>
