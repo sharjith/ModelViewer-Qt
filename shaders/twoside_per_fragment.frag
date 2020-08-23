@@ -141,8 +141,7 @@ void main()
 
 
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
-    {
-        vec3 color = fragColor.rgb;
+    {        
         vec3 normal = normalize(fs_in_shadow.Normal);
         vec3 lightColor = lightSource.ambient;
         // ambient
@@ -160,7 +159,7 @@ void main()
         vec3 specular = spec * lightColor;
         // calculate shadow
         float shadow = calculateShadow(fs_in_shadow.FragPosLightSpace);
-        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
+        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * fragColor.rgb;
 
         fragColor = vec4(lighting, alpha);
     }
@@ -189,7 +188,7 @@ void main()
 
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec3 halfVector = normalize(source.position + vec3(0.0f, 0.0f, 1.0f));                // light half vector
+    vec3 halfVector = normalize(source.position + vec3(0.0f, 0.0f, 1.0f));     // light half vector
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
@@ -199,10 +198,12 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 specular   = source.specular * pf;
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
 
-    return clamp(sceneColor +
+    vec3 colorLinear =  clamp(sceneColor +
                  ambient  * mat.ambient +
                  diffuse  * mat.diffuse +
                  specular * mat.specular, 0.f, 1.f );
+
+    return colorLinear;
 }
 
 float calculateShadow(vec4 fragPosLightSpace)

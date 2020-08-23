@@ -340,16 +340,28 @@ void TriangleMesh::computeBoundingSphere(std::vector<float> points)
 	_boundingSphere.setRadius(radius);
 }
 
-float TriangleMesh::getLowestZValue() const
+float TriangleMesh::getHighestZValue() const
 {
-	float lowestZ = std::numeric_limits<float>::max();
+    float highestZ = std::numeric_limits<float>::min();
 	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
 	{
 		float z = _trsfpoints[i];
-		if (z < lowestZ)
-			lowestZ = z;
+        if (z > highestZ)
+            highestZ = z;
 	}
-	return lowestZ;
+    return highestZ;
+}
+
+float TriangleMesh::getLowestZValue() const
+{
+    float lowestZ = std::numeric_limits<float>::max();
+    for (size_t i = 2; i < _trsfpoints.size(); i += 3)
+    {
+        float z = _trsfpoints[i];
+        if (z < lowestZ)
+            lowestZ = z;
+    }
+    return lowestZ;
 }
 
 std::vector<float> TriangleMesh::getNormals() const

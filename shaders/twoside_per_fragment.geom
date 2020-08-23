@@ -58,35 +58,12 @@ void main()
         g_clipSpace = v_clipSpace[i];
 
         gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
-        gs_out_shadow.Normal = gs_in_shadow[i].Normal;
+        //gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
         gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
         gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
     }
 
-    if(displayMode == 0 || displayMode == 1)
-    {
-        for(int i=0; i<gl_in.length(); i++)
-        {
-            g_normal = v_normal[i];
-            g_texCoord2d = v_texCoord2d[i];
-            g_position = v_position[i];
-            gl_Position = gl_in[i].gl_Position;
-
-            g_clipDistX = v_clipDistX[i];
-            g_clipDistY = v_clipDistY[i];
-            g_clipDistZ = v_clipDistZ[i];
-            g_clipDist =  v_clipDist[i];
-
-            gl_ClipDistance[0] = g_clipDistX;
-            gl_ClipDistance[1] = g_clipDistY;
-            gl_ClipDistance[2] = g_clipDistZ;
-            gl_ClipDistance[3] = g_clipDist;
-
-            EmitVertex();
-        }
-        EndPrimitive();
-    }
-    else
+    if(displayMode == 2) // WireShaded
     {
         // Transform each vertex into viewport space
         vec3 p0 = vec3(viewportMatrix * (gl_in[0].gl_Position /
@@ -154,6 +131,29 @@ void main()
         gl_ClipDistance[3] = g_clipDist;
         EmitVertex();
 
+        EndPrimitive();
+    }
+    else
+    {
+        for(int i=0; i<gl_in.length(); i++)
+        {
+            g_normal = v_normal[i];
+            g_texCoord2d = v_texCoord2d[i];
+            g_position = v_position[i];
+            gl_Position = gl_in[i].gl_Position;
+
+            g_clipDistX = v_clipDistX[i];
+            g_clipDistY = v_clipDistY[i];
+            g_clipDistZ = v_clipDistZ[i];
+            g_clipDist =  v_clipDist[i];
+
+            gl_ClipDistance[0] = g_clipDistX;
+            gl_ClipDistance[1] = g_clipDistY;
+            gl_ClipDistance[2] = g_clipDistZ;
+            gl_ClipDistance[3] = g_clipDist;
+
+            EmitVertex();
+        }
         EndPrimitive();
     }
 }  

@@ -174,7 +174,6 @@ void ModelViewer::on_textureButton_clicked()
 			dummy.fill(1);
 			buf = dummy;
 		}
-		_glWidget->setTexture(buf);
 
 		if (listWidgetModel->count())
 		{
@@ -1729,4 +1728,33 @@ void ModelViewer::on_checkBoxFloor_toggled(bool checked)
 {
 	_glWidget->showFloor(checked);
 	_glWidget->update();
+}
+
+void ModelViewer::on_checkBoxFloorTexture_toggled(bool checked)
+{
+    _glWidget->showFloorTexture(checked);
+    _glWidget->update();
+}
+
+void ModelViewer::on_pushButtonFloorTexture_clicked()
+{
+    QImage buf;
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        "Choose an image for texture",
+        _lastOpenedDir,
+        "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
+    _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+    if (fileName != "")
+    {
+        if (!buf.load(fileName))
+        { // Load first image from file
+            qWarning("Could not read image file, using single-color instead.");
+            QImage dummy(128, 128, (QImage::Format)5);
+            dummy.fill(1);
+            buf = dummy;
+        }
+        _glWidget->setFloorTexture(buf);
+        _glWidget->update();
+    }
 }

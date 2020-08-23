@@ -52,7 +52,6 @@ public:
 	GLWidget(QWidget* parent = 0, const char* name = 0);
 	~GLWidget();
 	void updateView();
-	void setTexture(QImage img);
 
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
@@ -80,6 +79,8 @@ public:
 	void showSkyBox(bool show);
 	void showReflections(bool show);
 	void showFloor(bool show);
+    void showFloorTexture(bool show);
+    void setFloorTexture(QImage img);
 
 	std::vector<TriangleMesh*> getMeshStore() const { return _meshStore; }
 
@@ -197,7 +198,7 @@ private:
 	QColor      _bgBotColor;
 	bool _bWindowZoomActive;
 	int _modelNum;
-	QImage _texImage, _texBuffer;
+    QImage _texImage, _texBuffer, _floorTexImage;
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
 	QString _modelName;
@@ -249,6 +250,7 @@ private:
 	bool _shadowsEnabled;
 	bool _reflectionsEnabled;
 	bool _floorDisplayed;
+    bool _floorTextureDisplayed;
 	bool _skyBoxEnabled;
 
 	unsigned int _shadowWidth;
@@ -377,6 +379,7 @@ private:
 	void convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D& dir);
 	int mouseSelect(const QPoint& pixel);
 
+    float highestModelZ();
 	float lowestModelZ();
 
 	void renderQuad();

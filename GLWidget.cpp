@@ -137,10 +137,11 @@ _skyBox(nullptr)
 	_shadowsEnabled = false;
 	_reflectionsEnabled = false;
 	_floorDisplayed = false;
+    _floorTextureDisplayed = true;
 	_skyBoxEnabled = false;
 
-	_shadowWidth = 1024;
-	_shadowHeight = 1024;
+    _shadowWidth = 1024;
+    _shadowHeight = 1024;
 
 	_environmentMap = 0;
 	_shadowMap = 0;
@@ -256,11 +257,6 @@ GLWidget::~GLWidget()
 void GLWidget::updateView()
 {
 	update();
-}
-
-void GLWidget::setTexture(QImage img)
-{
-	_texImage = QGLWidget::convertToGLFormat(img); // flipped 32bit RGBA
 }
 
 void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
@@ -434,9 +430,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		_floorCenter = _boundingSphere.getCenter();
 		_lightPosition.setX(_floorSize / 4);
 		_lightPosition.setY(_floorSize / 4);
-		_lightPosition.setZ(_floorSize);
+        _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
 		_prevLightPosition = _lightPosition;
-		_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1024, 1024, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
 	}
 
 	fitAll();
@@ -470,9 +466,9 @@ void GLWidget::updateBoundingSphere()
 		_floorCenter = _boundingSphere.getCenter();
 		_lightPosition.setX(_floorSize / 4);
 		_lightPosition.setY(_floorSize / 4);
-		_lightPosition.setZ(_floorSize);
+        _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
 		_prevLightPosition = _lightPosition;
-		_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1024, 1024, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
 	}
 
 	fitAll();
@@ -525,6 +521,18 @@ void GLWidget::showFloor(bool show)
 {
 	_floorDisplayed = show;
 	update();
+}
+
+void GLWidget::setFloorTexture(QImage img)
+{
+    _floorTexImage = QGLWidget::convertToGLFormat(img); // flipped 32bit RGBA
+    _floorPlane->setTexureImage(_floorTexImage);
+}
+
+void GLWidget::showFloorTexture(bool show)
+{
+    _floorTextureDisplayed = show;
+    _floorPlane->enableTexture(_floorTextureDisplayed);
 }
 
 void GLWidget::addToDisplay(TriangleMesh* mesh)
@@ -971,24 +979,24 @@ void GLWidget::loadFloor()
 		qWarning("Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, static_cast<QImage::Format>(5));
 		dummy.fill(Qt::white);
-		_texBuffer = dummy;
+        _floorTexImage = dummy;
 	}
 	else
 	{
-		_texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
+        _floorTexImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
 	}
 
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
-	_lightPosition.setZ(_floorSize);
+    _lightPosition.setZ(_floorSize);
 	_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
 	_floorPlane->setAmbientMaterial(QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 	_floorPlane->setSpecularMaterial(QVector4D(0.5f, 0.5f, 0.5f, 1.0f));
 	_floorPlane->setShininess(32.0f);
-	_floorPlane->enableTexture(true);
-	_floorPlane->setTexureImage(_texImage);
+    _floorPlane->enableTexture(_floorTextureDisplayed);
+    _floorPlane->setTexureImage(_floorTexImage);
 	//_floorPlane->setOpacity(0.95f);
 }
 
@@ -1218,9 +1226,13 @@ void GLWidget::paintGL()
 			_textShader.setUniformValue("projection", projection);
 			_textShader.release();
 			glViewport(0, 0, width(), height());
-			renderToShadowBuffer();
-			renderToReflectionMap();
-			renderToReflectionDepthMap();
+            if(_shadowsEnabled)
+                renderToShadowBuffer();
+            if(_reflectionsEnabled)
+            {
+                renderToReflectionMap();
+                renderToReflectionDepthMap();
+            }
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 			gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
@@ -1277,10 +1289,10 @@ void GLWidget::paintGL()
 
 	_debugShader.bind();
 	_debugShader.setUniformValue("near_plane", 1.0f);
-	_debugShader.setUniformValue("far_plane", _viewRange);
+	_debugShader.setUniformValue("far_plane", _viewRange);    
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _reflectionMap);
-	//renderQuad();
+    glBindTexture(GL_TEXTURE_2D, _shadowMap);
+    //renderQuad();
 }
 
 void GLWidget::drawFloor()
@@ -1291,7 +1303,7 @@ void GLWidget::drawFloor()
 	_fgShader->bind();
 	_fgShader->setUniformValue("envMapEnabled", true);
 	_fgShader->setUniformValue("reflectionMapEnabled", _reflectionsEnabled);
-	_fgShader->setUniformValue("shadowSamples", 25.0f);
+    _fgShader->setUniformValue("shadowSamples", 32.0f);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	glDisable((GL_DEPTH_TEST));
@@ -2552,25 +2564,46 @@ void GLWidget::setXTran(const float& xTran)
 	_xTran = xTran;
 }
 
-float GLWidget::lowestModelZ()
+float GLWidget::highestModelZ()
 {
-	float lowestZ = std::numeric_limits<float>::max();
+    float highestZ = std::numeric_limits<float>::min();
 	for (int i : _displayedObjectsIds)
 	{
 		try
 		{
 			TriangleMesh* mesh = _meshStore.at(i);
-			float z = mesh->getLowestZValue();
-			if (z < lowestZ)
-				lowestZ = z;
+            float z = mesh->getHighestZValue();
+            if (z > highestZ)
+                highestZ = z;
 		}
 		catch (const std::exception& ex)
 		{
-			std::cout << "Exception raised in GLWidget::lowestModelZ\n" << ex.what() << std::endl;
-			lowestZ = -_boundingSphere.getRadius();
+            std::cout << "Exception raised in GLWidget::highestModelZ\n" << ex.what() << std::endl;
+            highestZ = _boundingSphere.getRadius();
 		}
 	}
-	return lowestZ;
+    return highestZ;
+}
+
+float GLWidget::lowestModelZ()
+{
+    float lowestZ = std::numeric_limits<float>::max();
+    for (int i : _displayedObjectsIds)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore.at(i);
+            float z = mesh->getLowestZValue();
+            if (z < lowestZ)
+                lowestZ = z;
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception raised in GLWidget::lowestModelZ\n" << ex.what() << std::endl;
+            lowestZ = -_boundingSphere.getRadius();
+        }
+    }
+    return lowestZ;
 }
 
 void GLWidget::renderQuad()

@@ -62,7 +62,8 @@ public:
 
 	void setTexureImage(const QImage& texImage);
 
-	float getLowestZValue() const;
+    float getHighestZValue() const;
+    float getLowestZValue() const;
 
 	QMatrix4x4 getTransformation() const;
 	void setTransformation(const QMatrix4x4& transformation);
