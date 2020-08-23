@@ -1605,7 +1605,8 @@ void ModelViewer::on_toolButtonOpen_clicked()
 
 	if (fileName != "")
 	{
-		QFileInfo fi(fileName);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+		QFileInfo fi(fileName);        
 		if (fi.suffix().toLower() == "stl")
 		{
 			mesh = _glWidget->loadSTLMesh(fileName);
@@ -1638,6 +1639,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 		{
 			QMessageBox::critical(this, "Error", "Model load unsuccessful!");
 		}
+        QApplication::restoreOverrideCursor();
 	}
 }
 
