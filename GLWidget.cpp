@@ -432,7 +432,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		_lightPosition.setY(_floorSize / 4);
         _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
 		_prevLightPosition = _lightPosition;
-        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1024, 1024, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
 	}
 
 	fitAll();
@@ -468,7 +468,7 @@ void GLWidget::updateBoundingSphere()
 		_lightPosition.setY(_floorSize / 4);
         _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
 		_prevLightPosition = _lightPosition;
-        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1024, 1024, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
 	}
 
 	fitAll();
@@ -1633,6 +1633,7 @@ void GLWidget::render()
 	_fgShader->setUniformValue("shadowsEnabled", _shadowsEnabled);
 	_fgShader->setUniformValue("reflectionMapEnabled", false);
 	_fgShader->setUniformValue("cameraPos", _camera->getPosition());
+    _fgShader->setUniformValue("lightPos", _lightPosition);
 	_fgShader->setUniformValue("modelMatrix", _modelMatrix);
 	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
 	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
@@ -1697,8 +1698,8 @@ void GLWidget::renderToShadowBuffer()
 	// --------------------------------------------------------------
 	QMatrix4x4 lightProjection, lightView;
 	float radius = _boundingSphere.getRadius();
-	float near_plane = -radius * 2, far_plane = radius * 2;
-	lightProjection.ortho(-radius * 2, radius * 2, -radius * 2, radius * 2, near_plane, far_plane);
+    float near_plane = -radius * 2, far_plane = radius * 4;
+    lightProjection.ortho(-radius * 4, radius * 4, -radius * 4, radius * 4, near_plane, far_plane);
 	lightView.lookAt(_lightPosition, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view

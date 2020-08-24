@@ -23,6 +23,8 @@ in VS_OUT_SHADOW {
     vec3 Normal;
     vec2 TexCoords;
     vec4 FragPosLightSpace;
+    vec3 cameraPos;
+    vec3 lightPos;
 } gs_in_shadow[];
 
 out GS_OUT_SHADOW {
@@ -30,6 +32,8 @@ out GS_OUT_SHADOW {
     vec3 Normal;
     vec2 TexCoords;
     vec4 FragPosLightSpace;
+    vec3 cameraPos;
+    vec3 lightPos;
 } gs_out_shadow;
 
 in vec4 v_fragPosReflSpace[];
@@ -57,10 +61,12 @@ void main()
         //g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly
         g_clipSpace = v_clipSpace[i];
 
-        gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
+        /*gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
         //gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
         gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
         gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
+        gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;
+        gs_out_shadow.lightPos = gs_in_shadow[i].lightPos;*/
     }
 
     if(displayMode == 2) // WireShaded
@@ -151,6 +157,13 @@ void main()
             gl_ClipDistance[1] = g_clipDistY;
             gl_ClipDistance[2] = g_clipDistZ;
             gl_ClipDistance[3] = g_clipDist;
+
+            gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
+            //gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
+            gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
+            gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
+            gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;
+            gs_out_shadow.lightPos = gs_in_shadow[i].lightPos;
 
             EmitVertex();
         }

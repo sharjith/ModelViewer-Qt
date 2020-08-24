@@ -14,6 +14,8 @@ in GS_OUT_SHADOW {
     vec3 Normal;
     vec2 TexCoords;
     vec4 FragPosLightSpace;
+    vec3 cameraPos;
+    vec3 lightPos;
 } fs_in_shadow;
 
 uniform float alpha;
@@ -142,16 +144,22 @@ void main()
 
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {        
+
+        vec3 color;
+        if(texEnabled)
+            color = texture(texUnit, fs_in_shadow.TexCoords).rgb;
+        else
+            color = fragColor.rgb;
         vec3 normal = normalize(fs_in_shadow.Normal);
         vec3 lightColor = lightSource.diffuse;
         // ambient
         vec3 ambient = lightSource.ambient;
         // diffuse
-        vec3 lightDir = normalize(lightSource.position - fs_in_shadow.FragPos);
+        vec3 lightDir = normalize(fs_in_shadow.lightPos - fs_in_shadow.FragPos);
         float diff = max(dot(lightDir, normal), 0.0);
         vec3 diffuse = lightSource.diffuse;
         // specular
-        vec3 viewDir = normalize(cameraPos - fs_in_shadow.FragPos);
+        vec3 viewDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
         vec3 reflectDir = reflect(-lightDir, normal);
         float spec = 0.0;
         vec3 halfwayDir = normalize(lightDir + viewDir);
@@ -218,7 +226,7 @@ float calculateShadow(vec4 fragPosLightSpace)
     float currentDepth = projCoords.z;
     // calculate bias (based on depth map resolution and slope)
     vec3 normal = normalize(fs_in_shadow.Normal);
-    vec3 lightDir = normalize(lightSource.position - fs_in_shadow.FragPos);
+    vec3 lightDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
     float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
     // check whether current frag pos is in shadow
     // float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;

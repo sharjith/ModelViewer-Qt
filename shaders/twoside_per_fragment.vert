@@ -13,6 +13,8 @@ uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
 uniform mat4 lightSpaceMatrix;
 uniform mat4 reflectionSpaceMatrix;
+uniform vec3 cameraPos;
+uniform vec3 lightPos;
 
 // user defined clip plane
 uniform vec4 clipPlane;
@@ -36,6 +38,8 @@ out VS_OUT_SHADOW {
     vec3 Normal;
     vec2 TexCoords;
     vec4 FragPosLightSpace;
+    vec3 cameraPos;
+    vec3 lightPos;
 } vs_out_shadow;
 
 void main()
@@ -57,6 +61,8 @@ void main()
     vs_out_shadow.Normal = transpose(inverse(mat3(modelMatrix))) * vertexNormal;
     vs_out_shadow.TexCoords = v_texCoord2d;
     vs_out_shadow.FragPosLightSpace = lightSpaceMatrix * vec4(vs_out_shadow.FragPos, 1.0);
+    vs_out_shadow.cameraPos = cameraPos;
+    vs_out_shadow.lightPos = lightPos;
 
     // for reflection mapping
     v_reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
