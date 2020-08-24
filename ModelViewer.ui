@@ -415,6 +415,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Ctrl+T</string>
+                    </property>
                     <property name="checkable">
                      <bool>true</bool>
                     </property>
@@ -452,6 +455,9 @@
                       <width>48</width>
                       <height>48</height>
                      </size>
+                    </property>
+                    <property name="shortcut">
+                     <string>Ctrl+B</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -491,6 +497,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Ctrl+L</string>
+                    </property>
                     <property name="checkable">
                      <bool>true</bool>
                     </property>
@@ -528,6 +537,9 @@
                       <width>48</width>
                       <height>48</height>
                      </size>
+                    </property>
+                    <property name="shortcut">
+                     <string>Ctrl+R</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -567,6 +579,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Ctrl+F</string>
+                    </property>
                     <property name="checkable">
                      <bool>true</bool>
                     </property>
@@ -604,6 +619,9 @@
                       <width>48</width>
                       <height>48</height>
                      </size>
+                    </property>
+                    <property name="shortcut">
+                     <string>Ctrl+G</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
