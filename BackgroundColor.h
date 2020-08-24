@@ -17,10 +17,12 @@ public:
 
 	bool hasGradient() const;
 
-	QColor getTopColor() const { return topColor; }
-	QColor getBottomColor() const { return bottomColor; }
+    QColor getTopColor() const { return _topColor; }
+    QColor getBottomColor() const { return _bottomColor; }
 
 	void applyBgColors();
+
+    void setPreviewColor();
 
 private slots:
 	void on_okButton_clicked();
@@ -38,8 +40,8 @@ private slots:
 private:
 	Ui::BackgroundColor* ui;
 
-	QColor topColor;
-	QColor bottomColor;
+    QColor _topColor;
+    QColor _bottomColor;
 };
 
 #endif // BACKGROUNDCOLOR_H

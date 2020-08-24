@@ -42,26 +42,10 @@
           <string notr="true"/>
          </property>
          <property name="text">
-          <string>Choose</string>
+          <string>Choose Top Color</string>
          </property>
          <property name="autoDefault">
           <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="labelTopColor">
-         <property name="frameShape">
-          <enum>QFrame::Panel</enum>
-         </property>
-         <property name="frameShadow">
-          <enum>QFrame::Raised</enum>
-         </property>
-         <property name="text">
-          <string>Top Color</string>
-         </property>
-         <property name="alignment">
-          <set>Qt::AlignCenter</set>
          </property>
         </widget>
        </item>
@@ -85,15 +69,15 @@
        <item row="2" column="1">
         <widget class="QPushButton" name="pushButtonBottom">
          <property name="text">
-          <string>Choose</string>
+          <string>Choose Bottom Color</string>
          </property>
          <property name="autoDefault">
           <bool>false</bool>
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="labelBotColor">
+       <item row="1" column="0" rowspan="2">
+        <widget class="QLabel" name="labelColorPreview">
          <property name="frameShape">
           <enum>QFrame::Panel</enum>
          </property>
@@ -101,7 +85,7 @@
           <enum>QFrame::Raised</enum>
          </property>
          <property name="text">
-          <string>Bottom Color</string>
+          <string>Preview</string>
          </property>
          <property name="alignment">
           <set>Qt::AlignCenter</set>
@@ -155,7 +139,7 @@
        <item>
         <widget class="QPushButton" name="cancelButton">
          <property name="text">
-          <string>Cancel</string>
+          <string>Close</string>
          </property>
          <property name="autoDefault">
           <bool>false</bool>
@@ -170,6 +154,8 @@
  </widget>
  <tabstops>
   <tabstop>checkBoxGrad</tabstop>
+  <tabstop>pushButtonTop</tabstop>
+  <tabstop>pushButtonBottom</tabstop>
   <tabstop>pushButtonDefaultColor</tabstop>
   <tabstop>okButton</tabstop>
   <tabstop>applyButton</tabstop>
@@ -179,32 +165,16 @@
  <connections>
   <connection>
    <sender>checkBoxGrad</sender>
-   <signal>clicked(bool)</signal>
+   <signal>toggled(bool)</signal>
    <receiver>pushButtonBottom</receiver>
-   <slot>setVisible(bool)</slot>
+   <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>108</x>
-     <y>93</y>
+     <x>71</x>
+     <y>82</y>
     </hint>
     <hint type="destinationlabel">
-     <x>290</x>
-     <y>64</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>checkBoxGrad</sender>
-   <signal>clicked(bool)</signal>
-   <receiver>labelBotColor</receiver>
-   <slot>setVisible(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>58</x>
-     <y>84</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>79</x>
+     <x>203</x>
      <y>55</y>
     </hint>
    </hints>
