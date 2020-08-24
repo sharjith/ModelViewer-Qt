@@ -143,7 +143,7 @@ void main()
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {        
         vec3 normal = normalize(fs_in_shadow.Normal);
-        vec3 lightColor = lightSource.ambient;
+        vec3 lightColor = lightSource.diffuse;
         // ambient
         vec3 ambient = lightSource.ambient;
         // diffuse
