@@ -130,7 +130,9 @@ void ModelViewer::setListRow(int index)
 	if (index != -1)
 	{
 		QListWidgetItem* item = listWidgetModel->item(index);
-		item->setSelected(!item->isSelected());
+        item->setSelected(!item->isSelected());
+        if(toolBox->currentIndex() == 3)
+            updateTransformationValues();
 	}
 	else
 	{
@@ -138,1256 +140,76 @@ void ModelViewer::setListRow(int index)
 		{
 			item->setSelected(false);
 		}
+        resetTransformationValues();
 	}
 }
 
-void ModelViewer::on_checkTexture_toggled(bool checked)
+void ModelViewer::setTransformation()
 {
-	_bHasTexture = checked;
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   _emmiMat,
-						   _shine,
-						   _opacity,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-	_glWidget->updateView();
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        for (QListWidgetItem* i : items)
+        {
+            int rowId = listWidgetModel->row(i);
+            ids.push_back(rowId);
+        }
+
+        QVector3D translate(doubleSpinBoxDX->value(), doubleSpinBoxDY->value(), doubleSpinBoxDZ->value());
+        QVector3D rotate(doubleSpinBoxRX->value(), doubleSpinBoxRY->value(), doubleSpinBoxRZ->value());
+        QVector3D scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
+        _glWidget->setTransformation(ids, translate, rotate, scale);
+    }
 }
 
-void ModelViewer::on_textureButton_clicked()
+void ModelViewer::updateTransformationValues()
 {
-	QImage buf;
-	QString fileName = QFileDialog::getOpenFileName(
-		this,
-		"Choose an image for texture",
-		_lastOpenedDir,
-		"Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
-	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-	if (fileName != "")
-	{
-		if (!buf.load(fileName))
-		{ // Load first image from file
-			qWarning("Could not read image file, using single-color instead.");
-			QImage dummy(128, 128, (QImage::Format)5);
-			dummy.fill(1);
-			buf = dummy;
-		}
+    try
+    {
+        QList<QListWidgetItem*> selected = listWidgetModel->selectedItems();
+        if(selected.count() > 0)
+        {
+            QListWidgetItem* item = selected.at(0);
+            TriangleMesh* mesh = _glWidget->getMeshStore().at(listWidgetModel->row(item));
+            if(mesh)
+            {
+                QVector3D trans = mesh->getTranslation();
+                doubleSpinBoxDX->setValue(trans.x());
+                doubleSpinBoxDY->setValue(trans.y());
+                doubleSpinBoxDZ->setValue(trans.z());
 
-		if (listWidgetModel->count())
-		{
-			std::vector<int> ids;
-			QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-			for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
-			_glWidget->setTexture(ids, buf);
-		}
+                QVector3D rot = mesh->getRotation();
+                doubleSpinBoxRX->setValue(rot.x());
+                doubleSpinBoxRY->setValue(rot.y());
+                doubleSpinBoxRZ->setValue(rot.z());
 
-		_glWidget->updateView();
-	}
+                QVector3D scale = mesh->getScaling();
+                doubleSpinBoxSX->setValue(scale.x());
+                doubleSpinBoxSY->setValue(scale.y());
+                doubleSpinBoxSZ->setValue(scale.z());
+            }
+        }
+
+    } catch (std::exception& ex)
+    {
+        std::cout << "Exception raised in ModelViewer::on_toolBox_currentChanged\n" << ex.what() << std::endl;
+    }
 }
 
-void ModelViewer::on_pushButtonDefaultLights_clicked()
+void ModelViewer::resetTransformationValues()
 {
-	_glWidget->setAmbientLight({ 0.0f, 0.0f, 0.0f, 1.0f });
-	_glWidget->setDiffuseLight({ 1.0f, 1.0f, 1.0f, 1.0f });
-	_glWidget->setSpecularLight({ 0.5f, 0.5f, 0.5f, 1.0f });
-
-	updateControls();
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_pushButtonDefaultMatls_clicked()
-{
-	_opacity = 1.0;
-	_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };      // 54 32 13
-	_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
-	_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
-	_emmiMat = { 0, 0, 0, 1 };
-	_shine = 128 * 0.2f;
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   _emmiMat,
-						   _shine,
-						   _opacity,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	updateControls();
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_pushButtonApplyTransformations_clicked()
-{
-	setTransformation();
-	_glWidget->update();
-}
-
-void ModelViewer::on_isometricView_triggered(bool /*checked*/)
-{
-	buttonGroup->setExclusive(false);
-	for (auto b : buttonGroup->buttons())
-	{
-		b->setChecked(false);
-	}
-	buttonGroup->setExclusive(true);
-
-	toolButtonTopView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::ISOMETRIC);
-	_glWidget->updateView();
-
-	toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
-}
-
-void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
-{
-	buttonGroup->setExclusive(false);
-	for (auto b : buttonGroup->buttons())
-	{
-		b->setChecked(false);
-	}
-	buttonGroup->setExclusive(true);
-
-	_glWidget->setViewMode(ViewMode::DIMETRIC);
-	_glWidget->updateView();
-
-	toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
-}
-
-void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
-{
-	buttonGroup->setExclusive(false);
-	for (auto b : buttonGroup->buttons())
-	{
-		b->setChecked(false);
-	}
-	buttonGroup->setExclusive(true);
-
-	_glWidget->setViewMode(ViewMode::TRIMETRIC);
-	_glWidget->updateView();
-
-	toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
-}
-
-void ModelViewer::on_displayShaded_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(false);
-	checkBoxShadowMapping->setChecked(false);
-	checkBoxReflections->setChecked(false);
-	checkBoxFloor->setChecked(false);
-	_glWidget->setDisplayMode(DisplayMode::SHADED);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Wireframe");
-}
-
-void ModelViewer::on_displayWireframe_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(false);
-	checkBoxShadowMapping->setChecked(false);
-	checkBoxReflections->setChecked(false);
-	checkBoxFloor->setChecked(false);
-	_glWidget->setDisplayMode(DisplayMode::WIREFRAME);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Shaded");
-}
-
-void ModelViewer::on_displayWireShaded_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(false);
-	checkBoxShadowMapping->setChecked(false);
-	checkBoxReflections->setChecked(false);
-	checkBoxFloor->setChecked(false);
-	_glWidget->setDisplayMode(DisplayMode::WIRESHADED);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Wire Shaded");
-}
-
-void ModelViewer::on_displayRealShaded_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(true);
-	checkBoxShadowMapping->setChecked(true);
-	checkBoxReflections->setChecked(true);
-	checkBoxFloor->setChecked(true);
-	_glWidget->setDisplayMode(DisplayMode::REALSHADED);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Real Shaded");
-}
-
-void ModelViewer::on_toolButtonFitAll_clicked(bool /*checked*/)
-{
-	_glWidget->fitAll();
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonWindowZoom_clicked(bool checked)
-{
-	if (checked)
-	{
-		_glWidget->beginWindowZoom();
-	}
-}
-
-void ModelViewer::on_toolButtonTopView_clicked(bool /*checked*/)
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::TOP);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonBottomView_clicked(bool /*checked*/)
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::BOTTOM);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonLeftView_clicked(bool /*checked*/)
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::LEFT);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonRightView_clicked(bool /*checked*/)
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::RIGHT);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonFrontView_clicked(bool /*checked*/)
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::FRONT);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonBackView_clicked(bool /*checked*/)
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::BACK);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonProjection_toggled(bool checked)
-{
-	_glWidget->setProjection(checked ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
-	toolButtonProjection->setToolTip(checked ? "Orthographic" : "Perspective");
-}
-
-void ModelViewer::on_toolButtonSectionView_toggled(bool checked)
-{
-	_glWidget->showClippingPlaneEditor(checked);
-}
-
-void ModelViewer::on_toolButtonShowHideAxis_toggled(bool checked)
-{
-	_glWidget->showAxis(checked);
-}
-
-void ModelViewer::on_toolButtonMultiView_toggled(bool checked)
-{
-	_glWidget->setMultiView(checked);
-	toolButtonIsometricView->animateClick(0);
-	_glWidget->resizeView(glframe->width(), glframe->height());
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_pushButtonLightAmbient_clicked()
-{
-	QVector4D ambientLight = _glWidget->getAmbientLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z()), this, "Ambient Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setAmbientLight({ static_cast<float>(c.redF()),
-									static_cast<float>(c.greenF()),
-									static_cast<float>(c.blueF()),
-									static_cast<float>(c.alphaF()) });
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonLightDiffuse_clicked()
-{
-	QVector4D diffuseLight = _glWidget->getDiffuseLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z()), this, "Diffuse Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setDiffuseLight({ static_cast<float>(c.redF()),
-									static_cast<float>(c.greenF()),
-									static_cast<float>(c.blueF()),
-									static_cast<float>(c.alphaF()) });
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonLightSpecular_clicked()
-{
-	QVector4D specularLight = _glWidget->getSpecularLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(specularLight.x(), specularLight.y(), specularLight.z()), this, "Specular Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setSpecularLight({ static_cast<float>(c.redF()),
-									 static_cast<float>(c.greenF()),
-									 static_cast<float>(c.blueF()),
-									 static_cast<float>(c.alphaF()) });
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialAmbient_clicked()
-{
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z()), this, "Ambient Material Color");
-	if (c.isValid())
-	{
-		_ambiMat = {
-			static_cast<float>(c.redF()),
-			static_cast<float>(c.greenF()),
-			static_cast<float>(c.blueF()),
-			static_cast<float>(c.alphaF()) };
-
-		GLMaterialProps mat = { _ambiMat,
-							   _diffMat,
-							   _specMat,
-							   {1.0f, 1.0f, 1.0f, 1.0f},
-							   _emmiMat,
-							   _shine,
-							   _opacity,
-							   checkTexture->isChecked() };
-		setMaterialProps(mat);
-
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
-{
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z()), this, "Diffuse Material Color");
-	if (c.isValid())
-	{
-		_diffMat = {
-			static_cast<float>(c.redF()),
-			static_cast<float>(c.greenF()),
-			static_cast<float>(c.blueF()),
-			static_cast<float>(c.alphaF()) };
-
-		GLMaterialProps mat = { _ambiMat,
-							   _diffMat,
-							   _specMat,
-							   {1.0f, 1.0f, 1.0f, 1.0f},
-							   _emmiMat,
-							   _shine,
-							   _opacity,
-							   checkTexture->isChecked() };
-		setMaterialProps(mat);
-
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialSpecular_clicked()
-{
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_specMat.x(), _specMat.y(), _specMat.z()), this, "Specular Material Color");
-	if (c.isValid())
-	{
-		_specMat = {
-			static_cast<float>(c.redF()),
-			static_cast<float>(c.greenF()),
-			static_cast<float>(c.blueF()),
-			static_cast<float>(c.alphaF()) };
-
-		GLMaterialProps mat = { _ambiMat,
-							   _diffMat,
-							   _specMat,
-							   {1.0f, 1.0f, 1.0f, 1.0f},
-							   _emmiMat,
-							   _shine,
-							   _opacity,
-							   checkTexture->isChecked() };
-		setMaterialProps(mat);
-
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialEmissive_clicked()
-{
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z()), this, "Emissive Material Color");
-	if (c.isValid())
-	{
-		_emmiMat = {
-			static_cast<float>(c.redF()),
-			static_cast<float>(c.greenF()),
-			static_cast<float>(c.blueF()),
-			static_cast<float>(c.alphaF()) };
-
-		GLMaterialProps mat = { _ambiMat,
-							   _diffMat,
-							   _specMat,
-							   {1.0f, 1.0f, 1.0f, 1.0f},
-							   _emmiMat,
-							   _shine,
-							   _opacity,
-							   checkTexture->isChecked() };
-		setMaterialProps(mat);
-
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_sliderLightPosX_valueChanged(int)
-{
-	_glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
-		static_cast<float>(sliderLightPosY->value()),
-		static_cast<float>(sliderLightPosZ->value())));
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_sliderLightPosY_valueChanged(int)
-{
-	_glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
-		static_cast<float>(sliderLightPosY->value()),
-		static_cast<float>(sliderLightPosZ->value())));
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_sliderLightPosZ_valueChanged(int)
-{
-	_glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
-		static_cast<float>(sliderLightPosY->value()),
-		static_cast<float>(sliderLightPosZ->value())));
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_sliderTransparency_valueChanged(int value)
-{
-	_opacity = (float)value / 100.0;
-	_ambiMat[3] = _opacity;
-	_diffMat[3] = _opacity;
-	_specMat[3] = _opacity;
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   _opacity,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_sliderShine_valueChanged(int value)
-{
-	_shine = value;
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   _opacity,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_pushButtonBrass_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat = { 0.329412f, 0.223529f, 0.027451f, 1 };
-	_diffMat = { 0.780392f, 0.568627f, 0.113725f, 1 };
-	_specMat = { 0.992157f, 0.941176f, 0.807843f, 1 };
-	_shine = fabs(128.0 * 0.21794872);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonBronze_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat = { 0.2125f, 0.1275f, 0.054f, 1 };
-	_diffMat = { 0.714f, 0.4284f, 0.18144f, 1 };
-	_specMat = { 0.393548f, 0.271906f, 0.166721f, 1 };
-	_shine = fabs(128.0 * 0.2);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonCopper_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat = { 0.19125f, 0.0735f, 0.0225f, 1.0f };
-	_diffMat = { 0.7038f, 0.27048f, 0.0828f, 1.0f };
-	_specMat = { 0.256777f, 0.137622f, 0.086014f, 1.0f };
-	_shine = fabs(128.0 * 0.1);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonGold_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.24725f;
-	_ambiMat[1] = 0.1995f;
-	_ambiMat[2] = 0.0745f;
-	_diffMat[0] = 0.75164f;
-	_diffMat[1] = 0.60648f;
-	_diffMat[2] = 0.22648f;
-	_specMat[0] = 0.628281f;
-	_specMat[1] = 0.555802f;
-	_specMat[2] = 0.366065f;
-	_shine = fabs(128.0 * 0.4);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonSilver_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.19225f;
-	_ambiMat[1] = 0.19225f;
-	_ambiMat[2] = 0.19225f;
-	_diffMat[0] = 0.50754f;
-	_diffMat[1] = 0.50654f;
-	_diffMat[2] = 0.50754f;
-	_specMat[0] = 0.508273f;
-	_specMat[1] = 0.508273f;
-	_specMat[2] = 0.508273f;
-	_shine = fabs(128.0 * 0.4);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonRuby_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.1745f;
-	_ambiMat[1] = 0.01175f;
-	_ambiMat[2] = 0.01175f;
-	_diffMat[0] = 0.61424f;
-	_diffMat[1] = 0.04136f;
-	_diffMat[2] = 0.04136f;
-	_specMat[0] = 0.727811f;
-	_specMat[1] = 0.626959f;
-	_specMat[2] = 0.626959f;
-	_shine = fabs(128.0 * 0.6);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonEmerald_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0215f;
-	_ambiMat[1] = 0.1745f;
-	_ambiMat[2] = 0.0215f;
-	_diffMat[0] = 0.07568f;
-	_diffMat[1] = 0.61424f;
-	_diffMat[2] = 0.07568f;
-	_specMat[0] = 0.633f;
-	_specMat[1] = 0.727811f;
-	_specMat[2] = 0.633f;
-	_shine = fabs(128.0 * 0.6);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonTurquoise_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.1f;
-	_ambiMat[1] = 0.18725f;
-	_ambiMat[2] = 0.1745f;
-	_diffMat[0] = 0.396f;
-	_diffMat[1] = 0.74151f;
-	_diffMat[2] = 0.69102f;
-	_specMat[0] = 0.297254f;
-	_specMat[1] = 0.30829f;
-	_specMat[2] = 0.306678f;
-	_shine = fabs(128.0 * 0.1);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonJade_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.135f;
-	_ambiMat[1] = 0.2225f;
-	_ambiMat[2] = 0.1575f;
-	_diffMat[0] = 0.54f;
-	_diffMat[1] = 0.89f;
-	_diffMat[2] = 0.63f;
-	_specMat[0] = 0.316228f;
-	_specMat[1] = 0.316228f;
-	_specMat[2] = 0.316228f;
-	_shine = fabs(128.0 * 0.1);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonObsidian_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.05375f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.06625f;
-	_diffMat[0] = 0.18275f;
-	_diffMat[1] = 0.17f;
-	_diffMat[2] = 0.22525f;
-	_specMat[0] = 0.332741f;
-	_specMat[1] = 0.328634f;
-	_specMat[2] = 0.346435f;
-	_shine = fabs(128.0 * 0.3);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonPearl_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.25f;
-	_ambiMat[1] = 0.20725f;
-	_ambiMat[2] = 0.20725f;
-	_diffMat[0] = 1.0f;
-	_diffMat[1] = 0.829f;
-	_diffMat[2] = 0.829f;
-	_specMat[1] = 0.296648f;
-	_specMat[2] = 0.296648f;
-	_specMat[0] = 0.299948f;
-	_shine = fabs(128.0 * 0.088);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonChrome_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.25f;
-	_ambiMat[1] = 0.25f;
-	_ambiMat[2] = 0.25f;
-	_diffMat[0] = 0.4f;
-	_diffMat[1] = 0.4f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.774597f;
-	_specMat[1] = 0.774597f;
-	_specMat[2] = 0.774597f;
-	_shine = fabs(128.0 * 0.6);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonBlackPlastic_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.01f;
-	_diffMat[1] = 0.01f;
-	_diffMat[2] = 0.01f;
-	_specMat[0] = 0.5f;
-	_specMat[1] = 0.5f;
-	_specMat[2] = 0.5f;
-	_shine = fabs(128.0 * 0.25);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonCyanPlastic_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.1f;
-	_ambiMat[2] = 0.06f;
-	_diffMat[0] = 0.0f;
-	_diffMat[1] = 0.50980392f;
-	_diffMat[2] = 0.50980392f;
-	_specMat[0] = 0.50196078f;
-	_specMat[1] = 0.50196078f;
-	_specMat[2] = 0.50196078f;
-	_shine = fabs(128.0 * 0.25);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonGreenPlastic_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.1f;
-	_diffMat[1] = 0.35f;
-	_diffMat[2] = 0.1f;
-	_specMat[0] = 0.45f;
-	_specMat[1] = 0.55f;
-	_specMat[2] = 0.45f;
-	_shine = fabs(128.0 * 0.25);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonRedPlastic_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.0f;
-	_diffMat[2] = 0.0f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.6f;
-	_specMat[2] = 0.6f;
-	_shine = fabs(128.0 * 0.25);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonWhitePlastic_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.55f;
-	_diffMat[1] = 0.55f;
-	_diffMat[2] = 0.55f;
-	_specMat[0] = 0.70f;
-	_specMat[1] = 0.70f;
-	_specMat[2] = 0.70f;
-	_shine = fabs(128.0 * 0.25);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonYellowPlastic_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.0f;
-	_specMat[0] = 0.6f;
-	_specMat[1] = 0.6f;
-	_specMat[2] = 0.5f;
-	_shine = fabs(128.0 * 0.25);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonBlackRubber_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.02f;
-	_ambiMat[1] = 0.02f;
-	_ambiMat[2] = 0.02f;
-	_diffMat[0] = 0.01f;
-	_diffMat[1] = 0.01f;
-	_diffMat[2] = 0.01f;
-	_specMat[0] = 0.4f;
-	_specMat[1] = 0.4f;
-	_specMat[2] = 0.4f;
-	_shine = fabs(128.0 * 0.078125);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonCyanRubber_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.05f;
-	_diffMat[0] = 0.4f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.5f;
-	_specMat[0] = 0.04f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.7f;
-	_shine = fabs(128.0 * 0.078125);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonGreenRubber_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.4f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.04f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.04f;
-	_shine = fabs(128.0 * 0.078125);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonRedRubber_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.05f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.7f;
-	_diffMat[1] = 0.4f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.04f;
-	_specMat[2] = 0.04f;
-	_shine = fabs(128.0 * 0.078125);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonWhiteRubber_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.05f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.05f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.5f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.7f;
-	_shine = fabs(128.0 * 0.078125);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
-void ModelViewer::on_pushButtonYellowRubber_clicked()
-{
-	//Light Values
-	_glWidget->setAmbientLight({ 0, 0, 0, 1 });
-	_glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-	_glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
-	//Material Values
-	_ambiMat[0] = 0.05f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.04f;
-	_shine = fabs(128.0 * 0.078125);
-
-	GLMaterialProps mat = { _ambiMat,
-						   _diffMat,
-						   _specMat,
-						   {1.0f, 1.0f, 1.0f, 1.0f},
-						   {0.0f, 0.0f, 0.0f, 1.0f},
-						   _shine,
-						   1.0f,
-						   checkTexture->isChecked() };
-	setMaterialProps(mat);
-
-	_glWidget->updateView();
-	updateControls();
+    doubleSpinBoxDX->setValue(0.0f);
+    doubleSpinBoxDY->setValue(0.0f);
+    doubleSpinBoxDZ->setValue(0.0f);
+
+    doubleSpinBoxRX->setValue(0.0f);
+    doubleSpinBoxRY->setValue(0.0f);
+    doubleSpinBoxRZ->setValue(0.0f);
+
+    doubleSpinBoxSX->setValue(1.0f);
+    doubleSpinBoxSY->setValue(1.0f);
+    doubleSpinBoxSZ->setValue(1.0f);
 }
 
 void ModelViewer::updateControls()
@@ -1559,6 +381,1255 @@ void ModelViewer::showTransformationsPage()
 	toolBox->setCurrentIndex(3);
 }
 
+void ModelViewer::on_checkTexture_toggled(bool checked)
+{
+    _bHasTexture = checked;
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           _emmiMat,
+                           _shine,
+                           _opacity,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_textureButton_clicked()
+{
+    QImage buf;
+    QString fileName = QFileDialog::getOpenFileName(
+        this,
+        "Choose an image for texture",
+        _lastOpenedDir,
+        "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
+    _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+    if (fileName != "")
+    {
+        if (!buf.load(fileName))
+        { // Load first image from file
+            qWarning("Could not read image file, using single-color instead.");
+            QImage dummy(128, 128, (QImage::Format)5);
+            dummy.fill(1);
+            buf = dummy;
+        }
+
+        if (listWidgetModel->count())
+        {
+            std::vector<int> ids;
+            QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+            for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->setTexture(ids, buf);
+        }
+
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonDefaultLights_clicked()
+{
+    _glWidget->setAmbientLight({ 0.0f, 0.0f, 0.0f, 1.0f });
+    _glWidget->setDiffuseLight({ 1.0f, 1.0f, 1.0f, 1.0f });
+    _glWidget->setSpecularLight({ 0.5f, 0.5f, 0.5f, 1.0f });
+
+    updateControls();
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_pushButtonDefaultMatls_clicked()
+{
+    _opacity = 1.0;
+    _ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };      // 54 32 13
+    _diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
+    _specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
+    _emmiMat = { 0, 0, 0, 1 };
+    _shine = 128 * 0.2f;
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           _emmiMat,
+                           _shine,
+                           _opacity,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    updateControls();
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_pushButtonApplyTransformations_clicked()
+{
+    setTransformation();
+    _glWidget->update();
+}
+
+void ModelViewer::on_isometricView_triggered(bool /*checked*/)
+{
+    buttonGroup->setExclusive(false);
+    for (auto b : buttonGroup->buttons())
+    {
+        b->setChecked(false);
+    }
+    buttonGroup->setExclusive(true);
+
+    toolButtonTopView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::ISOMETRIC);
+    _glWidget->updateView();
+
+    toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
+}
+
+void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
+{
+    buttonGroup->setExclusive(false);
+    for (auto b : buttonGroup->buttons())
+    {
+        b->setChecked(false);
+    }
+    buttonGroup->setExclusive(true);
+
+    _glWidget->setViewMode(ViewMode::DIMETRIC);
+    _glWidget->updateView();
+
+    toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
+}
+
+void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
+{
+    buttonGroup->setExclusive(false);
+    for (auto b : buttonGroup->buttons())
+    {
+        b->setChecked(false);
+    }
+    buttonGroup->setExclusive(true);
+
+    _glWidget->setViewMode(ViewMode::TRIMETRIC);
+    _glWidget->updateView();
+
+    toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
+}
+
+void ModelViewer::on_displayShaded_triggered(bool)
+{
+    checkBoxEnvMapping->setChecked(false);
+    checkBoxShadowMapping->setChecked(false);
+    checkBoxReflections->setChecked(false);
+    checkBoxFloor->setChecked(false);
+    _glWidget->setDisplayMode(DisplayMode::SHADED);
+    _glWidget->updateView();
+    displayShaded->setToolTip("Wireframe");
+}
+
+void ModelViewer::on_displayWireframe_triggered(bool)
+{
+    checkBoxEnvMapping->setChecked(false);
+    checkBoxShadowMapping->setChecked(false);
+    checkBoxReflections->setChecked(false);
+    checkBoxFloor->setChecked(false);
+    _glWidget->setDisplayMode(DisplayMode::WIREFRAME);
+    _glWidget->updateView();
+    displayShaded->setToolTip("Shaded");
+}
+
+void ModelViewer::on_displayWireShaded_triggered(bool)
+{
+    checkBoxEnvMapping->setChecked(false);
+    checkBoxShadowMapping->setChecked(false);
+    checkBoxReflections->setChecked(false);
+    checkBoxFloor->setChecked(false);
+    _glWidget->setDisplayMode(DisplayMode::WIRESHADED);
+    _glWidget->updateView();
+    displayShaded->setToolTip("Wire Shaded");
+}
+
+void ModelViewer::on_displayRealShaded_triggered(bool)
+{
+    checkBoxEnvMapping->setChecked(true);
+    checkBoxShadowMapping->setChecked(true);
+    checkBoxReflections->setChecked(true);
+    checkBoxFloor->setChecked(true);
+    _glWidget->setDisplayMode(DisplayMode::REALSHADED);
+    _glWidget->updateView();
+    displayShaded->setToolTip("Real Shaded");
+}
+
+void ModelViewer::on_toolButtonFitAll_clicked(bool /*checked*/)
+{
+    _glWidget->fitAll();
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonWindowZoom_clicked(bool checked)
+{
+    if (checked)
+    {
+        _glWidget->beginWindowZoom();
+    }
+}
+
+void ModelViewer::on_toolButtonTopView_clicked(bool /*checked*/)
+{
+    _glWidget->setMultiView(false);
+    toolButtonMultiView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::TOP);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonBottomView_clicked(bool /*checked*/)
+{
+    _glWidget->setMultiView(false);
+    toolButtonMultiView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::BOTTOM);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonLeftView_clicked(bool /*checked*/)
+{
+    _glWidget->setMultiView(false);
+    toolButtonMultiView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::LEFT);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonRightView_clicked(bool /*checked*/)
+{
+    _glWidget->setMultiView(false);
+    toolButtonMultiView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::RIGHT);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonFrontView_clicked(bool /*checked*/)
+{
+    _glWidget->setMultiView(false);
+    toolButtonMultiView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::FRONT);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonBackView_clicked(bool /*checked*/)
+{
+    _glWidget->setMultiView(false);
+    toolButtonMultiView->setChecked(false);
+    _glWidget->setViewMode(ViewMode::BACK);
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_toolButtonProjection_toggled(bool checked)
+{
+    _glWidget->setProjection(checked ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
+    toolButtonProjection->setToolTip(checked ? "Orthographic" : "Perspective");
+}
+
+void ModelViewer::on_toolButtonSectionView_toggled(bool checked)
+{
+    _glWidget->showClippingPlaneEditor(checked);
+}
+
+void ModelViewer::on_toolButtonShowHideAxis_toggled(bool checked)
+{
+    _glWidget->showAxis(checked);
+}
+
+void ModelViewer::on_toolButtonMultiView_toggled(bool checked)
+{
+    _glWidget->setMultiView(checked);
+    toolButtonIsometricView->animateClick(0);
+    _glWidget->resizeView(glframe->width(), glframe->height());
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_pushButtonLightAmbient_clicked()
+{
+    QVector4D ambientLight = _glWidget->getAmbientLight();
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z()), this, "Ambient Light Color");
+    if (c.isValid())
+    {
+        _glWidget->setAmbientLight({ static_cast<float>(c.redF()),
+                                    static_cast<float>(c.greenF()),
+                                    static_cast<float>(c.blueF()),
+                                    static_cast<float>(c.alphaF()) });
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonLightDiffuse_clicked()
+{
+    QVector4D diffuseLight = _glWidget->getDiffuseLight();
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z()), this, "Diffuse Light Color");
+    if (c.isValid())
+    {
+        _glWidget->setDiffuseLight({ static_cast<float>(c.redF()),
+                                    static_cast<float>(c.greenF()),
+                                    static_cast<float>(c.blueF()),
+                                    static_cast<float>(c.alphaF()) });
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonLightSpecular_clicked()
+{
+    QVector4D specularLight = _glWidget->getSpecularLight();
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(specularLight.x(), specularLight.y(), specularLight.z()), this, "Specular Light Color");
+    if (c.isValid())
+    {
+        _glWidget->setSpecularLight({ static_cast<float>(c.redF()),
+                                     static_cast<float>(c.greenF()),
+                                     static_cast<float>(c.blueF()),
+                                     static_cast<float>(c.alphaF()) });
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonMaterialAmbient_clicked()
+{
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z()), this, "Ambient Material Color");
+    if (c.isValid())
+    {
+        _ambiMat = {
+            static_cast<float>(c.redF()),
+            static_cast<float>(c.greenF()),
+            static_cast<float>(c.blueF()),
+            static_cast<float>(c.alphaF()) };
+
+        GLMaterialProps mat = { _ambiMat,
+                               _diffMat,
+                               _specMat,
+                               {1.0f, 1.0f, 1.0f, 1.0f},
+                               _emmiMat,
+                               _shine,
+                               _opacity,
+                               checkTexture->isChecked() };
+        setMaterialProps(mat);
+
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
+{
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z()), this, "Diffuse Material Color");
+    if (c.isValid())
+    {
+        _diffMat = {
+            static_cast<float>(c.redF()),
+            static_cast<float>(c.greenF()),
+            static_cast<float>(c.blueF()),
+            static_cast<float>(c.alphaF()) };
+
+        GLMaterialProps mat = { _ambiMat,
+                               _diffMat,
+                               _specMat,
+                               {1.0f, 1.0f, 1.0f, 1.0f},
+                               _emmiMat,
+                               _shine,
+                               _opacity,
+                               checkTexture->isChecked() };
+        setMaterialProps(mat);
+
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonMaterialSpecular_clicked()
+{
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_specMat.x(), _specMat.y(), _specMat.z()), this, "Specular Material Color");
+    if (c.isValid())
+    {
+        _specMat = {
+            static_cast<float>(c.redF()),
+            static_cast<float>(c.greenF()),
+            static_cast<float>(c.blueF()),
+            static_cast<float>(c.alphaF()) };
+
+        GLMaterialProps mat = { _ambiMat,
+                               _diffMat,
+                               _specMat,
+                               {1.0f, 1.0f, 1.0f, 1.0f},
+                               _emmiMat,
+                               _shine,
+                               _opacity,
+                               checkTexture->isChecked() };
+        setMaterialProps(mat);
+
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonMaterialEmissive_clicked()
+{
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z()), this, "Emissive Material Color");
+    if (c.isValid())
+    {
+        _emmiMat = {
+            static_cast<float>(c.redF()),
+            static_cast<float>(c.greenF()),
+            static_cast<float>(c.blueF()),
+            static_cast<float>(c.alphaF()) };
+
+        GLMaterialProps mat = { _ambiMat,
+                               _diffMat,
+                               _specMat,
+                               {1.0f, 1.0f, 1.0f, 1.0f},
+                               _emmiMat,
+                               _shine,
+                               _opacity,
+                               checkTexture->isChecked() };
+        setMaterialProps(mat);
+
+        updateControls();
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_sliderLightPosX_valueChanged(int)
+{
+    _glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
+        static_cast<float>(sliderLightPosY->value()),
+        static_cast<float>(sliderLightPosZ->value())));
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_sliderLightPosY_valueChanged(int)
+{
+    _glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
+        static_cast<float>(sliderLightPosY->value()),
+        static_cast<float>(sliderLightPosZ->value())));
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_sliderLightPosZ_valueChanged(int)
+{
+    _glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
+        static_cast<float>(sliderLightPosY->value()),
+        static_cast<float>(sliderLightPosZ->value())));
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_sliderTransparency_valueChanged(int value)
+{
+    _opacity = (float)value / 100.0;
+    _ambiMat[3] = _opacity;
+    _diffMat[3] = _opacity;
+    _specMat[3] = _opacity;
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           _opacity,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_sliderShine_valueChanged(int value)
+{
+    _shine = value;
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           _opacity,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+}
+
+void ModelViewer::on_pushButtonBrass_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat = { 0.329412f, 0.223529f, 0.027451f, 1 };
+    _diffMat = { 0.780392f, 0.568627f, 0.113725f, 1 };
+    _specMat = { 0.992157f, 0.941176f, 0.807843f, 1 };
+    _shine = fabs(128.0 * 0.21794872);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonBronze_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat = { 0.2125f, 0.1275f, 0.054f, 1 };
+    _diffMat = { 0.714f, 0.4284f, 0.18144f, 1 };
+    _specMat = { 0.393548f, 0.271906f, 0.166721f, 1 };
+    _shine = fabs(128.0 * 0.2);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonCopper_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat = { 0.19125f, 0.0735f, 0.0225f, 1.0f };
+    _diffMat = { 0.7038f, 0.27048f, 0.0828f, 1.0f };
+    _specMat = { 0.256777f, 0.137622f, 0.086014f, 1.0f };
+    _shine = fabs(128.0 * 0.1);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonGold_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.24725f;
+    _ambiMat[1] = 0.1995f;
+    _ambiMat[2] = 0.0745f;
+    _diffMat[0] = 0.75164f;
+    _diffMat[1] = 0.60648f;
+    _diffMat[2] = 0.22648f;
+    _specMat[0] = 0.628281f;
+    _specMat[1] = 0.555802f;
+    _specMat[2] = 0.366065f;
+    _shine = fabs(128.0 * 0.4);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonSilver_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.19225f;
+    _ambiMat[1] = 0.19225f;
+    _ambiMat[2] = 0.19225f;
+    _diffMat[0] = 0.50754f;
+    _diffMat[1] = 0.50654f;
+    _diffMat[2] = 0.50754f;
+    _specMat[0] = 0.508273f;
+    _specMat[1] = 0.508273f;
+    _specMat[2] = 0.508273f;
+    _shine = fabs(128.0 * 0.4);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonRuby_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.1745f;
+    _ambiMat[1] = 0.01175f;
+    _ambiMat[2] = 0.01175f;
+    _diffMat[0] = 0.61424f;
+    _diffMat[1] = 0.04136f;
+    _diffMat[2] = 0.04136f;
+    _specMat[0] = 0.727811f;
+    _specMat[1] = 0.626959f;
+    _specMat[2] = 0.626959f;
+    _shine = fabs(128.0 * 0.6);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonEmerald_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0215f;
+    _ambiMat[1] = 0.1745f;
+    _ambiMat[2] = 0.0215f;
+    _diffMat[0] = 0.07568f;
+    _diffMat[1] = 0.61424f;
+    _diffMat[2] = 0.07568f;
+    _specMat[0] = 0.633f;
+    _specMat[1] = 0.727811f;
+    _specMat[2] = 0.633f;
+    _shine = fabs(128.0 * 0.6);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonTurquoise_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.1f;
+    _ambiMat[1] = 0.18725f;
+    _ambiMat[2] = 0.1745f;
+    _diffMat[0] = 0.396f;
+    _diffMat[1] = 0.74151f;
+    _diffMat[2] = 0.69102f;
+    _specMat[0] = 0.297254f;
+    _specMat[1] = 0.30829f;
+    _specMat[2] = 0.306678f;
+    _shine = fabs(128.0 * 0.1);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonJade_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.135f;
+    _ambiMat[1] = 0.2225f;
+    _ambiMat[2] = 0.1575f;
+    _diffMat[0] = 0.54f;
+    _diffMat[1] = 0.89f;
+    _diffMat[2] = 0.63f;
+    _specMat[0] = 0.316228f;
+    _specMat[1] = 0.316228f;
+    _specMat[2] = 0.316228f;
+    _shine = fabs(128.0 * 0.1);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonObsidian_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.05375f;
+    _ambiMat[1] = 0.05f;
+    _ambiMat[2] = 0.06625f;
+    _diffMat[0] = 0.18275f;
+    _diffMat[1] = 0.17f;
+    _diffMat[2] = 0.22525f;
+    _specMat[0] = 0.332741f;
+    _specMat[1] = 0.328634f;
+    _specMat[2] = 0.346435f;
+    _shine = fabs(128.0 * 0.3);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonPearl_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.25f;
+    _ambiMat[1] = 0.20725f;
+    _ambiMat[2] = 0.20725f;
+    _diffMat[0] = 1.0f;
+    _diffMat[1] = 0.829f;
+    _diffMat[2] = 0.829f;
+    _specMat[1] = 0.296648f;
+    _specMat[2] = 0.296648f;
+    _specMat[0] = 0.299948f;
+    _shine = fabs(128.0 * 0.088);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonChrome_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.25f;
+    _ambiMat[1] = 0.25f;
+    _ambiMat[2] = 0.25f;
+    _diffMat[0] = 0.4f;
+    _diffMat[1] = 0.4f;
+    _diffMat[2] = 0.4f;
+    _specMat[0] = 0.774597f;
+    _specMat[1] = 0.774597f;
+    _specMat[2] = 0.774597f;
+    _shine = fabs(128.0 * 0.6);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonBlackPlastic_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.0f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.01f;
+    _diffMat[1] = 0.01f;
+    _diffMat[2] = 0.01f;
+    _specMat[0] = 0.5f;
+    _specMat[1] = 0.5f;
+    _specMat[2] = 0.5f;
+    _shine = fabs(128.0 * 0.25);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonCyanPlastic_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.1f;
+    _ambiMat[2] = 0.06f;
+    _diffMat[0] = 0.0f;
+    _diffMat[1] = 0.50980392f;
+    _diffMat[2] = 0.50980392f;
+    _specMat[0] = 0.50196078f;
+    _specMat[1] = 0.50196078f;
+    _specMat[2] = 0.50196078f;
+    _shine = fabs(128.0 * 0.25);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonGreenPlastic_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.0f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.1f;
+    _diffMat[1] = 0.35f;
+    _diffMat[2] = 0.1f;
+    _specMat[0] = 0.45f;
+    _specMat[1] = 0.55f;
+    _specMat[2] = 0.45f;
+    _shine = fabs(128.0 * 0.25);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonRedPlastic_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.0f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.5f;
+    _diffMat[1] = 0.0f;
+    _diffMat[2] = 0.0f;
+    _specMat[0] = 0.7f;
+    _specMat[1] = 0.6f;
+    _specMat[2] = 0.6f;
+    _shine = fabs(128.0 * 0.25);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonWhitePlastic_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.0f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.55f;
+    _diffMat[1] = 0.55f;
+    _diffMat[2] = 0.55f;
+    _specMat[0] = 0.70f;
+    _specMat[1] = 0.70f;
+    _specMat[2] = 0.70f;
+    _shine = fabs(128.0 * 0.25);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonYellowPlastic_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.0f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.5f;
+    _diffMat[1] = 0.5f;
+    _diffMat[2] = 0.0f;
+    _specMat[0] = 0.6f;
+    _specMat[1] = 0.6f;
+    _specMat[2] = 0.5f;
+    _shine = fabs(128.0 * 0.25);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonBlackRubber_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.02f;
+    _ambiMat[1] = 0.02f;
+    _ambiMat[2] = 0.02f;
+    _diffMat[0] = 0.01f;
+    _diffMat[1] = 0.01f;
+    _diffMat[2] = 0.01f;
+    _specMat[0] = 0.4f;
+    _specMat[1] = 0.4f;
+    _specMat[2] = 0.4f;
+    _shine = fabs(128.0 * 0.078125);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonCyanRubber_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.05f;
+    _ambiMat[2] = 0.05f;
+    _diffMat[0] = 0.4f;
+    _diffMat[1] = 0.5f;
+    _diffMat[2] = 0.5f;
+    _specMat[0] = 0.04f;
+    _specMat[1] = 0.7f;
+    _specMat[2] = 0.7f;
+    _shine = fabs(128.0 * 0.078125);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonGreenRubber_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.0f;
+    _ambiMat[1] = 0.05f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.4f;
+    _diffMat[1] = 0.5f;
+    _diffMat[2] = 0.4f;
+    _specMat[0] = 0.04f;
+    _specMat[1] = 0.7f;
+    _specMat[2] = 0.04f;
+    _shine = fabs(128.0 * 0.078125);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonRedRubber_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.05f;
+    _ambiMat[1] = 0.0f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.7f;
+    _diffMat[1] = 0.4f;
+    _diffMat[2] = 0.4f;
+    _specMat[0] = 0.7f;
+    _specMat[1] = 0.04f;
+    _specMat[2] = 0.04f;
+    _shine = fabs(128.0 * 0.078125);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonWhiteRubber_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.05f;
+    _ambiMat[1] = 0.05f;
+    _ambiMat[2] = 0.05f;
+    _diffMat[0] = 0.5f;
+    _diffMat[1] = 0.5f;
+    _diffMat[2] = 0.5f;
+    _specMat[0] = 0.7f;
+    _specMat[1] = 0.7f;
+    _specMat[2] = 0.7f;
+    _shine = fabs(128.0 * 0.078125);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
+void ModelViewer::on_pushButtonYellowRubber_clicked()
+{
+    //Light Values
+    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
+    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
+    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
+
+    //Material Values
+    _ambiMat[0] = 0.05f;
+    _ambiMat[1] = 0.05f;
+    _ambiMat[2] = 0.0f;
+    _diffMat[0] = 0.5f;
+    _diffMat[1] = 0.5f;
+    _diffMat[2] = 0.4f;
+    _specMat[0] = 0.7f;
+    _specMat[1] = 0.7f;
+    _specMat[2] = 0.04f;
+    _shine = fabs(128.0 * 0.078125);
+
+    GLMaterialProps mat = { _ambiMat,
+                           _diffMat,
+                           _specMat,
+                           {1.0f, 1.0f, 1.0f, 1.0f},
+                           {0.0f, 0.0f, 0.0f, 1.0f},
+                           _shine,
+                           1.0f,
+                           checkTexture->isChecked() };
+    setMaterialProps(mat);
+
+    _glWidget->updateView();
+    updateControls();
+}
+
 void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
 {
 	if (listWidgetModel->count())
@@ -1659,25 +1730,6 @@ void ModelViewer::setMaterialProps(const GLMaterialProps& mat)
 	}
 }
 
-void ModelViewer::setTransformation()
-{
-	if (listWidgetModel->count())
-	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
-		QMatrix4x4 mat;
-		mat.translate(doubleSpinBoxDX->value(), doubleSpinBoxDY->value(), doubleSpinBoxDZ->value());
-		mat.rotate(QQuaternion::fromEulerAngles(doubleSpinBoxRX->value(), doubleSpinBoxRY->value(), doubleSpinBoxRZ->value()));
-		mat.scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
-		_glWidget->setTransformation(ids, mat);
-	}
-}
-
 void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
 {
 	_glWidget->setShowVertexNormals(checked);
@@ -1759,5 +1811,13 @@ void ModelViewer::on_pushButtonFloorTexture_clicked()
         }
         _glWidget->setFloorTexture(buf);
         _glWidget->update();
+    }
+}
+
+void ModelViewer::on_toolBox_currentChanged(int index)
+{
+    if(index == 3) // Transformations page
+    {
+        updateTransformationValues();
     }
 }

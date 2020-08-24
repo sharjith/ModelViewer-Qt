@@ -619,14 +619,16 @@ void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialPro
 	}
 }
 
-void GLWidget::setTransformation(const std::vector<int>& ids, const QMatrix4x4& mat)
+void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
 {
 	for (int id : ids)
 	{
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setTransformation(mat);
+            mesh->setTranslation(trans);
+            mesh->setRotation(rot);
+            mesh->setScaling(scale);
 		}
 		catch (...)
 		{

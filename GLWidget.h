@@ -94,7 +94,7 @@ public:
 	TriangleMesh* loadOBJMesh(QString fileName);
 
 	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
-	void setTransformation(const std::vector<int>& ids, const QMatrix4x4& mat);
+    void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 
 public:

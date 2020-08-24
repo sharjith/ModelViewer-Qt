@@ -65,8 +65,17 @@ public:
     float getHighestZValue() const;
     float getLowestZValue() const;
 
+    QVector3D getTranslation() const;
+    void setTranslation(const QVector3D& trans);
+
+    QVector3D getRotation() const;
+    void setRotation(const QVector3D& rota);
+
+    QVector3D getScaling() const;
+    void setScaling(const QVector3D& scale);
+
 	QMatrix4x4 getTransformation() const;
-	void setTransformation(const QMatrix4x4& transformation);
+    //void setTransformation(const QMatrix4x4& transformation);
 
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
@@ -83,10 +92,9 @@ protected: // methods
 	);
 
 	virtual void deleteBuffers();
-
-	void computeBoundingSphere(std::vector<float> points);
-
-	bool rayIntersectsTriangle(const QVector3D& rayOrigin,
+    virtual void setupTransformation();
+    virtual void computeBoundingSphere(std::vector<float> points);
+    virtual bool rayIntersectsTriangle(const QVector3D& rayOrigin,
 		const QVector3D& rayVector,
 		const QVector3D& vertex0,
 		const QVector3D& vertex1,
@@ -133,4 +141,17 @@ protected:
 	std::vector<float> _trsfpoints;
 	std::vector<float> _trsfnormals;
 	QMatrix4x4 _transformation;
+
+    // Individual transformation components
+    float _transX;
+    float _transY;
+    float _transZ;
+
+    float _rotateX;
+    float _rotateY;
+    float _rotateZ;
+
+    float _scaleX;
+    float _scaleY;
+    float _scaleZ;
 };

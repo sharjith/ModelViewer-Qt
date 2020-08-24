@@ -20,6 +20,9 @@ public:
 
 	QListWidget* getListModel() { return listWidgetModel; }
 
+    void updateTransformationValues();
+    void resetTransformationValues();
+
 public slots:
 	void updateDisplayList();
 	void hideSelectedItems();
@@ -123,6 +126,8 @@ private slots:
     void on_checkBoxFloorTexture_toggled(bool checked);
 
     void on_pushButtonFloorTexture_clicked();
+
+    void on_toolBox_currentChanged(int index);
 
 protected:
 	void showEvent(QShowEvent* event);

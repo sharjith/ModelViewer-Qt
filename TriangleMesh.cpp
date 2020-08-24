@@ -8,6 +8,9 @@ _bHasTexture(false),
 _sMax(1),
 _tMax(1)
 {
+    _transX = _transY = _transZ = 0.0f;
+    _rotateX = _rotateY = _rotateZ = 0.0f;
+    _scaleX = _scaleY = _scaleZ = 1.0f;
 	_transformation.setToIdentity();
 
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
@@ -374,50 +377,98 @@ std::vector<float> TriangleMesh::getPoints() const
 	return _points;
 }
 
-QMatrix4x4 TriangleMesh::getTransformation() const
+QVector3D TriangleMesh::getTranslation() const
 {
-	return _transformation;
+    return QVector3D(_transX, _transY, _transZ);
 }
 
-void TriangleMesh::setTransformation(const QMatrix4x4& transformation)
+void TriangleMesh::setTranslation(const QVector3D& trans)
 {
-	_prog->bind();
-	_transformation = transformation;
-	_trsfpoints.clear();
-	_trsfnormals.clear();
+    _transX = trans.x();
+    _transY = trans.y();
+    _transZ = trans.z();
+    _transformation.translate(_transX, _transY, _transZ);
+    setupTransformation();
+}
 
-	// transform points
-	for (size_t i = 0; i < _points.size(); i += 3)
-	{
-		QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
-		QVector3D tp = _transformation * p;
-		_trsfpoints.push_back(tp.x());
-		_trsfpoints.push_back(tp.y());
-		_trsfpoints.push_back(tp.z());
-	}
-	_positionBuffer.bind();
-	_positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+QVector3D TriangleMesh::getRotation() const
+{
+    return QVector3D(_rotateX, _rotateY, _rotateZ);
+}
 
-	// transform normals
-	for (size_t i = 0; i < _normals.size(); i += 3)
-	{
-		QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
-		QMatrix4x4 rotMat = _transformation;
-		// use only the rotations
-		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-		QVector3D tn = rotMat * n;
-		_trsfnormals.push_back(tn.x());
-		_trsfnormals.push_back(tn.y());
-		_trsfnormals.push_back(tn.z());
-	}
-	_normalBuffer.bind();
-	_normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+void TriangleMesh::setRotation(const QVector3D& rota)
+{
+    _rotateX = rota.x();
+    _rotateY = rota.y();
+    _rotateZ = rota.z();
+    QQuaternion rotq = QQuaternion::fromEulerAngles(rota.x(), rota.y(), rota.z());
+    _transformation.rotate(rotq);
+    setupTransformation();
+}
 
-	computeBoundingSphere(_trsfpoints);
+QVector3D TriangleMesh::getScaling() const
+{
+    return QVector3D(_scaleX, _scaleY, _scaleZ);
+}
+
+void TriangleMesh::setScaling(const QVector3D& scale)
+{
+    _scaleX = scale.x();
+    _scaleY = scale.y();
+    _scaleZ = scale.z();
+    _transformation.scale(scale.x(), scale.y(), scale.z());
+    setupTransformation();
+}
+
+QMatrix4x4 TriangleMesh::getTransformation() const
+{
+    return _transformation;
+}
+
+//void TriangleMesh::setTransformation(const QMatrix4x4& transformation)
+//{
+//    _transformation = transformation;
+//    setupTransformation();
+//}
+
+void TriangleMesh::setupTransformation()
+{
+    _prog->bind();
+    _trsfpoints.clear();
+    _trsfnormals.clear();
+
+    // transform points
+    for (size_t i = 0; i < _points.size(); i += 3)
+    {
+        QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
+        QVector3D tp = _transformation * p;
+        _trsfpoints.push_back(tp.x());
+        _trsfpoints.push_back(tp.y());
+        _trsfpoints.push_back(tp.z());
+    }
+    _positionBuffer.bind();
+    _positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(float)));
+    _prog->enableAttributeArray("vertexPosition");
+    _prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+    // transform normals
+    for (size_t i = 0; i < _normals.size(); i += 3)
+    {
+        QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
+        QMatrix4x4 rotMat = _transformation;
+        // use only the rotations
+        rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
+        QVector3D tn = rotMat * n;
+        _trsfnormals.push_back(tn.x());
+        _trsfnormals.push_back(tn.y());
+        _trsfnormals.push_back(tn.z());
+    }
+    _normalBuffer.bind();
+    _normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(float)));
+    _prog->enableAttributeArray("vertexNormal");
+    _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+    computeBoundingSphere(_trsfpoints);
 }
 
 void TriangleMesh::setTexureImage(const QImage& texImage)
