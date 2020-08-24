@@ -74,8 +74,7 @@ public:
     QVector3D getScaling() const;
     void setScaling(const QVector3D& scale);
 
-	QMatrix4x4 getTransformation() const;
-    //void setTransformation(const QMatrix4x4& transformation);
+    QMatrix4x4 getTransformation() const;
 
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
@@ -140,7 +139,6 @@ protected:
 	std::vector<float> _normals;
 	std::vector<float> _trsfpoints;
 	std::vector<float> _trsfnormals;
-	QMatrix4x4 _transformation;
 
     // Individual transformation components
     float _transX;
@@ -154,4 +152,6 @@ protected:
     float _scaleX;
     float _scaleY;
     float _scaleZ;
+
+    QMatrix4x4 _transformation;
 };

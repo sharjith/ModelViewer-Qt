@@ -425,12 +425,6 @@ QMatrix4x4 TriangleMesh::getTransformation() const
     return _transformation;
 }
 
-//void TriangleMesh::setTransformation(const QMatrix4x4& transformation)
-//{
-//    _transformation = transformation;
-//    setupTransformation();
-//}
-
 void TriangleMesh::setupTransformation()
 {
     _prog->bind();
