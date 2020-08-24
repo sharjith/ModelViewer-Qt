@@ -103,6 +103,20 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_O), this);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonOpen_clicked()));
 
+    // Views
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_T), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonTopView_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_B), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonBottomView_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_F), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonFrontView_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_R), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonBackView_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_L), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonLeftView_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_J), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonRightView_clicked()));
+
 	_opacity = 1.0f;
 	_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
 	_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
@@ -560,7 +574,7 @@ void ModelViewer::on_displayRealShaded_triggered(bool)
     displayShaded->setToolTip("Real Shaded");
 }
 
-void ModelViewer::on_toolButtonFitAll_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonFitAll_clicked()
 {
     _glWidget->fitAll();
     _glWidget->updateView();
@@ -574,7 +588,7 @@ void ModelViewer::on_toolButtonWindowZoom_clicked(bool checked)
     }
 }
 
-void ModelViewer::on_toolButtonTopView_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonTopView_clicked()
 {
     _glWidget->setMultiView(false);
     toolButtonMultiView->setChecked(false);
@@ -582,7 +596,7 @@ void ModelViewer::on_toolButtonTopView_clicked(bool /*checked*/)
     _glWidget->updateView();
 }
 
-void ModelViewer::on_toolButtonBottomView_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonBottomView_clicked()
 {
     _glWidget->setMultiView(false);
     toolButtonMultiView->setChecked(false);
@@ -590,7 +604,7 @@ void ModelViewer::on_toolButtonBottomView_clicked(bool /*checked*/)
     _glWidget->updateView();
 }
 
-void ModelViewer::on_toolButtonLeftView_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonLeftView_clicked()
 {
     _glWidget->setMultiView(false);
     toolButtonMultiView->setChecked(false);
@@ -598,7 +612,7 @@ void ModelViewer::on_toolButtonLeftView_clicked(bool /*checked*/)
     _glWidget->updateView();
 }
 
-void ModelViewer::on_toolButtonRightView_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonRightView_clicked()
 {
     _glWidget->setMultiView(false);
     toolButtonMultiView->setChecked(false);
@@ -606,7 +620,7 @@ void ModelViewer::on_toolButtonRightView_clicked(bool /*checked*/)
     _glWidget->updateView();
 }
 
-void ModelViewer::on_toolButtonFrontView_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonFrontView_clicked()
 {
     _glWidget->setMultiView(false);
     toolButtonMultiView->setChecked(false);
@@ -614,7 +628,7 @@ void ModelViewer::on_toolButtonFrontView_clicked(bool /*checked*/)
     _glWidget->updateView();
 }
 
-void ModelViewer::on_toolButtonBackView_clicked(bool /*checked*/)
+void ModelViewer::on_toolButtonBackView_clicked()
 {
     _glWidget->setMultiView(false);
     toolButtonMultiView->setChecked(false);

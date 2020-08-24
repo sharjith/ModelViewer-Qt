@@ -39,14 +39,14 @@ private slots:
 	void on_pushButtonDefaultMatls_clicked();
 	void on_pushButtonApplyTransformations_clicked();
 
-	void on_toolButtonFitAll_clicked(bool checked);
+    void on_toolButtonFitAll_clicked();
 	void on_toolButtonWindowZoom_clicked(bool checked);
-	void on_toolButtonTopView_clicked(bool checked);
-	void on_toolButtonBottomView_clicked(bool checked);
-	void on_toolButtonLeftView_clicked(bool checked);
-	void on_toolButtonRightView_clicked(bool checked);
-	void on_toolButtonFrontView_clicked(bool checked);
-	void on_toolButtonBackView_clicked(bool checked);
+    void on_toolButtonTopView_clicked();
+    void on_toolButtonBottomView_clicked();
+    void on_toolButtonLeftView_clicked();
+    void on_toolButtonRightView_clicked();
+    void on_toolButtonFrontView_clicked();
+    void on_toolButtonBackView_clicked();
 	void on_toolButtonProjection_toggled(bool checked);
 	void on_toolButtonSectionView_toggled(bool checked);
 	void on_toolButtonMultiView_toggled(bool checked);
