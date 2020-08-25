@@ -1303,9 +1303,9 @@ void GLWidget::drawFloor()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
-	_fgShader->setUniformValue("envMapEnabled", true);
+    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	_fgShader->setUniformValue("reflectionMapEnabled", _reflectionsEnabled);
-    _fgShader->setUniformValue("shadowSamples", 32.0f);
+    _fgShader->setUniformValue("shadowSamples", 40.0f);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	glDisable((GL_DEPTH_TEST));
@@ -1691,15 +1691,13 @@ void GLWidget::renderToShadowBuffer()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glViewport(0, 0, _shadowWidth, _shadowHeight);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
-	glClear(GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset(2.0f, 4.0f);
+    glClear(GL_DEPTH_BUFFER_BIT);
 	// 1. render depth of scene to texture (from light's perspective)
 	// --------------------------------------------------------------
 	QMatrix4x4 lightProjection, lightView;
 	float radius = _boundingSphere.getRadius();
-    float near_plane = -radius * 2, far_plane = radius * 4;
-    lightProjection.ortho(-radius * 4, radius * 4, -radius * 4, radius * 4, near_plane, far_plane);
+    float near_plane = 1.0f, far_plane = radius * 4.0f;
+    lightProjection.ortho(-radius * 4.0f, radius * 4.0f, -radius * 4.0f, radius * 4.0f, near_plane, far_plane);
 	lightView.lookAt(_lightPosition, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
@@ -1724,9 +1722,9 @@ void GLWidget::renderToShadowBuffer()
 				std::cout << "Exception raised in GLWidget::renderToShadowBuffer\n" << ex.what() << std::endl;
 			}
 		}
-	}
-	glDisable(GL_POLYGON_OFFSET_FILL);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+    }
+    glDisable(GL_CULL_FACE);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 	// End Shadow Mapping
 	// restore viewport
 	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
@@ -1746,10 +1744,10 @@ void GLWidget::renderToReflectionMap()
 	glClear(GL_COLOR_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
 	// Accept fragment if it closer to the camera than the former one
-	glDepthFunc(GL_LESS);
+    glDepthFunc(GL_LESS);
 	// Cull triangles which normal is not towards the camera
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
 	glEnable(GL_POLYGON_OFFSET_FILL);
 	glPolygonOffset(2.0f, 4.0f);
 	glDisable(GL_BLEND);
@@ -1825,8 +1823,8 @@ void GLWidget::renderToReflectionMap()
 	}
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 	// End Shadow Mapping
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDisable(GL_CULL_FACE);    
+    glDisable(GL_POLYGON_OFFSET_FILL);
 	glEnable(GL_BLEND);
 	glDisable(GL_CLIP_DISTANCE0);
 	glDisable(GL_CLIP_DISTANCE1);
