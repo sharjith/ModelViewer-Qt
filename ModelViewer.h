@@ -129,6 +129,12 @@ private slots:
 
     void on_toolBox_currentChanged(int index);
 
+    void on_toolButtonRotateView_clicked();
+
+    void on_toolButtonPanView_clicked();
+
+    void on_toolButtonZoomView_clicked();
+
 protected:
 	void showEvent(QShowEvent* event);
 

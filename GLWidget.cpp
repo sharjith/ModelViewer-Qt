@@ -120,6 +120,10 @@ _skyBox(nullptr)
 	_bWindowZoomActive = false;
 	_rubberBand = nullptr;
 
+	_bZoomView = false;
+	_bPanView = false;
+	_bRotateView = false;
+
 	_modelName = "Model";
 
 	_clipXEnabled = false;
@@ -382,6 +386,24 @@ void GLWidget::setProjection(ViewProjection proj)
 {
 	_projection = proj;
 	resizeGL(width(), height());
+}
+
+void GLWidget::setRotationActive(bool active)
+{
+	_bRotateView = active; 
+	setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
+}
+
+void GLWidget::setPanningActive(bool active) 
+{
+	_bPanView = active; 
+	setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
+}
+
+void GLWidget::setZoomingActive(bool active) 
+{
+	_bZoomView = active; 
+	setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
 }
 
 void GLWidget::setDisplayList(const std::vector<int>& ids)
@@ -1975,7 +1997,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_leftButtonPoint.setX(e->x());
 		_leftButtonPoint.setY(e->y());
 
-		if (!(e->modifiers() & Qt::ControlModifier) && !_bWindowZoomActive)
+		if (!(e->modifiers() & Qt::ControlModifier) && !_bWindowZoomActive && !_bRotateView && !_bPanView && !_bZoomView)
 		{
 			// Selection
 			mouseSelect(QPoint(e->x(), e->y()));
@@ -1990,13 +2012,13 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_rubberBand->show();
 	}
 
-	if (e->button() & Qt::RightButton)
+	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _bPanView))
 	{
 		_rightButtonPoint.setX(e->x());
 		_rightButtonPoint.setY(e->y());
 	}
 
-	if (e->button() & Qt::MiddleButton)
+	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _bRotateView))
 	{
 		_middleButtonPoint.setX(e->x());
 		_middleButtonPoint.setY(e->y());
@@ -2005,7 +2027,6 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
 void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 {
-	setCursor(QCursor(Qt::ArrowCursor));
 	if (e->button() & Qt::LeftButton)
 	{
 		_rubberBand->hide();
@@ -2013,15 +2034,22 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 		{
 			endWindowZoom();
 		}
+		_bRotateView = false;
+		_bPanView = false;
+		_bZoomView = false;
 	}
-
+	
 	if (e->button() & Qt::RightButton)
 	{
+		
 	}
 
 	if (e->button() & Qt::MiddleButton)
 	{
+		
 	}
+
+	setCursor(QCursor(Qt::ArrowCursor));
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
@@ -2029,9 +2057,9 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	_animateViewTimer->stop();
 
 	QPoint downPoint(e->x(), e->y());
-	if (e->buttons() == Qt::LeftButton)
+	if (e->buttons() == Qt::LeftButton && !_bPanView && !_bZoomView)
 	{
-		if (e->modifiers() == Qt::NoModifier)
+		if (e->modifiers() == Qt::NoModifier && !_bRotateView && !_bPanView && !_bZoomView)
 		{
 			_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
 		}
@@ -2039,7 +2067,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		{
 			setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
 		}
-		else if (e->modifiers() & Qt::ControlModifier)
+		else if ((e->modifiers() & Qt::ControlModifier) || _bRotateView)
 		{
 			QPoint rotate = _leftButtonPoint - downPoint;
 
@@ -2051,7 +2079,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 	}
 
-	if (e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier)
+	if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
 	{
 		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
 		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
@@ -2067,7 +2095,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
 	}
 
-	if (e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier)
+	if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
 	{
 		if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
 			_viewRange /= 1.05f;
@@ -2113,6 +2141,14 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 void GLWidget::keyPressEvent(QKeyEvent* event)
 {
+	if (event->key() == Qt::Key_Escape)
+	{
+		_bRotateView = false;
+		_bPanView = false;
+		_bZoomView = false;
+		_bWindowZoomActive = false;
+		setCursor(QCursor(Qt::ArrowCursor));
+	}
     if (_camera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
     {
         switch (event->key())

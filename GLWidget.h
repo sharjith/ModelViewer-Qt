@@ -58,6 +58,9 @@ public:
 	void setProjection(ViewProjection proj);
 
 	void setMultiView(bool active) { _bMultiView = active; }
+	void setRotationActive(bool active);
+	void setPanningActive(bool active);
+	void setZoomingActive(bool active);
 
 	void fitAll();
 
@@ -197,6 +200,9 @@ private:
 	QColor      _bgTopColor;
 	QColor      _bgBotColor;
 	bool _bWindowZoomActive;
+	bool _bZoomView;
+	bool _bPanView;
+	bool _bRotateView;
 	int _modelNum;
     QImage _texImage, _texBuffer, _floorTexImage;
 	TextRenderer* _textRenderer;

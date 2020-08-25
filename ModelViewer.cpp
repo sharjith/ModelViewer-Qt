@@ -1835,3 +1835,18 @@ void ModelViewer::on_toolBox_currentChanged(int index)
         updateTransformationValues();
     }
 }
+
+void ModelViewer::on_toolButtonRotateView_clicked()
+{
+    _glWidget->setRotationActive(true);
+}
+
+void ModelViewer::on_toolButtonPanView_clicked()
+{
+    _glWidget->setPanningActive(true);
+}
+
+void ModelViewer::on_toolButtonZoomView_clicked()
+{
+    _glWidget->setZoomingActive(true);
+}
