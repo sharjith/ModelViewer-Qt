@@ -448,7 +448,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
 	if (_floorPlane)
 	{
-		_floorSize = _boundingSphere.getRadius();
+        _floorSize = _boundingSphere.getRadius();
 		_floorCenter = _boundingSphere.getCenter();
 		_lightPosition.setX(_floorSize / 4);
 		_lightPosition.setY(_floorSize / 4);
@@ -484,7 +484,7 @@ void GLWidget::updateBoundingSphere()
 
 	if (_floorPlane)
 	{
-		_floorSize = _boundingSphere.getRadius();
+        _floorSize = _boundingSphere.getRadius();
 		_floorCenter = _boundingSphere.getCenter();
 		_lightPosition.setX(_floorSize / 4);
 		_lightPosition.setY(_floorSize / 4);
@@ -1184,15 +1184,25 @@ void GLWidget::paintGL()
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
-			_bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
 
+        gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
+            _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
 		//gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
 		//                 0.8515625f, 0.8515625f, 0.8515625f, 1.0f);
 
 		_modelMatrix.setToIdentity();
 		if (_bMultiView)
 		{
+            glViewport(0, 0, width(), height());
+            if(_shadowsEnabled)
+                renderToShadowBuffer();
+            if(_reflectionsEnabled)
+            {
+                renderToReflectionMap();
+                renderToReflectionDepthMap();
+            }
+            gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
+                _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
 			// Top View
 			_projectionMatrix.setToIdentity();
 			_viewMatrix.setToIdentity();
