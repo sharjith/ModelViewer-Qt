@@ -10,7 +10,6 @@
         <file>res/dimetric.png</file>
         <file>res/trimetric.png</file>
         <file>res/multiview.png</file>
-        <file>res/3dview.png</file>
         <file>res/section.png</file>
         <file>res/Ortho.png</file>
         <file>res/Perspective.png</file>
@@ -42,7 +41,6 @@
         <file>res/redru.png</file>
         <file>res/ruby.png</file>
         <file>res/silver.png</file>
-        <file>res/snapshot1.png</file>
         <file>res/turquoise.png</file>
         <file>res/whitepl.png</file>
         <file>res/whiteru.png</file>
