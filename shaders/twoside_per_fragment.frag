@@ -143,13 +143,8 @@ void main()
 
 
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
-    {        
-
-        vec3 color;
-        if(texEnabled)
-            color = texture(texUnit, fs_in_shadow.TexCoords).rgb;
-        else
-            color = fragColor.rgb;
+    {       
+        vec3 color = fragColor.rgb;
         vec3 normal = normalize(fs_in_shadow.Normal);
         vec3 lightColor = lightSource.diffuse;
         // ambient
@@ -167,7 +162,7 @@ void main()
         vec3 specular = spec * lightColor;
         // calculate shadow
         float shadow = calculateShadow(fs_in_shadow.FragPosLightSpace);
-        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * fragColor.rgb;
+        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
 
         fragColor = vec4(lighting, alpha);
     }
