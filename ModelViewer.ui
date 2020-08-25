@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1322</width>
+    <width>1602</width>
     <height>866</height>
    </rect>
   </property>
@@ -309,6 +309,120 @@
                    </spacer>
                   </item>
                   <item>
+                   <widget class="QToolButton" name="toolButtonRotateView">
+                    <property name="minimumSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="toolTip">
+                     <string>Window Zoom</string>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="icon">
+                     <iconset resource="ModelViewer.qrc">
+                      <normaloff>:/new/prefix1/res/rotateview.png</normaloff>:/new/prefix1/res/rotateview.png</iconset>
+                    </property>
+                    <property name="iconSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="checkable">
+                     <bool>true</bool>
+                    </property>
+                    <attribute name="buttonGroup">
+                     <string notr="true">buttonGroupviewManip</string>
+                    </attribute>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QToolButton" name="toolButtonPanView">
+                    <property name="minimumSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="toolTip">
+                     <string>Window Zoom</string>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="icon">
+                     <iconset resource="ModelViewer.qrc">
+                      <normaloff>:/new/prefix1/res/panview.png</normaloff>:/new/prefix1/res/panview.png</iconset>
+                    </property>
+                    <property name="iconSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="checkable">
+                     <bool>true</bool>
+                    </property>
+                    <attribute name="buttonGroup">
+                     <string notr="true">buttonGroupviewManip</string>
+                    </attribute>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QToolButton" name="toolButtonZoomView">
+                    <property name="minimumSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="maximumSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="toolTip">
+                     <string>Window Zoom</string>
+                    </property>
+                    <property name="text">
+                     <string/>
+                    </property>
+                    <property name="icon">
+                     <iconset resource="ModelViewer.qrc">
+                      <normaloff>:/new/prefix1/res/zoomview.png</normaloff>:/new/prefix1/res/zoomview.png</iconset>
+                    </property>
+                    <property name="iconSize">
+                     <size>
+                      <width>48</width>
+                      <height>48</height>
+                     </size>
+                    </property>
+                    <property name="checkable">
+                     <bool>true</bool>
+                    </property>
+                    <attribute name="buttonGroup">
+                     <string notr="true">buttonGroupviewManip</string>
+                    </attribute>
+                   </widget>
+                  </item>
+                  <item>
                    <widget class="QToolButton" name="toolButtonFitAll">
                     <property name="minimumSize">
                      <size>
@@ -422,7 +536,7 @@
                      <bool>true</bool>
                     </property>
                     <attribute name="buttonGroup">
-                     <string notr="true">buttonGroup</string>
+                     <string notr="true">buttonGroupViews</string>
                     </attribute>
                    </widget>
                   </item>
@@ -463,7 +577,7 @@
                      <bool>true</bool>
                     </property>
                     <attribute name="buttonGroup">
-                     <string notr="true">buttonGroup</string>
+                     <string notr="true">buttonGroupViews</string>
                     </attribute>
                    </widget>
                   </item>
@@ -504,7 +618,7 @@
                      <bool>true</bool>
                     </property>
                     <attribute name="buttonGroup">
-                     <string notr="true">buttonGroup</string>
+                     <string notr="true">buttonGroupViews</string>
                     </attribute>
                    </widget>
                   </item>
@@ -545,7 +659,7 @@
                      <bool>true</bool>
                     </property>
                     <attribute name="buttonGroup">
-                     <string notr="true">buttonGroup</string>
+                     <string notr="true">buttonGroupViews</string>
                     </attribute>
                    </widget>
                   </item>
@@ -586,7 +700,7 @@
                      <bool>true</bool>
                     </property>
                     <attribute name="buttonGroup">
-                     <string notr="true">buttonGroup</string>
+                     <string notr="true">buttonGroupViews</string>
                     </attribute>
                    </widget>
                   </item>
@@ -627,7 +741,7 @@
                      <bool>true</bool>
                     </property>
                     <attribute name="buttonGroup">
-                     <string notr="true">buttonGroup</string>
+                     <string notr="true">buttonGroupViews</string>
                     </attribute>
                    </widget>
                   </item>
@@ -2718,6 +2832,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroup"/>
+  <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

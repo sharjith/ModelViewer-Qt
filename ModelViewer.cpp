@@ -486,12 +486,12 @@ void ModelViewer::on_pushButtonApplyTransformations_clicked()
 
 void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 {
-    buttonGroup->setExclusive(false);
-    for (auto b : buttonGroup->buttons())
+    buttonGroupViews->setExclusive(false);
+    for (auto b : buttonGroupViews->buttons())
     {
         b->setChecked(false);
     }
-    buttonGroup->setExclusive(true);
+    buttonGroupViews->setExclusive(true);
 
     toolButtonTopView->setChecked(false);
     _glWidget->setViewMode(ViewMode::ISOMETRIC);
@@ -502,12 +502,12 @@ void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 
 void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
 {
-    buttonGroup->setExclusive(false);
-    for (auto b : buttonGroup->buttons())
+    buttonGroupViews->setExclusive(false);
+    for (auto b : buttonGroupViews->buttons())
     {
         b->setChecked(false);
     }
-    buttonGroup->setExclusive(true);
+    buttonGroupViews->setExclusive(true);
 
     _glWidget->setViewMode(ViewMode::DIMETRIC);
     _glWidget->updateView();
@@ -517,12 +517,12 @@ void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
 
 void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
 {
-    buttonGroup->setExclusive(false);
-    for (auto b : buttonGroup->buttons())
+    buttonGroupViews->setExclusive(false);
+    for (auto b : buttonGroupViews->buttons())
     {
         b->setChecked(false);
     }
-    buttonGroup->setExclusive(true);
+    buttonGroupViews->setExclusive(true);
 
     _glWidget->setViewMode(ViewMode::TRIMETRIC);
     _glWidget->updateView();

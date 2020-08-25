@@ -58,5 +58,8 @@
         <file>res/hideFaceNormal.png</file>
         <file>res/hideVertexNormal.png</file>
         <file>res/realshaded.png</file>
+        <file>res/panview.png</file>
+        <file>res/zoomview.png</file>
+        <file>res/rotateview.png</file>
     </qresource>
 </RCC>
