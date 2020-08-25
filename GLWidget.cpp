@@ -1989,9 +1989,57 @@ void GLWidget::splitScreen()
 	_bgSplitShader.release();
 }
 
+void GLWidget::checkAndStopTimers()
+{
+    if(_animateViewTimer->isActive())
+    {
+        _animateViewTimer->stop();
+        // Set all defaults
+        _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
+        _currentTranslation = _camera->getPosition();
+        _currentViewRange = _viewRange;
+        _viewMode = ViewMode::NONE;
+        _slerpStep = 0.0f;
+        emit rotationsSet();
+    }
+    if(_animateFitAllTimer->isActive())
+    {
+        _animateFitAllTimer->stop();
+        // Set all defaults
+        _currentTranslation = _camera->getPosition();
+        _currentViewRange = _viewRange;
+        _viewMode = ViewMode::NONE;
+        _slerpStep = 0.0f;
+        emit zoomAndPanSet();
+    }
+    if(_animateWindowZoomTimer->isActive())
+    {
+        _animateWindowZoomTimer->stop();
+        _animateFitAllTimer->stop();
+        // Set all defaults
+        _currentTranslation = _camera->getPosition();
+        _currentViewRange = _viewRange;
+        _viewMode = ViewMode::NONE;
+        _slerpStep = 0.0f;
+        emit zoomAndPanSet();
+    }
+    if(_animateCenterScreenTimer->isActive())
+    {
+        _animateCenterScreenTimer->stop();
+        _animateFitAllTimer->stop();
+        // Set all defaults
+        _currentTranslation = _camera->getPosition();
+        _currentViewRange = _viewRange;
+        _viewMode = ViewMode::NONE;
+        _slerpStep = 0.0f;
+        emit zoomAndPanSet();
+    }
+}
+
 void GLWidget::mousePressEvent(QMouseEvent* e)
 {
 	setFocus();
+    checkAndStopTimers();
 	if (e->button() & Qt::LeftButton)
 	{
 		_leftButtonPoint.setX(e->x());
@@ -2054,8 +2102,6 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
-	_animateViewTimer->stop();
-
 	QPoint downPoint(e->x(), e->y());
 	if (e->buttons() == Qt::LeftButton && !_bPanView && !_bZoomView)
 	{

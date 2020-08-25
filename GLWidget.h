@@ -159,6 +159,8 @@ public:
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
 
+    void checkAndStopTimers();
+
 signals:
 	void windowZoomEnded();
 	void rotationsSet();
