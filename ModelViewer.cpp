@@ -230,9 +230,6 @@ void ModelViewer::updateControls()
 {
 	sliderShine->setValue((int)_shine);
 	sliderTransparency->setValue((int)(255 * _opacity));
-	sliderLightPosX->setValue(0);
-	sliderLightPosY->setValue(0);
-	sliderLightPosZ->setValue(0);
 
 	QColor col;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -451,7 +448,10 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
     _glWidget->setDiffuseLight({ 1.0f, 1.0f, 1.0f, 1.0f });
     _glWidget->setSpecularLight({ 0.5f, 0.5f, 0.5f, 1.0f });
 
-    updateControls();
+    sliderLightPosX->setValue(0);
+    sliderLightPosY->setValue(0);
+    sliderLightPosZ->setValue(0);
+
     _glWidget->updateView();
 }
 
