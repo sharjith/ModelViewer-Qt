@@ -2295,11 +2295,6 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     update();
 }
 
-void GLWidget::keyReleaseEvent(QKeyEvent* event)
-{
-
-}
-
 void GLWidget::animateViewChange()
 {
     if (_viewMode == ViewMode::TOP)

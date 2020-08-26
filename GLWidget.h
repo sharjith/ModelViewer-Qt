@@ -193,8 +193,7 @@ protected:
 	void mouseReleaseEvent(QMouseEvent*);
 	void mouseMoveEvent(QMouseEvent*);
 	void wheelEvent(QWheelEvent*);
-	void keyPressEvent(QKeyEvent* event);
-	void keyReleaseEvent(QKeyEvent* event);
+    void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent* event);
 
 private:
