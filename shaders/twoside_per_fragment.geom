@@ -6,12 +6,10 @@ layout(triangle_strip, max_vertices=6) out;
 in vec3 v_position[];
 in vec3 v_normal[];
 in vec2 v_texCoord2d[];
-in vec4 v_clipSpace[];
 
 out vec3 g_normal;
 out vec3 g_position;
 out vec2 g_texCoord2d;
-out vec4 g_clipSpace;
 
 noperspective out vec3 g_edgeDistance;
 uniform mat4 viewportMatrix; // Viewport matrix
@@ -53,22 +51,7 @@ out float g_clipDistZ;
 out float g_clipDist;
 
 void main()
-{    
-    // pass through for v_ fragPosLightSpace & v_reflectionNormal
-    for(int i=0; i<gl_in.length(); i++)
-    {
-        g_fragPosReflSpace = v_fragPosReflSpace[i];
-        //g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly
-        g_clipSpace = v_clipSpace[i];
-
-        /*gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
-        //gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
-        gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
-        gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
-        gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;
-        gs_out_shadow.lightPos = gs_in_shadow[i].lightPos;*/
-    }
-
+{
     if(displayMode == 2) // WireShaded
     {
         // Transform each vertex into viewport space
@@ -158,6 +141,11 @@ void main()
             gl_ClipDistance[2] = g_clipDistZ;
             gl_ClipDistance[3] = g_clipDist;
 
+
+            g_fragPosReflSpace = v_fragPosReflSpace[i];
+            //g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly
+
+            // Shadow mapping
             gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
             //gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
             gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;

@@ -7,7 +7,6 @@ noperspective in vec3 g_edgeDistance;
 //in vec4 g_fragPosLightSpace;
 in vec4 g_fragPosReflSpace;
 in vec3 g_reflectionNormal;
-in vec4 g_clipSpace;
 
 in GS_OUT_SHADOW {
     vec3 FragPos;

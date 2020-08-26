@@ -31,7 +31,6 @@ out vec2 v_texCoord2d;
 out vec4 v_fragPosLightSpace;
 out vec4 v_fragPosReflSpace;
 out vec3 v_reflectionNormal;
-out vec4 v_clipSpace;
 
 out VS_OUT_SHADOW {
     vec3 FragPos;
@@ -48,7 +47,6 @@ void main()
     v_position   = vec3(modelViewMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
 
-    v_clipSpace = projectionMatrix * modelViewMatrix * vec4(vertexPosition.x, 0.0, vertexPosition.y, 1.0);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1);
 
     v_clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
