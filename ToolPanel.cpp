@@ -10,7 +10,7 @@ ToolPanel::ToolPanel(QWidget* parent)
 	parent->setMouseTracking(true);
 	parent->installEventFilter(this);
 	_animation->setDuration(250);
-	//_animation->setEasingCurve(QEasingCurve::InOutBounce);
+	_animation->setEasingCurve(QEasingCurve::InOutBounce);
 }
 
 bool ToolPanel::eventFilter(QObject* object, QEvent* event)
