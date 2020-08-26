@@ -384,11 +384,14 @@ QVector3D TriangleMesh::getTranslation() const
 
 void TriangleMesh::setTranslation(const QVector3D& trans)
 {
+    _transX = trans.x() - _transX;
+    _transY = trans.y() - _transY;
+    _transZ = trans.z() - _transZ;
+    _transformation.translate(_transX, _transY, _transZ);
+    setupTransformation();
     _transX = trans.x();
     _transY = trans.y();
     _transZ = trans.z();
-    _transformation.translate(_transX, _transY, _transZ);
-    setupTransformation();
 }
 
 QVector3D TriangleMesh::getRotation() const
@@ -398,12 +401,16 @@ QVector3D TriangleMesh::getRotation() const
 
 void TriangleMesh::setRotation(const QVector3D& rota)
 {
+    _rotateX = rota.x() - _rotateX;
+    _rotateY = rota.y() - _rotateY;
+    _rotateZ = rota.z() - _rotateZ;
+    _transformation.rotate(_rotateX, QVector3D(1.0f, 0.0f, 0.0f));
+    _transformation.rotate(_rotateY, QVector3D(0.0f, 1.0f, 0.0f));
+    _transformation.rotate(_rotateZ, QVector3D(0.0f, 0.0f, 1.0f));
+    setupTransformation();
     _rotateX = rota.x();
     _rotateY = rota.y();
     _rotateZ = rota.z();
-    QQuaternion rotq = QQuaternion::fromEulerAngles(rota.x(), rota.y(), rota.z());
-    _transformation.rotate(rotq);
-    setupTransformation();
 }
 
 QVector3D TriangleMesh::getScaling() const
@@ -413,11 +420,14 @@ QVector3D TriangleMesh::getScaling() const
 
 void TriangleMesh::setScaling(const QVector3D& scale)
 {
+    _scaleX = scale.x()/_scaleX;
+    _scaleY = scale.y()/_scaleY;
+    _scaleZ = scale.z()/_scaleZ;
+    _transformation.scale(_scaleX, _scaleY, _scaleZ);
+    setupTransformation();
     _scaleX = scale.x();
     _scaleY = scale.y();
     _scaleZ = scale.z();
-    _transformation.scale(scale.x(), scale.y(), scale.z());
-    setupTransformation();
 }
 
 QMatrix4x4 TriangleMesh::getTransformation() const
