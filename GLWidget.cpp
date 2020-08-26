@@ -2370,13 +2370,13 @@ void GLWidget::animateCenterScreen()
 	}
 }
 
-void GLWidget::convertClickToRay(const QPoint& pixel, QVector3D& orig, QVector3D& dir)
+void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir)
 {
 	QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-	Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+    Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
 	QVector3D p(pixel.x(), height() - pixel.y(), -1.0f);
-	QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+    QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
 	orig = QVector3D(P.x(), P.y(), P.z());
 	QVector3D viewDir = _camera->getViewDir();
@@ -2392,7 +2392,29 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 
 	QVector3D rayPos, rayDir;
 	QVector3D intPoint;
-	convertClickToRay(pixel, rayPos, rayDir);
+    QRect viewport;
+    if(_bMultiView)
+    {
+        // top view
+        if(pixel.x() < width()/2 && pixel.y() > height()/2)
+            viewport = QRect(0, 0, width() / 2, height() / 2);
+        // front view
+        if(pixel.x() < width()/2 && pixel.y() < height()/2)
+            viewport = QRect(0, height() / 2, width() / 2, height() / 2);
+        // left view
+        if(pixel.x() > width()/2 && pixel.y() < height()/2)
+            viewport = QRect(width() / 2, height() / 2, width() / 2, height() / 2);
+        // isometric
+        if(pixel.x() > width()/2 && pixel.y() > height()/2)
+            viewport = QRect(width() / 2, 0, width() / 2, height() / 2);
+    }
+    else
+    {
+        // single viewport
+        viewport = QRect(0, 0, width(), height());
+    }
+    convertClickToRay(pixel, viewport, rayPos, rayDir);
+
 
 	for (int i : _displayedObjectsIds)
 	{
