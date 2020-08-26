@@ -87,9 +87,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Put the GL widget inside the frame
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
 	flayout->addWidget(_glWidget, 1);
-	_glWidget->installEventFilter(tabWidget_2);
-	tabWidget_2->setParent(_glWidget);
-	_glWidget->layout()->addWidget(tabWidget_2);
+    _glWidget->installEventFilter(tabWidget);
+    tabWidget->setParent(_glWidget);
+    _glWidget->layout()->addWidget(tabWidget);
 	//connect(_glWidget, SIGNAL(displayListSet()), this, SLOT(updateDisplayList()));
 
 	QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));

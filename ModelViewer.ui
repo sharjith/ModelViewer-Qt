@@ -127,7 +127,7 @@
              </layout>
             </item>
             <item row="1" column="0">
-             <widget class="ToolPanel" name="tabWidget_2">
+             <widget class="ToolPanel" name="tabWidget">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
                 <horstretch>0</horstretch>
@@ -137,13 +137,19 @@
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 0%);</string>
               </property>
+              <property name="tabPosition">
+               <enum>QTabWidget::North</enum>
+              </property>
+              <property name="tabShape">
+               <enum>QTabWidget::Rounded</enum>
+              </property>
               <property name="currentIndex">
                <number>1</number>
               </property>
               <property name="tabBarAutoHide">
                <bool>false</bool>
               </property>
-              <widget class="QWidget" name="tab_5">
+              <widget class="QWidget" name="tabDoc">
                <attribute name="title">
                 <string>Document</string>
                </attribute>
@@ -288,7 +294,7 @@
                 </item>
                </layout>
               </widget>
-              <widget class="QWidget" name="tab_3">
+              <widget class="QWidget" name="tabView">
                <attribute name="title">
                 <string>View</string>
                </attribute>
@@ -1099,7 +1105,7 @@
                 </item>
                </layout>
               </widget>
-              <widget class="QWidget" name="tab_4">
+              <widget class="QWidget" name="tabActions">
                <attribute name="title">
                 <string>Actions</string>
                </attribute>
@@ -1164,8 +1170,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1177,6 +1183,9 @@
               </property>
               <item row="1" column="0">
                <widget class="QListWidget" name="listWidgetModel">
+                <property name="styleSheet">
+                 <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
+                </property>
                 <property name="selectionMode">
                  <enum>QAbstractItemView::MultiSelection</enum>
                 </property>
@@ -1196,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>315</width>
+               <height>688</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2209,8 +2218,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2455,8 +2464,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2832,7 +2841,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>
