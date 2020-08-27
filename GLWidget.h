@@ -65,7 +65,7 @@ public:
 	void fitAll();
 
 	void beginWindowZoom();
-	void endWindowZoom();
+    void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
 	void updateBoundingSphere();
@@ -391,6 +391,7 @@ private:
 	float lowestModelZ();
 
 	void renderQuad();
+    QRect getViewportFromPoint(const QPoint& pixel);
 };
 
 #endif

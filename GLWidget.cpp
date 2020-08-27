@@ -349,18 +349,18 @@ void GLWidget::beginWindowZoom()
     setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
 }
 
-void GLWidget::endWindowZoom()
+void GLWidget::performWindowZoom()
 {
     _bWindowZoomActive = false;
     if (_rubberBand)
     {
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->rect().center()));
 
-        QRect clientRect = geometry();
+        QRect clientRect = getViewportFromPoint(_rubberBand->rect().center());
         QPoint clientWinCen = clientRect.center();
-        QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
-        QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        QVector3D o(clientWinCen.x(), clientRect.height() - clientWinCen.y(), Z.z());
+        QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->rect().center()));
 
         QRect zoomRect = _rubberBand->geometry();
         if (zoomRect.width() == 0 || zoomRect.height() == 0)
@@ -369,8 +369,8 @@ void GLWidget::endWindowZoom()
             return;
         }
         QPoint zoomWinCen = zoomRect.center();
-        QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
-        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        QVector3D p(zoomWinCen.x(), clientRect.height() - zoomWinCen.y(), Z.z());
+        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->rect().center()));
 
         double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
         double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
@@ -2077,7 +2077,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
         _rubberBand->hide();
         if (_bWindowZoomActive)
         {
-            endWindowZoom();
+            performWindowZoom();
         }
         _bRotateView = false;
         _bPanView = false;
@@ -2125,11 +2125,11 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
     if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
     {
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
         QVector3D p1(downPoint.x(), height() - downPoint.y(), Z.z());
-        QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
         QVector3D p2(_rightButtonPoint.x(), height() - _rightButtonPoint.y(), Z.z());
-        QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+        QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
         QVector3D OP = P - O;
         _primaryCamera->move(OP.x(), OP.y(), OP.z());
         _currentTranslation = _primaryCamera->getPosition();
@@ -2365,15 +2365,8 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
     dir = viewDir;
 }
 
-int GLWidget::mouseSelect(const QPoint& pixel)
+QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 {
-    int id = -1;
-
-    if (!_displayedObjectsIds.size())
-        return id;
-
-    QVector3D rayPos, rayDir;
-    QVector3D intPoint;
     QRect viewport;
     if(_bMultiView)
     {
@@ -2395,6 +2388,20 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         // single viewport
         viewport = QRect(0, 0, width(), height());
     }
+
+    return viewport;
+}
+
+int GLWidget::mouseSelect(const QPoint& pixel)
+{
+    int id = -1;
+
+    if (!_displayedObjectsIds.size())
+        return id;
+
+    QVector3D rayPos, rayDir;
+    QVector3D intPoint;
+    QRect viewport = getViewportFromPoint(pixel);
     convertClickToRay(pixel, viewport, rayPos, rayDir);
 
 
