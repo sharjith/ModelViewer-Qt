@@ -147,7 +147,7 @@ void main()
 
             // Shadow mapping
             gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
-            //gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
+            gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
             gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
             gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
             gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;

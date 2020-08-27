@@ -71,7 +71,6 @@ layout( location = 0 ) out vec4 fragColor;
 
 float calculateShadow(vec4 fragPosLightSpace);
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
-float ShadowCalculation(vec3 fragPos);
 
 void main()
 {
@@ -131,39 +130,12 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
-
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {        
         vec3 I = normalize(g_position - cameraPos);
         vec3 R = reflect(I, (g_reflectionNormal));
         vec3 worldR = inverse(mat3(viewMatrix)) * R;
         fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);
-    }
-
-
-    if(shadowsEnabled && displayMode == 3) // Shadow Mapping
-    {       
-        vec3 color = fragColor.rgb;
-        vec3 normal = normalize(fs_in_shadow.Normal);
-        vec3 lightColor = lightSource.diffuse;
-        // ambient
-        vec3 ambient = lightSource.ambient;
-        // diffuse
-        vec3 lightDir = normalize(fs_in_shadow.lightPos - fs_in_shadow.FragPos);
-        float diff = max(dot(lightDir, normal), 0.0);
-        vec3 diffuse = lightSource.diffuse;
-        // specular
-        vec3 viewDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
-        vec3 reflectDir = reflect(-lightDir, normal);
-        float spec = 0.0;
-        vec3 halfwayDir = normalize(lightDir + viewDir);
-        spec = pow(max(dot(normal, halfwayDir), 0.0), 64.0);
-        vec3 specular = spec * lightColor;
-        // calculate shadow
-        float shadow = calculateShadow(fs_in_shadow.FragPosLightSpace);
-        vec3 lighting = (ambient + (1.0 - shadow) * (diffuse + specular)) * color;
-
-        fragColor = vec4(lighting, alpha);
     }
 
     if(reflectionMapEnabled && displayMode == 3)
@@ -200,10 +172,23 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 specular   = source.specular * pf;
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
 
-    vec3 colorLinear =  clamp(sceneColor +
+    vec3 colorLinear;
+    
+    if(shadowsEnabled && displayMode == 3) // Shadow Mapping
+    {
+        float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
+        colorLinear =  clamp(sceneColor +
+                 (ambient  * mat.ambient + 1 - shadowFactor) *
+                 (diffuse  * mat.diffuse +
+                 specular * mat.specular), 0.f, 1.f );
+    }
+    else
+    {
+        colorLinear =  clamp(sceneColor +
                  ambient  * mat.ambient +
                  diffuse  * mat.diffuse +
-                 specular * mat.specular, 0.f, 1.f );
+                 specular * mat.specular, 0.f, 1.f );        
+     }
 
     return colorLinear;
 }
@@ -217,14 +202,13 @@ float calculateShadow(vec4 fragPosLightSpace)
     // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
     float closestDepth = texture(shadowMap, projCoords.xy).r;
     // get depth of current fragment from light's perspective
-    float currentDepth = projCoords.z;
-    // calculate bias (based on depth map resolution and slope)
+    float currentDepth = projCoords.z;    
+
     vec3 normal = normalize(fs_in_shadow.Normal);
     vec3 lightDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
     float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
-    // check whether current frag pos is in shadow
-    // float shadow = currentDepth - bias > closestDepth  ? 1.0 : 0.0;
-    // PCF
+
+    // PCF - Percentage Closer Filtering
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
     for(int x = -1; x <= 1; ++x)
