@@ -355,12 +355,12 @@ void GLWidget::performWindowZoom()
     if (_rubberBand)
     {
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->rect().center()));
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-        QRect clientRect = getViewportFromPoint(_rubberBand->rect().center());
+        QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
         QPoint clientWinCen = clientRect.center();
         QVector3D o(clientWinCen.x(), clientRect.height() - clientWinCen.y(), Z.z());
-        QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->rect().center()));
+        QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
         QRect zoomRect = _rubberBand->geometry();
         if (zoomRect.width() == 0 || zoomRect.height() == 0)
@@ -370,7 +370,7 @@ void GLWidget::performWindowZoom()
         }
         QPoint zoomWinCen = zoomRect.center();
         QVector3D p(zoomWinCen.x(), clientRect.height() - zoomWinCen.y(), Z.z());
-        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->rect().center()));
+        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
         double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
         double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
@@ -2389,6 +2389,33 @@ QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
     }
 
     return viewport;
+}
+
+QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
+{
+    QRect clientRect;
+    if(_bMultiView)
+    {
+        // top view
+        if(pixel.x() < width()/2 && pixel.y() > height()/2)
+            clientRect = QRect(0, height()/2, width() / 2, height() / 2);
+        // front view
+        if(pixel.x() < width()/2 && pixel.y() < height()/2)
+            clientRect = QRect(0, 0, width() / 2, height() / 2);
+        // left view
+        if(pixel.x() > width()/2 && pixel.y() < height()/2)
+            clientRect = QRect(width() / 2, 0, width() / 2, height() / 2);
+        // isometric
+        if(pixel.x() > width()/2 && pixel.y() > height()/2)
+            clientRect = QRect(width() / 2, height()/2, width() / 2, height() / 2);
+    }
+    else
+    {
+        // single viewport
+        clientRect = QRect(0, 0, width(), height());
+    }
+
+    return clientRect;
 }
 
 int GLWidget::mouseSelect(const QPoint& pixel)

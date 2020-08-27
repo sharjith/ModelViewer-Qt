@@ -392,6 +392,8 @@ private:
 
 	void renderQuad();
     QRect getViewportFromPoint(const QPoint& pixel);
+    QRect getClientRectFromPoint(const QPoint& pixel);
+
 };
 
 #endif
