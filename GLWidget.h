@@ -337,7 +337,8 @@ private:
 	ViewMode _viewMode;
 	ViewProjection _projection;
 
-	GLCamera* _camera;
+    GLCamera* _primaryCamera;
+    GLCamera* _orthoViewsCamera;
 
 	QTimer* _animateViewTimer;
 	QTimer* _animateFitAllTimer;
@@ -370,7 +371,7 @@ private:
 	void drawAxis();
 	void drawCornerAxis();
 
-	void render();
+    void render(GLCamera* camera);
 	void renderToShadowBuffer();
 	void renderToReflectionMap();
 	void renderToReflectionDepthMap();

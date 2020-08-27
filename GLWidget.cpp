@@ -92,11 +92,14 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _viewMode = ViewMode::ISOMETRIC;
     _projection = ViewProjection::ORTHOGRAPHIC;
 
-    _camera = new GLCamera(width(), height(), _viewRange, _FOV);
-    _camera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
+    _primaryCamera = new GLCamera(width(), height(), _viewRange, _FOV);
+    _primaryCamera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
 
-    _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
-    _currentTranslation = _camera->getPosition();
+    _orthoViewsCamera = new GLCamera(width(), height(), _viewRange, _FOV);
+    _orthoViewsCamera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
+
+    _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+    _currentTranslation = _primaryCamera->getPosition();
     _currentViewRange = _viewRange;
 
     _slerpStep = 0.0f;
@@ -225,8 +228,8 @@ GLWidget::~GLWidget()
     {
         delete a;
     }
-    if (_camera)
-        delete _camera;
+    if (_primaryCamera)
+        delete _primaryCamera;
 
     if (_fgShader)
         delete _fgShader;
@@ -409,7 +412,7 @@ void GLWidget::setZoomingActive(bool active)
 void GLWidget::setDisplayList(const std::vector<int>& ids)
 {
     _displayedObjectsIds = ids;
-    _currentTranslation = _camera->getPosition();
+    _currentTranslation = _primaryCamera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
 
     if (_meshStore.size() == 0)
@@ -422,8 +425,8 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     }
     else if (ids.size() == 0)
     {
-        _camera->setPosition(0, 0, 0);
-        _currentTranslation = _camera->getPosition();
+        _primaryCamera->setPosition(0, 0, 0);
+        _currentTranslation = _primaryCamera->getPosition();
         _boundingSphere.setRadius(1.0);
         _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
         _viewRange = _viewBoundingSphereDia;
@@ -465,7 +468,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
 void GLWidget::updateBoundingSphere()
 {
-    _currentTranslation = _camera->getPosition();
+    _currentTranslation = _primaryCamera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
 
     _boundingSphere.setRadius(0.0);
@@ -1154,17 +1157,17 @@ void GLWidget::resizeGL(int width, int height)
                                  w / 2 + 0, h / 2 + 0, 0.0f, 1.0f);
 
     _projectionMatrix.setToIdentity();
-    _camera->setScreenSize(w, h);
-    _camera->setViewRange(_viewRange);
+    _primaryCamera->setScreenSize(w, h);
+    _primaryCamera->setViewRange(_viewRange);
     if (_projection == ViewProjection::ORTHOGRAPHIC)
     {
-        _camera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+        _primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
     }
     else
     {
-        _camera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+        _primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
     }
-    _projectionMatrix = _camera->getProjectionMatrix();
+    _projectionMatrix = _primaryCamera->getProjectionMatrix();
 
     // Resize the text frame
     _textRenderer->setWidth(width);
@@ -1192,7 +1195,7 @@ void GLWidget::paintGL()
 
         _modelMatrix.setToIdentity();
         if (_bMultiView)
-        {
+        {           
             glViewport(0, 0, width(), height());
             if(_shadowsEnabled)
                 renderToShadowBuffer();
@@ -1203,50 +1206,33 @@ void GLWidget::paintGL()
             }
             gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
                                _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
+            // Render orthographic views with ortho view camera
             // Top View
-            _projectionMatrix.setToIdentity();
-            _viewMatrix.setToIdentity();
-            _modelMatrix.setToIdentity();
-            //glViewport(0, height() / 2, width() / 2, height() / 2);
-            _camera->setScreenSize(width() / 2, height() / 2);
+            _orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
+            _orthoViewsCamera->setProjectionMatrix(_projectionMatrix);
+            _orthoViewsCamera->setViewMatrix(_viewMatrix);
+            _orthoViewsCamera->setPosition(_primaryCamera->getPosition());
             glViewport(0, 0, width() / 2, height() / 2);
-            _camera->setView(GLCamera::ViewProjection::TOP_VIEW);
-            _projectionMatrix = _camera->getProjectionMatrix();
-            _viewMatrix = _camera->getViewMatrix();
-            render();
+            _orthoViewsCamera->setView(GLCamera::ViewProjection::TOP_VIEW);
+            render(_orthoViewsCamera);
             _textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-            // Front View
-            _projectionMatrix.setToIdentity();
-            _viewMatrix.setToIdentity();
-            _modelMatrix.setToIdentity();
+            // Front View            
             glViewport(0, height() / 2, width() / 2, height() / 2);
-            _camera->setView(GLCamera::ViewProjection::FRONT_VIEW);
-            _projectionMatrix = _camera->getProjectionMatrix();
-            _viewMatrix = _camera->getViewMatrix();
-            render();
+            _orthoViewsCamera->setView(GLCamera::ViewProjection::FRONT_VIEW);
+            render(_orthoViewsCamera);
             _textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-            // Left View
-            _projectionMatrix.setToIdentity();
-            _viewMatrix.setToIdentity();
-            _modelMatrix.setToIdentity();
+            // Left View            
             glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
-            _camera->setView(GLCamera::ViewProjection::LEFT_VIEW);
-            _projectionMatrix = _camera->getProjectionMatrix();
-            _viewMatrix = _camera->getViewMatrix();
-            render();
+            _orthoViewsCamera->setView(GLCamera::ViewProjection::LEFT_VIEW);
+            render(_orthoViewsCamera);
             _textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
+            // Render isometric view with primary camera
             // Isometric View
-            _projectionMatrix.setToIdentity();
-            _viewMatrix.setToIdentity();
-            _modelMatrix.setToIdentity();
             glViewport(width() / 2, 0, width() / 2, height() / 2);
-            _camera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
-            _projectionMatrix = _camera->getProjectionMatrix();
-            _viewMatrix = _camera->getViewMatrix();
-            render();
+            render(_primaryCamera);
             _textRenderer->RenderText("Isometric", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
             // draw screen partitioning lines
@@ -1271,7 +1257,7 @@ void GLWidget::paintGL()
 
             gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
                                _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
-            render();
+            render(_primaryCamera);
             drawCornerAxis();
         }
 
@@ -1363,7 +1349,7 @@ void GLWidget::drawSkyBox()
 
 void GLWidget::drawMesh()
 {
-    QVector3D pos = _camera->getPosition();
+    QVector3D pos = _primaryCamera->getPosition();
 
     if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
     {
@@ -1407,7 +1393,7 @@ void GLWidget::drawMesh()
 
 void GLWidget::drawVertexNormals()
 {
-    QVector3D pos = _camera->getPosition();
+    QVector3D pos = _primaryCamera->getPosition();
     _vertexNormalShader->bind();
     _vertexNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
     _vertexNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
@@ -1437,7 +1423,7 @@ void GLWidget::drawVertexNormals()
 
 void GLWidget::drawFaceNormals()
 {
-    QVector3D pos = _camera->getPosition();
+    QVector3D pos = _primaryCamera->getPosition();
     _faceNormalShader->bind();
     _faceNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
     _faceNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
@@ -1631,13 +1617,14 @@ void GLWidget::drawCornerAxis()
     glViewport(0, 0, width(), height());
 }
 
-void GLWidget::render()
+void GLWidget::render(GLCamera *camera)
 {
     //renderToShadowBuffer();
     glEnable(GL_DEPTH_TEST);
 
     _viewMatrix.setToIdentity();
-    _viewMatrix = _camera->getViewMatrix();
+    _viewMatrix = camera->getViewMatrix();
+    _projectionMatrix = camera->getProjectionMatrix();
 
     // model transformations
     /*_modelMatrix.translate(QVector3D(_xTran, _yTran, _zTran));
@@ -1664,7 +1651,7 @@ void GLWidget::render()
     _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
     _fgShader->setUniformValue("shadowsEnabled", _shadowsEnabled);
     _fgShader->setUniformValue("reflectionMapEnabled", false);
-    _fgShader->setUniformValue("cameraPos", _camera->getPosition());
+    _fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
     _fgShader->setUniformValue("lightPos", _lightPosition);
     _fgShader->setUniformValue("modelMatrix", _modelMatrix);
     _fgShader->setUniformValue("viewMatrix", _viewMatrix);
@@ -2005,8 +1992,8 @@ void GLWidget::checkAndStopTimers()
     {
         _animateViewTimer->stop();
         // Set all defaults
-        _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
-        _currentTranslation = _camera->getPosition();
+        _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+        _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
@@ -2016,7 +2003,7 @@ void GLWidget::checkAndStopTimers()
     {
         _animateFitAllTimer->stop();
         // Set all defaults
-        _currentTranslation = _camera->getPosition();
+        _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
@@ -2027,7 +2014,7 @@ void GLWidget::checkAndStopTimers()
         _animateWindowZoomTimer->stop();
         _animateFitAllTimer->stop();
         // Set all defaults
-        _currentTranslation = _camera->getPosition();
+        _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
@@ -2038,7 +2025,7 @@ void GLWidget::checkAndStopTimers()
         _animateCenterScreenTimer->stop();
         _animateFitAllTimer->stop();
         // Set all defaults
-        _currentTranslation = _camera->getPosition();
+        _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
@@ -2127,9 +2114,9 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         {
             QPoint rotate = _leftButtonPoint - downPoint;
 
-            _camera->rotateX(rotate.y() / 2.0);
-            _camera->rotateY(rotate.x() / 2.0);
-            _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
+            _primaryCamera->rotateX(rotate.y() / 2.0);
+            _primaryCamera->rotateY(rotate.x() / 2.0);
+            _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
             _leftButtonPoint = downPoint;
             setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
         }
@@ -2144,8 +2131,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         QVector3D p2(_rightButtonPoint.x(), height() - _rightButtonPoint.y(), Z.z());
         QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
         QVector3D OP = P - O;
-        _camera->move(OP.x(), OP.y(), OP.z());
-        _currentTranslation = _camera->getPosition();
+        _primaryCamera->move(OP.x(), OP.y(), OP.z());
+        _currentTranslation = _primaryCamera->getPosition();
 
         _rightButtonPoint = downPoint;
         setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
@@ -2205,21 +2192,21 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         _bWindowZoomActive = false;
         setCursor(QCursor(Qt::ArrowCursor));
     }
-    if (_camera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+    if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
     {
         switch (event->key())
         {
         case Qt::Key_A:
-            _camera->moveAcross(5.0f);
+            _primaryCamera->moveAcross(5.0f);
             break;
         case Qt::Key_D:
-            _camera->moveAcross(-5.0f);
+            _primaryCamera->moveAcross(-5.0f);
             break;
         case Qt::Key_W:
-            _camera->moveForward(-5.0f);
+            _primaryCamera->moveForward(-5.0f);
             break;
         case Qt::Key_S:
-            _camera->moveForward(5.0);
+            _primaryCamera->moveForward(5.0);
             break;
         default:
             break;
@@ -2230,16 +2217,16 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         switch (event->key())
         {
         case Qt::Key_A:
-            _camera->moveAcross(5.0f);
+            _primaryCamera->moveAcross(5.0f);
             break;
         case Qt::Key_D:
-            _camera->moveAcross(-5.0f);
+            _primaryCamera->moveAcross(-5.0f);
             break;
         case Qt::Key_W:
-            _camera->moveUpward(-5.0f);
+            _primaryCamera->moveUpward(-5.0f);
             break;
         case Qt::Key_S:
-            _camera->moveUpward(5.0f);
+            _primaryCamera->moveUpward(5.0f);
             break;
         default:
             break;
@@ -2248,22 +2235,22 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     switch (event->key())
     {
     case Qt::Key_Left:
-        _camera->rotateY(2.0f);
+        _primaryCamera->rotateY(2.0f);
         break;
     case Qt::Key_Right:
-        _camera->rotateY(-2.0f);
+        _primaryCamera->rotateY(-2.0f);
         break;
     case Qt::Key_Up:
-        _camera->rotateX(2.0f);
+        _primaryCamera->rotateX(2.0f);
         break;
     case Qt::Key_Down:
-        _camera->rotateX(-2.0f);
+        _primaryCamera->rotateX(-2.0f);
         break;
     case Qt::Key_PageUp:
-        _camera->rotateZ(2.0f);
+        _primaryCamera->rotateZ(2.0f);
         break;
     case Qt::Key_PageDown:
-        _camera->rotateZ(-2.0f);
+        _primaryCamera->rotateZ(-2.0f);
         break;
     case Qt::Key_Plus:
     {
@@ -2290,8 +2277,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     default:
         break;
     }
-    _currentTranslation = _camera->getPosition();
-    _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
+    _currentTranslation = _primaryCamera->getPosition();
+    _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
     update();
 }
 
@@ -2345,7 +2332,7 @@ void GLWidget::animateFitAll()
 
 void GLWidget::animateWindowZoom()
 {
-    float fov = _camera->getFOV();
+    float fov = _primaryCamera->getFOV();
     float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio*fov/100);
     QVector3D panRatio = (_rubberBandPan*fov/100);
     float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
@@ -2374,7 +2361,7 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
     QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
     orig = QVector3D(P.x(), P.y(), P.z());
-    QVector3D viewDir = _camera->getViewDir();
+    QVector3D viewDir = _primaryCamera->getViewDir();
     dir = viewDir;
 }
 
@@ -2432,7 +2419,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
 {
-    _camera->setView(viewPos, viewDir, upDir, rightDir);
+    _primaryCamera->setView(viewPos, viewDir, upDir, rightDir);
     emit viewSet();
 }
 
@@ -2450,7 +2437,7 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
     QVector3D viewDir = -rotMat.row(2).toVector3D();
     QVector3D upDir = rotMat.row(1).toVector3D();
     QVector3D rightDir = rotMat.row(0).toVector3D();
-    _camera->setView(curPos, viewDir, upDir, rightDir);
+    _primaryCamera->setView(curPos, viewDir, upDir, rightDir);
 
     // Set zoom
     float scaleStep = (_currentViewRange - _viewBoundingSphereDia) * _slerpFrac;
@@ -2463,11 +2450,11 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
         QVector3D viewDir = -rotMat.row(2).toVector3D();
         QVector3D upDir = rotMat.row(1).toVector3D();
         QVector3D rightDir = rotMat.row(0).toVector3D();
-        _camera->setView(curPos, viewDir, upDir, rightDir);
+        _primaryCamera->setView(curPos, viewDir, upDir, rightDir);
 
         // Set all defaults
-        _currentRotation = QQuaternion::fromRotationMatrix(_camera->getViewMatrix().toGenericMatrix<3, 3>());
-        _currentTranslation = _camera->getPosition();
+        _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+        _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
@@ -2483,7 +2470,7 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 
     // Translation
     QVector3D curPos = pan * _slerpFrac;
-    _camera->move(curPos.x(), curPos.y(), curPos.z());
+    _primaryCamera->move(curPos.x(), curPos.y(), curPos.z());
 
     // Set zoom
     float scaleStep = (_currentViewRange - zoom) * _slerpFrac;
@@ -2492,7 +2479,7 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
     if (qFuzzyCompare(_slerpStep, 1.0f))
     {
         // Set all defaults
-        _currentTranslation = _camera->getPosition();
+        _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
         _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
