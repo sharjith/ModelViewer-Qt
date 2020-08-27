@@ -131,11 +131,26 @@ void main()
     }
 
     if(envMapEnabled && displayMode == 3) // Environment mapping
-    {        
+    {           
         vec3 I = normalize(g_position - cameraPos);
-        vec3 R = reflect(I, (g_reflectionNormal));
-        vec3 worldR = inverse(mat3(viewMatrix)) * R;
-        fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgba), material.shininess/256);
+        vec3 R, worldR;
+        if(alpha < 1.0f) // Transparent
+        {
+            vec4 colour = fragColor;
+            R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
+            worldR = inverse(mat3(viewMatrix)) * R;
+            if(texEnabled == true)
+                fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
+            else
+                fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+            fragColor = mix(fragColor, colour, alpha/1.0f);
+        }
+        else
+        {
+            R = reflect(I, (g_reflectionNormal));
+            worldR = inverse(mat3(viewMatrix)) * R;
+            fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgb, 1.0f), material.shininess/256);
+        }
     }
 
     if(reflectionMapEnabled && displayMode == 3)

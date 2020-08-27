@@ -229,7 +229,7 @@ void ModelViewer::resetTransformationValues()
 void ModelViewer::updateControls()
 {
 	sliderShine->setValue((int)_shine);
-	sliderTransparency->setValue((int)(255 * _opacity));
+	sliderTransparency->setValue((int)(1000 * _opacity));
 
 	QColor col;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -835,7 +835,8 @@ void ModelViewer::on_sliderLightPosZ_valueChanged(int)
 
 void ModelViewer::on_sliderTransparency_valueChanged(int value)
 {
-    _opacity = (float)value / 100.0;
+    std::cout << "Opacity: " << value << std::endl;
+    _opacity = (float)value / 1000.0;
     _ambiMat[3] = _opacity;
     _diffMat[3] = _opacity;
     _specMat[3] = _opacity;

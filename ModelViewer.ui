@@ -1170,8 +1170,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1205,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>315</width>
-               <height>688</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1380,13 +1380,13 @@
                      <item row="0" column="1">
                       <widget class="QSlider" name="sliderTransparency">
                        <property name="minimum">
-                        <number>10</number>
+                        <number>65</number>
                        </property>
                        <property name="maximum">
-                        <number>100</number>
+                        <number>1000</number>
                        </property>
                        <property name="value">
-                        <number>100</number>
+                        <number>1000</number>
                        </property>
                        <property name="orientation">
                         <enum>Qt::Horizontal</enum>
@@ -2218,8 +2218,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2464,8 +2464,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2841,7 +2841,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

@@ -50,6 +50,8 @@ out float g_clipDistY;
 out float g_clipDistZ;
 out float g_clipDist;
 
+uniform float alpha;
+
 void main()
 {
     if(displayMode == 2) // WireShaded
@@ -143,7 +145,11 @@ void main()
 
 
             g_fragPosReflSpace = v_fragPosReflSpace[i];
-            //g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly
+
+            if(displayMode == 3 && alpha < 1.0f)
+                g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly
+            else
+                g_reflectionNormal = vec3(0.0);
 
             // Shadow mapping
             gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;

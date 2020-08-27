@@ -1233,7 +1233,9 @@ void GLWidget::paintGL()
             // Isometric View
             glViewport(width() / 2, 0, width() / 2, height() / 2);
             render(_primaryCamera);
-            _textRenderer->RenderText("Isometric", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+            std::string viewLabel = _viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewMode
+                == ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
+            _textRenderer->RenderText(viewLabel, -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
             // draw screen partitioning lines
             splitScreen();
@@ -1994,8 +1996,7 @@ void GLWidget::checkAndStopTimers()
         // Set all defaults
         _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
         _currentTranslation = _primaryCamera->getPosition();
-        _currentViewRange = _viewRange;
-        _viewMode = ViewMode::NONE;
+        _currentViewRange = _viewRange;        
         _slerpStep = 0.0f;
         emit rotationsSet();
     }
@@ -2005,7 +2006,6 @@ void GLWidget::checkAndStopTimers()
         // Set all defaults
         _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
-        _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
         emit zoomAndPanSet();
     }
@@ -2016,7 +2016,6 @@ void GLWidget::checkAndStopTimers()
         // Set all defaults
         _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
-        _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
         emit zoomAndPanSet();
     }
@@ -2027,7 +2026,6 @@ void GLWidget::checkAndStopTimers()
         // Set all defaults
         _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
-        _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
         emit zoomAndPanSet();
     }
@@ -2119,6 +2117,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
             _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
             _leftButtonPoint = downPoint;
             setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
+            _viewMode = ViewMode::NONE;
         }
     }
 
@@ -2463,7 +2462,6 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
         _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
         _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
-        _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
 
         //_animateViewTimer->stop();
@@ -2488,7 +2486,6 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
         // Set all defaults
         _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
-        _viewMode = ViewMode::NONE;
         _slerpStep = 0.0f;
 
         // position the camera for rotation center
