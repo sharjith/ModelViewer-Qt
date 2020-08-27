@@ -834,8 +834,7 @@ void ModelViewer::on_sliderLightPosZ_valueChanged(int)
 }
 
 void ModelViewer::on_sliderTransparency_valueChanged(int value)
-{
-    std::cout << "Opacity: " << value << std::endl;
+{    
     _opacity = (float)value / 1000.0;
     _ambiMat[3] = _opacity;
     _diffMat[3] = _opacity;
