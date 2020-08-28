@@ -508,7 +508,6 @@ void GLWidget::showClippingPlaneEditor(bool show)
     }
 
     _lowerLayout->addWidget(_clippingPlanesEditor);
-
     show ? _clippingPlanesEditor->show() : _clippingPlanesEditor->hide();
 }
 
@@ -606,7 +605,7 @@ TriangleMesh* GLWidget::loadSTLMesh(QString fileName)
 {
     makeCurrent();
     STLMesh* mesh = new STLMesh(_fgShader, fileName);
-    if (mesh)
+    if (mesh && mesh->loaded())
         addToDisplay(mesh);
     return mesh;
 }
