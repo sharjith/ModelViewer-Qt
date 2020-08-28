@@ -332,35 +332,38 @@ void ModelViewer::centerScreen()
 
 void ModelViewer::deleteSelectedItems()
 {
-	if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
-	{
-		_bDeletionInProgress = true;
-		// If multiple selection is on, we need to erase all selected items
-		QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-		for (QListWidgetItem* item : selectedItems)
-		{
-			item->setCheckState(Qt::Unchecked);
-		}
-		for (QListWidgetItem* item : selectedItems)
-		{
-			int rowId = listWidgetModel->row(item);
+    QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+    if(!selectedItems.isEmpty())
+    {
+        if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
+        {
+            _bDeletionInProgress = true;
+            // If multiple selection is on, we need to erase all selected items
+            for (QListWidgetItem* item : selectedItems)
+            {
+                item->setCheckState(Qt::Unchecked);
+            }
+            for (QListWidgetItem* item : selectedItems)
+            {
+                int rowId = listWidgetModel->row(item);
 
-			// Remove the displayed object
-			_glWidget->removeFromDisplay(rowId);
+                // Remove the displayed object
+                _glWidget->removeFromDisplay(rowId);
 
-			// Get curent item on selected row
-			QListWidgetItem* curItem = listWidgetModel->takeItem(rowId);
-			// And remove it
-			delete curItem;
-		}
-		if (listWidgetModel->count())
-		{
-			listWidgetModel->setCurrentRow(0);
-			on_listWidgetModel_itemChanged(nullptr);
-		}
-		_glWidget->update();
-		_bDeletionInProgress = false;
-	}
+                // Get curent item on selected row
+                QListWidgetItem* curItem = listWidgetModel->takeItem(rowId);
+                // And remove it
+                delete curItem;
+            }
+            if (listWidgetModel->count())
+            {
+                listWidgetModel->setCurrentRow(0);
+                on_listWidgetModel_itemChanged(nullptr);
+            }
+            _glWidget->update();
+            _bDeletionInProgress = false;
+        }
+    }
 }
 
 void ModelViewer::hideSelectedItems()
