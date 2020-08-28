@@ -90,6 +90,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _glWidget->installEventFilter(tabWidget);
     tabWidget->setParent(_glWidget);
     _glWidget->layout()->addWidget(tabWidget);
+    tabWidget->setAutoHide(true);
 	//connect(_glWidget, SIGNAL(displayListSet()), this, SLOT(updateDisplayList()));
 
 	QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
@@ -648,6 +649,7 @@ void ModelViewer::on_toolButtonProjection_toggled(bool checked)
 void ModelViewer::on_toolButtonSectionView_toggled(bool checked)
 {
     _glWidget->showClippingPlaneEditor(checked);
+    tabWidget->setAutoHide(!checked);
 }
 
 void ModelViewer::on_toolButtonShowHideAxis_toggled(bool checked)
