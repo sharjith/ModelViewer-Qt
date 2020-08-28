@@ -1778,11 +1778,11 @@ void GLWidget::renderToReflectionMap()
     float radius = _boundingSphere.getRadius();
     float near_plane = -radius * 2, far_plane = radius * 2;
     floorProjection.ortho(-radius * 2.0f, radius * 2.0f, -radius * 2.0f, radius * 2.0f, near_plane, far_plane);
-    QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), -_floorSize);
+    QVector3D eye = QVector3D(_floorCenter.x(), _floorCenter.y(), _floorSize);
     QVector3D center = _floorCenter;
-    floorView.lookAt(eye, center, QVector3D(0.0f, -1.0f, 0.0f));
+    floorView.lookAt(eye, center, QVector3D(0.0f, 1.0f, 0.0f));
     QMatrix4x4 model;
-    model.scale(0.8f, -0.8f, 0.8f);
+    model.scale(0.8f, 0.8f, -0.8f);
     floorSpaceMatrix = floorProjection * floorView;
     // render scene from light's point of view
     _reflectionMappingShader->bind();
@@ -2273,6 +2273,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         resizeGL(width(), height());
         break;
     }
+    case Qt::Key_F2:
+        fitAll();
+        break;
     default:
         break;
     }
