@@ -112,20 +112,8 @@ _loaded(false)
 
 		if (success && points.size())
         {
-            QProgressDialog progress("Loading mesh...", "Cancel", 0, 0, static_cast<QWidget*>(_prog->parent()));
-            progress.deleteLater();
-            progress.setWindowModality(Qt::ApplicationModal);
-            progress.setLabelText("Building mesh");
-            progress.setMaximum(points.size());
             for (size_t var = 0; var < points.size(); var += 9)
 			{
-                progress.setValue((int)var);
-                if (progress.wasCanceled())
-                {
-                    _loaded = false;
-                    return;
-                }
-
 				QVector3D o(points[var + 0], points[var + 1], points[var + 2]);
 				QVector3D p(points[var + 3], points[var + 4], points[var + 5]);
 				QVector3D q(points[var + 6], points[var + 7], points[var + 8]);
@@ -166,7 +154,6 @@ _loaded(false)
 				texcords.push_back(0.5f);
 				texcords.push_back(1.0f);
 			}
-            progress.setValue(points.size());
 
 			//std::cout << "Coords " << points.size() << std::endl;
 			//std::cout << "Normals " << norms.size() << std::endl;
