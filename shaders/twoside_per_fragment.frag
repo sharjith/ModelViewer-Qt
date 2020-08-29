@@ -33,6 +33,7 @@ uniform mat4 viewMatrix;
 uniform bool sectionActive;
 uniform int displayMode;
 uniform bool selected;
+uniform vec4 reflectColor;
 
 struct LineInfo
 {
@@ -155,6 +156,8 @@ void main()
 
     if(reflectionMapEnabled && displayMode == 3)
     {
+        //fragColor = mix(fragColor, reflectColor, 0.05);
+        /*
         // calculate depth
         // perform perspective divide
         vec3 projCoords = g_fragPosReflSpace.xyz / g_fragPosReflSpace.w;
@@ -167,6 +170,7 @@ void main()
         vec3 worldR = inverse(mat3(viewMatrix)) * I;
         vec2 ndc = (g_fragPosReflSpace.xy / g_fragPosReflSpace.z) / 2.0 + 0.5;
         fragColor = mix(fragColor, vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f), clamp(depth, 0.1f, 1.0f) * 0.2f);
+        */
     }
     
     if(selected)

@@ -5,6 +5,7 @@ layout(location = 1) in vec3 vertexNormal;
 layout(location = 2) in vec2 texCoord2d;
 
 uniform mat4 modelMatrix;
+uniform mat4 viewMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat3 normalMatrix;
 uniform mat4 projectionMatrix;
@@ -47,7 +48,7 @@ void main()
     v_position   = vec3(modelViewMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
 
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1);
+    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1);
 
     v_clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
     v_clipDistY = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));

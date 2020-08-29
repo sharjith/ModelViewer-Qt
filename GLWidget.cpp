@@ -1194,15 +1194,15 @@ void GLWidget::paintGL()
 
         _modelMatrix.setToIdentity();
         if (_bMultiView)
-        {           
+        {
             glViewport(0, 0, width(), height());
             if(_shadowsEnabled)
                 renderToShadowBuffer();
-            if(_reflectionsEnabled)
-            {
-                renderToReflectionMap();
-                renderToReflectionDepthMap();
-            }
+//            if(_reflectionsEnabled)
+//            {
+//                renderToReflectionMap();
+//                renderToReflectionDepthMap();
+//            }
             gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
                                _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
             // Render orthographic views with ortho view camera
@@ -1216,13 +1216,13 @@ void GLWidget::paintGL()
             render(_orthoViewsCamera);
             _textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-            // Front View            
+            // Front View
             glViewport(0, height() / 2, width() / 2, height() / 2);
             _orthoViewsCamera->setView(GLCamera::ViewProjection::FRONT_VIEW);
             render(_orthoViewsCamera);
             _textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
-            // Left View            
+            // Left View
             glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
             _orthoViewsCamera->setView(GLCamera::ViewProjection::LEFT_VIEW);
             render(_orthoViewsCamera);
@@ -1233,7 +1233,7 @@ void GLWidget::paintGL()
             glViewport(width() / 2, 0, width() / 2, height() / 2);
             render(_primaryCamera);
             std::string viewLabel = _viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewMode
-                == ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
+                                                                      == ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
             _textRenderer->RenderText(viewLabel, -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
             // draw screen partitioning lines
@@ -1249,11 +1249,11 @@ void GLWidget::paintGL()
             glViewport(0, 0, width(), height());
             if(_shadowsEnabled)
                 renderToShadowBuffer();
-            if(_reflectionsEnabled)
-            {
-                renderToReflectionMap();
-                renderToReflectionDepthMap();
-            }
+//            if(_reflectionsEnabled)
+//            {
+//                renderToReflectionMap();
+//                renderToReflectionDepthMap();
+//            }
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
             gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
@@ -1327,7 +1327,6 @@ void GLWidget::drawFloor()
     _fgShader->setUniformValue("shadowSamples", 25.0f);
     _floorPlane->render();
     glDisable(GL_CULL_FACE);
-    glDisable((GL_DEPTH_TEST));
 }
 
 void GLWidget::drawSkyBox()
@@ -1369,7 +1368,7 @@ void GLWidget::drawMesh()
                                                        (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
     _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
                                                       pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-    _fgShader->setUniformValue("shadowSamples", 100.0f);
+    _fgShader->setUniformValue("shadowSamples", 75.0f);
     // Render
     if (_meshStore.size() != 0)
     {
@@ -1686,11 +1685,45 @@ void GLWidget::render(GLCamera *camera)
     glDisable(GL_CLIP_DISTANCE2);
     glDisable(GL_CLIP_DISTANCE3);
 
-    // Shadow mapped floor
-    if (_displayMode == DisplayMode::REALSHADED && _floorDisplayed)
+
+
+    if(_displayMode == DisplayMode::REALSHADED && _floorDisplayed)
     {
+        //https://open.gl/depthstencils
+        glEnable(GL_STENCIL_TEST);
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+        glStencilMask(0xFF);
+        glDepthMask(GL_FALSE);
+        glClear(GL_STENCIL_BUFFER_BIT);
+        drawFloor();
+
+        // Draw model reflection
+        glStencilFunc(GL_EQUAL, 1, 0xFF);
+        glStencilMask(0x00);
+        glDepthMask(GL_TRUE);
+
+        QMatrix4x4 model;
+        float floorPos = lowestModelZ() - (_floorSize * 0.05f);
+        float floorGap = fabs(floorPos - lowestModelZ());
+        float offset = (fabs(lowestModelZ()) + floorGap) * 2.0f;
+        model.scale(1.0f, 1.0f, -1.0f);
+        model.translate(0.0f, 0.0f, offset);
+
+        _fgShader->bind();
+        _fgShader->setUniformValue("modelMatrix", model);
+        _fgShader->setUniformValue("envMapEnabled", true);
+        _fgShader->setUniformValue("reflectionMapEnabled", false);
+        _fgShader->setUniformValue("reflectColor", QVector4D(0.3f, 0.3f, 0.3f, 0.50));
+        drawMesh();
+
+
+        glDisable(GL_STENCIL_TEST);
+
+        _floorPlane->setOpacity(0.80f);
         drawFloor();
     }
+
 
     if (_skyBoxEnabled)
         drawSkyBox();
@@ -1995,7 +2028,7 @@ void GLWidget::checkAndStopTimers()
         // Set all defaults
         _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
         _currentTranslation = _primaryCamera->getPosition();
-        _currentViewRange = _viewRange;        
+        _currentViewRange = _viewRange;
         _slerpStep = 0.0f;
         emit rotationsSet();
     }
