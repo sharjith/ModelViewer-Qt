@@ -33,7 +33,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	displayWireShaded->setObjectName(QString::fromUtf8("displayWireShaded"));
 	displayWireShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_W));
 
-	displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), "Real Shaded", this);
+	displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), "Realistic", this);
 	displayRealShaded->setObjectName(QString::fromUtf8("displayRealShaded"));
 	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_R));
 
