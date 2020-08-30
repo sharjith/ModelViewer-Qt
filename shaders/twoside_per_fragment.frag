@@ -4,8 +4,6 @@ in vec3 g_position;
 in vec3 g_normal;
 in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
-//in vec4 g_fragPosLightSpace;
-in vec4 g_fragPosReflSpace;
 in vec3 g_reflectionNormal;
 
 in GS_OUT_SHADOW {
@@ -22,18 +20,16 @@ uniform bool texEnabled;
 uniform sampler2D texUnit;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
-uniform sampler2D reflectionMap;
-uniform sampler2D reflectionDepthMap;
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
 uniform float shadowSamples;
-uniform bool reflectionMapEnabled;
 uniform vec3 cameraPos;
 uniform mat4 viewMatrix;
 uniform bool sectionActive;
 uniform int displayMode;
 uniform bool selected;
 uniform vec4 reflectColor;
+uniform bool floorRendering;
 
 struct LineInfo
 {
@@ -42,7 +38,6 @@ struct LineInfo
 };
 
 uniform LineInfo Line;
-
 
 struct LightSource
 {
@@ -135,7 +130,7 @@ void main()
     {           
         vec3 I = normalize(g_position - cameraPos);
         vec3 R, worldR;
-        if(alpha < 1.0f) // Transparent
+        if(alpha < 1.0f && !floorRendering) // Transparent
         {
             vec4 colour = fragColor;
             R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
@@ -153,25 +148,6 @@ void main()
             fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgb, 1.0f), material.shininess/256);
         }
     }
-
-    if(reflectionMapEnabled && displayMode == 3)
-    {
-        //fragColor = mix(fragColor, reflectColor, 0.05);
-        /*
-        // calculate depth
-        // perform perspective divide
-        vec3 projCoords = g_fragPosReflSpace.xyz / g_fragPosReflSpace.w;
-        // transform to [0,1] range
-        projCoords = projCoords * 0.5f + 0.5f;
-        // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-        float depth = texture(reflectionDepthMap, projCoords.xy).r;
-
-        vec3 I = normalize(g_position - cameraPos);
-        vec3 worldR = inverse(mat3(viewMatrix)) * I;
-        vec2 ndc = (g_fragPosReflSpace.xy / g_fragPosReflSpace.z) / 2.0 + 0.5;
-        fragColor = mix(fragColor, vec4(texture2D(reflectionMap, g_texCoord2d).rgb, 1.0f), clamp(depth, 0.1f, 1.0f) * 0.2f);
-        */
-    }
     
     if(selected)
     {
@@ -181,7 +157,10 @@ void main()
 
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec3 halfVector = normalize(source.position + vec3(0.0f, 0.0f, 1.0f));     // light half vector
+    vec3 lightDir   = normalize(source.position - g_position);
+    vec3 viewDir    = normalize(cameraPos - g_position);
+    vec3 halfwayDir = normalize(lightDir + viewDir);
+    vec3 halfVector = normalize(source.position + cameraPos);     // light half vector
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
@@ -238,6 +217,7 @@ float calculateShadow(vec4 fragPosLightSpace)
             shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
         }
     }
+
     shadow /= shadowSamples;
 
     // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.

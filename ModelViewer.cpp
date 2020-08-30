@@ -457,6 +457,7 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
     sliderLightPosZ->setValue(0);
 
     _glWidget->updateView();
+    updateControls();
 }
 
 void ModelViewer::on_pushButtonDefaultMatls_clicked()
@@ -477,9 +478,8 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
                            _opacity,
                            checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    updateControls();
     _glWidget->updateView();
+    updateControls();
 }
 
 void ModelViewer::on_pushButtonApplyTransformations_clicked()
@@ -877,11 +877,6 @@ void ModelViewer::on_sliderShine_valueChanged(int value)
 
 void ModelViewer::on_pushButtonBrass_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat = { 0.329412f, 0.223529f, 0.027451f, 1 };
     _diffMat = { 0.780392f, 0.568627f, 0.113725f, 1 };
@@ -904,11 +899,6 @@ void ModelViewer::on_pushButtonBrass_clicked()
 
 void ModelViewer::on_pushButtonBronze_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat = { 0.2125f, 0.1275f, 0.054f, 1 };
     _diffMat = { 0.714f, 0.4284f, 0.18144f, 1 };
@@ -931,11 +921,6 @@ void ModelViewer::on_pushButtonBronze_clicked()
 
 void ModelViewer::on_pushButtonCopper_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat = { 0.19125f, 0.0735f, 0.0225f, 1.0f };
     _diffMat = { 0.7038f, 0.27048f, 0.0828f, 1.0f };
@@ -958,11 +943,6 @@ void ModelViewer::on_pushButtonCopper_clicked()
 
 void ModelViewer::on_pushButtonGold_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.24725f;
     _ambiMat[1] = 0.1995f;
@@ -991,11 +971,6 @@ void ModelViewer::on_pushButtonGold_clicked()
 
 void ModelViewer::on_pushButtonSilver_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.19225f;
     _ambiMat[1] = 0.19225f;
@@ -1024,11 +999,6 @@ void ModelViewer::on_pushButtonSilver_clicked()
 
 void ModelViewer::on_pushButtonRuby_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.1745f;
     _ambiMat[1] = 0.01175f;
@@ -1057,11 +1027,6 @@ void ModelViewer::on_pushButtonRuby_clicked()
 
 void ModelViewer::on_pushButtonEmerald_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0215f;
     _ambiMat[1] = 0.1745f;
@@ -1090,11 +1055,6 @@ void ModelViewer::on_pushButtonEmerald_clicked()
 
 void ModelViewer::on_pushButtonTurquoise_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.1f;
     _ambiMat[1] = 0.18725f;
@@ -1123,11 +1083,6 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
 
 void ModelViewer::on_pushButtonJade_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.135f;
     _ambiMat[1] = 0.2225f;
@@ -1156,11 +1111,6 @@ void ModelViewer::on_pushButtonJade_clicked()
 
 void ModelViewer::on_pushButtonObsidian_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.05375f;
     _ambiMat[1] = 0.05f;
@@ -1189,11 +1139,6 @@ void ModelViewer::on_pushButtonObsidian_clicked()
 
 void ModelViewer::on_pushButtonPearl_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.25f;
     _ambiMat[1] = 0.20725f;
@@ -1222,11 +1167,6 @@ void ModelViewer::on_pushButtonPearl_clicked()
 
 void ModelViewer::on_pushButtonChrome_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.25f;
     _ambiMat[1] = 0.25f;
@@ -1255,11 +1195,6 @@ void ModelViewer::on_pushButtonChrome_clicked()
 
 void ModelViewer::on_pushButtonBlackPlastic_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1288,11 +1223,6 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
 
 void ModelViewer::on_pushButtonCyanPlastic_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.1f;
@@ -1321,11 +1251,6 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
 
 void ModelViewer::on_pushButtonGreenPlastic_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1354,11 +1279,6 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
 
 void ModelViewer::on_pushButtonRedPlastic_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1387,11 +1307,6 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
 
 void ModelViewer::on_pushButtonWhitePlastic_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1420,11 +1335,6 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
 
 void ModelViewer::on_pushButtonYellowPlastic_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1453,11 +1363,6 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
 
 void ModelViewer::on_pushButtonBlackRubber_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.02f;
     _ambiMat[1] = 0.02f;
@@ -1486,11 +1391,6 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
 
 void ModelViewer::on_pushButtonCyanRubber_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.05f;
@@ -1519,11 +1419,6 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
 
 void ModelViewer::on_pushButtonGreenRubber_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.05f;
@@ -1552,11 +1447,6 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
 
 void ModelViewer::on_pushButtonRedRubber_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.05f;
     _ambiMat[1] = 0.0f;
@@ -1585,11 +1475,6 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
 
 void ModelViewer::on_pushButtonWhiteRubber_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.05f;
     _ambiMat[1] = 0.05f;
@@ -1618,11 +1503,6 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
 
 void ModelViewer::on_pushButtonYellowRubber_clicked()
 {
-    //Light Values
-    _glWidget->setAmbientLight({ 0, 0, 0, 1 });
-    _glWidget->setDiffuseLight({ 1, 1, 1, 1 });
-    _glWidget->setSpecularLight({ 0.5, 0.5, 0.5, 1 });
-
     //Material Values
     _ambiMat[0] = 0.05f;
     _ambiMat[1] = 0.05f;

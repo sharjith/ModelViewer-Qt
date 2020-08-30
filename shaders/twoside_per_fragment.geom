@@ -34,8 +34,6 @@ out GS_OUT_SHADOW {
     vec3 lightPos;
 } gs_out_shadow;
 
-in vec4 v_fragPosReflSpace[];
-out vec4 g_fragPosReflSpace;
 
 in vec3  v_reflectionNormal[];
 out vec3 g_reflectionNormal;
@@ -143,8 +141,6 @@ void main()
             gl_ClipDistance[2] = g_clipDistZ;
             gl_ClipDistance[3] = g_clipDist;
 
-
-            g_fragPosReflSpace = v_fragPosReflSpace[i];
 
             if(displayMode == 3 && alpha < 1.0f)
                 g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly

@@ -294,15 +294,10 @@ private:
 	QOpenGLShaderProgram* _faceNormalShader;
 	QOpenGLShaderProgram* _shadowMappingShader;
 	QOpenGLShaderProgram* _skyBoxShader;
-	QOpenGLShaderProgram* _reflectionMappingShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
 	unsigned int             _shadowMapFBO;
-	unsigned int             _reflectionMap;
-	unsigned int             _reflectionMapFBO;
-	unsigned int             _reflectionDepthMap;
-	unsigned int             _reflectionMapDBO;
 	float                    _floorSize;
 	QVector3D                _floorCenter;
 
@@ -359,8 +354,7 @@ private:
 private:
 	void createShaderPrograms();
 	void createGeometry();
-	void loadEnvMap();
-	void loadReflectionMap();
+    void loadEnvMap();
 	void loadFloor();
 
 	void drawMesh();
@@ -373,8 +367,6 @@ private:
 
     void render(GLCamera* camera);
 	void renderToShadowBuffer();
-	void renderToReflectionMap();
-	void renderToReflectionDepthMap();
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a);

@@ -65,7 +65,6 @@ void main()
 
     // for reflection mapping
     v_reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
-    v_fragPosReflSpace = reflectionSpaceMatrix * vec4(vertexPosition, 1.0);
 
     // Moved this to geometry shader
     /*
