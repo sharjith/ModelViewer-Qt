@@ -1355,8 +1355,6 @@ void GLWidget::drawVertexNormals()
             if (_showVertexNormals)
             {
                 TriangleMesh* mesh = _meshStore.at(i);
-                _vertexNormalShader->bind();
-                _vertexNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius() / 2));
                 mesh->setProg(_vertexNormalShader);
                 mesh->render();
             }
@@ -1386,8 +1384,6 @@ void GLWidget::drawFaceNormals()
             if (_showFaceNormals)
             {
                 TriangleMesh* mesh = _meshStore.at(i);
-                _faceNormalShader->bind();
-                _faceNormalShader->setUniformValue("modelSize", static_cast<float>(mesh->getBoundingSphere().getRadius() / 2));
                 mesh->setProg(_faceNormalShader);
                 mesh->render();
             }

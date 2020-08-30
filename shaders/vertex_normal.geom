@@ -7,8 +7,7 @@ in VS_OUT {
     vec3 normal;
 } gs_in[];
 
-const float MAGNITUDE = 0.2;
-uniform float modelSize;
+const float MAGNITUDE = 0.05;
 
 out vec3 g_normal;
 out vec3 g_position;
@@ -38,7 +37,7 @@ void GenerateLine(int index)
     gl_ClipDistance[3] = g_clipDist;
     EmitVertex();
 
-    gl_Position = gl_in[index].gl_Position + vec4(gs_in[index].normal, 0.0) * modelSize * MAGNITUDE;
+    gl_Position = gl_in[index].gl_Position + vec4(gs_in[index].normal, 0.0) * MAGNITUDE;
     g_clipDistX = clipDistX[index];
     g_clipDistY = clipDistY[index];
     g_clipDistZ = clipDistZ[index];

@@ -8,8 +8,7 @@ in VS_OUT {
 } gs_in[];
 
 
-const float MAGNITUDE = 0.2;
-uniform float modelSize;
+const float MAGNITUDE = 0.05;
 
 out vec3 g_normal;
 out vec3 g_position;
@@ -53,7 +52,7 @@ void main()
     gl_ClipDistance[3] = g_clipDist;
     EmitVertex();
 
-    gl_Position = vec4(P + gs_in[0].normal * modelSize * MAGNITUDE, 1.0);
+    gl_Position = vec4(P + gs_in[0].normal * MAGNITUDE, 1.0);
     g_clipDistX = clipDistX[1];
     g_clipDistY = clipDistY[1];
     g_clipDistZ = clipDistZ[1];

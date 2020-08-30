@@ -23,7 +23,7 @@ out float clipDist;
 void main()
 {
     mat3 normalMatrix = mat3(transpose(inverse(modelViewMatrix)));
-    vs_out.normal = vec3(projectionMatrix * vec4(normalMatrix * vertexNormal, 0.0));
+    vs_out.normal = normalize(vec3(projectionMatrix * vec4(normalMatrix * vertexNormal, 0.0)));
     gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1.0);
 
     clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
