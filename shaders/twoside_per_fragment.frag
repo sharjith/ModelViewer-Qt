@@ -157,10 +157,7 @@ void main()
 
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec3 lightDir   = normalize(source.position - g_position);
-    vec3 viewDir    = normalize(cameraPos - g_position);
-    vec3 halfwayDir = normalize(lightDir + viewDir);
-    vec3 halfVector = normalize(source.position + cameraPos);     // light half vector
+    vec3 halfVector = normalize(source.position + cameraPos);                  // light half vector
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor

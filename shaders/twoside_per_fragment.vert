@@ -55,7 +55,7 @@ void main()
 
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(modelMatrix * vec4(vertexPosition, 1.0));
-    vs_out_shadow.Normal = transpose(inverse(mat3(modelMatrix))) * vertexNormal;
+    vs_out_shadow.Normal = normalize(transpose(inverse(mat3(modelMatrix))) * vertexNormal);
     vs_out_shadow.TexCoords = v_texCoord2d;
     vs_out_shadow.FragPosLightSpace = lightSpaceMatrix * vec4(vs_out_shadow.FragPos, 1.0);
     vs_out_shadow.cameraPos = cameraPos;
