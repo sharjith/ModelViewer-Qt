@@ -4,6 +4,7 @@ in vec3 g_position;
 in vec3 g_normal;
 in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
+in vec3 g_reflectionPosition;
 in vec3 g_reflectionNormal;
 
 in GS_OUT_SHADOW {
@@ -128,24 +129,23 @@ void main()
 
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {           
-        vec3 I = normalize(g_position - cameraPos);
-        vec3 R, worldR;
-        if(alpha < 1.0f && !floorRendering) // Transparent
+
+        if(alpha < 1.0f && !floorRendering) // Transparent - refract
         {
             vec4 colour = fragColor;
-            R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
-            worldR = inverse(mat3(viewMatrix)) * R;
+            vec3 I = normalize(g_reflectionPosition - cameraPos);
+            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
             if(texEnabled == true)
                 fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
             else
                 fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
             fragColor = mix(fragColor, colour, alpha/1.0f);
         }
-        else
-        {
-            R = reflect(I, (g_reflectionNormal));
-            worldR = inverse(mat3(viewMatrix)) * R;
-            fragColor = mix(fragColor, vec4(texture(envMap, worldR).rgb, 1.0f), material.shininess/256);
+        else // Opaque - Reflect
+        {            
+            vec3 I = normalize(cameraPos - g_reflectionPosition);
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
+            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/256);
         }
     }
     

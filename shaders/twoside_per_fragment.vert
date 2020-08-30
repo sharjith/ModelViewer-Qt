@@ -13,7 +13,6 @@ uniform vec4 clipPlaneX;
 uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
 uniform mat4 lightSpaceMatrix;
-uniform mat4 reflectionSpaceMatrix;
 uniform vec3 cameraPos;
 uniform vec3 lightPos;
 
@@ -29,8 +28,7 @@ out vec3 v_normal;
 out vec3 v_position;
 out vec2 v_texCoord2d;	
 
-out vec4 v_fragPosLightSpace;
-out vec4 v_fragPosReflSpace;
+out vec3 v_reflectionPosition;
 out vec3 v_reflectionNormal;
 
 out VS_OUT_SHADOW {
@@ -55,7 +53,7 @@ void main()
     v_clipDistZ = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
     v_clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
 
-    // for shadow mapping
+    // Shadow mapping
     vs_out_shadow.FragPos = vec3(modelMatrix * vec4(vertexPosition, 1.0));
     vs_out_shadow.Normal = transpose(inverse(mat3(modelMatrix))) * vertexNormal;
     vs_out_shadow.TexCoords = v_texCoord2d;
@@ -63,8 +61,9 @@ void main()
     vs_out_shadow.cameraPos = cameraPos;
     vs_out_shadow.lightPos = lightPos;
 
-    // for reflection mapping
-    v_reflectionNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+    // Cube environment mapping
+    v_reflectionPosition = vec3(modelMatrix * vec4(vertexPosition, 1.0));
+    v_reflectionNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
 
     // Moved this to geometry shader
     /*

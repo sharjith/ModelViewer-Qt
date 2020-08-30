@@ -35,6 +35,9 @@ out GS_OUT_SHADOW {
 } gs_out_shadow;
 
 
+in vec3  v_reflectionPosition[];
+out vec3 g_reflectionPosition;
+
 in vec3  v_reflectionNormal[];
 out vec3 g_reflectionNormal;
 
@@ -141,19 +144,17 @@ void main()
             gl_ClipDistance[2] = g_clipDistZ;
             gl_ClipDistance[3] = g_clipDist;
 
-
-            if(displayMode == 3 && alpha < 1.0f)
-                g_reflectionNormal = v_reflectionNormal[i]; // commented out because this is causing reflection map to not work correctly
-            else
-                g_reflectionNormal = vec3(0.0);
-
             // Shadow mapping
             gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
-            gs_out_shadow.Normal = gs_in_shadow[i].Normal; // commented out because this is causing shadow map to not work correctly
+            gs_out_shadow.Normal = gs_in_shadow[i].Normal;
             gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
             gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
             gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;
             gs_out_shadow.lightPos = gs_in_shadow[i].lightPos;
+
+            // Cube environment mapping
+            g_reflectionPosition = v_reflectionPosition[i];
+            g_reflectionNormal = v_reflectionNormal[i];
 
             EmitVertex();
         }
