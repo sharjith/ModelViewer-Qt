@@ -1692,11 +1692,12 @@ void ModelViewer::on_checkBoxFloorTexture_toggled(bool checked)
 
 void ModelViewer::on_pushButtonFloorTexture_clicked()
 {
+    QString appPath = QCoreApplication::applicationDirPath();
     QImage buf;
     QString fileName = QFileDialog::getOpenFileName(
         this,
         "Choose an image for texture",
-        _lastOpenedDir,
+        appPath + "/textures/envmap/floor",
         "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
     _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
     if (fileName != "")

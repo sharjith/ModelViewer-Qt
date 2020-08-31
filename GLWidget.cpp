@@ -975,7 +975,7 @@ void GLWidget::loadFloor()
     }
 
     // Floor texture
-    if (!_texBuffer.load(QString("textures/envmap/grey-white-checkered-squares1800x1800.jpg")))
+    if (!_texBuffer.load(QString("textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
     { // Load first image from file
         qWarning("Could not read image file, using single-color instead.");
         QImage dummy(128, 128, static_cast<QImage::Format>(5));
@@ -1005,24 +1005,44 @@ void GLWidget::loadEnvMap()
 {
     /*vector<QString> faces
     {
-        QString("textures/envmap/lposx.png"),
-                QString("textures/envmap/lnegx.png"),
-                QString("textures/envmap/lposz.png"),
-                QString("textures/envmap/lnegz.png"),
-                QString("textures/envmap/lposy.png"),
-                QString("textures/envmap/lnegy.png")
+        QString("textures/envmap/lancellotti/lposx.png"),
+                QString("textures/envmap/lancellotti/lnegx.png"),
+                QString("textures/envmap/lancellotti/lposz.png"),
+                QString("textures/envmap/lancellotti/lnegz.png"),
+                QString("textures/envmap/lancellotti/lposy.png"),
+                QString("textures/envmap/lancellotti/lnegy.png")
+    };*/
+
+    /*vector<QString> faces
+    {
+        QString("textures/envmap/night-skyboxes/HornstullsStrand/posx.jpg"),
+                QString("textures/envmap/night-skyboxes/HornstullsStrand/negx.jpg"),
+                QString("textures/envmap/night-skyboxes/HornstullsStrand/posz.jpg"),
+                QString("textures/envmap/night-skyboxes/HornstullsStrand/negz.jpg"),
+                QString("textures/envmap/night-skyboxes/HornstullsStrand/posy.jpg"),
+                QString("textures/envmap/night-skyboxes/HornstullsStrand/negy.jpg")
+    };*/
+
+    /*vector<QString> faces
+    {
+        QString("textures/envmap/skybox/right.jpg"),
+                QString("textures/envmap/skybox/left.jpg"),
+                QString("textures/envmap/skybox/front.jpg"),
+                QString("textures/envmap/skybox/back.jpg"),
+                QString("textures/envmap/skybox/top.jpg"),
+                QString("textures/envmap/skybox/bottom.jpg")
     };*/
 
     // Env Map
 
     vector<QString> faces
     {
-        QString("textures/envmap/miramar_ft.png"),
-                QString("textures/envmap/miramar_bk.png"),
-                QString("textures/envmap/miramar_rt.png"),
-                QString("textures/envmap/miramar_lf.png"),
-                QString("textures/envmap/miramar_up.png"),
-                QString("textures/envmap/miramar_dn.png")
+        QString("textures/envmap/stormydays/stormydays_ft.png"),
+                QString("textures/envmap/stormydays/stormydays_bk.png"),
+                QString("textures/envmap/stormydays/stormydays_rt.png"),
+                QString("textures/envmap/stormydays/stormydays_lf.png"),
+                QString("textures/envmap/stormydays/stormydays_up.png"),
+                QString("textures/envmap/stormydays/stormydays_dn.png")
     };
 
     glGenTextures(1, &_environmentMap);

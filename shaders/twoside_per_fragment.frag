@@ -34,8 +34,8 @@ uniform bool floorRendering;
 
 struct LineInfo
 {
-  float Width;
-  vec4 Color;
+    float Width;
+    vec4 Color;
 };
 
 uniform LineInfo Line;
@@ -128,7 +128,7 @@ void main()
     }
 
     if(envMapEnabled && displayMode == 3) // Environment mapping
-    {           
+    {
 
         if(alpha < 1.0f && !floorRendering) // Transparent - refract
         {
@@ -142,7 +142,7 @@ void main()
             fragColor = mix(fragColor, colour, alpha/1.0f);
         }
         else // Opaque - Reflect
-        {            
+        {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/256);
@@ -168,22 +168,22 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
 
     vec3 colorLinear;
-    
+
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {
         float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
         colorLinear =  clamp(sceneColor +
-                 (ambient  * mat.ambient + 1 - shadowFactor) *
-                 (diffuse  * mat.diffuse +
-                 specular * mat.specular), 0.f, 1.f );
+                             (ambient  * mat.ambient + 1 - shadowFactor) *
+                             (diffuse  * mat.diffuse +
+                              specular * mat.specular), 0.f, 1.f );
     }
     else
     {
         colorLinear =  clamp(sceneColor +
-                 ambient  * mat.ambient +
-                 diffuse  * mat.diffuse +
-                 specular * mat.specular, 0.f, 1.f );        
-     }
+                             ambient  * mat.ambient +
+                             diffuse  * mat.diffuse +
+                             specular * mat.specular, 0.f, 1.f );
+    }
 
     return colorLinear;
 }
@@ -197,7 +197,7 @@ float calculateShadow(vec4 fragPosLightSpace)
     // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
     float closestDepth = texture(shadowMap, projCoords.xy).r;
     // get depth of current fragment from light's perspective
-    float currentDepth = projCoords.z;    
+    float currentDepth = projCoords.z;
 
     vec3 normal = normalize(fs_in_shadow.Normal);
     vec3 lightDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
