@@ -36,6 +36,8 @@ public:
 		return _name;
 	}
 
+	virtual unsigned long long memorySize() const { return _memorySize; }
+
 	QVector4D ambientMaterial() const;
 	void setAmbientMaterial(const QVector4D& ambientMaterial);
 
@@ -154,4 +156,6 @@ protected:
     float _scaleZ;
 
     QMatrix4x4 _transformation;
+
+	unsigned long long _memorySize;
 };

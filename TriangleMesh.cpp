@@ -8,6 +8,7 @@ _bHasTexture(false),
 _sMax(1),
 _tMax(1)
 {
+	_memorySize = 0;
     _transX = _transY = _transZ = 0.0f;
     _rotateX = _rotateY = _rotateZ = 0.0f;
     _scaleX = _scaleY = _scaleZ = 1.0f;
@@ -81,6 +82,9 @@ void TriangleMesh::initBuffers(
 	_points = *points;
 	_trsfpoints = _points;
 	_normals = *normals;
+
+	_memorySize = 0;
+	_memorySize = _points.size() * sizeof(float);
 
 	_nVerts = (unsigned int)indices->size();
 

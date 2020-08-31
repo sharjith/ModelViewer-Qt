@@ -355,6 +355,8 @@ private:
 	unsigned int quadVAO;
     unsigned int quadVBO;
 
+	unsigned long long _displayedObjectsMemSize;
+
 private:
 	void createShaderPrograms();
 	void createGeometry();

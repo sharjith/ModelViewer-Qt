@@ -174,6 +174,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _xScale = 1.0f;
     _yScale = 1.0f;
     _zScale = 1.0f;
+     
+    _displayedObjectsMemSize = 0;
 
     _animateViewTimer = new QTimer(this);
     _animateViewTimer->setTimerType(Qt::PreciseTimer);
@@ -465,18 +467,22 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     else
     {
         _boundingSphere.setRadius(0.0);
-
+        unsigned long long memSize = 0;
         for (int i : _displayedObjectsIds)
-        {
+        {            
             try
             {
-                _boundingSphere.addSphere(_meshStore.at(i)->getBoundingSphere());
+                TriangleMesh* mesh = _meshStore.at(i);
+                memSize += mesh->memorySize();
+                _boundingSphere.addSphere(mesh->getBoundingSphere());
             }
             catch (std::out_of_range& ex)
             {
                 std::cout << ex.what() << std::endl;
             }
         }
+        _displayedObjectsMemSize = memSize;       
+        qDebug() << "Display memory size: " << _displayedObjectsMemSize/(1024*1024) << " mb";
     }
 
     if (_floorPlane)
@@ -1028,7 +1034,7 @@ void GLWidget::loadFloor()
     _floorSize = _boundingSphere.getRadius();
     _floorCenter = _boundingSphere.getCenter();
     _lightPosition.setZ(_floorSize);
-    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1500, 1500, -_floorSize - (_floorSize * 0.05f), 1, 1);
+    _floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
     _floorPlane->setAmbientMaterial(QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
@@ -1231,7 +1237,7 @@ void GLWidget::paintGL()
             int num = _displayedObjectsIds.at(0);
             _textRenderer->RenderText(_meshStore.at(num)->getName().toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
         }
-
+        
         if (_meshStore.size() && _displayedObjectsIds.size() != 0)
         {
             int num = _displayedObjectsIds[0];
@@ -1925,6 +1931,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
     }
 
+    _lowResEnabled = false;
     setCursor(QCursor(Qt::ArrowCursor));
 }
 
@@ -1943,6 +1950,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         }
         else if ((e->modifiers() & Qt::ControlModifier) || _bRotateView)
         {
+            _lowResEnabled = true;
             QPoint rotate = _leftButtonPoint - downPoint;
 
             _primaryCamera->rotateX(rotate.y() / 2.0);
@@ -1956,6 +1964,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
     if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
     {
+        _lowResEnabled = true;
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
         Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
         QVector3D p1(downPoint.x(), height() - downPoint.y(), Z.z());
@@ -1972,6 +1981,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
     if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
     {
+        _lowResEnabled = true;
         if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
             _viewRange /= 1.05f;
         else
@@ -1993,6 +2003,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 void GLWidget::wheelEvent(QWheelEvent* e)
 {
+    _lowResEnabled = true;
     QPoint numDegrees = e->angleDelta() / 8;
     QPoint numSteps = numDegrees / 15;
     float zoomStep = numSteps.y();
