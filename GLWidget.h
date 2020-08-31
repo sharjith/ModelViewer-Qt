@@ -99,6 +99,7 @@ public:
 	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
     void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
+    void setSkyBoxTextureFolder(QString folder);
 
 public:
 	float getXTran() const;
@@ -343,6 +344,7 @@ private:
 	BoundingSphere _boundingSphere;
 	Plane* _floorPlane;
 	Cube* _skyBox;
+    vector<QString> _skyBoxFaces;
 
 	QOpenGLShaderProgram     _debugShader;
 

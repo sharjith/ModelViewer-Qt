@@ -135,6 +135,8 @@ private slots:
 
     void on_toolButtonZoomView_clicked();
 
+    void on_pushButtonSkyBoxTex_clicked();
+
 protected:
 	void showEvent(QShowEvent* event);
 

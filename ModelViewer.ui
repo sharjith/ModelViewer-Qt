@@ -1170,8 +1170,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1205,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>315</width>
+               <height>688</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2218,8 +2218,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>265</width>
-               <height>275</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2425,6 +2425,13 @@
                    </property>
                   </widget>
                  </item>
+                 <item row="0" column="3">
+                  <widget class="QPushButton" name="pushButtonSkyBoxTex">
+                   <property name="text">
+                    <string>Select Texture</string>
+                   </property>
+                  </widget>
+                 </item>
                 </layout>
                </widget>
               </item>
@@ -2464,8 +2471,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>159</width>
-               <height>364</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <property name="sizePolicy">

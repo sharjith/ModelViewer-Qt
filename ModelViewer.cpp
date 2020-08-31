@@ -1736,3 +1736,18 @@ void ModelViewer::on_toolButtonZoomView_clicked()
 {
     _glWidget->setZoomingActive(true);
 }
+
+void ModelViewer::on_pushButtonSkyBoxTex_clicked()
+{
+    QString appPath = QCoreApplication::applicationDirPath();
+    QString dir = QFileDialog::getExistingDirectory(this, tr("Select Skybox Texture Folder"),
+                                                    appPath + "/textures/envmap/skyboxes",
+                                                    QFileDialog::ShowDirsOnly
+                                                    | QFileDialog::DontResolveSymlinks
+                                                    | QFileDialog::DontUseNativeDialog);
+    if(dir != "")
+    {
+        _lastOpenedDir = dir;
+        _glWidget->setSkyBoxTextureFolder(_lastOpenedDir);
+    }
+}

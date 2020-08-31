@@ -274,6 +274,42 @@ void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
     }
 }
 
+void GLWidget::setSkyBoxTextureFolder(QString folder)
+{
+    QImage texBuffer, texImage;
+    _skyBoxFaces =
+    {
+        QString(folder + "/posx.png"),
+                QString(folder + "/negx.png"),
+                QString(folder + "/posz.png"),
+                QString(folder + "/negz.png"),
+                QString(folder + "/posy.png"),
+                QString(folder + "/negy.png")
+    };
+
+    makeCurrent();
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+    for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
+    {
+        if (!texBuffer.load(_skyBoxFaces.at(i)))
+        { // Load first image from file
+            qWarning("Could not read image file, using single-color instead.");
+            QImage dummy(128, 128, static_cast<QImage::Format>(5));
+            dummy.fill(Qt::white);
+            texBuffer = dummy;
+        }
+        else
+        {
+            texImage = QGLWidget::convertToGLFormat(texBuffer); // flipped 32bit RGBA
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
+            glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+        }
+    }
+    update();
+}
+
 QVector3D GLWidget::getLightPosition() const
 {
     return _lightPosition;
@@ -1003,7 +1039,7 @@ void GLWidget::loadFloor()
 
 void GLWidget::loadEnvMap()
 {
-    /*vector<QString> faces
+    /*_skyBoxFaces =
     {
         QString("textures/envmap/skyboxes/lancellotti/posx.png"),
                 QString("textures/envmap/skyboxes/lancellotti/negx.png"),
@@ -1013,7 +1049,7 @@ void GLWidget::loadEnvMap()
                 QString("textures/envmap/skyboxes/lancellotti/negy.png")
     };*/
 
-    /*vector<QString> faces
+    /*_skyBoxFaces =
     {
         QString("textures/envmap/skyboxes/HornstullsStrand/posx.jpg"),
                 QString("textures/envmap/skyboxes/HornstullsStrand/negx.jpg"),
@@ -1023,7 +1059,7 @@ void GLWidget::loadEnvMap()
                 QString("textures/envmap/skyboxes/HornstullsStrand/negy.jpg")
     };*/
 
-    /*vector<QString> faces
+    /*_skyBoxFaces =
     {
         QString("textures/envmap/skyboxes/lakemountains/posx.jpg"),
                 QString("textures/envmap/skyboxes/lakemountains/negx.jpg"),
@@ -1035,23 +1071,23 @@ void GLWidget::loadEnvMap()
 
     // Env Map
 
-    vector<QString> faces
+    _skyBoxFaces =
     {
-        QString("textures/envmap/skyboxes/miramar/posx.png"),
-                QString("textures/envmap/skyboxes/miramar/negx.png"),
-                QString("textures/envmap/skyboxes/miramar/posz.png"),
-                QString("textures/envmap/skyboxes/miramar/negz.png"),
-                QString("textures/envmap/skyboxes/miramar/posy.png"),
-                QString("textures/envmap/skyboxes/miramar/negy.png")
+        QString("textures/envmap/skyboxes/stormydays/posx.png"),
+                QString("textures/envmap/skyboxes/stormydays/negx.png"),
+                QString("textures/envmap/skyboxes/stormydays/posz.png"),
+                QString("textures/envmap/skyboxes/stormydays/negz.png"),
+                QString("textures/envmap/skyboxes/stormydays/posy.png"),
+                QString("textures/envmap/skyboxes/stormydays/negy.png")
     };
 
     glGenTextures(1, &_environmentMap);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
-    for (unsigned int i = 0; i < faces.size(); i++)
+    for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
     {
-        if (!_texBuffer.load(faces.at(i)))
+        if (!_texBuffer.load(_skyBoxFaces.at(i)))
         { // Load first image from file
             qWarning("Could not read image file, using single-color instead.");
             QImage dummy(128, 128, static_cast<QImage::Format>(5));
@@ -1245,7 +1281,7 @@ void GLWidget::drawFloor()
 {
     _fgShader->bind();
     _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-    _fgShader->setUniformValue("shadowSamples", 25.0f);
+    _fgShader->setUniformValue("shadowSamples", 36.0f);
     _fgShader->setUniformValue("floorRendering", true);
     if(_reflectionsEnabled)
     {
@@ -1331,7 +1367,7 @@ void GLWidget::drawMesh()
                                                        (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
     _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
                                                       pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-    _fgShader->setUniformValue("shadowSamples", 75.0f);
+    _fgShader->setUniformValue("shadowSamples", 54.0f);
     // Render
     if (_meshStore.size() != 0)
     {
