@@ -146,6 +146,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _floorTextureDisplayed = true;
     _skyBoxEnabled = false;
 
+    _lowResEnabled = false;
+
     _shadowWidth = 1024;
     _shadowHeight = 1024;
 
@@ -1283,7 +1285,7 @@ void GLWidget::drawFloor()
     _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
     _fgShader->setUniformValue("shadowSamples", 36.0f);
     _fgShader->setUniformValue("floorRendering", true);
-    if(_reflectionsEnabled)
+    if(_reflectionsEnabled && !_lowResEnabled)
     {
         //https://open.gl/depthstencils
         glEnable(GL_STENCIL_TEST);
@@ -2292,6 +2294,7 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 
 void GLWidget::setRotations(float xRot, float yRot, float zRot)
 {
+    _lowResEnabled = true;
     // Rotation
     QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
     QQuaternion curRot = QQuaternion::slerp(_currentRotation, targetRotation, _slerpStep += _slerpFrac);
@@ -2325,13 +2328,14 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
         _currentViewRange = _viewRange;
         _slerpStep = 0.0f;
 
-        //_animateViewTimer->stop();
+        _lowResEnabled = false;
         emit rotationsSet();
     }
 }
 
 void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
+    _lowResEnabled = true;
     _slerpStep += _slerpFrac;
 
     // Translation
@@ -2347,21 +2351,9 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
         // Set all defaults
         _currentTranslation = _primaryCamera->getPosition();
         _currentViewRange = _viewRange;
-        _slerpStep = 0.0f;
+        _slerpStep = 0.0f;        
 
-        // position the camera for rotation center
-        /*
-                _viewMatrix = _camera->getViewMatrix();
-                _projectionMatrix = _camera->getProjectionMatrix();
-                QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-                Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-                QPoint point = geometry().center();
-                QVector3D p(point.x(), height() - point.y(), Z.z());
-                QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-                _camera->setPosition(P.x(), P.y(), P.z());
-                */
-
-        // Stop the animation
+        _lowResEnabled = false;
         emit zoomAndPanSet();
     }
 }

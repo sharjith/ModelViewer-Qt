@@ -261,6 +261,8 @@ private:
     bool _floorTextureDisplayed;
 	bool _skyBoxEnabled;
 
+    bool _lowResEnabled;
+
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;
 
