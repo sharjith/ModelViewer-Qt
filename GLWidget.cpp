@@ -1949,6 +1949,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
     _lowResEnabled = false;
     setCursor(QCursor(Qt::ArrowCursor));
+    update();
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
@@ -1978,8 +1979,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
             _viewMode = ViewMode::NONE;
         }
     }
-
-    if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
+    else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
     {
         if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
             _lowResEnabled = true;
@@ -1996,8 +1996,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         _rightButtonPoint = downPoint;
         setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
     }
-
-    if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
+    else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
     {
         if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
             _lowResEnabled = true;
@@ -2015,6 +2014,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
         _middleButtonPoint = downPoint;
         setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
+    }
+    else
+    {
+        _lowResEnabled = false;
     }
 
     update();
@@ -2150,6 +2153,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 
 void GLWidget::animateViewChange()
 {
+
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
     if (_viewMode == ViewMode::TOP)
     {
         setRotations(0.0f, 0.0f, 0.0f);
@@ -2192,12 +2198,18 @@ void GLWidget::animateViewChange()
 
 void GLWidget::animateFitAll()
 {
+
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
     setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
     resizeGL(width(), height());
 }
 
 void GLWidget::animateWindowZoom()
 {
+
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
     float fov = _primaryCamera->getFOV();
     float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio*fov/100);
     QVector3D panRatio = (_rubberBandPan*fov/100);
@@ -2209,6 +2221,9 @@ void GLWidget::animateWindowZoom()
 
 void GLWidget::animateCenterScreen()
 {
+
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
     TriangleMesh* mesh = _meshStore.at(_centerScreenObjectId);
     if (mesh)
     {
@@ -2324,9 +2339,7 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 }
 
 void GLWidget::setRotations(float xRot, float yRot, float zRot)
-{
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
-        _lowResEnabled = true;
+{    
     // Rotation
     QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
     QQuaternion curRot = QQuaternion::slerp(_currentRotation, targetRotation, _slerpStep += _slerpFrac);
@@ -2360,16 +2373,12 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
         _currentViewRange = _viewRange;
         _slerpStep = 0.0f;
 
-        _lowResEnabled = false;
         emit rotationsSet();
     }
 }
 
 void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
-        _lowResEnabled = true;
-
     _slerpStep += _slerpFrac;
 
     // Translation
@@ -2387,7 +2396,6 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
         _currentViewRange = _viewRange;
         _slerpStep = 0.0f;        
 
-        _lowResEnabled = false;
         emit zoomAndPanSet();
     }
 }

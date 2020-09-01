@@ -160,7 +160,6 @@ public:
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
 
-    void checkAndStopTimers();
 
 signals:
 	void windowZoomEnded();
@@ -175,6 +174,7 @@ public slots:
 	void animateFitAll();
 	void animateWindowZoom();
 	void animateCenterScreen();
+    void checkAndStopTimers();
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -184,7 +184,7 @@ private slots:
 	void displayMeshInfo();
 	void showPropertiesPage();
 	void showTransformationsPage();
-	void setBackgroundColor();
+    void setBackgroundColor();
 
 protected:
 	void initializeGL();
