@@ -57,6 +57,8 @@
 using glm::mat4;
 using glm::vec3;
 
+constexpr auto FOUR_HUNDRED_MB = 419430400; // bytes
+
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
     _textRenderer(nullptr),
     _axisTextRenderer(nullptr),
@@ -481,8 +483,8 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
                 std::cout << ex.what() << std::endl;
             }
         }
-        _displayedObjectsMemSize = memSize;       
-        qDebug() << "Display memory size: " << _displayedObjectsMemSize/(1024*1024) << " mb";
+        _displayedObjectsMemSize = memSize;
+        qDebug() << "Display memory size: " << _displayedObjectsMemSize << " bytes";
     }
 
     if (_floorPlane)
@@ -1287,10 +1289,6 @@ void GLWidget::paintGL()
 
 void GLWidget::drawFloor()
 {
-    _fgShader->bind();
-    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-    _fgShader->setUniformValue("shadowSamples", 36.0f);
-    _fgShader->setUniformValue("floorRendering", true);
     if(_reflectionsEnabled && !_lowResEnabled)
     {
         //https://open.gl/depthstencils
@@ -1304,6 +1302,10 @@ void GLWidget::drawFloor()
         glEnable(GL_CULL_FACE);
         glCullFace(GL_FRONT);
 
+        _fgShader->bind();
+        _fgShader->setUniformValue("envMapEnabled", false);        
+        _fgShader->setUniformValue("floorRendering", true);
+        _floorPlane->enableTexture(false);
         _floorPlane->render();
         glDisable(GL_CULL_FACE);
 
@@ -1330,8 +1332,12 @@ void GLWidget::drawFloor()
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
+    _fgShader->bind();
+    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _fgShader->setUniformValue("shadowSamples", 18.0f);
+    _floorPlane->enableTexture(true);
     _floorPlane->render();
-    glDisable(GL_CULL_FACE);
+    glDisable(GL_CULL_FACE);  
     _fgShader->bind();
     _fgShader->setUniformValue("floorRendering", false);
 }
@@ -1375,7 +1381,7 @@ void GLWidget::drawMesh()
                                                        (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
     _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
                                                       pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
-    _fgShader->setUniformValue("shadowSamples", 54.0f);
+    _fgShader->setUniformValue("shadowSamples", 27.0f);
     // Render
     if (_meshStore.size() != 0)
     {
@@ -1950,7 +1956,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         }
         else if ((e->modifiers() & Qt::ControlModifier) || _bRotateView)
         {
-            _lowResEnabled = true;
+            if(_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+                _lowResEnabled = true;
             QPoint rotate = _leftButtonPoint - downPoint;
 
             _primaryCamera->rotateX(rotate.y() / 2.0);
@@ -1964,7 +1971,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
     if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
     {
-        _lowResEnabled = true;
+        if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+            _lowResEnabled = true;
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
         Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
         QVector3D p1(downPoint.x(), height() - downPoint.y(), Z.z());
@@ -1981,7 +1989,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
     if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
     {
-        _lowResEnabled = true;
+        if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+            _lowResEnabled = true;
         if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
             _viewRange /= 1.05f;
         else
@@ -2003,7 +2012,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 void GLWidget::wheelEvent(QWheelEvent* e)
 {
-    _lowResEnabled = true;
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
     QPoint numDegrees = e->angleDelta() / 8;
     QPoint numSteps = numDegrees / 15;
     float zoomStep = numSteps.y();
@@ -2305,7 +2315,8 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 
 void GLWidget::setRotations(float xRot, float yRot, float zRot)
 {
-    _lowResEnabled = true;
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
     // Rotation
     QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
     QQuaternion curRot = QQuaternion::slerp(_currentRotation, targetRotation, _slerpStep += _slerpFrac);
@@ -2346,7 +2357,9 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
 
 void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
-    _lowResEnabled = true;
+    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        _lowResEnabled = true;
+
     _slerpStep += _slerpFrac;
 
     // Translation
@@ -2641,6 +2654,9 @@ void GLWidget::showContextMenu(const QPoint& pos)
             myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
             myMenu.addAction("Hide", this, SLOT(hideSelectedItem()));
             myMenu.addAction("Delete", this, SLOT(deleteSelectedItem()));
+
+            if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+                myMenu.addAction("Mesh Info", this, SLOT(displayMeshInfo()));
         }
         else
         {
@@ -2669,6 +2685,11 @@ void GLWidget::deleteSelectedItem()
 void GLWidget::hideSelectedItem()
 {
     _viewer->hideSelectedItems();
+}
+
+void GLWidget::displayMeshInfo()
+{
+    _viewer->displaySelectedMeshInfo();
 }
 
 void GLWidget::showPropertiesPage()

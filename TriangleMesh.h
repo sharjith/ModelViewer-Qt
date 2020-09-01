@@ -78,6 +78,7 @@ public:
 
     QMatrix4x4 getTransformation() const;
 
+	std::vector<unsigned int> getIndices() const;
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
 

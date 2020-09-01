@@ -27,6 +27,7 @@ public slots:
 	void updateDisplayList();
 	void hideSelectedItems();
 	void deleteSelectedItems();
+	void displaySelectedMeshInfo();
 	void showObjectDisplayList();
 	void showObjectsPropertiesPage();
 	void showEnvironmentPage();

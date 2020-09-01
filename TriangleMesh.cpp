@@ -84,7 +84,7 @@ void TriangleMesh::initBuffers(
 	_normals = *normals;
 
 	_memorySize = 0;
-	_memorySize = _points.size() * sizeof(float);
+	_memorySize = (_points.size() + _normals.size() + _indices.size()) *sizeof(float);
 
 	_nVerts = (unsigned int)indices->size();
 
@@ -109,6 +109,7 @@ void TriangleMesh::initBuffers(
 		_texCoordBuffer.bind();
 		_texCoordBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
 		_texCoordBuffer.allocate(texCoords->data(), static_cast<int>(texCoords->size() * sizeof(float)));
+		_memorySize += texCoords->size() * sizeof(float);
 	}
 
 	if (tangents != nullptr)
@@ -117,6 +118,7 @@ void TriangleMesh::initBuffers(
 		_tangentBuf.bind();
 		_tangentBuf.setUsagePattern(QOpenGLBuffer::StaticDraw);
 		_tangentBuf.allocate(tangents->data(), static_cast<int>(tangents->size() * sizeof(float)));
+		_memorySize += tangents->size() * sizeof(float);
 	}
 
 	_vertexArrayObject.bind();
@@ -374,6 +376,11 @@ float TriangleMesh::getLowestZValue() const
 std::vector<float> TriangleMesh::getNormals() const
 {
 	return _normals;
+}
+
+std::vector<unsigned int> TriangleMesh::getIndices() const
+{
+	return _indices;
 }
 
 std::vector<float> TriangleMesh::getPoints() const

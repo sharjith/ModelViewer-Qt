@@ -181,6 +181,7 @@ private slots:
 	void centerDisplayList();
 	void hideSelectedItem();
 	void deleteSelectedItem();
+	void displayMeshInfo();
 	void showPropertiesPage();
 	void showTransformationsPage();
 	void setBackgroundColor();

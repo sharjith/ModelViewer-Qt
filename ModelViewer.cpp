@@ -3,6 +3,8 @@
 #include "GLWidget.h"
 #include "SphericalHarmonicsEditor.h"
 #include "TriangleMesh.h"
+#include "STLMesh.h"
+#include "MeshProperties.h"
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
@@ -319,6 +321,9 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
 		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
+        if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+            myMenu.addAction("Mesh Info", this, SLOT(displaySelectedMeshInfo()));
+
 		// Show context menu at handling position
 		myMenu.exec(listWidgetModel->mapToGlobal(pos));
 	}
@@ -374,6 +379,56 @@ void ModelViewer::hideSelectedItems()
 	{
 		item->setCheckState(Qt::Unchecked);
 	}
+}
+
+void ModelViewer::displaySelectedMeshInfo()
+{
+    QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+    int rowId = listWidgetModel->row(selectedItems.at(0));
+    std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+    TriangleMesh* mesh = meshes.at(rowId);
+    if (mesh)
+    {
+        QString name = QString("Mesh name: %1\n").arg(mesh->getName());
+        QString points = QString("Points: %1\n").arg(mesh->getPoints().size() / 3);
+        QString triangles = QString("Triangles: %1\n").arg(mesh->getIndices().size()/2);
+        unsigned long long rawmem = mesh->memorySize();
+        unsigned long long mem = 0;
+        QString units;
+        if (rawmem < 1024)
+        {
+            mem = rawmem;
+            units = "bytes";
+        }
+        else if (rawmem < (1024 * 1024))
+        {
+            mem = rawmem / 1024;
+            units = "kb";
+        }
+        else if (rawmem < (1024 * 1024 * 1024))
+        {
+            mem = rawmem / (1024 * 1024);
+            units = "mb";
+        }
+        else
+        {
+            mem = rawmem / (1024 * 1024 * 1024);
+            units = "gb";
+        }
+        QString meshSize = QString("Memory: %1 ").arg(mem) + units + "\n";
+        QString meshProps;
+        try
+        {
+            MeshProperties props(mesh);
+            meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(props.volume()).arg(props.surfaceArea());
+        }
+        catch (std::exception& ex)
+        {
+            std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
+        }
+        QString info = name + points + triangles + meshSize + meshProps;
+        QMessageBox::information(this, "Mesh Info", info);
+    }
 }
 
 void ModelViewer::showObjectDisplayList()
@@ -1564,8 +1619,6 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 	}
 }
 
-#include "STLMesh.h"
-#include "MeshProperties.h"
 void ModelViewer::on_toolButtonOpen_clicked()
 {
 	TriangleMesh* mesh = nullptr;
@@ -1601,10 +1654,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 			listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
 			listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
-			updateDisplayList();
-
-			MeshProperties props(mesh);
-			std::cout << "Mesh Volume = " << props.volume() << "\nSurface Area = " << props.surfaceArea() << std::endl;
+			updateDisplayList();			
 		}
 		else
 		{
