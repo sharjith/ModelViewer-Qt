@@ -1648,6 +1648,12 @@ void GLWidget::render(GLCamera *camera)
 
     _modelViewMatrix = _viewMatrix * _modelMatrix;
 
+    // Check if floor is visible from camera angle to enable/disable shadow
+    QVector3D zDir(0.0, 0.0, 1.0);
+    QVector3D viewDir = _primaryCamera->getViewDir();
+    bool floorVisible = QVector3D::dotProduct(viewDir, zDir) < 0.0f;
+    bool showShadows = (_shadowsEnabled && floorVisible && camera == _primaryCamera);
+
     _fgShader->bind();
     _fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
     _fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
@@ -1662,7 +1668,7 @@ void GLWidget::render(GLCamera *camera)
     _fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
     _fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
     _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-    _fgShader->setUniformValue("shadowsEnabled", _shadowsEnabled);
+    _fgShader->setUniformValue("shadowsEnabled", showShadows);
     _fgShader->setUniformValue("reflectionMapEnabled", false);
     _fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
     _fgShader->setUniformValue("lightPos", _lightPosition);
@@ -1698,7 +1704,7 @@ void GLWidget::render(GLCamera *camera)
     glDisable(GL_CLIP_DISTANCE2);
     glDisable(GL_CLIP_DISTANCE3);
 
-    if(_displayMode == DisplayMode::REALSHADED && _floorDisplayed)
+    if(_displayMode == DisplayMode::REALSHADED && _floorDisplayed && camera != _orthoViewsCamera)
     {
         drawFloor();
     }
