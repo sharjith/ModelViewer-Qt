@@ -539,8 +539,10 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
 
 void ModelViewer::on_pushButtonApplyTransformations_clicked()
 {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     setTransformation();
     _glWidget->update();
+    QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::on_isometricView_triggered(bool /*checked*/)
