@@ -17,8 +17,10 @@ public:
 	MainWindow(QWidget* parent = Q_NULLPTR);
 	~MainWindow();
 
+    static MainWindow *mainWindow();
+
 protected:
-	void showEvent(QShowEvent* event);
+    void showEvent(QShowEvent* event);
 	void closeEvent(QCloseEvent* event);
 
 protected slots:
@@ -44,4 +46,5 @@ private:
 	bool _bFirstTime;
 
 	static int _viewerCount;
+    static MainWindow* _mainWindow;
 };

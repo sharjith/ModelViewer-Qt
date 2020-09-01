@@ -5,12 +5,15 @@
 #include <QtOpenGL>
 
 int MainWindow::_viewerCount = 1;
+MainWindow* MainWindow::_mainWindow = nullptr;
 
 MainWindow::MainWindow(QWidget* parent)
 	: QMainWindow(parent)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+
+    _mainWindow = this;
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
@@ -121,4 +124,9 @@ void MainWindow::on_actionTile_triggered()
 void MainWindow::on_actionCascade_triggered()
 {
 	ui->mdiArea->cascadeSubWindows();
+}
+
+MainWindow *MainWindow::mainWindow()
+{
+    return _mainWindow;
 }
