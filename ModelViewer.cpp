@@ -1,4 +1,5 @@
 #include <QApplication>
+#include <MainWindow.h>
 #include "ModelViewer.h"
 #include "GLWidget.h"
 #include "SphericalHarmonicsEditor.h"
@@ -1663,6 +1664,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 			QMessageBox::critical(this, "Error", "Model load unsuccessful!");
 		}
         QApplication::restoreOverrideCursor();
+        QApplication::alert(MainWindow::mainWindow());
 	}
 }
 
