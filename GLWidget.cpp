@@ -300,11 +300,15 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
     for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
     {
         if (!texBuffer.load(_skyBoxFaces.at(i)))
-        { // Load first image from file
-            qWarning("Could not read image file, using single-color instead.");
-            QImage dummy(128, 128, static_cast<QImage::Format>(5));
-            dummy.fill(Qt::white);
-            texBuffer = dummy;
+        {
+            // Load first image from file
+            QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
+                                                 "Please make sure that there are six png images in the folder\n"
+                                                 "with names in the following manner...\n"
+                                                 "posx.png, posy.png, posz.png,\n"
+                                                 "negx.png, negy.png, negz.png\n"
+                                                 "Skybox has not changed, continuing with the existing one.");
+            return;
         }
         else
         {
