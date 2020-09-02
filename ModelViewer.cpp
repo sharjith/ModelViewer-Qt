@@ -122,7 +122,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonRightView_clicked()));
 
     connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
-    
+    connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
+    connect(doubleSpinBoxRepeatT, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatT(double)));
     
 	_opacity = 1.0f;
 	_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };

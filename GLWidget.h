@@ -161,11 +161,10 @@ public:
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
 
-
 signals:
-	void windowZoomEnded();
-	void rotationsSet();
-	void zoomAndPanSet();
+    void windowZoomEnded();
+    void rotationsSet();
+    void zoomAndPanSet();
 	void viewSet();
 	void displayListSet();
 	void objectSelectionChanged(int);
@@ -177,6 +176,8 @@ public slots:
 	void animateCenterScreen();
     void checkAndStopTimers();
 	void lockLightAndCamera(bool lock);
+    void setFloorTexRepeatS(double floorTexRepeatS);
+    void setFloorTexRepeatT(double floorTexRepeatT);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -210,9 +211,10 @@ private:
 	bool _bRotateView;
 	int _modelNum;
     QImage _texImage, _texBuffer, _floorTexImage;
+    float _floorTexRepeatS, _floorTexRepeatT;
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
-	QString _modelName;
+    QString _modelName;
 
 	QVector3D _currentTranslation;
 	QQuaternion _currentRotation;

@@ -146,6 +146,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _reflectionsEnabled = false;
     _floorDisplayed = false;
     _floorTextureDisplayed = true;
+    _floorTexRepeatS = _floorTexRepeatT = 1;
     _skyBoxEnabled = false;
 
     _lowResEnabled = false;
@@ -539,7 +540,7 @@ void GLWidget::updateFloorPlane()
     _lightPosition.setY(_floorSize / 4);
     _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
     _prevLightPosition = _lightPosition;
-    _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+    _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), _floorTexRepeatS, _floorTexRepeatT);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -1339,7 +1340,7 @@ void GLWidget::drawFloor()
     _fgShader->bind();
     _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
     _fgShader->setUniformValue("shadowSamples", 18.0f);
-    _floorPlane->enableTexture(true);
+    _floorPlane->enableTexture(_floorTextureDisplayed);
     _floorPlane->render();
     glDisable(GL_CULL_FACE);  
     _fgShader->bind();
@@ -2442,6 +2443,20 @@ void GLWidget::closeEvent(QCloseEvent* event)
         _springEditor->close();
     }
     event->accept();
+}
+
+void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
+{
+    _floorTexRepeatT = static_cast<float>(floorTexRepeatT);
+    updateFloorPlane();
+    update();
+}
+
+void GLWidget::setFloorTexRepeatS(double floorTexRepeatS)
+{
+    _floorTexRepeatS = static_cast<float>(floorTexRepeatS);
+    updateFloorPlane();
+    update();
 }
 
 QColor GLWidget::getBgBotColor() const
