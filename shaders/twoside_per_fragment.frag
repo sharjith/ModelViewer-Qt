@@ -31,6 +31,7 @@ uniform int displayMode;
 uniform bool selected;
 uniform vec4 reflectColor;
 uniform bool floorRendering;
+uniform bool lockLightAndCamera = true;
 
 struct LineInfo
 {
@@ -157,7 +158,11 @@ void main()
 
 vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec3 halfVector = normalize(source.position + cameraPos);                  // light half vector
+    vec3 halfVector; // light half vector
+    if(lockLightAndCamera)
+        halfVector = normalize(source.position + vec3(0.0, 0.0, 0.0));
+    else
+        halfVector = normalize(source.position + cameraPos);
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
@@ -200,7 +205,11 @@ float calculateShadow(vec4 fragPosLightSpace)
     float currentDepth = projCoords.z;
 
     vec3 normal = normalize(fs_in_shadow.Normal);
-    vec3 lightDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
+    vec3 lightDir;
+    if(lockLightAndCamera)
+        lightDir = normalize(lightSource.position);
+    else
+        lightDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
     float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
 
     // PCF - Percentage Closer Filtering

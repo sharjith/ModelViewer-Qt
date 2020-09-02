@@ -121,6 +121,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_J), this);
     connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonRightView_clicked()));
 
+    connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
+    
+    
 	_opacity = 1.0f;
 	_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
 	_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
@@ -1664,6 +1667,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 			QMessageBox::critical(this, "Error", "Model load unsuccessful!");
 		}
         QApplication::restoreOverrideCursor();
+        MainWindow::mainWindow()->activateWindow();
         QApplication::alert(MainWindow::mainWindow());
 	}
 }

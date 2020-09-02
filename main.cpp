@@ -15,7 +15,7 @@ int main(int argc, char** argv)
 	//app.setStyle(QStyleFactory::create("windows"));
 #endif
 
-	MainWindow* mw = new MainWindow();
+	MainWindow* mw = MainWindow::mainWindow();
 	mw->showMaximized();
 	return app.exec();
 }

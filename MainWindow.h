@@ -14,12 +14,11 @@ class MainWindow : public QMainWindow
 	Q_OBJECT
 
 public:
-	MainWindow(QWidget* parent = Q_NULLPTR);
+	static MainWindow* mainWindow();
 	~MainWindow();
 
-    static MainWindow *mainWindow();
-
 protected:
+	MainWindow(QWidget* parent = Q_NULLPTR);
     void showEvent(QShowEvent* event);
 	void closeEvent(QCloseEvent* event);
 

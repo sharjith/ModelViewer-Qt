@@ -68,6 +68,7 @@ public:
     void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
+	void updateFloorPlane();
 	void updateBoundingSphere();
 	int getModelNum() const
 	{
@@ -175,6 +176,7 @@ public slots:
 	void animateWindowZoom();
 	void animateCenterScreen();
     void checkAndStopTimers();
+	void lockLightAndCamera(bool lock);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -263,6 +265,7 @@ private:
 	bool _skyBoxEnabled;
 
     bool _lowResEnabled;
+	bool _lockLightAndCamera;
 
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;

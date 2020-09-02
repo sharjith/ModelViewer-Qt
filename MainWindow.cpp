@@ -128,5 +128,7 @@ void MainWindow::on_actionCascade_triggered()
 
 MainWindow *MainWindow::mainWindow()
 {
+	if (_mainWindow == nullptr)
+		_mainWindow = new MainWindow();
     return _mainWindow;
 }

@@ -1170,8 +1170,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1205,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>315</width>
-               <height>688</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2218,56 +2218,14 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <attribute name="label">
               <string>Environment Settings</string>
              </attribute>
              <layout class="QGridLayout" name="gridLayout_18">
-              <item row="1" column="0">
-               <widget class="QGroupBox" name="groupBox_9">
-                <property name="minimumSize">
-                 <size>
-                  <width>0</width>
-                  <height>0</height>
-                 </size>
-                </property>
-                <property name="title">
-                 <string>Light Colours</string>
-                </property>
-                <property name="flat">
-                 <bool>true</bool>
-                </property>
-                <layout class="QGridLayout" name="gridLayout_16">
-                 <item row="0" column="0">
-                  <widget class="QPushButton" name="pushButtonLightAmbient">
-                   <property name="styleSheet">
-                    <string notr="true"/>
-                   </property>
-                   <property name="text">
-                    <string>Ambient Color</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="1" column="0">
-                  <widget class="QPushButton" name="pushButtonLightDiffuse">
-                   <property name="text">
-                    <string>Diffuse Color</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="2" column="0">
-                  <widget class="QPushButton" name="pushButtonLightSpecular">
-                   <property name="text">
-                    <string>Specular Color</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
               <item row="1" column="1">
                <widget class="QGroupBox" name="groupBox_14">
                 <property name="title">
@@ -2277,6 +2235,19 @@
                  <bool>true</bool>
                 </property>
                 <layout class="QGridLayout" name="gridLayout_5">
+                 <item row="1" column="1">
+                  <widget class="QSlider" name="sliderLightPosY">
+                   <property name="minimum">
+                    <number>-200</number>
+                   </property>
+                   <property name="maximum">
+                    <number>200</number>
+                   </property>
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                  </widget>
+                 </item>
                  <item row="0" column="0">
                   <widget class="QLabel" name="lightPosX">
                    <property name="text">
@@ -2307,19 +2278,6 @@
                    </property>
                    <property name="alignment">
                     <set>Qt::AlignCenter</set>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="1" column="1">
-                  <widget class="QSlider" name="sliderLightPosY">
-                   <property name="minimum">
-                    <number>-200</number>
-                   </property>
-                   <property name="maximum">
-                    <number>200</number>
-                   </property>
-                   <property name="orientation">
-                    <enum>Qt::Horizontal</enum>
                    </property>
                   </widget>
                  </item>
@@ -2364,78 +2322,49 @@
                 </layout>
                </widget>
               </item>
-              <item row="2" column="0" colspan="2">
-               <widget class="QGroupBox" name="groupBox_2">
+              <item row="1" column="0">
+               <widget class="QGroupBox" name="groupBox_9">
+                <property name="minimumSize">
+                 <size>
+                  <width>0</width>
+                  <height>0</height>
+                 </size>
+                </property>
                 <property name="title">
-                 <string>Environment</string>
+                 <string>Light Colours</string>
                 </property>
                 <property name="flat">
                  <bool>true</bool>
                 </property>
-                <layout class="QGridLayout" name="gridLayout_17">
-                 <item row="0" column="0" colspan="2">
-                  <widget class="QCheckBox" name="checkBoxShadowMapping">
+                <layout class="QGridLayout" name="gridLayout_16">
+                 <item row="0" column="0">
+                  <widget class="QPushButton" name="pushButtonLightAmbient">
+                   <property name="styleSheet">
+                    <string notr="true"/>
+                   </property>
                    <property name="text">
-                    <string>Shadows</string>
+                    <string>Ambient Color</string>
                    </property>
                   </widget>
                  </item>
-                 <item row="0" column="2">
-                  <widget class="QCheckBox" name="checkBoxSkyBox">
+                 <item row="1" column="0">
+                  <widget class="QPushButton" name="pushButtonLightDiffuse">
                    <property name="text">
-                    <string>Sky Box</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="1" column="0" colspan="2">
-                  <widget class="QCheckBox" name="checkBoxReflections">
-                   <property name="text">
-                    <string>Reflections</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="1" column="2" colspan="2">
-                  <widget class="QCheckBox" name="checkBoxEnvMapping">
-                   <property name="text">
-                    <string>Environment Mapping</string>
+                    <string>Diffuse Color</string>
                    </property>
                   </widget>
                  </item>
                  <item row="2" column="0">
-                  <widget class="QCheckBox" name="checkBoxFloor">
+                  <widget class="QPushButton" name="pushButtonLightSpecular">
                    <property name="text">
-                    <string>Floor</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="2" column="1" colspan="2">
-                  <widget class="QCheckBox" name="checkBoxFloorTexture">
-                   <property name="text">
-                    <string>Floor Texture</string>
-                   </property>
-                   <property name="checked">
-                    <bool>true</bool>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="2" column="3">
-                  <widget class="QPushButton" name="pushButtonFloorTexture">
-                   <property name="text">
-                    <string>Select Texture</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item row="0" column="3">
-                  <widget class="QPushButton" name="pushButtonSkyBoxTex">
-                   <property name="text">
-                    <string>Select Texture</string>
+                    <string>Specular Color</string>
                    </property>
                   </widget>
                  </item>
                 </layout>
                </widget>
               </item>
-              <item row="3" column="0" colspan="2">
+              <item row="4" column="0" colspan="2">
                <spacer name="verticalSpacer_3">
                 <property name="orientation">
                  <enum>Qt::Vertical</enum>
@@ -2464,6 +2393,93 @@
                 </property>
                </widget>
               </item>
+              <item row="3" column="0" colspan="2">
+               <widget class="QGroupBox" name="groupBox_2">
+                <property name="title">
+                 <string>Environment</string>
+                </property>
+                <property name="flat">
+                 <bool>true</bool>
+                </property>
+                <layout class="QGridLayout" name="gridLayout_17">
+                 <item row="0" column="2">
+                  <widget class="QCheckBox" name="checkBoxSkyBox">
+                   <property name="text">
+                    <string>Sky Box</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="0" colspan="2">
+                  <widget class="QCheckBox" name="checkBoxShadowMapping">
+                   <property name="text">
+                    <string>Shadows</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="3">
+                  <widget class="QPushButton" name="pushButtonFloorTexture">
+                   <property name="text">
+                    <string>Select Texture</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="3">
+                  <widget class="QPushButton" name="pushButtonSkyBoxTex">
+                   <property name="text">
+                    <string>Select Texture</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="0">
+                  <widget class="QCheckBox" name="checkBoxFloor">
+                   <property name="text">
+                    <string>Floor</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="2" colspan="2">
+                  <widget class="QCheckBox" name="checkBoxEnvMapping">
+                   <property name="text">
+                    <string>Environment Mapping</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0" colspan="2">
+                  <widget class="QCheckBox" name="checkBoxReflections">
+                   <property name="text">
+                    <string>Reflections</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="2" column="1" colspan="2">
+                  <widget class="QCheckBox" name="checkBoxFloorTexture">
+                   <property name="text">
+                    <string>Floor Texture</string>
+                   </property>
+                   <property name="checked">
+                    <bool>true</bool>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
+               </widget>
+              </item>
+              <item row="2" column="0" colspan="2">
+               <widget class="QCheckBox" name="checkBoxLockLightCamera">
+                <property name="toolTip">
+                 <string>Lock light and camera together</string>
+                </property>
+                <property name="layoutDirection">
+                 <enum>Qt::LeftToRight</enum>
+                </property>
+                <property name="text">
+                 <string>Lock Light and Camera</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
              </layout>
             </widget>
             <widget class="QWidget" name="toolBoxPage4">
@@ -2471,8 +2487,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2848,7 +2864,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

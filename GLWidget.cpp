@@ -149,9 +149,10 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _skyBoxEnabled = false;
 
     _lowResEnabled = false;
+    _lockLightAndCamera = true;
 
-    _shadowWidth = 1024;
-    _shadowHeight = 1024;
+    _shadowWidth = 2048;
+    _shadowHeight = 2048;
 
     _environmentMap = 0;
     _shadowMap = 0;
@@ -493,13 +494,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
     if (_floorPlane)
     {
-        _floorSize = _boundingSphere.getRadius();
-        _floorCenter = _boundingSphere.getCenter();
-        _lightPosition.setX(_floorSize / 4);
-        _lightPosition.setY(_floorSize / 4);
-        _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
-        _prevLightPosition = _lightPosition;
-        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+        updateFloorPlane();
     }
 
     fitAll();
@@ -529,17 +524,22 @@ void GLWidget::updateBoundingSphere()
 
     if (_floorPlane)
     {
-        _floorSize = _boundingSphere.getRadius();
-        _floorCenter = _boundingSphere.getCenter();
-        _lightPosition.setX(_floorSize / 4);
-        _lightPosition.setY(_floorSize / 4);
-        _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
-        _prevLightPosition = _lightPosition;
-        _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
+        updateFloorPlane();
     }
 
     fitAll();
     update();
+}
+
+void GLWidget::updateFloorPlane()
+{
+    _floorSize = _boundingSphere.getRadius();
+    _floorCenter = _boundingSphere.getCenter();
+    _lightPosition.setX(_floorSize / 4);
+    _lightPosition.setY(_floorSize / 4);
+    _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
+    _prevLightPosition = _lightPosition;
+    _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), 1, 1);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -1321,9 +1321,9 @@ void GLWidget::drawFloor()
         QMatrix4x4 model;
         float floorPos = lowestModelZ() - (_floorSize * 0.05f);
         float floorGap = fabs(floorPos - lowestModelZ());
-        float offset = (fabs(lowestModelZ()) + floorGap) * 2.0f;
+        float offset = ((lowestModelZ()) - floorGap) * 2.0f;
         model.scale(1.0f, 1.0f, -1.0f);
-        model.translate(0.0f, 0.0f, offset);
+        model.translate(0.0f, 0.0f, -offset);
 
         _fgShader->bind();
         _fgShader->setUniformValue("modelMatrix", model);
@@ -1675,6 +1675,7 @@ void GLWidget::render(GLCamera *camera)
     _fgShader->setUniformValue("modelMatrix", _modelMatrix);
     _fgShader->setUniformValue("viewMatrix", _viewMatrix);
     _fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
+    _fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
 
     glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
     glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
@@ -1732,10 +1733,13 @@ void GLWidget::renderToShadowBuffer()
     // 1. render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
     QMatrix4x4 lightProjection, lightView;
-    float radius = _boundingSphere.getRadius();
-    float near_plane = 1.0f, far_plane = radius * 4.0f;
-    lightProjection.ortho(-radius * 4.0f, radius * 4.0f, -radius * 4.0f, radius * 4.0f, near_plane, far_plane);
-    lightView.lookAt(_lightPosition, QVector3D(0, 0, 0), QVector3D(0.0, 1.0, 0.0));
+    float extent = _boundingSphere.getRadius() * 4.0f;
+    QVector3D center = _boundingSphere.getCenter();
+    float near_plane = 1.0f, far_plane = extent;
+    lightProjection.ortho(-extent + center.x(), extent + center.x(), 
+        -extent + center.y(), extent + center.y(), 
+        near_plane + center.z(), far_plane + center.z());
+    lightView.lookAt(_lightPosition, QVector3D(center.x(), center.y(), 0), QVector3D(0.0, 1.0, 0.0));
     _lightSpaceMatrix = lightProjection * lightView;
     // render scene from light's point of view
     _shadowMappingShader->bind();
@@ -1884,6 +1888,12 @@ void GLWidget::checkAndStopTimers()
         _slerpStep = 0.0f;
         emit zoomAndPanSet();
     }
+}
+
+void GLWidget::lockLightAndCamera(bool lock)
+{
+    _lockLightAndCamera = lock;
+    update();
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* e)
