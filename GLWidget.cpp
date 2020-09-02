@@ -286,12 +286,12 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
     QImage texBuffer, texImage;
     _skyBoxFaces =
     {
-        QString(folder + "/posx.png"),
-                QString(folder + "/negx.png"),
-                QString(folder + "/posz.png"),
-                QString(folder + "/negz.png"),
-                QString(folder + "/posy.png"),
-                QString(folder + "/negy.png")
+        QString(folder + "/posx.jpg"),
+                QString(folder + "/negx.jpg"),
+                QString(folder + "/posz.jpg"),
+                QString(folder + "/negz.jpg"),
+                QString(folder + "/posy.jpg"),
+                QString(folder + "/negy.jpg")
     };
 
     makeCurrent();
@@ -304,10 +304,10 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
         {
             // Load first image from file
             QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
-                                                 "Please make sure that there are six png images in the folder\n"
+                                                 "Please make sure that there are six jpg images in the folder\n"
                                                  "with names in the following manner...\n"
-                                                 "posx.png, posy.png, posz.png,\n"
-                                                 "negx.png, negy.png, negz.png\n"
+                                                 "posx.jpg, posy.jpg, posz.jpg,\n"
+                                                 "negx.jpg, negy.jpg, negz.jpg\n"
                                                  "Skybox has not changed, continuing with the existing one.");
             return;
         }
@@ -1087,12 +1087,12 @@ void GLWidget::loadEnvMap()
 
     _skyBoxFaces =
     {
-        QString("textures/envmap/skyboxes/stormydays/posx.png"),
-                QString("textures/envmap/skyboxes/stormydays/negx.png"),
-                QString("textures/envmap/skyboxes/stormydays/posz.png"),
-                QString("textures/envmap/skyboxes/stormydays/negz.png"),
-                QString("textures/envmap/skyboxes/stormydays/posy.png"),
-                QString("textures/envmap/skyboxes/stormydays/negy.png")
+        QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/negy.jpg")
     };
 
     glGenTextures(1, &_environmentMap);
@@ -1733,7 +1733,7 @@ void GLWidget::renderToShadowBuffer()
     // 1. render depth of scene to texture (from light's perspective)
     // --------------------------------------------------------------
     QMatrix4x4 lightProjection, lightView;
-    float extent = _boundingSphere.getRadius() * 4.0f;
+    float extent = _boundingSphere.getRadius() * 6.0f;
     QVector3D center = _boundingSphere.getCenter();
     float near_plane = 1.0f, far_plane = extent;
     lightProjection.ortho(-extent + center.x(), extent + center.x(), 
