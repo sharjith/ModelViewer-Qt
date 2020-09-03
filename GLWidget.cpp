@@ -288,36 +288,47 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
     QImage texBuffer, texImage;
     _skyBoxFaces =
     {
-        QString(folder + "/posx.jpg"),
-                QString(folder + "/negx.jpg"),
-                QString(folder + "/posz.jpg"),
-                QString(folder + "/negz.jpg"),
-                QString(folder + "/posy.jpg"),
-                QString(folder + "/negy.jpg")
+        QString(folder + "/posx"),
+                QString(folder + "/negx"),
+                QString(folder + "/posz"),
+                QString(folder + "/negz"),
+                QString(folder + "/posy"),
+                QString(folder + "/negy")
     };
 
     makeCurrent();
 
     glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
+    bool loaded = false;
     for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
     {
-        if (!texBuffer.load(_skyBoxFaces.at(i)))
+        if (!texBuffer.load(_skyBoxFaces.at(i) + ".jpg"))
         {
-            // Load first image from file
-            QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
-                                                 "Please make sure that there are six jpg images in the folder\n"
-                                                 "with names in the following manner...\n"
-                                                 "posx.jpg, posy.jpg, posz.jpg,\n"
-                                                 "negx.jpg, negy.jpg, negz.jpg\n"
-                                                 "Skybox has not changed, continuing with the existing one.");
-            return;
+            if (!texBuffer.load(_skyBoxFaces.at(i) + ".png"))
+                loaded = false;
+            else
+                loaded = true;
         }
         else
+            loaded = true;
+        if(loaded)
         {
             texImage = QGLWidget::convertToGLFormat(texBuffer); // flipped 32bit RGBA
             glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
             glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+        }
+        else
+        {
+            // Load first image from file
+            QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
+                                                 "Please make sure that there are six jpg or png images in the folder\n"
+                                                 "with names in the following manner...\n"
+                                                 "posx.jpg, posy.jpg, posz.jpg,\n"
+                                                 "negx.jpg, negy.jpg, negz.jpg\n"
+                                                 "Skybox has not changed, continuing with the existing one.");
+
+            return;
         }
     }
     update();
