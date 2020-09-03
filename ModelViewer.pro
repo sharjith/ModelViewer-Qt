@@ -53,6 +53,8 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # Input
 HEADERS += AABB.h \
     AppleSurface.h \
+    AssImpMesh.h \
+    AssImpModel.h \
     BackgroundColor.h \
     BentHorns.h \
     BoundingSphere.h \
