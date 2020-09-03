@@ -98,7 +98,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
 	QObject::connect(_glWidget, SIGNAL(objectSelectionChanged(int)), this, SLOT(setListRow(int)));
-
+    
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
@@ -124,7 +124,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
     connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
     connect(doubleSpinBoxRepeatT, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatT(double)));
-    
+    connect(doubleSpinBoxSkyBoxFOV, SIGNAL(valueChanged(double)), _glWidget, SLOT(setSkyBoxFOV(double)));
+        
 	_opacity = 1.0f;
 	_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
 	_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };

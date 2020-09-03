@@ -179,6 +179,7 @@ public slots:
 	void lockLightAndCamera(bool lock);
     void setFloorTexRepeatS(double floorTexRepeatS);
     void setFloorTexRepeatT(double floorTexRepeatT);
+	void setSkyBoxFOV(double fov);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -354,6 +355,7 @@ private:
 	Plane* _floorPlane;
 	Cube* _skyBox;
     vector<QString> _skyBoxFaces;
+	float _skyBoxFOV;
 
 	QOpenGLShaderProgram     _debugShader;
 

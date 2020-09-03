@@ -1205,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>316</width>
-               <height>666</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2218,8 +2218,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>265</width>
-               <height>338</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2415,6 +2415,29 @@
                     <widget class="QCheckBox" name="checkBoxSkyBox">
                      <property name="text">
                       <string>Sky Box</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QLabel" name="label_12">
+                     <property name="text">
+                      <string>FOV</string>
+                     </property>
+                    </widget>
+                   </item>
+                   <item>
+                    <widget class="QDoubleSpinBox" name="doubleSpinBoxSkyBoxFOV">
+                     <property name="decimals">
+                      <number>0</number>
+                     </property>
+                     <property name="minimum">
+                      <double>15.000000000000000</double>
+                     </property>
+                     <property name="maximum">
+                      <double>120.000000000000000</double>
+                     </property>
+                     <property name="value">
+                      <double>45.000000000000000</double>
                      </property>
                     </widget>
                    </item>
@@ -2927,7 +2950,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

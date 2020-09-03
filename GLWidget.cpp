@@ -148,7 +148,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _floorTextureDisplayed = true;
     _floorTexRepeatS = _floorTexRepeatT = 1;
     _skyBoxEnabled = false;
-
+    _skyBoxFOV = 45.0f;
+    
     _lowResEnabled = false;
     _lockLightAndCamera = true;
 
@@ -1368,7 +1369,7 @@ void GLWidget::drawSkyBox()
 {
     _skyBoxShader->bind();
     QMatrix4x4 projection;
-    projection.perspective(65, (float)width() / (float)height(), 0.1f, 100.0f);
+    projection.perspective(_skyBoxFOV, (float)width() / (float)height(), 0.1f, 100.0f);
     QMatrix4x4 view = _viewMatrix;
     // Remove translation
     view.setColumn(3, QVector4D(0, 0, 0, 1));
@@ -2466,6 +2467,12 @@ void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
 {
     _floorTexRepeatT = static_cast<float>(floorTexRepeatT);
     updateFloorPlane();
+    update();
+}
+
+void GLWidget::setSkyBoxFOV(double fov)
+{
+    _skyBoxFOV = static_cast<float>(fov);
     update();
 }
 
