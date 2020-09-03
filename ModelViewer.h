@@ -17,6 +17,7 @@ public:
 
 	void setMaterialProps(const GLMaterialProps& mat);
 	void setTransformation();
+	void resetTransformation();
 
 	QListWidget* getListModel() { return listWidgetModel; }
 
@@ -39,6 +40,7 @@ private slots:
 	void on_pushButtonDefaultLights_clicked();
 	void on_pushButtonDefaultMatls_clicked();
 	void on_pushButtonApplyTransformations_clicked();
+	void on_pushButtonResetTransformations_clicked();
 
     void on_toolButtonFitAll_clicked();
 	void on_toolButtonWindowZoom_clicked(bool checked);

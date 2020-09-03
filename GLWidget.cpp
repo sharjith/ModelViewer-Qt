@@ -705,6 +705,23 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
     updateBoundingSphere();
 }
 
+void GLWidget::resetTransformation(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->resetTransformations();
+        }
+        catch (...)
+        {
+            std::cout << "Exception!" << std::endl;
+        }
+    }
+    updateBoundingSphere();
+}
+
 void GLWidget::initializeGL()
 {
     initializeOpenGLFunctions();

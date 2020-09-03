@@ -98,7 +98,8 @@ public:
 	TriangleMesh* loadOBJMesh(QString fileName);
 
 	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
-    void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
+	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
+	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
     void setSkyBoxTextureFolder(QString folder);
 

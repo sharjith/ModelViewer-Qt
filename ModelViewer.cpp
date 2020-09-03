@@ -185,6 +185,31 @@ void ModelViewer::setTransformation()
     }
 }
 
+void ModelViewer::resetTransformation()
+{
+	if (listWidgetModel->count())
+	{
+		std::vector<int> ids;
+		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		for (QListWidgetItem* i : items)
+		{
+			int rowId = listWidgetModel->row(i);
+			ids.push_back(rowId);
+		}
+		doubleSpinBoxDX->setValue(0.0f);
+		doubleSpinBoxDY->setValue(0.0f);
+		doubleSpinBoxDZ->setValue(0.0f);
+		doubleSpinBoxRX->setValue(0.0f);
+		doubleSpinBoxRY->setValue(0.0f);
+		doubleSpinBoxRZ->setValue(0.0f);
+		doubleSpinBoxSX->setValue(1.0f);
+		doubleSpinBoxSY->setValue(1.0f);
+		doubleSpinBoxSZ->setValue(1.0f);
+		_glWidget->resetTransformation(ids);
+	}
+}
+
+
 void ModelViewer::updateTransformationValues()
 {
     try
@@ -546,6 +571,14 @@ void ModelViewer::on_pushButtonApplyTransformations_clicked()
 {
     QApplication::setOverrideCursor(Qt::WaitCursor);
     setTransformation();
+    _glWidget->update();
+    QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::on_pushButtonResetTransformations_clicked()
+{
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    resetTransformation();
     _glWidget->update();
     QApplication::restoreOverrideCursor();
 }

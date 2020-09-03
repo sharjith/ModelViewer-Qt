@@ -378,6 +378,34 @@ std::vector<float> TriangleMesh::getNormals() const
 	return _normals;
 }
 
+void TriangleMesh::resetTransformations()
+{
+	_transX = _transY = _transZ = 0.0f;
+	_rotateX = _rotateY = _rotateZ = 0.0f;
+	_scaleX = _scaleY = _scaleZ = 1.0f;
+
+	_transformation.setToIdentity();
+
+	_trsfpoints.clear();
+	_trsfnormals.clear();
+
+	_trsfpoints = _points;
+	_trsfnormals = _normals;
+
+	_prog->bind();
+	_positionBuffer.bind();
+	_positionBuffer.allocate(_points.data(), static_cast<int>(_points.size() * sizeof(float)));
+	_prog->enableAttributeArray("vertexPosition");
+	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+	_normalBuffer.bind();
+	_normalBuffer.allocate(_normals.data(), static_cast<int>(_normals.size() * sizeof(float)));
+	_prog->enableAttributeArray("vertexNormal");
+	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	computeBoundingSphere(_points);
+}
+
 std::vector<unsigned int> TriangleMesh::getIndices() const
 {
 	return _indices;

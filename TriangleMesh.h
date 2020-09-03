@@ -82,6 +82,8 @@ public:
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
 
+	void resetTransformations();
+
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 protected: // methods
