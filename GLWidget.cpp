@@ -508,7 +508,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
             }
         }
         _displayedObjectsMemSize = memSize;
-        qDebug() << "Display memory size: " << _displayedObjectsMemSize << " bytes";
+        //qDebug() << "Display memory size: " << _displayedObjectsMemSize << " bytes";
     }
 
     if (_floorPlane)
