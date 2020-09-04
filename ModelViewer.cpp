@@ -350,6 +350,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction("Object Properties", this, SLOT(showObjectsPropertiesPage()));
 		myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
 		myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
+        myMenu.addAction("Show", this, SLOT(showSelectedItems()));
 		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
         if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
@@ -410,6 +411,15 @@ void ModelViewer::hideSelectedItems()
 	{
 		item->setCheckState(Qt::Unchecked);
 	}
+}
+
+void ModelViewer::showSelectedItems()
+{
+    QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+    for (QListWidgetItem* item : selectedItems)
+    {
+        item->setCheckState(Qt::Checked);
+    }
 }
 
 void ModelViewer::displaySelectedMeshInfo()
@@ -1666,11 +1676,29 @@ void ModelViewer::on_toolButtonOpen_clicked()
 
 	QString fileName = QFileDialog::getOpenFileName(this, tr("Open Model File"),
 		_lastOpenedDir,
-		tr("All Models(*.stl *.obj);;STL Files (*.stl *.STL);;OBJ Files (*.obj *.OBJ)"));
+		tr("All Models(*.*);;STL Files (*.stl *.STL);;OBJ Files (*.obj *.OBJ)"));
 
     if (fileName != "")
     {
-        mesh = _glWidget->loadAssImpMesh(fileName);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+        QFileInfo fi(fileName);
+        if (fi.suffix().toLower() == "stl")
+        {
+            mesh = _glWidget->loadSTLMesh(fileName);
+            if (mesh)
+            {
+                if (!static_cast<STLMesh*>(mesh)->loaded())
+                {
+                    delete mesh;
+                    mesh = nullptr;
+                }
+            }
+        }
+        else
+        {
+            mesh = _glWidget->loadAssImpMesh(fileName);            
+        }
         if (mesh)
         {
             updateDisplayList();
@@ -1681,6 +1709,10 @@ void ModelViewer::on_toolButtonOpen_clicked()
             updateDisplayList();
         }
     }
+    QApplication::restoreOverrideCursor();
+    MainWindow::mainWindow()->activateWindow();
+    QApplication::alert(MainWindow::mainWindow());
+
     /*
 	if (fileName != "")
 	{
@@ -1753,11 +1785,13 @@ void ModelViewer::on_checkBoxSelectAll_toggled(bool checked)
 {
 	if (listWidgetModel->count())
 	{
+        bool oldState = listWidgetModel->blockSignals(true); 
 		for (int i = 0; i < listWidgetModel->count(); i++)
 		{
 			QListWidgetItem* item = listWidgetModel->item(i);
 			item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
 		}
+        listWidgetModel->blockSignals(oldState);
 		on_listWidgetModel_itemChanged(nullptr);
 	}
 }

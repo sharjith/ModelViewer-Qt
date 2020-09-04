@@ -10,6 +10,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <QImage>
+#include <QString>
+#include <QFileInfo>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -28,23 +30,27 @@ public:
     AssImpModel(QOpenGLShaderProgram* prog, GLchar *path ) : TriangleMesh(prog, "AssImpModel")
     {
         this->loadModel( path );
-
-        BoundingSphere sph;
-        for ( GLuint i = 0; i < this->meshes.size( ); i++ )
+        QFileInfo f;
+        f.setFile(QString(path));
+        setName(f.baseName());
+        BoundingSphere sph;        
+        for ( GLuint i = 0; i < this->meshes.size(); i++ )
         {
+            this->meshes[i]->setName(f.baseName() + QString("%1").arg(i));            
             sph.addSphere(this->meshes[i]->getBoundingSphere());
         }
         _boundingSphere = sph;
     }
 
     // Draws the model, and thus all its meshes
-    void render()
+    
+    virtual void render()
     {
         for ( GLuint i = 0; i < this->meshes.size( ); i++ )
         {
             this->meshes[i]->render();
         }
-    }
+    }   
 
     vector<AssImpMesh*> getMeshes() const
     {
@@ -63,8 +69,8 @@ private:
     {
         // Read file via ASSIMP
         Assimp::Importer importer;
-        const aiScene *scene = importer.ReadFile( path, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_JoinIdenticalVertices  |
-                                                  aiProcess_SortByPType | aiProcess_OptimizeMeshes  );
+        const aiScene *scene = importer.ReadFile( path, aiProcess_JoinIdenticalVertices | 
+            aiProcess_Triangulate | aiProcess_SortByPType | aiProcess_FindDegenerates | aiProcess_FindInvalidData);
 
         // Check for errors
         if( !scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode ) // if is Not Zero

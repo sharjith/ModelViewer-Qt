@@ -14,7 +14,9 @@ unix {
 win32-msvc*{
     INCLUDEPATH += D:\software\libs\glm
     INCLUDEPATH += D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\include
+    INCLUDEPATH += D:\Software\libs\assimp-5.0.1\include
     LIBS += -L"D:\software\libs\OpenCASCADE-7.4.0-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
+    LIBS += -L"D:\Software\libs\assimp-5.0.1\build\code\Release"  -lassimp-vc142-mt
 }
 
 win32-g++{

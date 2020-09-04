@@ -1187,7 +1187,7 @@
                  <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
                 </property>
                 <property name="selectionMode">
-                 <enum>QAbstractItemView::MultiSelection</enum>
+                 <enum>QAbstractItemView::ExtendedSelection</enum>
                 </property>
                </widget>
               </item>
@@ -1205,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>316</width>
+               <height>666</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2218,8 +2218,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>338</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2566,8 +2566,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>159</width>
+               <height>389</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2950,7 +2950,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

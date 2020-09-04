@@ -83,6 +83,9 @@ void TriangleMesh::initBuffers(
 	_trsfpoints = _points;
 	_normals = *normals;
 
+	if (texCoords)
+		_texCoords = *texCoords;
+
 	_memorySize = 0;
 	_memorySize = (_points.size() + _normals.size() + _indices.size()) *sizeof(float);
 
@@ -376,6 +379,12 @@ float TriangleMesh::getLowestZValue() const
 std::vector<float> TriangleMesh::getNormals() const
 {
 	return _normals;
+}
+
+
+std::vector<float> TriangleMesh::getTexCoords() const
+{
+	return _texCoords;
 }
 
 void TriangleMesh::resetTransformations()
