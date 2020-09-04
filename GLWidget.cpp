@@ -295,6 +295,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
                 QString(folder + "/posy"),
                 QString(folder + "/negy")
     };
+    QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
 
     makeCurrent();
 
@@ -303,15 +304,15 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
     bool loaded = false;
     for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
     {
-        if (!texBuffer.load(_skyBoxFaces.at(i) + ".jpg"))
+        for(QByteArray extn : supportedFormats)
         {
-            if (!texBuffer.load(_skyBoxFaces.at(i) + ".png"))
-                loaded = false;
-            else
+            QString fileName = _skyBoxFaces.at(i) + "." + QString(extn);
+            if (texBuffer.load(fileName))
+            {
                 loaded = true;
+                break;
+            }
         }
-        else
-            loaded = true;
         if(loaded)
         {
             texImage = QGLWidget::convertToGLFormat(texBuffer); // flipped 32bit RGBA
@@ -320,13 +321,18 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
         }
         else
         {
+            QString formats;
+            for(QByteArray extn : supportedFormats)
+            {
+                formats += extn + " ";
+            }
             // Load first image from file
             QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
-                                                 "Please make sure that there are six jpg or png images in the folder\n"
-                                                 "with names in the following manner...\n"
+                                                 "Please make sure that there are six images of supported formats "
+                                                 "in the folder with names in the following manner...\n"
                                                  "posx.jpg, posy.jpg, posz.jpg,\n"
-                                                 "negx.jpg, negy.jpg, negz.jpg\n"
-                                                 "Skybox has not changed, continuing with the existing one.");
+                                                 "negx.jpg, negy.jpg, negz.jpg\nSupported formats are:\n" + formats +
+                                                 "\nSkybox has not changed, continuing with the existing one.");
 
             return;
         }
