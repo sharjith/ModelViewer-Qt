@@ -1668,6 +1668,20 @@ void ModelViewer::on_toolButtonOpen_clicked()
 		_lastOpenedDir,
 		tr("All Models(*.stl *.obj);;STL Files (*.stl *.STL);;OBJ Files (*.obj *.OBJ)"));
 
+    if (fileName != "")
+    {
+        mesh = _glWidget->loadAssImpMesh(fileName);
+        if (mesh)
+        {
+            updateDisplayList();
+
+            listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+            listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+
+            updateDisplayList();
+        }
+    }
+    /*
 	if (fileName != "")
 	{
         QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -1705,6 +1719,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
         MainWindow::mainWindow()->activateWindow();
         QApplication::alert(MainWindow::mainWindow());
 	}
+    */
 }
 
 void ModelViewer::setMaterialProps(const GLMaterialProps& mat)

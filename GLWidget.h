@@ -96,6 +96,7 @@ public:
 
 	TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadOBJMesh(QString fileName);
+    TriangleMesh* loadAssImpMesh(QString fileName);
 
 	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);

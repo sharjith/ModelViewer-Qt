@@ -8,7 +8,7 @@ INCLUDEPATH += .
 
 unix {
     INCLUDEPATH += /usr/include/freetype2/
-    LIBS += -lfreetype
+    LIBS += -lfreetype -lassimp
 }
 
 win32-msvc*{

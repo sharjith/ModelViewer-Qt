@@ -671,6 +671,20 @@ TriangleMesh* GLWidget::loadSTLMesh(QString fileName)
     return mesh;
 }
 
+#include "AssImpModel.h"
+TriangleMesh* GLWidget::loadAssImpMesh(QString fileName)
+{
+    makeCurrent();
+    AssImpModel* model = new AssImpModel(_fgShader, const_cast<GLchar*>(fileName.toStdString().c_str()));
+    if(model)
+    {
+        std::vector<AssImpMesh*> meshes =  model->getMeshes();
+        for(AssImpMesh* mesh : meshes)
+            addToDisplay(mesh);
+    }
+    return model;
+}
+
 TriangleMesh* GLWidget::loadOBJMesh(QString fileName)
 {
     makeCurrent();
@@ -679,6 +693,7 @@ TriangleMesh* GLWidget::loadOBJMesh(QString fileName)
     if (mesh)
         addToDisplay(mesh);
     return mesh;
+
 }
 
 void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat)
