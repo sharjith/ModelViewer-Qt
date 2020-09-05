@@ -112,8 +112,10 @@ private:
         vector<Texture> textures;
 
         // Walk through each of the mesh's vertices
+        int step = 0;
         for ( GLuint i = 0; i < mesh->mNumVertices; i++ )
         {
+            step++;
             Vertex vertex;
             glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
 
@@ -140,8 +142,17 @@ private:
                 vertex.TexCoords = vec;
             }
             else
-            {
-                vertex.TexCoords = glm::vec2( 0.0f, 0.0f );
+            {                
+                if (step == 1)
+                    vertex.TexCoords = glm::vec2(0.0f, 0.0f);
+                else if (step == 2)
+                    vertex.TexCoords = glm::vec2(1.0f, 0.0f);
+                else
+                {
+                    vertex.TexCoords = glm::vec2(0.5f, 1.0f);
+                    step = 0;
+                }
+
             }
 
             vertices.push_back( vertex );
@@ -210,7 +221,7 @@ private:
             if( !skip )
             {   // If texture hasn't been loaded already, load it
                 Texture texture;
-                texture.id = TextureFromFile( str.C_Str( ), this->directory );
+                texture.id = textureFromFile( str.C_Str( ), this->directory );
                 texture.type = typeName;
                 texture.path = str;
                 textures.push_back( texture );
@@ -222,7 +233,7 @@ private:
         return textures;
     }
 
-    GLint TextureFromFile( const char *path, string directory )
+    GLint textureFromFile( const char *path, string directory )
     {
         //Generate texture ID and load texture data
         string filename = string( path );
