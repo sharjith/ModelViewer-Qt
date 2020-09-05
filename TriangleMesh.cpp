@@ -620,7 +620,9 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 {
 	bool intersects = false;
     if(_trsfpoints.size() == 0)
+    {
         return intersects;
+    }
 	for (size_t i = 0; i < _trsfpoints.size() - 9; i += 9)
 	{
 		QVector3D v0(_trsfpoints[i + 0], _trsfpoints[i + 1], _trsfpoints[i + 2]);

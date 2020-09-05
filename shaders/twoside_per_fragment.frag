@@ -19,6 +19,8 @@ in GS_OUT_SHADOW {
 uniform float alpha;
 uniform bool texEnabled;
 uniform sampler2D texUnit;
+uniform sampler2D texture_diffuse;
+uniform sampler2D texture_specular;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 uniform bool envMapEnabled;

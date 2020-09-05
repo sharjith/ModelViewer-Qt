@@ -98,6 +98,75 @@ public:
         }
     }*/
 
+    /*void render()
+    {
+        if (!_vertexArrayObject.isCreated())
+            return;
+
+        // Bind appropriate textures
+        /*GLuint diffuseNr = 1;
+        GLuint specularNr = 1;
+
+        for( GLuint i = 0; i < this->textures.size( ); i++ )
+        {
+            glActiveTexture( GL_TEXTURE0 + i ); // Active proper texture unit before binding
+            // Retrieve texture number (the N in diffuse_textureN)
+            stringstream ss;
+            string number;
+            string name = this->textures[i].type;
+
+            if( name == "texture_diffuse" )
+            {
+                ss << diffuseNr++; // Transfer GLuint to stream
+            }
+            else if( name == "texture_specular" )
+            {
+                ss << specularNr++; // Transfer GLuint to stream
+            }
+
+            number = ss.str( );
+            // Now set the sampler to the correct texture unit
+            _prog->bind();
+            _prog->setUniformValue((name + number).c_str(), i);
+            // And finally bind the texture
+            glBindTexture( GL_TEXTURE_2D, this->textures[i].id );
+        }
+
+        _prog->bind();
+        _prog->setUniformValue("texUnit", 0);
+        _prog->setUniformValue("material.emission", _emmissiveMaterial.toVector3D());
+        _prog->setUniformValue("material.ambient", _ambientMaterial.toVector3D());
+        _prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
+        _prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
+        _prog->setUniformValue("material.shininess", _shininess);
+        _prog->setUniformValue("texEnabled", _bHasTexture);
+        _prog->setUniformValue("alpha", _opacity);
+        _prog->setUniformValue("selected", _selected);
+
+        if (_opacity < 1.0f)
+        {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        }
+        else
+        {
+            glDisable(GL_BLEND);
+        }
+
+        _vertexArrayObject.bind();
+        glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
+        _vertexArrayObject.release();
+        _prog->release();
+        glDisable(GL_BLEND);
+
+        // Always good practice to set everything back to defaults once configured.
+        for ( GLuint i = 0; i < this->textures.size( ); i++ )
+        {
+            glActiveTexture( GL_TEXTURE0 + i );
+            glBindTexture( GL_TEXTURE_2D, 0 );
+        }
+    }*/
+
 private:
     /*  Render data  */
     GLuint VAO, VBO, EBO;
