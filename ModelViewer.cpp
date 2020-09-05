@@ -497,19 +497,28 @@ void ModelViewer::showTransformationsPage()
 void ModelViewer::on_checkTexture_toggled(bool checked)
 {
     _bHasTexture = checked;
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            _emmiMat,
-                            _shine,
-                            _opacity,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-    _glWidget->updateView();
+    if (listWidgetModel->count())
+    {        
+        std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        //for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                TriangleMesh* mesh = meshes.at(rowId);
+                if (mesh)
+                {
+                    mesh->enableTexture(_bHasTexture);
+                }
+            }
+            _glWidget->updateView();
+        }
+    }    
 }
 
-void ModelViewer::on_textureButton_clicked()
+void ModelViewer::on_pushButtonTexture_clicked()
 {
     QImage buf;
     QString fileName = QFileDialog::getOpenFileName(
@@ -532,15 +541,18 @@ void ModelViewer::on_textureButton_clicked()
         {
             std::vector<int> ids;
             QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-            for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+            //for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+            if (!items.isEmpty())
             {
-                int rowId = listWidgetModel->row(i);
-                ids.push_back(rowId);
+                for (QListWidgetItem* i : items)
+                {
+                    int rowId = listWidgetModel->row(i);
+                    ids.push_back(rowId);
+                }
+                _glWidget->setTexture(ids, buf);
+                _glWidget->updateView();
             }
-            _glWidget->setTexture(ids, buf);
         }
-
-        _glWidget->updateView();
     }
 }
 
@@ -999,10 +1011,7 @@ void ModelViewer::on_pushButtonBrass_clicked()
                             _shine,
                             1.0f,
                             checkTexture->isChecked() };
-    setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
+    setMaterialProps(mat);  
 }
 
 void ModelViewer::on_pushButtonBronze_clicked()
@@ -1022,9 +1031,6 @@ void ModelViewer::on_pushButtonBronze_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonCopper_clicked()
@@ -1044,9 +1050,6 @@ void ModelViewer::on_pushButtonCopper_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonGold_clicked()
@@ -1072,9 +1075,6 @@ void ModelViewer::on_pushButtonGold_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonSilver_clicked()
@@ -1100,9 +1100,6 @@ void ModelViewer::on_pushButtonSilver_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonRuby_clicked()
@@ -1128,9 +1125,6 @@ void ModelViewer::on_pushButtonRuby_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonEmerald_clicked()
@@ -1156,9 +1150,6 @@ void ModelViewer::on_pushButtonEmerald_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonTurquoise_clicked()
@@ -1184,9 +1175,6 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonJade_clicked()
@@ -1212,9 +1200,6 @@ void ModelViewer::on_pushButtonJade_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonObsidian_clicked()
@@ -1240,9 +1225,6 @@ void ModelViewer::on_pushButtonObsidian_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonPearl_clicked()
@@ -1268,9 +1250,6 @@ void ModelViewer::on_pushButtonPearl_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonChrome_clicked()
@@ -1296,9 +1275,6 @@ void ModelViewer::on_pushButtonChrome_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonBlackPlastic_clicked()
@@ -1324,9 +1300,6 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonCyanPlastic_clicked()
@@ -1352,9 +1325,6 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonGreenPlastic_clicked()
@@ -1380,9 +1350,6 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonRedPlastic_clicked()
@@ -1408,9 +1375,6 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonWhitePlastic_clicked()
@@ -1436,9 +1400,6 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonYellowPlastic_clicked()
@@ -1464,9 +1425,6 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonBlackRubber_clicked()
@@ -1492,9 +1450,6 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonCyanRubber_clicked()
@@ -1520,9 +1475,6 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonGreenRubber_clicked()
@@ -1548,9 +1500,6 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonRedRubber_clicked()
@@ -1576,9 +1525,6 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonWhiteRubber_clicked()
@@ -1604,9 +1550,6 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_pushButtonYellowRubber_clicked()
@@ -1632,9 +1575,6 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
                             1.0f,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
-    _glWidget->updateView();
-    updateControls();
 }
 
 void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
@@ -1772,17 +1712,23 @@ void ModelViewer::on_toolButtonOpen_clicked()
 
 void ModelViewer::setMaterialProps(const GLMaterialProps& mat)
 {
-    if (listWidgetModel->count())
-    {
-        std::vector<int> ids;
-        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-        for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
-        {
-            int rowId = listWidgetModel->row(i);
-            ids.push_back(rowId);
-        }
-        _glWidget->setMaterialProps(ids, mat);
-    }
+	if (listWidgetModel->count())
+	{
+		std::vector<int> ids;
+		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		//for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+		if (!items.isEmpty())
+		{
+			for (QListWidgetItem* i : items)
+			{
+				int rowId = listWidgetModel->row(i);
+				ids.push_back(rowId);
+			}
+			_glWidget->setMaterialProps(ids, mat);
+			_glWidget->updateView();
+			updateControls();
+		}
+	}
 }
 
 void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)

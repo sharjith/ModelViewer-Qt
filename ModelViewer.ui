@@ -1205,8 +1205,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>316</width>
-               <height>666</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -1259,7 +1259,7 @@
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QPushButton" name="textureButton">
+                   <widget class="QPushButton" name="pushButtonTexture">
                     <property name="sizePolicy">
                      <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
                       <horstretch>0</horstretch>
@@ -2218,8 +2218,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>338</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2566,8 +2566,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>159</width>
-               <height>389</height>
+               <width>330</width>
+               <height>707</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2940,7 +2940,7 @@
  </customwidgets>
  <tabstops>
   <tabstop>checkTexture</tabstop>
-  <tabstop>textureButton</tabstop>
+  <tabstop>pushButtonTexture</tabstop>
  </tabstops>
  <resources>
   <include location="ModelViewer.qrc"/>
@@ -2950,7 +2950,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

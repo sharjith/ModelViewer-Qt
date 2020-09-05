@@ -37,7 +37,7 @@ public slots:
 
 private slots:
 	void on_checkTexture_toggled(bool checked);
-	void on_textureButton_clicked();
+	void on_pushButtonTexture_clicked();
 	void on_pushButtonDefaultLights_clicked();
 	void on_pushButtonDefaultMatls_clicked();
 	void on_pushButtonApplyTransformations_clicked();
