@@ -88,7 +88,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _viewBoundingSphereDia = 200.0f;
     _viewRange = _viewBoundingSphereDia;
     _rubberBandZoomRatio = 1.0f;
-    _FOV = 60.0f;
+    _FOV = 45.0f;
     _currentViewRange = 1.0f;
     _viewMode = ViewMode::ISOMETRIC;
     _projection = ViewProjection::ORTHOGRAPHIC;
@@ -276,9 +276,9 @@ void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
             TriangleMesh* mesh = _meshStore[id];
             mesh->setTexureImage(QGLWidget::convertToGLFormat(texImage));
         }
-        catch (...)
+        catch (std::exception& ex)
         {
-            std::cout << "Exception!" << std::endl;
+            std::cout << "Exception raised in GLWidget::setTexture\n" << ex.what() << std::endl;
         }
     }
 }
