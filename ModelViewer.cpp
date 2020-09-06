@@ -491,7 +491,7 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::showTransformationsPage()
 {
-    toolBox->setCurrentIndex(3);
+    toolBox->setCurrentIndex(2);
 }
 
 void ModelViewer::on_checkTexture_toggled(bool checked)
