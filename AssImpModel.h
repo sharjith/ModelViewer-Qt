@@ -168,7 +168,18 @@ private:
             }
         }
 
+
         // Process materials
+		GLMaterialProps materials = {
+			{ 0.2109375f, 0.125f, 0.05078125f, 1.0f },      // ambient 54 32 13 
+			{ 0.7109375f, 0.62890625f, 0.55078125f, 1.0f }, // diffuse 182 161 141
+			{ 0.37890625f, 0.390625f, 0.3359375f, 1.0f },   // specular 97 100 86
+			{1.0f, 1.0f, 1.0f, 1.0f},   // specref
+			{ 0.0f, 0.0f, 0.0f, 1.0f }, // emissive
+			128 * 0.2f, // shininess
+			1.0f,   // opacity
+            false // texture
+		};
         if( mesh->mMaterialIndex != 0 )
         {
             aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
@@ -186,10 +197,30 @@ private:
             // 2. Specular maps
             vector<Texture> specularMaps = this->loadMaterialTextures( material, aiTextureType_SPECULAR, "texture_specular" );
             textures.insert( textures.end( ), specularMaps.begin( ), specularMaps.end( ) );
-        }
+
+            aiColor3D color(0.f, 0.f, 0.f);
+            float opacity = 1.0f;
+            material->Get(AI_MATKEY_OPACITY, opacity);            
+            if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
+            {
+                materials.ambientMaterial = QVector4D(color.r, color.g, color.b, opacity);
+            }
+            if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
+            {
+                materials.diffuseMaterial = QVector4D(color.r, color.g, color.b, opacity);
+            }
+            if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
+            {
+                materials.specularMaterial = QVector4D(color.r, color.g, color.b, opacity);
+            }
+            if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
+            {
+                materials.emmissiveMaterial = QVector4D(color.r, color.g, color.b, opacity);
+            }
+        }       
 
         // Return a mesh object created from the extracted mesh data
-        return new AssImpMesh(_prog, vertices, indices, textures );
+        return new AssImpMesh(_prog, vertices, indices, textures, materials);
     }
 
     // Checks all material textures of a given type and loads the textures if they're not loaded yet.

@@ -34,20 +34,22 @@ class AssImpMesh : public TriangleMesh
 {
 public:
 	/*  Mesh Data  */
-	vector<Vertex> vertices;
-	vector<GLuint> indices;
-	vector<Texture> textures;
+	vector<Vertex> _vertices;
+	vector<GLuint> _indices;
+	vector<Texture> _textures;
+	GLMaterialProps _materials;
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<GLuint> indices, vector<Texture> textures) : TriangleMesh(shader, "AssImpMesh")
+	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<GLuint> indices, vector<Texture> textures, GLMaterialProps materials) : TriangleMesh(shader, "AssImpMesh"),
+		_materials(materials)
 	{
-		this->vertices = vertices;
-		this->indices = indices;
-		this->textures = textures;
+		_vertices = vertices;
+		_indices = indices;
+		_textures = textures;
 
 		// Now that we have all the required data, set the vertex buffers and its attribute pointers.
-		this->setupMesh();
+		setupMesh();
 	}
 
 	// Render the mesh
@@ -125,13 +127,13 @@ public:
 		GLuint diffuseNr = 1;
 		GLuint specularNr = 1;
 
-		for (GLuint i = 0; i < this->textures.size(); i++)
+		for (GLuint i = 0; i < _textures.size(); i++)
 		{
 			glActiveTexture(GL_TEXTURE0 + i); // Active proper texture unit before binding
 			// Retrieve texture number (the N in diffuse_textureN)
 			stringstream ss;
 			string number;
-			string name = this->textures[i].type;
+			string name = _textures[i].type;
 
 			if (name == "texture_diffuse")
 			{
@@ -149,7 +151,7 @@ public:
 			_prog->bind();
 			_prog->setUniformValue((name + number).c_str(), i);
 			// And finally bind the texture
-			glBindTexture(GL_TEXTURE_2D, this->textures[i].id);
+			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
 		}
 
 		if (_opacity < 1.0f)
@@ -169,7 +171,7 @@ public:
 		glDisable(GL_BLEND);
 
 		// Always good practice to set everything back to defaults once configured.
-		for (GLuint i = 0; i < this->textures.size(); i++)
+		for (GLuint i = 0; i < _textures.size(); i++)
 		{
 			glActiveTexture(GL_TEXTURE0 + i);
 			glBindTexture(GL_TEXTURE_2D, 0);
@@ -185,7 +187,7 @@ private:
 		std::vector<float> normals;
 		std::vector<float> texCoords;
 
-		for (Vertex v : vertices)
+		for (Vertex v : _vertices)
 		{
 			points.push_back(v.Position.x);
 			points.push_back(v.Position.y);
@@ -199,7 +201,15 @@ private:
 			texCoords.push_back(v.TexCoords.y);
 		}
 
-		initBuffers(&indices, &points, &normals, &texCoords);
+		_ambientMaterial = _materials.ambientMaterial;
+		_diffuseMaterial = _materials.diffuseMaterial;
+		_specularMaterial = _materials.specularMaterial;
+		_emmissiveMaterial = _materials.emmissiveMaterial;
+		_shininess = _materials.shininess;
+		_opacity = _materials.opacity;
+		_bHasTexture = _materials.bHasTexture;
+
+		initBuffers(&_indices, &points, &normals, &texCoords);
 		computeBoundingSphere(points);
 	}
 };
