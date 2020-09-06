@@ -2212,6 +2212,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     }
     case Qt::Key_F2:
         fitAll();
+        break;    
+    case Qt::Key_Delete:
+        deleteSelectedItem();
         break;
     default:
         break;
