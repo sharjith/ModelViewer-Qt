@@ -153,6 +153,15 @@ void main()
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/256);
         }
     }
+
+    if(hasDiffuseTexture)
+    {
+        fragColor = vec4(texture2D(texture_diffuse, g_texCoord2d));
+    }
+    if(hasSpecularTexture)
+    {
+        fragColor = mix(vec4(texture2D(texture_diffuse, g_texCoord2d)), vec4(texture2D(texture_specular, g_texCoord2d)), 0.5);
+    }
     
     if(selected)
     {
@@ -178,11 +187,11 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
     if(hasDiffuseTexture)
     {
-        mat.ambient = texture2D(texture_diffuse, g_texCoord2d).rgb;
+        //mat.ambient = texture2D(texture_diffuse, g_texCoord2d).rgb;
     }
     if(hasSpecularTexture)
     {
-        mat.specular = texture2D(texture_specular, g_texCoord2d).rgb;
+        //mat.specular = texture2D(texture_specular, g_texCoord2d).rgb;
     }
 
     vec3 colorLinear;
