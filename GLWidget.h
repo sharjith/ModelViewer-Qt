@@ -10,11 +10,11 @@
 #include <math.h>
 #include "GLCamera.h"
 #include "BoundingSphere.h"
+#include "TriangleMesh.h"
 
 /* Custom OpenGL Viewer Widget */
 
 class TextRenderer;
-class TriangleMesh;
 class SphericalHarmonicsEditor;
 class SuperToroidEditor;
 class SuperEllipsoidEditor;
@@ -26,19 +26,6 @@ class Plane;
 class Cube;
 
 class ModelViewer;
-
-struct GLMaterialProps
-{
-	QVector4D ambientMaterial;
-	QVector4D diffuseMaterial;
-	QVector4D specularMaterial;
-	QVector4D specularReflectivity;
-	QVector4D emmissiveMaterial;
-	float   shininess;
-	float   opacity;
-
-	bool bHasTexture;
-};
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
