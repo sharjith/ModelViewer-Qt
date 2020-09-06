@@ -176,7 +176,9 @@ public slots:
 	void animateFitAll();
 	void animateWindowZoom();
 	void animateCenterScreen();
+    void stopAnimations();
     void checkAndStopTimers();
+    void disableLowRes();
 	void lockLightAndCamera(bool lock);
     void setFloorTexRepeatS(double floorTexRepeatS);
     void setFloorTexRepeatT(double floorTexRepeatT);

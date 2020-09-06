@@ -185,22 +185,22 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _animateViewTimer = new QTimer(this);
     _animateViewTimer->setTimerType(Qt::PreciseTimer);
     connect(_animateViewTimer, SIGNAL(timeout()), this, SLOT(animateViewChange()));
-    connect(this, SIGNAL(rotationsSet()), _animateViewTimer, SLOT(stop()));
+    connect(this, SIGNAL(rotationsSet()), this, SLOT(stopAnimations()));
 
     _animateFitAllTimer = new QTimer(this);
     _animateFitAllTimer->setTimerType(Qt::PreciseTimer);
     connect(_animateFitAllTimer, SIGNAL(timeout()), this, SLOT(animateFitAll()));
-    connect(this, SIGNAL(zoomAndPanSet()), _animateFitAllTimer, SLOT(stop()));
+    connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
 
     _animateWindowZoomTimer = new QTimer(this);
     _animateWindowZoomTimer->setTimerType(Qt::PreciseTimer);
     connect(_animateWindowZoomTimer, SIGNAL(timeout()), this, SLOT(animateWindowZoom()));
-    connect(this, SIGNAL(zoomAndPanSet()), _animateWindowZoomTimer, SLOT(stop()));
+    connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
 
     _animateCenterScreenTimer = new QTimer(this);
     _animateCenterScreenTimer->setTimerType(Qt::PreciseTimer);
     connect(_animateCenterScreenTimer, SIGNAL(timeout()), this, SLOT(animateCenterScreen()));
-    connect(this, SIGNAL(zoomAndPanSet()), _animateCenterScreenTimer, SLOT(stop()));
+    connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
 
     _editorLayout = new QVBoxLayout(this);
     _upperLayout = new QFormLayout();
@@ -1944,6 +1944,12 @@ void GLWidget::checkAndStopTimers()
     }
 }
 
+void GLWidget::disableLowRes()
+{
+    _lowResEnabled = false;
+    update();
+}
+
 void GLWidget::lockLightAndCamera(bool lock)
 {
     _lockLightAndCamera = lock;
@@ -2295,6 +2301,16 @@ void GLWidget::animateCenterScreen()
         setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
         resizeGL(width(), height());
     }
+}
+
+void GLWidget::stopAnimations()
+{
+    _animateViewTimer->stop();
+    _animateFitAllTimer->stop();
+    _animateWindowZoomTimer->stop();
+    _animateCenterScreenTimer->stop();
+
+    QTimer::singleShot(100, this, SLOT(disableLowRes()));
 }
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir)
