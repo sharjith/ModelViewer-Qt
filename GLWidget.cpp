@@ -1344,58 +1344,60 @@ void GLWidget::paintGL()
 
 void GLWidget::drawFloor()
 {
-
-	//https://open.gl/depthstencils
-	glEnable(GL_STENCIL_TEST);
-	glStencilFunc(GL_ALWAYS, 1, 0xFF);
-	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-	glStencilMask(0xFF);
-	glDepthMask(GL_FALSE);
-	glClear(GL_STENCIL_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
-
-	_fgShader->bind();
-	_fgShader->setUniformValue("envMapEnabled", false);
-	_fgShader->setUniformValue("floorRendering", true);
-	_floorPlane->enableTexture(false);
-	_floorPlane->render();
-	glDisable(GL_CULL_FACE);
-
-	// Draw model reflection
-	glStencilFunc(GL_EQUAL, 1, 0xFF);
-	glStencilMask(0x00);
-	glDepthMask(GL_TRUE);
-
-	QMatrix4x4 model;
-	float floorPos = lowestModelZ() - (_floorSize * 0.05f);
-	float floorGap = fabs(floorPos - lowestModelZ());
-	float offset = ((lowestModelZ()) - floorGap) * 2.0f;
-	model.scale(1.0f, 1.0f, -1.0f);
-	model.translate(0.0f, 0.0f, -offset);
-
-	_fgShader->bind();
-	_fgShader->setUniformValue("modelMatrix", model);
-    if (_reflectionsEnabled && !_lowResEnabled)
+    if(!_lowResEnabled)
     {
-        drawMesh();
+        //https://open.gl/depthstencils
+        glEnable(GL_STENCIL_TEST);
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+        glStencilMask(0xFF);
+        glDepthMask(GL_FALSE);
+        glClear(GL_STENCIL_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glEnable(GL_CULL_FACE);
+        glCullFace(GL_FRONT);
+
+        _fgShader->bind();
+        _fgShader->setUniformValue("envMapEnabled", false);
+        _fgShader->setUniformValue("floorRendering", true);
+        _floorPlane->enableTexture(false);
+        _floorPlane->render();
+        glDisable(GL_CULL_FACE);
+
+        // Draw model reflection
+        glStencilFunc(GL_EQUAL, 1, 0xFF);
+        glStencilMask(0x00);
+        glDepthMask(GL_TRUE);
+
+        QMatrix4x4 model;
+        float floorPos = lowestModelZ() - (_floorSize * 0.05f);
+        float floorGap = fabs(floorPos - lowestModelZ());
+        float offset = ((lowestModelZ()) - floorGap) * 2.0f;
+        model.scale(1.0f, 1.0f, -1.0f);
+        model.translate(0.0f, 0.0f, -offset);
+
+        _fgShader->bind();
+        _fgShader->setUniformValue("modelMatrix", model);
+        if (_reflectionsEnabled)
+        {
+            drawMesh();
+        }
+
+        glDisable(GL_STENCIL_TEST);
+        _floorPlane->setOpacity(0.80f);
     }
 
-	glDisable(GL_STENCIL_TEST);
-	_floorPlane->setOpacity(0.80f);
-
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
-	_fgShader->bind();
-	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-	_fgShader->setUniformValue("shadowSamples", 18.0f);
-	_floorPlane->enableTexture(_floorTextureDisplayed);
-	_floorPlane->render();
-	glDisable(GL_CULL_FACE);
-	_fgShader->bind();
-	_fgShader->setUniformValue("floorRendering", false);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    _fgShader->bind();
+    _fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _fgShader->setUniformValue("shadowSamples", 18.0f);
+    _floorPlane->enableTexture(_floorTextureDisplayed);
+    _floorPlane->render();
+    glDisable(GL_CULL_FACE);
+    _fgShader->bind();
+    _fgShader->setUniformValue("floorRendering", false);
 }
 
 void GLWidget::drawSkyBox()
@@ -1704,7 +1706,7 @@ void GLWidget::render(GLCamera *camera)
     QVector3D zDir(0.0, 0.0, 1.0);
     QVector3D viewDir = _primaryCamera->getViewDir();
     bool floorVisible = QVector3D::dotProduct(viewDir, zDir) < 0.0f;
-    bool showShadows = (_shadowsEnabled && floorVisible && camera == _primaryCamera);
+    bool showShadows = (_shadowsEnabled && floorVisible && !_lowResEnabled && camera == _primaryCamera);
 
     _fgShader->bind();
     _fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
