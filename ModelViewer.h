@@ -34,6 +34,7 @@ public slots:
 	void showObjectsPropertiesPage();
 	void showEnvironmentPage();
 	void showTransformationsPage();
+    void clickMultiViewButton();
 
 private slots:
 	void on_checkTexture_toggled(bool checked);

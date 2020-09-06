@@ -875,6 +875,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>F4</string>
+                    </property>
                     <property name="checkable">
                      <bool>true</bool>
                     </property>
@@ -1170,8 +1173,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>328</width>
+               <height>683</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1205,8 +1208,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>313</width>
+               <height>688</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2218,8 +2221,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>192</width>
+               <height>460</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2575,8 +2578,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>330</width>
-               <height>707</height>
+               <width>377</width>
+               <height>378</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2950,7 +2953,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

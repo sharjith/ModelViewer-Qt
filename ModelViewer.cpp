@@ -122,6 +122,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonLeftView_clicked()));
     shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_J), this);
     connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonRightView_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::Key_F4), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(clickMultiViewButton()));
 
     connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
     connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
@@ -492,6 +494,11 @@ void ModelViewer::showEnvironmentPage()
 void ModelViewer::showTransformationsPage()
 {
     toolBox->setCurrentIndex(2);
+}
+
+void ModelViewer::clickMultiViewButton()
+{
+    toolButtonMultiView->animateClick(0);
 }
 
 void ModelViewer::on_checkTexture_toggled(bool checked)
