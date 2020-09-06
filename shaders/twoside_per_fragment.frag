@@ -34,6 +34,8 @@ uniform bool selected;
 uniform vec4 reflectColor;
 uniform bool floorRendering;
 uniform bool lockLightAndCamera = true;
+uniform bool hasDiffuseTexture = false;
+uniform bool hasSpecularTexture = false;
 
 struct LineInfo
 {
@@ -173,6 +175,15 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 diffuse    = source.diffuse * nDotVP;
     vec3 specular   = source.specular * pf;
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
+
+    if(hasDiffuseTexture)
+    {
+        mat.ambient = texture2D(texture_diffuse, g_texCoord2d).rgb;
+    }
+    if(hasSpecularTexture)
+    {
+        mat.specular = texture2D(texture_specular, g_texCoord2d).rgb;
+    }
 
     vec3 colorLinear;
 

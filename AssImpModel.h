@@ -154,7 +154,6 @@ private:
                 }
 
             }
-
             vertices.push_back( vertex );
         }
 

@@ -137,6 +137,8 @@ protected:
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;
 	bool _bHasTexture;
+	bool _bHasDiffuseTexture;
+	bool _bHasSpecularTexture;
     unsigned int _sMax;
     unsigned int _tMax;
 
