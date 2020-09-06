@@ -4,6 +4,19 @@
 #include "Drawable.h"
 #include "BoundingSphere.h"
 
+struct GLMaterialProps
+{
+	QVector4D ambientMaterial;
+	QVector4D diffuseMaterial;
+	QVector4D specularMaterial;
+	QVector4D specularReflectivity;
+	QVector4D emmissiveMaterial;
+	float   shininess;
+	float   opacity;
+
+	bool bHasTexture;
+};
+
 class TriangleMesh : public Drawable
 {
 public:
