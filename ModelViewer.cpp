@@ -12,7 +12,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _bFirstTime = true;
     _bDeletionInProgress = false;
 
-    _lastOpenedDir = QApplication::applicationDirPath();
+    _lastOpenedDir = QApplication::applicationDirPath(); 
+    _lastSelectedFilter = "All Models(*.*);;";
 
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
@@ -1637,9 +1638,15 @@ void ModelViewer::on_toolButtonOpen_clicked()
                                   "LightWave Scene ( *.lws );;" "Modo Model ( *.lxo );;" "CharacterStudio Motion ( *.csm );;"
                                   "Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
 
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open Model File"),
-                                                    _lastOpenedDir,
-                                                    supportedExtensions);
+    QFileDialog fileDialog(this, tr("Open Model File"), _lastOpenedDir, supportedExtensions);
+    fileDialog.selectNameFilter(_lastSelectedFilter);
+    QString fileName;
+    if (fileDialog.exec())
+    {
+        fileName = fileDialog.selectedFiles()[0];
+        _lastSelectedFilter = fileDialog.selectedNameFilter();
+    }
+   
 
     if (fileName != "")
     {

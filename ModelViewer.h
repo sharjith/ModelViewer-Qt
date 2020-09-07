@@ -143,7 +143,7 @@ private slots:
     void on_pushButtonSkyBoxTex_clicked();
 
 protected:
-	void showEvent(QShowEvent* event);
+	void showEvent(QShowEvent* event);	
 
 private:
 	GLWidget* _glWidget;
@@ -170,6 +170,7 @@ private:
 	bool _bDeletionInProgress;
 
 	QString _lastOpenedDir;
+	QString _lastSelectedFilter;
 
 private:
 	void updateControls();
