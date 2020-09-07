@@ -2222,6 +2222,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     _currentTranslation = _primaryCamera->getPosition();
     _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
     update();
+
+    QWidget::keyPressEvent(event);
 }
 
 void GLWidget::animateViewChange()
