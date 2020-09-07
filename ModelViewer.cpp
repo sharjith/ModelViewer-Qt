@@ -13,7 +13,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _bDeletionInProgress = false;
 
     _lastOpenedDir = QApplication::applicationDirPath(); 
-    _lastSelectedFilter = "All Models(*.*);;";
+    _lastSelectedFilter = "All Models(*.*)";
 
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
@@ -1639,6 +1639,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
                                   "Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
 
     QFileDialog fileDialog(this, tr("Open Model File"), _lastOpenedDir, supportedExtensions);
+    fileDialog.setFileMode(QFileDialog::ExistingFile);
     fileDialog.selectNameFilter(_lastSelectedFilter);
     QString fileName;
     if (fileDialog.exec())
