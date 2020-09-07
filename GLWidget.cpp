@@ -1096,7 +1096,7 @@ void GLWidget::loadFloor()
     _floorPlane->setAmbientMaterial(QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
     _floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
     _floorPlane->setSpecularMaterial(QVector4D(0.5f, 0.5f, 0.5f, 1.0f));
-    _floorPlane->setShininess(32.0f);
+    _floorPlane->setShininess(16.0f);
     _floorPlane->enableTexture(_floorTextureDisplayed);
     _floorPlane->setTexureImage(_floorTexImage);
     //_floorPlane->setOpacity(0.95f);
