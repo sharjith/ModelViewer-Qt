@@ -1173,8 +1173,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>328</width>
-               <height>683</height>
+               <width>326</width>
+               <height>699</height>
               </rect>
              </property>
              <attribute name="label">
@@ -1185,7 +1185,7 @@
                <number>2</number>
               </property>
               <item row="1" column="0">
-               <widget class="QListWidget" name="listWidgetModel">
+               <widget class="ModelObjectList" name="listWidgetModel">
                 <property name="styleSheet">
                  <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
                 </property>
@@ -1208,8 +1208,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>313</width>
-               <height>688</height>
+               <width>326</width>
+               <height>699</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2221,8 +2221,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>192</width>
-               <height>460</height>
+               <width>326</width>
+               <height>699</height>
               </rect>
              </property>
              <property name="sizePolicy">
@@ -2578,8 +2578,8 @@
               <rect>
                <x>0</x>
                <y>0</y>
-               <width>377</width>
-               <height>378</height>
+               <width>344</width>
+               <height>685</height>
               </rect>
              </property>
              <attribute name="label">
@@ -2940,6 +2940,11 @@
    <header>ToolPanel.h</header>
    <container>1</container>
   </customwidget>
+  <customwidget>
+   <class>ModelObjectList</class>
+   <extends>QListWidget</extends>
+   <header>ModelObjectList.h</header>
+  </customwidget>
  </customwidgets>
  <tabstops>
   <tabstop>checkTexture</tabstop>
@@ -2953,7 +2958,7 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

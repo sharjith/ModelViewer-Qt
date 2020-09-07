@@ -82,6 +82,7 @@ HEADERS += AABB.h \
     LimpetTorus.h \
     MainWindow.h \
     MeshProperties.h \
+    ModelObjectList.h \
     ModelViewer.h \
     ObjMesh.h \
     ParametricSurface.h \
@@ -153,6 +154,7 @@ SOURCES += AppleSurface.cpp \
     KleinBottle.cpp \
     LimpetTorus.cpp \
     MeshProperties.cpp \
+    ModelObjectList.cpp \
     ModelViewer.cpp \
     STLMesh.cpp \
     ToolPanel.cpp \
