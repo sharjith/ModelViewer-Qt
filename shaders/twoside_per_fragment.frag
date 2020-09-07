@@ -150,7 +150,7 @@ void main()
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/256);
+            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128 * (length(material.specular)));
         }
     }
 
