@@ -66,6 +66,7 @@ struct Material {
     vec3  diffuse;
     vec3  specular;
     float shininess;
+    bool  metallic;
 };
 uniform Material material;
 
@@ -149,8 +150,9 @@ void main()
         else // Opaque - Reflect
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128 * (length(material.specular)));
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection            
+            float factor =  material.metallic ? 1.0f : length(material.diffuse) / 2.0f;
+            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128 * (length(material.specular) * factor));
         }
     }
 

@@ -21,6 +21,7 @@ void QuadMesh::render()
 	_prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
 	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
 	_prog->setUniformValue("material.shininess", _shininess);
+    _prog->setUniformValue("material.metallic", _metallic);
 	_prog->setUniformValue("texEnabled", _bHasTexture);
 	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
 	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);

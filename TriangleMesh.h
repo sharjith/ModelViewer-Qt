@@ -13,7 +13,7 @@ struct GLMaterialProps
 	QVector4D emmissiveMaterial;
 	float   shininess;
 	float   opacity;
-
+    bool bMetallic;
 	bool bHasTexture;
 };
 
@@ -72,6 +72,9 @@ public:
 	float shininess() const;
 	void setShininess(const float& shininess);
 
+    bool isMetallic() const;
+    void setMetallic(bool metallic);
+
 	bool hasTexture() const;
 	void enableTexture(const bool& bHasTexture);
 
@@ -101,8 +104,8 @@ public:
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 protected: // methods
-	virtual void initBuffers(
-		std::vector<unsigned int>* indices,
+    virtual void initBuffers(
+            std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
 		std::vector<float>* texCoords = nullptr,
@@ -146,6 +149,7 @@ protected:
 	QVector4D _specularReflectivity;
 	float _opacity;
 	float _shininess;
+    bool _metallic;
 
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;

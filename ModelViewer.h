@@ -164,6 +164,7 @@ private:
 	QVector4D _specRef;
 	float _opacity;
 	float _shine;
+    bool _metallic;
 	bool _bHasTexture;
 
 	bool _bFirstTime;

@@ -140,6 +140,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _specRef = { 1.0f, 1.0f, 1.0f, 1.0f };
 
     _shine = 128 * 0.2f;
+    _metallic = false;
     _bHasTexture = false;
 
     updateControls();
@@ -586,6 +587,7 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
     _specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
     _emmiMat = { 0, 0, 0, 1 };
     _shine = 128 * 0.2f;
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -594,6 +596,7 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
                             _emmiMat,
                             _shine,
                             _opacity,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
     _glWidget->updateView();
@@ -856,6 +859,7 @@ void ModelViewer::on_pushButtonMaterialAmbient_clicked()
                                 _emmiMat,
                                 _shine,
                                 _opacity,
+                                _metallic,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -882,6 +886,7 @@ void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
                                 _emmiMat,
                                 _shine,
                                 _opacity,
+                                _metallic,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -908,6 +913,7 @@ void ModelViewer::on_pushButtonMaterialSpecular_clicked()
                                 _emmiMat,
                                 _shine,
                                 _opacity,
+                                _metallic,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -934,6 +940,7 @@ void ModelViewer::on_pushButtonMaterialEmissive_clicked()
                                 _emmiMat,
                                 _shine,
                                 _opacity,
+                                _metallic,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -980,6 +987,7 @@ void ModelViewer::on_sliderTransparency_valueChanged(int value)
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             _opacity,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 
@@ -997,6 +1005,7 @@ void ModelViewer::on_sliderShine_valueChanged(int value)
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             _opacity,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 
@@ -1010,6 +1019,7 @@ void ModelViewer::on_pushButtonBrass_clicked()
     _diffMat = { 0.780392f, 0.568627f, 0.113725f, 1 };
     _specMat = { 0.992157f, 0.941176f, 0.807843f, 1 };
     _shine = fabs(128.0 * 0.21794872);
+    _metallic = true;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1018,6 +1028,7 @@ void ModelViewer::on_pushButtonBrass_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);  
 }
@@ -1029,6 +1040,7 @@ void ModelViewer::on_pushButtonBronze_clicked()
     _diffMat = { 0.714f, 0.4284f, 0.18144f, 1 };
     _specMat = { 0.393548f, 0.271906f, 0.166721f, 1 };
     _shine = fabs(128.0 * 0.2);
+    _metallic = true;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1037,6 +1049,7 @@ void ModelViewer::on_pushButtonBronze_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1048,6 +1061,7 @@ void ModelViewer::on_pushButtonCopper_clicked()
     _diffMat = { 0.7038f, 0.27048f, 0.0828f, 1.0f };
     _specMat = { 0.256777f, 0.137622f, 0.086014f, 1.0f };
     _shine = fabs(128.0 * 0.1);
+    _metallic = true;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1056,6 +1070,7 @@ void ModelViewer::on_pushButtonCopper_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1073,6 +1088,7 @@ void ModelViewer::on_pushButtonGold_clicked()
     _specMat[1] = 0.555802f;
     _specMat[2] = 0.366065f;
     _shine = fabs(128.0 * 0.4);
+    _metallic = true;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1081,6 +1097,7 @@ void ModelViewer::on_pushButtonGold_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1098,6 +1115,7 @@ void ModelViewer::on_pushButtonSilver_clicked()
     _specMat[1] = 0.508273f;
     _specMat[2] = 0.508273f;
     _shine = fabs(128.0 * 0.4);
+    _metallic = true;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1106,156 +1124,7 @@ void ModelViewer::on_pushButtonSilver_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-}
-
-void ModelViewer::on_pushButtonRuby_clicked()
-{
-    //Material Values
-    _ambiMat[0] = 0.1745f;
-    _ambiMat[1] = 0.01175f;
-    _ambiMat[2] = 0.01175f;
-    _diffMat[0] = 0.61424f;
-    _diffMat[1] = 0.04136f;
-    _diffMat[2] = 0.04136f;
-    _specMat[0] = 0.727811f;
-    _specMat[1] = 0.626959f;
-    _specMat[2] = 0.626959f;
-    _shine = fabs(128.0 * 0.6);
-
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 1.0f},
-                            _shine,
-                            1.0f,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-}
-
-void ModelViewer::on_pushButtonEmerald_clicked()
-{
-    //Material Values
-    _ambiMat[0] = 0.0215f;
-    _ambiMat[1] = 0.1745f;
-    _ambiMat[2] = 0.0215f;
-    _diffMat[0] = 0.07568f;
-    _diffMat[1] = 0.61424f;
-    _diffMat[2] = 0.07568f;
-    _specMat[0] = 0.633f;
-    _specMat[1] = 0.727811f;
-    _specMat[2] = 0.633f;
-    _shine = fabs(128.0 * 0.6);
-
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 1.0f},
-                            _shine,
-                            1.0f,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-}
-
-void ModelViewer::on_pushButtonTurquoise_clicked()
-{
-    //Material Values
-    _ambiMat[0] = 0.1f;
-    _ambiMat[1] = 0.18725f;
-    _ambiMat[2] = 0.1745f;
-    _diffMat[0] = 0.396f;
-    _diffMat[1] = 0.74151f;
-    _diffMat[2] = 0.69102f;
-    _specMat[0] = 0.297254f;
-    _specMat[1] = 0.30829f;
-    _specMat[2] = 0.306678f;
-    _shine = fabs(128.0 * 0.1);
-
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 1.0f},
-                            _shine,
-                            1.0f,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-}
-
-void ModelViewer::on_pushButtonJade_clicked()
-{
-    //Material Values
-    _ambiMat[0] = 0.135f;
-    _ambiMat[1] = 0.2225f;
-    _ambiMat[2] = 0.1575f;
-    _diffMat[0] = 0.54f;
-    _diffMat[1] = 0.89f;
-    _diffMat[2] = 0.63f;
-    _specMat[0] = 0.316228f;
-    _specMat[1] = 0.316228f;
-    _specMat[2] = 0.316228f;
-    _shine = fabs(128.0 * 0.1);
-
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 1.0f},
-                            _shine,
-                            1.0f,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-}
-
-void ModelViewer::on_pushButtonObsidian_clicked()
-{
-    //Material Values
-    _ambiMat[0] = 0.05375f;
-    _ambiMat[1] = 0.05f;
-    _ambiMat[2] = 0.06625f;
-    _diffMat[0] = 0.18275f;
-    _diffMat[1] = 0.17f;
-    _diffMat[2] = 0.22525f;
-    _specMat[0] = 0.332741f;
-    _specMat[1] = 0.328634f;
-    _specMat[2] = 0.346435f;
-    _shine = fabs(128.0 * 0.3);
-
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 1.0f},
-                            _shine,
-                            1.0f,
-                            checkTexture->isChecked() };
-    setMaterialProps(mat);
-}
-
-void ModelViewer::on_pushButtonPearl_clicked()
-{
-    //Material Values
-    _ambiMat[0] = 0.25f;
-    _ambiMat[1] = 0.20725f;
-    _ambiMat[2] = 0.20725f;
-    _diffMat[0] = 1.0f;
-    _diffMat[1] = 0.829f;
-    _diffMat[2] = 0.829f;
-    _specMat[1] = 0.296648f;
-    _specMat[2] = 0.296648f;
-    _specMat[0] = 0.299948f;
-    _shine = fabs(128.0 * 0.088);
-
-    GLMaterialProps mat = { _ambiMat,
-                            _diffMat,
-                            _specMat,
-                            {1.0f, 1.0f, 1.0f, 1.0f},
-                            {0.0f, 0.0f, 0.0f, 1.0f},
-                            _shine,
-                            1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1273,6 +1142,7 @@ void ModelViewer::on_pushButtonChrome_clicked()
     _specMat[1] = 0.774597f;
     _specMat[2] = 0.774597f;
     _shine = fabs(128.0 * 0.6);
+    _metallic = true;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1281,6 +1151,169 @@ void ModelViewer::on_pushButtonChrome_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
+                            checkTexture->isChecked() };
+    setMaterialProps(mat);
+}
+
+void ModelViewer::on_pushButtonRuby_clicked()
+{
+    //Material Values
+    _ambiMat[0] = 0.1745f;
+    _ambiMat[1] = 0.01175f;
+    _ambiMat[2] = 0.01175f;
+    _diffMat[0] = 0.61424f;
+    _diffMat[1] = 0.04136f;
+    _diffMat[2] = 0.04136f;
+    _specMat[0] = 0.727811f;
+    _specMat[1] = 0.626959f;
+    _specMat[2] = 0.626959f;
+    _shine = fabs(128.0 * 0.6);
+    _metallic = false;
+
+    GLMaterialProps mat = { _ambiMat,
+                            _diffMat,
+                            _specMat,
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 1.0f},
+                            _shine,
+                            1.0f,
+                            _metallic,
+                            checkTexture->isChecked() };
+    setMaterialProps(mat);
+}
+
+void ModelViewer::on_pushButtonEmerald_clicked()
+{
+    //Material Values
+    _ambiMat[0] = 0.0215f;
+    _ambiMat[1] = 0.1745f;
+    _ambiMat[2] = 0.0215f;
+    _diffMat[0] = 0.07568f;
+    _diffMat[1] = 0.61424f;
+    _diffMat[2] = 0.07568f;
+    _specMat[0] = 0.633f;
+    _specMat[1] = 0.727811f;
+    _specMat[2] = 0.633f;
+    _shine = fabs(128.0 * 0.6);
+    _metallic = false;
+
+    GLMaterialProps mat = { _ambiMat,
+                            _diffMat,
+                            _specMat,
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 1.0f},
+                            _shine,
+                            1.0f,
+                            _metallic,
+                            checkTexture->isChecked() };
+    setMaterialProps(mat);
+}
+
+void ModelViewer::on_pushButtonTurquoise_clicked()
+{
+    //Material Values
+    _ambiMat[0] = 0.1f;
+    _ambiMat[1] = 0.18725f;
+    _ambiMat[2] = 0.1745f;
+    _diffMat[0] = 0.396f;
+    _diffMat[1] = 0.74151f;
+    _diffMat[2] = 0.69102f;
+    _specMat[0] = 0.297254f;
+    _specMat[1] = 0.30829f;
+    _specMat[2] = 0.306678f;
+    _shine = fabs(128.0 * 0.1);
+    _metallic = false;
+
+    GLMaterialProps mat = { _ambiMat,
+                            _diffMat,
+                            _specMat,
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 1.0f},
+                            _shine,
+                            1.0f,
+                            _metallic,
+                            checkTexture->isChecked() };
+    setMaterialProps(mat);
+}
+
+void ModelViewer::on_pushButtonJade_clicked()
+{
+    //Material Values
+    _ambiMat[0] = 0.135f;
+    _ambiMat[1] = 0.2225f;
+    _ambiMat[2] = 0.1575f;
+    _diffMat[0] = 0.54f;
+    _diffMat[1] = 0.89f;
+    _diffMat[2] = 0.63f;
+    _specMat[0] = 0.316228f;
+    _specMat[1] = 0.316228f;
+    _specMat[2] = 0.316228f;
+    _shine = fabs(128.0 * 0.1);
+    _metallic = false;
+
+    GLMaterialProps mat = { _ambiMat,
+                            _diffMat,
+                            _specMat,
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 1.0f},
+                            _shine,
+                            1.0f,
+                            _metallic,
+                            checkTexture->isChecked() };
+    setMaterialProps(mat);
+}
+
+void ModelViewer::on_pushButtonObsidian_clicked()
+{
+    //Material Values
+    _ambiMat[0] = 0.05375f;
+    _ambiMat[1] = 0.05f;
+    _ambiMat[2] = 0.06625f;
+    _diffMat[0] = 0.18275f;
+    _diffMat[1] = 0.17f;
+    _diffMat[2] = 0.22525f;
+    _specMat[0] = 0.332741f;
+    _specMat[1] = 0.328634f;
+    _specMat[2] = 0.346435f;
+    _shine = fabs(128.0 * 0.3);
+    _metallic = false;
+
+    GLMaterialProps mat = { _ambiMat,
+                            _diffMat,
+                            _specMat,
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 1.0f},
+                            _shine,
+                            1.0f,
+                            _metallic,
+                            checkTexture->isChecked() };
+    setMaterialProps(mat);
+}
+
+void ModelViewer::on_pushButtonPearl_clicked()
+{
+    //Material Values
+    _ambiMat[0] = 0.25f;
+    _ambiMat[1] = 0.20725f;
+    _ambiMat[2] = 0.20725f;
+    _diffMat[0] = 1.0f;
+    _diffMat[1] = 0.829f;
+    _diffMat[2] = 0.829f;
+    _specMat[1] = 0.296648f;
+    _specMat[2] = 0.296648f;
+    _specMat[0] = 0.299948f;
+    _shine = fabs(128.0 * 0.088);
+    _metallic = false;
+
+    GLMaterialProps mat = { _ambiMat,
+                            _diffMat,
+                            _specMat,
+                            {1.0f, 1.0f, 1.0f, 1.0f},
+                            {0.0f, 0.0f, 0.0f, 1.0f},
+                            _shine,
+                            1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1298,6 +1331,7 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
     _specMat[1] = 0.5f;
     _specMat[2] = 0.5f;
     _shine = fabs(128.0 * 0.25);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1306,6 +1340,7 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1323,6 +1358,7 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
     _specMat[1] = 0.50196078f;
     _specMat[2] = 0.50196078f;
     _shine = fabs(128.0 * 0.25);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1331,6 +1367,7 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1348,6 +1385,7 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
     _specMat[1] = 0.55f;
     _specMat[2] = 0.45f;
     _shine = fabs(128.0 * 0.25);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1356,6 +1394,7 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1373,6 +1412,7 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
     _specMat[1] = 0.6f;
     _specMat[2] = 0.6f;
     _shine = fabs(128.0 * 0.25);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1381,6 +1421,7 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1398,6 +1439,7 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
     _specMat[1] = 0.70f;
     _specMat[2] = 0.70f;
     _shine = fabs(128.0 * 0.25);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1406,6 +1448,7 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1423,6 +1466,7 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
     _specMat[1] = 0.6f;
     _specMat[2] = 0.5f;
     _shine = fabs(128.0 * 0.25);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1431,6 +1475,7 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1448,6 +1493,7 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
     _specMat[1] = 0.4f;
     _specMat[2] = 0.4f;
     _shine = fabs(128.0 * 0.078125);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1456,6 +1502,7 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1473,6 +1520,7 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
     _specMat[1] = 0.7f;
     _specMat[2] = 0.7f;
     _shine = fabs(128.0 * 0.078125);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1481,6 +1529,7 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1498,6 +1547,7 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
     _specMat[1] = 0.7f;
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1506,6 +1556,7 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1523,6 +1574,7 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
     _specMat[1] = 0.04f;
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1531,6 +1583,7 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1548,6 +1601,7 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
     _specMat[1] = 0.7f;
     _specMat[2] = 0.7f;
     _shine = fabs(128.0 * 0.078125);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1556,6 +1610,7 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1573,6 +1628,7 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
     _specMat[1] = 0.7f;
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
+    _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1581,6 +1637,7 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
                             {0.0f, 0.0f, 0.0f, 1.0f},
                             _shine,
                             1.0f,
+                            _metallic,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }

@@ -710,6 +710,7 @@ void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialPro
             mesh->setSpecularReflectivity(mat.specularReflectivity);
             mesh->setShininess(mat.shininess);
             mesh->setOpacity(mat.opacity);
+            mesh->setMetallic(mat.bMetallic);
             mesh->enableTexture(mat.bHasTexture);
         }
         catch (...)

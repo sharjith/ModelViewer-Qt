@@ -220,6 +220,7 @@ void TriangleMesh::render()
 	_prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
 	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
 	_prog->setUniformValue("material.shininess", _shininess);
+    _prog->setUniformValue("material.metallic", _metallic);
 	_prog->setUniformValue("texEnabled", _bHasTexture);
 	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
 	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
@@ -615,6 +616,16 @@ void TriangleMesh::setAmbientMaterial(const QVector4D& ambientMaterial)
 	_ambientMaterial = ambientMaterial;
 }
 
+bool TriangleMesh::isMetallic() const
+{
+    return _metallic;
+}
+
+void TriangleMesh::setMetallic(bool metallic)
+{
+    _metallic = metallic;
+}
+
 QOpenGLVertexArrayObject& TriangleMesh::getVAO()
 {
 	return _vertexArrayObject;
@@ -681,3 +692,4 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
 	else // This means that there is a line intersection but not a ray intersection.
 		return false;
 }
+

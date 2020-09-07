@@ -178,6 +178,7 @@ private:
 			{ 0.0f, 0.0f, 0.0f, 1.0f }, // emissive
 			128 * 0.2f, // shininess
 			1.0f,   // opacity
+            false, // metallic
             false // texture
 		};
         if( mesh->mMaterialIndex != 0 )
