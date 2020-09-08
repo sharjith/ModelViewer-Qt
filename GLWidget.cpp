@@ -979,7 +979,7 @@ void GLWidget::createShaderPrograms()
 void GLWidget::createGeometry()
 {
     _meshStore.push_back(new Cube(_fgShader, 100.0f));
-    _meshStore.push_back(new Sphere(_fgShader, 75.0f, 50.0f, 50.0f));
+    _meshStore.push_back(new Sphere(_fgShader, 75.0f, 100.0f, 100.0f));
     _meshStore.push_back(new Cylinder(_fgShader, 60.0f, 100.0f, 100.0f, 50.0f, 2));
     _meshStore.push_back(new Cone(_fgShader, 60.0f, 100.0f, 100.0f, 50.0f, 2));
     _meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f, 2, 2));
@@ -2324,7 +2324,7 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
     QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
     Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
-    QVector3D p(pixel.x(), height() - pixel.y(), -1.0f);
+    QVector3D p(pixel.x(), height() - pixel.y(), Z.z());
     QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
     orig = QVector3D(P.x(), P.y(), P.z());
@@ -2402,6 +2402,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
     for (int i : _displayedObjectsIds)
     {
         bool intersects = _meshStore.at(i)->intersectsWithRay(rayPos, rayDir, intPoint);
+        //qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);
         if (intersects)
         {
             id = i;
