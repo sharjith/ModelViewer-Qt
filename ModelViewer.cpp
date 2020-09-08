@@ -136,6 +136,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(doubleSpinBoxSkyBoxFOV, SIGNAL(valueChanged(double)), _glWidget, SLOT(setSkyBoxFOV(double)));
 
     connect(buttonGroupLighting, SIGNAL(buttonToggled(int,bool)), this, SLOT(lightingType_toggled(int,bool)));
+    toolBox->setItemEnabled(0, true);
+    toolBox->setItemEnabled(1, false);
+    toolBox->setItemEnabled(2, false);
+    toolBox->setCurrentIndex(0);
 
     _opacity = 1.0f;
     _ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
@@ -359,7 +363,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
         if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
             myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
 
-        myMenu.addAction("Object Properties", this, SLOT(showVisualizationModelPage()));
+        myMenu.addAction("Visualization Settings", this, SLOT(showVisualizationModelPage()));
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
         myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
         myMenu.addAction("Show", this, SLOT(showSelectedItems()));
@@ -507,7 +511,7 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::showTransformationsPage()
 {
-    toolBox->setCurrentIndex(1);
+    toolBox->setCurrentIndex(3);
 }
 
 void ModelViewer::clickMultiViewButton()

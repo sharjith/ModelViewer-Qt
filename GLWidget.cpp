@@ -2774,7 +2774,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
             if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
                 myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
 
-            myMenu.addAction("Object Properties", this, SLOT(showPropertiesPage()));
+            myMenu.addAction("Visualization settings", this, SLOT(showPropertiesPage()));
             myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
             myMenu.addAction("Hide", this, SLOT(hideSelectedItem()));
             myMenu.addAction("Delete", this, SLOT(deleteSelectedItem()));
