@@ -522,14 +522,19 @@ void ModelViewer::showVisualizationModelPage()
     }
 }
 
-void ModelViewer::showEnvironmentPage()
+void ModelViewer::showPredefinedMaterialsPage()
 {
-    toolBox->setCurrentIndex(2);
+    toolBox->setCurrentIndex(3);
 }
 
 void ModelViewer::showTransformationsPage()
 {
-    toolBox->setCurrentIndex(3);
+    toolBox->setCurrentIndex(4);
+}
+
+void ModelViewer::showEnvironmentPage()
+{
+    toolBox->setCurrentIndex(5);
 }
 
 void ModelViewer::clickMultiViewButton()
@@ -1712,6 +1717,11 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
     }
 }
 
+void ModelViewer::on_listWidgetModel_itemDoubleClicked(QListWidgetItem *item)
+{
+    item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+}
+
 void ModelViewer::on_toolButtonOpen_clicked()
 {
     TriangleMesh* mesh = nullptr;
@@ -1993,3 +2003,4 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setCurrentIndex(2);
     }
 }
+

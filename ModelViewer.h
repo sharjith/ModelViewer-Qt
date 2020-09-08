@@ -32,6 +32,7 @@ public slots:
     void displaySelectedMeshInfo();
     void showVisualizationModelPage();
 	void showEnvironmentPage();
+    void showPredefinedMaterialsPage();
 	void showTransformationsPage();
     void clickMultiViewButton();
 
@@ -140,6 +141,8 @@ private slots:
     void showContextMenu(const QPoint& pos);
     void centerScreen();
     void lightingType_toggled(int id, bool checked);
+
+    void on_listWidgetModel_itemDoubleClicked(QListWidgetItem *item);
 
 protected:
 	void showEvent(QShowEvent* event);	
