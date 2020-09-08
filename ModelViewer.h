@@ -174,6 +174,7 @@ private:
 
 private:
 	void updateControls();
+	QString getSupportedImagesFilter();
 };
 
 #endif

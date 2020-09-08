@@ -314,6 +314,24 @@ void ModelViewer::updateControls()
     pushButtonMaterialEmissive->setStyleSheet(qss);
 }
 
+QString ModelViewer::getSupportedImagesFilter()
+{
+    QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
+    QList<QString> filters;
+    QString filter("All Supported Images (");
+    for (QByteArray ba : supportedFormats)
+    {
+        filter += QString("*.%1 ").arg(QString(ba));
+        filters.push_back(QString("*.%1").arg(QString(ba)));
+    }
+    filter += ")";
+    for (QString fil : filters)
+    {
+        filter += ";;" + fil;
+    }
+    return filter;
+}
+
 void ModelViewer::updateDisplayList()
 {
     listWidgetModel->clear();
@@ -546,11 +564,12 @@ void ModelViewer::on_checkTexture_toggled(bool checked)
 void ModelViewer::on_pushButtonTexture_clicked()
 {
     QImage buf;
+    QString filter = getSupportedImagesFilter();
     QString fileName = QFileDialog::getOpenFileName(
                 this,
                 "Choose an image for texture",
                 _lastOpenedDir,
-                "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
+                filter);
     _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
     if (fileName != "")
     {
@@ -1891,11 +1910,12 @@ void ModelViewer::on_pushButtonFloorTexture_clicked()
 {
     QString appPath = QCoreApplication::applicationDirPath();
     QImage buf;
+    QString filter = getSupportedImagesFilter();
     QString fileName = QFileDialog::getOpenFileName(
                 this,
                 "Choose an image for texture",
                 appPath + "/textures/envmap/floor",
-                "Images (*.bmp *.png *.xpm *.jpg *.tga *.ppm *.pcx)");
+                filter);
     _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
     if (fileName != "")
     {
@@ -1949,7 +1969,7 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
     }
 }
 
-void ModelViewer::lightingType_toggled(int id, bool checked)
+void ModelViewer::lightingType_toggled(int, bool)
 {
     if(radioButtonADSL->isChecked())
     {
