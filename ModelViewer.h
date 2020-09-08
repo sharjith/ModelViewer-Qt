@@ -29,9 +29,8 @@ public slots:
 	void showSelectedItems();
 	void hideSelectedItems();
 	void deleteSelectedItems();
-	void displaySelectedMeshInfo();
-	void showObjectDisplayList();
-	void showObjectsPropertiesPage();
+    void displaySelectedMeshInfo();
+    void showVisualizationModelPage();
 	void showEnvironmentPage();
 	void showTransformationsPage();
     void clickMultiViewButton();
@@ -108,11 +107,6 @@ private slots:
 
 	void on_toolButtonOpen_clicked();
 
-	void setListRow(int index);
-
-	void showContextMenu(const QPoint& pos);
-	void centerScreen();
-
 	void on_toolButtonShowHideAxis_toggled(bool checked);
 	void on_toolButtonVertexNormal_clicked(bool checked);
 	void on_toolButtonFaceNormal_clicked(bool checked);
@@ -141,6 +135,11 @@ private slots:
     void on_toolButtonZoomView_clicked();
 
     void on_pushButtonSkyBoxTex_clicked();
+
+    void setListRow(int index);
+    void showContextMenu(const QPoint& pos);
+    void centerScreen();
+    void lightingType_toggled(int id, bool checked);
 
 protected:
 	void showEvent(QShowEvent* event);	

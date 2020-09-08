@@ -2795,8 +2795,7 @@ void GLWidget::centerDisplayList()
 {
     QListWidget* listWidgetModel = _viewer->getListModel();
     if (listWidgetModel)
-    {
-        _viewer->showObjectDisplayList();
+    {        
         listWidgetModel->scrollToItem(listWidgetModel->selectedItems().at(0));
     }
 }
@@ -2818,7 +2817,7 @@ void GLWidget::displayMeshInfo()
 
 void GLWidget::showPropertiesPage()
 {
-    _viewer->showObjectsPropertiesPage();
+    _viewer->showVisualizationModelPage();
 }
 
 void GLWidget::showTransformationsPage()

@@ -13,7 +13,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _bDeletionInProgress = false;
 
     _lastOpenedDir = QApplication::applicationDirPath(); 
-    _lastSelectedFilter = "All Models(*.*)";
+    _lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
+                          "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
+                          "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
+                          "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
+                          "*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl)";
 
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
@@ -130,6 +134,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
     connect(doubleSpinBoxRepeatT, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatT(double)));
     connect(doubleSpinBoxSkyBoxFOV, SIGNAL(valueChanged(double)), _glWidget, SLOT(setSkyBoxFOV(double)));
+
+    connect(buttonGroupLighting, SIGNAL(buttonToggled(int,bool)), this, SLOT(lightingType_toggled(int,bool)));
 
     _opacity = 1.0f;
     _ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
@@ -353,7 +359,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
         if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
             myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
 
-        myMenu.addAction("Object Properties", this, SLOT(showObjectsPropertiesPage()));
+        myMenu.addAction("Object Properties", this, SLOT(showVisualizationModelPage()));
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
         myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
         myMenu.addAction("Show", this, SLOT(showSelectedItems()));
@@ -478,14 +484,20 @@ void ModelViewer::displaySelectedMeshInfo()
     }
 }
 
-void ModelViewer::showObjectDisplayList()
+void ModelViewer::showVisualizationModelPage()
 {
-    toolBox->setCurrentIndex(0);
-}
-
-void ModelViewer::showObjectsPropertiesPage()
-{
-    toolBox->setCurrentIndex(1);
+    if(radioButtonADSL->isChecked())
+    {
+        toolBox->setCurrentIndex(0);
+    }
+    if(radioButtonDLPBR->isChecked())
+    {
+        toolBox->setCurrentIndex(1);
+    }
+    if(radioButtonTXPBR->isChecked())
+    {
+        toolBox->setCurrentIndex(2);
+    }
 }
 
 void ModelViewer::showEnvironmentPage()
@@ -495,7 +507,7 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::showTransformationsPage()
 {
-    toolBox->setCurrentIndex(2);
+    toolBox->setCurrentIndex(1);
 }
 
 void ModelViewer::clickMultiViewButton()
@@ -1681,7 +1693,12 @@ void ModelViewer::on_toolButtonOpen_clicked()
 {
     TriangleMesh* mesh = nullptr;
 
-    QString supportedExtensions = "All Models(*.*);;"  "Collada ( *.dae;*.xml );;" "Blender ( *.blend );;" "Biovision BVH ( *.bvh );;"
+    QString supportedExtensions = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
+                                  "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
+                                  "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
+                                  "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
+                                  "*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl);;"
+                                  "Collada ( *.dae;*.xml );;" "Blender ( *.blend );;" "Biovision BVH ( *.bvh );;"
                                   "3D Studio Max 3DS ( *.3ds );;" "3D Studio Max ASE ( *.ase );;" "Wavefront Object ( *.obj );;"
                                   "Stanford Polygon Library ( *.ply );;" "AutoCAD DXF ( *.dxf );;"
                                   "IFC-STEP, Industry Foundation Classes ( *.ifc );;" "Neutral File Format ( *.nff );;"
@@ -1925,5 +1942,30 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
     {
         _lastOpenedDir = dir;
         _glWidget->setSkyBoxTextureFolder(_lastOpenedDir);
+    }
+}
+
+void ModelViewer::lightingType_toggled(int id, bool checked)
+{
+    if(radioButtonADSL->isChecked())
+    {
+        toolBox->setItemEnabled(0, true);
+        toolBox->setItemEnabled(1, false);
+        toolBox->setItemEnabled(2, false);
+        toolBox->setCurrentIndex(0);
+    }
+    if(radioButtonDLPBR->isChecked())
+    {
+        toolBox->setItemEnabled(0, false);
+        toolBox->setItemEnabled(1, true);
+        toolBox->setItemEnabled(2, false);
+        toolBox->setCurrentIndex(1);
+    }
+    if(radioButtonTXPBR->isChecked())
+    {
+        toolBox->setItemEnabled(0, false);
+        toolBox->setItemEnabled(1, false);
+        toolBox->setItemEnabled(2, true);
+        toolBox->setCurrentIndex(2);
     }
 }
