@@ -1203,6 +1203,7 @@ void GLWidget::resizeGL(int width, int height)
         _primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
     }
     _projectionMatrix = _primaryCamera->getProjectionMatrix();
+    _viewMatrix = _primaryCamera->getViewMatrix();
 
     // Resize the text frame
     _textRenderer->setWidth(width);
@@ -2324,21 +2325,24 @@ void GLWidget::stopAnimations()
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir)
 {
-    /*
-    QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-    Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+    if (_projection == ViewProjection::PERSPECTIVE)
+    {
+        QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+        QVector3D p(pixel.x(), height() - pixel.y(), Z.z());
+        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
-    QVector3D p(pixel.x(), height() - pixel.y(), -1.0f);
-    QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
-
-    orig = QVector3D(P.x(), P.y(), P.z());
-    QVector3D viewDir = _primaryCamera->getViewDir();
-    dir = viewDir;
-    */
-    QVector3D nearPoint(pixel.x(), height()-pixel.y(), 0.0f);
-    QVector3D farPoint(pixel.x(), height()-pixel.y(), 1.0f);
-    orig = nearPoint.unproject(_modelViewMatrix, _projectionMatrix, viewport);
-    dir = farPoint.unproject(_modelViewMatrix, _projectionMatrix, viewport) - orig;
+        orig = QVector3D(P.x(), P.y(), P.z());
+        QVector3D viewDir = _primaryCamera->getViewDir();
+        dir = viewDir;
+    }
+    else
+    {
+        QVector3D nearPoint(pixel.x(), height() - pixel.y(), 0.0f);
+        QVector3D farPoint(pixel.x(), height() - pixel.y(), 1.0f);
+        orig = nearPoint.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+        dir = farPoint.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport) - orig;
+    }
 }
 
 QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
