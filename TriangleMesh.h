@@ -80,8 +80,12 @@ public:
 
 	void setTexureImage(const QImage& texImage);
 
-    float getHighestZValue() const;
-    float getLowestZValue() const;
+    float getHighestXValue() const;
+    float getLowestXValue() const;
+	float getHighestYValue() const;
+	float getLowestYValue() const;
+	float getHighestZValue() const;
+	float getLowestZValue() const;
 
     QVector3D getTranslation() const;
     void setTranslation(const QVector3D& trans);

@@ -357,28 +357,76 @@ void TriangleMesh::computeBoundingSphere(std::vector<float> points)
 	_boundingSphere.setRadius(radius);
 }
 
+float TriangleMesh::getHighestXValue() const
+{
+    float highestX = std::numeric_limits<float>::min();
+	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	{
+		float x = _trsfpoints[i];
+        if (x > highestX)
+            highestX = x;
+	}
+    return highestX;
+}
+
+float TriangleMesh::getLowestXValue() const
+{
+    float lowestX = std::numeric_limits<float>::max();
+    for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+    {
+        float x = _trsfpoints[i];
+        if (x < lowestX)
+            lowestX = x;
+    }
+    return lowestX;
+}
+
+float TriangleMesh::getHighestYValue() const
+{
+	float highestY = std::numeric_limits<float>::min();
+	for (size_t i = 1; i < _trsfpoints.size(); i += 3)
+	{
+		float y = _trsfpoints[i];
+		if (y > highestY)
+			highestY = y;
+	}
+	return highestY;
+}
+
+float TriangleMesh::getLowestYValue() const
+{
+	float lowestY = std::numeric_limits<float>::max();
+	for (size_t i = 1; i < _trsfpoints.size(); i += 3)
+	{
+		float y = _trsfpoints[i];
+		if (y < lowestY)
+			lowestY = y;
+	}
+	return lowestY;
+}
+
 float TriangleMesh::getHighestZValue() const
 {
-    float highestZ = std::numeric_limits<float>::min();
+	float highestZ = std::numeric_limits<float>::min();
 	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
 	{
 		float z = _trsfpoints[i];
-        if (z > highestZ)
-            highestZ = z;
+		if (z > highestZ)
+			highestZ = z;
 	}
-    return highestZ;
+	return highestZ;
 }
 
 float TriangleMesh::getLowestZValue() const
 {
-    float lowestZ = std::numeric_limits<float>::max();
-    for (size_t i = 2; i < _trsfpoints.size(); i += 3)
-    {
-        float z = _trsfpoints[i];
-        if (z < lowestZ)
-            lowestZ = z;
-    }
-    return lowestZ;
+	float lowestZ = std::numeric_limits<float>::max();
+	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
+	{
+		float z = _trsfpoints[i];
+		if (z < lowestZ)
+			lowestZ = z;
+	}
+	return lowestZ;
 }
 
 std::vector<float> TriangleMesh::getNormals() const
