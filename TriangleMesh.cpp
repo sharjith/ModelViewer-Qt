@@ -356,79 +356,98 @@ void TriangleMesh::computeBounds(std::vector<float> points)
 	_boundingSphere.setCenter(center);
 	_boundingSphere.setRadius(radius);
 
-    _boundingBox.setLimits(xmin.x(), xmax.x(), ymin.y(), ymax.y(), zmin.z(), zmax.z());
+
+    QList<float> xVals, yVals, zVals;
+    for(size_t i = 0; i < _trsfpoints.size(); i+=3)
+    {
+        xVals.push_back(_trsfpoints.at(i));
+        yVals.push_back(_trsfpoints.at(i+1));
+        zVals.push_back(_trsfpoints.at(i+2));
+    }
+    std::sort(xVals.begin(), xVals.end(), std::less<float>());
+    std::sort(yVals.begin(), yVals.end(), std::less<float>());
+    std::sort(zVals.begin(), zVals.end(), std::less<float>());
+    _boundingBox.setLimits(xVals.first(), xVals.last(),
+                           yVals.first(), yVals.last(),
+                           zVals.first(), zVals.last());
 }
 
 float TriangleMesh::getHighestXValue() const
 {
-    float highestX = std::numeric_limits<float>::min();
+    /*float highestX = std::numeric_limits<float>::min();
 	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
 	{
 		float x = _trsfpoints[i];
         if (x > highestX)
             highestX = x;
 	}
-    return highestX;
+    return highestX;*/
+    return _boundingBox.xMax();
 }
 
 float TriangleMesh::getLowestXValue() const
 {
-    float lowestX = std::numeric_limits<float>::max();
+    /*float lowestX = std::numeric_limits<float>::max();
     for (size_t i = 0; i < _trsfpoints.size(); i += 3)
     {
         float x = _trsfpoints[i];
         if (x < lowestX)
             lowestX = x;
     }
-    return lowestX;
+    return lowestX;*/
+    return _boundingBox.xMin();
 }
 
 float TriangleMesh::getHighestYValue() const
 {
-	float highestY = std::numeric_limits<float>::min();
+    /*float highestY = std::numeric_limits<float>::min();
 	for (size_t i = 1; i < _trsfpoints.size(); i += 3)
 	{
 		float y = _trsfpoints[i];
 		if (y > highestY)
 			highestY = y;
 	}
-	return highestY;
+    return highestY;*/
+    return _boundingBox.yMax();
 }
 
 float TriangleMesh::getLowestYValue() const
 {
-	float lowestY = std::numeric_limits<float>::max();
+    /*float lowestY = std::numeric_limits<float>::max();
 	for (size_t i = 1; i < _trsfpoints.size(); i += 3)
 	{
 		float y = _trsfpoints[i];
 		if (y < lowestY)
 			lowestY = y;
 	}
-	return lowestY;
+    return lowestY;*/
+    return _boundingBox.yMin();
 }
 
 float TriangleMesh::getHighestZValue() const
 {
-	float highestZ = std::numeric_limits<float>::min();
+    /*float highestZ = std::numeric_limits<float>::min();
 	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
 	{
 		float z = _trsfpoints[i];
 		if (z > highestZ)
 			highestZ = z;
 	}
-	return highestZ;
+    return highestZ;*/
+    return _boundingBox.zMax();
 }
 
 float TriangleMesh::getLowestZValue() const
 {
-	float lowestZ = std::numeric_limits<float>::max();
+    /*float lowestZ = std::numeric_limits<float>::max();
 	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
 	{
 		float z = _trsfpoints[i];
 		if (z < lowestZ)
 			lowestZ = z;
 	}
-	return lowestZ;
+    return lowestZ;*/
+    return _boundingBox.zMin();
 }
 
 std::vector<float> TriangleMesh::getNormals() const
@@ -742,4 +761,3 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
 	else // This means that there is a line intersection but not a ray intersection.
 		return false;
 }
-

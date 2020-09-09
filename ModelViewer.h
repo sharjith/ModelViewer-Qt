@@ -139,6 +139,7 @@ private slots:
     void on_pushButtonSkyBoxTex_clicked();
 
     void setListRow(int index);
+    void setListRows(QList<int> indices);
     void showContextMenu(const QPoint& pos);
     void centerScreen();
     void lightingType_toggled(int id, bool checked);

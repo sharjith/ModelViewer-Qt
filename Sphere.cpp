@@ -104,7 +104,5 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-
-	_boundingSphere.setCenter(0, 0, 0);
-	_boundingSphere.setRadius(radius);
+    computeBounds(p);
 }

@@ -26,6 +26,9 @@
 #ifndef _BOUNDINGBOX_H
 #define _BOUNDINGBOX_H
 
+#include <QRect>
+#include <QMatrix4x4>
+
 class Point;
 
 class BoundingBox
@@ -46,6 +49,7 @@ public:
 	double BoundingRadius() const;
     bool contains(const Point& P) const;
     void addBox(const BoundingBox&);
+    QRect project(const QMatrix4x4 &modelView, const QMatrix4x4 &projection, const QRect &viewport);
 private:
     double _xMax;
     double _xMin;

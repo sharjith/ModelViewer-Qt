@@ -43,6 +43,7 @@ public:
 	}
 
 	virtual BoundingSphere getBoundingSphere() const { return _boundingSphere; }
+    virtual BoundingBox getBoundingBox() const { return _boundingBox; }
 
 	virtual QOpenGLVertexArrayObject& getVAO();
 	virtual QString getName() const

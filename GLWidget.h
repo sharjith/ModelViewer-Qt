@@ -157,7 +157,8 @@ signals:
     void zoomAndPanSet();
 	void viewSet();
 	void displayListSet();
-	void objectSelectionChanged(int);
+    void singleSelectionDone(int);
+    void sweepSelectionDone(QList<int>);
 
 public slots:
 	void animateViewChange();
@@ -227,6 +228,7 @@ private:
 	QPoint _middleButtonPoint;
 
 	QRubberBand* _rubberBand;
+    QRubberBand* _selectRect;
 	QVector3D _rubberBandPan;
 	float _rubberBandZoomRatio;
 
@@ -386,6 +388,7 @@ private:
 
     void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
 	int mouseSelect(const QPoint& pixel);
+    QList<int> sweepSelect(const QPoint& pixel);
 
     float highestModelZ();
 	float lowestModelZ();

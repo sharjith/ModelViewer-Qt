@@ -104,7 +104,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     //connect(_glWidget, SIGNAL(displayListSet()), this, SLOT(updateDisplayList()));
 
     QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
-    QObject::connect(_glWidget, SIGNAL(objectSelectionChanged(int)), this, SLOT(setListRow(int)));
+    QObject::connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
+    QObject::connect(_glWidget, SIGNAL(sweepSelectionDone(QList<int>)), this, SLOT(setListRows(QList<int>)));
     
     listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
@@ -180,6 +181,18 @@ void ModelViewer::setListRow(int index)
             item->setSelected(false);
         }
         resetTransformationValues();
+    }
+}
+
+void ModelViewer::setListRows(QList<int> indices)
+{
+    if (indices.count())
+    {
+        for(int index: indices)
+        {
+            QListWidgetItem* item = listWidgetModel->item(index);
+            item->setSelected(!item->isSelected());
+        }
     }
 }
 

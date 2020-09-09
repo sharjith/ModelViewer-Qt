@@ -83,7 +83,7 @@ void GLCamera::updateProjectionMatrix(void)
 			_projectionMatrix.perspective(_FOV, static_cast<double>(h) / static_cast<double>(w), 1, halfRange * 10000.0f);
 		else
 			_projectionMatrix.perspective(_FOV, static_cast<double>(w) / static_cast<double>(h), 1, halfRange * 10000.0f);
-		_projectionMatrix.translate(0.0, 0.0, -halfRange * 2);
+        _projectionMatrix.translate(0.0, 0.0, -halfRange * 2.5);
 	}
 }
 

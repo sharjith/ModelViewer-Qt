@@ -186,7 +186,5 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-
-	_boundingSphere.setCenter(0, 0, 0);
-	_boundingSphere.setRadius(sqrt(radius * radius + height / 2 * height / 2));
+    computeBounds(p);
 }

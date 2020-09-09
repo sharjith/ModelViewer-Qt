@@ -67,6 +67,7 @@ Cube::Cube(QOpenGLShaderProgram* prog, float size) : QuadMesh(prog, "Cube", 1, 1
 
 	_boundingSphere.setCenter(0, 0, 0);
 	_boundingSphere.setRadius(sqrt(3) * (size / 2));
+    _boundingBox.setLimits(-side, side, -side, side, -side, side);
 }
 
 bool Cube::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)

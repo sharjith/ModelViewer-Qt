@@ -131,6 +131,5 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-
 	computeBounds(p);
 }

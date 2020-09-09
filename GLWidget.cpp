@@ -221,6 +221,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
 
     setContextMenuPolicy(Qt::CustomContextMenu);
     connect(this, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
+
+    _selectRect = new QRubberBand(QRubberBand::Rectangle, this);
 }
 
 GLWidget::~GLWidget()
@@ -2004,6 +2006,10 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
         {
             performWindowZoom();
         }
+        else if (e->modifiers() == Qt::NoModifier && !_bRotateView && !_bPanView && !_bZoomView)
+        {
+            sweepSelect(e->pos());
+        }
         _bRotateView = false;
         _bPanView = false;
         _bZoomView = false;
@@ -2031,7 +2037,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
     {
         if (e->modifiers() == Qt::NoModifier && !_bRotateView && !_bPanView && !_bZoomView)
         {
-            _rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
+            _rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());            
         }
         if (_bWindowZoomActive)
         {
@@ -2414,13 +2420,18 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 
     for (int i : _displayedObjectsIds)
     {
-        bool intersects = _meshStore.at(i)->intersectsWithRay(rayPos, rayDir, intPoint);
+        TriangleMesh* mesh = _meshStore.at(i);
+        bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intPoint);
         //qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);
         if (intersects)
         {
-            id = i;
+            id = i;            
+            _selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport));
+            _selectRect->show();
             break;
         }
+        else
+            _selectRect->hide();
     }
 
     /*qDebug() << "RayPos :" << rayPos;
@@ -2428,8 +2439,31 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         qDebug() << "Inter Point: " << intPoint;
         std::cout << "Selected id: " << id << std::endl;*/
 
-    emit objectSelectionChanged(id);
+    emit singleSelectionDone(id);
     return id;
+}
+
+QList<int> GLWidget::sweepSelect(const QPoint& pixel)
+{
+    QList<int> ids;
+
+    if (!_displayedObjectsIds.size())
+        return ids;
+
+    QRect viewport = getViewportFromPoint(pixel);
+    for (int i : _displayedObjectsIds)
+    {
+        TriangleMesh* mesh = _meshStore.at(i);
+        QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+        bool intersects = _rubberBand->geometry().contains(objRect.center());
+        if (intersects)
+        {
+            ids.push_back(i);
+        }
+    }
+
+    emit sweepSelectionDone(ids);
+    return ids;
 }
 
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
