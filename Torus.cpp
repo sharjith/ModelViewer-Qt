@@ -3,7 +3,7 @@
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
-Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings, unsigned int sMax, unsigned int tMax) :QuadMesh(prog, "Torus")
+Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings, unsigned int sMax, unsigned int tMax) :QuadMesh(prog, "Torus", nsides, nrings)
 {
     _sMax = sMax;
     _tMax = tMax;

@@ -5,7 +5,7 @@
 
 #include <glm/gtc/constants.hpp>
 
-Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Sphere")
+Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Sphere", nSlices, nStacks)
 {
     _sMax = sMax;
     _tMax = tMax;

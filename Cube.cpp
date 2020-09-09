@@ -1,7 +1,7 @@
 #include "Cube.h"
 #include <cstdio>
 
-Cube::Cube(QOpenGLShaderProgram* prog, float size) : QuadMesh(prog, "Cube")
+Cube::Cube(QOpenGLShaderProgram* prog, float size) : QuadMesh(prog, "Cube", 1, 1)
 {
 	float side = size / 2.0f;
 
@@ -67,4 +67,26 @@ Cube::Cube(QOpenGLShaderProgram* prog, float size) : QuadMesh(prog, "Cube")
 
 	_boundingSphere.setCenter(0, 0, 0);
 	_boundingSphere.setRadius(sqrt(3) * (size / 2));
+}
+
+bool Cube::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
+{
+	bool intersects = false;
+	for (unsigned int i = 0; i < _indices.size(); i += 4)
+	{
+		QVector3D v0(_trsfpoints[_indices[i] + 0], _trsfpoints[_indices[i] + 1], _trsfpoints[_indices[i] + 2]);
+		QVector3D v1(_trsfpoints[_indices[i + 1] + 0], _trsfpoints[_indices[i + 1] + 1], _trsfpoints[_indices[i + 1] + 2]);
+		QVector3D v2(_trsfpoints[_indices[i + 2] + 0], _trsfpoints[_indices[i + 2] + 1], _trsfpoints[_indices[i + 2] + 2]);
+		intersects = rayIntersectsTriangle(rayPos, rayDir, v0, v1, v2, outIntersectionPoint);
+		if (intersects)
+			break;
+		QVector3D v3(_trsfpoints[_indices[i] + 0], _trsfpoints[_indices[i] + 1], _trsfpoints[_indices[i] + 2]);
+		QVector3D v4(_trsfpoints[_indices[i + 1] + 0], _trsfpoints[_indices[i + 1] + 1], _trsfpoints[_indices[i + 1] + 2]);
+		QVector3D v5(_trsfpoints[_indices[i + 3] + 0], _trsfpoints[_indices[i + 3] + 1], _trsfpoints[_indices[i + 3] + 2]);
+		intersects = rayIntersectsTriangle(rayPos, rayDir, v3, v4, v5, outIntersectionPoint);
+		if (intersects)
+			break;
+	}
+
+	return intersects;
 }

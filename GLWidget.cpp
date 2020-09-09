@@ -2332,10 +2332,10 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
     QVector3D viewDir = _primaryCamera->getViewDir();
     dir = viewDir;
     */
-    QVector3D near(pixel.x(), height()-pixel.y(), 0.0f);
-    QVector3D far(pixel.x(), height()-pixel.y(), 1.0f);
-    orig = near.unproject(_modelViewMatrix, _projectionMatrix, viewport);
-    dir = far.unproject(_modelViewMatrix, _projectionMatrix, viewport) - orig;
+    QVector3D nearPoint(pixel.x(), height()-pixel.y(), 0.0f);
+    QVector3D farPoint(pixel.x(), height()-pixel.y(), 1.0f);
+    orig = nearPoint.unproject(_modelViewMatrix, _projectionMatrix, viewport);
+    dir = farPoint.unproject(_modelViewMatrix, _projectionMatrix, viewport) - orig;
 }
 
 QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
@@ -2408,7 +2408,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
     for (int i : _displayedObjectsIds)
     {
         bool intersects = _meshStore.at(i)->intersectsWithRay(rayPos, rayDir, intPoint);
-        qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);
+        //qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);
         if (intersects)
         {
             id = i;

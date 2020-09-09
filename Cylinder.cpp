@@ -7,7 +7,7 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Cylinder")
+Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Cylinder", nSlices, nStacks)
 {
     _sMax = sMax;
     _tMax = tMax;

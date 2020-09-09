@@ -1,8 +1,6 @@
 #pragma once
 
-#include <glm/gtc/constants.hpp>
-#include <glm/vec3.hpp>
-#include <glm/glm.hpp>
+#include <QVector3D>
 
 class Point;
 class IParametricSurface
@@ -14,5 +12,5 @@ public:
 	virtual float lastUParameter() const = 0;
 	virtual float lastVParameter() const = 0;
 	virtual Point pointAtParameter(const float& u, const float& v) = 0;
-	virtual glm::vec3 normalAtParameter(const float& u, const float& v) = 0;
+	virtual QVector3D normalAtParameter(const float& u, const float& v) = 0;
 };

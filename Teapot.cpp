@@ -10,7 +10,7 @@ using glm::mat3;
 using glm::vec4;
 
 Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4& lidTransform) :
-    QuadMesh(prog, "Teapot"),
+    QuadMesh(prog, "Teapot", grid, grid),
     _size(size)
 {
     int verts = 32 * (grid + 1) * (grid + 1);
