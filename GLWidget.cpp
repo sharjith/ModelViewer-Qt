@@ -2217,6 +2217,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     case Qt::Key_Delete:
         deleteSelectedItem();
         break;
+    case Qt::Key_Space:
+        hideSelectedItem();
+        break;
     default:
         break;
     }
@@ -2784,6 +2787,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
             myMenu.addAction("Visualization settings", this, SLOT(showPropertiesPage()));
             myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
             myMenu.addAction("Hide", this, SLOT(hideSelectedItem()));
+            myMenu.addAction("Show Only", this, SLOT(showOnlySelectedItem()));
             myMenu.addAction("Delete", this, SLOT(deleteSelectedItem()));
 
             if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
@@ -2815,6 +2819,11 @@ void GLWidget::deleteSelectedItem()
 void GLWidget::hideSelectedItem()
 {
     _viewer->hideSelectedItems();
+}
+
+void GLWidget::showOnlySelectedItem()
+{
+    _viewer->showOnlySelectedItems();
 }
 
 void GLWidget::displayMeshInfo()

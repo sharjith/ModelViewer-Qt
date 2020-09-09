@@ -444,7 +444,27 @@ void ModelViewer::hideSelectedItems()
     for (QListWidgetItem* item : selectedItems)
     {
         item->setCheckState(Qt::Unchecked);
+        item->setSelected(false);
     }
+}
+
+void ModelViewer::showOnlySelectedItems()
+{
+    bool oldState = listWidgetModel->blockSignals(true);
+    for (int i = 0; i < listWidgetModel->count(); i++)
+    {
+        QListWidgetItem* item = listWidgetModel->item(i);
+        if(item->isSelected())
+        {
+            item->setCheckState(Qt::Checked);
+        }
+        else
+        {
+            item->setCheckState(Qt::Unchecked);
+        }
+    }
+    listWidgetModel->blockSignals(oldState);
+    on_listWidgetModel_itemChanged(nullptr);
 }
 
 void ModelViewer::showSelectedItems()

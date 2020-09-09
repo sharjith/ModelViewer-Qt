@@ -175,6 +175,7 @@ private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerDisplayList();
 	void hideSelectedItem();
+	void showOnlySelectedItem();
 	void deleteSelectedItem();
 	void displayMeshInfo();
 	void showPropertiesPage();
