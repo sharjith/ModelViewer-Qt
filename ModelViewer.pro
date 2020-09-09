@@ -59,6 +59,7 @@ HEADERS += AABB.h \
     AssImpModel.h \
     BackgroundColor.h \
     BentHorns.h \
+    BoundingBox.h \
     BoundingSphere.h \
     BowTie.h \
     BoySurface.h \
@@ -135,6 +136,7 @@ FORMS += \
 SOURCES += AppleSurface.cpp \
     BackgroundColor.cpp \
     BentHorns.cpp \
+    BoundingBox.cpp \
     BoundingSphere.cpp \
     BowTie.cpp \
     BoySurface.cpp \

@@ -211,7 +211,7 @@ private:
 		_bHasTexture = _materials.bHasTexture;
 
 		initBuffers(&_indices, &points, &normals, &texCoords);
-		computeBoundingSphere(points);
+		computeBounds(points);
 	}
 };
 

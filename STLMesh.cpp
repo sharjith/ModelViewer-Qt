@@ -169,7 +169,7 @@ _loaded(false)
 			//std::cout << "Elements " << elements.size() << std::endl;
 
 			initBuffers(&elements, &points, &norms, &texcords);
-			computeBoundingSphere(points);
+			computeBounds(points);
 			_loaded = true;
 		}
 	}

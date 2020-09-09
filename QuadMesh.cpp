@@ -55,7 +55,7 @@ bool QuadMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDi
 {
 	bool intersects = false;
 
-	int offset = (_stacks) * 3;
+    size_t offset = (_stacks) * 3;
 	for (size_t i = 0; i < _trsfpoints.size() - offset - 3; i += 3)
 	{
 		if (i == offset)

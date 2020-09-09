@@ -57,7 +57,7 @@
 using glm::mat4;
 using glm::vec3;
 
-constexpr auto FOUR_HUNDRED_MB = 419430400; // bytes
+constexpr auto TWO_HUNDRED_MB = 209715200; // bytes
 
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
     _textRenderer(nullptr),
@@ -2039,7 +2039,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
         }
         else if ((e->modifiers() & Qt::ControlModifier) || _bRotateView)
         {
-            if(_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+            if(_displayedObjectsMemSize > TWO_HUNDRED_MB)
                 _lowResEnabled = true;
             QPoint rotate = _leftButtonPoint - downPoint;
 
@@ -2053,7 +2053,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
     }
     else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
     {
-        if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
             _lowResEnabled = true;
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
         Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
@@ -2070,7 +2070,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
     }
     else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
     {
-        if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+        if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
             _lowResEnabled = true;
         if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
             _viewRange /= 1.05f;
@@ -2097,7 +2097,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 void GLWidget::wheelEvent(QWheelEvent* e)
 {
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+    if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
     QPoint numDegrees = e->angleDelta() / 8;
     QPoint numSteps = numDegrees / 15;
@@ -2234,7 +2234,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 void GLWidget::animateViewChange()
 {
 
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+    if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
     if (_viewMode == ViewMode::TOP)
     {
@@ -2279,7 +2279,7 @@ void GLWidget::animateViewChange()
 void GLWidget::animateFitAll()
 {
 
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+    if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
     setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
     resizeGL(width(), height());
@@ -2288,7 +2288,7 @@ void GLWidget::animateFitAll()
 void GLWidget::animateWindowZoom()
 {
 
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+    if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
     float fov = _primaryCamera->getFOV();
     float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio*fov/100);
@@ -2302,7 +2302,7 @@ void GLWidget::animateWindowZoom()
 void GLWidget::animateCenterScreen()
 {
 
-    if (_displayedObjectsMemSize > FOUR_HUNDRED_MB)
+    if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
     TriangleMesh* mesh = _meshStore.at(_centerScreenObjectId);
     if (mesh)

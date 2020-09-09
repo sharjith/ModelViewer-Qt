@@ -10,6 +10,7 @@
 #include <math.h>
 #include "GLCamera.h"
 #include "BoundingSphere.h"
+#include "BoundingBox.h"
 #include "TriangleMesh.h"
 
 /* Custom OpenGL Viewer Widget */
@@ -343,6 +344,7 @@ private:
 	QTimer* _animateCenterScreenTimer;
 
 	BoundingSphere _boundingSphere;
+    BoundingBox    _boundingBox;
 	Plane* _floorPlane;
 	Cube* _skyBox;
     vector<QString> _skyBoxFaces;

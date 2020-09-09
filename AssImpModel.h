@@ -36,7 +36,7 @@ public:
         BoundingSphere sph;        
         for ( GLuint i = 0; i < this->meshes.size(); i++ )
         {
-            this->meshes[i]->setName(f.baseName() + QString("%1").arg(i));            
+            this->meshes[i]->setName(f.baseName() + QString("%1").arg(i));
             sph.addSphere(this->meshes[i]->getBoundingSphere());
         }
         _boundingSphere = sph;
@@ -250,7 +250,8 @@ private:
             }
 
             if( !skip )
-            {   // If texture hasn't been loaded already, load it
+            {
+                // If texture hasn't been loaded already, load it
                 Texture texture;
                 texture.id = textureFromFile( str.C_Str( ), this->directory );
                 texture.type = typeName;

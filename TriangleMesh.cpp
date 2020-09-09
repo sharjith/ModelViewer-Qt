@@ -266,7 +266,7 @@ void TriangleMesh::deleteBuffers()
 	}
 }
 
-void TriangleMesh::computeBoundingSphere(std::vector<float> points)
+void TriangleMesh::computeBounds(std::vector<float> points)
 {
 	/*
 	float minX = 0, maxX = 0, minY = 0, maxY = 0, minZ = 0, maxZ = 0;
@@ -355,6 +355,8 @@ void TriangleMesh::computeBoundingSphere(std::vector<float> points)
 
 	_boundingSphere.setCenter(center);
 	_boundingSphere.setRadius(radius);
+
+    _boundingBox.setLimits(xmin.x(), xmax.x(), ymin.y(), ymax.y(), zmin.z(), zmax.z());
 }
 
 float TriangleMesh::getHighestXValue() const
@@ -465,7 +467,7 @@ void TriangleMesh::resetTransformations()
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-	computeBoundingSphere(_points);
+    computeBounds(_points);
 }
 
 std::vector<unsigned int> TriangleMesh::getIndices() const
@@ -573,7 +575,7 @@ void TriangleMesh::setupTransformation()
     _prog->enableAttributeArray("vertexNormal");
     _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-    computeBoundingSphere(_trsfpoints);
+    computeBounds(_trsfpoints);
 }
 
 void TriangleMesh::setTexureImage(const QImage& texImage)

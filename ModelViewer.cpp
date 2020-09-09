@@ -385,6 +385,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
         myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
         myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
         myMenu.addAction("Show", this, SLOT(showSelectedItems()));
+        myMenu.addAction("Show Only", this, SLOT(showOnlySelectedItems()));
         myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
         if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)

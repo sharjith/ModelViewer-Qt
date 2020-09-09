@@ -3,6 +3,7 @@
 #include <vector>
 #include "Drawable.h"
 #include "BoundingSphere.h"
+#include "BoundingBox.h"
 
 struct GLMaterialProps
 {
@@ -118,7 +119,7 @@ protected: // methods
 
 	virtual void deleteBuffers();
     virtual void setupTransformation();
-    virtual void computeBoundingSphere(std::vector<float> points);
+    virtual void computeBounds(std::vector<float> points);
     virtual bool rayIntersectsTriangle(const QVector3D& rayOrigin,
 		const QVector3D& rayVector,
 		const QVector3D& vertex0,
@@ -143,6 +144,7 @@ protected:
 	std::vector<QOpenGLBuffer> _buffers;
 
 	BoundingSphere _boundingSphere;
+    BoundingBox    _boundingBox;
 
 	QString _name;
 
