@@ -171,12 +171,16 @@ private:
 
         // Process materials
 		GLMaterialProps materials = {
-			{ 0.2109375f, 0.125f, 0.05078125f, 1.0f },      // ambient 54 32 13 
-			{ 0.7109375f, 0.62890625f, 0.55078125f, 1.0f }, // diffuse 182 161 141
-			{ 0.37890625f, 0.390625f, 0.3359375f, 1.0f },   // specular 97 100 86
+            //{ 0.2109375f, 0.125f, 0.05078125f, 1.0f },      // ambient 54 32 13
+            //{ 0.7109375f, 0.62890625f, 0.55078125f, 1.0f }, // diffuse 182 161 141
+            //{ 0.37890625f, 0.390625f, 0.3359375f, 1.0f },   // specular 97 100 86
+            { 126.0f/256, 124.0f/256, 116.0f/256, _opacity },
+            { 126.0f/256, 124.0f/256, 116.0f/256, _opacity },
+            { 140.0f/256, 140.0f/256, 130.0f/256, _opacity },
 			{1.0f, 1.0f, 1.0f, 1.0f},   // specref
 			{ 0.0f, 0.0f, 0.0f, 1.0f }, // emissive
-			128 * 0.2f, // shininess
+            128 * 0.05f, // shininess
+            //128 * 0.2f, // shininess
 			1.0f,   // opacity
             false, // metallic
             false // texture

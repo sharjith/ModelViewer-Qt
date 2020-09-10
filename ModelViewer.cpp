@@ -143,12 +143,16 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     toolBox->setCurrentIndex(0);
 
     _opacity = 1.0f;
-    _ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
-    _diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
-    _specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
+    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
+    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
+    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
+    _ambiMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity };      // 126 124 116
+    _diffMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity }; // 126 124 116
+    _specMat =  { 140.0f/256, 140.0f/256, 130.0f/256, _opacity };   // 140 140 130
+    _shine = fabs(128.0f * 0.05f);
     _emmiMat = { 0.0f, 0.0f, 0.0f, _opacity };
     _specRef = { 1.0f, 1.0f, 1.0f, 1.0f };
-    _shine = 128 * 0.2f;
+    //_shine = 128 * 0.2f;
     _metallic = false;
     _bHasTexture = false;
 
@@ -654,11 +658,16 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 void ModelViewer::on_pushButtonDefaultMatls_clicked()
 {
     _opacity = 1.0;
-    _ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };      // 54 32 13
-    _diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
-    _specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
+    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };      // 54 32 13
+    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
+    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
+    // 0.925f, 0.913f, 0.847f, 1.0f
+    _ambiMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity };      // 126 124 116
+    _diffMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity }; // 126 124 116
+    _specMat = { 140.0f/256, 140.0f/256, 130.0f/256, _opacity };   // 140 140 130
     _emmiMat = { 0, 0, 0, 1 };
-    _shine = 128 * 0.2f;
+    //_shine = 128 * 0.2f;
+    _shine = 128 * 0.05f;
     _metallic = false;
 
     GLMaterialProps mat = { _ambiMat,

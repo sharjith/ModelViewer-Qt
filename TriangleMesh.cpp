@@ -30,10 +30,14 @@ _tMax(1)
 
 	_vertexArrayObject.create();
 
-	_ambientMaterial = { 0.2109375f, 0.125f, 0.05078125f, 1.0f };
+    /*_ambientMaterial = { 0.2109375f, 0.125f, 0.05078125f, 1.0f };
 	_diffuseMaterial = { 0.7109375f, 0.62890625f, 0.55078125f, 1.0f };
 	_specularMaterial = { 0.37890625f, 0.390625f, 0.3359375f, 1.0f };
-	_shininess = fabs(128.0f * 0.2f);
+    _shininess = fabs(128.0f * 0.2f);*/
+    _ambientMaterial =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity };      // 126 124 116
+    _diffuseMaterial =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity }; // 126 124 116
+    _specularMaterial = { 140.0f/256, 140.0f/256, 130.0f/256, _opacity };   // 140 140 130
+    _shininess = fabs(128.0f * 0.05f);
 
 	// Polished silver
 	/*_ambientMaterial  = {0.23125, 0.23125, 0.23125, 1};
