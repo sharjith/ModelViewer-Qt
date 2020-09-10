@@ -450,6 +450,24 @@ float TriangleMesh::getLowestZValue() const
     return _boundingBox.zMin();
 }
 
+QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport) const
+{
+	QList<float> xVals;
+	QList<float> yVals;
+	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	{
+		QVector3D point(_trsfpoints.at(i + 0), _trsfpoints.at(i + 1), _trsfpoints.at(i + 2));
+		QVector3D projPoint = point.project(modelView, projection, viewport);
+		xVals.push_back(projPoint.x());
+		yVals.push_back(projPoint.y());
+	}
+	std::sort(xVals.begin(), xVals.end(), std::less<float>());
+	std::sort(yVals.begin(), yVals.end(), std::less<float>());
+	QRect rect(xVals.first(), (viewport.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
+
+	return rect;
+}
+
 std::vector<float> TriangleMesh::getNormals() const
 {
 	return _normals;

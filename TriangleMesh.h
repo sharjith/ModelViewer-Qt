@@ -88,6 +88,7 @@ public:
 	float getLowestYValue() const;
 	float getHighestZValue() const;
 	float getLowestZValue() const;
+	QRect projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport) const;
 
     QVector3D getTranslation() const;
     void setTranslation(const QVector3D& trans);
