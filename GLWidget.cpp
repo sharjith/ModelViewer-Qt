@@ -528,14 +528,14 @@ void GLWidget::updateBoundingSphere()
 {
     _currentTranslation = _primaryCamera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
-
     _boundingSphere.setRadius(0.0);
 
     for (int i : _displayedObjectsIds)
     {
         try
         {
-            _boundingSphere.addSphere(_meshStore.at(i)->getBoundingSphere());
+            TriangleMesh* mesh = _meshStore.at(i);
+            _boundingSphere.addSphere(mesh->getBoundingSphere());
         }
         catch (std::out_of_range& ex)
         {
@@ -2287,13 +2287,12 @@ void GLWidget::animateFitAll()
 
     if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
-    setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
+    setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());  
     resizeGL(width(), height());
 }
 
 void GLWidget::animateWindowZoom()
 {
-
     if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
     float fov = _primaryCamera->getFOV();
@@ -2426,12 +2425,14 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         if (intersects)
         {
             id = i;            
-            _selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport));
-            _selectRect->show();
+            //_selectRect->setGeometry(_boundingRect);
+            //_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport));
+            //_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport));            
+            //_selectRect->show();
             break;
         }
-        else
-            _selectRect->hide();
+        //else
+            //_selectRect->hide();
     }
 
     /*qDebug() << "RayPos :" << rayPos;
