@@ -74,7 +74,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _viewer = static_cast<ModelViewer*>(parent);
 
     _bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
-    _bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
+    //_bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
+    _bgBotColor = QColor::fromRgbF(0.925f, 0.925f, 0.925f, 1.0f);
 
     quadVAO = 0;
 

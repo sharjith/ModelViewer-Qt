@@ -147,9 +147,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
     _specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
     _emmiMat = { 0.0f, 0.0f, 0.0f, _opacity };
-
     _specRef = { 1.0f, 1.0f, 1.0f, 1.0f };
-
     _shine = 128 * 0.2f;
     _metallic = false;
     _bHasTexture = false;
