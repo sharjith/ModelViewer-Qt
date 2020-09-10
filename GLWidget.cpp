@@ -2344,8 +2344,8 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
     }
     else
     {
-        QVector3D nearPoint(pixel.x(), height() - pixel.y(), 0.0f);
-        QVector3D farPoint(pixel.x(), height() - pixel.y(), 1.0f);
+        QVector3D nearPoint(pixel.x(), height() - pixel.y() - 1, 0.0f);
+        QVector3D farPoint(pixel.x(), height() - pixel.y() - 1, 1.0f);
         orig = nearPoint.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
         dir = farPoint.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport) - orig;
     }
