@@ -2335,7 +2335,7 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
     {
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
         Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
-        QVector3D p(pixel.x(), height() - pixel.y(), Z.z());
+        QVector3D p(pixel.x(), height() - pixel.y() - 1, Z.z());
         QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
         orig = QVector3D(P.x(), P.y(), P.z());
@@ -2413,7 +2413,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         return id;
 
     QVector3D rayPos, rayDir;
-    QVector3D intPoint;
+    QVector3D intersectionPoint;
     QRect viewport = getViewportFromPoint(pixel);
     convertClickToRay(pixel, viewport, rayPos, rayDir);
 
@@ -2421,13 +2421,13 @@ int GLWidget::mouseSelect(const QPoint& pixel)
     for (int i : _displayedObjectsIds)
     {
         TriangleMesh* mesh = _meshStore.at(i);
-        bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intPoint);
+        bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint);
         //qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);        
         //qDebug() << intPoint;
         if (intersects)
         {
             //id = i;
-            selectedIdsDist[i] = intPoint.distanceToPoint(rayPos);
+            selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
             //_selectRect->setGeometry(_boundingRect);
             //_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport));
             //_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport));
