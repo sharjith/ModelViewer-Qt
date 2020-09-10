@@ -2417,32 +2417,44 @@ int GLWidget::mouseSelect(const QPoint& pixel)
     QRect viewport = getViewportFromPoint(pixel);
     convertClickToRay(pixel, viewport, rayPos, rayDir);
 
-
+    QMap<int, float> selectedIdsDist;
     for (int i : _displayedObjectsIds)
     {
         TriangleMesh* mesh = _meshStore.at(i);
         bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intPoint);
-        //qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);
+        //qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);        
+        //qDebug() << intPoint;
         if (intersects)
         {
-            id = i;            
+            //id = i;
+            selectedIdsDist[i] = intPoint.distanceToPoint(rayPos);
             //_selectRect->setGeometry(_boundingRect);
             //_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport));
-            //_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport));            
+            //_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport));
             //_selectRect->show();
-            break;
+            //break;
         }
         //else
-            //_selectRect->hide();
+            //_selectRect->hide();              
     }
-
-    /*qDebug() << "RayPos :" << rayPos;
-        qDebug() << "RayDir :" << rayDir;
-        qDebug() << "Inter Point: " << intPoint;
-        std::cout << "Selected id: " << id << std::endl;*/
-
+    qDebug() << selectedIdsDist;
+    if (!selectedIdsDist.isEmpty())
+    {
+        QMapIterator<int, float> it(selectedIdsDist);
+        float lowestDist = std::numeric_limits<float>::max();
+        while (it.hasNext())
+        {
+            it.next();
+            float val = it.value();
+            if (val < lowestDist)
+                lowestDist = val;
+        }
+        id = selectedIdsDist.key(lowestDist);       
+    }
+    qDebug() << "Selected Id: " << id;
     emit singleSelectionDone(id);
     return id;
+    
 }
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel)
