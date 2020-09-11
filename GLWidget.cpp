@@ -148,6 +148,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _floorDisplayed = false;
     _floorTextureDisplayed = true;
     _floorTexRepeatS = _floorTexRepeatT = 1;
+    _floorOffsetPercent = 0.05f;
     _skyBoxEnabled = false;
     _skyBoxFOV = 45.0f;
     
@@ -559,9 +560,9 @@ void GLWidget::updateFloorPlane()
     _floorCenter = _boundingSphere.getCenter();
     _lightPosition.setX(_floorSize / 4);
     _lightPosition.setY(_floorSize / 4);
-    _lightPosition.setZ(highestModelZ() + (_floorSize * 0.05f));
+    _lightPosition.setZ(highestModelZ() + (_floorSize * _floorOffsetPercent));
     _prevLightPosition = _lightPosition;
-    _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * 0.05f), _floorTexRepeatS, _floorTexRepeatT);
+    _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -1375,7 +1376,7 @@ void GLWidget::drawFloor()
         glDepthMask(GL_TRUE);
 
         QMatrix4x4 model;
-        float floorPos = lowestModelZ() - (_floorSize * 0.05f);
+        float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
         float floorGap = fabs(floorPos - lowestModelZ());
         float offset = ((lowestModelZ()) - floorGap) * 2.0f;
         model.scale(1.0f, 1.0f, -1.0f);
@@ -2589,16 +2590,23 @@ void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
     update();
 }
 
-void GLWidget::setSkyBoxFOV(double fov)
-{
-    _skyBoxFOV = static_cast<float>(fov);
-    update();
-}
-
 void GLWidget::setFloorTexRepeatS(double floorTexRepeatS)
 {
     _floorTexRepeatS = static_cast<float>(floorTexRepeatS);
     updateFloorPlane();
+    update();
+}
+
+void GLWidget::setFloorOffsetPercent(double value)
+{
+    _floorOffsetPercent = static_cast<float>(value/100.0f);
+    updateFloorPlane();
+    update();
+}
+
+void GLWidget::setSkyBoxFOV(double fov)
+{
+    _skyBoxFOV = static_cast<float>(fov);
     update();
 }
 

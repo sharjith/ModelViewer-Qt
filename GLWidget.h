@@ -170,6 +170,7 @@ public slots:
 	void lockLightAndCamera(bool lock);
     void setFloorTexRepeatS(double floorTexRepeatS);
     void setFloorTexRepeatT(double floorTexRepeatT);
+	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
 
 private slots:
@@ -303,6 +304,7 @@ private:
 	unsigned int             _shadowMap;
 	unsigned int             _shadowMapFBO;
 	float                    _floorSize;
+	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
 
 	QOpenGLShaderProgram     _textShader;

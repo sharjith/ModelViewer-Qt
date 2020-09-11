@@ -124,7 +124,7 @@ private slots:
 	void on_checkBoxReflections_toggled(bool checked);
 	void on_checkBoxFloor_toggled(bool checked);
 
-    void on_checkBoxFloorTexture_toggled(bool checked);
+    void on_checkBoxFloorTexture_toggled(bool checked);	
 
     void on_pushButtonFloorTexture_clicked();
 
