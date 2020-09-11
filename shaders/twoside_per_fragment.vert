@@ -43,7 +43,7 @@ out VS_OUT_SHADOW {
 void main()
 {
     v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
-    v_position   = vec3(modelViewMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
+    v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
 
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1);

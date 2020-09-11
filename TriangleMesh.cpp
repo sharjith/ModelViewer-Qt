@@ -53,6 +53,10 @@ _tMax(1)
 	_shininess = fabs(128.0 * 0.6);
 	*/
 
+    _PBRAlbedoColor = {1.000, 0.766, 0.336};
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.4f;
+
 	if (!_texBuffer.load("textures/opengllogo.png"))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
@@ -225,6 +229,10 @@ void TriangleMesh::render()
 	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
 	_prog->setUniformValue("material.shininess", _shininess);
     _prog->setUniformValue("material.metallic", _metallic);
+    _prog->setUniformValue("pbrLighting.albedo", _PBRAlbedoColor);
+    _prog->setUniformValue("pbrLighting.metallic", _PBRMetallic);
+    _prog->setUniformValue("pbrLighting.roughness", _PBRRoughness);
+    _prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
 	_prog->setUniformValue("texEnabled", _bHasTexture);
 	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
 	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
@@ -715,6 +723,22 @@ bool TriangleMesh::isMetallic() const
 void TriangleMesh::setMetallic(bool metallic)
 {
     _metallic = metallic;
+}
+
+void TriangleMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)
+{
+    _PBRAlbedoColor = {r, g, b};
+}
+
+void TriangleMesh::setPBRMetallic(const float& val)
+{
+    _PBRMetallic = val;
+}
+
+void TriangleMesh::setPBRRoughness(const float& val)
+{
+
+    _PBRRoughness = val;
 }
 
 QOpenGLVertexArrayObject& TriangleMesh::getVAO()

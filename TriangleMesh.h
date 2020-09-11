@@ -82,6 +82,10 @@ public:
 
 	void setTexureImage(const QImage& texImage);
 
+    void setPBRAlbedoColor(const float& r, const float& g, const float& b);
+    void setPBRMetallic(const float& val);
+    void setPBRRoughness(const float& val);
+
     float getHighestXValue() const;
     float getLowestXValue() const;
 	float getHighestYValue() const;
@@ -158,6 +162,10 @@ protected:
 	float _opacity;
 	float _shininess;
     bool _metallic;
+
+    QVector3D _PBRAlbedoColor;
+    float     _PBRMetallic;
+    float     _PBRRoughness;
 
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;

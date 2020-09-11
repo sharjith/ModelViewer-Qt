@@ -30,6 +30,7 @@ class ModelViewer;
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
 enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
+enum class RenderingMode { ADS_PHONG, PBR_DIRECT_LIGHTING, PBR_TEXTURED_LIGHTING };
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
@@ -86,6 +87,9 @@ public:
     TriangleMesh* loadAssImpMesh(QString fileName);
 
 	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
+    void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
+    void setPBRMetallic(const std::vector<int>& ids, const float& val);
+    void setPBRRoughness(const std::vector<int>& ids, const float& val);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
@@ -150,11 +154,14 @@ public:
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
 
+    RenderingMode getRenderingMode() const;
+    void setRenderingMode(const RenderingMode &renderingMode);
+
 signals:
     void windowZoomEnded();
     void rotationsSet();
     void zoomAndPanSet();
-	void viewSet();
+    void viewSet();
 	void displayListSet();
     void singleSelectionDone(int);
     void sweepSelectionDone(QList<int>);
@@ -198,6 +205,7 @@ protected:
 
 private:
 	DisplayMode _displayMode;
+    RenderingMode _renderingMode;
 	QColor      _bgTopColor;
 	QColor      _bgBotColor;
 	bool _bWindowZoomActive;

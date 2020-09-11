@@ -2029,6 +2029,7 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setItemEnabled(1, false);
         toolBox->setItemEnabled(2, false);
         toolBox->setCurrentIndex(0);
+        _glWidget->setRenderingMode(RenderingMode::ADS_PHONG);
     }
     if(radioButtonDLPBR->isChecked())
     {
@@ -2036,6 +2037,7 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setItemEnabled(1, true);
         toolBox->setItemEnabled(2, false);
         toolBox->setCurrentIndex(1);
+        _glWidget->setRenderingMode(RenderingMode::PBR_DIRECT_LIGHTING);
     }
     if(radioButtonTXPBR->isChecked())
     {
@@ -2043,6 +2045,71 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setItemEnabled(1, false);
         toolBox->setItemEnabled(2, true);
         toolBox->setCurrentIndex(2);
+        _glWidget->setRenderingMode(RenderingMode::PBR_TEXTURED_LIGHTING);
+    }
+    _glWidget->update();
+}
+
+void ModelViewer::on_pushButtonAlbedoColor_clicked()
+{
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z()), this, "Albedo Color");
+    if (c.isValid())
+    {
+        if (listWidgetModel->count())
+        {
+            std::vector<int> ids;
+            QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+            if (!items.isEmpty())
+            {
+                for (QListWidgetItem* i : items)
+                {
+                    int rowId = listWidgetModel->row(i);
+                    ids.push_back(rowId);
+                }
+                _glWidget->setPBRAlbedoColor(ids, c);
+                _glWidget->updateView();
+                updateControls();
+            }
+        }
     }
 }
 
+void ModelViewer::on_horizontalSliderMetallic_valueChanged(int value)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->setPBRMetallic(ids, value/100.0f);
+            _glWidget->updateView();
+            updateControls();
+        }
+    }
+}
+
+void ModelViewer::on_horizontalSliderRoughness_valueChanged(int value)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->setPBRRoughness(ids, value/100.0f);
+            _glWidget->updateView();
+            updateControls();
+        }
+    }
+}

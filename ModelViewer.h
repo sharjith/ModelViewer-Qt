@@ -146,6 +146,12 @@ private slots:
 
     void on_listWidgetModel_itemDoubleClicked(QListWidgetItem *item);
 
+    void on_pushButtonAlbedoColor_clicked();
+
+    void on_horizontalSliderMetallic_valueChanged(int value);
+
+    void on_horizontalSliderRoughness_valueChanged(int value);
+
 protected:
 	void showEvent(QShowEvent* event);	
 

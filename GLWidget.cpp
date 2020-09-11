@@ -117,6 +117,7 @@ _skyBox(nullptr)
 	_prevLightPosition = _lightPosition;
 
 	_displayMode = DisplayMode::SHADED;
+    _renderingMode = RenderingMode::ADS_PHONG;
 
 	_bMultiView = false;
 
@@ -721,6 +722,54 @@ void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialPro
 			std::cout << "Exception!" << std::endl;
 		}
 	}
+}
+
+void GLWidget::setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setPBRAlbedoColor(col.red()/256.0f, col.green()/256.0f, col.blue()/256.0f);
+        }
+        catch (std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setPBRAlbedoColor\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setPBRMetallic(const std::vector<int>& ids, const float& val)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setPBRMetallic(val);
+        }
+        catch (std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setPBRMetallic\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setPBRRoughness(const std::vector<int>& ids, const float& val)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setPBRRoughness(val);
+        }
+        catch (std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setPBRRoughness\n" << ex.what() << std::endl;
+        }
+    }
 }
 
 void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
@@ -1364,7 +1413,8 @@ void GLWidget::drawFloor()
 		_fgShader->bind();
 		_fgShader->setUniformValue("envMapEnabled", false);
 		_fgShader->setUniformValue("floorRendering", true);
-		_floorPlane->enableTexture(false);
+        _fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
+		_floorPlane->enableTexture(false);        
 		_floorPlane->render();
 		glDisable(GL_CULL_FACE);
 
@@ -1396,12 +1446,15 @@ void GLWidget::drawFloor()
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+    _fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
 	_floorPlane->enableTexture(_floorTextureDisplayed);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();
 	_fgShader->setUniformValue("floorRendering", false);
+
+    _fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 }
 
 void GLWidget::drawSkyBox()
@@ -1725,6 +1778,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("Line.Width", 0.75f);
 	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+    _fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	_fgShader->setUniformValue("shadowsEnabled", showShadows);
 	_fgShader->setUniformValue("reflectionMapEnabled", false);
@@ -2431,7 +2485,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 		//else
 			//_selectRect->hide();
 	}
-	qDebug() << selectedIdsDist;
+    //qDebug() << selectedIdsDist;
 	if (!selectedIdsDist.isEmpty())
 	{
 		QMapIterator<int, float> it(selectedIdsDist);
@@ -2445,7 +2499,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 		}
 		id = selectedIdsDist.key(lowestDist);
 	}
-	qDebug() << "Selected Id: " << id;
+    //qDebug() << "Selected Id: " << id;
 	emit singleSelectionDone(id);
 	return id;
 }
@@ -2575,11 +2629,21 @@ void GLWidget::closeEvent(QCloseEvent* event)
 	event->accept();
 }
 
+RenderingMode GLWidget::getRenderingMode() const
+{
+    return _renderingMode;
+}
+
+void GLWidget::setRenderingMode(const RenderingMode &renderingMode)
+{
+    _renderingMode = renderingMode;
+}
+
 void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
 {
-	_floorTexRepeatT = static_cast<float>(floorTexRepeatT);
-	updateFloorPlane();
-	update();
+    _floorTexRepeatT = static_cast<float>(floorTexRepeatT);
+    updateFloorPlane();
+    update();
 }
 
 void GLWidget::setFloorTexRepeatS(double floorTexRepeatS)

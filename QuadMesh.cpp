@@ -24,6 +24,10 @@ void QuadMesh::render()
 	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
 	_prog->setUniformValue("material.shininess", _shininess);
     _prog->setUniformValue("material.metallic", _metallic);
+    _prog->setUniformValue("pbrLighting.albedo", _PBRAlbedoColor);
+    _prog->setUniformValue("pbrLighting.metallic", _PBRMetallic);
+    _prog->setUniformValue("pbrLighting.roughness", _PBRRoughness);
+    _prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
 	_prog->setUniformValue("texEnabled", _bHasTexture);
 	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
 	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);

@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1453,8 +1453,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1481,7 +1481,13 @@
                       </item>
                       <item>
                        <widget class="QSlider" name="horizontalSliderMetallic">
+                        <property name="minimum">
+                         <number>2</number>
+                        </property>
                         <property name="maximum">
+                         <number>100</number>
+                        </property>
+                        <property name="value">
                          <number>100</number>
                         </property>
                         <property name="orientation">
@@ -1502,8 +1508,14 @@
                       </item>
                       <item>
                        <widget class="QSlider" name="horizontalSliderRoughness">
+                        <property name="minimum">
+                         <number>2</number>
+                        </property>
                         <property name="maximum">
                          <number>100</number>
+                        </property>
+                        <property name="value">
+                         <number>40</number>
                         </property>
                         <property name="orientation">
                          <enum>Qt::Horizontal</enum>
@@ -1534,8 +1546,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1547,8 +1559,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2367,8 +2379,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2724,8 +2736,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>401</width>
+                   <height>505</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3128,8 +3140,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>
