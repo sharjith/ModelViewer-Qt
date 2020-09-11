@@ -99,7 +99,7 @@ void BoundingBox::addBox(const BoundingBox& B)
         _zMin = B.zMin();
 }
 
-QRect BoundingBox::project(const QMatrix4x4 &modelView, const QMatrix4x4 &projection, const QRect &viewport)
+QRect BoundingBox::project(const QMatrix4x4 &modelView, const QMatrix4x4 &projection, const QRect &viewport, const QRect& window)
 {
     // Bottom Face
     QVector3D leftFrontBottom   (_xMin, _yMin, _zMin);
@@ -135,7 +135,7 @@ QRect BoundingBox::project(const QMatrix4x4 &modelView, const QMatrix4x4 &projec
     std::sort(yVals.begin(), yVals.end(),  std::less<float>());
 
     //QRect rect(QPoint(xVals.first(), viewport.height() - yVals.last()), QPoint(xVals.last(), viewport.height() - yVals.first()));
-    QRect rect(xVals.first(), (viewport.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
+    QRect rect(xVals.first(), (window.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
 
     //qDebug() << xVals << yVals;
     //qDebug() << xVals.first() << xVals.last() << yVals.first() << yVals.last();

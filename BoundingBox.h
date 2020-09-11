@@ -49,7 +49,7 @@ public:
 	double BoundingRadius() const;
     bool contains(const Point& P) const;
     void addBox(const BoundingBox&);
-    QRect project(const QMatrix4x4 &modelView, const QMatrix4x4 &projection, const QRect &viewport);
+    QRect project(const QMatrix4x4 &modelView, const QMatrix4x4 &projection, const QRect &viewport, const QRect& window);
 private:
     double _xMax;
     double _xMin;
