@@ -454,7 +454,7 @@ float TriangleMesh::getLowestZValue() const
     return _boundingBox.zMin();
 }
 
-QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport) const
+QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window) const
 {
 	QList<float> xVals;
 	QList<float> yVals;
@@ -467,7 +467,7 @@ QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4&
 	}
 	std::sort(xVals.begin(), xVals.end(), std::less<float>());
 	std::sort(yVals.begin(), yVals.end(), std::less<float>());
-	QRect rect(xVals.first(), (viewport.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
+	QRect rect(xVals.first(), (window.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
 
 	return rect;
 }

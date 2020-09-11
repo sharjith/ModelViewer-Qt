@@ -2424,12 +2424,12 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 			selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
 			//_selectRect->setGeometry(_boundingRect);
 			//_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
-			//_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport));
+			//_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
 			//_selectRect->show();
 			//break;
 		}
 		//else
-		  //  _selectRect->hide();
+			//_selectRect->hide();
 	}
 	qDebug() << selectedIdsDist;
 	if (!selectedIdsDist.isEmpty())
