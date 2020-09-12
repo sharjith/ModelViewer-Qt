@@ -157,7 +157,7 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
-    if(envMapEnabled && displayMode == 3) // Environment mapping
+    if(envMapEnabled && displayMode == 3 && renderingMode == 0) // Environment mapping
     {
 
         if(alpha < 1.0f && !floorRendering) // Transparent - refract
@@ -373,7 +373,22 @@ vec4 calculatePBRLighting(vec3 normal)
 
     // ambient lighting (note that the next IBL tutorial will replace
     // this ambient lighting with environment lighting).
-    vec3 ambient = lightSource.ambient * pbrLighting.albedo * pbrLighting.ambientOcclusion;
+    vec3 ambient;
+
+    if(envMapEnabled && displayMode == 3)
+    {
+        // ambient lighting (we now use IBL as the ambient term)
+        kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
+        kD = 1.0 - kS;
+        kD *= 1.0 - pbrLighting.metallic;
+        vec3 irradiance = texture(envMap, N).rgb;
+        vec3 diffuse      = irradiance * pbrLighting.albedo;
+        ambient = (kD * diffuse) * pbrLighting.ambientOcclusion;
+    }
+    else
+    {
+        ambient = lightSource.ambient * pbrLighting.albedo * pbrLighting.ambientOcclusion;
+    }
 
     vec3 color = ambient + Lo;
 
