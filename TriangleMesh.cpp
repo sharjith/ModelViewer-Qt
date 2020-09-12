@@ -34,9 +34,9 @@ _tMax(1)
 	_diffuseMaterial = { 0.7109375f, 0.62890625f, 0.55078125f, 1.0f };
 	_specularMaterial = { 0.37890625f, 0.390625f, 0.3359375f, 1.0f };
     _shininess = fabs(128.0f * 0.2f);*/
-    _ambientMaterial =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity };      // 126 124 116
-    _diffuseMaterial =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity }; // 126 124 116
-    _specularMaterial = { 140.0f/256, 140.0f/256, 130.0f/256, _opacity };   // 140 140 130
+    _ambientMaterial =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };      // 126 124 116
+    _diffuseMaterial =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity }; // 126 124 116
+    _specularMaterial = { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };   // 140 140 130
     _shininess = fabs(128.0f * 0.05f);
 
 	// Polished silver
@@ -53,9 +53,9 @@ _tMax(1)
 	_shininess = fabs(128.0 * 0.6);
 	*/
 
-    _PBRAlbedoColor = { 0.913, 0.921, 0.925 };
-    _PBRMetallic = 1.0f;
-    _PBRRoughness = 0.4f;
+    _PBRAlbedoColor = { 126/256.0f, 124/256.0f, 116/256.0f };
+    _PBRMetallic = 0.45f;
+    _PBRRoughness = 0.3f;
 
 	if (!_texBuffer.load("textures/opengllogo.png"))
 	{ // Load first image from file

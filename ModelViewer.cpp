@@ -150,9 +150,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
     //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
     //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
-    _ambiMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity };      // 126 124 116
-    _diffMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity }; // 126 124 116
-    _specMat =  { 140.0f/256, 140.0f/256, 130.0f/256, _opacity };   // 140 140 130
+    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };      // 126 124 116
+    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity }; // 126 124 116
+    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };   // 140 140 130
     _shine = fabs(128.0f * 0.05f);
     _emmiMat = { 0.0f, 0.0f, 0.0f, _opacity };
     _specRef = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -297,40 +297,43 @@ void ModelViewer::resetTransformationValues()
 
 void ModelViewer::updateControls()
 {
-    sliderShine->setValue((int)_shine);
-    sliderTransparency->setValue((int)(1000 * _opacity));
+    if(radioButtonADSL->isChecked())
+    {
+        sliderShine->setValue((int)_shine);
+        sliderTransparency->setValue((int)(1000 * _opacity));
 
-    QColor col;
-    QVector4D ambientLight = _glWidget->getAmbientLight();
-    col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-    QString qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonLightAmbient->setStyleSheet(qss);
+        QColor col;
+        QVector4D ambientLight = _glWidget->getAmbientLight();
+        col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
+        QString qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonLightAmbient->setStyleSheet(qss);
 
-    QVector4D diffuseLight = _glWidget->getDiffuseLight();
-    col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonLightDiffuse->setStyleSheet(qss);
+        QVector4D diffuseLight = _glWidget->getDiffuseLight();
+        col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonLightDiffuse->setStyleSheet(qss);
 
-    QVector4D specularLight = _glWidget->getSpecularLight();
-    col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonLightSpecular->setStyleSheet(qss);
+        QVector4D specularLight = _glWidget->getSpecularLight();
+        col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonLightSpecular->setStyleSheet(qss);
 
-    col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialAmbient->setStyleSheet(qss);
+        col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialAmbient->setStyleSheet(qss);
 
-    col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialDiffuse->setStyleSheet(qss);
+        col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialDiffuse->setStyleSheet(qss);
 
-    col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialSpecular->setStyleSheet(qss);
+        col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialSpecular->setStyleSheet(qss);
 
-    col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialEmissive->setStyleSheet(qss);
+        col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialEmissive->setStyleSheet(qss);
+    }
 }
 
 QString ModelViewer::getSupportedImagesFilter()
@@ -666,9 +669,9 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
     //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
     //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
     // 0.925f, 0.913f, 0.847f, 1.0f
-    _ambiMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity };      // 126 124 116
-    _diffMat =  { 126.0f/256, 124.0f/256, 116.0f/256, _opacity }; // 126 124 116
-    _specMat = { 140.0f/256, 140.0f/256, 130.0f/256, _opacity };   // 140 140 130
+    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };      // 126 124 116
+    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity }; // 126 124 116
+    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };   // 140 140 130
     _emmiMat = { 0, 0, 0, 1 };
     //_shine = 128 * 0.2f;
     _shine = 128 * 0.05f;
@@ -2055,7 +2058,7 @@ void ModelViewer::lightingType_toggled(int, bool)
 
 void ModelViewer::on_pushButtonAlbedoColor_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z()), this, "Albedo Color");
+    QColor c = QColorDialog::getColor(QColor::fromRgb(126, 124, 116), this, "Albedo Color");
     if (c.isValid())
     {
         if (listWidgetModel->count())
