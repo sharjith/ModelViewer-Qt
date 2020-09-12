@@ -281,7 +281,7 @@ void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
 			TriangleMesh* mesh = _meshStore[id];
 			mesh->setTexureImage(QGLWidget::convertToGLFormat(texImage));
 		}
-		catch (std::exception& ex)
+		catch (const std::exception& ex)
 		{
 			std::cout << "Exception raised in GLWidget::setTexture\n" << ex.what() << std::endl;
 		}
@@ -507,7 +507,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 				memSize += mesh->memorySize();
 				_boundingSphere.addSphere(mesh->getBoundingSphere());
 			}
-			catch (std::out_of_range& ex)
+			catch (const std::out_of_range& ex)
 			{
 				std::cout << ex.what() << std::endl;
 			}
@@ -540,7 +540,7 @@ void GLWidget::updateBoundingSphere()
 			TriangleMesh* mesh = _meshStore.at(i);
 			_boundingSphere.addSphere(mesh->getBoundingSphere());
 		}
-		catch (std::out_of_range& ex)
+		catch (const std::out_of_range& ex)
 		{
 			std::cout << ex.what() << std::endl;
 		}
@@ -652,7 +652,7 @@ void GLWidget::select(int id)
 	try {
 		_meshStore.at(id)->select();
 	}
-	catch (std::exception& ex) {
+	catch (const std::exception& ex) {
 		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
 	}
 }
@@ -662,7 +662,7 @@ void GLWidget::deselect(int id)
 	try {
 		_meshStore.at(id)->deselect();
 	}
-	catch (std::exception& ex) {
+	catch (const std::exception& ex) {
 		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
 	}
 }
@@ -717,9 +717,9 @@ void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialPro
 			mesh->setMetallic(mat.bMetallic);
 			mesh->enableTexture(mat.bHasTexture);
 		}
-		catch (...)
+		catch (const std::exception& ex)
 		{
-			std::cout << "Exception!" << std::endl;
+			std::cout << "Exception in GLWidget::setMaterialProps\n" << ex.what() << std::endl;
 		}
 	}
 }
@@ -733,7 +733,7 @@ void GLWidget::setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col)
             TriangleMesh* mesh = _meshStore[id];
             mesh->setPBRAlbedoColor(col.red()/256.0f, col.green()/256.0f, col.blue()/256.0f);
         }
-        catch (std::exception& ex)
+        catch (const std::exception& ex)
         {
             std::cout << "Exception in GLWidget::setPBRAlbedoColor\n" << ex.what() << std::endl;
         }
@@ -749,7 +749,7 @@ void GLWidget::setPBRMetallic(const std::vector<int>& ids, const float& val)
             TriangleMesh* mesh = _meshStore[id];
             mesh->setPBRMetallic(val);
         }
-        catch (std::exception& ex)
+        catch (const std::exception& ex)
         {
             std::cout << "Exception in GLWidget::setPBRMetallic\n" << ex.what() << std::endl;
         }
@@ -765,7 +765,7 @@ void GLWidget::setPBRRoughness(const std::vector<int>& ids, const float& val)
             TriangleMesh* mesh = _meshStore[id];
             mesh->setPBRRoughness(val);
         }
-        catch (std::exception& ex)
+        catch (const std::exception& ex)
         {
             std::cout << "Exception in GLWidget::setPBRRoughness\n" << ex.what() << std::endl;
         }
@@ -783,9 +783,9 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 			mesh->setRotation(rot);
 			mesh->setScaling(scale);
 		}
-		catch (...)
+		catch (const std::exception& ex)
 		{
-			std::cout << "Exception!" << std::endl;
+			std::cout << "Exception in GLWidget::setTransformation\n" << ex.what() << std::endl;
 		}
 	}
 	updateBoundingSphere();
@@ -800,9 +800,9 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 			TriangleMesh* mesh = _meshStore[id];
 			mesh->resetTransformations();
 		}
-		catch (...)
+		catch (const std::exception& ex)
 		{
-			std::cout << "Exception!" << std::endl;
+			std::cout << "Exception in GLWidget::resetTransformation\n" << ex.what() << std::endl;
 		}
 	}
 	updateBoundingSphere();
@@ -818,7 +818,7 @@ void GLWidget::initializeGL()
 	cout << "Shader Version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
 		<< endl;
 
-	/*
+#ifdef DEBUG
 		int n = 0;
 		glGetIntegerv(GL_NUM_EXTENSIONS, &n);
 		for (int i = 0; i < n; i++)
@@ -828,7 +828,8 @@ void GLWidget::initializeGL()
 				printf("GL Extension %d: %s\n", i, extension);
 		}
 		std::cout << std::endl;
-		*/
+		
+#endif // DEBUG
 
 	makeCurrent();
 
@@ -1013,7 +1014,7 @@ void GLWidget::createShaderPrograms()
 	}
 
 	//_debugShader
-	// Background split shader program
+	// Shadow Depth quad shader program
 	if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/debug_quad.vert"))
 	{
 		qDebug() << "Error in vertex shader:" << _debugShader.log();
@@ -1277,9 +1278,7 @@ void GLWidget::paintGL()
 
 		gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
 			_bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
-		//gradientBackground(0.8515625f, 0.8515625f, 0.8515625f, 1.0f,
-		//                 0.8515625f, 0.8515625f, 0.8515625f, 1.0f);
-
+		
 		_modelMatrix.setToIdentity();
 		if (_bMultiView)
 		{
@@ -2149,7 +2148,6 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		_lowResEnabled = false;
 	}
-
 	update();
 }
 
@@ -2174,7 +2172,6 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_currentViewRange = _viewRange;
 
 	resizeGL(width(), height());
-
 	update();
 }
 
@@ -2470,7 +2467,6 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 	{
 		TriangleMesh* mesh = _meshStore.at(i);
 		bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint);
-		//qDebug() << "Intersect point and mouse point distance: " << rayPos.distanceToPoint(intPoint);
 		//qDebug() << intPoint;
 		if (intersects)
 		{

@@ -21,6 +21,10 @@ struct Vertex
 	glm::vec3 Normal;
 	// TexCoords
 	glm::vec2 TexCoords;
+	// tangent
+	glm::vec3 Tangent;
+	// bitangent
+	glm::vec3 Bitangent;
 };
 
 struct Texture
@@ -129,8 +133,10 @@ public:
 		_prog->setUniformValue("hasSpecularTexture", false);
 
 		// Bind appropriate textures
-		GLuint diffuseNr = 1;
-		GLuint specularNr = 1;
+		unsigned int diffuseNr = 1;
+		unsigned int specularNr = 1;
+		unsigned int normalNr = 1;
+		unsigned int heightNr = 1;
 
 		for (GLuint i = 0; i < _textures.size(); i++)
 		{
@@ -149,8 +155,17 @@ public:
 			{
 				ss << specularNr++; // Transfer GLuint to stream
 				_prog->setUniformValue("hasSpecularTexture", true);
-			}			
-
+			}
+			else if (name == "texture_normal")
+			{
+				ss << normalNr++; // Transfer GLuint to stream
+				_prog->setUniformValue("hasNormalTexture", true);
+			}
+			else if (name == "texture_height")
+			{
+				ss << heightNr++; // Transfer GLuint to stream
+				_prog->setUniformValue("hasHeightTexture", true);
+			}
 			number = ss.str();
 			// Now set the sampler to the correct texture unit
 			_prog->bind();
@@ -191,6 +206,8 @@ private:
 		std::vector<float> points;
 		std::vector<float> normals;
 		std::vector<float> texCoords;
+		std::vector<float> tangents;
+		std::vector<float> bitangents;
 
 		for (Vertex v : _vertices)
 		{
@@ -204,6 +221,13 @@ private:
 
 			texCoords.push_back(v.TexCoords.x);
 			texCoords.push_back(v.TexCoords.y);
+
+			tangents.push_back(v.Tangent.x);
+			tangents.push_back(v.Tangent.y);
+			tangents.push_back(v.Tangent.z);
+			bitangents.push_back(v.Bitangent.x);
+			bitangents.push_back(v.Bitangent.y);
+			bitangents.push_back(v.Bitangent.z);
 		}
 
 		_ambientMaterial = _materials.ambientMaterial;
@@ -214,7 +238,7 @@ private:
 		_opacity = _materials.opacity;
 		_bHasTexture = _materials.bHasTexture;
 
-		initBuffers(&_indices, &points, &normals, &texCoords);
+		initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 		computeBounds(points);
 	}
 };

@@ -262,11 +262,10 @@ namespace stl_reader {
 
 #ifndef STL_READER_NO_EXCEPTIONS
 			}
-			catch (std::exception& e) {
+			catch (const std::exception& e) {
 #else
 				if (!res) {
 #endif
-
 					coords.clear();
 					normals.clear();
 					tris.clear();

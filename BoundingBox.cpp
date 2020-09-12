@@ -13,7 +13,12 @@
 
 BoundingBox::BoundingBox()
 {
-
+    _xMax = 0.0f;
+    _xMin = 0.0f;
+    _yMax = 0.0f;
+    _yMin = 0.0f;
+    _zMax = 0.0f;
+    _zMin = 0.0f;
 }
 
 BoundingBox::BoundingBox(const double& xMin, const double& xMax,
@@ -112,9 +117,6 @@ QRect BoundingBox::project(const QMatrix4x4 &modelView, const QMatrix4x4 &projec
     QVector3D leftRearTop   (_xMin, _yMax, _zMax);
     QVector3D rightRearTop  (_xMax, _yMax, _zMax);
 
-    //qDebug() << leftFrontBottom << rightFrontBottom << leftRearBottom  << rightRearBottom
-      //       << leftFrontTop << rightFrontTop << leftRearTop << rightRearTop;
-
     QVector3D v1 = leftFrontBottom.project(modelView, projection, viewport);
     QVector3D v2 = rightFrontBottom.project(modelView, projection, viewport);
     QVector3D v3 = leftRearBottom.project(modelView, projection, viewport);
@@ -128,17 +130,10 @@ QRect BoundingBox::project(const QMatrix4x4 &modelView, const QMatrix4x4 &projec
     QList<float> xVals = {v1.x(), v2.x(), v3.x(), v4.x(), v5.x(), v6.x(), v7.x(), v8.x()};
     QList<float> yVals = {v1.y(), v2.y(), v3.y(), v4.y(), v5.y(), v6.y(), v7.y(), v8.y()};
 
-    //qDebug() << xVals << yVals;
-    //qDebug() << v1 << v2 << v3 << v4 << v5 << v6 << v7 << v8;
-
     std::sort(xVals.begin(), xVals.end(),  std::less<float>());
     std::sort(yVals.begin(), yVals.end(),  std::less<float>());
 
-    //QRect rect(QPoint(xVals.first(), viewport.height() - yVals.last()), QPoint(xVals.last(), viewport.height() - yVals.first()));
     QRect rect(xVals.first(), (window.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
 
-    //qDebug() << xVals << yVals;
-    //qDebug() << xVals.first() << xVals.last() << yVals.first() << yVals.last();
-    //qDebug() << rect;
     return rect;
 }

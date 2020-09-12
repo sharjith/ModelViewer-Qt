@@ -52,8 +52,8 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 			_surfaceArea += QVector3D::crossProduct(p2 - p1, p3 - p1).length() * 0.5;
 		}
 	}
-	catch (...) {
-		std::cout << "Exception raised in MeshProperties::calculateSurfaceAreaAndVolume" << std::endl;
+	catch (const std::exception& ex) {
+		std::cout << "Exception raised in MeshProperties::calculateSurfaceAreaAndVolume\n" << ex.what() << std::endl;
 	}
 
 	_volume = fabs(_volume);

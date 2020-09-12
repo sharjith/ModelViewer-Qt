@@ -14,7 +14,7 @@ struct GLMaterialProps
 	QVector4D emmissiveMaterial;
 	float   shininess;
 	float   opacity;
-    bool bMetallic;
+	bool bMetallic;
 	bool bHasTexture;
 };
 
@@ -43,7 +43,7 @@ public:
 	}
 
 	virtual BoundingSphere getBoundingSphere() const { return _boundingSphere; }
-    virtual BoundingBox getBoundingBox() const { return _boundingBox; }
+	virtual BoundingBox getBoundingBox() const { return _boundingBox; }
 
 	virtual QOpenGLVertexArrayObject& getVAO();
 	virtual QString getName() const
@@ -74,36 +74,36 @@ public:
 	float shininess() const;
 	void setShininess(const float& shininess);
 
-    bool isMetallic() const;
-    void setMetallic(bool metallic);
+	bool isMetallic() const;
+	void setMetallic(bool metallic);
 
 	bool hasTexture() const;
 	void enableTexture(const bool& bHasTexture);
 
 	void setTexureImage(const QImage& texImage);
 
-    void setPBRAlbedoColor(const float& r, const float& g, const float& b);
-    void setPBRMetallic(const float& val);
-    void setPBRRoughness(const float& val);
+	void setPBRAlbedoColor(const float& r, const float& g, const float& b);
+	void setPBRMetallic(const float& val);
+	void setPBRRoughness(const float& val);
 
-    float getHighestXValue() const;
-    float getLowestXValue() const;
+	float getHighestXValue() const;
+	float getLowestXValue() const;
 	float getHighestYValue() const;
 	float getLowestYValue() const;
 	float getHighestZValue() const;
 	float getLowestZValue() const;
 	QRect projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window) const;
 
-    QVector3D getTranslation() const;
-    void setTranslation(const QVector3D& trans);
+	QVector3D getTranslation() const;
+	void setTranslation(const QVector3D& trans);
 
-    QVector3D getRotation() const;
-    void setRotation(const QVector3D& rota);
+	QVector3D getRotation() const;
+	void setRotation(const QVector3D& rota);
 
-    QVector3D getScaling() const;
-    void setScaling(const QVector3D& scale);
+	QVector3D getScaling() const;
+	void setScaling(const QVector3D& scale);
 
-    QMatrix4x4 getTransformation() const;
+	QMatrix4x4 getTransformation() const;
 
 	std::vector<unsigned int> getIndices() const;
 	std::vector<float> getPoints() const;
@@ -115,18 +115,19 @@ public:
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 protected: // methods
-    virtual void initBuffers(
-            std::vector<unsigned int>* indices,
+	virtual void initBuffers(
+		std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
 		std::vector<float>* texCoords = nullptr,
-		std::vector<float>* tangents = nullptr
+		std::vector<float>* tangents = nullptr,
+		std::vector<float>* bitangents = nullptr
 	);
 
 	virtual void deleteBuffers();
-    virtual void setupTransformation();
-    virtual void computeBounds(std::vector<float> points);
-    virtual bool rayIntersectsTriangle(const QVector3D& rayOrigin,
+	virtual void setupTransformation();
+	virtual void computeBounds(std::vector<float> points);
+	virtual bool rayIntersectsTriangle(const QVector3D& rayOrigin,
 		const QVector3D& rayVector,
 		const QVector3D& vertex0,
 		const QVector3D& vertex1,
@@ -140,6 +141,7 @@ protected:
 	QOpenGLBuffer _normalBuffer;
 	QOpenGLBuffer _texCoordBuffer;
 	QOpenGLBuffer _tangentBuf;
+	QOpenGLBuffer _bitangentBuf;
 
 	QOpenGLBuffer _coordBuf;
 
@@ -150,7 +152,7 @@ protected:
 	std::vector<QOpenGLBuffer> _buffers;
 
 	BoundingSphere _boundingSphere;
-    BoundingBox    _boundingBox;
+	BoundingBox    _boundingBox;
 
 	QString _name;
 
@@ -161,19 +163,19 @@ protected:
 	QVector4D _specularReflectivity;
 	float _opacity;
 	float _shininess;
-    bool _metallic;
+	bool _metallic;
 
-    QVector3D _PBRAlbedoColor;
-    float     _PBRMetallic;
-    float     _PBRRoughness;
+	QVector3D _PBRAlbedoColor;
+	float     _PBRMetallic;
+	float     _PBRRoughness;
 
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;
 	bool _bHasTexture;
 	bool _bHasDiffuseTexture;
 	bool _bHasSpecularTexture;
-    unsigned int _sMax;
-    unsigned int _tMax;
+	unsigned int _sMax;
+	unsigned int _tMax;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
@@ -182,20 +184,20 @@ protected:
 	std::vector<float> _trsfpoints;
 	std::vector<float> _trsfnormals;
 
-    // Individual transformation components
-    float _transX;
-    float _transY;
-    float _transZ;
+	// Individual transformation components
+	float _transX;
+	float _transY;
+	float _transZ;
 
-    float _rotateX;
-    float _rotateY;
-    float _rotateZ;
+	float _rotateX;
+	float _rotateY;
+	float _rotateZ;
 
-    float _scaleX;
-    float _scaleY;
-    float _scaleZ;
+	float _scaleX;
+	float _scaleY;
+	float _scaleZ;
 
-    QMatrix4x4 _transformation;
+	QMatrix4x4 _transformation;
 
 	unsigned long long _memorySize;
 };

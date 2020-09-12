@@ -11,9 +11,9 @@ _sMax(1),
 _tMax(1)
 {
 	_memorySize = 0;
-    _transX = _transY = _transZ = 0.0f;
-    _rotateX = _rotateY = _rotateZ = 0.0f;
-    _scaleX = _scaleY = _scaleZ = 1.0f;
+	_transX = _transY = _transZ = 0.0f;
+	_rotateX = _rotateY = _rotateZ = 0.0f;
+	_scaleX = _scaleY = _scaleZ = 1.0f;
 	_transformation.setToIdentity();
 
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
@@ -21,41 +21,29 @@ _tMax(1)
 	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoordBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_tangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_bitangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 
 	_indexBuffer.create();
 	_positionBuffer.create();
 	_normalBuffer.create();
 	_texCoordBuffer.create();
 	_tangentBuf.create();
+	_bitangentBuf.create();
 
 	_vertexArrayObject.create();
 
-    /*_ambientMaterial = { 0.2109375f, 0.125f, 0.05078125f, 1.0f };
+	/*_ambientMaterial = { 0.2109375f, 0.125f, 0.05078125f, 1.0f };
 	_diffuseMaterial = { 0.7109375f, 0.62890625f, 0.55078125f, 1.0f };
 	_specularMaterial = { 0.37890625f, 0.390625f, 0.3359375f, 1.0f };
-    _shininess = fabs(128.0f * 0.2f);*/
-    _ambientMaterial =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };      // 126 124 116
-    _diffuseMaterial =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity }; // 126 124 116
-    _specularMaterial = { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };   // 140 140 130
-    _shininess = fabs(128.0f * 0.05f);
+	_shininess = fabs(128.0f * 0.2f);*/
+	_ambientMaterial = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f, _opacity };      // 126 124 116
+	_diffuseMaterial = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f, _opacity }; // 126 124 116
+	_specularMaterial = { 140 / 256.0f, 140 / 256.0f, 130 / 256.0f, _opacity };   // 140 140 130
+	_shininess = fabs(128.0f * 0.05f);
 
-	// Polished silver
-	/*_ambientMaterial  = {0.23125, 0.23125, 0.23125, 1};
-	_diffuseMaterial  = {0.2775, 0.2775, 0.2775, 1};
-	_specularMaterial = {0.773911, 0.773911, 0.773911, 1};
-	_shininess        = {89.6};*/
-
-	/*
-	// set to chrome for skybox debugging
-	_ambientMaterial = {0.25f, 0.25f, 0.25f, 1.0f};
-	_diffuseMaterial = {0.4f, 0.4f, 0.4f, 1.0f};
-	_specularMaterial = {0.774597f, 0.774597f, 0.774597f, 1.0f};
-	_shininess = fabs(128.0 * 0.6);
-	*/
-
-    _PBRAlbedoColor = { 126/256.0f, 124/256.0f, 116/256.0f };
-    _PBRMetallic = 0.45f;
-    _PBRRoughness = 0.3f;
+	_PBRAlbedoColor = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f };
+	_PBRMetallic = 0.45f;
+	_PBRRoughness = 0.3f;
 
 	if (!_texBuffer.load("textures/opengllogo.png"))
 	{ // Load first image from file
@@ -70,8 +58,8 @@ _tMax(1)
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _texture);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
@@ -82,7 +70,8 @@ void TriangleMesh::initBuffers(
 	std::vector<float>* points,
 	std::vector<float>* normals,
 	std::vector<float>* texCoords,
-	std::vector<float>* tangents)
+	std::vector<float>* tangents,
+	std::vector<float>* bitangents)
 {
 	// Must have data for indices, points, and normals
 	if (indices == nullptr || points == nullptr || normals == nullptr)
@@ -97,7 +86,7 @@ void TriangleMesh::initBuffers(
 		_texCoords = *texCoords;
 
 	_memorySize = 0;
-	_memorySize = (_points.size() + _normals.size() + _indices.size()) *sizeof(float);
+	_memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
 
 	_nVerts = (unsigned int)indices->size();
 
@@ -134,6 +123,15 @@ void TriangleMesh::initBuffers(
 		_memorySize += tangents->size() * sizeof(float);
 	}
 
+	if (bitangents != nullptr)
+	{
+		_buffers.push_back(_bitangentBuf);
+		_bitangentBuf.bind();
+		_bitangentBuf.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_bitangentBuf.allocate(bitangents->data(), static_cast<int>(bitangents->size() * sizeof(float)));
+		_memorySize += bitangents->size() * sizeof(float);
+	}
+
 	_vertexArrayObject.bind();
 
 	_indexBuffer.bind();
@@ -168,7 +166,14 @@ void TriangleMesh::initBuffers(
 		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 		//glEnableVertexAttribArray(3);  // Tangents
 		_prog->enableAttributeArray("tangentCoord");
-		_prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 4);
+		_prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 3);
+	}
+
+	if (bitangents != nullptr)
+	{
+		_bitangentBuf.bind();
+		_prog->enableAttributeArray("bitangentCoord");
+		_prog->setAttributeBuffer("bitangentCoord", GL_FLOAT, 0, 3);
 	}
 
 	_vertexArrayObject.release();
@@ -206,7 +211,11 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 	//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 	//glEnableVertexAttribArray(3);  // Tangents
 	_prog->enableAttributeArray("tangentCoord");
-	_prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 4);
+	_prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 3);
+
+	_bitangentBuf.bind();
+	_prog->enableAttributeArray("bitangentCoord");
+	_prog->setAttributeBuffer("bitangentCoord", GL_FLOAT, 0, 3);
 
 	_vertexArrayObject.release();
 }
@@ -228,11 +237,11 @@ void TriangleMesh::render()
 	_prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
 	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
 	_prog->setUniformValue("material.shininess", _shininess);
-    _prog->setUniformValue("material.metallic", _metallic);
-    _prog->setUniformValue("pbrLighting.albedo", _PBRAlbedoColor);
-    _prog->setUniformValue("pbrLighting.metallic", _PBRMetallic);
-    _prog->setUniformValue("pbrLighting.roughness", _PBRRoughness);
-    _prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
+	_prog->setUniformValue("material.metallic", _metallic);
+	_prog->setUniformValue("pbrLighting.albedo", _PBRAlbedoColor);
+	_prog->setUniformValue("pbrLighting.metallic", _PBRMetallic);
+	_prog->setUniformValue("pbrLighting.roughness", _PBRRoughness);
+	_prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
 	_prog->setUniformValue("texEnabled", _bHasTexture);
 	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
 	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
@@ -280,34 +289,6 @@ void TriangleMesh::deleteBuffers()
 
 void TriangleMesh::computeBounds(std::vector<float> points)
 {
-	/*
-	float minX = 0, maxX = 0, minY = 0, maxY = 0, minZ = 0, maxZ = 0;
-	for (int i = 0; i < points.size(); i += 3)
-	{
-		// X
-		if (points[i] > maxX)
-			maxX = points[i];
-		if (points[i] < minX)
-			minX = points[i];
-		// Y
-		if (points[i+1] > maxY)
-			maxY = points[i+1];
-		if (points[i+1] < minY)
-			minY = points[i+1];
-		// Z
-		if (points[i+2] > maxZ)
-			maxZ = points[i+2];
-		if (points[i+2] < minZ)
-			minZ = points[i+2];
-	}
-
-	QVector3D sphereCenter = QVector3D(minX + (maxX - minX) / 2, minY + (maxY - minY) / 2, minZ + (maxZ - minZ) / 2);
-	float sphereRadius = std::max((maxX - minX) / 2, std::max((maxY - minY) / 2, (maxZ - minZ) / 2));
-
-	_boundingSphere.setCenter(sphereCenter);
-	_boundingSphere.setRadius(sphereRadius);
-	*/
-
 	// Ritter's algorithm
 	std::vector<QVector3D> aPoints;
 	for (ulong i = 0; i < points.size(); i += 3)
@@ -368,98 +349,49 @@ void TriangleMesh::computeBounds(std::vector<float> points)
 	_boundingSphere.setCenter(center);
 	_boundingSphere.setRadius(radius);
 
-
-    QList<float> xVals, yVals, zVals;
-    for(size_t i = 0; i < _trsfpoints.size(); i+=3)
-    {
-        xVals.push_back(_trsfpoints.at(i));
-        yVals.push_back(_trsfpoints.at(i+1));
-        zVals.push_back(_trsfpoints.at(i+2));
-    }
-    std::sort(xVals.begin(), xVals.end(), std::less<float>());
-    std::sort(yVals.begin(), yVals.end(), std::less<float>());
-    std::sort(zVals.begin(), zVals.end(), std::less<float>());
-    _boundingBox.setLimits(xVals.first(), xVals.last(),
-                           yVals.first(), yVals.last(),
-                           zVals.first(), zVals.last());
+	QList<float> xVals, yVals, zVals;
+	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	{
+		xVals.push_back(_trsfpoints.at(i));
+		yVals.push_back(_trsfpoints.at(i + 1));
+		zVals.push_back(_trsfpoints.at(i + 2));
+	}
+	std::sort(xVals.begin(), xVals.end(), std::less<float>());
+	std::sort(yVals.begin(), yVals.end(), std::less<float>());
+	std::sort(zVals.begin(), zVals.end(), std::less<float>());
+	_boundingBox.setLimits(xVals.first(), xVals.last(),
+		yVals.first(), yVals.last(),
+		zVals.first(), zVals.last());
 }
 
 float TriangleMesh::getHighestXValue() const
 {
-    /*float highestX = std::numeric_limits<float>::min();
-	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
-	{
-		float x = _trsfpoints[i];
-        if (x > highestX)
-            highestX = x;
-	}
-    return highestX;*/
-    return _boundingBox.xMax();
+	return _boundingBox.xMax();
 }
 
 float TriangleMesh::getLowestXValue() const
 {
-    /*float lowestX = std::numeric_limits<float>::max();
-    for (size_t i = 0; i < _trsfpoints.size(); i += 3)
-    {
-        float x = _trsfpoints[i];
-        if (x < lowestX)
-            lowestX = x;
-    }
-    return lowestX;*/
-    return _boundingBox.xMin();
+	return _boundingBox.xMin();
 }
 
 float TriangleMesh::getHighestYValue() const
 {
-    /*float highestY = std::numeric_limits<float>::min();
-	for (size_t i = 1; i < _trsfpoints.size(); i += 3)
-	{
-		float y = _trsfpoints[i];
-		if (y > highestY)
-			highestY = y;
-	}
-    return highestY;*/
-    return _boundingBox.yMax();
+	return _boundingBox.yMax();
 }
 
 float TriangleMesh::getLowestYValue() const
 {
-    /*float lowestY = std::numeric_limits<float>::max();
-	for (size_t i = 1; i < _trsfpoints.size(); i += 3)
-	{
-		float y = _trsfpoints[i];
-		if (y < lowestY)
-			lowestY = y;
-	}
-    return lowestY;*/
-    return _boundingBox.yMin();
+	return _boundingBox.yMin();
 }
 
 float TriangleMesh::getHighestZValue() const
 {
-    /*float highestZ = std::numeric_limits<float>::min();
-	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
-	{
-		float z = _trsfpoints[i];
-		if (z > highestZ)
-			highestZ = z;
-	}
-    return highestZ;*/
-    return _boundingBox.zMax();
+	return _boundingBox.zMax();
 }
 
 float TriangleMesh::getLowestZValue() const
 {
-    /*float lowestZ = std::numeric_limits<float>::max();
-	for (size_t i = 2; i < _trsfpoints.size(); i += 3)
-	{
-		float z = _trsfpoints[i];
-		if (z < lowestZ)
-			lowestZ = z;
-	}
-    return lowestZ;*/
-    return _boundingBox.zMin();
+	return _boundingBox.zMin();
 }
 
 QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window) const
@@ -484,7 +416,6 @@ std::vector<float> TriangleMesh::getNormals() const
 {
 	return _normals;
 }
-
 
 std::vector<float> TriangleMesh::getTexCoords() const
 {
@@ -516,7 +447,7 @@ void TriangleMesh::resetTransformations()
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-    computeBounds(_points);
+	computeBounds(_points);
 }
 
 std::vector<unsigned int> TriangleMesh::getIndices() const
@@ -531,100 +462,100 @@ std::vector<float> TriangleMesh::getPoints() const
 
 QVector3D TriangleMesh::getTranslation() const
 {
-    return QVector3D(_transX, _transY, _transZ);
+	return QVector3D(_transX, _transY, _transZ);
 }
 
 void TriangleMesh::setTranslation(const QVector3D& trans)
 {
-    _transX = trans.x() - _transX;
-    _transY = trans.y() - _transY;
-    _transZ = trans.z() - _transZ;
-    _transformation.translate(_transX, _transY, _transZ);
-    setupTransformation();
-    _transX = trans.x();
-    _transY = trans.y();
-    _transZ = trans.z();
+	_transX = trans.x() - _transX;
+	_transY = trans.y() - _transY;
+	_transZ = trans.z() - _transZ;
+	_transformation.translate(_transX, _transY, _transZ);
+	setupTransformation();
+	_transX = trans.x();
+	_transY = trans.y();
+	_transZ = trans.z();
 }
 
 QVector3D TriangleMesh::getRotation() const
 {
-    return QVector3D(_rotateX, _rotateY, _rotateZ);
+	return QVector3D(_rotateX, _rotateY, _rotateZ);
 }
 
 void TriangleMesh::setRotation(const QVector3D& rota)
 {
-    _rotateX = rota.x() - _rotateX;
-    _rotateY = rota.y() - _rotateY;
-    _rotateZ = rota.z() - _rotateZ;
-    _transformation.rotate(_rotateX, QVector3D(1.0f, 0.0f, 0.0f));
-    _transformation.rotate(_rotateY, QVector3D(0.0f, 1.0f, 0.0f));
-    _transformation.rotate(_rotateZ, QVector3D(0.0f, 0.0f, 1.0f));
-    setupTransformation();
-    _rotateX = rota.x();
-    _rotateY = rota.y();
-    _rotateZ = rota.z();
+	_rotateX = rota.x() - _rotateX;
+	_rotateY = rota.y() - _rotateY;
+	_rotateZ = rota.z() - _rotateZ;
+	_transformation.rotate(_rotateX, QVector3D(1.0f, 0.0f, 0.0f));
+	_transformation.rotate(_rotateY, QVector3D(0.0f, 1.0f, 0.0f));
+	_transformation.rotate(_rotateZ, QVector3D(0.0f, 0.0f, 1.0f));
+	setupTransformation();
+	_rotateX = rota.x();
+	_rotateY = rota.y();
+	_rotateZ = rota.z();
 }
 
 QVector3D TriangleMesh::getScaling() const
 {
-    return QVector3D(_scaleX, _scaleY, _scaleZ);
+	return QVector3D(_scaleX, _scaleY, _scaleZ);
 }
 
 void TriangleMesh::setScaling(const QVector3D& scale)
 {
-    _scaleX = scale.x()/_scaleX;
-    _scaleY = scale.y()/_scaleY;
-    _scaleZ = scale.z()/_scaleZ;
-    _transformation.scale(_scaleX, _scaleY, _scaleZ);
-    setupTransformation();
-    _scaleX = scale.x();
-    _scaleY = scale.y();
-    _scaleZ = scale.z();
+	_scaleX = scale.x() / _scaleX;
+	_scaleY = scale.y() / _scaleY;
+	_scaleZ = scale.z() / _scaleZ;
+	_transformation.scale(_scaleX, _scaleY, _scaleZ);
+	setupTransformation();
+	_scaleX = scale.x();
+	_scaleY = scale.y();
+	_scaleZ = scale.z();
 }
 
 QMatrix4x4 TriangleMesh::getTransformation() const
 {
-    return _transformation;
+	return _transformation;
 }
 
 void TriangleMesh::setupTransformation()
 {
-    _prog->bind();
-    _trsfpoints.clear();
-    _trsfnormals.clear();
+	_prog->bind();
+	_trsfpoints.clear();
+	_trsfnormals.clear();
 
-    // transform points
-    for (size_t i = 0; i < _points.size(); i += 3)
-    {
-        QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
-        QVector3D tp = _transformation * p;
-        _trsfpoints.push_back(tp.x());
-        _trsfpoints.push_back(tp.y());
-        _trsfpoints.push_back(tp.z());
-    }
-    _positionBuffer.bind();
-    _positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(float)));
-    _prog->enableAttributeArray("vertexPosition");
-    _prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	// transform points
+	for (size_t i = 0; i < _points.size(); i += 3)
+	{
+		QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
+		QVector3D tp = _transformation * p;
+		_trsfpoints.push_back(tp.x());
+		_trsfpoints.push_back(tp.y());
+		_trsfpoints.push_back(tp.z());
+	}
+	_positionBuffer.bind();
+	_positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(float)));
+	_prog->enableAttributeArray("vertexPosition");
+	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
-    // transform normals
-    for (size_t i = 0; i < _normals.size(); i += 3)
-    {
-        QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
-        QMatrix4x4 rotMat = _transformation;
-        // use only the rotations
-        rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-        QVector3D tn = rotMat * n;
-        _trsfnormals.push_back(tn.x());
-        _trsfnormals.push_back(tn.y());
-        _trsfnormals.push_back(tn.z());
-    }
-    _normalBuffer.bind();
-    _normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(float)));
-    _prog->enableAttributeArray("vertexNormal");
-    _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+	// transform normals
+	for (size_t i = 0; i < _normals.size(); i += 3)
+	{
+		QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
+		QMatrix4x4 rotMat = _transformation;
+		// use only the rotations
+		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
+		QVector3D tn = rotMat * n;
+		_trsfnormals.push_back(tn.x());
+		_trsfnormals.push_back(tn.y());
+		_trsfnormals.push_back(tn.z());
+	}
+	_normalBuffer.bind();
+	_normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(float)));
+	_prog->enableAttributeArray("vertexNormal");
+	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-    computeBounds(_trsfpoints);
+	computeBounds(_trsfpoints);
 }
 
 void TriangleMesh::setTexureImage(const QImage& texImage)
@@ -717,28 +648,27 @@ void TriangleMesh::setAmbientMaterial(const QVector4D& ambientMaterial)
 
 bool TriangleMesh::isMetallic() const
 {
-    return _metallic;
+	return _metallic;
 }
 
 void TriangleMesh::setMetallic(bool metallic)
 {
-    _metallic = metallic;
+	_metallic = metallic;
 }
 
 void TriangleMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)
 {
-    _PBRAlbedoColor = {r, g, b};
+	_PBRAlbedoColor = { r, g, b };
 }
 
 void TriangleMesh::setPBRMetallic(const float& val)
 {
-    _PBRMetallic = val;
+	_PBRMetallic = val;
 }
 
 void TriangleMesh::setPBRRoughness(const float& val)
 {
-
-    _PBRRoughness = val;
+	_PBRRoughness = val;
 }
 
 QOpenGLVertexArrayObject& TriangleMesh::getVAO()
@@ -749,10 +679,10 @@ QOpenGLVertexArrayObject& TriangleMesh::getVAO()
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
 	bool intersects = false;
-    if(_trsfpoints.size() == 0)
-    {
-        return intersects;
-    }
+	if (_trsfpoints.size() == 0)
+	{
+		return intersects;
+	}
 	for (size_t i = 0; i < _trsfpoints.size() - 9; i += 9)
 	{
 		QVector3D v0(_trsfpoints[i + 0], _trsfpoints[i + 1], _trsfpoints[i + 2]);
@@ -767,7 +697,6 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 	return intersects;
 }
 
-// Möller–Trumbore intersection algorithm
 bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
 	const QVector3D& rayVector,
 	const QVector3D& vertex0,
@@ -775,6 +704,7 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
 	const QVector3D& vertex2,
 	QVector3D& outIntersectionPoint)
 {
+	// Möller–Trumbore intersection algorithm
 	const float EPSILON = 0.0000001f;
 	QVector3D edge1, edge2, h, s, q;
 	float a, f, u, v;
@@ -798,10 +728,6 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
 	if (t > EPSILON) // ray intersection
 	{
 		outIntersectionPoint = rayOrigin + rayVector * t;
-		/*qDebug() << "Ray Origin: " << rayOrigin;
-		qDebug() << "Ray Vector: " << rayVector;
-		qDebug() << "Intersection at: " << outIntersectionPoint;
-		qDebug() << "Vertices:\n" << vertex0 << vertex1 << vertex2;*/
 		return true;
 	}
 	else // This means that there is a line intersection but not a ray intersection.

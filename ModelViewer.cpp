@@ -150,9 +150,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
     //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
     //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
-    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };      // 126 124 116
-    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity }; // 126 124 116
-    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };   // 140 140 130
+    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };// 126 124 116
+    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };// 126 124 116
+    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };// 140 140 130
     _shine = fabs(128.0f * 0.05f);
     _emmiMat = { 0.0f, 0.0f, 0.0f, _opacity };
     _specRef = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -274,7 +274,7 @@ void ModelViewer::updateTransformationValues()
             }
         }
 
-    } catch (std::exception& ex)
+    } catch (const std::exception& ex)
     {
         std::cout << "Exception raised in ModelViewer::on_toolBox_currentChanged\n" << ex.what() << std::endl;
     }
@@ -540,7 +540,7 @@ void ModelViewer::displaySelectedMeshInfo()
             MeshProperties props(mesh);
             meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(props.volume()).arg(props.surfaceArea());
         }
-        catch (std::exception& ex)
+        catch (const std::exception& ex)
         {
             std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
         }

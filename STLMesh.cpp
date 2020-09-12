@@ -173,9 +173,9 @@ _loaded(false)
 			_loaded = true;
 		}
 	}
-	catch (std::exception& e)
+	catch (const std::exception& e)
 	{
-		std::cout << e.what() << std::endl;
+		std::cout << "Exception in STLMesh::STLMesh\n" << e.what() << std::endl;
 	}
 }
 

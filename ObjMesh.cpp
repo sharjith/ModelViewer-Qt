@@ -84,9 +84,9 @@ std::unique_ptr<ObjMesh> ObjMesh::load(QOpenGLShaderProgram* prog, const char* f
 		mesh->computeBounds(glMesh.points);
 		return mesh;
 	}
-	catch (...)
+	catch (const std::exception& ex)
 	{
-		std::cout << "Exception raised in ObjMesh::load" << std::endl;
+		std::cout << "Exception raised in ObjMesh::load\n" << ex.what() << std::endl;
 		return nullptr;
 	}
 }
@@ -372,7 +372,7 @@ void ObjMesh::ObjMeshData::toGlMesh(GlMeshData& data)
 			}
 		}
 	}
-	catch (std::out_of_range& outOfRange)
+	catch (const std::out_of_range& outOfRange)
 	{
 		std::cout << "Exception raised in ObjMeshData::toGlMesh\n" << outOfRange.what() << std::endl;
 		throw(outOfRange);

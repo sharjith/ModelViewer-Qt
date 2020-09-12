@@ -132,7 +132,7 @@ private:
             vertex.Normal = vector;
 
             // Texture Coordinates
-            if( mesh->mTextureCoords[0] ) // Does the mesh contain texture coordinates?
+            if (mesh->mTextureCoords[0]) // Does the mesh contain texture coordinates?
             {
                 glm::vec2 vec;
                 // A vertex can contain up to 8 different texture coordinates. We thus make the assumption that we won't
@@ -140,6 +140,23 @@ private:
                 vec.x = mesh->mTextureCoords[0][i].x;
                 vec.y = mesh->mTextureCoords[0][i].y;
                 vertex.TexCoords = vec;
+
+                // tangent
+                if (mesh->mTangents)
+                {                    
+                    vector.x = mesh->mTangents[i].x;
+                    vector.y = mesh->mTangents[i].y;
+                    vector.z = mesh->mTangents[i].z;
+                    vertex.Tangent = vector;
+                }
+                // bitangent
+                if (mesh->mBitangents)
+                {
+                    vector.x = mesh->mBitangents[i].x;
+                    vector.y = mesh->mBitangents[i].y;
+                    vector.z = mesh->mBitangents[i].z;
+                    vertex.Bitangent = vector;
+                }
             }
             else
             {                
@@ -152,7 +169,6 @@ private:
                     vertex.TexCoords = glm::vec2(0.5f, 1.0f);
                     step = 0;
                 }
-
             }
             vertices.push_back( vertex );
         }
@@ -195,13 +211,18 @@ private:
             // Specular: texture_specularN
             // Normal: texture_normalN
 
-            // 1. Diffuse maps
-            vector<Texture> diffuseMaps = this->loadMaterialTextures( material, aiTextureType_DIFFUSE, "texture_diffuse" );
-            textures.insert( textures.end( ), diffuseMaps.begin( ), diffuseMaps.end( ) );
-
-            // 2. Specular maps
-            vector<Texture> specularMaps = this->loadMaterialTextures( material, aiTextureType_SPECULAR, "texture_specular" );
-            textures.insert( textures.end( ), specularMaps.begin( ), specularMaps.end( ) );
+            // 1. diffuse maps
+            vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
+            textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+            // 2. specular maps
+            vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
+            textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+            // 3. normal maps
+            std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
+            textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
+            // 4. height maps
+            std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_AMBIENT, "texture_height");
+            textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
 
             aiColor3D color(0.f, 0.f, 0.f);
             float opacity = 1.0f;
