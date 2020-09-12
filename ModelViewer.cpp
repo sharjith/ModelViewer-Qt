@@ -143,6 +143,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     toolBox->setItemEnabled(2, false);
     toolBox->setCurrentIndex(0);
 
+    connect(sliderTransparency_2, SIGNAL(valueChanged(int)), sliderTransparency, SLOT(setValue(int)));
+    connect(sliderTransparency, SIGNAL(valueChanged(int)), sliderTransparency_2, SLOT(setValue(int)));
+
     _opacity = 1.0f;
     //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
     //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };

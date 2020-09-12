@@ -397,5 +397,5 @@ vec4 calculatePBRLighting(vec3 normal)
     // gamma correct
     color = pow(color, vec3(1.0/2.2));
 
-    return vec4(color, 1.0);
+    return vec4(color, alpha);
 }

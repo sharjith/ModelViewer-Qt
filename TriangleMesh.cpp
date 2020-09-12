@@ -53,7 +53,7 @@ _tMax(1)
 	_shininess = fabs(128.0 * 0.6);
 	*/
 
-    _PBRAlbedoColor = {1.000, 0.766, 0.336};
+    _PBRAlbedoColor = { 0.913, 0.921, 0.925 };
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.4f;
 
