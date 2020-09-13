@@ -29,7 +29,7 @@ struct Vertex
 
 struct Texture
 {
-	GLuint id;
+	unsigned int id;
 	string type;
 	aiString path;
 };
@@ -39,13 +39,13 @@ class AssImpMesh : public TriangleMesh
 public:
 	/*  Mesh Data  */
 	vector<Vertex> _vertices;
-	vector<GLuint> _indices;
+	vector<unsigned int> _indices;
 	vector<Texture> _textures;
 	GLMaterialProps _materials;
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<GLuint> indices, vector<Texture> textures, GLMaterialProps materials) : TriangleMesh(shader, "AssImpMesh"),
+	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterialProps materials) : TriangleMesh(shader, "AssImpMesh"),
 		_materials(materials)
 	{
 		_vertices = vertices;
@@ -60,10 +60,10 @@ public:
 	/*void render()
 	{
 		// Bind appropriate textures
-		GLuint diffuseNr = 1;
-		GLuint specularNr = 1;
+		unsigned int diffuseNr = 1;
+		unsigned int specularNr = 1;
 
-		for( GLuint i = 0; i < this->textures.size( ); i++ )
+		for( unsigned int i = 0; i < this->textures.size( ); i++ )
 		{
 			glActiveTexture( GL_TEXTURE0 + i ); // Active proper texture unit before binding
 			// Retrieve texture number (the N in diffuse_textureN)
@@ -73,11 +73,11 @@ public:
 
 			if( name == "texture_diffuse" )
 			{
-				ss << diffuseNr++; // Transfer GLuint to stream
+				ss << diffuseNr++; // Transfer unsigned int to stream
 			}
 			else if( name == "texture_specular" )
 			{
-				ss << specularNr++; // Transfer GLuint to stream
+				ss << specularNr++; // Transfer unsigned int to stream
 			}
 
 			number = ss.str( );
@@ -97,7 +97,7 @@ public:
 		glBindVertexArray( 0 );
 
 		// Always good practice to set everything back to defaults once configured.
-		for ( GLuint i = 0; i < this->textures.size( ); i++ )
+		for ( unsigned int i = 0; i < this->textures.size( ); i++ )
 		{
 			glActiveTexture( GL_TEXTURE0 + i );
 			glBindTexture( GL_TEXTURE_2D, 0 );
@@ -138,7 +138,7 @@ public:
 		unsigned int normalNr = 1;
 		unsigned int heightNr = 1;
 
-		for (GLuint i = 0; i < _textures.size(); i++)
+		for (unsigned int i = 0; i < _textures.size(); i++)
 		{
 			glActiveTexture(GL_TEXTURE0 + i); // Active proper texture unit before binding
 			// Retrieve texture number (the N in diffuse_textureN)
@@ -148,22 +148,22 @@ public:
 
 			if (name == "texture_diffuse")
 			{
-				ss << diffuseNr++; // Transfer GLuint to stream
+				ss << diffuseNr++; // Transfer unsigned int to stream
 				_prog->setUniformValue("hasDiffuseTexture", true);
 			}
 			else if (name == "texture_specular")
 			{
-				ss << specularNr++; // Transfer GLuint to stream
+				ss << specularNr++; // Transfer unsigned int to stream
 				_prog->setUniformValue("hasSpecularTexture", true);
 			}
 			else if (name == "texture_normal")
 			{
-				ss << normalNr++; // Transfer GLuint to stream
+				ss << normalNr++; // Transfer unsigned int to stream
 				_prog->setUniformValue("hasNormalTexture", true);
 			}
 			else if (name == "texture_height")
 			{
-				ss << heightNr++; // Transfer GLuint to stream
+				ss << heightNr++; // Transfer unsigned int to stream
 				_prog->setUniformValue("hasHeightTexture", true);
 			}
 			number = ss.str();
@@ -191,7 +191,7 @@ public:
 		glDisable(GL_BLEND);
 
 		// Always good practice to set everything back to defaults once configured.
-		for (GLuint i = 0; i < _textures.size(); i++)
+		for (unsigned int i = 0; i < _textures.size(); i++)
 		{
 			glActiveTexture(GL_TEXTURE0 + i);
 			glBindTexture(GL_TEXTURE_2D, 0);

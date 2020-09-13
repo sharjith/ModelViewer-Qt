@@ -223,4 +223,5 @@ DISTFILES += \
     shaders/reflection_mapping.vert \
     shaders/reflection_mapping.frag \
     shaders/skybox.vert \
-    shaders/skybox.frag
+    shaders/skybox.frag \
+    shaders/irradiance_convolution.frag

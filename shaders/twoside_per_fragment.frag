@@ -23,6 +23,8 @@ uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
+// IBL
+uniform samplerCube irradianceMap;
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
 uniform float shadowSamples;
@@ -381,7 +383,7 @@ vec4 calculatePBRLighting(vec3 normal)
         kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
         kD = 1.0 - kS;
         kD *= 1.0 - pbrLighting.metallic;
-        vec3 irradiance = texture(envMap, N).rgb;
+        vec3 irradiance = texture(irradianceMap, N).rgb;
         vec3 diffuse      = irradiance * pbrLighting.albedo;
         ambient = (kD * diffuse) * pbrLighting.ambientOcclusion;
     }

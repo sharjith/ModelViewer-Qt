@@ -307,10 +307,12 @@ private:
 	QOpenGLShaderProgram* _faceNormalShader;
 	QOpenGLShaderProgram* _shadowMappingShader;
 	QOpenGLShaderProgram* _skyBoxShader;
+	QOpenGLShaderProgram* _irradianceShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
 	unsigned int             _shadowMapFBO;
+	unsigned int			 _irradianceMap;
 	float                    _floorSize;
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
@@ -373,6 +375,7 @@ private:
 	void createShaderPrograms();
 	void createGeometry();
     void loadEnvMap();
+	void loadIrradianceMap();
 	void loadFloor();
 
 	void drawMesh();

@@ -85,6 +85,7 @@ _skyBox(nullptr)
 	_faceNormalShader = new QOpenGLShaderProgram(this);
 	_shadowMappingShader = new QOpenGLShaderProgram(this);
 	_skyBoxShader = new QOpenGLShaderProgram(this);
+	_irradianceShader = new QOpenGLShaderProgram(this);
 
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
@@ -257,6 +258,9 @@ GLWidget::~GLWidget()
 
 	if (_skyBoxShader)
 		delete _skyBoxShader;
+
+	if (_irradianceShader)
+		delete _irradianceShader;
 
 	_axisVBO.destroy();
 	_axisVAO.destroy();
@@ -837,7 +841,8 @@ void GLWidget::initializeGL()
 
 	// Environment Mapping
 	loadEnvMap();
-
+	// IBL Map
+	loadIrradianceMap();
 	// Shadow mapping
 	loadFloor();
 
@@ -860,8 +865,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("texUnit", 0);
 	_fgShader->setUniformValue("envMap", 1);
 	_fgShader->setUniformValue("shadowMap", 2);
-	_fgShader->setUniformValue("reflectionMap", 3);
-	_fgShader->setUniformValue("reflectionDepthMap", 4);
+	_fgShader->setUniformValue("irradianceMap", 3);
 
 	_debugShader.bind();
 	_debugShader.setUniformValue("depthMap", 0);
@@ -969,6 +973,20 @@ void GLWidget::createShaderPrograms()
 	if (!_skyBoxShader->link())
 	{
 		qDebug() << "Error linking shader program:" << _skyBoxShader->log();
+	}
+	
+	// Irradiance Map
+	if (!_irradianceShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/skybox.vert"))
+	{
+		qDebug() << "Error in vertex shader:" << _irradianceShader->log();
+	}
+	if (!_irradianceShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/irradiance_convolution.frag"))
+	{
+		qDebug() << "Error in fragment shader:" << _irradianceShader->log();
+	}
+	if (!_irradianceShader->link())
+	{
+		qDebug() << "Error linking shader program:" << _irradianceShader->log();
 	}
 
 	// Text shader program
@@ -1231,6 +1249,76 @@ void GLWidget::loadEnvMap()
 	_skyBox = new Cube(_skyBoxShader, 1);
 	_skyBoxShader->bind();
 	_skyBoxShader->setUniformValue("skybox", 1);
+}
+
+void GLWidget::loadIrradianceMap()
+{
+	// pbr: setup framebuffer
+   // ----------------------
+	unsigned int captureFBO;
+	unsigned int captureRBO;
+	glGenFramebuffers(1, &captureFBO);
+	glGenRenderbuffers(1, &captureRBO);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
+
+	// pbr: set up projection and view matrices for capturing data onto the 6 cubemap face directions
+	// ----------------------------------------------------------------------------------------------
+	QMatrix4x4 captureProjection;
+	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
+	QMatrix4x4 view1, view2, view3, view4, view5, view6;
+	view1.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
+	view2.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
+	view3.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f));
+	view4.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f));
+	view5.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, -1.0f, 0.0f));
+	view6.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f), QVector3D(0.0f, -1.0f, 0.0f));
+	QMatrix4x4 captureViews[] =	{ view1, view2, view3, view4, view5, view6 };
+
+	// pbr: create an irradiance cubemap, and re-scale capture FBO to irradiance scale.
+	// --------------------------------------------------------------------------------	
+	glGenTextures(1, &_irradianceMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+	for (unsigned int i = 0; i < 6; ++i)
+	{
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+	}
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 32, 32);
+
+	// pbr: solve diffuse integral by convolution to create an irradiance (cube)map.
+	// -----------------------------------------------------------------------------
+	_irradianceShader->bind();
+	_irradianceShader->setUniformValue("environmentMap", 0);
+	_irradianceShader->setUniformValue("projection", captureProjection);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+	glViewport(0, 0, 32, 32); // don't forget to configure the viewport to the capture dimensions.
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+	for (unsigned int i = 0; i < 6; ++i)
+	{
+		_irradianceShader->setUniformValue("view", captureViews[i]);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		_skyBox->render();
+	}	
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+	// bind pre-computed IBL data
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 }
 
 void GLWidget::resizeGL(int width, int height)

@@ -34,7 +34,7 @@ public:
         f.setFile(QString(path));
         setName(f.baseName());
         BoundingSphere sph;        
-        for ( GLuint i = 0; i < this->meshes.size(); i++ )
+        for ( unsigned int i = 0; i < this->meshes.size(); i++ )
         {
             this->meshes[i]->setName(f.baseName() + QString("%1").arg(i));
             sph.addSphere(this->meshes[i]->getBoundingSphere());
@@ -46,7 +46,7 @@ public:
     
     virtual void render()
     {
-        for ( GLuint i = 0; i < this->meshes.size( ); i++ )
+        for ( unsigned int i = 0; i < this->meshes.size( ); i++ )
         {
             this->meshes[i]->render();
         }
@@ -88,7 +88,7 @@ private:
     void processNode( aiNode* node, const aiScene* scene )
     {
         // Process each mesh located at the current node
-        for ( GLuint i = 0; i < node->mNumMeshes; i++ )
+        for ( unsigned int i = 0; i < node->mNumMeshes; i++ )
         {
             // The node object only contains indices to index the actual objects in the scene.
             // The scene contains all the data, node is just to keep stuff organized (like relations between nodes).
@@ -98,7 +98,7 @@ private:
         }
 
         // After we've processed all of the meshes (if any) we then recursively process each of the children nodes
-        for ( GLuint i = 0; i < node->mNumChildren; i++ )
+        for ( unsigned int i = 0; i < node->mNumChildren; i++ )
         {
             this->processNode( node->mChildren[i], scene );
         }
@@ -108,12 +108,12 @@ private:
     {
         // Data to fill
         vector<Vertex> vertices;
-        vector<GLuint> indices;
+        vector<unsigned int> indices;
         vector<Texture> textures;
 
         // Walk through each of the mesh's vertices
         int step = 0;
-        for ( GLuint i = 0; i < mesh->mNumVertices; i++ )
+        for ( unsigned int i = 0; i < mesh->mNumVertices; i++ )
         {
             step++;
             Vertex vertex;
@@ -174,11 +174,11 @@ private:
         }
 
         // Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
-        for ( GLuint i = 0; i < mesh->mNumFaces; i++ )
+        for ( unsigned int i = 0; i < mesh->mNumFaces; i++ )
         {
             aiFace face = mesh->mFaces[i];
             // Retrieve all indices of the face and store them in the indices vector
-            for ( GLuint j = 0; j < face.mNumIndices; j++ )
+            for ( unsigned int j = 0; j < face.mNumIndices; j++ )
             {
                 indices.push_back( face.mIndices[j] );
             }
@@ -255,7 +255,7 @@ private:
     {
         vector<Texture> textures;
 
-        for ( GLuint i = 0; i < mat->GetTextureCount( type ); i++ )
+        for ( unsigned int i = 0; i < mat->GetTextureCount( type ); i++ )
         {
             aiString str;
             mat->GetTexture( type, i, &str );
@@ -263,7 +263,7 @@ private:
             // Check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
             GLboolean skip = false;
 
-            for ( GLuint j = 0; j < textures_loaded.size( ); j++ )
+            for ( unsigned int j = 0; j < textures_loaded.size( ); j++ )
             {
                 if( textures_loaded[j].path == str )
                 {
@@ -290,12 +290,12 @@ private:
         return textures;
     }
 
-    GLint textureFromFile( const char *path, string directory )
+    unsigned int textureFromFile( const char *path, string directory )
     {
         //Generate texture ID and load texture data
         string filename = string( path );
         filename = directory + '/' + filename;
-        GLuint textureID;
+        unsigned int textureID;
         glGenTextures( 1, &textureID );
 
         QImage texImage;
