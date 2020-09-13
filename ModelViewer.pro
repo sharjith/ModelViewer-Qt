@@ -122,6 +122,7 @@ HEADERS += AABB.h \
     SuperToroidEditor.h \
     SuperEllipsoidEditor.h \
     SpringEditor.h \
+    stb_image.h \
     stl_reader.h
 FORMS += \
     BackgroundColor.ui \
@@ -193,7 +194,8 @@ SOURCES += AppleSurface.cpp \
     GraysKleinEditor.cpp \
     SuperToroidEditor.cpp \
     SuperEllipsoidEditor.cpp \
-    SpringEditor.cpp
+    SpringEditor.cpp \
+    stb_image.cpp
 
 RESOURCES += \
     ModelViewer.qrc

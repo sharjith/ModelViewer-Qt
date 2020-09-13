@@ -49,6 +49,7 @@
 #include "ObjMesh.h"
 
 #include <glm/gtc/matrix_transform.hpp>
+#include "stb_image.h"
 
 #include "Plane.h"
 
@@ -1210,32 +1211,36 @@ void GLWidget::loadEnvMap()
 
 	_skyBoxFaces =
 	{
-		QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
-				QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
-				QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
-				QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
-				QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
-				QString("textures/envmap/skyboxes/stormydays/negy.jpg")
+        QString("textures/envmap/skyboxes/machineshop/posx.hdr"),
+                QString("textures/envmap/skyboxes/machineshop/negx.hdr"),
+                QString("textures/envmap/skyboxes/machineshop/posz.hdr"),
+                QString("textures/envmap/skyboxes/machineshop/negz.hdr"),
+                QString("textures/envmap/skyboxes/machineshop/posy.hdr"),
+                QString("textures/envmap/skyboxes/machineshop/negy.hdr")
 	};
 
 	glGenTextures(1, &_environmentMap);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
+    stbi_set_flip_vertically_on_load(true);
 	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
 	{
-		if (!_texBuffer.load(_skyBoxFaces.at(i)))
+        /*if (!_texBuffer.load(_skyBoxFaces.at(i)))
 		{ // Load first image from file
 			qWarning("Could not read image file, using single-color instead.");
 			QImage dummy(128, 128, static_cast<QImage::Format>(5));
 			dummy.fill(Qt::white);
 			_texBuffer = dummy;
 		}
-		else
+        else*/
 		{
-			_texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+            //_texImage = _texBuffer;//QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
+            int width, height, nrComponents;
+            float *data = stbi_loadf((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0);
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
 			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+            stbi_image_free(data);
 		}
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1248,7 +1253,7 @@ void GLWidget::loadEnvMap()
 
 	_skyBox = new Cube(_skyBoxShader, 1);
 	_skyBoxShader->bind();
-	_skyBoxShader->setUniformValue("skybox", 1);
+    _skyBoxShader->setUniformValue("skybox", 1);
 }
 
 void GLWidget::loadIrradianceMap()
@@ -1284,7 +1289,7 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 	for (unsigned int i = 0; i < 6; ++i)
 	{
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1298,27 +1303,28 @@ void GLWidget::loadIrradianceMap()
 
 	// pbr: solve diffuse integral by convolution to create an irradiance (cube)map.
 	// -----------------------------------------------------------------------------
-	_irradianceShader->bind();
-	_irradianceShader->setUniformValue("environmentMap", 0);
-	_irradianceShader->setUniformValue("projection", captureProjection);
-	glActiveTexture(GL_TEXTURE1);
+     _skyBox->setProg(_irradianceShader);
+    _irradianceShader->bind();
+    _irradianceShader->setUniformValue("environmentMap", 1);
+    _irradianceShader->setUniformValue("projection", captureProjection);
+    glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	glViewport(0, 0, 32, 32); // don't forget to configure the viewport to the capture dimensions.
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 	for (unsigned int i = 0; i < 6; ++i)
 	{
+        _irradianceShader->bind();
 		_irradianceShader->setUniformValue("view", captureViews[i]);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		_skyBox->render();
 	}	
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
 	// bind pre-computed IBL data
 	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -1546,6 +1552,7 @@ void GLWidget::drawFloor()
 
 void GLWidget::drawSkyBox()
 {
+    _skyBox->setProg(_skyBoxShader);
 	_skyBoxShader->bind();
 	QMatrix4x4 projection;
 	projection.perspective(_skyBoxFOV, (float)width() / (float)height(), 0.1f, 100.0f);
