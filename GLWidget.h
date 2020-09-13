@@ -309,11 +309,15 @@ private:
 	QOpenGLShaderProgram* _shadowMappingShader;
 	QOpenGLShaderProgram* _skyBoxShader;
 	QOpenGLShaderProgram* _irradianceShader;
+    QOpenGLShaderProgram* _prefilterShader;
+    QOpenGLShaderProgram* _brdfShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
 	unsigned int             _shadowMapFBO;
 	unsigned int			 _irradianceMap;
+    unsigned int             _prefilterMap;
+    unsigned int             _brdfLUTTexture;
 	float                    _floorSize;
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
@@ -363,6 +367,8 @@ private:
     vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;
+
+    Plane* _brdfPlane;
 
 	QOpenGLShaderProgram     _debugShader;
 
