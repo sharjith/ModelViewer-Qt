@@ -296,6 +296,7 @@ void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
 
 void GLWidget::setSkyBoxTextureFolder(QString folder)
 {
+	QApplication::setOverrideCursor(Qt::WaitCursor);	
 	QImage texBuffer, texImage;
 	_skyBoxFaces =
 	{
@@ -368,11 +369,13 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 					"negx.jpg, negy.jpg, negz.jpg\nSupported formats are:\n" + formats +
 					"\nSkybox has not changed, continuing with the existing one.");
 			}
+			QApplication::restoreOverrideCursor();
 			return;
 		}
 	}
 	loadIrradianceMap();
 	update();
+	QApplication::restoreOverrideCursor();
 }
 
 QVector3D GLWidget::getLightPosition() const
