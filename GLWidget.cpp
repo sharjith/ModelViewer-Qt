@@ -154,6 +154,7 @@ _skyBox(nullptr)
 	_floorOffsetPercent = 0.05f;
 	_skyBoxEnabled = false;
 	_skyBoxFOV = 45.0f;
+	_skyBoxTextureHDRI = false;
 
 	_lowResEnabled = false;
 	_lockLightAndCamera = true;
@@ -305,48 +306,72 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 				QString(folder + "/posy"),
 				QString(folder + "/negy")
 	};
-	QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
+	// stb image library supported formats
+	QList<QString> supportedFormats = {"jpeg", "jpg", "png", "bmp", "psd", "tga", "gif", "hdr", "pic", "pnm"};
 
 	makeCurrent();
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
+	stbi_set_flip_vertically_on_load(true);
 	bool loaded = false;
+	int width, height, nrComponents;
+	float* data = nullptr;
 	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
 	{
-		for (QByteArray extn : supportedFormats)
+		if (!_skyBoxTextureHDRI)
 		{
-			QString fileName = _skyBoxFaces.at(i) + "." + QString(extn);
-			if (texBuffer.load(fileName))
+			for (QString extn : supportedFormats)
 			{
-				loaded = true;
-				break;
+				QString fileName = _skyBoxFaces.at(i) + "." + extn;
+				data = stbi_loadf(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0);
+				if (data)
+				{
+					loaded = true;
+					break;
+				}
 			}
-		}
-		if (loaded)
-		{
-			texImage = QGLWidget::convertToGLFormat(texBuffer); // flipped 32bit RGBA
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
-			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 		}
 		else
 		{
-			QString formats;
-			for (QByteArray extn : supportedFormats)
+			QString fileName = _skyBoxFaces.at(i) + ".hdr";
+			data = stbi_loadf(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0);
+			if (data)
 			{
-				formats += extn + " ";
+				loaded = true;
+			}			
+		}
+		if (loaded)
+		{						
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
+			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+			stbi_image_free(data);			
+		}
+		else
+		{
+			if (_skyBoxTextureHDRI)
+			{
+				QMessageBox::critical(this, "Error", "Skybox HDR files are not found in the selected folder");
 			}
-			// Load first image from file
-			QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
-				"Please make sure that there are six images of supported formats "
-				"in the folder with names in the following manner...\n"
-				"posx.jpg, posy.jpg, posz.jpg,\n"
-				"negx.jpg, negy.jpg, negz.jpg\nSupported formats are:\n" + formats +
-				"\nSkybox has not changed, continuing with the existing one.");
-
+			else
+			{
+				QString formats;
+				for (QString extn : supportedFormats)
+				{
+					formats += extn + " ";
+				}
+				// Load first image from file
+				QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
+					"Please make sure that there are six images of supported formats "
+					"in the folder with names in the following manner...\n"
+					"posx.jpg, posy.jpg, posz.jpg,\n"
+					"negx.jpg, negy.jpg, negz.jpg\nSupported formats are:\n" + formats +
+					"\nSkybox has not changed, continuing with the existing one.");
+			}
 			return;
 		}
 	}
+	loadIrradianceMap();
 	update();
 }
 
@@ -1211,12 +1236,12 @@ void GLWidget::loadEnvMap()
 
 	_skyBoxFaces =
 	{
-        QString("textures/envmap/skyboxes/machineshop/posx.hdr"),
-                QString("textures/envmap/skyboxes/machineshop/negx.hdr"),
-                QString("textures/envmap/skyboxes/machineshop/posz.hdr"),
-                QString("textures/envmap/skyboxes/machineshop/negz.hdr"),
-                QString("textures/envmap/skyboxes/machineshop/posy.hdr"),
-                QString("textures/envmap/skyboxes/machineshop/negy.hdr")
+        QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
+                QString("textures/envmap/skyboxes/stormydays/negy.jpg")
 	};
 
 	glGenTextures(1, &_environmentMap);
@@ -1224,23 +1249,25 @@ void GLWidget::loadEnvMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
     stbi_set_flip_vertically_on_load(true);
+	int width, height, nrComponents;
+	float* data = nullptr;
 	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
 	{
-        /*if (!_texBuffer.load(_skyBoxFaces.at(i)))
-		{ // Load first image from file
+		data = stbi_loadf((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0);
+        if (data)
+		{			
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
+			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+			stbi_image_free(data);
+		}
+        else
+		{
 			qWarning("Could not read image file, using single-color instead.");
 			QImage dummy(128, 128, static_cast<QImage::Format>(5));
 			dummy.fill(Qt::white);
-			_texBuffer = dummy;
-		}
-        else*/
-		{
-            //_texImage = _texBuffer;//QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
-            int width, height, nrComponents;
-            float *data = stbi_loadf((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0);
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
-			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-            stbi_image_free(data);
+			_texImage = dummy;
+            _texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
 		}
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -1306,7 +1333,7 @@ void GLWidget::loadIrradianceMap()
      _skyBox->setProg(_irradianceShader);
     _irradianceShader->bind();
     _irradianceShader->setUniformValue("environmentMap", 1);
-    _irradianceShader->setUniformValue("projection", captureProjection);
+    _irradianceShader->setUniformValue("projectionMatrix", captureProjection);
     glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
@@ -1315,7 +1342,7 @@ void GLWidget::loadIrradianceMap()
 	for (unsigned int i = 0; i < 6; ++i)
 	{
         _irradianceShader->bind();
-		_irradianceShader->setUniformValue("view", captureViews[i]);
+		_irradianceShader->setUniformValue("viewMatrix", captureViews[i]);
         glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		_skyBox->render();
@@ -2754,6 +2781,12 @@ void GLWidget::setFloorOffsetPercent(double value)
 void GLWidget::setSkyBoxFOV(double fov)
 {
 	_skyBoxFOV = static_cast<float>(fov);
+	update();
+}
+
+void GLWidget::setSkyBoxTextureHDRI(bool hdrSet)
+{
+	_skyBoxTextureHDRI = hdrSet;
 	update();
 }
 

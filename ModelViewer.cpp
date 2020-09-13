@@ -136,6 +136,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(doubleSpinBoxRepeatT, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatT(double)));
     connect(doubleSpinBoxSkyBoxFOV, SIGNAL(valueChanged(double)), _glWidget, SLOT(setSkyBoxFOV(double)));
     connect(doubleSpinBoxFloorOffset, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorOffsetPercent(double)));
+    connect(checkBoxSkyBoxHDRI, SIGNAL(toggled(bool)), _glWidget, SLOT(setSkyBoxTextureHDRI(bool)));
 
     connect(buttonGroupLighting, SIGNAL(buttonToggled(int,bool)), this, SLOT(lightingType_toggled(int,bool)));
     toolBox->setItemEnabled(0, true);

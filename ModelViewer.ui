@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>518</height>
+                   <width>378</width>
+                   <height>549</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1453,8 +1453,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>518</height>
+                   <width>378</width>
+                   <height>549</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1576,8 +1576,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>518</height>
+                   <width>378</width>
+                   <height>549</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1589,8 +1589,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>518</height>
+                   <width>378</width>
+                   <height>549</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2409,8 +2409,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>518</height>
+                   <width>378</width>
+                   <height>549</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2766,8 +2766,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>401</width>
-                   <height>505</height>
+                   <width>382</width>
+                   <height>532</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2963,6 +2963,13 @@
                         <widget class="QCheckBox" name="checkBoxSkyBox">
                          <property name="text">
                           <string>Sky Box</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxSkyBoxHDRI">
+                         <property name="text">
+                          <string>HDRI</string>
                          </property>
                         </widget>
                        </item>

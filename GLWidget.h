@@ -179,6 +179,7 @@ public slots:
     void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
+	void setSkyBoxTextureHDRI(bool hdrSet);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -361,6 +362,7 @@ private:
 	Cube* _skyBox;
     vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
+	bool  _skyBoxTextureHDRI;
 
 	QOpenGLShaderProgram     _debugShader;
 
