@@ -70,8 +70,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _graysKleinEditor(nullptr),
     _clippingPlanesEditor(nullptr),
     _floorPlane(nullptr),
-    _skyBox(nullptr),
-    _brdfPlane(nullptr)
+    _skyBox(nullptr)
 {
     _viewer = static_cast<ModelViewer*>(parent);
 
@@ -162,8 +161,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _lowResEnabled = false;
     _lockLightAndCamera = true;
 
-    _shadowWidth = 2048;
-    _shadowHeight = 2048;
+    _shadowWidth = 1024 * 3;
+    _shadowHeight = 1024 * 3;
 
     _environmentMap = 0;
     _shadowMap = 0;
@@ -1443,12 +1442,10 @@ void GLWidget::loadIrradianceMap()
     glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _brdfLUTTexture, 0);
 
-    glViewport(0, 0, 512, 512);
-    if(!_brdfPlane)
-        _brdfPlane = new Plane(_brdfShader, QVector3D(0,0,0), 1.0f, 1.0f, 1, 1);
+    glViewport(0, 0, 512, 512);    
     _brdfShader->bind();
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    _brdfPlane->render();
+    renderQuad();
 
     glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
@@ -1615,16 +1612,16 @@ void GLWidget::paintGL()
     }
 
 
-    // For testing rendered textures
-    //_debugShader.bind();
-    //_debugShader.setUniformValue("near_plane", 1.0f);
-    //_debugShader.setUniformValue("far_plane", _viewRange);
-    //glActiveTexture(GL_TEXTURE0);
-    //glBindTexture(GL_TEXTURE_2D, _shadowMap);
-    //renderQuad();
+    // For testing rendered shadow map
+   /*_debugShader.bind();
+    _debugShader.setUniformValue("near_plane", 1.0f);
+    _debugShader.setUniformValue("far_plane", _viewRange);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, _shadowMap);
+    renderQuad();*/
 
     //_brdfShader->bind();
-    //_brdfPlane->render();
+    //renderQuad();
 }
 
 void GLWidget::drawFloor()

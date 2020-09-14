@@ -89,7 +89,7 @@ const float PI = 3.14159265359;
 layout( location = 0 ) out vec4 fragColor;
 
 float calculateShadow(vec4 fragPosLightSpace);
-vec3  shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
+vec4  shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4  calculatePBRLighting(vec3 normal);
 
 float DistributionGGX(vec3 N, vec3 H, float roughness);
@@ -107,8 +107,8 @@ void main()
 
     if(renderingMode == 0)
     {
-        v_color_front = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal), alpha);
-        v_color_back  = vec4(shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal), alpha);
+        v_color_front = shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal);
+        v_color_back  = shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal);
     }
     else if(renderingMode == 1)
     {
@@ -165,29 +165,6 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
-    if(envMapEnabled && displayMode == 3 && renderingMode == 0) // Environment mapping
-    {
-
-        if(alpha < 1.0f && !floorRendering) // Transparent - refract
-        {
-            vec4 colour = fragColor;
-            vec3 I = normalize(g_reflectionPosition - cameraPos);
-            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
-            if(texEnabled == true)
-                fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
-            else
-                fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
-            fragColor = mix(fragColor, colour, alpha/1.0f);
-        }
-        else // Opaque - Reflect
-        {
-            vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection            
-            float factor =  material.metallic ? 1.0f : length(material.diffuse) * 1.5f;
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128 * (length(material.specular) * factor));
-        }
-    }
-
     if(hasDiffuseTexture)
     {
         fragColor = vec4(texture2D(texture_diffuse, g_texCoord2d));
@@ -204,7 +181,7 @@ void main()
 }
 
 // ----------------------------------------------------------------------------
-vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
+vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
     vec3 halfVector; // light half vector
     if(lockLightAndCamera)
@@ -220,22 +197,44 @@ vec3 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 specular   = source.specular * pf;
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
 
-    vec3 colorLinear;
+    vec4 colorLinear;
 
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {
         float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
-        colorLinear =  clamp(sceneColor +
+        colorLinear =  vec4(clamp(sceneColor +
                              (ambient  * mat.ambient + 1 - shadowFactor) *
                              (diffuse  * mat.diffuse +
-                              specular * mat.specular), 0.f, 1.f );
+                              specular * mat.specular), 0.f, 1.f ), alpha);
     }
     else
     {
-        colorLinear =  clamp(sceneColor +
+        colorLinear =  vec4(clamp(sceneColor +
                              ambient  * mat.ambient +
                              diffuse  * mat.diffuse +
-                             specular * mat.specular, 0.f, 1.f );
+                             specular * mat.specular, 0.f, 1.f ), alpha);
+    }
+    if(envMapEnabled && displayMode == 3) // Environment mapping
+    {
+
+        if(alpha < 1.0f && !floorRendering) // Transparent - refract
+        {
+            vec4 colour = colorLinear;
+            vec3 I = normalize(g_reflectionPosition - cameraPos);
+            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
+            if(texEnabled == true)
+                colorLinear = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
+            else
+                colorLinear = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+            colorLinear = mix(colorLinear, colour, alpha/1.0f);
+        }
+        else // Opaque - Reflect
+        {
+            vec3 I = normalize(cameraPos - g_reflectionPosition);
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
+            float factor =  material.metallic ? 1.0f : length(material.diffuse) * 1.5f;
+            colorLinear = mix(colorLinear, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128 * (length(material.specular) * factor));
+        }
     }
 
     return colorLinear;
@@ -284,8 +283,7 @@ float calculateShadow(vec4 fragPosLightSpace)
 vec4 calculatePBRLighting(vec3 normal)
 {
     vec3 N = normalize(normal);
-    vec3 V = normalize(lightSource.position - vec3(0));
-    vec3 R = reflect(-V, N);
+    vec3 V = normalize(lightSource.position + vec3(0));
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)
@@ -365,6 +363,9 @@ vec4 calculatePBRLighting(vec3 normal)
         vec3 irradiance = texture(irradianceMap, N).rgb;
         vec3 diffuse      = irradiance * pbrLighting.albedo;
 
+        //N = normalize(normal);
+        V = normalize(cameraPos - vec3(0));
+        vec3 R = reflect(-V, N);
         // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
         const float MAX_REFLECTION_LOD = 4.0;
         vec3 prefilteredColor = textureLod(prefilterMap, R,  pbrLighting.roughness * MAX_REFLECTION_LOD).rgb;

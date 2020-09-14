@@ -43,6 +43,7 @@ out VS_OUT_SHADOW {
 void main()
 {
     v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
+    //v_normal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
 

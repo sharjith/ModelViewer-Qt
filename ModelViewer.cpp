@@ -2094,7 +2094,7 @@ void ModelViewer::on_horizontalSliderMetallic_valueChanged(int value)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setPBRMetallic(ids, value/100.0f);
+            _glWidget->setPBRMetallic(ids, value/1000.0f);
             _glWidget->updateView();
             updateControls();
         }
@@ -2114,7 +2114,7 @@ void ModelViewer::on_horizontalSliderRoughness_valueChanged(int value)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setPBRRoughness(ids, value/100.0f);
+            _glWidget->setPBRRoughness(ids, value/1000.0f);
             _glWidget->updateView();
             updateControls();
         }

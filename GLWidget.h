@@ -368,8 +368,6 @@ private:
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;
 
-    Plane* _brdfPlane;
-
 	QOpenGLShaderProgram     _debugShader;
 
 	ModelViewer* _viewer;

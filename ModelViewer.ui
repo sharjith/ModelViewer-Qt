@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1391,45 +1391,55 @@
                         </layout>
                        </widget>
                       </item>
-                      <item row="3" column="1">
-                       <widget class="QGroupBox" name="groupBox_7">
-                        <property name="title">
-                         <string>Opacity</string>
-                        </property>
-                        <property name="flat">
-                         <bool>true</bool>
-                        </property>
-                        <layout class="QGridLayout" name="gridLayout_4">
-                         <item row="0" column="0">
-                          <widget class="QLabel" name="valueOpacity">
-                           <property name="text">
-                            <string>Value</string>
-                           </property>
-                           <property name="alignment">
-                            <set>Qt::AlignCenter</set>
-                           </property>
-                          </widget>
-                         </item>
-                         <item row="0" column="1">
-                          <widget class="QSlider" name="sliderTransparency">
-                           <property name="minimum">
-                            <number>50</number>
-                           </property>
-                           <property name="maximum">
-                            <number>1000</number>
-                           </property>
-                           <property name="value">
-                            <number>1000</number>
-                           </property>
-                           <property name="orientation">
-                            <enum>Qt::Horizontal</enum>
-                           </property>
-                          </widget>
-                         </item>
-                        </layout>
-                       </widget>
-                      </item>
                      </layout>
+                    </item>
+                    <item>
+                     <widget class="QGroupBox" name="groupBox_7">
+                      <property name="title">
+                       <string>Opacity</string>
+                      </property>
+                      <property name="flat">
+                       <bool>true</bool>
+                      </property>
+                      <layout class="QGridLayout" name="gridLayout_4">
+                       <item row="0" column="0">
+                        <widget class="QLabel" name="valueOpacity">
+                         <property name="text">
+                          <string>Transparent</string>
+                         </property>
+                         <property name="alignment">
+                          <set>Qt::AlignCenter</set>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="0" column="1">
+                        <widget class="QSlider" name="sliderTransparency">
+                         <property name="minimum">
+                          <number>50</number>
+                         </property>
+                         <property name="maximum">
+                          <number>1000</number>
+                         </property>
+                         <property name="value">
+                          <number>1000</number>
+                         </property>
+                         <property name="orientation">
+                          <enum>Qt::Horizontal</enum>
+                         </property>
+                        </widget>
+                       </item>
+                       <item row="0" column="2">
+                        <widget class="QLabel" name="valueOpacity_4">
+                         <property name="text">
+                          <string>Opaque</string>
+                         </property>
+                         <property name="alignment">
+                          <set>Qt::AlignCenter</set>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </widget>
                     </item>
                     <item>
                      <spacer name="verticalSpacer">
@@ -1453,8 +1463,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1473,25 +1483,32 @@
                     <item>
                      <layout class="QHBoxLayout" name="horizontalLayout_5">
                       <item>
-                       <widget class="QLabel" name="label_15">
+                       <widget class="QLabel" name="label_17">
                         <property name="text">
-                         <string>Metallic</string>
+                         <string>Dilectric</string>
                         </property>
                        </widget>
                       </item>
                       <item>
                        <widget class="QSlider" name="horizontalSliderMetallic">
                         <property name="minimum">
-                         <number>2</number>
+                         <number>0</number>
                         </property>
                         <property name="maximum">
-                         <number>100</number>
+                         <number>1000</number>
                         </property>
                         <property name="value">
-                         <number>45</number>
+                         <number>450</number>
                         </property>
                         <property name="orientation">
                          <enum>Qt::Horizontal</enum>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="label_15">
+                        <property name="text">
+                         <string>Metallic</string>
                         </property>
                        </widget>
                       </item>
@@ -1502,23 +1519,30 @@
                       <item>
                        <widget class="QLabel" name="label_14">
                         <property name="text">
-                         <string>Roughness</string>
+                         <string>Smooth</string>
                         </property>
                        </widget>
                       </item>
                       <item>
                        <widget class="QSlider" name="horizontalSliderRoughness">
                         <property name="minimum">
-                         <number>2</number>
+                         <number>25</number>
                         </property>
                         <property name="maximum">
-                         <number>100</number>
+                         <number>1000</number>
                         </property>
                         <property name="value">
-                         <number>30</number>
+                         <number>300</number>
                         </property>
                         <property name="orientation">
                          <enum>Qt::Horizontal</enum>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="label_16">
+                        <property name="text">
+                         <string>Rough</string>
                         </property>
                        </widget>
                       </item>
@@ -1529,7 +1553,7 @@
                       <item>
                        <widget class="QLabel" name="valueOpacity_2">
                         <property name="text">
-                         <string>Opacity</string>
+                         <string>Transparent</string>
                         </property>
                         <property name="alignment">
                          <set>Qt::AlignCenter</set>
@@ -1549,6 +1573,16 @@
                         </property>
                         <property name="orientation">
                          <enum>Qt::Horizontal</enum>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="valueOpacity_3">
+                        <property name="text">
+                         <string>Opaque</string>
+                        </property>
+                        <property name="alignment">
+                         <set>Qt::AlignCenter</set>
                         </property>
                        </widget>
                       </item>
@@ -1576,8 +1610,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1589,8 +1623,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2409,8 +2443,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>549</height>
+                   <width>376</width>
+                   <height>518</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2766,8 +2800,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>532</height>
+                   <width>437</width>
+                   <height>505</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3177,8 +3211,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>
