@@ -2261,7 +2261,6 @@ void ModelViewer::on_sliderRoughness_valueChanged(int value)
                 ids.push_back(rowId);
             }
             _glWidget->setPBRRoughness(ids, value/1000.0f);
-            qDebug() << "Roughness: " << value/1000.0f;
             _glWidget->updateView();
         }
     }
