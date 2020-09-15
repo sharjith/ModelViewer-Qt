@@ -284,7 +284,7 @@ vec4 calculatePBRLighting(vec3 normal)
 {
     vec3 N = normalize(normal);
     vec3 V = normalize(lightSource.position + vec3(0));
-
+    
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)
     vec3 F0 = vec3(0.04);
@@ -342,37 +342,39 @@ vec4 calculatePBRLighting(vec3 normal)
     // this ambient lighting with environment lighting).
     vec3 ambient;
 
-    if(envMapEnabled && displayMode == 3)
+    if(displayMode == 3 && renderingMode == 1)
     {
-        // ambient lighting (we now use IBL as the ambient term)
-        /*
-        kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
-        kD = 1.0 - kS;
-        kD *= 1.0 - pbrLighting.metallic;
-        vec3 irradiance = texture(irradianceMap, N).rgb;
-        vec3 diffuse      = irradiance * pbrLighting.albedo;
-        ambient = (kD * diffuse) * pbrLighting.ambientOcclusion;
-        */
+        // ambient lighting (we now use IBL as the ambient term)        
+        if(envMapEnabled)
+        {
+            vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, pbrLighting.roughness);
 
-        vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, pbrLighting.roughness);
+            kS = F;
+            kD = 1.0 - kS;
+            kD *= 1.0 - pbrLighting.metallic;
 
-        kS = F;
-        kD = 1.0 - kS;
-        kD *= 1.0 - pbrLighting.metallic;
+            vec3 irradiance = texture(irradianceMap, N).rgb;
+            vec3 diffuse      = irradiance * pbrLighting.albedo;
 
-        vec3 irradiance = texture(irradianceMap, N).rgb;
-        vec3 diffuse      = irradiance * pbrLighting.albedo;
+            vec3 I = normalize(cameraPos - g_reflectionPosition);
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);        
+            // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
+            const float MAX_REFLECTION_LOD = 4.0;
+            vec3 prefilteredColor = textureLod(prefilterMap, R,  pbrLighting.roughness * MAX_REFLECTION_LOD).rgb;
+            vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), pbrLighting.roughness)).rg;
+            vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-        //N = normalize(normal);
-        V = normalize(cameraPos - vec3(0));
-        vec3 R = reflect(-V, N);
-        // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
-        const float MAX_REFLECTION_LOD = 4.0;
-        vec3 prefilteredColor = textureLod(prefilterMap, R,  pbrLighting.roughness * MAX_REFLECTION_LOD).rgb;
-        vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), pbrLighting.roughness)).rg;
-        vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
-
-        ambient = (kD * diffuse + specular) * pbrLighting.ambientOcclusion;
+            ambient = (kD * diffuse + specular) * pbrLighting.ambientOcclusion;
+        }
+        else
+        {            
+            kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
+            kD = 1.0 - kS;
+            kD *= 1.0 - pbrLighting.metallic;
+            vec3 irradiance = texture(irradianceMap, N).rgb;
+            vec3 diffuse      = irradiance * pbrLighting.albedo;
+            ambient = (kD * diffuse) * pbrLighting.ambientOcclusion;        
+        }        
     }
     else
     {
