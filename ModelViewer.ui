@@ -1199,7 +1199,7 @@
                    <item>
                     <widget class="QRadioButton" name="radioButtonADSL">
                      <property name="text">
-                      <string>Ambient Diffuse Specular Lighting</string>
+                      <string>Ambient Diffuse Specular Lighting - Blinn Phong</string>
                      </property>
                      <property name="checked">
                       <bool>true</bool>
@@ -1212,7 +1212,7 @@
                    <item>
                     <widget class="QRadioButton" name="radioButtonDLPBR">
                      <property name="text">
-                      <string>Direct Lighting based PBR</string>
+                      <string>Physically Based Rendering - Direct Lighting</string>
                      </property>
                      <attribute name="buttonGroup">
                       <string notr="true">buttonGroupLighting</string>
@@ -1222,7 +1222,7 @@
                    <item>
                     <widget class="QRadioButton" name="radioButtonTXPBR">
                      <property name="text">
-                      <string>Texture Based PRB</string>
+                      <string>Physically Based Rendering - Textured</string>
                      </property>
                      <attribute name="buttonGroup">
                       <string notr="true">buttonGroupLighting</string>
@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1463,8 +1463,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1610,8 +1610,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>100</width>
-                   <height>30</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1623,8 +1623,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2483,8 +2483,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>159</width>
-                   <height>389</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2840,8 +2840,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>338</height>
+                   <width>437</width>
+                   <height>529</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3251,8 +3251,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>
