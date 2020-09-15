@@ -41,9 +41,10 @@ _tMax(1)
 	_specularMaterial = { 140 / 256.0f, 140 / 256.0f, 130 / 256.0f, _opacity };   // 140 140 130
 	_shininess = fabs(128.0f * 0.05f);
 
-	_PBRAlbedoColor = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f };
-	_PBRMetallic = 0.45f;
-	_PBRRoughness = 0.3f;
+    //_PBRAlbedoColor = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f };
+    _PBRAlbedoColor = _ambientMaterial.toVector3D() + _diffuseMaterial.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.7f;
 
 	if (!_texBuffer.load("textures/opengllogo.png"))
 	{ // Load first image from file
@@ -634,6 +635,7 @@ QVector4D TriangleMesh::diffuseMaterial() const
 void TriangleMesh::setDiffuseMaterial(const QVector4D& diffuseMaterial)
 {
 	_diffuseMaterial = diffuseMaterial;
+    _PBRAlbedoColor = _ambientMaterial.toVector3D() + _diffuseMaterial.toVector3D();
 }
 
 QVector4D TriangleMesh::ambientMaterial() const
@@ -644,6 +646,7 @@ QVector4D TriangleMesh::ambientMaterial() const
 void TriangleMesh::setAmbientMaterial(const QVector4D& ambientMaterial)
 {
 	_ambientMaterial = ambientMaterial;
+    _PBRAlbedoColor = _ambientMaterial.toVector3D() + _diffuseMaterial.toVector3D();
 }
 
 bool TriangleMesh::isMetallic() const
@@ -654,6 +657,7 @@ bool TriangleMesh::isMetallic() const
 void TriangleMesh::setMetallic(bool metallic)
 {
 	_metallic = metallic;
+    _PBRMetallic = _metallic ? 1.0f : 0.0f;
 }
 
 void TriangleMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)

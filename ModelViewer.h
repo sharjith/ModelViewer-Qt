@@ -148,9 +148,9 @@ private slots:
 
     void on_pushButtonAlbedoColor_clicked();
 
-    void on_horizontalSliderMetallic_valueChanged(int value);
+    void on_sliderMetallic_valueChanged(int value);
 
-    void on_horizontalSliderRoughness_valueChanged(int value);
+    void on_sliderRoughness_valueChanged(int value);
 
 protected:
 	void showEvent(QShowEvent* event);	
@@ -176,6 +176,9 @@ private:
 	float _shine;
     bool _metallic;
 	bool _bHasTexture;
+    QVector3D _albedoColor;
+    float _PBRMetallic;
+    float _PBRRoughness;
 
 	bool _bFirstTime;
 	bool _bDeletionInProgress;

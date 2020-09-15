@@ -199,6 +199,8 @@ private:
             //128 * 0.2f, // shininess
 			1.0f,   // opacity
             false, // metallic
+            1.0f,
+            0.7f,
             false // texture
 		};
         if( mesh->mMaterialIndex != 0 )

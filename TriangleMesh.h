@@ -15,6 +15,8 @@ struct GLMaterialProps
 	float   shininess;
 	float   opacity;
 	bool bMetallic;
+    float bPBRMetallic;
+    float bPBRRoughness;
 	bool bHasTexture;
 };
 

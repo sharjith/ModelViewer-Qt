@@ -12,7 +12,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _bFirstTime = true;
     _bDeletionInProgress = false;
 
-    _lastOpenedDir = QApplication::applicationDirPath(); 
+    _lastOpenedDir = QApplication::applicationDirPath();
     _lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
                           "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
                           "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
@@ -160,6 +160,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     //_shine = 128 * 0.2f;
     _metallic = false;
     _bHasTexture = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.7f;
 
     updateControls();
 }
@@ -298,43 +301,49 @@ void ModelViewer::resetTransformationValues()
 
 void ModelViewer::updateControls()
 {
-    if(radioButtonADSL->isChecked())
-    {
-        sliderShine->setValue((int)_shine);
-        sliderTransparency->setValue((int)(1000 * _opacity));
+    // ADS Lighting
+    sliderShine->setValue((int)_shine);
+    sliderTransparency->setValue((int)(1000 * _opacity));
 
-        QColor col;
-        QVector4D ambientLight = _glWidget->getAmbientLight();
-        col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-        QString qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonLightAmbient->setStyleSheet(qss);
+    QColor col;
+    QVector4D ambientLight = _glWidget->getAmbientLight();
+    col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
+    QString qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonLightAmbient->setStyleSheet(qss);
 
-        QVector4D diffuseLight = _glWidget->getDiffuseLight();
-        col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonLightDiffuse->setStyleSheet(qss);
+    QVector4D diffuseLight = _glWidget->getDiffuseLight();
+    col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonLightDiffuse->setStyleSheet(qss);
 
-        QVector4D specularLight = _glWidget->getSpecularLight();
-        col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonLightSpecular->setStyleSheet(qss);
+    QVector4D specularLight = _glWidget->getSpecularLight();
+    col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonLightSpecular->setStyleSheet(qss);
 
-        col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonMaterialAmbient->setStyleSheet(qss);
+    col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonMaterialAmbient->setStyleSheet(qss);
 
-        col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonMaterialDiffuse->setStyleSheet(qss);
+    col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonMaterialDiffuse->setStyleSheet(qss);
 
-        col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonMaterialSpecular->setStyleSheet(qss);
+    col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonMaterialSpecular->setStyleSheet(qss);
 
-        col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonMaterialEmissive->setStyleSheet(qss);
-    }
+    col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonMaterialEmissive->setStyleSheet(qss);
+
+    // PBR Direct Lighting
+    col.setRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonAlbedoColor->setStyleSheet(qss);
+    sliderMetallic->setValue(_PBRMetallic * 1000);
+    sliderRoughness->setValue(_PBRRoughness * 1000);
+
 }
 
 QString ModelViewer::getSupportedImagesFilter()
@@ -590,7 +599,7 @@ void ModelViewer::on_checkTexture_toggled(bool checked)
 {
     _bHasTexture = checked;
     if (listWidgetModel->count())
-    {        
+    {
         std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         //for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
@@ -607,7 +616,7 @@ void ModelViewer::on_checkTexture_toggled(bool checked)
             }
             _glWidget->updateView();
         }
-    }    
+    }
 }
 
 void ModelViewer::on_pushButtonTexture_clicked()
@@ -677,6 +686,9 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
     //_shine = 128 * 0.2f;
     _shine = 128 * 0.05f;
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.7f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -686,6 +698,8 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
                             _shine,
                             _opacity,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
     _glWidget->updateView();
@@ -949,6 +963,8 @@ void ModelViewer::on_pushButtonMaterialAmbient_clicked()
                                 _shine,
                                 _opacity,
                                 _metallic,
+                                _PBRMetallic,
+                                _PBRRoughness,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -976,6 +992,8 @@ void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
                                 _shine,
                                 _opacity,
                                 _metallic,
+                                _PBRMetallic,
+                                _PBRRoughness,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -1003,6 +1021,8 @@ void ModelViewer::on_pushButtonMaterialSpecular_clicked()
                                 _shine,
                                 _opacity,
                                 _metallic,
+                                _PBRMetallic,
+                                _PBRRoughness,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -1030,6 +1050,8 @@ void ModelViewer::on_pushButtonMaterialEmissive_clicked()
                                 _shine,
                                 _opacity,
                                 _metallic,
+                                _PBRMetallic,
+                                _PBRRoughness,
                                 checkTexture->isChecked() };
         setMaterialProps(mat);
 
@@ -1077,6 +1099,8 @@ void ModelViewer::on_sliderTransparency_valueChanged(int value)
                             _shine,
                             _opacity,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 
@@ -1095,6 +1119,8 @@ void ModelViewer::on_sliderShine_valueChanged(int value)
                             _shine,
                             _opacity,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 
@@ -1109,6 +1135,9 @@ void ModelViewer::on_pushButtonBrass_clicked()
     _specMat = { 0.992157f, 0.941176f, 0.807843f, 1 };
     _shine = fabs(128.0 * 0.21794872);
     _metallic = true;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.65f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1118,8 +1147,10 @@ void ModelViewer::on_pushButtonBrass_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
-    setMaterialProps(mat);  
+    setMaterialProps(mat);
 }
 
 void ModelViewer::on_pushButtonBronze_clicked()
@@ -1130,6 +1161,9 @@ void ModelViewer::on_pushButtonBronze_clicked()
     _specMat = { 0.393548f, 0.271906f, 0.166721f, 1 };
     _shine = fabs(128.0 * 0.2);
     _metallic = true;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.65f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1139,6 +1173,8 @@ void ModelViewer::on_pushButtonBronze_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1151,6 +1187,9 @@ void ModelViewer::on_pushButtonCopper_clicked()
     _specMat = { 0.256777f, 0.137622f, 0.086014f, 1.0f };
     _shine = fabs(128.0 * 0.1);
     _metallic = true;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.65f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1160,6 +1199,8 @@ void ModelViewer::on_pushButtonCopper_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1178,6 +1219,9 @@ void ModelViewer::on_pushButtonGold_clicked()
     _specMat[2] = 0.366065f;
     _shine = fabs(128.0 * 0.4);
     _metallic = true;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.65f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1187,6 +1231,8 @@ void ModelViewer::on_pushButtonGold_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1205,6 +1251,9 @@ void ModelViewer::on_pushButtonSilver_clicked()
     _specMat[2] = 0.508273f;
     _shine = fabs(128.0 * 0.4);
     _metallic = true;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.65f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1214,6 +1263,8 @@ void ModelViewer::on_pushButtonSilver_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1232,6 +1283,9 @@ void ModelViewer::on_pushButtonChrome_clicked()
     _specMat[2] = 0.774597f;
     _shine = fabs(128.0 * 0.6);
     _metallic = true;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 1.0f;
+    _PBRRoughness = 0.65f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1241,6 +1295,8 @@ void ModelViewer::on_pushButtonChrome_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1259,6 +1315,9 @@ void ModelViewer::on_pushButtonRuby_clicked()
     _specMat[2] = 0.626959f;
     _shine = fabs(128.0 * 0.6);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.025f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1268,6 +1327,8 @@ void ModelViewer::on_pushButtonRuby_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1286,6 +1347,9 @@ void ModelViewer::on_pushButtonEmerald_clicked()
     _specMat[2] = 0.633f;
     _shine = fabs(128.0 * 0.6);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.025f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1295,6 +1359,8 @@ void ModelViewer::on_pushButtonEmerald_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1313,6 +1379,9 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
     _specMat[2] = 0.306678f;
     _shine = fabs(128.0 * 0.1);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.025f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1322,6 +1391,8 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1340,6 +1411,9 @@ void ModelViewer::on_pushButtonJade_clicked()
     _specMat[2] = 0.316228f;
     _shine = fabs(128.0 * 0.1);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.025f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1349,6 +1423,8 @@ void ModelViewer::on_pushButtonJade_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1367,6 +1443,9 @@ void ModelViewer::on_pushButtonObsidian_clicked()
     _specMat[2] = 0.346435f;
     _shine = fabs(128.0 * 0.3);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.025f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1376,6 +1455,8 @@ void ModelViewer::on_pushButtonObsidian_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1394,6 +1475,9 @@ void ModelViewer::on_pushButtonPearl_clicked()
     _specMat[0] = 0.299948f;
     _shine = fabs(128.0 * 0.088);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.025f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1403,6 +1487,8 @@ void ModelViewer::on_pushButtonPearl_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1421,6 +1507,9 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
     _specMat[2] = 0.5f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.10f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1430,6 +1519,8 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1448,6 +1539,9 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
     _specMat[2] = 0.50196078f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.10f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1457,6 +1551,8 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1475,6 +1571,9 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
     _specMat[2] = 0.45f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.10f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1484,6 +1583,8 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1502,6 +1603,9 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
     _specMat[2] = 0.6f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.10f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1511,6 +1615,8 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1529,6 +1635,9 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
     _specMat[2] = 0.70f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.10f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1538,6 +1647,8 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1556,6 +1667,9 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
     _specMat[2] = 0.5f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.10f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1565,6 +1679,8 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1583,6 +1699,9 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
     _specMat[2] = 0.4f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.70f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1592,6 +1711,8 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1610,6 +1731,9 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
     _specMat[2] = 0.7f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.70f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1619,6 +1743,8 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1637,6 +1763,9 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.70f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1646,6 +1775,8 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1664,6 +1795,9 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.70f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1673,6 +1807,8 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1691,6 +1827,9 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
     _specMat[2] = 0.7f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.70f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1700,6 +1839,8 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1718,6 +1859,9 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
+    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    _PBRMetallic = 0.0f;
+    _PBRRoughness = 0.70f;
 
     GLMaterialProps mat = { _ambiMat,
                             _diffMat,
@@ -1727,6 +1871,8 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
                             _shine,
                             1.0f,
                             _metallic,
+                            _PBRMetallic,
+                            _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
 }
@@ -1803,7 +1949,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
         fileName = fileDialog.selectedFiles()[0];
         _lastSelectedFilter = fileDialog.selectedNameFilter();
     }
-   
+
 
     if (fileName != "")
     {
@@ -1883,23 +2029,23 @@ void ModelViewer::on_toolButtonOpen_clicked()
 
 void ModelViewer::setMaterialProps(const GLMaterialProps& mat)
 {
-	if (listWidgetModel->count())
-	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		//for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
-		if (!items.isEmpty())
-		{
-			for (QListWidgetItem* i : items)
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
-			_glWidget->setMaterialProps(ids, mat);
-			_glWidget->updateView();
-			updateControls();
-		}
-	}
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        //for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->setMaterialProps(ids, mat);
+            _glWidget->updateView();
+            updateControls();
+        }
+    }
 }
 
 void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
@@ -2062,6 +2208,7 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
     QColor c = QColorDialog::getColor(QColor::fromRgb(126, 124, 116), this, "Albedo Color");
     if (c.isValid())
     {
+        _albedoColor = {c.red()/255.0f, c.green()/255.0f, c.blue()/255.0f};
         if (listWidgetModel->count())
         {
             std::vector<int> ids;
@@ -2081,7 +2228,7 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
     }
 }
 
-void ModelViewer::on_horizontalSliderMetallic_valueChanged(int value)
+void ModelViewer::on_sliderMetallic_valueChanged(int value)
 {
     if (listWidgetModel->count())
     {
@@ -2096,12 +2243,11 @@ void ModelViewer::on_horizontalSliderMetallic_valueChanged(int value)
             }
             _glWidget->setPBRMetallic(ids, value/1000.0f);
             _glWidget->updateView();
-            updateControls();
         }
     }
 }
 
-void ModelViewer::on_horizontalSliderRoughness_valueChanged(int value)
+void ModelViewer::on_sliderRoughness_valueChanged(int value)
 {
     if (listWidgetModel->count())
     {
@@ -2115,8 +2261,8 @@ void ModelViewer::on_horizontalSliderRoughness_valueChanged(int value)
                 ids.push_back(rowId);
             }
             _glWidget->setPBRRoughness(ids, value/1000.0f);
+            qDebug() << "Roughness: " << value/1000.0f;
             _glWidget->updateView();
-            updateControls();
         }
     }
 }

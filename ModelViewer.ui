@@ -1242,7 +1242,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>376</width>
-                   <height>518</height>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1464,7 +1464,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>376</width>
-                   <height>518</height>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1490,7 +1490,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QSlider" name="horizontalSliderMetallic">
+                       <widget class="QSlider" name="sliderMetallic">
                         <property name="minimum">
                          <number>0</number>
                         </property>
@@ -1498,7 +1498,7 @@
                          <number>1000</number>
                         </property>
                         <property name="value">
-                         <number>450</number>
+                         <number>1000</number>
                         </property>
                         <property name="orientation">
                          <enum>Qt::Horizontal</enum>
@@ -1524,7 +1524,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QSlider" name="horizontalSliderRoughness">
+                       <widget class="QSlider" name="sliderRoughness">
                         <property name="minimum">
                          <number>25</number>
                         </property>
@@ -1532,7 +1532,7 @@
                          <number>1000</number>
                         </property>
                         <property name="value">
-                         <number>300</number>
+                         <number>450</number>
                         </property>
                         <property name="orientation">
                          <enum>Qt::Horizontal</enum>
@@ -1611,7 +1611,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>376</width>
-                   <height>518</height>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1624,7 +1624,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>376</width>
-                   <height>518</height>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1640,7 +1640,167 @@
                      </sizepolicy>
                     </property>
                     <layout class="QGridLayout" name="gridLayout_20">
-                     <item row="0" column="0">
+                     <item row="2" column="2">
+                      <widget class="QPushButton" name="pushButtonGreenPlastic">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Green Plastic</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/greenpl.png</normaloff>:/new/prefix1/res/greenpl.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="6" column="0">
+                      <widget class="QPushButton" name="pushButtonChrome">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Chrome</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/chrome.png</normaloff>:/new/prefix1/res/chrome.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="6" column="3">
+                      <widget class="QPushButton" name="pushButtonBlackRubber">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Black Rubber</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/blackru.png</normaloff>:/new/prefix1/res/blackru.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="6" column="2">
+                      <widget class="QPushButton" name="pushButtonBlackPlastic">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Black Plastic</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/blackpl.png</normaloff>:/new/prefix1/res/blackpl.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="4" column="1">
+                      <widget class="QPushButton" name="pushButtonTurquoise">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Turquoise</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/turquoise.png</normaloff>:/new/prefix1/res/turquoise.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
                       <widget class="QPushButton" name="pushButtonBrass">
                        <property name="sizePolicy">
                         <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -1681,103 +1841,7 @@
                        </property>
                       </widget>
                      </item>
-                     <item row="0" column="1">
-                      <widget class="QPushButton" name="pushButtonBronze">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Bronze</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/bronze.png</normaloff>:/new/prefix1/res/bronze.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="2">
-                      <widget class="QPushButton" name="pushButtonCopper">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Copper</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/copper.png</normaloff>:/new/prefix1/res/copper.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="3">
-                      <widget class="QPushButton" name="pushButtonGold">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Gold</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/gold.png</normaloff>:/new/prefix1/res/gold.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
+                     <item row="5" column="0">
                       <widget class="QPushButton" name="pushButtonSilver">
                        <property name="minimumSize">
                         <size>
@@ -1800,6 +1864,80 @@
                        <property name="icon">
                         <iconset resource="ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/silver.png</normaloff>:/new/prefix1/res/silver.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QLabel" name="label_20">
+                       <property name="text">
+                        <string>Plastic</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QPushButton" name="pushButtonEmerald">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Emerald</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/emerald.png</normaloff>:/new/prefix1/res/emerald.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="4" column="0">
+                      <widget class="QPushButton" name="pushButtonGold">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Gold</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/gold.png</normaloff>:/new/prefix1/res/gold.png</iconset>
                        </property>
                        <property name="iconSize">
                         <size>
@@ -1841,263 +1979,7 @@
                        </property>
                       </widget>
                      </item>
-                     <item row="1" column="2">
-                      <widget class="QPushButton" name="pushButtonEmerald">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Emerald</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/emerald.png</normaloff>:/new/prefix1/res/emerald.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="3">
-                      <widget class="QPushButton" name="pushButtonTurquoise">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Turquoise</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/turquoise.png</normaloff>:/new/prefix1/res/turquoise.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QPushButton" name="pushButtonBlackPlastic">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Black Plastic</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/blackpl.png</normaloff>:/new/prefix1/res/blackpl.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="1">
-                      <widget class="QPushButton" name="pushButtonGreenPlastic">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Green Plastic</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/greenpl.png</normaloff>:/new/prefix1/res/greenpl.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="2">
-                      <widget class="QPushButton" name="pushButtonWhitePlastic">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>White Plastic</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/whitepl.png</normaloff>:/new/prefix1/res/whitepl.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="3">
-                      <widget class="QPushButton" name="pushButtonBlackRubber">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Black Rubber</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/blackru.png</normaloff>:/new/prefix1/res/blackru.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="3" column="0">
-                      <widget class="QPushButton" name="pushButtonCyanPlastic">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Cyan Plastic</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/cyanpl.png</normaloff>:/new/prefix1/res/cyanpl.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="3" column="1">
-                      <widget class="QPushButton" name="pushButtonRedPlastic">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Red Plastic</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/redpl.png</normaloff>:/new/prefix1/res/redpl.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="3" column="2">
+                     <item row="4" column="2">
                       <widget class="QPushButton" name="pushButtonYellowPlastic">
                        <property name="minimumSize">
                         <size>
@@ -2129,103 +2011,7 @@
                        </property>
                       </widget>
                      </item>
-                     <item row="3" column="3">
-                      <widget class="QPushButton" name="pushButtonCyanRubber">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Cyan Rubber</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/cyanru.png</normaloff>:/new/prefix1/res/cyanru.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="4" column="0">
-                      <widget class="QPushButton" name="pushButtonRedRubber">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Red Rubber</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/redru.png</normaloff>:/new/prefix1/res/redru.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="4" column="1">
-                      <widget class="QPushButton" name="pushButtonYellowRubber">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Yellow rubber</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/yellowru.png</normaloff>:/new/prefix1/res/yellowru.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="4" column="2">
+                     <item row="2" column="3">
                       <widget class="QPushButton" name="pushButtonGreenRubber">
                        <property name="minimumSize">
                         <size>
@@ -2248,134 +2034,6 @@
                        <property name="icon">
                         <iconset resource="ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/greenru.png</normaloff>:/new/prefix1/res/greenru.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="4" column="3">
-                      <widget class="QPushButton" name="pushButtonObsidian">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Obsidian</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/obsidian.png</normaloff>:/new/prefix1/res/obsidian.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="5" column="0">
-                      <widget class="QPushButton" name="pushButtonJade">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Jade</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/jade.png</normaloff>:/new/prefix1/res/jade.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="5" column="1">
-                      <widget class="QPushButton" name="pushButtonPearl">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Pearl</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/pearl.png</normaloff>:/new/prefix1/res/pearl.png</iconset>
-                       </property>
-                       <property name="iconSize">
-                        <size>
-                         <width>56</width>
-                         <height>56</height>
-                        </size>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="5" column="2">
-                      <widget class="QPushButton" name="pushButtonChrome">
-                       <property name="minimumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="maximumSize">
-                        <size>
-                         <width>64</width>
-                         <height>64</height>
-                        </size>
-                       </property>
-                       <property name="toolTip">
-                        <string>Chrome</string>
-                       </property>
-                       <property name="text">
-                        <string/>
-                       </property>
-                       <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
-                         <normaloff>:/new/prefix1/res/chrome.png</normaloff>:/new/prefix1/res/chrome.png</iconset>
                        </property>
                        <property name="iconSize">
                         <size>
@@ -2420,6 +2078,388 @@
                        </property>
                       </widget>
                      </item>
+                     <item row="5" column="2">
+                      <widget class="QPushButton" name="pushButtonWhitePlastic">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>White Plastic</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/whitepl.png</normaloff>:/new/prefix1/res/whitepl.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QLabel" name="label_19">
+                       <property name="text">
+                        <string>Gems</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="5" column="1">
+                      <widget class="QPushButton" name="pushButtonJade">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Jade</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/jade.png</normaloff>:/new/prefix1/res/jade.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="label_18">
+                       <property name="text">
+                        <string>Metals</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="0">
+                      <widget class="QPushButton" name="pushButtonCopper">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Copper</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/copper.png</normaloff>:/new/prefix1/res/copper.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="3">
+                      <widget class="QPushButton" name="pushButtonRedRubber">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Red Rubber</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/redru.png</normaloff>:/new/prefix1/res/redru.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="4" column="3">
+                      <widget class="QPushButton" name="pushButtonYellowRubber">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Yellow rubber</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/yellowru.png</normaloff>:/new/prefix1/res/yellowru.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="3">
+                      <widget class="QPushButton" name="pushButtonCyanRubber">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Cyan Rubber</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/cyanru.png</normaloff>:/new/prefix1/res/cyanru.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="2">
+                      <widget class="QPushButton" name="pushButtonRedPlastic">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Red Plastic</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/redpl.png</normaloff>:/new/prefix1/res/redpl.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="2">
+                      <widget class="QPushButton" name="pushButtonCyanPlastic">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Cyan Plastic</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/cyanpl.png</normaloff>:/new/prefix1/res/cyanpl.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="3" column="1">
+                      <widget class="QPushButton" name="pushButtonPearl">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Pearl</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/pearl.png</normaloff>:/new/prefix1/res/pearl.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="6" column="1">
+                      <widget class="QPushButton" name="pushButtonObsidian">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Obsidian</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/obsidian.png</normaloff>:/new/prefix1/res/obsidian.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QPushButton" name="pushButtonBronze">
+                       <property name="minimumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="maximumSize">
+                        <size>
+                         <width>64</width>
+                         <height>64</height>
+                        </size>
+                       </property>
+                       <property name="toolTip">
+                        <string>Bronze</string>
+                       </property>
+                       <property name="text">
+                        <string/>
+                       </property>
+                       <property name="icon">
+                        <iconset resource="ModelViewer.qrc">
+                         <normaloff>:/new/prefix1/res/bronze.png</normaloff>:/new/prefix1/res/bronze.png</iconset>
+                       </property>
+                       <property name="iconSize">
+                        <size>
+                         <width>56</width>
+                         <height>56</height>
+                        </size>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="3">
+                      <widget class="QLabel" name="label_21">
+                       <property name="text">
+                        <string>Rubber</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
                     </layout>
                    </widget>
                   </item>
@@ -2444,7 +2484,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>376</width>
-                   <height>518</height>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2801,7 +2841,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>437</width>
-                   <height>505</height>
+                   <height>529</height>
                   </rect>
                  </property>
                  <attribute name="label">

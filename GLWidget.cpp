@@ -1663,6 +1663,7 @@ void GLWidget::drawFloor()
         _fgShader->setUniformValue("modelMatrix", model);
         if (_reflectionsEnabled)
         {
+            _fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
             drawMesh();
         }
 
