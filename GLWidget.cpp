@@ -747,6 +747,8 @@ void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialPro
             mesh->setShininess(mat.shininess);
             mesh->setOpacity(mat.opacity);
             mesh->setMetallic(mat.bMetallic);
+            mesh->setPBRMetallic(mat.pbrMetallic);
+            mesh->setPBRRoughness(mat.pbrRoughness);
             mesh->enableTexture(mat.bHasTexture);
         }
         catch (const std::exception& ex)
@@ -1259,12 +1261,12 @@ void GLWidget::loadEnvMap()
 
     _skyBoxFaces =
     {
-        QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
-        QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
-        QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
-        QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
-        QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
-        QString("textures/envmap/skyboxes/stormydays/negy.jpg")
+        QString("textures/envmap/skyboxes/Parliament/posx.jpg"),
+        QString("textures/envmap/skyboxes/Parliament/negx.jpg"),
+        QString("textures/envmap/skyboxes/Parliament/posz.jpg"),
+        QString("textures/envmap/skyboxes/Parliament/negz.jpg"),
+        QString("textures/envmap/skyboxes/Parliament/posy.jpg"),
+        QString("textures/envmap/skyboxes/Parliament/negy.jpg")
     };
 
     glGenTextures(1, &_environmentMap);
