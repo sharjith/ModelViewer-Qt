@@ -157,6 +157,11 @@ public:
     RenderingMode getRenderingMode() const;
     void setRenderingMode(const RenderingMode &renderingMode);
 
+    bool getHdrToneMapping() const;
+    bool getGammaCorrection() const;
+    float getScreenGamma() const;
+
+
 signals:
     void windowZoomEnded();
     void rotationsSet();
@@ -180,6 +185,9 @@ public slots:
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
 	void setSkyBoxTextureHDRI(bool hdrSet);
+    void enableHDRToneMapping(bool hdrToneMapping);
+    void enableGammaCorrection(bool gammaCorrection);
+    void setScreenGamma(double screenGamma);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -367,13 +375,16 @@ private:
     vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;
+    bool  _gammaCorrection;
+    float _screenGamma;
+    bool  _hdrToneMapping;
 
 	QOpenGLShaderProgram     _debugShader;
 
 	ModelViewer* _viewer;
 
-	unsigned int quadVAO;
-    unsigned int quadVBO;
+    unsigned int _quadVAO;
+    unsigned int _quadVBO;
 
 	unsigned long long _displayedObjectsMemSize;
 
@@ -394,6 +405,7 @@ private:
 
     void render(GLCamera* camera);
 	void renderToShadowBuffer();
+    void renderQuad();
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a);
@@ -410,10 +422,8 @@ private:
     float highestModelZ();
 	float lowestModelZ();
 
-	void renderQuad();
     QRect getViewportFromPoint(const QPoint& pixel);
     QRect getClientRectFromPoint(const QPoint& pixel);
-
 };
 
 #endif

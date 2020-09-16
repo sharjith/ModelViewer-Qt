@@ -78,7 +78,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
     //_bgBotColor = QColor::fromRgbF(0.925f, 0.925f, 0.925f, 1.0f);
 
-    quadVAO = 0;
+    _quadVAO = 0;
 
     _fgShader = new QOpenGLShaderProgram(this);
     _axisShader = new QOpenGLShaderProgram(this);
@@ -157,6 +157,9 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _skyBoxEnabled = false;
     _skyBoxFOV = 45.0f;
     _skyBoxTextureHDRI = false;
+    _gammaCorrection = false;
+    _screenGamma = 2.2;
+    _hdrToneMapping = false;;
 
     _lowResEnabled = false;
     _lockLightAndCamera = true;
@@ -1685,7 +1688,6 @@ void GLWidget::drawFloor()
     glDisable(GL_CULL_FACE);
     _fgShader->bind();
     _fgShader->setUniformValue("floorRendering", false);
-
     _fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 }
 
@@ -1699,7 +1701,10 @@ void GLWidget::drawSkyBox()
     // Remove translation
     view.setColumn(3, QVector4D(0, 0, 0, 1));
     _skyBoxShader->setUniformValue("viewMatrix", view);
-    _skyBoxShader->setUniformValue("projectionMatrix", projection);
+    _skyBoxShader->setUniformValue("projectionMatrix", projection);    
+    _skyBoxShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
+    _skyBoxShader->setUniformValue("gammaCorrection", _gammaCorrection);
+    _skyBoxShader->setUniformValue("screenGamma", _screenGamma);
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -2021,6 +2026,9 @@ void GLWidget::render(GLCamera* camera)
     _fgShader->setUniformValue("viewMatrix", _viewMatrix);
     _fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
     _fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
+    _fgShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
+    _fgShader->setUniformValue("gammaCorrection", _gammaCorrection);
+    _fgShader->setUniformValue("screenGamma", _screenGamma);
 
     glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
     glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
@@ -2114,6 +2122,33 @@ void GLWidget::renderToShadowBuffer()
     // End Shadow Mapping
     // restore viewport
     glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+}
+
+void GLWidget::renderQuad()
+{
+    if (_quadVAO == 0)
+    {
+        float quadVertices[] = {
+            // positions        // texture Coords
+            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
+            1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
+            1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
+        };
+        // setup plane VAO
+        glGenVertexArrays(1, &_quadVAO);
+        glGenBuffers(1, &_quadVBO);
+        glBindVertexArray(_quadVAO);
+        glBindBuffer(GL_ARRAY_BUFFER, _quadVBO);
+        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
+        glEnableVertexAttribArray(0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    }
+    glBindVertexArray(_quadVAO);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindVertexArray(0);
 }
 
 void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
@@ -2859,6 +2894,39 @@ void GLWidget::closeEvent(QCloseEvent* event)
     event->accept();
 }
 
+float GLWidget::getScreenGamma() const
+{
+    return _screenGamma;
+}
+
+void GLWidget::setScreenGamma(double screenGamma)
+{
+    _screenGamma = static_cast<float>(screenGamma);
+    update();
+}
+
+bool GLWidget::getGammaCorrection() const
+{
+    return _gammaCorrection;
+}
+
+void GLWidget::enableGammaCorrection(bool gammaCorrection)
+{
+    _gammaCorrection = gammaCorrection;
+    update();
+}
+
+bool GLWidget::getHdrToneMapping() const
+{
+    return _hdrToneMapping;
+}
+
+void GLWidget::enableHDRToneMapping(bool hdrToneMapping)
+{
+    _hdrToneMapping = hdrToneMapping;
+    update();
+}
+
 RenderingMode GLWidget::getRenderingMode() const
 {
     return _renderingMode;
@@ -2867,6 +2935,7 @@ RenderingMode GLWidget::getRenderingMode() const
 void GLWidget::setRenderingMode(const RenderingMode &renderingMode)
 {
     _renderingMode = renderingMode;
+    update();
 }
 
 void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
@@ -3094,33 +3163,6 @@ float GLWidget::lowestModelZ()
         }
     }
     return lowestZ;
-}
-
-void GLWidget::renderQuad()
-{
-    if (quadVAO == 0)
-    {
-        float quadVertices[] = {
-            // positions        // texture Coords
-            -1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-            -1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-            1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-            1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
-        };
-        // setup plane VAO
-        glGenVertexArrays(1, &quadVAO);
-        glGenBuffers(1, &quadVBO);
-        glBindVertexArray(quadVAO);
-        glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(1);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-    }
-    glBindVertexArray(quadVAO);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-    glBindVertexArray(0);
 }
 
 void GLWidget::showContextMenu(const QPoint& pos)

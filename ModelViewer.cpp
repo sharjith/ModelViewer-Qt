@@ -138,6 +138,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(doubleSpinBoxFloorOffset, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorOffsetPercent(double)));
     connect(checkBoxSkyBoxHDRI, SIGNAL(toggled(bool)), _glWidget, SLOT(setSkyBoxTextureHDRI(bool)));
 
+    connect(checkBoxHDRToneMapping, SIGNAL(toggled(bool)), _glWidget, SLOT(enableHDRToneMapping(bool)));
+    connect(checkBoxGammaCorrection, SIGNAL(toggled(bool)), _glWidget, SLOT(enableGammaCorrection(bool)));
+    connect(doubleSpinBoxScreenGamma, SIGNAL(valueChanged(double)), _glWidget, SLOT(setScreenGamma(double)));
+
     connect(buttonGroupLighting, SIGNAL(buttonToggled(int,bool)), this, SLOT(lightingType_toggled(int,bool)));
     toolBox->setItemEnabled(0, true);
     toolBox->setItemEnabled(1, false);
@@ -161,7 +165,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     //_shine = 128 * 0.2f;
     _metallic = false;
     _bHasTexture = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.7f;
 
@@ -695,7 +699,7 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
     //_shine = 128 * 0.2f;
     _shine = 128 * 0.05f;
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.7f;
 
@@ -1135,6 +1139,18 @@ void ModelViewer::on_sliderShine_valueChanged(int value)
     _glWidget->updateView();
 }
 
+void ModelViewer::setAlbedoFromADS(const bool metallic)
+{
+    QVector3D col;
+    if(metallic)
+        col = _specMat.toVector3D();
+    else
+        col = _diffMat.toVector3D();
+    _albedoColor.setX(clamp(col.x(), 0.0f, 1.0f));
+    _albedoColor.setY(clamp(col.y(), 0.0f, 1.0f));
+    _albedoColor.setZ(clamp(col.z(), 0.0f, 1.0f));
+}
+
 void ModelViewer::on_pushButtonBrass_clicked()
 {
     //Material Values
@@ -1143,7 +1159,7 @@ void ModelViewer::on_pushButtonBrass_clicked()
     _specMat = { 0.992157f, 0.941176f, 0.807843f, 1 };
     _shine = fabs(128.0 * 0.21794872);
     _metallic = true;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.65f;
 
@@ -1169,7 +1185,7 @@ void ModelViewer::on_pushButtonBronze_clicked()
     _specMat = { 0.393548f, 0.271906f, 0.166721f, 1 };
     _shine = fabs(128.0 * 0.2);
     _metallic = true;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.65f;
 
@@ -1195,7 +1211,7 @@ void ModelViewer::on_pushButtonCopper_clicked()
     _specMat = { 0.256777f, 0.137622f, 0.086014f, 1.0f };
     _shine = fabs(128.0 * 0.1);
     _metallic = true;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.65f;
 
@@ -1227,7 +1243,7 @@ void ModelViewer::on_pushButtonGold_clicked()
     _specMat[2] = 0.366065f;
     _shine = fabs(128.0 * 0.4);
     _metallic = true;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.65f;
 
@@ -1259,7 +1275,7 @@ void ModelViewer::on_pushButtonSilver_clicked()
     _specMat[2] = 0.508273f;
     _shine = fabs(128.0 * 0.4);
     _metallic = true;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.65f;
 
@@ -1291,7 +1307,7 @@ void ModelViewer::on_pushButtonChrome_clicked()
     _specMat[2] = 0.774597f;
     _shine = fabs(128.0 * 0.6);
     _metallic = true;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.65f;
 
@@ -1323,7 +1339,7 @@ void ModelViewer::on_pushButtonRuby_clicked()
     _specMat[2] = 0.626959f;
     _shine = fabs(128.0 * 0.6);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.025f;
 
@@ -1355,7 +1371,7 @@ void ModelViewer::on_pushButtonEmerald_clicked()
     _specMat[2] = 0.633f;
     _shine = fabs(128.0 * 0.6);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.025f;
 
@@ -1387,7 +1403,7 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
     _specMat[2] = 0.306678f;
     _shine = fabs(128.0 * 0.1);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.025f;
 
@@ -1419,7 +1435,7 @@ void ModelViewer::on_pushButtonJade_clicked()
     _specMat[2] = 0.316228f;
     _shine = fabs(128.0 * 0.1);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.025f;
 
@@ -1451,7 +1467,7 @@ void ModelViewer::on_pushButtonObsidian_clicked()
     _specMat[2] = 0.346435f;
     _shine = fabs(128.0 * 0.3);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.025f;
 
@@ -1483,7 +1499,7 @@ void ModelViewer::on_pushButtonPearl_clicked()
     _specMat[0] = 0.299948f;
     _shine = fabs(128.0 * 0.088);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.025f;
 
@@ -1515,7 +1531,7 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
     _specMat[2] = 0.5f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.10f;
 
@@ -1547,7 +1563,7 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
     _specMat[2] = 0.50196078f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.10f;
 
@@ -1579,7 +1595,7 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
     _specMat[2] = 0.45f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.10f;
 
@@ -1611,7 +1627,7 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
     _specMat[2] = 0.6f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.10f;
 
@@ -1643,7 +1659,7 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
     _specMat[2] = 0.70f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.10f;
 
@@ -1675,7 +1691,7 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
     _specMat[2] = 0.5f;
     _shine = fabs(128.0 * 0.25);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.10f;
 
@@ -1707,7 +1723,7 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
     _specMat[2] = 0.4f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.70f;
 
@@ -1739,7 +1755,7 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
     _specMat[2] = 0.7f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.70f;
 
@@ -1771,7 +1787,7 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.70f;
 
@@ -1803,7 +1819,7 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.70f;
 
@@ -1835,7 +1851,7 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
     _specMat[2] = 0.7f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.70f;
 
@@ -1867,7 +1883,7 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
     _specMat[2] = 0.04f;
     _shine = fabs(128.0 * 0.078125);
     _metallic = false;
-    _albedoColor = _ambiMat.toVector3D() + _diffMat.toVector3D();
+    setAlbedoFromADS(_metallic);
     _PBRMetallic = 0.0f;
     _PBRRoughness = 0.70f;
 

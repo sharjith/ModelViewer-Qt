@@ -2848,6 +2848,64 @@
                   <string>Visualization Environment Settings</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_18">
+                  <item row="0" column="0">
+                   <widget class="QPushButton" name="pushButtonDefaultLights">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Reset to default light and material</string>
+                    </property>
+                    <property name="text">
+                     <string>Default Values</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QGroupBox" name="groupBox_9">
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>0</height>
+                     </size>
+                    </property>
+                    <property name="title">
+                     <string>Light Colours</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_16">
+                     <item row="0" column="0">
+                      <widget class="QPushButton" name="pushButtonLightAmbient">
+                       <property name="styleSheet">
+                        <string notr="true"/>
+                       </property>
+                       <property name="text">
+                        <string>Ambient Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QPushButton" name="pushButtonLightDiffuse">
+                       <property name="text">
+                        <string>Diffuse Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QPushButton" name="pushButtonLightSpecular">
+                       <property name="text">
+                        <string>Specular Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
                   <item row="1" column="1">
                    <widget class="QGroupBox" name="groupBox_14">
                     <property name="title">
@@ -2944,74 +3002,19 @@
                     </layout>
                    </widget>
                   </item>
-                  <item row="1" column="0">
-                   <widget class="QGroupBox" name="groupBox_9">
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>0</height>
-                     </size>
-                    </property>
-                    <property name="title">
-                     <string>Light Colours</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_16">
-                     <item row="0" column="0">
-                      <widget class="QPushButton" name="pushButtonLightAmbient">
-                       <property name="styleSheet">
-                        <string notr="true"/>
-                       </property>
-                       <property name="text">
-                        <string>Ambient Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QPushButton" name="pushButtonLightDiffuse">
-                       <property name="text">
-                        <string>Diffuse Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QPushButton" name="pushButtonLightSpecular">
-                       <property name="text">
-                        <string>Specular Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="4" column="0" colspan="2">
-                   <spacer name="verticalSpacer_3">
-                    <property name="orientation">
-                     <enum>Qt::Vertical</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>20</width>
-                      <height>456</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item row="0" column="0" colspan="2">
-                   <widget class="QPushButton" name="pushButtonDefaultLights">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
+                  <item row="2" column="0" colspan="2">
+                   <widget class="QCheckBox" name="checkBoxLockLightCamera">
                     <property name="toolTip">
-                     <string>Reset to default light and material</string>
+                     <string>Lock light and camera together</string>
+                    </property>
+                    <property name="layoutDirection">
+                     <enum>Qt::LeftToRight</enum>
                     </property>
                     <property name="text">
-                     <string>Default Values</string>
+                     <string>Lock Light and Camera</string>
+                    </property>
+                    <property name="checked">
+                     <bool>true</bool>
                     </property>
                    </widget>
                   </item>
@@ -3189,24 +3192,74 @@
                        </item>
                       </layout>
                      </item>
+                     <item row="4" column="0">
+                      <widget class="QCheckBox" name="checkBoxHDRToneMapping">
+                       <property name="text">
+                        <string>HDR Tone Mapping</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="5" column="0">
+                      <layout class="QHBoxLayout" name="horizontalLayout_9">
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxGammaCorrection">
+                         <property name="text">
+                          <string>Gamma Correction</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QLabel" name="label_22">
+                         <property name="enabled">
+                          <bool>false</bool>
+                         </property>
+                         <property name="text">
+                          <string>Screen Gamma</string>
+                         </property>
+                         <property name="alignment">
+                          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QDoubleSpinBox" name="doubleSpinBoxScreenGamma">
+                         <property name="enabled">
+                          <bool>false</bool>
+                         </property>
+                         <property name="decimals">
+                          <number>1</number>
+                         </property>
+                         <property name="minimum">
+                          <double>0.100000000000000</double>
+                         </property>
+                         <property name="maximum">
+                          <double>5.000000000000000</double>
+                         </property>
+                         <property name="singleStep">
+                          <double>0.200000000000000</double>
+                         </property>
+                         <property name="value">
+                          <double>2.200000000000000</double>
+                         </property>
+                        </widget>
+                       </item>
+                      </layout>
+                     </item>
                     </layout>
                    </widget>
                   </item>
-                  <item row="2" column="0" colspan="2">
-                   <widget class="QCheckBox" name="checkBoxLockLightCamera">
-                    <property name="toolTip">
-                     <string>Lock light and camera together</string>
+                  <item row="4" column="0" colspan="2">
+                   <spacer name="verticalSpacer_3">
+                    <property name="orientation">
+                     <enum>Qt::Vertical</enum>
                     </property>
-                    <property name="layoutDirection">
-                     <enum>Qt::LeftToRight</enum>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>20</width>
+                      <height>456</height>
+                     </size>
                     </property>
-                    <property name="text">
-                     <string>Lock Light and Camera</string>
-                    </property>
-                    <property name="checked">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   </spacer>
                   </item>
                  </layout>
                 </widget>
@@ -3246,13 +3299,46 @@
  <resources>
   <include location="ModelViewer.qrc"/>
  </resources>
- <connections/>
+ <connections>
+  <connection>
+   <sender>checkBoxGammaCorrection</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>label_22</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1406</x>
+     <y>1077</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1540</x>
+     <y>1072</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxGammaCorrection</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>doubleSpinBoxScreenGamma</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1360</x>
+     <y>1069</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1627</x>
+     <y>1070</y>
+    </hint>
+   </hints>
+  </connection>
+ </connections>
  <slots>
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>

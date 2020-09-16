@@ -42,6 +42,9 @@ uniform bool floorRendering;
 uniform bool lockLightAndCamera = true;
 uniform bool hasDiffuseTexture = false;
 uniform bool hasSpecularTexture = false;
+uniform bool hdrToneMapping = false;
+uniform bool gammaCorrection = false;
+uniform float screenGamma = 2.2;
 
 struct LineInfo
 {
@@ -240,6 +243,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
                              diffuse  * mat.diffuse +
                              specular * mat.specular, 0.f, 1.f ), alpha);
     }
+
+    // HDR tonemapping
+    if(hdrToneMapping)
+        colorLinear = colorLinear / (colorLinear + vec4(1.0));
+    // gamma correct
+    if(gammaCorrection)
+        colorLinear = pow(colorLinear, vec4(1.0/screenGamma));
+
     return colorLinear;
 }
 // ----------------------------------------------------------------------------
@@ -381,16 +392,18 @@ vec4 calculatePBRLighting(vec3 normal)
         }        
     }
     else
-    {
-        ambient = lightSource.ambient * pbrLighting.albedo * pbrLighting.ambientOcclusion;
+    {        
+        ambient = (lightSource.ambient * lightIntensity) * pbrLighting.albedo * pbrLighting.ambientOcclusion;
     }
 
     vec3 color = ambient + Lo;
 
     // HDR tonemapping
-    //color = color / (color + vec3(1.0));
+    if(hdrToneMapping)
+        color = color / (color + vec3(1.0));
     // gamma correct
-    //color = pow(color, vec3(1.0/2.2));
+    if(gammaCorrection)
+        color = pow(color, vec3(1.0/screenGamma));
 
     return vec4(color, alpha);
 }
