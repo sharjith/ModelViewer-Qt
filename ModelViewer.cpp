@@ -144,8 +144,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     toolBox->setItemEnabled(2, false);
     toolBox->setCurrentIndex(0);
 
-    connect(sliderTransparency_2, SIGNAL(valueChanged(int)), sliderTransparency, SLOT(setValue(int)));
-    connect(sliderTransparency, SIGNAL(valueChanged(int)), sliderTransparency_2, SLOT(setValue(int)));
+    //connect(sliderTransparency_2, SIGNAL(valueChanged(int)), sliderTransparency, SLOT(setValue(int)));
+    //connect(sliderTransparency, SIGNAL(valueChanged(int)), sliderTransparency_2, SLOT(setValue(int)));
+    connect(sliderTransparency_2, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
 
     _opacity = 1.0f;
     //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
@@ -258,7 +259,8 @@ void ModelViewer::updateTransformationValues()
         if(selected.count() > 0)
         {
             QListWidgetItem* item = selected.at(0);
-            TriangleMesh* mesh = _glWidget->getMeshStore().at(listWidgetModel->row(item));
+            std::vector<TriangleMesh*> meshStore = _glWidget->getMeshStore();
+            TriangleMesh* mesh = meshStore.at(listWidgetModel->row(item));
             if(mesh)
             {
                 QVector3D trans = mesh->getTranslation();
@@ -301,48 +303,55 @@ void ModelViewer::resetTransformationValues()
 
 void ModelViewer::updateControls()
 {
-    // ADS Lighting
-    sliderShine->setValue((int)_shine);
-    sliderTransparency->setValue((int)(1000 * _opacity));
-
     QColor col;
-    QVector4D ambientLight = _glWidget->getAmbientLight();
-    col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-    QString qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonLightAmbient->setStyleSheet(qss);
+    QString qss;
+    // ADS Lighting
+    if (radioButtonADSL->isChecked())
+    {
+        sliderShine->setValue((int)_shine);
+        sliderTransparency->setValue((int)(1000 * _opacity));
+               
+        QVector4D ambientLight = _glWidget->getAmbientLight();
+        col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonLightAmbient->setStyleSheet(qss);
 
-    QVector4D diffuseLight = _glWidget->getDiffuseLight();
-    col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonLightDiffuse->setStyleSheet(qss);
+        QVector4D diffuseLight = _glWidget->getDiffuseLight();
+        col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonLightDiffuse->setStyleSheet(qss);
 
-    QVector4D specularLight = _glWidget->getSpecularLight();
-    col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonLightSpecular->setStyleSheet(qss);
+        QVector4D specularLight = _glWidget->getSpecularLight();
+        col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonLightSpecular->setStyleSheet(qss);
 
-    col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialAmbient->setStyleSheet(qss);
+        col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialAmbient->setStyleSheet(qss);
 
-    col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialDiffuse->setStyleSheet(qss);
+        col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialDiffuse->setStyleSheet(qss);
 
-    col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialSpecular->setStyleSheet(qss);
+        col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialSpecular->setStyleSheet(qss);
 
-    col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonMaterialEmissive->setStyleSheet(qss);
-
+        col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonMaterialEmissive->setStyleSheet(qss);
+    }
     // PBR Direct Lighting
-    col.setRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-    pushButtonAlbedoColor->setStyleSheet(qss);
-    sliderMetallic->setValue(_PBRMetallic * 1000);
-    sliderRoughness->setValue(_PBRRoughness * 1000);
+    if (radioButtonDLPBR->isChecked())
+    {
+        col.setRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z());
+        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        pushButtonAlbedoColor->setStyleSheet(qss);
+        sliderMetallic->setValue((int)(_PBRMetallic * 1000));
+        sliderRoughness->setValue((int)(_PBRRoughness * 1000));
+        sliderTransparency_2->setValue((int)(_opacity * 1000));
+    }
 
 }
 
@@ -1103,7 +1112,6 @@ void ModelViewer::on_sliderTransparency_valueChanged(int value)
                             _PBRRoughness,
                             checkTexture->isChecked() };
     setMaterialProps(mat);
-
     _glWidget->updateView();
 }
 
@@ -2200,12 +2208,13 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setCurrentIndex(2);
         _glWidget->setRenderingMode(RenderingMode::PBR_TEXTURED_LIGHTING);
     }
+    updateControls();
     _glWidget->update();
 }
 
 void ModelViewer::on_pushButtonAlbedoColor_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgb(126, 124, 116), this, "Albedo Color");
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z()), this, "Albedo Color");
     if (c.isValid())
     {
         _albedoColor = {c.red()/255.0f, c.green()/255.0f, c.blue()/255.0f};
@@ -2230,6 +2239,7 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
 
 void ModelViewer::on_sliderMetallic_valueChanged(int value)
 {
+    _PBRMetallic = value / 1000.0f;
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -2241,7 +2251,7 @@ void ModelViewer::on_sliderMetallic_valueChanged(int value)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setPBRMetallic(ids, value/1000.0f);
+            _glWidget->setPBRMetallic(ids, _PBRMetallic);
             _glWidget->updateView();
         }
     }
@@ -2249,6 +2259,7 @@ void ModelViewer::on_sliderMetallic_valueChanged(int value)
 
 void ModelViewer::on_sliderRoughness_valueChanged(int value)
 {
+    _PBRRoughness = value / 1000.0f;
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -2260,7 +2271,7 @@ void ModelViewer::on_sliderRoughness_valueChanged(int value)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setPBRRoughness(ids, value/1000.0f);
+            _glWidget->setPBRRoughness(ids, _PBRRoughness);
             _glWidget->updateView();
         }
     }
