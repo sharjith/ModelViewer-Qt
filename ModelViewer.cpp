@@ -2348,7 +2348,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
             QString filter = getSupportedImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
-                        "Choose an image for Albedo map texture",
+                        "Choose an image for Metallic map texture",
                         _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
                         filter);
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
@@ -2386,7 +2386,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
             QString filter = getSupportedImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
-                        "Choose an image for Albedo map texture",
+                        "Choose an image for Roughness map texture",
                         _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
                         filter);
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
@@ -2424,7 +2424,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
             QString filter = getSupportedImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
-                        "Choose an image for Albedo map texture",
+                        "Choose an image for Normal map texture",
                         _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
                         filter);
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
@@ -2462,7 +2462,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
             QString filter = getSupportedImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
-                        "Choose an image for Albedo map texture",
+                        "Choose an image for AO map texture",
                         _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
                         filter);
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
