@@ -2190,8 +2190,7 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
     QString dir = QFileDialog::getExistingDirectory(this, tr("Select Skybox Texture Folder"),
                                                     appPath + "/textures/envmap/skyboxes",
                                                     QFileDialog::ShowDirsOnly
-                                                    | QFileDialog::DontResolveSymlinks
-                                                    | QFileDialog::DontUseNativeDialog);
+                                                    | QFileDialog::DontResolveSymlinks);
     if(dir != "")
     {
         _lastOpenedDir = dir;
