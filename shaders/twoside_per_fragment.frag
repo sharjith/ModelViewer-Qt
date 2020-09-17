@@ -1,5 +1,7 @@
 #version 450 core
 
+// Adpated from https://learnopengl.com/
+
 in vec3 g_position;
 in vec3 g_normal;
 in vec2 g_texCoord2d;
@@ -27,6 +29,15 @@ uniform sampler2D shadowMap;
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
 uniform sampler2D brdfLUT;
+
+// material parameters
+uniform sampler2D albedoMap;
+uniform sampler2D normalMap;
+uniform sampler2D metallicMap;
+uniform sampler2D roughnessMap;
+uniform sampler2D aoMap;
+uniform bool hasNormalMap;
+uniform bool hasAOMap;
 
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
@@ -93,8 +104,9 @@ layout( location = 0 ) out vec4 fragColor;
 
 float calculateShadow(vec4 fragPosLightSpace);
 vec4  shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
-vec4  calculatePBRLighting(vec3 normal);
+vec4  calculatePBRLighting(int renderMode, vec3 normal);
 
+vec3 getNormalFromMap();
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
@@ -113,10 +125,10 @@ void main()
         v_color_front = shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal);
         v_color_back  = shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal);
     }
-    else if(renderingMode == 1)
+    else
     {
-        v_color_front = calculatePBRLighting(g_normal);
-        v_color_back  = calculatePBRLighting(-g_normal);
+        v_color_front = calculatePBRLighting(renderingMode, g_normal);
+        v_color_back  = calculatePBRLighting(renderingMode, -g_normal);
     }
 
     if( gl_FrontFacing )
@@ -294,15 +306,46 @@ float calculateShadow(vec4 fragPosLightSpace)
     return shadow;
 }
 
-vec4 calculatePBRLighting(vec3 normal)
+vec4 calculatePBRLighting(int renderMode, vec3 normal)
 {
-    vec3 N = normalize(normal);
+    vec3 albedo;
+    float metallic;
+    float roughness;
+    float ambientOcclusion;
+    vec3 N;
+
+    if(renderMode == 1)
+    {
+        N = normalize(normal);
+        albedo = pbrLighting.albedo;
+        metallic = pbrLighting.metallic;
+        roughness = pbrLighting.roughness;
+        ambientOcclusion = pbrLighting.ambientOcclusion;
+    }
+    else
+    {
+        if(hasNormalMap)
+            N = getNormalFromMap();
+        else
+            N = normalize(normal);
+        // material properties
+        albedo = pow(texture(albedoMap, g_texCoord2d).rgb, vec3(2.2));
+        metallic = texture(metallicMap, g_texCoord2d).r;
+        roughness = texture(roughnessMap, g_texCoord2d).r;
+
+        if(hasAOMap)
+            ambientOcclusion = texture(aoMap, g_texCoord2d).r;
+        else
+            ambientOcclusion = 1.0f;
+    }
+
+
     vec3 V = normalize(lightSource.position + vec3(0));
     
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)
     vec3 F0 = vec3(0.04);
-    F0 = mix(F0, pbrLighting.albedo, pbrLighting.metallic);
+    F0 = mix(F0, albedo, metallic);
 
     // reflectance equation
     vec3 Lo = vec3(0.0);
@@ -327,8 +370,8 @@ vec4 calculatePBRLighting(vec3 normal)
     }
 
     // Cook-Torrance BRDF
-    float NDF = DistributionGGX(N, H, pbrLighting.roughness);
-    float G   = GeometrySmith(N, V, L, pbrLighting.roughness);
+    float NDF = DistributionGGX(N, H, roughness);
+    float G   = GeometrySmith(N, V, L, roughness);
     vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
 
     vec3 nominator    = NDF * G * F;
@@ -344,56 +387,53 @@ vec4 calculatePBRLighting(vec3 normal)
     // multiply kD by the inverse metalness such that only non-metals
     // have diffuse lighting, or a linear blend if partly metal (pure metals
     // have no diffuse light).
-    kD *= 1.0 - pbrLighting.metallic;
+    kD *= 1.0 - metallic;
 
     // scale light by NdotL
     float NdotL = max(dot(N, L), 0.0);
 
     // add to outgoing radiance Lo
-    Lo += (kD * pbrLighting.albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
+    Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
 
     // ambient lighting (note that the next IBL tutorial will replace
     // this ambient lighting with environment lighting).
     vec3 ambient;
+    // ambient lighting (we now use IBL as the ambient term)
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 diffuse      = irradiance * albedo;
 
-    if(displayMode == 3 && renderingMode == 1)
-    {
-        // ambient lighting (we now use IBL as the ambient term)        
+    if(displayMode == 3)
+    {        
         if(envMapEnabled)
         {
-            vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, pbrLighting.roughness);
+            vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
 
             kS = F;
             kD = 1.0 - kS;
-            kD *= 1.0 - pbrLighting.metallic;
-
-            vec3 irradiance = texture(irradianceMap, N).rgb;
-            vec3 diffuse      = irradiance * pbrLighting.albedo;
+            kD *= 1.0 - metallic;
                         
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
             
             // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
             const float MAX_REFLECTION_LOD = 4.0;
-            vec3 prefilteredColor = textureLod(prefilterMap, R,  pbrLighting.roughness * MAX_REFLECTION_LOD).rgb;
-            vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), pbrLighting.roughness)).rg;
+            vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
+            vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
             vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-            ambient = (kD * diffuse + specular) * pbrLighting.ambientOcclusion;
+            ambient = (kD * diffuse + specular) * ambientOcclusion;
         }
         else
         {            
             kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
             kD = 1.0 - kS;
-            kD *= 1.0 - pbrLighting.metallic;
-            vec3 irradiance = texture(irradianceMap, N).rgb;
-            vec3 diffuse      = irradiance * pbrLighting.albedo;
-            ambient = (kD * diffuse) * pbrLighting.ambientOcclusion;        
+            kD *= 1.0 - metallic;
+            ambient = (kD * diffuse) * ambientOcclusion;
         }        
     }
     else
     {        
-        ambient = (lightSource.ambient * lightIntensity) * pbrLighting.albedo * pbrLighting.ambientOcclusion;
+        ambient = ((lightSource.ambient * diffuse)  + specular) * ambientOcclusion;
     }
 
     vec3 color = ambient + Lo;
@@ -406,6 +446,28 @@ vec4 calculatePBRLighting(vec3 normal)
         color = pow(color, vec3(1.0/screenGamma));
 
     return vec4(color, alpha);
+}
+
+// ----------------------------------------------------------------------------
+// Easy trick to get tangent-normals to world-space to keep PBR code simplified.
+// Don't worry if you don't get what's going on; you generally want to do normal
+// mapping the usual way for performance anways; I do plan make a note of this
+// technique somewhere later in the normal mapping tutorial.
+vec3 getNormalFromMap()
+{
+    vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
+
+    vec3 Q1  = dFdx(g_position);
+    vec3 Q2  = dFdy(g_position);
+    vec2 st1 = dFdx(g_texCoord2d);
+    vec2 st2 = dFdy(g_texCoord2d);
+
+    vec3 N   = normalize(g_normal);
+    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B  = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+
+    return normalize(TBN * tangentNormal);
 }
 
 // ----------------------------------------------------------------------------

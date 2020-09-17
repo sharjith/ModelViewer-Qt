@@ -1189,7 +1189,7 @@
             <widget class="QWidget" name="layoutWidget1">
              <layout class="QVBoxLayout" name="verticalLayout_5">
               <item>
-               <widget class="QGroupBox" name="groupBox_10">
+               <widget class="QGroupBox" name="groupBoxVisModel">
                 <property name="title">
                  <string>Visualization Model</string>
                 </property>
@@ -1617,6 +1617,311 @@
                  <attribute name="label">
                   <string>Texture Based PBR Settings</string>
                  </attribute>
+                 <layout class="QGridLayout" name="gridLayout_25">
+                  <item row="0" column="0">
+                   <layout class="QVBoxLayout" name="verticalLayout_8">
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_10">
+                      <item>
+                       <widget class="QLabel" name="label_23">
+                        <property name="text">
+                         <string>Albedo Map</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <spacer name="horizontalSpacer_5">
+                        <property name="orientation">
+                         <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButtonAlbedoMap">
+                        <property name="text">
+                         <string>Select Texture</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelAlbedoMap">
+                        <property name="minimumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="maximumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="frameShape">
+                         <enum>QFrame::Panel</enum>
+                        </property>
+                        <property name="frameShadow">
+                         <enum>QFrame::Raised</enum>
+                        </property>
+                        <property name="text">
+                         <string/>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_11">
+                      <item>
+                       <widget class="QLabel" name="label_25">
+                        <property name="text">
+                         <string>Metallic Map</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <spacer name="horizontalSpacer_6">
+                        <property name="orientation">
+                         <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButtonMetallicMap">
+                        <property name="text">
+                         <string>Select Texture</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelMetallicMap">
+                        <property name="minimumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="maximumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="frameShape">
+                         <enum>QFrame::Panel</enum>
+                        </property>
+                        <property name="frameShadow">
+                         <enum>QFrame::Raised</enum>
+                        </property>
+                        <property name="text">
+                         <string/>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_12">
+                      <item>
+                       <widget class="QLabel" name="label_26">
+                        <property name="text">
+                         <string>Roughness Map</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <spacer name="horizontalSpacer_7">
+                        <property name="orientation">
+                         <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButtonRoughnessMap">
+                        <property name="text">
+                         <string>Select Texture</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelRoughnessMap">
+                        <property name="minimumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="maximumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="frameShape">
+                         <enum>QFrame::Panel</enum>
+                        </property>
+                        <property name="frameShadow">
+                         <enum>QFrame::Raised</enum>
+                        </property>
+                        <property name="text">
+                         <string/>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_13">
+                      <item>
+                       <widget class="QCheckBox" name="checkBoxNormalMap">
+                        <property name="text">
+                         <string>Normal Map</string>
+                        </property>
+                        <property name="checked">
+                         <bool>true</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <spacer name="horizontalSpacer_8">
+                        <property name="orientation">
+                         <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButtonNormalMap">
+                        <property name="text">
+                         <string>Select Texture</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelNormalMap">
+                        <property name="minimumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="maximumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="frameShape">
+                         <enum>QFrame::Panel</enum>
+                        </property>
+                        <property name="frameShadow">
+                         <enum>QFrame::Raised</enum>
+                        </property>
+                        <property name="text">
+                         <string/>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                    <item>
+                     <layout class="QHBoxLayout" name="horizontalLayout_14">
+                      <item>
+                       <widget class="QCheckBox" name="checkBoxAOMap">
+                        <property name="text">
+                         <string>Ambient Occlusion Map</string>
+                        </property>
+                        <property name="checked">
+                         <bool>true</bool>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <spacer name="horizontalSpacer_9">
+                        <property name="orientation">
+                         <enum>Qt::Horizontal</enum>
+                        </property>
+                        <property name="sizeHint" stdset="0">
+                         <size>
+                          <width>40</width>
+                          <height>20</height>
+                         </size>
+                        </property>
+                       </spacer>
+                      </item>
+                      <item>
+                       <widget class="QPushButton" name="pushButtonAOMap">
+                        <property name="text">
+                         <string>Select Texture</string>
+                        </property>
+                       </widget>
+                      </item>
+                      <item>
+                       <widget class="QLabel" name="labelAOMap">
+                        <property name="minimumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="maximumSize">
+                         <size>
+                          <width>32</width>
+                          <height>32</height>
+                         </size>
+                        </property>
+                        <property name="frameShape">
+                         <enum>QFrame::Panel</enum>
+                        </property>
+                        <property name="frameShadow">
+                         <enum>QFrame::Raised</enum>
+                        </property>
+                        <property name="text">
+                         <string/>
+                        </property>
+                       </widget>
+                      </item>
+                     </layout>
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="1" column="0">
+                   <spacer name="verticalSpacer_6">
+                    <property name="orientation">
+                     <enum>Qt::Vertical</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>20</width>
+                      <height>326</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                 </layout>
                 </widget>
                 <widget class="QWidget" name="pagePredefMat">
                  <property name="geometry">
@@ -3307,12 +3612,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1406</x>
-     <y>1077</y>
+     <x>1413</x>
+     <y>710</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1540</x>
-     <y>1072</y>
+     <x>1413</x>
+     <y>710</y>
     </hint>
    </hints>
   </connection>
@@ -3323,12 +3628,108 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1360</x>
-     <y>1069</y>
+     <x>1413</x>
+     <y>710</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1627</x>
-     <y>1070</y>
+     <x>1413</x>
+     <y>710</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxSkyBoxHDRI</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>checkBoxHDRToneMapping</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1413</x>
+     <y>710</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1413</x>
+     <y>710</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxSkyBoxHDRI</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>checkBoxGammaCorrection</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1413</x>
+     <y>710</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1413</x>
+     <y>710</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxNormalMap</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>pushButtonNormalMap</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1369</x>
+     <y>719</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1578</x>
+     <y>721</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxAOMap</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>pushButtonAOMap</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1393</x>
+     <y>751</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1569</x>
+     <y>759</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxNormalMap</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>labelNormalMap</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1348</x>
+     <y>711</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1659</x>
+     <y>711</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxAOMap</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>labelAOMap</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1366</x>
+     <y>755</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1658</x>
+     <y>761</y>
     </hint>
    </hints>
   </connection>
@@ -3338,7 +3739,7 @@
  </slots>
  <buttongroups>
   <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

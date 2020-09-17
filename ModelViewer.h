@@ -38,13 +38,18 @@ public slots:
     void clickMultiViewButton();
 
 private slots:
+    void setListRow(int index);
+    void setListRows(QList<int> indices);
+    void showContextMenu(const QPoint& pos);
+    void centerScreen();
+    void lightingType_toggled(int id, bool checked);
+
     void on_checkTexture_toggled(bool checked);
     void on_pushButtonTexture_clicked();
     void on_pushButtonDefaultLights_clicked();
     void on_pushButtonDefaultMatls_clicked();
     void on_pushButtonApplyTransformations_clicked();
     void on_pushButtonResetTransformations_clicked();
-
     void on_toolButtonFitAll_clicked();
     void on_toolButtonWindowZoom_clicked(bool checked);
     void on_toolButtonTopView_clicked();
@@ -56,32 +61,25 @@ private slots:
     void on_toolButtonProjection_toggled(bool checked);
     void on_toolButtonSectionView_toggled(bool checked);
     void on_toolButtonMultiView_toggled(bool checked);
-
     void on_isometricView_triggered(bool checked);
     void on_dimetricView_triggered(bool checked);
     void on_trimetricView_triggered(bool checked);
-
     void on_displayShaded_triggered(bool);
     void on_displayWireframe_triggered(bool);
     void on_displayWireShaded_triggered(bool);
     void on_displayRealShaded_triggered(bool);
-
     void on_pushButtonLightAmbient_clicked();
     void on_pushButtonLightDiffuse_clicked();
     void on_pushButtonLightSpecular_clicked();
-
     void on_pushButtonMaterialAmbient_clicked();
     void on_pushButtonMaterialDiffuse_clicked();
     void on_pushButtonMaterialSpecular_clicked();
     void on_pushButtonMaterialEmissive_clicked();
-
     void on_sliderLightPosX_valueChanged(int);
     void on_sliderLightPosY_valueChanged(int);
     void on_sliderLightPosZ_valueChanged(int);
-
     void on_sliderTransparency_valueChanged(int value);
     void on_sliderShine_valueChanged(int value);
-
     void on_pushButtonBrass_clicked();
     void on_pushButtonBronze_clicked();
     void on_pushButtonCopper_clicked();
@@ -106,51 +104,40 @@ private slots:
     void on_pushButtonRedRubber_clicked();
     void on_pushButtonWhiteRubber_clicked();
     void on_pushButtonYellowRubber_clicked();
-
     void on_toolButtonOpen_clicked();
-
     void on_toolButtonShowHideAxis_toggled(bool checked);
     void on_toolButtonVertexNormal_clicked(bool checked);
     void on_toolButtonFaceNormal_clicked(bool checked);
-
     void on_checkBoxSelectAll_toggled(bool checked);
-
     void on_listWidgetModel_itemChanged(QListWidgetItem*);
     void on_listWidgetModel_itemSelectionChanged();
-
     void on_checkBoxShadowMapping_toggled(bool checked);
     void on_checkBoxEnvMapping_toggled(bool checked);
     void on_checkBoxSkyBox_toggled(bool checked);
     void on_checkBoxReflections_toggled(bool checked);
     void on_checkBoxFloor_toggled(bool checked);
-
     void on_checkBoxFloorTexture_toggled(bool checked);
-
     void on_pushButtonFloorTexture_clicked();
-
     void on_toolBox_currentChanged(int index);
-
     void on_toolButtonRotateView_clicked();
-
     void on_toolButtonPanView_clicked();
-
     void on_toolButtonZoomView_clicked();
-
     void on_pushButtonSkyBoxTex_clicked();
-
-    void setListRow(int index);
-    void setListRows(QList<int> indices);
-    void showContextMenu(const QPoint& pos);
-    void centerScreen();
-    void lightingType_toggled(int id, bool checked);
 
     void on_listWidgetModel_itemDoubleClicked(QListWidgetItem *item);
 
     void on_pushButtonAlbedoColor_clicked();
-
     void on_sliderMetallic_valueChanged(int value);
-
     void on_sliderRoughness_valueChanged(int value);
+    void on_pushButtonAlbedoMap_clicked();
+    void on_pushButtonMetallicMap_clicked();
+    void on_pushButtonRoughnessMap_clicked();
+    void on_pushButtonNormalMap_clicked();
+    void on_pushButtonAOMap_clicked();
+
+    void on_checkBoxNormalMap_toggled(bool checked);
+
+    void on_checkBoxAOMap_toggled(bool checked);
 
 protected:
     void showEvent(QShowEvent* event);
@@ -185,6 +172,7 @@ private:
 
     QString _lastOpenedDir;
     QString _lastSelectedFilter;
+    bool _textureDirOpenedFirstTime;
 
 private:
     void updateControls();

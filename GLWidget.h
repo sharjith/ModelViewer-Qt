@@ -90,6 +90,13 @@ public:
     void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
     void setPBRMetallic(const std::vector<int>& ids, const float& val);
     void setPBRRoughness(const std::vector<int>& ids, const float& val);
+    void setAlbedoTexture(const std::vector<int>& ids, const QString& path);
+    void setMetallicTexture(const std::vector<int>& ids, const QString &path);
+    void setRoughnessTexture(const std::vector<int>& ids, const QString &path);
+    void setNormalTexture(const std::vector<int>& ids, const QString &path);
+    void enableNormalTexture(const std::vector<int>& ids, const bool &enable);
+    void setAOTexture(const std::vector<int>& ids, const QString &path);
+    void enableAOTexture(const std::vector<int>& ids, const bool &enable);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
@@ -424,6 +431,7 @@ private:
 
     QRect getViewportFromPoint(const QPoint& pixel);
     QRect getClientRectFromPoint(const QPoint& pixel);
+    unsigned int loadTextureFromFile(const char* path);
 };
 
 #endif

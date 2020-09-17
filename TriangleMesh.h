@@ -116,9 +116,21 @@ public:
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
+    void setAlbedoMap(unsigned int albedoMap);
+    void setNormalMap(unsigned int normalMap);
+    void setMetallicMap(unsigned int metallicMap);
+    void setRoughnessMap(unsigned int roughnessMap);
+    void setAOMap(unsigned int aoMap);
+
+    bool getHasNormalMap() const;
+    void enableNormalMap(bool hasNormalMap);
+
+    bool getHasAOMap() const;
+    void enableAOMap(bool hasAOMap);
+
 protected: // methods
-	virtual void initBuffers(
-		std::vector<unsigned int>* indices,
+    virtual void initBuffers(
+            std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
 		std::vector<float>* texCoords = nullptr,
@@ -178,6 +190,14 @@ protected:
 	bool _bHasSpecularTexture;
 	unsigned int _sMax;
 	unsigned int _tMax;
+
+    unsigned int _albedoMap;
+    unsigned int _metallicMap;
+    unsigned int _roughnessMap;
+    unsigned int _normalMap;
+    unsigned int _aoMap;
+    bool _hasNormalMap;
+    bool _hasAOMap;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

@@ -18,6 +18,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
                           "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
                           "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
                           "*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl)";
+    _textureDirOpenedFirstTime = true;
 
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
@@ -2223,6 +2224,9 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setItemEnabled(2, true);
         toolBox->setCurrentIndex(2);
         _glWidget->setRenderingMode(RenderingMode::PBR_TEXTURED_LIGHTING);
+        QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
+        displayRealShaded->trigger();
+        toolButtonDisplayMode->setDefaultAction(displayRealShaded);
     }
     updateControls();
     _glWidget->update();
@@ -2288,6 +2292,234 @@ void ModelViewer::on_sliderRoughness_valueChanged(int value)
                 ids.push_back(rowId);
             }
             _glWidget->setPBRRoughness(ids, _PBRRoughness);
+            _glWidget->updateView();
+        }
+    }
+}
+
+void ModelViewer::on_pushButtonAlbedoMap_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            QString appPath = QCoreApplication::applicationDirPath();
+            QString dirPath = appPath + "/textures/materials";
+            QString filter = getSupportedImagesFilter();
+            QString fileName = QFileDialog::getOpenFileName(
+                        this,
+                        "Choose an image for Albedo map texture",
+                        _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
+                        filter);
+            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+            if (fileName != "")
+            {
+                _textureDirOpenedFirstTime = false;
+                QPixmap img; img.load(fileName);
+                if(!img.isNull())
+                {
+
+                    labelAlbedoMap->setPixmap(img);
+                    for (QListWidgetItem* i : items)
+                    {
+                        int rowId = listWidgetModel->row(i);
+                        ids.push_back(rowId);
+                    }
+                    _glWidget->setAlbedoTexture(ids, fileName);
+                    _glWidget->updateView();
+                }
+            }
+        }
+    }
+}
+
+void ModelViewer::on_pushButtonMetallicMap_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            QString appPath = QCoreApplication::applicationDirPath();
+            QString dirPath = appPath + "/textures/materials";
+            QString filter = getSupportedImagesFilter();
+            QString fileName = QFileDialog::getOpenFileName(
+                        this,
+                        "Choose an image for Albedo map texture",
+                        _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
+                        filter);
+            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+            if (fileName != "")
+            {
+                _textureDirOpenedFirstTime = false;
+                QPixmap img; img.load(fileName);
+                if(!img.isNull())
+                {
+
+                    labelMetallicMap->setPixmap(img);
+                    for (QListWidgetItem* i : items)
+                    {
+                        int rowId = listWidgetModel->row(i);
+                        ids.push_back(rowId);
+                    }
+                    _glWidget->setMetallicTexture(ids, fileName);
+                    _glWidget->updateView();
+                }
+            }
+        }
+    }
+}
+
+void ModelViewer::on_pushButtonRoughnessMap_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            QString appPath = QCoreApplication::applicationDirPath();
+            QString dirPath = appPath + "/textures/materials";
+            QString filter = getSupportedImagesFilter();
+            QString fileName = QFileDialog::getOpenFileName(
+                        this,
+                        "Choose an image for Albedo map texture",
+                        _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
+                        filter);
+            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+            if (fileName != "")
+            {
+                _textureDirOpenedFirstTime = false;
+                QPixmap img; img.load(fileName);
+                if(!img.isNull())
+                {
+
+                    labelRoughnessMap->setPixmap(img);
+                    for (QListWidgetItem* i : items)
+                    {
+                        int rowId = listWidgetModel->row(i);
+                        ids.push_back(rowId);
+                    }
+                    _glWidget->setRoughnessTexture(ids, fileName);
+                    _glWidget->updateView();
+                }
+            }
+        }
+    }
+}
+
+void ModelViewer::on_pushButtonNormalMap_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            QString appPath = QCoreApplication::applicationDirPath();
+            QString dirPath = appPath + "/textures/materials";
+            QString filter = getSupportedImagesFilter();
+            QString fileName = QFileDialog::getOpenFileName(
+                        this,
+                        "Choose an image for Albedo map texture",
+                        _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
+                        filter);
+            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+            if (fileName != "")
+            {
+                _textureDirOpenedFirstTime = false;
+                QPixmap img; img.load(fileName);
+                if(!img.isNull())
+                {
+
+                    labelNormalMap->setPixmap(img);
+                    for (QListWidgetItem* i : items)
+                    {
+                        int rowId = listWidgetModel->row(i);
+                        ids.push_back(rowId);
+                    }
+                    _glWidget->setNormalTexture(ids, fileName);
+                    _glWidget->updateView();
+                }
+            }
+        }
+    }
+}
+
+void ModelViewer::on_pushButtonAOMap_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            QString appPath = QCoreApplication::applicationDirPath();
+            QString dirPath = appPath + "/textures/materials";
+            QString filter = getSupportedImagesFilter();
+            QString fileName = QFileDialog::getOpenFileName(
+                        this,
+                        "Choose an image for Albedo map texture",
+                        _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
+                        filter);
+            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+            if (fileName != "")
+            {
+                _textureDirOpenedFirstTime = false;
+                QPixmap img; img.load(fileName);
+                if(!img.isNull())
+                {
+
+                    labelAOMap->setPixmap(img);
+                    for (QListWidgetItem* i : items)
+                    {
+                        int rowId = listWidgetModel->row(i);
+                        ids.push_back(rowId);
+                    }
+                    _glWidget->setAOTexture(ids, fileName);
+                    _glWidget->updateView();
+                }
+            }
+        }
+    }
+}
+
+void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableNormalTexture(ids, checked);
+            _glWidget->updateView();
+        }
+    }
+}
+
+void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableAOTexture(ids, checked);
             _glWidget->updateView();
         }
     }

@@ -319,7 +319,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
     stbi_set_flip_vertically_on_load(true);
     bool loaded = false;
     int width, height, nrComponents;
-    unsigned char* data = nullptr;
+    void* data = nullptr;
     for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
     {
         if (!_skyBoxTextureHDRI)
@@ -327,7 +327,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
             for (QString extn : supportedFormats)
             {
                 QString fileName = _skyBoxFaces.at(i) + "." + extn;
-                data = stbi_load(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0);
+                data = static_cast<unsigned char*>(stbi_load(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0));
                 if (data)
                 {
                     loaded = true;
@@ -338,7 +338,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
         else
         {
             QString fileName = _skyBoxFaces.at(i) + ".hdr";
-            data = stbi_load(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0);
+            data = static_cast<float*>(stbi_loadf(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0));
             if (data)
             {
                 loaded = true;
@@ -346,7 +346,10 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
         }
         if (loaded)
         {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            if(_skyBoxTextureHDRI)
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
+            else
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
             stbi_image_free(data);
         }
@@ -354,7 +357,13 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
         {
             if (_skyBoxTextureHDRI)
             {
-                QMessageBox::critical(this, "Error", "Skybox HDR files are not found in the selected folder");
+                QMessageBox::critical(this, "Error", "Skybox HDR files are not found in the selected folder\n"
+                                                     "Please make sure that if HRDI option is checked,\n"
+                                                     "six HDRI images with names in the following manner...\n"
+                                                     "posx.hdr, posy.hdr, posz.hdr,\n"
+                                                     "negx.hdr, negy.hdr, negz.hdr\n"
+                                                     "are present in the folder."
+                                                     "\nSkybox has not changed, continuing with the existing one.");
             }
             else
             {
@@ -809,6 +818,123 @@ void GLWidget::setPBRRoughness(const std::vector<int>& ids, const float& val)
     }
 }
 
+void GLWidget::setAlbedoTexture(const std::vector<int>& ids, const QString &path)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            mesh->setAlbedoMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setAlbedoTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setMetallicTexture(const std::vector<int>& ids, const QString &path)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            mesh->setMetallicMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setMetallicTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setRoughnessTexture(const std::vector<int>& ids, const QString &path)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            mesh->setRoughnessMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setRoughnessTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setNormalTexture(const std::vector<int>& ids, const QString& path)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            mesh->setNormalMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setNormalTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableNormalTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableNormalMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableNormalTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setAOTexture(const std::vector<int>& ids, const QString &path)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            mesh->setAOMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setAOTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableAOMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableAOTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
 {
     for (int id : ids)
@@ -901,6 +1027,17 @@ void GLWidget::initializeGL()
     _fgShader->setUniformValue("irradianceMap", 3);
     _fgShader->setUniformValue("prefilterMap", 4);
     _fgShader->setUniformValue("brdfLUT", 5);
+
+    /*std::vector<int> ids;
+    for(size_t i = 0; i < _meshStore.size(); i++)
+    {
+        ids.push_back(i);
+    }
+    setAlbedoTexture(ids,       "textures/materials/gold/albedo.png");
+    setNormalTexture(ids,       "textures/materials/gold/normal.png");
+    setMetallicTexture(ids,     "textures/materials/gold/metallic.png");
+    setRoughnessTexture(ids,    "textures/materials/gold/roughness.png");
+    setAOTexture(ids,           "textures/materials/gold/ao.png");*/
 
     _debugShader.bind();
     _debugShader.setUniformValue("depthMap", 0);
@@ -1264,27 +1401,35 @@ void GLWidget::loadEnvMap()
 
     _skyBoxFaces =
     {
-        QString("textures/envmap/skyboxes/Parliament/posx.jpg"),
-        QString("textures/envmap/skyboxes/Parliament/negx.jpg"),
-        QString("textures/envmap/skyboxes/Parliament/posz.jpg"),
-        QString("textures/envmap/skyboxes/Parliament/negz.jpg"),
-        QString("textures/envmap/skyboxes/Parliament/posy.jpg"),
-        QString("textures/envmap/skyboxes/Parliament/negy.jpg")
+        QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
+        QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
+        QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
+        QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
+        QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
+        QString("textures/envmap/skyboxes/stormydays/negy.jpg")
     };
 
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     glGenTextures(1, &_environmentMap);
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
     stbi_set_flip_vertically_on_load(true);
     int width, height, nrComponents;
-    unsigned char* data = nullptr;
+    void* data = nullptr;
     for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
     {
-        data = stbi_load((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0);
+        if(_skyBoxTextureHDRI)
+            data = static_cast<float*>(stbi_loadf((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0));
+        else
+            data = static_cast<unsigned char*>(stbi_load((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0));
+
         if (data)
         {
-            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+            if(_skyBoxTextureHDRI)
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
+            else
+                glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
             glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
             stbi_image_free(data);
         }
@@ -1344,7 +1489,10 @@ void GLWidget::loadIrradianceMap()
     glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+        if(_skyBoxTextureHDRI)
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+        else
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -1383,7 +1531,10 @@ void GLWidget::loadIrradianceMap()
     glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
     for (unsigned int i = 0; i < 6; ++i)
     {
-        glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
+        if(_skyBoxTextureHDRI)
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
+        else
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
     }
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -2717,6 +2868,43 @@ QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
     }
 
     return clientRect;
+}
+
+unsigned int GLWidget::loadTextureFromFile(char const * path)
+{
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrComponents;
+    unsigned char *data = stbi_load(path, &width, &height, &nrComponents, 0);
+    if (data)
+    {
+        GLenum format;
+        if (nrComponents == 1)
+            format = GL_RED;
+        else if (nrComponents == 3)
+            format = GL_RGB;
+        else if (nrComponents == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else
+    {
+        std::cout << "Texture failed to load at path: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
 }
 
 int GLWidget::mouseSelect(const QPoint& pixel)
