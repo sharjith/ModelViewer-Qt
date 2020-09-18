@@ -123,14 +123,17 @@ public:
     void setAOMap(unsigned int aoMap);
     void setHeightMap(unsigned int heightMap);
 
-    bool getHasNormalMap() const;
+    bool hasNormalMap() const;
     void enableNormalMap(bool hasNormalMap);
 
-    bool getHasAOMap() const;
+    bool hasAOMap() const;
     void enableAOMap(bool hasAOMap);
 
-    bool getHasHeightMap() const;
+    bool hasHeightMap() const;
     void enableHeightMap(bool hasHeightMap);
+
+    float getHeightScale() const;
+    void setHeightScale(float heightScale);
 
 protected: // methods
     virtual void initBuffers(
@@ -207,6 +210,7 @@ protected:
     bool _hasNormalMap;
     bool _hasAOMap;
     bool _hasHeightMap;
+    float _heightScale;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

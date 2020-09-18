@@ -16,6 +16,10 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	std::vector<float> p(3 * nVerts);
 	// Normals
 	std::vector<float> n(3 * nVerts);
+    // Tangents
+    std::vector<float> tg(3 * nVerts);
+    // Bitangents
+    std::vector<float> bt(3 * nVerts);
 	// Tex coords
 	std::vector<float> tex(2 * nVerts);
 	// Elements
@@ -25,7 +29,7 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	float theta, phi;
 	float thetaFac = glm::two_pi<float>() / nSlices;
 	float phiFac = glm::pi<float>() / nStacks;
-	float nx, ny, nz, s, t;
+    float nx, ny, nz, tx, ty, tz, s, t;
 	unsigned int idx = 0, tIdx = 0;
 	for (unsigned int i = 0; i <= nSlices; i++) {
 		theta = i * thetaFac;
@@ -36,8 +40,14 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 			nx = sinf(phi) * cosf(theta);
 			ny = sinf(phi) * sinf(theta);
 			nz = cosf(phi);
+            tx = -sinf(phi);
+            ty = 0;
+            tz = cos(phi);
+            QVector3D bi = QVector3D::crossProduct(QVector3D(nx, ny, nz), QVector3D(tx, ty, tz));
 			p[idx] = radius * nx; p[idx + 1] = radius * ny; p[idx + 2] = radius * nz;
 			n[idx] = nx; n[idx + 1] = ny; n[idx + 2] = nz;
+            tg[idx] = tx; tg[idx + 1] = ty; tg[idx + 2] = tz;
+            bt[idx] = bi.x(); bt[idx + 1] = bi.y(); bt[idx + 2] = bi.z();
 			idx += 3;
 
 			tex[tIdx] = s;
@@ -103,6 +113,6 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 		}
 	}
 
-	initBuffers(&el, &p, &n, &tex);
+    initBuffers(&el, &p, &n, &tex, &tg, &bt);
     computeBounds(p);
 }

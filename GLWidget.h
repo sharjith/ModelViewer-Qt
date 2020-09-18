@@ -99,6 +99,7 @@ public:
     void enableAOTexture(const std::vector<int>& ids, const bool &enable);
     void enableHeightTexture(const std::vector<int>& ids, const bool &enable);
     void setHeightTexture(const std::vector<int>& ids, const QString& path);
+    void setHeightScale(const std::vector<int>& ids, const float& scale);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);

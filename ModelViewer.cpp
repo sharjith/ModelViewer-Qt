@@ -2579,3 +2579,22 @@ void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
         }
     }
 }
+
+void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->setHeightScale(ids, static_cast<float>(val));
+            _glWidget->updateView();
+        }
+    }
+}

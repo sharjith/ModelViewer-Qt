@@ -136,12 +136,10 @@ private slots:
     void on_pushButtonAOMap_clicked();
 
     void on_checkBoxNormalMap_toggled(bool checked);
-
     void on_checkBoxAOMap_toggled(bool checked);
-
     void on_checkBoxHeightMap_toggled(bool checked);
-
     void on_pushButtonHeightMap_clicked();
+    void on_doubleSpinBoxHeightScale_valueChanged(double val);
 
 protected:
     void showEvent(QShowEvent* event);

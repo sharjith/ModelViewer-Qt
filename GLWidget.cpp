@@ -968,6 +968,22 @@ void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool &enab
     }
 }
 
+void GLWidget::setHeightScale(const std::vector<int>& ids, const float& scale)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setHeightScale(scale);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setHeightScale\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
 {
     for (int id : ids)

@@ -321,7 +321,8 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     float roughness;
     float ambientOcclusion;
     vec3 N;
-    vec2 texCoords = g_texCoord2d;
+    vec3 V = normalize(lightSource.position + vec3(0));
+    vec2 clippedTexCoord = g_texCoord2d;
 
     if(renderMode == 1)
     {
@@ -332,31 +333,31 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
         ambientOcclusion = pbrLighting.ambientOcclusion;
     }
     else
-    {
+    {        
         if(hasHeightMap)
         {
             // offset texture coordinates with Parallax Mapping
             vec3 viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
-            texCoords = parallaxMapping(g_texCoord2d,  viewDir);
-            if(texCoords.x > 1.0 || texCoords.y > 1.0 || texCoords.x < 0.0 || texCoords.y < 0.0)
+            vec2 texCoords = parallaxMapping(g_texCoord2d,  viewDir);
+            clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+            if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
+            V = normalize(g_tangentLightPos - g_tangentFragPos);
         }
         if(hasNormalMap)
             N = getNormalFromMap();
         else
             N = normalize(normal);
         // material properties
-        albedo = pow(texture(albedoMap, g_texCoord2d).rgb, vec3(2.2));
-        metallic = texture(metallicMap, g_texCoord2d).r;
-        roughness = texture(roughnessMap, g_texCoord2d).r;
+        albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
+        metallic = texture(metallicMap, clippedTexCoord).r;
+        roughness = texture(roughnessMap, clippedTexCoord).r;
 
         if(hasAOMap)
-            ambientOcclusion = texture(aoMap, g_texCoord2d).r;
+            ambientOcclusion = texture(aoMap, clippedTexCoord).r;
         else
             ambientOcclusion = 1.0f;        
     }
-
-    vec3 V = normalize(lightSource.position + vec3(0));
     
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)
@@ -552,5 +553,6 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 vec2 parallaxMapping(vec2 texCoords, vec3 viewDir)
 {
     float height =  texture(heightMap, texCoords).r;
-    return texCoords - viewDir.xy * (height * heightScale);
+    vec2 p = viewDir.xy / viewDir.z * (height * heightScale);
+    return texCoords - p;
 }

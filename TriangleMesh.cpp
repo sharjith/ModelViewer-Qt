@@ -16,7 +16,8 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _aoMap(0),
     _hasNormalMap(true),
     _hasAOMap(true),
-    _hasHeightMap(false)
+    _hasHeightMap(false),
+    _heightScale(0.5f)
 {
     _memorySize = 0;
     _transX = _transY = _transZ = 0.0f;
@@ -270,7 +271,7 @@ void TriangleMesh::setupUniforms()
     _prog->setUniformValue("roughnessMap", 9);
     _prog->setUniformValue("aoMap", 10);
     _prog->setUniformValue("heightMap", 11);
-    _prog->setUniformValue("heightScale", 1.0f);
+    _prog->setUniformValue("heightScale", _heightScale);
     _prog->setUniformValue("hasNormalMap", _hasNormalMap);
     _prog->setUniformValue("hasAOMap", _hasAOMap);
     _prog->setUniformValue("hasHeightMap", _hasHeightMap);
@@ -784,7 +785,7 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
         return false;
 }
 
-bool TriangleMesh::getHasHeightMap() const
+bool TriangleMesh::hasHeightMap() const
 {
     return _hasHeightMap;
 }
@@ -794,7 +795,7 @@ void TriangleMesh::enableHeightMap(bool hasHeightMap)
     _hasHeightMap = hasHeightMap;
 }
 
-bool TriangleMesh::getHasAOMap() const
+bool TriangleMesh::hasAOMap() const
 {
     return _hasAOMap;
 }
@@ -804,7 +805,7 @@ void TriangleMesh::enableAOMap(bool hasAOMap)
     _hasAOMap = hasAOMap;
 }
 
-bool TriangleMesh::getHasNormalMap() const
+bool TriangleMesh::hasNormalMap() const
 {
     return _hasNormalMap;
 }
@@ -842,4 +843,14 @@ void TriangleMesh::setNormalMap(unsigned int normalMap)
 void TriangleMesh::setAlbedoMap(unsigned int albedoMap)
 {
     _albedoMap = albedoMap;
+}
+
+float TriangleMesh::getHeightScale() const
+{
+    return _heightScale;
+}
+
+void TriangleMesh::setHeightScale(float heightScale)
+{
+    _heightScale = heightScale;
 }
