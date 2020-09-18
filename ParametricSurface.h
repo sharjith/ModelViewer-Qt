@@ -16,4 +16,8 @@ public:
 
 	float getSlices() const { return _slices; }
 	float getStacks() const { return _stacks; }
+
+protected:
+    QVector3D _tangent;
+    QVector3D _bitangent;
 };
