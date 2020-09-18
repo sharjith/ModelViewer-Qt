@@ -935,6 +935,39 @@ void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool &enable)
     }
 }
 
+void GLWidget::setHeightTexture(const std::vector<int>& ids, const QString& path)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            mesh->setHeightMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setHeightTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableHeightMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableHeightTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
 {
     for (int id : ids)

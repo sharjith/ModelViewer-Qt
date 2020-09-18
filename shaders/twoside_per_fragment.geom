@@ -34,12 +34,18 @@ out GS_OUT_SHADOW {
     vec3 lightPos;
 } gs_out_shadow;
 
-
 in vec3  v_reflectionPosition[];
 out vec3 g_reflectionPosition;
 
 in vec3  v_reflectionNormal[];
 out vec3 g_reflectionNormal;
+
+in vec3 v_tangentLightPos[];
+in vec3 v_tangentViewPos[];
+in vec3 v_tangentFragPos[];
+out vec3 g_tangentLightPos;
+out vec3 g_tangentViewPos;
+out vec3 g_tangentFragPos;
 
 in float v_clipDistX[];
 in float v_clipDistY[];
@@ -155,6 +161,10 @@ void main()
             // Cube environment mapping
             g_reflectionPosition = v_reflectionPosition[i];
             g_reflectionNormal = v_reflectionNormal[i];
+
+            g_tangentLightPos = v_tangentLightPos[i];
+            g_tangentViewPos = v_tangentViewPos[i];
+            g_tangentFragPos = v_tangentFragPos[i];
 
             EmitVertex();
         }

@@ -139,6 +139,10 @@ private slots:
 
     void on_checkBoxAOMap_toggled(bool checked);
 
+    void on_checkBoxHeightMap_toggled(bool checked);
+
+    void on_pushButtonHeightMap_clicked();
+
 protected:
     void showEvent(QShowEvent* event);
 

@@ -121,12 +121,16 @@ public:
     void setMetallicMap(unsigned int metallicMap);
     void setRoughnessMap(unsigned int roughnessMap);
     void setAOMap(unsigned int aoMap);
+    void setHeightMap(unsigned int heightMap);
 
     bool getHasNormalMap() const;
     void enableNormalMap(bool hasNormalMap);
 
     bool getHasAOMap() const;
     void enableAOMap(bool hasAOMap);
+
+    bool getHasHeightMap() const;
+    void enableHeightMap(bool hasHeightMap);
 
 protected: // methods
     virtual void initBuffers(
@@ -147,6 +151,9 @@ protected: // methods
 		const QVector3D& vertex1,
 		const QVector3D& vertex2,
 		QVector3D& outIntersectionPoint);
+
+    virtual void setupTextures();
+    virtual void setupUniforms();
 
 protected:
 
@@ -196,8 +203,10 @@ protected:
     unsigned int _roughnessMap;
     unsigned int _normalMap;
     unsigned int _aoMap;
+    unsigned int _heightMap;
     bool _hasNormalMap;
     bool _hasAOMap;
+    bool _hasHeightMap;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

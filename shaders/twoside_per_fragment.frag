@@ -8,6 +8,9 @@ in vec2 g_texCoord2d;
 noperspective in vec3 g_edgeDistance;
 in vec3 g_reflectionPosition;
 in vec3 g_reflectionNormal;
+in vec3 g_tangentLightPos;
+in vec3 g_tangentViewPos;
+in vec3 g_tangentFragPos;
 
 in GS_OUT_SHADOW {
     vec3 FragPos;
@@ -35,9 +38,12 @@ uniform sampler2D albedoMap;
 uniform sampler2D normalMap;
 uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
+uniform sampler2D heightMap;
 uniform sampler2D aoMap;
 uniform bool hasNormalMap;
 uniform bool hasAOMap;
+uniform bool hasHeightMap;
+uniform float heightScale;
 
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
@@ -107,11 +113,13 @@ vec4  shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 p
 vec4  calculatePBRLighting(int renderMode, vec3 normal);
 
 vec3 getNormalFromMap();
+mat3 getTBNFromMap();
 float DistributionGGX(vec3 N, vec3 H, float roughness);
 float GeometrySchlickGGX(float NdotV, float roughness);
 float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3  fresnelSchlick(float cosTheta, vec3 F0);
 vec3  fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
+vec2 parallaxMapping(vec2 texCoords, vec3 viewDir);
 
 
 void main()
@@ -313,6 +321,7 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     float roughness;
     float ambientOcclusion;
     vec3 N;
+    vec2 texCoords = g_texCoord2d;
 
     if(renderMode == 1)
     {
@@ -324,6 +333,14 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     }
     else
     {
+        if(hasHeightMap)
+        {
+            // offset texture coordinates with Parallax Mapping
+            vec3 viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
+            texCoords = parallaxMapping(g_texCoord2d,  viewDir);
+            if(texCoords.x > 1.0 || texCoords.y > 1.0 || texCoords.x < 0.0 || texCoords.y < 0.0)
+                discard;
+        }
         if(hasNormalMap)
             N = getNormalFromMap();
         else
@@ -336,9 +353,8 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
         if(hasAOMap)
             ambientOcclusion = texture(aoMap, g_texCoord2d).r;
         else
-            ambientOcclusion = 1.0f;
+            ambientOcclusion = 1.0f;        
     }
-
 
     vec3 V = normalize(lightSource.position + vec3(0));
     
@@ -470,6 +486,23 @@ vec3 getNormalFromMap()
     return normalize(TBN * tangentNormal);
 }
 
+mat3 getTBNFromMap()
+{
+    vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
+
+    vec3 Q1  = dFdx(g_position);
+    vec3 Q2  = dFdy(g_position);
+    vec2 st1 = dFdx(g_texCoord2d);
+    vec2 st2 = dFdy(g_texCoord2d);
+
+    vec3 N   = normalize(g_normal);
+    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B  = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+
+    return TBN;
+}
+
 // ----------------------------------------------------------------------------
 float DistributionGGX(vec3 N, vec3 H, float roughness)
 {
@@ -514,4 +547,10 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+vec2 parallaxMapping(vec2 texCoords, vec3 viewDir)
+{
+    float height =  texture(heightMap, texCoords).r;
+    return texCoords - viewDir.xy * (height * heightScale);
 }

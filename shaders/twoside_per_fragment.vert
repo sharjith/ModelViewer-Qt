@@ -3,6 +3,8 @@
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexNormal;
 layout(location = 2) in vec2 texCoord2d;
+layout(location = 3) in vec3 tangentCoord;
+layout(location = 4) in vec3 bitangentCoord;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -26,7 +28,10 @@ out float v_clipDist;
 
 out vec3 v_normal;
 out vec3 v_position;
-out vec2 v_texCoord2d;	
+out vec2 v_texCoord2d;
+out vec3 v_tangentLightPos;
+out vec3 v_tangentViewPos;
+out vec3 v_tangentFragPos;
 
 out vec3 v_reflectionPosition;
 out vec3 v_reflectionNormal;
@@ -65,6 +70,15 @@ void main()
     // Cube environment mapping
     v_reflectionPosition = vec3(modelMatrix * vec4(vertexPosition, 1.0));
     v_reflectionNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
+
+    vec3 T = normalize(mat3(modelMatrix) * tangentCoord);
+    vec3 B = normalize(mat3(modelMatrix) * bitangentCoord);
+    vec3 N = normalize(mat3(modelMatrix) * vertexNormal);
+    mat3 TBN = transpose(mat3(T, B, N));
+
+    v_tangentLightPos = TBN * lightPos;
+    v_tangentViewPos  = TBN * cameraPos;
+    v_tangentFragPos  = TBN * vec3(modelMatrix * vec4(vertexPosition, 1.0));
 
     // Moved this to geometry shader
     /*

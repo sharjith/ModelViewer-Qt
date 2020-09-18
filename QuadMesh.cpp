@@ -11,46 +11,9 @@ void QuadMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, 3, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-	glGenerateMipmap(GL_TEXTURE_2D);
+    setupTextures();
 
-    glActiveTexture(GL_TEXTURE6);
-    glBindTexture(GL_TEXTURE_2D, _albedoMap);
-    glActiveTexture(GL_TEXTURE7);
-    glBindTexture(GL_TEXTURE_2D, _normalMap);
-    glActiveTexture(GL_TEXTURE8);
-    glBindTexture(GL_TEXTURE_2D, _metallicMap);
-    glActiveTexture(GL_TEXTURE9);
-    glBindTexture(GL_TEXTURE_2D, _roughnessMap);
-    glActiveTexture(GL_TEXTURE10);
-    glBindTexture(GL_TEXTURE_2D, _aoMap);
-
-	_prog->bind();
-	_prog->setUniformValue("texUnit", 0);
-	_prog->setUniformValue("material.emission", _emmissiveMaterial.toVector3D());
-	_prog->setUniformValue("material.ambient", _ambientMaterial.toVector3D());
-	_prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
-	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
-	_prog->setUniformValue("material.shininess", _shininess);
-    _prog->setUniformValue("material.metallic", _metallic);
-    _prog->setUniformValue("pbrLighting.albedo", _PBRAlbedoColor);
-    _prog->setUniformValue("pbrLighting.metallic", _PBRMetallic);
-    _prog->setUniformValue("pbrLighting.roughness", _PBRRoughness);
-    _prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
-    _prog->setUniformValue("albedoMap", 6);
-    _prog->setUniformValue("normalMap", 7);
-    _prog->setUniformValue("metallicMap", 8);
-    _prog->setUniformValue("roughnessMap", 9);
-    _prog->setUniformValue("aoMap", 10);
-    _prog->setUniformValue("hasNormalMap", _hasNormalMap);
-    _prog->setUniformValue("hasAOMap", _hasAOMap);
-	_prog->setUniformValue("texEnabled", _bHasTexture);
-	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
-	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
-	_prog->setUniformValue("alpha", _opacity);
-	_prog->setUniformValue("selected", _selected);
+    setupUniforms();
 
 	if (_opacity < 1.0f)
 	{

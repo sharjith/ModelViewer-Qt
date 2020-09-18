@@ -310,26 +310,25 @@ void ModelViewer::updateControls()
 {
     QColor col;
     QString qss;
+    QVector4D ambientLight = _glWidget->getAmbientLight();
+    col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonLightAmbient->setStyleSheet(qss);
+
+    QVector4D diffuseLight = _glWidget->getDiffuseLight();
+    col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonLightDiffuse->setStyleSheet(qss);
+
+    QVector4D specularLight = _glWidget->getSpecularLight();
+    col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
+    qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    pushButtonLightSpecular->setStyleSheet(qss);
     // ADS Lighting
     if (radioButtonADSL->isChecked())
     {
         sliderShine->setValue((int)_shine);
         sliderTransparency->setValue((int)(1000 * _opacity));
-               
-        QVector4D ambientLight = _glWidget->getAmbientLight();
-        col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonLightAmbient->setStyleSheet(qss);
-
-        QVector4D diffuseLight = _glWidget->getDiffuseLight();
-        col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonLightDiffuse->setStyleSheet(qss);
-
-        QVector4D specularLight = _glWidget->getSpecularLight();
-        col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-        qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-        pushButtonLightSpecular->setStyleSheet(qss);
 
         col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
         qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
@@ -2486,6 +2485,44 @@ void ModelViewer::on_pushButtonAOMap_clicked()
     }
 }
 
+void ModelViewer::on_pushButtonHeightMap_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            QString appPath = QCoreApplication::applicationDirPath();
+            QString dirPath = appPath + "/textures/materials";
+            QString filter = getSupportedImagesFilter();
+            QString fileName = QFileDialog::getOpenFileName(
+                        this,
+                        "Choose an image for Height map texture",
+                        _textureDirOpenedFirstTime  ? dirPath : _lastOpenedDir,
+                        filter);
+            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+            if (fileName != "")
+            {
+                _textureDirOpenedFirstTime = false;
+                QPixmap img; img.load(fileName);
+                if(!img.isNull())
+                {
+
+                    labelHeightMap->setPixmap(img);
+                    for (QListWidgetItem* i : items)
+                    {
+                        int rowId = listWidgetModel->row(i);
+                        ids.push_back(rowId);
+                    }
+                    _glWidget->setHeightTexture(ids, fileName);
+                    _glWidget->updateView();
+                }
+            }
+        }
+    }
+}
+
 void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
 {
     if (listWidgetModel->count())
@@ -2519,6 +2556,25 @@ void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
                 ids.push_back(rowId);
             }
             _glWidget->enableAOTexture(ids, checked);
+            _glWidget->updateView();
+        }
+    }
+}
+
+void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableHeightTexture(ids, checked);
             _glWidget->updateView();
         }
     }

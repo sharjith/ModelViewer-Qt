@@ -15,7 +15,8 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _normalMap(0),
     _aoMap(0),
     _hasNormalMap(true),
-    _hasAOMap(true)
+    _hasAOMap(true),
+    _hasHeightMap(false)
 {
     _memorySize = 0;
     _transX = _transY = _transZ = 0.0f;
@@ -228,11 +229,8 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
     _vertexArrayObject.release();
 }
 
-void TriangleMesh::render()
+void TriangleMesh::setupTextures()
 {
-    if (!_vertexArrayObject.isCreated())
-        return;
-
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
@@ -248,7 +246,12 @@ void TriangleMesh::render()
     glBindTexture(GL_TEXTURE_2D, _roughnessMap);
     glActiveTexture(GL_TEXTURE10);
     glBindTexture(GL_TEXTURE_2D, _aoMap);
+    glActiveTexture(GL_TEXTURE11);
+    glBindTexture(GL_TEXTURE_2D, _heightMap);
+}
 
+void TriangleMesh::setupUniforms()
+{
     _prog->bind();
     _prog->setUniformValue("texUnit", 0);
     _prog->setUniformValue("material.emission", _emmissiveMaterial.toVector3D());
@@ -266,13 +269,26 @@ void TriangleMesh::render()
     _prog->setUniformValue("metallicMap", 8);
     _prog->setUniformValue("roughnessMap", 9);
     _prog->setUniformValue("aoMap", 10);
+    _prog->setUniformValue("heightMap", 11);
+    _prog->setUniformValue("heightScale", 1.0f);
     _prog->setUniformValue("hasNormalMap", _hasNormalMap);
     _prog->setUniformValue("hasAOMap", _hasAOMap);
+    _prog->setUniformValue("hasHeightMap", _hasHeightMap);
     _prog->setUniformValue("texEnabled", _bHasTexture);
     _prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
     _prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
     _prog->setUniformValue("alpha", _opacity);
     _prog->setUniformValue("selected", _selected);
+}
+
+void TriangleMesh::render()
+{
+    if (!_vertexArrayObject.isCreated())
+        return;
+
+    setupTextures();
+
+    setupUniforms();
 
     if (_opacity < 1.0f)
     {
@@ -768,6 +784,16 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
         return false;
 }
 
+bool TriangleMesh::getHasHeightMap() const
+{
+    return _hasHeightMap;
+}
+
+void TriangleMesh::enableHeightMap(bool hasHeightMap)
+{
+    _hasHeightMap = hasHeightMap;
+}
+
 bool TriangleMesh::getHasAOMap() const
 {
     return _hasAOMap;
@@ -786,6 +812,11 @@ bool TriangleMesh::getHasNormalMap() const
 void TriangleMesh::enableNormalMap(bool hasNormalMap)
 {
     _hasNormalMap = hasNormalMap;
+}
+
+void TriangleMesh::setHeightMap(unsigned int heightMap)
+{
+    _heightMap = heightMap;
 }
 
 void TriangleMesh::setAOMap(unsigned int aoMap)
