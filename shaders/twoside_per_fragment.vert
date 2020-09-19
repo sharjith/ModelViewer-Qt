@@ -79,7 +79,7 @@ void main()
 
     v_tangentLightPos = TBN * lightPos;
     v_tangentViewPos  = TBN * cameraPos;
-    v_tangentFragPos  = TBN * v_position;
+    v_tangentFragPos  = TBN * vertexPosition;
 
     // Moved this to geometry shader
     /*

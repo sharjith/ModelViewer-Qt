@@ -108,18 +108,18 @@ const float PI = 3.14159265359;
 
 layout( location = 0 ) out vec4 fragColor;
 
-float calculateShadow(vec4 fragPosLightSpace);
-vec4  shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
-vec4  calculatePBRLighting(int renderMode, vec3 normal);
+float   calculateShadow(vec4 fragPosLightSpace);
+vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
+vec4    calculatePBRLighting(int renderMode, vec3 normal);
 
-vec3 getNormalFromMap();
-mat3 getTBNFromMap();
-float DistributionGGX(vec3 N, vec3 H, float roughness);
-float GeometrySchlickGGX(float NdotV, float roughness);
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
-vec3  fresnelSchlick(float cosTheta, vec3 F0);
-vec3  fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-vec2 parallaxMapping(vec2 texCoords, vec3 viewDir);
+vec3    getNormalFromMap();
+mat3    getTBNFromMap();
+float   distributionGGX(vec3 N, vec3 H, float roughness);
+float   geometrySchlickGGX(float NdotV, float roughness);
+float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
+vec3    fresnelSchlick(float cosTheta, vec3 F0);
+vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
+vec2    parallaxMapping(vec2 texCoords, vec3 viewDir);
 
 
 void main()
@@ -323,7 +323,8 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     vec3 N;
     vec3 V = normalize(lightSource.position + vec3(0));
     vec3 L = normalize(lightSource.position + vec3(0));
-    vec2 clippedTexCoord = g_texCoord2d;
+    vec2 texCoords = g_texCoord2d;
+    vec2 clippedTexCoord = texCoords;
 
     if(renderMode == 1)
     {
@@ -343,25 +344,24 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
         {
             // offset texture coordinates with Parallax Mapping
             vec3 viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
-            vec2 texCoords = parallaxMapping(g_texCoord2d,  viewDir);
+            texCoords = parallaxMapping(g_texCoord2d,  viewDir);
             clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
             // obtain normal from normal map
-            vec3 normal = texture(normalMap, clippedTexCoord).rgb;
-            N = normalize(normal * 2.0 - 1.0);
+            N = texture(normalMap, texCoords).rgb;
             V = normalize(g_tangentLightPos - g_tangentFragPos);
             L = normalize(g_tangentLightPos - g_tangentFragPos);
         }        
         // material properties
-        albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
-        metallic = texture(metallicMap, clippedTexCoord).r;
-        roughness = texture(roughnessMap, clippedTexCoord).r;
+        albedo = pow(texture(albedoMap, texCoords).rgb, vec3(2.2));
+        metallic = texture(metallicMap, texCoords).r;
+        roughness = texture(roughnessMap, texCoords).r;
 
         if(hasAOMap)
-            ambientOcclusion = texture(aoMap, clippedTexCoord).r;
+            ambientOcclusion = texture(aoMap, texCoords).r;
         else
-            ambientOcclusion = 1.0f;        
+            ambientOcclusion = 1.0f;
     }
     
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
@@ -391,8 +391,8 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     }
 
     // Cook-Torrance BRDF
-    float NDF = DistributionGGX(N, H, roughness);
-    float G   = GeometrySmith(N, V, L, roughness);
+    float NDF = distributionGGX(N, H, roughness);
+    float G   = geometrySmith(N, V, L, roughness);
     vec3 F    = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
 
     vec3 nominator    = NDF * G * F;
@@ -509,7 +509,7 @@ mat3 getTBNFromMap()
 }
 
 // ----------------------------------------------------------------------------
-float DistributionGGX(vec3 N, vec3 H, float roughness)
+float distributionGGX(vec3 N, vec3 H, float roughness)
 {
     float a = roughness*roughness;
     float a2 = a*a;
@@ -523,7 +523,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness)
     return nom / max(denom, 0.001); // prevent divide by zero for roughness=0.0 and NdotH=1.0
 }
 // ----------------------------------------------------------------------------
-float GeometrySchlickGGX(float NdotV, float roughness)
+float geometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0);
     float k = (r*r) / 8.0;
@@ -534,12 +534,12 @@ float GeometrySchlickGGX(float NdotV, float roughness)
     return nom / denom;
 }
 // ----------------------------------------------------------------------------
-float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-    float ggx1 = GeometrySchlickGGX(NdotL, roughness);
+    float ggx2 = geometrySchlickGGX(NdotV, roughness);
+    float ggx1 = geometrySchlickGGX(NdotL, roughness);
 
     return ggx1 * ggx2;
 }
