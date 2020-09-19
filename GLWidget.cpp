@@ -158,7 +158,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _skyBoxFOV = 45.0f;
     _skyBoxTextureHDRI = false;
     _gammaCorrection = false;
-    _screenGamma = 2.2;
+    _screenGamma = 2.2f;
     _hdrToneMapping = false;;
 
     _lowResEnabled = false;
@@ -1347,9 +1347,9 @@ void GLWidget::createGeometry()
     _upperLayout->addWidget(_sphericalHarmonicsEditor);
 
 #ifdef WIN32
-    STLMesh* mesh = new STLMesh(_fgShader, QString("D:/work/progs/qt5/ModelViewer-1.0/data/Logo.stl"));
+    STLMesh* mesh = new STLMesh(_fgShader, QString("D:/work/progs/qt5/ModelViewer-Github/data/Logo.stl"));
 #else
-    STLMesh* mesh = new STLMesh(_fgShader, QString("/home/sharjith/work/progs/qt/stlviewer/data/Logo.stl"));
+    STLMesh* mesh = new STLMesh(_fgShader, QString("/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo.stl"));
 #endif
     if (mesh && mesh->loaded())
         _meshStore.push_back(mesh);

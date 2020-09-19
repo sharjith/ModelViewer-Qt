@@ -215,6 +215,8 @@ protected:
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
 	std::vector<float> _normals;
+	std::vector<float> _tangents;
+	std::vector<float> _bitangents;
 	std::vector<float> _texCoords;
 	std::vector<float> _trsfpoints;
 	std::vector<float> _trsfnormals;

@@ -94,6 +94,10 @@ void TriangleMesh::initBuffers(
 
     if (texCoords)
         _texCoords = *texCoords;
+    if (tangents)
+        _tangents = *tangents;
+    if (bitangents)
+        _bitangents = *bitangents;
 
     _memorySize = 0;
     _memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
@@ -211,21 +215,30 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
     _prog->enableAttributeArray("vertexNormal");
     _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-    _texCoordBuffer.bind();
-    //glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-    //glEnableVertexAttribArray(2);  // Tex coord
-    _prog->enableAttributeArray("texCoord2d");
-    _prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
+    if (_texCoords.size())
+    {
+        _texCoordBuffer.bind();
+        //glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
+        //glEnableVertexAttribArray(2);  // Tex coord
+        _prog->enableAttributeArray("texCoord2d");
+        _prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
+    }
 
-    _tangentBuf.bind();
-    //glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
-    //glEnableVertexAttribArray(3);  // Tangents
-    _prog->enableAttributeArray("tangentCoord");
-    _prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 3);
+    if (_tangents.size())
+    {
+        _tangentBuf.bind();
+        //glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
+        //glEnableVertexAttribArray(3);  // Tangents
+        _prog->enableAttributeArray("tangentCoord");
+        _prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 3);
+    }
 
-    _bitangentBuf.bind();
-    _prog->enableAttributeArray("bitangentCoord");
-    _prog->setAttributeBuffer("bitangentCoord", GL_FLOAT, 0, 3);
+    if (_bitangents.size())
+    {
+        _bitangentBuf.bind();
+        _prog->enableAttributeArray("bitangentCoord");
+        _prog->setAttributeBuffer("bitangentCoord", GL_FLOAT, 0, 3);
+    }
 
     _vertexArrayObject.release();
 }

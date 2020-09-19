@@ -322,6 +322,7 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     float ambientOcclusion;
     vec3 N;
     vec3 V = normalize(lightSource.position + vec3(0));
+    vec3 L = normalize(lightSource.position + vec3(0));
     vec2 clippedTexCoord = g_texCoord2d;
 
     if(renderMode == 1)
@@ -333,7 +334,11 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
         ambientOcclusion = pbrLighting.ambientOcclusion;
     }
     else
-    {        
+    {    
+        if(hasNormalMap)
+            N = getNormalFromMap();
+        else
+            N = normalize(normal);
         if(hasHeightMap)
         {
             // offset texture coordinates with Parallax Mapping
@@ -342,12 +347,12 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
             clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
+            // obtain normal from normal map
+            vec3 normal = texture(normalMap, clippedTexCoord).rgb;
+            N = normalize(normal * 2.0 - 1.0);   
             V = normalize(g_tangentLightPos - g_tangentFragPos);
-        }
-        if(hasNormalMap)
-            N = getNormalFromMap();
-        else
-            N = normalize(normal);
+            L = normalize(g_tangentLightPos - g_tangentFragPos);
+        }        
         // material properties
         albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
         metallic = texture(metallicMap, clippedTexCoord).r;
@@ -367,8 +372,7 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     // reflectance equation
     vec3 Lo = vec3(0.0);
 
-    // calculate per-light radiance
-    vec3 L = normalize(lightSource.position + vec3(0));
+    // calculate light radiance    
     vec3 H = normalize(V + L);
     float distance = length(lightSource.position - vec3(0));
     float attenuation = 1.0 / (distance * distance);
@@ -552,7 +556,9 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 vec2 parallaxMapping(vec2 texCoords, vec3 viewDir)
 {
-    float height =  texture(heightMap, texCoords).r;
+    /*float height =  texture(heightMap, texCoords).r;
     vec2 p = viewDir.xy / viewDir.z * (height * heightScale);
-    return texCoords - p;
+    return texCoords - p;*/
+    float height =  texture(heightMap, texCoords).r;     
+    return texCoords - viewDir.xy * (height * heightScale);
 }

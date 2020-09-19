@@ -97,6 +97,8 @@ _loaded(false)
 	std::vector<unsigned int> elements;
 	std::vector<float> points;
 	std::vector<float> norms;
+	std::vector<float> tangents;
+	std::vector<float> bitangents;
 	std::vector<float> texcords;
 
 	std::vector<float> normals;
@@ -107,12 +109,12 @@ _loaded(false)
 	std::vector<float> zCoords;
 
 	try
-	{        
+	{
 		bool success = stl_reader::ReadStlFile(_stlFilePath.toLocal8Bit().data(), points, normals, tris, solids);
 
 		if (success && points.size())
-        {
-            for (size_t var = 0; var < points.size(); var += 9)
+		{
+			for (size_t var = 0; var < points.size(); var += 9)
 			{
 				QVector3D o(points[var + 0], points[var + 1], points[var + 2]);
 				QVector3D p(points[var + 3], points[var + 4], points[var + 5]);
@@ -134,6 +136,31 @@ _loaded(false)
 				norms.push_back(n.x());
 				norms.push_back(n.y());
 				norms.push_back(n.z());
+
+				tangents.push_back(op.x());
+				tangents.push_back(op.y());
+				tangents.push_back(op.z());
+
+				tangents.push_back(op.x());
+				tangents.push_back(op.y());
+				tangents.push_back(op.z());
+
+				tangents.push_back(op.x());
+				tangents.push_back(op.y());
+				tangents.push_back(op.z());
+
+				QVector3D bi = QVector3D::crossProduct(n, op);
+				bitangents.push_back(bi.x());
+				bitangents.push_back(bi.y());
+				bitangents.push_back(bi.z());
+
+				bitangents.push_back(bi.x());
+				bitangents.push_back(bi.y());
+				bitangents.push_back(bi.z());
+
+				bitangents.push_back(bi.x());
+				bitangents.push_back(bi.y());
+				bitangents.push_back(bi.z());
 
 				xCoords.push_back(points[var + 0]);
 				xCoords.push_back(points[var + 3]);
@@ -168,7 +195,7 @@ _loaded(false)
 
 			//std::cout << "Elements " << elements.size() << std::endl;
 
-			initBuffers(&elements, &points, &norms, &texcords);
+			initBuffers(&elements, &points, &norms, &texcords, &tangents, &bitangents);
 			computeBounds(points);
 			_loaded = true;
 		}
