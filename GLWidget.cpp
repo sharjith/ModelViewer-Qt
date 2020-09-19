@@ -1290,9 +1290,9 @@ void GLWidget::createShaderPrograms()
 void GLWidget::createGeometry()
 {
     _meshStore.push_back(new Cube(_fgShader, 100.0f));
-    _meshStore.push_back(new Sphere(_fgShader, 75.0f, 100.0f, 100.0f));
-    _meshStore.push_back(new Cylinder(_fgShader, 60.0f, 100.0f, 100.0f, 50.0f, 2));
-    _meshStore.push_back(new Cone(_fgShader, 60.0f, 100.0f, 100.0f, 50.0f, 2));
+    _meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
+    _meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 50.0f, 2));
+    _meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 50.0f, 2));
     _meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f, 2, 2));
     _meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
     _meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
@@ -3413,7 +3413,10 @@ void GLWidget::showContextMenu(const QPoint& pos)
         {
             QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
             if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+            {
                 myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
+                myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
+            }
 
             myMenu.addAction("Visualization settings", this, SLOT(showPropertiesPage()));
             myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
