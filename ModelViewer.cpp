@@ -187,6 +187,7 @@ void ModelViewer::setListRow(int index)
     {
         QListWidgetItem* item = listWidgetModel->item(index);
         item->setSelected(!item->isSelected());
+        listWidgetModel->setCurrentItem(item);
         if(toolBox->currentIndex() == 3)
             updateTransformationValues();
     }
@@ -2318,7 +2319,6 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
-
                     labelAlbedoMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2356,7 +2356,6 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
-
                     labelMetallicMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2394,7 +2393,6 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
-
                     labelRoughnessMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2432,7 +2430,6 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
-
                     labelNormalMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2470,7 +2467,6 @@ void ModelViewer::on_pushButtonAOMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
-
                     labelAOMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2508,7 +2504,6 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
-
                     labelHeightMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
