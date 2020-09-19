@@ -1670,6 +1670,9 @@
                       <property name="text">
                        <string/>
                       </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
                      </widget>
                     </item>
                    </layout>
@@ -1726,6 +1729,9 @@
                       <property name="text">
                        <string/>
                       </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
                      </widget>
                     </item>
                    </layout>
@@ -1781,6 +1787,9 @@
                       </property>
                       <property name="text">
                        <string/>
+                      </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
                       </property>
                      </widget>
                     </item>
@@ -1841,6 +1850,9 @@
                       <property name="text">
                        <string/>
                       </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
                      </widget>
                     </item>
                    </layout>
@@ -1899,6 +1911,9 @@
                       </property>
                       <property name="text">
                        <string/>
+                      </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
                       </property>
                      </widget>
                     </item>
@@ -1965,6 +1980,9 @@
                       <property name="text">
                        <string/>
                       </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
                      </widget>
                     </item>
                    </layout>
@@ -1973,6 +1991,9 @@
                    <layout class="QHBoxLayout" name="horizontalLayout_17">
                     <item>
                      <widget class="QLabel" name="label_24">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
                       <property name="text">
                        <string>Height Scale Factor</string>
                       </property>
@@ -1980,6 +2001,9 @@
                     </item>
                     <item>
                      <widget class="QDoubleSpinBox" name="doubleSpinBoxHeightScale">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
                       <property name="maximum">
                        <double>1.000000000000000</double>
                       </property>
@@ -3850,13 +3874,45 @@
     </hint>
    </hints>
   </connection>
+  <connection>
+   <sender>checkBoxHeightMap</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>label_24</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1369</x>
+     <y>791</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1386</x>
+     <y>831</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxHeightMap</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>doubleSpinBoxHeightScale</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1348</x>
+     <y>791</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1546</x>
+     <y>834</y>
+    </hint>
+   </hints>
+  </connection>
  </connections>
  <slots>
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
   <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>
