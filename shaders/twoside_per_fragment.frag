@@ -222,7 +222,7 @@ void main()
             fragColor = mix(vec4(texture2D(texture_diffuse, g_texCoord2d)), vec4(texture2D(texture_specular, g_texCoord2d)), 0.5);
         }
     }
-    
+
     if(selected)
     {
         fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
@@ -349,7 +349,7 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
                 discard;
             // obtain normal from normal map
             vec3 normal = texture(normalMap, clippedTexCoord).rgb;
-            N = normalize(normal * 2.0 - 1.0);   
+            N = normalize(normal * 2.0 - 1.0);
             V = normalize(g_tangentLightPos - g_tangentFragPos);
             L = normalize(g_tangentLightPos - g_tangentFragPos);
         }        
@@ -556,9 +556,6 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 
 vec2 parallaxMapping(vec2 texCoords, vec3 viewDir)
 {
-    /*float height =  texture(heightMap, texCoords).r;
-    vec2 p = viewDir.xy / viewDir.z * (height * heightScale);
-    return texCoords - p;*/
-    float height =  texture(heightMap, texCoords).r;     
+    float height =  texture(heightMap, texCoords).r;
     return texCoords - viewDir.xy * (height * heightScale);
 }
