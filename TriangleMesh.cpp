@@ -695,7 +695,6 @@ QVector4D TriangleMesh::diffuseMaterial() const
 void TriangleMesh::setDiffuseMaterial(const QVector4D& diffuseMaterial)
 {
     _diffuseMaterial = diffuseMaterial;
-    _PBRAlbedoColor = _ambientMaterial.toVector3D() + _diffuseMaterial.toVector3D();
 }
 
 QVector4D TriangleMesh::ambientMaterial() const
@@ -706,7 +705,6 @@ QVector4D TriangleMesh::ambientMaterial() const
 void TriangleMesh::setAmbientMaterial(const QVector4D& ambientMaterial)
 {
     _ambientMaterial = ambientMaterial;
-    _PBRAlbedoColor = _ambientMaterial.toVector3D() + _diffuseMaterial.toVector3D();
 }
 
 bool TriangleMesh::isMetallic() const
