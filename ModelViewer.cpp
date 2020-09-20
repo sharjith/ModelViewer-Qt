@@ -149,17 +149,15 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     toolBox->setItemEnabled(2, false);
     toolBox->setCurrentIndex(0);
 
-    //connect(sliderTransparency_2, SIGNAL(valueChanged(int)), sliderTransparency, SLOT(setValue(int)));
-    //connect(sliderTransparency, SIGNAL(valueChanged(int)), sliderTransparency_2, SLOT(setValue(int)));
     connect(sliderTransparency_2, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
 
     _opacity = 1.0f;
     //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
     //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
     //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
-    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };// 126 124 116
-    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };// 126 124 116
-    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };// 140 140 130
+    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };
+    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };
+    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };
     _shine = fabs(128.0f * 0.05f);
     _emmiMat = { 0.0f, 0.0f, 0.0f, _opacity };
     _specRef = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -312,6 +310,7 @@ void ModelViewer::resetTransformationValues()
 
 void ModelViewer::updateControls()
 {
+    bool oldState = blockSignals(true);
     QColor col;
     QString qss;
     QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -360,7 +359,7 @@ void ModelViewer::updateControls()
         sliderRoughness->setValue((int)(_PBRRoughness * 1000));
         sliderTransparency_2->setValue((int)(_opacity * 1000));
     }
-
+    blockSignals(oldState);
 }
 
 QString ModelViewer::getSupportedImagesFilter()
@@ -696,9 +695,9 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
     //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
     //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
     // 0.925f, 0.913f, 0.847f, 1.0f
-    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };      // 126 124 116
-    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity }; // 126 124 116
-    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };   // 140 140 130
+    _ambiMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };
+    _diffMat =  { 126/256.0f, 124/256.0f, 116/256.0f, _opacity };
+    _specMat =  { 140/256.0f, 140/256.0f, 130/256.0f, _opacity };
     _emmiMat = { 0, 0, 0, 1 };
     //_shine = 128 * 0.2f;
     _shine = 128 * 0.05f;
@@ -1147,9 +1146,9 @@ void ModelViewer::setAlbedoFromADS(const bool metallic)
 {
     QVector3D col;
     if(metallic)
-        col = _specMat.toVector3D();
+        col = _ambiMat.toVector3D() + _diffMat.toVector3D();
     else
-        col = _diffMat.toVector3D();
+        col = _ambiMat.toVector3D() + _diffMat.toVector3D();
     _albedoColor.setX(clamp(col.x(), 0.0f, 1.0f));
     _albedoColor.setY(clamp(col.y(), 0.0f, 1.0f));
     _albedoColor.setZ(clamp(col.z(), 0.0f, 1.0f));
@@ -1157,6 +1156,11 @@ void ModelViewer::setAlbedoFromADS(const bool metallic)
 
 void ModelViewer::on_pushButtonBrass_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat = { 0.329412f, 0.223529f, 0.027451f, 1 };
     _diffMat = { 0.780392f, 0.568627f, 0.113725f, 1 };
@@ -1183,6 +1187,11 @@ void ModelViewer::on_pushButtonBrass_clicked()
 
 void ModelViewer::on_pushButtonBronze_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat = { 0.2125f, 0.1275f, 0.054f, 1 };
     _diffMat = { 0.714f, 0.4284f, 0.18144f, 1 };
@@ -1209,6 +1218,11 @@ void ModelViewer::on_pushButtonBronze_clicked()
 
 void ModelViewer::on_pushButtonCopper_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat = { 0.19125f, 0.0735f, 0.0225f, 1.0f };
     _diffMat = { 0.7038f, 0.27048f, 0.0828f, 1.0f };
@@ -1235,6 +1249,11 @@ void ModelViewer::on_pushButtonCopper_clicked()
 
 void ModelViewer::on_pushButtonGold_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.24725f;
     _ambiMat[1] = 0.1995f;
@@ -1267,6 +1286,11 @@ void ModelViewer::on_pushButtonGold_clicked()
 
 void ModelViewer::on_pushButtonSilver_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.19225f;
     _ambiMat[1] = 0.19225f;
@@ -1299,6 +1323,11 @@ void ModelViewer::on_pushButtonSilver_clicked()
 
 void ModelViewer::on_pushButtonChrome_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.25f;
     _ambiMat[1] = 0.25f;
@@ -1331,6 +1360,11 @@ void ModelViewer::on_pushButtonChrome_clicked()
 
 void ModelViewer::on_pushButtonRuby_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.1745f;
     _ambiMat[1] = 0.01175f;
@@ -1363,6 +1397,11 @@ void ModelViewer::on_pushButtonRuby_clicked()
 
 void ModelViewer::on_pushButtonEmerald_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0215f;
     _ambiMat[1] = 0.1745f;
@@ -1395,6 +1434,11 @@ void ModelViewer::on_pushButtonEmerald_clicked()
 
 void ModelViewer::on_pushButtonTurquoise_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.1f;
     _ambiMat[1] = 0.18725f;
@@ -1427,6 +1471,11 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
 
 void ModelViewer::on_pushButtonJade_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.135f;
     _ambiMat[1] = 0.2225f;
@@ -1459,6 +1508,11 @@ void ModelViewer::on_pushButtonJade_clicked()
 
 void ModelViewer::on_pushButtonObsidian_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.05375f;
     _ambiMat[1] = 0.05f;
@@ -1491,6 +1545,11 @@ void ModelViewer::on_pushButtonObsidian_clicked()
 
 void ModelViewer::on_pushButtonPearl_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.25f;
     _ambiMat[1] = 0.20725f;
@@ -1523,6 +1582,11 @@ void ModelViewer::on_pushButtonPearl_clicked()
 
 void ModelViewer::on_pushButtonBlackPlastic_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1555,6 +1619,11 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
 
 void ModelViewer::on_pushButtonCyanPlastic_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.1f;
@@ -1587,6 +1656,11 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
 
 void ModelViewer::on_pushButtonGreenPlastic_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1619,6 +1693,11 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
 
 void ModelViewer::on_pushButtonRedPlastic_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1651,6 +1730,11 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
 
 void ModelViewer::on_pushButtonWhitePlastic_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1683,6 +1767,11 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
 
 void ModelViewer::on_pushButtonYellowPlastic_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.0f;
@@ -1715,6 +1804,11 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
 
 void ModelViewer::on_pushButtonBlackRubber_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.02f;
     _ambiMat[1] = 0.02f;
@@ -1747,6 +1841,11 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
 
 void ModelViewer::on_pushButtonCyanRubber_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.05f;
@@ -1779,6 +1878,11 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
 
 void ModelViewer::on_pushButtonGreenRubber_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.0f;
     _ambiMat[1] = 0.05f;
@@ -1811,6 +1915,11 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
 
 void ModelViewer::on_pushButtonRedRubber_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.05f;
     _ambiMat[1] = 0.0f;
@@ -1843,6 +1952,11 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
 
 void ModelViewer::on_pushButtonWhiteRubber_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.05f;
     _ambiMat[1] = 0.05f;
@@ -1875,6 +1989,11 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
 
 void ModelViewer::on_pushButtonYellowRubber_clicked()
 {
+    if(listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Material Selection", "Please select an object first");
+        return;
+    }
     //Material Values
     _ambiMat[0] = 0.05f;
     _ambiMat[1] = 0.05f;
@@ -2069,10 +2188,11 @@ void ModelViewer::setMaterialProps(const GLMaterialProps& mat)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setMaterialProps(ids, mat);
+            _glWidget->setMaterialProps(ids, mat);            
+            _glWidget->setPBRAlbedoColor(ids, QColor(_albedoColor.x() * 255,  _albedoColor.y() * 255, _albedoColor.z() * 255));
             _glWidget->updateView();
             updateControls();
-        }
+        }        
     }
 }
 
@@ -2201,6 +2321,16 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
     }
 }
 
+void ModelViewer::switchToRealisticRendering()
+{
+    if(toolButtonDisplayMode->defaultAction() != displayRealShaded)
+    {
+        QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
+        displayRealShaded->trigger();
+        toolButtonDisplayMode->setDefaultAction(displayRealShaded);
+    }
+}
+
 void ModelViewer::lightingType_toggled(int, bool)
 {
     if(radioButtonADSL->isChecked())
@@ -2218,6 +2348,7 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setItemEnabled(2, false);
         toolBox->setCurrentIndex(1);
         _glWidget->setRenderingMode(RenderingMode::PBR_DIRECT_LIGHTING);
+        switchToRealisticRendering();
     }
     if(radioButtonTXPBR->isChecked())
     {
@@ -2226,9 +2357,7 @@ void ModelViewer::lightingType_toggled(int, bool)
         toolBox->setItemEnabled(2, true);
         toolBox->setCurrentIndex(2);
         _glWidget->setRenderingMode(RenderingMode::PBR_TEXTURED_LIGHTING);
-        QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
-        displayRealShaded->trigger();
-        toolButtonDisplayMode->setDefaultAction(displayRealShaded);
+        switchToRealisticRendering();
     }
     updateControls();
     _glWidget->update();
@@ -2236,16 +2365,22 @@ void ModelViewer::lightingType_toggled(int, bool)
 
 void ModelViewer::on_pushButtonAlbedoColor_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z()), this, "Albedo Color");
-    if (c.isValid())
+    if (listWidgetModel->count())
     {
-        _albedoColor = {c.red()/255.0f, c.green()/255.0f, c.blue()/255.0f};
-        if (listWidgetModel->count())
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
         {
-            std::vector<int> ids;
-            QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-            if (!items.isEmpty())
+            QColor c = QColorDialog::getColor(QColor::fromRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z()), this, "Albedo Color");
+            if (c.isValid())
             {
+                _albedoColor = {c.red()/255.0f, c.green()/255.0f, c.blue()/255.0f};
+                if(_PBRMetallic >= 0.5)
+                    _specMat = QVector4D(_albedoColor, _opacity);
+                else
+                    _diffMat = QVector4D(_albedoColor, _opacity);
+
+                std::vector<int> ids;
+
                 for (QListWidgetItem* i : items)
                 {
                     int rowId = listWidgetModel->row(i);
@@ -2256,6 +2391,8 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
                 updateControls();
             }
         }
+        else
+            QMessageBox::information(this, "Albedo Color", "Please select an object first");
     }
 }
 
@@ -2334,6 +2471,8 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
                 }
             }
         }
+        else
+            QMessageBox::information(this, "Albedo Map", "Please select an object first");
     }
 }
 
@@ -2372,6 +2511,8 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
                 }
             }
         }
+        else
+            QMessageBox::information(this, "Metallic Map", "Please select an object first");
     }
 }
 
@@ -2410,6 +2551,8 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
                 }
             }
         }
+        else
+            QMessageBox::information(this, "Roughness Map", "Please select an object first");
     }
 }
 
@@ -2448,6 +2591,8 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
                 }
             }
         }
+        else
+            QMessageBox::information(this, "Normal Map", "Please select an object first");
     }
 }
 
@@ -2486,6 +2631,8 @@ void ModelViewer::on_pushButtonAOMap_clicked()
                 }
             }
         }
+        else
+            QMessageBox::information(this, "AO Map", "Please select an object first");
     }
 }
 
@@ -2524,6 +2671,8 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
                 }
             }
         }
+        else
+            QMessageBox::information(this, "Height Map", "Please select an object first");
     }
 }
 
@@ -2544,6 +2693,8 @@ void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
             _glWidget->enableNormalTexture(ids, checked);
             _glWidget->updateView();
         }
+        else
+            QMessageBox::information(this, "Normal Map", "Please select an object first");
     }
 }
 
@@ -2564,6 +2715,8 @@ void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
             _glWidget->enableAOTexture(ids, checked);
             _glWidget->updateView();
         }
+        else
+            QMessageBox::information(this, "AO Map", "Please select an object first");
     }
 }
 
@@ -2584,6 +2737,8 @@ void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
             _glWidget->enableHeightTexture(ids, checked);
             _glWidget->updateView();
         }
+        else
+            QMessageBox::information(this, "Height Map", "Please select an object first");
     }
 }
 
@@ -2604,6 +2759,8 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
             _glWidget->setHeightScale(ids, static_cast<float>(val));
             _glWidget->updateView();
         }
+        else
+            QMessageBox::information(this, "Height Scale", "Please select an object first");
     }
 }
 
@@ -2675,6 +2832,8 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
                 }
                 _glWidget->updateView();
             }
+            else
+                QMessageBox::information(this, "PBR Textures", "Please select an object first");
         }
     }
 }

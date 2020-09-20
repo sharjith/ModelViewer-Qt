@@ -24,6 +24,8 @@ public:
     void updateTransformationValues();
     void resetTransformationValues();
 
+    void switchToRealisticRendering();
+    
 public slots:
     void updateDisplayList();
     void showSelectedItems();
