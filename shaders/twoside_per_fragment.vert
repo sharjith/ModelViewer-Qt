@@ -29,6 +29,8 @@ out float v_clipDist;
 out vec3 v_normal;
 out vec3 v_position;
 out vec2 v_texCoord2d;
+out vec3 v_tangent;
+out vec3 v_bitangent;
 out vec3 v_tangentLightPos;
 out vec3 v_tangentViewPos;
 out vec3 v_tangentFragPos;
@@ -51,6 +53,8 @@ void main()
     //v_normal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
+    v_tangent = tangentCoord;
+    v_bitangent = bitangentCoord;
 
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1);
 

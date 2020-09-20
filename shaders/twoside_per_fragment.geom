@@ -6,10 +6,14 @@ layout(triangle_strip, max_vertices=6) out;
 in vec3 v_position[];
 in vec3 v_normal[];
 in vec2 v_texCoord2d[];
+in vec3 v_tangent[];
+in vec3 v_bitangent[];
 
 out vec3 g_normal;
 out vec3 g_position;
 out vec2 g_texCoord2d;
+out vec3 g_tangent;
+out vec3 g_bitangent;
 
 noperspective out vec3 g_edgeDistance;
 uniform mat4 viewportMatrix; // Viewport matrix
@@ -165,6 +169,8 @@ void main()
             g_tangentLightPos = v_tangentLightPos[i];
             g_tangentViewPos = v_tangentViewPos[i];
             g_tangentFragPos = v_tangentFragPos[i];
+            g_tangent = v_tangent[i];
+            g_bitangent = v_bitangent[i];
 
             EmitVertex();
         }
