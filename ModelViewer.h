@@ -140,6 +140,7 @@ private slots:
     void on_checkBoxHeightMap_toggled(bool checked);
     void on_pushButtonHeightMap_clicked();
     void on_doubleSpinBoxHeightScale_valueChanged(double val);
+    void on_pushButtonApplyPBRTexture_clicked();
 
 protected:
     void showEvent(QShowEvent* event);
@@ -168,6 +169,18 @@ private:
     QVector3D _albedoColor;
     float _PBRMetallic;
     float _PBRRoughness;
+
+    QString _PBRAlbedoTexture;
+    QString _PBRMetallicTexture;
+    QString _PBRRoughnessTexture;
+    QString _PBRNormalTexture;
+    QString _PBRAOTexture;
+    QString _PBRHeightTexture;
+    bool    _hasNormalTex;
+    bool    _hasAOTex;
+    bool    _hasHeightTex;
+    float   _heightScale;
+
 
     bool _bFirstTime;
     bool _bDeletionInProgress;

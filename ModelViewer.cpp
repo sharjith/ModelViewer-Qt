@@ -169,6 +169,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.7f;
+    _hasAOTex = false;
+    _hasNormalTex = false;
+    _hasHeightTex = false;
 
     updateControls();
 }
@@ -2319,6 +2322,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    _PBRAlbedoTexture = fileName;
                     labelAlbedoMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2352,6 +2356,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
+                _PBRMetallicTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
@@ -2389,6 +2394,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
+                _PBRRoughnessTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
@@ -2426,6 +2432,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
+                _PBRNormalTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
@@ -2463,6 +2470,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
+                _PBRAOTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
@@ -2500,6 +2508,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
+                _PBRHeightTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
@@ -2522,6 +2531,7 @@ void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
 {
     if (listWidgetModel->count())
     {
+        _hasNormalTex = checked;
         std::vector<int> ids;
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
@@ -2541,6 +2551,7 @@ void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
 {
     if (listWidgetModel->count())
     {
+        _hasAOTex = checked;
         std::vector<int> ids;
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
@@ -2560,6 +2571,7 @@ void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
 {
     if (listWidgetModel->count())
     {
+        _hasHeightTex = checked;
         std::vector<int> ids;
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
@@ -2579,6 +2591,7 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
 {
     if (listWidgetModel->count())
     {
+        _heightScale = val;
         std::vector<int> ids;
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
@@ -2590,6 +2603,78 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
             }
             _glWidget->setHeightScale(ids, static_cast<float>(val));
             _glWidget->updateView();
+        }
+    }
+}
+
+void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
+{
+    bool allOK = true;
+    if (_PBRAlbedoTexture == "")
+    {
+        QMessageBox::critical(this, "PBR Texture Missing", "Albedo map texture not set");
+        allOK = false;
+    }
+    if (_PBRMetallicTexture == "")
+    {
+        QMessageBox::critical(this, "PBR Texture Missing", "Metallic map texture not set");
+        allOK = false;
+    }
+    if (_PBRRoughnessTexture == "")
+    {
+        QMessageBox::critical(this, "PBR Texture Missing", "Roughness map texture not set");
+        allOK = false;
+    }
+    if (_hasNormalTex && _PBRNormalTexture == "")
+    {
+        QMessageBox::critical(this, "PBR Texture Missing", "Normal map texture not set");
+        allOK = false;
+    }
+    if (_hasAOTex && _PBRAOTexture == "")
+    {
+        QMessageBox::critical(this, "PBR Texture Missing", "AO map texture not set");
+        allOK = false;
+    }
+    if (_hasHeightTex && _PBRHeightTexture == "")
+    {
+        QMessageBox::critical(this, "PBR Texture Missing", "Height map texture not set");
+        allOK = false;
+    }
+    if (allOK)
+    {
+        if (listWidgetModel->count())
+        {
+            std::vector<int> ids;
+            QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+            if (!items.isEmpty())
+            {
+                for (QListWidgetItem* i : items)
+                {
+                    int rowId = listWidgetModel->row(i);
+                    ids.push_back(rowId);
+                }
+                _glWidget->setAlbedoTexture(ids, _PBRAlbedoTexture);
+                _glWidget->setMetallicTexture(ids, _PBRMetallicTexture);
+                _glWidget->setRoughnessTexture(ids, _PBRRoughnessTexture);
+
+                _glWidget->enableNormalTexture(ids, _hasNormalTex);
+                if (_hasNormalTex)
+                {
+                    _glWidget->setNormalTexture(ids, _PBRNormalTexture);
+                }
+                _glWidget->enableAOTexture(ids, _hasAOTex);
+                if (_hasAOTex)
+                {
+                    _glWidget->setAOTexture(ids, _PBRAOTexture);
+                }
+                _glWidget->enableHeightTexture(ids, _hasHeightTex);
+                if (_hasHeightTex)
+                {
+                    _glWidget->setHeightTexture(ids, _PBRHeightTexture);
+                    _glWidget->setHeightScale(ids, static_cast<float>(_heightScale));
+                }
+                _glWidget->updateView();
+            }
         }
     }
 }
