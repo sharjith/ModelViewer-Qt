@@ -6,7 +6,7 @@
 class TopShell : public ParametricSurface
 {
 public:
-    TopShell(QOpenGLShaderProgram* prog, Point center, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	TopShell(QOpenGLShaderProgram* prog, Point center, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~TopShell();
 
 	virtual float firstUParameter() const;

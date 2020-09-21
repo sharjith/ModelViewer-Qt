@@ -6,7 +6,7 @@ class Point;
 class Folium : public ParametricSurface
 {
 public:
-    Folium(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	Folium(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~Folium();
 
 	virtual float firstUParameter() const;

@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 
 #ifdef WIN32
 	//qDebug() << QStyleFactory::keys();
-    //app.setStyle(QStyleFactory::create("windows"));
+	//app.setStyle(QStyleFactory::create("windows"));
 #endif
 
 	MainWindow* mw = MainWindow::mainWindow();

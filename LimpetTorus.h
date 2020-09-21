@@ -6,7 +6,7 @@ class Point;
 class LimpetTorus : public ParametricSurface
 {
 public:
-    LimpetTorus(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	LimpetTorus(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~LimpetTorus();
 
 	virtual float firstUParameter() const;

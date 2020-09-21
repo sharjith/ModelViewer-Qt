@@ -22,26 +22,26 @@ void SuperToroidEditor::on_doubleSpinBoxN1_valueChanged(double val)
 {
 	_toroid->_n1 = val;
 	_toroid->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SuperToroidEditor::on_doubleSpinBoxN2_valueChanged(double val)
 {
 	_toroid->_n2 = val;
 	_toroid->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SuperToroidEditor::on_doubleSpinBoxOutRad_valueChanged(double val)
 {
 	_toroid->_outerRadius = val;
 	_toroid->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SuperToroidEditor::on_doubleSpinBoxInnRad_valueChanged(double val)
 {
 	_toroid->_innerRadius = val;
 	_toroid->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }

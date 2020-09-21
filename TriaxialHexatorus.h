@@ -6,7 +6,7 @@ class Point;
 class TriaxialHexatorus : public ParametricSurface
 {
 public:
-    TriaxialHexatorus(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	TriaxialHexatorus(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~TriaxialHexatorus();
 
 	virtual float firstUParameter() const;

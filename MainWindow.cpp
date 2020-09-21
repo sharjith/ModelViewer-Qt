@@ -13,7 +13,7 @@ MainWindow::MainWindow(QWidget* parent)
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
-    _mainWindow = this;
+	_mainWindow = this;
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
@@ -126,9 +126,9 @@ void MainWindow::on_actionCascade_triggered()
 	ui->mdiArea->cascadeSubWindows();
 }
 
-MainWindow *MainWindow::mainWindow()
+MainWindow* MainWindow::mainWindow()
 {
 	if (_mainWindow == nullptr)
 		_mainWindow = new MainWindow();
-    return _mainWindow;
+	return _mainWindow;
 }

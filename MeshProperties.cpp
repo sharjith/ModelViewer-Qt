@@ -17,7 +17,7 @@ void MeshProperties::setMesh(TriangleMesh* mesh)
 {
 	_mesh = mesh;
 	_meshPoints.clear();
-    _meshPoints = _mesh->getTrsfPoints();
+	_meshPoints = _mesh->getTrsfPoints();
 	calculateSurfaceAreaAndVolume();
 }
 

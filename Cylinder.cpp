@@ -9,8 +9,8 @@
 
 Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Cylinder", nSlices, nStacks)
 {
-    _sMax = sMax;
-    _tMax = tMax;
+	_sMax = sMax;
+	_tMax = tMax;
 	int nVerts = ((nSlices + 1) * (nStacks + 1)) + (nSlices * 2) + 4;
 	int elements = ((nSlices * 2 * (nStacks)) * 3) + (nSlices * 2) * 3;
 
@@ -32,11 +32,11 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-        s = (float)i / nSlices * _sMax;
+		s = (float)i / nSlices * _sMax;
 		for (unsigned int j = 0; j <= nStacks; j++)
 		{
 			phi = j * phiFac;
-            t = (float)j / nStacks * _tMax;
+			t = (float)j / nStacks * _tMax;
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
@@ -63,7 +63,7 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-        s = (float)i / nSlices;
+		s = (float)i / nSlices;
 		nx = cosf(theta);
 		ny = sinf(theta);
 		nz = 0;
@@ -98,7 +98,7 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-        s = (float)i / nSlices;
+		s = (float)i / nSlices;
 		nx = cosf(theta);
 		ny = sinf(theta);
 		nz = height;
@@ -154,9 +154,9 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 		for (unsigned int j = 0; j < nStacks; j++)
 		{
 			el[idx + 0] = stackStart + j;
-            el[idx + 1] = stackStart + j + 1;
-            el[idx + 2] = nextStackStart + j + 1;
-            el[idx + 3] = nextStackStart + j;
+			el[idx + 1] = stackStart + j + 1;
+			el[idx + 2] = nextStackStart + j + 1;
+			el[idx + 3] = nextStackStart + j;
 			//el[idx + 4] = stackStart + j;
 			//el[idx + 5] = nextStackStart + j + 1;
 			idx += 4;
@@ -186,5 +186,5 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-    computeBounds(p);
+	computeBounds(p);
 }

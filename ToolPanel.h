@@ -11,15 +11,15 @@ class ToolPanel : public QTabWidget
 public:
 	explicit ToolPanel(QWidget* parent = nullptr);
 
-    bool autoHide() const;
-    void setAutoHide(bool autoHide);
+	bool autoHide() const;
+	void setAutoHide(bool autoHide);
 
 protected:
-    bool eventFilter(QObject* object, QEvent* event);
+	bool eventFilter(QObject* object, QEvent* event);
 
 private:
 	QPropertyAnimation* _animation;
-    bool _autoHide;
+	bool _autoHide;
 
 signals:
 };

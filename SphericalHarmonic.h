@@ -7,7 +7,7 @@ class SphericalHarmonic : public ParametricSurface
 {
 	friend class SphericalHarmonicsEditor;
 public:
-    SphericalHarmonic(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	SphericalHarmonic(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~SphericalHarmonic();
 
 	virtual float firstUParameter() const;

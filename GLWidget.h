@@ -53,7 +53,7 @@ public:
 	void fitAll();
 
 	void beginWindowZoom();
-    void performWindowZoom();
+	void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
 	void updateFloorPlane();
@@ -71,8 +71,8 @@ public:
 	void showSkyBox(bool show);
 	void showReflections(bool show);
 	void showFloor(bool show);
-    void showFloorTexture(bool show);
-    void setFloorTexture(QImage img);
+	void showFloorTexture(bool show);
+	void setFloorTexture(QImage img);
 
 	std::vector<TriangleMesh*> getMeshStore() const { return _meshStore; }
 
@@ -84,37 +84,37 @@ public:
 
 	TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadOBJMesh(QString fileName);
-    TriangleMesh* loadAssImpMesh(QString fileName);
+	TriangleMesh* loadAssImpMesh(QString fileName);
 
 	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
-    void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
-    void setPBRMetallic(const std::vector<int>& ids, const float& val);
-    void setPBRRoughness(const std::vector<int>& ids, const float& val);
+	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
+	void setPBRMetallic(const std::vector<int>& ids, const float& val);
+	void setPBRRoughness(const std::vector<int>& ids, const float& val);
 
-    void clearPBRTextures(const std::vector<int>& ids);
-    void enableAlbedoTexture(const std::vector<int>& ids, const bool &enable);
-    void setAlbedoTexture(const std::vector<int>& ids, const QString& path);
-    void clearAlbedoTexture(const std::vector<int>& ids);
-    void enableMetallicTexture(const std::vector<int>& ids, const bool &enable);
-    void setMetallicTexture(const std::vector<int>& ids, const QString &path);
-    void clearMetallicTexture(const std::vector<int>& ids);
-    void enableRoughnessTexture(const std::vector<int>& ids, const bool &enable);
-    void setRoughnessTexture(const std::vector<int>& ids, const QString &path);
-    void clearRoughnessTexture(const std::vector<int>& ids);
-    void enableNormalTexture(const std::vector<int>& ids, const bool &enable);
-    void setNormalTexture(const std::vector<int>& ids, const QString &path);
-    void clearNormalTexture(const std::vector<int>& ids);
-    void enableAOTexture(const std::vector<int>& ids, const bool &enable);
-    void setAOTexture(const std::vector<int>& ids, const QString &path);    
-    void clearAOTexture(const std::vector<int>& ids);
-    void enableHeightTexture(const std::vector<int>& ids, const bool &enable);
-    void setHeightTexture(const std::vector<int>& ids, const QString& path);
-    void clearHeightTexture(const std::vector<int>& ids);
-    void setHeightScale(const std::vector<int>& ids, const float& scale);
+	void clearPBRTextures(const std::vector<int>& ids);
+	void enableAlbedoTexture(const std::vector<int>& ids, const bool& enable);
+	void setAlbedoTexture(const std::vector<int>& ids, const QString& path);
+	void clearAlbedoTexture(const std::vector<int>& ids);
+	void enableMetallicTexture(const std::vector<int>& ids, const bool& enable);
+	void setMetallicTexture(const std::vector<int>& ids, const QString& path);
+	void clearMetallicTexture(const std::vector<int>& ids);
+	void enableRoughnessTexture(const std::vector<int>& ids, const bool& enable);
+	void setRoughnessTexture(const std::vector<int>& ids, const QString& path);
+	void clearRoughnessTexture(const std::vector<int>& ids);
+	void enableNormalTexture(const std::vector<int>& ids, const bool& enable);
+	void setNormalTexture(const std::vector<int>& ids, const QString& path);
+	void clearNormalTexture(const std::vector<int>& ids);
+	void enableAOTexture(const std::vector<int>& ids, const bool& enable);
+	void setAOTexture(const std::vector<int>& ids, const QString& path);
+	void clearAOTexture(const std::vector<int>& ids);
+	void enableHeightTexture(const std::vector<int>& ids, const bool& enable);
+	void setHeightTexture(const std::vector<int>& ids, const QString& path);
+	void clearHeightTexture(const std::vector<int>& ids);
+	void setHeightScale(const std::vector<int>& ids, const float& scale);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
-    void setSkyBoxTextureFolder(QString folder);
+	void setSkyBoxTextureFolder(QString folder);
 
 public:
 	float getXTran() const;
@@ -175,40 +175,39 @@ public:
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
 
-    RenderingMode getRenderingMode() const;
-    void setRenderingMode(const RenderingMode &renderingMode);
+	RenderingMode getRenderingMode() const;
+	void setRenderingMode(const RenderingMode& renderingMode);
 
-    bool getHdrToneMapping() const;
-    bool getGammaCorrection() const;
-    float getScreenGamma() const;
-
+	bool getHdrToneMapping() const;
+	bool getGammaCorrection() const;
+	float getScreenGamma() const;
 
 signals:
-    void windowZoomEnded();
-    void rotationsSet();
-    void zoomAndPanSet();
-    void viewSet();
+	void windowZoomEnded();
+	void rotationsSet();
+	void zoomAndPanSet();
+	void viewSet();
 	void displayListSet();
-    void singleSelectionDone(int);
-    void sweepSelectionDone(QList<int>);
+	void singleSelectionDone(int);
+	void sweepSelectionDone(QList<int>);
 
 public slots:
 	void animateViewChange();
 	void animateFitAll();
 	void animateWindowZoom();
 	void animateCenterScreen();
-    void stopAnimations();
-    void checkAndStopTimers();
-    void disableLowRes();
+	void stopAnimations();
+	void checkAndStopTimers();
+	void disableLowRes();
 	void lockLightAndCamera(bool lock);
-    void setFloorTexRepeatS(double floorTexRepeatS);
-    void setFloorTexRepeatT(double floorTexRepeatT);
+	void setFloorTexRepeatS(double floorTexRepeatS);
+	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
 	void setSkyBoxTextureHDRI(bool hdrSet);
-    void enableHDRToneMapping(bool hdrToneMapping);
-    void enableGammaCorrection(bool gammaCorrection);
-    void setScreenGamma(double screenGamma);
+	void enableHDRToneMapping(bool hdrToneMapping);
+	void enableGammaCorrection(bool gammaCorrection);
+	void setScreenGamma(double screenGamma);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -219,7 +218,7 @@ private slots:
 	void displayMeshInfo();
 	void showPropertiesPage();
 	void showTransformationsPage();
-    void setBackgroundColor();
+	void setBackgroundColor();
 
 protected:
 	void initializeGL();
@@ -230,12 +229,12 @@ protected:
 	void mouseReleaseEvent(QMouseEvent*);
 	void mouseMoveEvent(QMouseEvent*);
 	void wheelEvent(QWheelEvent*);
-    void keyPressEvent(QKeyEvent* event);
+	void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent* event);
 
 private:
 	DisplayMode _displayMode;
-    RenderingMode _renderingMode;
+	RenderingMode _renderingMode;
 	QColor      _bgTopColor;
 	QColor      _bgBotColor;
 	bool _bWindowZoomActive;
@@ -243,11 +242,11 @@ private:
 	bool _bPanView;
 	bool _bRotateView;
 	int _modelNum;
-    QImage _texImage, _texBuffer, _floorTexImage;
-    float _floorTexRepeatS, _floorTexRepeatT;
+	QImage _texImage, _texBuffer, _floorTexImage;
+	float _floorTexRepeatS, _floorTexRepeatT;
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
-    QString _modelName;
+	QString _modelName;
 
 	QVector3D _currentTranslation;
 	QQuaternion _currentRotation;
@@ -266,7 +265,7 @@ private:
 	QPoint _middleButtonPoint;
 
 	QRubberBand* _rubberBand;
-    QRubberBand* _selectRect;
+	QRubberBand* _selectRect;
 	QVector3D _rubberBandPan;
 	float _rubberBandZoomRatio;
 
@@ -297,10 +296,10 @@ private:
 	bool _shadowsEnabled;
 	bool _reflectionsEnabled;
 	bool _floorDisplayed;
-    bool _floorTextureDisplayed;
+	bool _floorTextureDisplayed;
 	bool _skyBoxEnabled;
 
-    bool _lowResEnabled;
+	bool _lowResEnabled;
 	bool _lockLightAndCamera;
 
 	unsigned int _shadowWidth;
@@ -338,15 +337,15 @@ private:
 	QOpenGLShaderProgram* _shadowMappingShader;
 	QOpenGLShaderProgram* _skyBoxShader;
 	QOpenGLShaderProgram* _irradianceShader;
-    QOpenGLShaderProgram* _prefilterShader;
-    QOpenGLShaderProgram* _brdfShader;
+	QOpenGLShaderProgram* _prefilterShader;
+	QOpenGLShaderProgram* _brdfShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
 	unsigned int             _shadowMapFBO;
 	unsigned int			 _irradianceMap;
-    unsigned int             _prefilterMap;
-    unsigned int             _brdfLUTTexture;
+	unsigned int             _prefilterMap;
+	unsigned int             _brdfLUTTexture;
 	float                    _floorSize;
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
@@ -382,37 +381,37 @@ private:
 	ViewMode _viewMode;
 	ViewProjection _projection;
 
-    GLCamera* _primaryCamera;
-    GLCamera* _orthoViewsCamera;
+	GLCamera* _primaryCamera;
+	GLCamera* _orthoViewsCamera;
 
 	QTimer* _animateViewTimer;
 	QTimer* _animateFitAllTimer;
 	QTimer* _animateWindowZoomTimer;
 	QTimer* _animateCenterScreenTimer;
 
-	BoundingSphere _boundingSphere;    
+	BoundingSphere _boundingSphere;
 	Plane* _floorPlane;
 	Cube* _skyBox;
-    vector<QString> _skyBoxFaces;
+	vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;
-    bool  _gammaCorrection;
-    float _screenGamma;
-    bool  _hdrToneMapping;
+	bool  _gammaCorrection;
+	float _screenGamma;
+	bool  _hdrToneMapping;
 
 	QOpenGLShaderProgram     _debugShader;
 
 	ModelViewer* _viewer;
 
-    unsigned int _quadVAO;
-    unsigned int _quadVBO;
+	unsigned int _quadVAO;
+	unsigned int _quadVBO;
 
 	unsigned long long _displayedObjectsMemSize;
 
 private:
 	void createShaderPrograms();
 	void createGeometry();
-    void loadEnvMap();
+	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
 
@@ -424,9 +423,9 @@ private:
 	void drawAxis();
 	void drawCornerAxis();
 
-    void render(GLCamera* camera);
+	void render(GLCamera* camera);
 	void renderToShadowBuffer();
-    void renderQuad();
+	void renderQuad();
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a);
@@ -436,16 +435,16 @@ private:
 	void setZoomAndPan(float zoom, QVector3D pan);
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 
-    void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
+	void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
 	int mouseSelect(const QPoint& pixel);
-    QList<int> sweepSelect(const QPoint& pixel);
+	QList<int> sweepSelect(const QPoint& pixel);
 
-    float highestModelZ();
+	float highestModelZ();
 	float lowestModelZ();
 
-    QRect getViewportFromPoint(const QPoint& pixel);
-    QRect getClientRectFromPoint(const QPoint& pixel);
-    unsigned int loadTextureFromFile(const char* path);
+	QRect getViewportFromPoint(const QPoint& pixel);
+	QRect getClientRectFromPoint(const QPoint& pixel);
+	unsigned int loadTextureFromFile(const char* path);
 };
 
 #endif

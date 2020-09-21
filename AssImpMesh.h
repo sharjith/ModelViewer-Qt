@@ -109,9 +109,9 @@ public:
 		if (!_vertexArrayObject.isCreated())
 			return;
 
-        setupTextures();
+		setupTextures();
 
-        setupUniforms();
+		setupUniforms();
 
 		// Bind appropriate textures
 		unsigned int diffuseNr = 1;
@@ -223,5 +223,3 @@ private:
 		computeBounds(points);
 	}
 };
-
-

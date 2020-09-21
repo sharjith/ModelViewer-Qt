@@ -7,10 +7,10 @@
 class ModelObjectList : public QListWidget
 {
 public:
-    ModelObjectList(QWidget *parent = nullptr);
+	ModelObjectList(QWidget* parent = nullptr);
 
 protected slots:
-    void keyPressEvent(QKeyEvent* event);
+	void keyPressEvent(QKeyEvent* event);
 };
 
 #endif // MODELOBJECTLIST_H

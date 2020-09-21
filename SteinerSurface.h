@@ -6,7 +6,7 @@ class Point;
 class SteinerSurface : public ParametricSurface
 {
 public:
-    SteinerSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	SteinerSurface(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~SteinerSurface();
 
 	virtual float firstUParameter() const;

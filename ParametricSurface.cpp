@@ -3,10 +3,10 @@
 #include <iostream>
 
 ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :
-	QuadMesh(prog, "Prametric Surface", nSlices, nStacks)	
+	QuadMesh(prog, "Prametric Surface", nSlices, nStacks)
 {
-    _sMax = sMax;
-    _tMax = tMax;
+	_sMax = sMax;
+	_tMax = tMax;
 }
 
 ParametricSurface::~ParametricSurface()
@@ -47,9 +47,9 @@ QVector3D ParametricSurface::normalAtParameter(const float& u, const float& v)
 	QVector3D normal = QVector3D::crossProduct(t2, t1);
 	normal = normal.normalized();
 
-    // store for use immediately after calling this funtion
-    _tangent = t1;
-    _bitangent = t2;
+	// store for use immediately after calling this funtion
+	_tangent = t1;
+	_bitangent = t2;
 
 	if (normal.isNull())
 		return QVector3D(0, 0, 1);
@@ -66,10 +66,10 @@ void ParametricSurface::buildMesh()
 	std::vector<float> p(3 * nVerts);
 	// Normals
 	std::vector<float> n(3 * nVerts);
-    // Tangents
-    std::vector<float> tg(3 * nVerts);
-    // Bitangents
-    std::vector<float> bt(3 * nVerts);
+	// Tangents
+	std::vector<float> tg(3 * nVerts);
+	// Bitangents
+	std::vector<float> bt(3 * nVerts);
 	// Tex coords
 	std::vector<float> tex(2 * nVerts);
 	// Elements
@@ -84,16 +84,16 @@ void ParametricSurface::buildMesh()
 	for (unsigned int i = 0; i <= _slices; i++)
 	{
 		v = firstVParameter();
-        s = (float)i / _slices * _sMax;
+		s = (float)i / _slices * _sMax;
 		for (unsigned int j = 0; j <= _stacks; j++)
 		{
-            t = (float)j / _stacks * _tMax;
+			t = (float)j / _stacks * _tMax;
 			Point pt = pointAtParameter(u, v);
 			p[idx] = pt.getX(); p[idx + 1] = pt.getY(); p[idx + 2] = pt.getZ();
 			QVector3D normal = normalAtParameter(u, v);
 			n[idx] = normal.x(); n[idx + 1] = normal.y(); n[idx + 2] = normal.z();
-            tg[idx] = _tangent.x(); tg[idx + 1] = _tangent.y(); tg[idx + 2] = _tangent.z();
-            bt[idx] = _bitangent.x(); bt[idx + 1] = _bitangent.y(); bt[idx + 2] = _bitangent.z();
+			tg[idx] = _tangent.x(); tg[idx + 1] = _tangent.y(); tg[idx + 2] = _tangent.z();
+			bt[idx] = _bitangent.x(); bt[idx + 1] = _bitangent.y(); bt[idx + 2] = _bitangent.z();
 			idx += 3;
 
 			tex[tIdx] = s;
@@ -124,6 +124,6 @@ void ParametricSurface::buildMesh()
 		}
 	}
 
-    initBuffers(&el, &p, &n, &tex, &tg, &bt);
+	initBuffers(&el, &p, &n, &tex, &tg, &bt);
 	computeBounds(p);
 }

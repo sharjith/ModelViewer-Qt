@@ -15,8 +15,8 @@ struct GLMaterialProps
 	float   shininess;
 	float   opacity;
 	bool bMetallic;
-    float pbrMetallic;
-    float pbrRoughness;
+	float pbrMetallic;
+	float pbrRoughness;
 	bool bHasTexture;
 };
 
@@ -111,51 +111,51 @@ public:
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
 	std::vector<float> getTexCoords() const;
-    std::vector<float> getTrsfPoints() const;
+	std::vector<float> getTrsfPoints() const;
 
 	void resetTransformations();
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
-    void setAlbedoMap(unsigned int albedoMap);
-    void setNormalMap(unsigned int normalMap);
-    void setMetallicMap(unsigned int metallicMap);
-    void setRoughnessMap(unsigned int roughnessMap);
-    void setAOMap(unsigned int aoMap);
-    void setHeightMap(unsigned int heightMap);
+	void setAlbedoMap(unsigned int albedoMap);
+	void setNormalMap(unsigned int normalMap);
+	void setMetallicMap(unsigned int metallicMap);
+	void setRoughnessMap(unsigned int roughnessMap);
+	void setAOMap(unsigned int aoMap);
+	void setHeightMap(unsigned int heightMap);
 
-    bool hasAlbedoMap() const;
-    void enableAlbedoMap(bool hasAlbedoMap);
+	bool hasAlbedoMap() const;
+	void enableAlbedoMap(bool hasAlbedoMap);
 
-    bool hasMetallicMap() const;
-    void enableMetallicMap(bool hasMetallicMap);
+	bool hasMetallicMap() const;
+	void enableMetallicMap(bool hasMetallicMap);
 
-    bool hasRoughnessMap() const;
-    void enableRoughnessMap(bool hasRoughnessMap);
+	bool hasRoughnessMap() const;
+	void enableRoughnessMap(bool hasRoughnessMap);
 
-    bool hasNormalMap() const;
-    void enableNormalMap(bool hasNormalMap);
+	bool hasNormalMap() const;
+	void enableNormalMap(bool hasNormalMap);
 
-    bool hasAOMap() const;
-    void enableAOMap(bool hasAOMap);
+	bool hasAOMap() const;
+	void enableAOMap(bool hasAOMap);
 
-    bool hasHeightMap() const;
-    void enableHeightMap(bool hasHeightMap);
+	bool hasHeightMap() const;
+	void enableHeightMap(bool hasHeightMap);
 
-    float getHeightScale() const;
-    void setHeightScale(float heightScale);
+	float getHeightScale() const;
+	void setHeightScale(float heightScale);
 
-    void clearAlbedoMap();
-    void clearMetallicMap();
-    void clearRoughnessMap();
-    void clearNormalMap();
-    void clearAOMap();
-    void clearHeightMap();
-    void clearPBRTextures();
+	void clearAlbedoMap();
+	void clearMetallicMap();
+	void clearRoughnessMap();
+	void clearNormalMap();
+	void clearAOMap();
+	void clearHeightMap();
+	void clearPBRTextures();
 
 protected: // methods
-    virtual void initBuffers(
-            std::vector<unsigned int>* indices,
+	virtual void initBuffers(
+		std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
 		std::vector<float>* texCoords = nullptr,
@@ -173,8 +173,8 @@ protected: // methods
 		const QVector3D& vertex2,
 		QVector3D& outIntersectionPoint);
 
-    virtual void setupTextures();
-    virtual void setupUniforms();
+	virtual void setupTextures();
+	virtual void setupUniforms();
 
 protected:
 
@@ -219,19 +219,19 @@ protected:
 	unsigned int _sMax;
 	unsigned int _tMax;
 
-    unsigned int _albedoMap;
-    unsigned int _metallicMap;
-    unsigned int _roughnessMap;
-    unsigned int _normalMap;
-    unsigned int _aoMap;
-    unsigned int _heightMap;
-    bool _hasAlbedoMap;
-    bool _hasMetallicMap;
-    bool _hasRoughnessMap;
-    bool _hasNormalMap;
-    bool _hasAOMap;
-    bool _hasHeightMap;
-    float _heightScale;
+	unsigned int _albedoMap;
+	unsigned int _metallicMap;
+	unsigned int _roughnessMap;
+	unsigned int _normalMap;
+	unsigned int _aoMap;
+	unsigned int _heightMap;
+	bool _hasAlbedoMap;
+	bool _hasMetallicMap;
+	bool _hasRoughnessMap;
+	bool _hasNormalMap;
+	bool _hasAOMap;
+	bool _hasHeightMap;
+	float _heightScale;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

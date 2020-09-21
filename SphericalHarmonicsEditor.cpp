@@ -30,54 +30,54 @@ void SphericalHarmonicsEditor::on_doubleSpinBoxM0_valueChanged(double val)
 {
 	_sphere->_coeff1 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM1_valueChanged(double val)
 {
 	_sphere->_power1 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM2_valueChanged(double val)
 {
 	_sphere->_coeff2 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM3_valueChanged(double val)
 {
 	_sphere->_power2 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM4_valueChanged(double val)
 {
 	_sphere->_coeff3 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM5_valueChanged(double val)
 {
 	_sphere->_power3 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM6_valueChanged(double val)
 {
 	_sphere->_coeff4 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void SphericalHarmonicsEditor::on_doubleSpinBoxM7_valueChanged(double val)
 {
 	_sphere->_power4 = val;
 	_sphere->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }

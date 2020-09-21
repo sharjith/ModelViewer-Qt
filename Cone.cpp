@@ -9,8 +9,8 @@
 
 Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :QuadMesh(prog, "Cone", nSlices, nStacks)
 {
-    _sMax = sMax;
-    _tMax = tMax;
+	_sMax = sMax;
+	_tMax = tMax;
 	int nVerts = ((nSlices + 1) * (nStacks + 1)) + nSlices + 2;
 	int elements = ((nSlices * 2 * (nStacks)) * 3) + (nSlices) * 3;
 
@@ -35,12 +35,12 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
 		theta = i * thetaFac;
-        s = (float)i / nSlices * _sMax;
+		s = (float)i / nSlices * _sMax;
 
 		for (unsigned int j = 0; j <= nStacks; j++)
 		{
 			phi = j * phiFac;
-            t = (float)j / nStacks * _tMax;
+			t = (float)j / nStacks * _tMax;
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);

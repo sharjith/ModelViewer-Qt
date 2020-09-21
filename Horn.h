@@ -6,7 +6,7 @@ class Point;
 class Horn : public ParametricSurface
 {
 public:
-    Horn(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	Horn(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~Horn();
 
 	virtual float firstUParameter() const;

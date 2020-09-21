@@ -6,7 +6,7 @@ class Point;
 class Crescent : public ParametricSurface
 {
 public:
-    Crescent(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	Crescent(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~Crescent();
 
 	virtual float firstUParameter() const;

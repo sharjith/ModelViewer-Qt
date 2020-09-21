@@ -24,19 +24,19 @@ void GraysKleinEditor::on_doubleSpinBoxA_valueChanged(double val)
 {
 	_graysKlein->_A = val;
 	_graysKlein->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void GraysKleinEditor::on_doubleSpinBoxM_valueChanged(double val)
 {
 	_graysKlein->_M = val;
 	_graysKlein->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }
 
 void GraysKleinEditor::on_doubleSpinBoxN_valueChanged(double val)
 {
 	_graysKlein->_N = val;
 	_graysKlein->buildMesh();
-    dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
+	dynamic_cast<GLWidget*>(parent())->updateBoundingSphere();
 }

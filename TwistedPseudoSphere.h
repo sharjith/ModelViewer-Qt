@@ -6,7 +6,7 @@ class Point;
 class TwistedPseudoSphere : public ParametricSurface
 {
 public:
-    TwistedPseudoSphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
+	TwistedPseudoSphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~TwistedPseudoSphere();
 
 	virtual float firstUParameter() const;

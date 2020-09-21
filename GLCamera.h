@@ -97,15 +97,15 @@ public:
 		updateProjectionMatrix();
 	}
 
-    QPoint getScreenSize() const
-    {
-        return QPoint(_width, _height);
-    }
+	QPoint getScreenSize() const
+	{
+		return QPoint(_width, _height);
+	}
 
-    float getAspectRatio() const
-    {
-        return _width/_height;
-    }
+	float getAspectRatio() const
+	{
+		return _width / _height;
+	}
 
 	void setFOV(float fov)
 	{
@@ -113,10 +113,10 @@ public:
 		updateProjectionMatrix();
 	}
 
-    float getFOV() const
-    {
-        return _FOV;
-    }
+	float getFOV() const
+	{
+		return _FOV;
+	}
 
 	void setViewRange(float range)
 	{
@@ -124,10 +124,10 @@ public:
 		updateProjectionMatrix();
 	}
 
-    float getViewRange() const
-    {
-        return _viewRange;
-    }
+	float getViewRange() const
+	{
+		return _viewRange;
+	}
 
 	void setProjectionType(ProjectionType proj)
 	{
