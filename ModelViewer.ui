@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1463,8 +1463,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1610,8 +1610,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2035,7 +2035,7 @@
                   <item row="7" column="0">
                    <widget class="QPushButton" name="pushButtonApplyPBRTexture">
                     <property name="text">
-                     <string>Apply to selection</string>
+                     <string>Apply to Selection</string>
                     </property>
                    </widget>
                   </item>
@@ -2154,7 +2154,7 @@
                   <item row="8" column="0">
                    <widget class="QPushButton" name="pushButtonClearPBRTextures">
                     <property name="text">
-                     <string>Clear All</string>
+                     <string>Clear All Textures from Selection</string>
                     </property>
                    </widget>
                   </item>
@@ -2165,8 +2165,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3025,8 +3025,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3382,8 +3382,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>437</width>
-                   <height>529</height>
+                   <width>382</width>
+                   <height>558</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4231,8 +4231,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>
