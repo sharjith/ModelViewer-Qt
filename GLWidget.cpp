@@ -852,12 +852,12 @@ void GLWidget::enableAlbedoTexture(const std::vector<int>& ids, const bool &enab
 
 void GLWidget::setAlbedoTexture(const std::vector<int>& ids, const QString &path)
 {
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
     for (int id : ids)
     {
         try
         {
-            TriangleMesh* mesh = _meshStore[id];
-            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            TriangleMesh* mesh = _meshStore[id];            
             mesh->setAlbedoMap(texId);
         }
         catch (const std::exception& ex)
@@ -901,12 +901,12 @@ void GLWidget::enableMetallicTexture(const std::vector<int>& ids, const bool &en
 
 void GLWidget::setMetallicTexture(const std::vector<int>& ids, const QString &path)
 {
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
     for (int id : ids)
     {
         try
         {
-            TriangleMesh* mesh = _meshStore[id];
-            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+            TriangleMesh* mesh = _meshStore[id];            
             mesh->setMetallicMap(texId);
         }
         catch (const std::exception& ex)
@@ -950,12 +950,12 @@ void GLWidget::enableRoughnessTexture(const std::vector<int>& ids, const bool &e
 
 void GLWidget::setRoughnessTexture(const std::vector<int>& ids, const QString &path)
 {
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
             mesh->setRoughnessMap(texId);
         }
         catch (const std::exception& ex)
@@ -999,12 +999,12 @@ void GLWidget::enableNormalTexture(const std::vector<int>& ids, const bool &enab
 
 void GLWidget::setNormalTexture(const std::vector<int>& ids, const QString& path)
 {
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
             mesh->setNormalMap(texId);
         }
         catch (const std::exception& ex)
@@ -1048,12 +1048,12 @@ void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool &enable)
 
 void GLWidget::setAOTexture(const std::vector<int>& ids, const QString &path)
 {
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
             mesh->setAOMap(texId);
         }
         catch (const std::exception& ex)
@@ -1097,12 +1097,12 @@ void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool &enab
 
 void GLWidget::setHeightTexture(const std::vector<int>& ids, const QString& path)
 {
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
             mesh->setHeightMap(texId);
         }
         catch (const std::exception& ex)
