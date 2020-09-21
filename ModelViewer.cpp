@@ -219,6 +219,7 @@ void ModelViewer::setListRows(QList<int> indices)
 
 void ModelViewer::setTransformation()
 {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -234,10 +235,12 @@ void ModelViewer::setTransformation()
         QVector3D scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
         _glWidget->setTransformation(ids, translate, rotate, scale);
     }
+    QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::resetTransformation()
 {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -258,6 +261,7 @@ void ModelViewer::resetTransformation()
         doubleSpinBoxSZ->setValue(1.0f);
         _glWidget->resetTransformation(ids);
     }
+    QApplication::restoreOverrideCursor();
 }
 
 
@@ -385,6 +389,7 @@ QString ModelViewer::getSupportedImagesFilter()
 
 void ModelViewer::updateDisplayList()
 {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     listWidgetModel->clear();
     std::vector<TriangleMesh*> store = _glWidget->getMeshStore();
     std::vector<int> ids = _glWidget->getDisplayedObjectsIds();
@@ -408,6 +413,7 @@ void ModelViewer::updateDisplayList()
     sliderLightPosY->setSingleStep(range / 100);
     sliderLightPosZ->setRange(-range, range);
     sliderLightPosZ->setSingleStep(range / 100);
+    QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::showEvent(QShowEvent*)
@@ -456,6 +462,7 @@ void ModelViewer::centerScreen()
 
 void ModelViewer::deleteSelectedItems()
 {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
     if(!selectedItems.isEmpty())
     {
@@ -488,6 +495,7 @@ void ModelViewer::deleteSelectedItems()
             _bDeletionInProgress = false;
         }
     }
+    QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::hideSelectedItems()
@@ -2368,6 +2376,7 @@ void ModelViewer::lightingType_toggled(int, bool)
 
 void ModelViewer::on_pushButtonAlbedoColor_clicked()
 {
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     if (listWidgetModel->count())
     {
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
@@ -2397,6 +2406,7 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
         else
             QMessageBox::information(this, "Albedo Color", "Please select an object first");
     }
+    QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::on_sliderMetallic_valueChanged(int value)
@@ -2484,6 +2494,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     _PBRAlbedoTexture = fileName;
                     labelAlbedoMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
@@ -2493,6 +2504,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
                     }
                     _glWidget->setAlbedoTexture(ids, fileName);
                     _glWidget->updateView();
+                    QApplication::restoreOverrideCursor();
                 }
             }
         }
@@ -2547,6 +2559,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     labelMetallicMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2555,6 +2568,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
                     }
                     _glWidget->setMetallicTexture(ids, fileName);
                     _glWidget->updateView();
+                    QApplication::restoreOverrideCursor();
                 }
             }
         }
@@ -2609,6 +2623,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     labelRoughnessMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2617,6 +2632,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
                     }
                     _glWidget->setRoughnessTexture(ids, fileName);
                     _glWidget->updateView();
+                    QApplication::restoreOverrideCursor();
                 }
             }
         }
@@ -2671,6 +2687,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     labelNormalMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2680,6 +2697,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
                     _glWidget->setNormalTexture(ids, fileName);
                     _glWidget->updateView();
                 }
+                QApplication::restoreOverrideCursor();
             }
         }
         else
@@ -2733,6 +2751,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     labelAOMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2741,6 +2760,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
                     }
                     _glWidget->setAOTexture(ids, fileName);
                     _glWidget->updateView();
+                    QApplication::restoreOverrideCursor();
                 }
             }
         }
@@ -2795,6 +2815,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
                 QPixmap img; img.load(fileName);
                 if(!img.isNull())
                 {
+                    QApplication::setOverrideCursor(Qt::WaitCursor);
                     labelHeightMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -2803,6 +2824,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
                     }
                     _glWidget->setHeightTexture(ids, fileName);
                     _glWidget->updateView();
+                    QApplication::restoreOverrideCursor();
                 }
             }
         }
@@ -2874,6 +2896,7 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
             QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
             if (!items.isEmpty())
             {
+                QApplication::setOverrideCursor(Qt::WaitCursor);
                 for (QListWidgetItem* i : items)
                 {
                     int rowId = listWidgetModel->row(i);
@@ -2912,6 +2935,7 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
                     _glWidget->setHeightScale(ids, static_cast<float>(_heightScale));
                 }
                 _glWidget->updateView();
+                QApplication::restoreOverrideCursor();
             }
             else
                 QMessageBox::information(this, "PBR Textures", "Please select an object first");
@@ -2927,6 +2951,7 @@ void ModelViewer::on_pushButtonClearPBRTextures_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -2934,6 +2959,7 @@ void ModelViewer::on_pushButtonClearPBRTextures_clicked()
             }
             _glWidget->clearPBRTextures(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear PBR Textures", "Please select an object first");
@@ -2948,6 +2974,7 @@ void ModelViewer::on_toolButtonClearAlbedo_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -2955,6 +2982,7 @@ void ModelViewer::on_toolButtonClearAlbedo_clicked()
             }
             _glWidget->clearAlbedoTexture(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear Albedo", "Please select an object first");
@@ -2969,6 +2997,7 @@ void ModelViewer::on_toolButtonClearMetallic_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -2976,6 +3005,7 @@ void ModelViewer::on_toolButtonClearMetallic_clicked()
             }
             _glWidget->clearMetallicTexture(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear Metallic", "Please select an object first");
@@ -2990,6 +3020,7 @@ void ModelViewer::on_toolButtonClearRoughness_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -2997,6 +3028,7 @@ void ModelViewer::on_toolButtonClearRoughness_clicked()
             }
             _glWidget->clearRoughnessTexture(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear Roughness", "Please select an object first");
@@ -3011,6 +3043,7 @@ void ModelViewer::on_toolButtonClearNormal_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -3018,6 +3051,7 @@ void ModelViewer::on_toolButtonClearNormal_clicked()
             }
             _glWidget->clearNormalTexture(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear Normal", "Please select an object first");
@@ -3032,6 +3066,7 @@ void ModelViewer::on_toolButtonClearAO_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -3039,6 +3074,7 @@ void ModelViewer::on_toolButtonClearAO_clicked()
             }
             _glWidget->clearAOTexture(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear AO", "Please select an object first");
@@ -3053,6 +3089,7 @@ void ModelViewer::on_toolButtonClearHeight_clicked()
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (!items.isEmpty())
         {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
             for (QListWidgetItem* i : items)
             {
                 int rowId = listWidgetModel->row(i);
@@ -3060,6 +3097,7 @@ void ModelViewer::on_toolButtonClearHeight_clicked()
             }
             _glWidget->clearHeightTexture(ids);
             _glWidget->updateView();
+            QApplication::restoreOverrideCursor();
         }
         else
             QMessageBox::information(this, "Clear Height", "Please select an object first");
