@@ -111,6 +111,7 @@ public:
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
 	std::vector<float> getTexCoords() const;
+    std::vector<float> getTrsfPoints() const;
 
 	void resetTransformations();
 
@@ -123,6 +124,15 @@ public:
     void setAOMap(unsigned int aoMap);
     void setHeightMap(unsigned int heightMap);
 
+    bool hasAlbedoMap() const;
+    void enableAlbedoMap(bool hasAlbedoMap);
+
+    bool hasMetallicMap() const;
+    void enableMetallicMap(bool hasMetallicMap);
+
+    bool hasRoughnessMap() const;
+    void enableRoughnessMap(bool hasRoughnessMap);
+
     bool hasNormalMap() const;
     void enableNormalMap(bool hasNormalMap);
 
@@ -134,6 +144,14 @@ public:
 
     float getHeightScale() const;
     void setHeightScale(float heightScale);
+
+    void clearAlbedoMap();
+    void clearMetallicMap();
+    void clearRoughnessMap();
+    void clearNormalMap();
+    void clearAOMap();
+    void clearHeightMap();
+    void clearPBRTextures();
 
 protected: // methods
     virtual void initBuffers(
@@ -207,6 +225,9 @@ protected:
     unsigned int _normalMap;
     unsigned int _aoMap;
     unsigned int _heightMap;
+    bool _hasAlbedoMap;
+    bool _hasMetallicMap;
+    bool _hasRoughnessMap;
     bool _hasNormalMap;
     bool _hasAOMap;
     bool _hasHeightMap;

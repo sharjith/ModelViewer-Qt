@@ -90,15 +90,26 @@ public:
     void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
     void setPBRMetallic(const std::vector<int>& ids, const float& val);
     void setPBRRoughness(const std::vector<int>& ids, const float& val);
+
+    void clearPBRTextures(const std::vector<int>& ids);
+    void enableAlbedoTexture(const std::vector<int>& ids, const bool &enable);
     void setAlbedoTexture(const std::vector<int>& ids, const QString& path);
+    void clearAlbedoTexture(const std::vector<int>& ids);
+    void enableMetallicTexture(const std::vector<int>& ids, const bool &enable);
     void setMetallicTexture(const std::vector<int>& ids, const QString &path);
+    void clearMetallicTexture(const std::vector<int>& ids);
+    void enableRoughnessTexture(const std::vector<int>& ids, const bool &enable);
     void setRoughnessTexture(const std::vector<int>& ids, const QString &path);
-    void setNormalTexture(const std::vector<int>& ids, const QString &path);
+    void clearRoughnessTexture(const std::vector<int>& ids);
     void enableNormalTexture(const std::vector<int>& ids, const bool &enable);
-    void setAOTexture(const std::vector<int>& ids, const QString &path);
+    void setNormalTexture(const std::vector<int>& ids, const QString &path);
+    void clearNormalTexture(const std::vector<int>& ids);
     void enableAOTexture(const std::vector<int>& ids, const bool &enable);
+    void setAOTexture(const std::vector<int>& ids, const QString &path);    
+    void clearAOTexture(const std::vector<int>& ids);
     void enableHeightTexture(const std::vector<int>& ids, const bool &enable);
     void setHeightTexture(const std::vector<int>& ids, const QString& path);
+    void clearHeightTexture(const std::vector<int>& ids);
     void setHeightScale(const std::vector<int>& ids, const float& scale);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);

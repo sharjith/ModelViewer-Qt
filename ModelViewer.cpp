@@ -167,6 +167,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     setAlbedoFromADS(_metallic);
     _PBRMetallic = 1.0f;
     _PBRRoughness = 0.7f;
+    _hasAlbedoTex = false;
+    _hasMetallicTex = false;
+    _hasRoughnessTex = false;
     _hasAOTex = false;
     _hasNormalTex = false;
     _hasHeightTex = false;
@@ -2436,6 +2439,28 @@ void ModelViewer::on_sliderRoughness_valueChanged(int value)
     }
 }
 
+void ModelViewer::on_checkBoxAlbedoMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        _hasAlbedoTex = checked;
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableAlbedoTexture(ids, checked);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Albedo Map", "Please select an object first");
+    }
+}
+
 void ModelViewer::on_pushButtonAlbedoMap_clicked()
 {
     if (listWidgetModel->count())
@@ -2473,6 +2498,28 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
         }
         else
             QMessageBox::information(this, "Albedo Map", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_checkBoxMetallicMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        _hasMetallicTex = checked;
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableMetallicTexture(ids, checked);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Metallic Map", "Please select an object first");
     }
 }
 
@@ -2516,6 +2563,28 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
     }
 }
 
+void ModelViewer::on_checkBoxRoughnessMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        _hasRoughnessTex = checked;
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableRoughnessTexture(ids, checked);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Roughness Map", "Please select an object first");
+    }
+}
+
 void ModelViewer::on_pushButtonRoughnessMap_clicked()
 {
     if (listWidgetModel->count())
@@ -2553,6 +2622,28 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
         }
         else
             QMessageBox::information(this, "Roughness Map", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        _hasNormalTex = checked;
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableNormalTexture(ids, checked);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Normal Map", "Please select an object first");
     }
 }
 
@@ -2596,6 +2687,28 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
     }
 }
 
+void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        _hasAOTex = checked;
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableAOTexture(ids, checked);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "AO Map", "Please select an object first");
+    }
+}
+
 void ModelViewer::on_pushButtonAOMap_clicked()
 {
     if (listWidgetModel->count())
@@ -2636,6 +2749,28 @@ void ModelViewer::on_pushButtonAOMap_clicked()
     }
 }
 
+void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
+{
+    if (listWidgetModel->count())
+    {
+        _hasHeightTex = checked;
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->enableHeightTexture(ids, checked);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Height Map", "Please select an object first");
+    }
+}
+
 void ModelViewer::on_pushButtonHeightMap_clicked()
 {
     if (listWidgetModel->count())
@@ -2670,72 +2805,6 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
                     _glWidget->updateView();
                 }
             }
-        }
-        else
-            QMessageBox::information(this, "Height Map", "Please select an object first");
-    }
-}
-
-void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
-{
-    if (listWidgetModel->count())
-    {
-        _hasNormalTex = checked;
-        std::vector<int> ids;
-        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-        if (!items.isEmpty())
-        {
-            for (QListWidgetItem* i : items)
-            {
-                int rowId = listWidgetModel->row(i);
-                ids.push_back(rowId);
-            }
-            _glWidget->enableNormalTexture(ids, checked);
-            _glWidget->updateView();
-        }
-        else
-            QMessageBox::information(this, "Normal Map", "Please select an object first");
-    }
-}
-
-void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
-{
-    if (listWidgetModel->count())
-    {
-        _hasAOTex = checked;
-        std::vector<int> ids;
-        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-        if (!items.isEmpty())
-        {
-            for (QListWidgetItem* i : items)
-            {
-                int rowId = listWidgetModel->row(i);
-                ids.push_back(rowId);
-            }
-            _glWidget->enableAOTexture(ids, checked);
-            _glWidget->updateView();
-        }
-        else
-            QMessageBox::information(this, "AO Map", "Please select an object first");
-    }
-}
-
-void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
-{
-    if (listWidgetModel->count())
-    {
-        _hasHeightTex = checked;
-        std::vector<int> ids;
-        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-        if (!items.isEmpty())
-        {
-            for (QListWidgetItem* i : items)
-            {
-                int rowId = listWidgetModel->row(i);
-                ids.push_back(rowId);
-            }
-            _glWidget->enableHeightTexture(ids, checked);
-            _glWidget->updateView();
         }
         else
             QMessageBox::information(this, "Height Map", "Please select an object first");
@@ -2810,10 +2879,22 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
                     int rowId = listWidgetModel->row(i);
                     ids.push_back(rowId);
                 }
-                _glWidget->setAlbedoTexture(ids, _PBRAlbedoTexture);
-                _glWidget->setMetallicTexture(ids, _PBRMetallicTexture);
-                _glWidget->setRoughnessTexture(ids, _PBRRoughnessTexture);
 
+                _glWidget->enableAlbedoTexture(ids, _hasAlbedoTex);
+                if(_hasAlbedoTex)
+                {
+                    _glWidget->setAlbedoTexture(ids, _PBRAlbedoTexture);
+                }
+                _glWidget->enableMetallicTexture(ids, _hasMetallicTex);
+                if(_hasMetallicTex)
+                {
+                    _glWidget->setMetallicTexture(ids, _PBRMetallicTexture);
+                }
+                _glWidget->enableRoughnessTexture(ids, _hasRoughnessTex);
+                if(_hasRoughnessTex)
+                {
+                    _glWidget->setRoughnessTexture(ids, _PBRRoughnessTexture);
+                }
                 _glWidget->enableNormalTexture(ids, _hasNormalTex);
                 if (_hasNormalTex)
                 {
@@ -2835,5 +2916,152 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
             else
                 QMessageBox::information(this, "PBR Textures", "Please select an object first");
         }
+    }
+}
+
+void ModelViewer::on_pushButtonClearPBRTextures_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearPBRTextures(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear PBR Textures", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_toolButtonClearAlbedo_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearAlbedoTexture(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear Albedo", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_toolButtonClearMetallic_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearMetallicTexture(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear Metallic", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_toolButtonClearRoughness_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearRoughnessTexture(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear Roughness", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_toolButtonClearNormal_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearNormalTexture(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear Normal", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_toolButtonClearAO_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearAOTexture(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear AO", "Please select an object first");
+    }
+}
+
+void ModelViewer::on_toolButtonClearHeight_clicked()
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->clearHeightTexture(ids);
+            _glWidget->updateView();
+        }
+        else
+            QMessageBox::information(this, "Clear Height", "Please select an object first");
     }
 }

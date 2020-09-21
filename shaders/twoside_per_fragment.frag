@@ -42,6 +42,9 @@ uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D heightMap;
 uniform sampler2D aoMap;
+uniform bool hasAlbedoMap;
+uniform bool hasMetallicMap;
+uniform bool hasRoughnessMap;
 uniform bool hasNormalMap;
 uniform bool hasAOMap;
 uniform bool hasHeightMap;
@@ -213,7 +216,7 @@ void main()
         }
     }
 
-    if(renderingMode == 2)
+    if(renderingMode == 2 && displayMode == 0)
     {
         if(hasDiffuseTexture)
         {
@@ -351,19 +354,31 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
             // obtain normal from normal map
-            N = texture(normalMap, texCoords).rgb;
+            N = texture(normalMap, clippedTexCoord).rgb;
             V = normalize(g_tangentLightPos - g_tangentFragPos);
             L = normalize(g_tangentLightPos - g_tangentFragPos);
         }        
+
         // material properties
-        albedo = pow(texture(albedoMap, texCoords).rgb, vec3(2.2));
-        metallic = texture(metallicMap, texCoords).r;
-        roughness = texture(roughnessMap, texCoords).r;
+        if(hasAlbedoMap)
+            albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
+        else
+            albedo = pbrLighting.albedo;
+
+        if(hasMetallicMap)
+            metallic = texture(metallicMap, clippedTexCoord).r;
+        else
+            metallic = pbrLighting.metallic;
+
+        if(hasRoughnessMap)
+            roughness = texture(roughnessMap, clippedTexCoord).r;
+        else
+            roughness = pbrLighting.roughness;
 
         if(hasAOMap)
-            ambientOcclusion = texture(aoMap, texCoords).r;
+            ambientOcclusion = texture(aoMap, clippedTexCoord).r;
         else
-            ambientOcclusion = 1.0f;
+            ambientOcclusion = pbrLighting.ambientOcclusion;
     }
     
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0

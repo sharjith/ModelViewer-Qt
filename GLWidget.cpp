@@ -818,6 +818,38 @@ void GLWidget::setPBRRoughness(const std::vector<int>& ids, const float& val)
     }
 }
 
+void GLWidget::clearPBRTextures(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearPBRTextures();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearPBRTextures\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableAlbedoTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableAlbedoMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableAlbedoTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setAlbedoTexture(const std::vector<int>& ids, const QString &path)
 {
     for (int id : ids)
@@ -831,6 +863,38 @@ void GLWidget::setAlbedoTexture(const std::vector<int>& ids, const QString &path
         catch (const std::exception& ex)
         {
             std::cout << "Exception in GLWidget::setAlbedoTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearAlbedoTexture(const std::vector<int> &ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearAlbedoMap();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearAlbedoTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableMetallicTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableMetallicMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableMetallicTexture\n" << ex.what() << std::endl;
         }
     }
 }
@@ -852,6 +916,38 @@ void GLWidget::setMetallicTexture(const std::vector<int>& ids, const QString &pa
     }
 }
 
+void GLWidget::clearMetallicTexture(const std::vector<int> &ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearMetallicMap();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearMetallicTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableRoughnessTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableRoughnessMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableRoughnessTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setRoughnessTexture(const std::vector<int>& ids, const QString &path)
 {
     for (int id : ids)
@@ -865,6 +961,38 @@ void GLWidget::setRoughnessTexture(const std::vector<int>& ids, const QString &p
         catch (const std::exception& ex)
         {
             std::cout << "Exception in GLWidget::setRoughnessTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearRoughnessTexture(const std::vector<int> &ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearRoughnessMap();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearRoughnessTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableNormalTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableNormalMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableNormalTexture\n" << ex.what() << std::endl;
         }
     }
 }
@@ -886,18 +1014,34 @@ void GLWidget::setNormalTexture(const std::vector<int>& ids, const QString& path
     }
 }
 
-void GLWidget::enableNormalTexture(const std::vector<int>& ids, const bool &enable)
+void GLWidget::clearNormalTexture(const std::vector<int> &ids)
 {
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableNormalMap(enable);
+            mesh->clearNormalMap();
         }
         catch (const std::exception& ex)
         {
-            std::cout << "Exception in GLWidget::enableNormalTexture\n" << ex.what() << std::endl;
+            std::cout << "Exception in GLWidget::clearNormalTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableAOMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableAOTexture\n" << ex.what() << std::endl;
         }
     }
 }
@@ -919,18 +1063,34 @@ void GLWidget::setAOTexture(const std::vector<int>& ids, const QString &path)
     }
 }
 
-void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool &enable)
+void GLWidget::clearAOTexture(const std::vector<int> &ids)
 {
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableAOMap(enable);
+            mesh->clearAOMap();
         }
         catch (const std::exception& ex)
         {
-            std::cout << "Exception in GLWidget::enableAOTexture\n" << ex.what() << std::endl;
+            std::cout << "Exception in GLWidget::clearAOTexture\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool &enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableHeightMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableHeightTexture\n" << ex.what() << std::endl;
         }
     }
 }
@@ -952,18 +1112,18 @@ void GLWidget::setHeightTexture(const std::vector<int>& ids, const QString& path
     }
 }
 
-void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool &enable)
+void GLWidget::clearHeightTexture(const std::vector<int> &ids)
 {
     for (int id : ids)
     {
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableHeightMap(enable);
+            mesh->clearHeightMap();
         }
         catch (const std::exception& ex)
         {
-            std::cout << "Exception in GLWidget::enableHeightTexture\n" << ex.what() << std::endl;
+            std::cout << "Exception in GLWidget::clearHeightTexture\n" << ex.what() << std::endl;
         }
     }
 }

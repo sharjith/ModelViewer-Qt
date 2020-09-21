@@ -111,8 +111,11 @@ private slots:
     void on_toolButtonVertexNormal_clicked(bool checked);
     void on_toolButtonFaceNormal_clicked(bool checked);
     void on_checkBoxSelectAll_toggled(bool checked);
+
     void on_listWidgetModel_itemChanged(QListWidgetItem*);
     void on_listWidgetModel_itemSelectionChanged();
+    void on_listWidgetModel_itemDoubleClicked(QListWidgetItem *item);
+
     void on_checkBoxShadowMapping_toggled(bool checked);
     void on_checkBoxEnvMapping_toggled(bool checked);
     void on_checkBoxSkyBox_toggled(bool checked);
@@ -126,23 +129,45 @@ private slots:
     void on_toolButtonZoomView_clicked();
     void on_pushButtonSkyBoxTex_clicked();
 
-    void on_listWidgetModel_itemDoubleClicked(QListWidgetItem *item);
-
     void on_pushButtonAlbedoColor_clicked();
     void on_sliderMetallic_valueChanged(int value);
     void on_sliderRoughness_valueChanged(int value);
+
+    void on_checkBoxAlbedoMap_toggled(bool checked);
     void on_pushButtonAlbedoMap_clicked();
+
+    void on_checkBoxMetallicMap_toggled(bool checked);
     void on_pushButtonMetallicMap_clicked();
+
+    void on_checkBoxRoughnessMap_toggled(bool checked);
     void on_pushButtonRoughnessMap_clicked();
-    void on_pushButtonNormalMap_clicked();
-    void on_pushButtonAOMap_clicked();
 
     void on_checkBoxNormalMap_toggled(bool checked);
+    void on_pushButtonNormalMap_clicked();
+
     void on_checkBoxAOMap_toggled(bool checked);
+    void on_pushButtonAOMap_clicked();
+
     void on_checkBoxHeightMap_toggled(bool checked);
     void on_pushButtonHeightMap_clicked();
+
     void on_doubleSpinBoxHeightScale_valueChanged(double val);
+
     void on_pushButtonApplyPBRTexture_clicked();
+
+    void on_pushButtonClearPBRTextures_clicked();
+
+    void on_toolButtonClearAlbedo_clicked();
+
+    void on_toolButtonClearMetallic_clicked();
+
+    void on_toolButtonClearRoughness_clicked();
+
+    void on_toolButtonClearNormal_clicked();
+
+    void on_toolButtonClearAO_clicked();
+
+    void on_toolButtonClearHeight_clicked();
 
 protected:
     void showEvent(QShowEvent* event);
@@ -178,6 +203,9 @@ private:
     QString _PBRNormalTexture;
     QString _PBRAOTexture;
     QString _PBRHeightTexture;
+    bool    _hasAlbedoTex;
+    bool    _hasMetallicTex;
+    bool    _hasRoughnessTex;
     bool    _hasNormalTex;
     bool    _hasAOTex;
     bool    _hasHeightTex;

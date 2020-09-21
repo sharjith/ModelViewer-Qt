@@ -59,5 +59,6 @@
         <file>res/panview.png</file>
         <file>res/zoomview.png</file>
         <file>res/rotateview.png</file>
+        <file>res/clear.png</file>
     </qresource>
 </RCC>

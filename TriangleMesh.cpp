@@ -14,8 +14,11 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _roughnessMap(0),
     _normalMap(0),
     _aoMap(0),
-    _hasNormalMap(true),
-    _hasAOMap(true),
+    _hasAlbedoMap(false),
+    _hasMetallicMap(false),
+    _hasRoughnessMap(false),
+    _hasNormalMap(false),
+    _hasAOMap(false),
     _hasHeightMap(false),
     _heightScale(0.5f)
 {
@@ -285,6 +288,9 @@ void TriangleMesh::setupUniforms()
     _prog->setUniformValue("aoMap", 10);
     _prog->setUniformValue("heightMap", 11);
     _prog->setUniformValue("heightScale", _heightScale);
+    _prog->setUniformValue("hasAlbedoMap", _hasAlbedoMap);
+    _prog->setUniformValue("hasMetallicMap", _hasMetallicMap);
+    _prog->setUniformValue("hasRoughnessMap", _hasRoughnessMap);
     _prog->setUniformValue("hasNormalMap", _hasNormalMap);
     _prog->setUniformValue("hasAOMap", _hasAOMap);
     _prog->setUniformValue("hasHeightMap", _hasHeightMap);
@@ -324,11 +330,12 @@ void TriangleMesh::render()
 TriangleMesh::~TriangleMesh()
 {
     deleteBuffers();
-    glDeleteTextures(1, &_albedoMap);
-    glDeleteTextures(1, &_normalMap);
+    glDeleteTextures(1, &_albedoMap);    
     glDeleteTextures(1, &_metallicMap);
     glDeleteTextures(1, &_roughnessMap);
+    glDeleteTextures(1, &_normalMap);
     glDeleteTextures(1, &_aoMap);
+    glDeleteTextures(1, &_heightMap);
 }
 
 void TriangleMesh::deleteBuffers()
@@ -481,6 +488,11 @@ std::vector<float> TriangleMesh::getNormals() const
 std::vector<float> TriangleMesh::getTexCoords() const
 {
     return _texCoords;
+}
+
+std::vector<float> TriangleMesh::getTrsfPoints() const
+{
+    return _trsfpoints;
 }
 
 void TriangleMesh::resetTransformations()
@@ -796,6 +808,36 @@ bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
         return false;
 }
 
+bool TriangleMesh::hasAlbedoMap() const
+{
+    return _hasAlbedoMap;
+}
+
+void TriangleMesh::enableAlbedoMap(bool hasAlbedoMap)
+{
+    _hasAlbedoMap = hasAlbedoMap;
+}
+
+bool TriangleMesh::hasMetallicMap() const
+{
+    return _hasMetallicMap;
+}
+
+void TriangleMesh::enableMetallicMap(bool hasMetallicMap)
+{
+    _hasMetallicMap = hasMetallicMap;
+}
+
+bool TriangleMesh::hasRoughnessMap() const
+{
+    return _hasRoughnessMap;
+}
+
+void TriangleMesh::enableRoughnessMap(bool hasRoughnessMap)
+{
+    _hasRoughnessMap = hasRoughnessMap;
+}
+
 bool TriangleMesh::hasHeightMap() const
 {
     return _hasHeightMap;
@@ -828,31 +870,37 @@ void TriangleMesh::enableNormalMap(bool hasNormalMap)
 
 void TriangleMesh::setHeightMap(unsigned int heightMap)
 {
+    glDeleteTextures(1, &_heightMap);
     _heightMap = heightMap;
 }
 
 void TriangleMesh::setAOMap(unsigned int aoMap)
 {
+    glDeleteTextures(1, &_aoMap);
     _aoMap = aoMap;
 }
 
 void TriangleMesh::setRoughnessMap(unsigned int roughnessMap)
 {
+    glDeleteTextures(1, &_roughnessMap);
     _roughnessMap = roughnessMap;
 }
 
 void TriangleMesh::setMetallicMap(unsigned int metallicMap)
 {
+    glDeleteTextures(1, &_metallicMap);
     _metallicMap = metallicMap;
 }
 
 void TriangleMesh::setNormalMap(unsigned int normalMap)
 {
+    glDeleteTextures(1, &_normalMap);
     _normalMap = normalMap;
 }
 
 void TriangleMesh::setAlbedoMap(unsigned int albedoMap)
 {
+    glDeleteTextures(1, &_albedoMap);
     _albedoMap = albedoMap;
 }
 
@@ -864,4 +912,56 @@ float TriangleMesh::getHeightScale() const
 void TriangleMesh::setHeightScale(float heightScale)
 {
     _heightScale = heightScale;
+}
+
+void TriangleMesh::clearAlbedoMap()
+{
+    glDeleteTextures(1, &_albedoMap);
+    _albedoMap = 0;
+}
+
+void TriangleMesh::clearMetallicMap()
+{
+    glDeleteTextures(1, &_metallicMap);
+    _metallicMap = 0;
+}
+
+void TriangleMesh::clearRoughnessMap()
+{
+    glDeleteTextures(1, &_roughnessMap);
+    _roughnessMap = 0;
+}
+
+void TriangleMesh::clearNormalMap()
+{
+    glDeleteTextures(1, &_normalMap);
+    _normalMap = 0;
+}
+
+void TriangleMesh::clearAOMap()
+{
+    glDeleteTextures(1, &_aoMap);
+    _aoMap = 0;
+}
+
+void TriangleMesh::clearHeightMap()
+{
+    glDeleteTextures(1, &_heightMap);
+    _heightMap = 0;
+}
+
+void TriangleMesh::clearPBRTextures()
+{
+    glDeleteTextures(1, &_albedoMap);
+    _albedoMap = 0;
+    glDeleteTextures(1, &_metallicMap);
+    _metallicMap = 0;
+    glDeleteTextures(1, &_roughnessMap);
+    _roughnessMap = 0;
+    glDeleteTextures(1, &_normalMap);
+    _normalMap = 0;
+    glDeleteTextures(1, &_aoMap);
+    _aoMap = 0;
+    glDeleteTextures(1, &_heightMap);
+    _heightMap = 0;
 }
