@@ -115,7 +115,7 @@ layout( location = 0 ) out vec4 fragColor;
 
 float   calculateShadow(vec4 fragPosLightSpace);
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
-vec4    calculatePBRLighting(int renderMode, vec3 normal);
+vec4    calculatePBRLighting(int renderMode, float side);
 
 vec3    getNormalFromMap();
 mat3    getTBNFromMap();
@@ -140,8 +140,8 @@ void main()
     }
     else
     {
-        v_color_front = calculatePBRLighting(renderingMode, g_normal);
-        v_color_back  = calculatePBRLighting(renderingMode, -g_normal);
+        v_color_front = calculatePBRLighting(renderingMode, 1.0f);
+        v_color_back  = calculatePBRLighting(renderingMode, -1.0f);
     }
 
     if( gl_FrontFacing )
@@ -319,8 +319,9 @@ float calculateShadow(vec4 fragPosLightSpace)
     return shadow;
 }
 
-vec4 calculatePBRLighting(int renderMode, vec3 normal)
+vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
 {
+    vec3 normal = g_normal * side;
     vec3 albedo;
     float metallic;
     float roughness;
@@ -342,7 +343,7 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
     else
     {    
         if(hasNormalMap)
-            N = getNormalFromMap();
+            N = getNormalFromMap() * side;
         else
             N = normalize(normal);
         if(hasHeightMap)
@@ -354,7 +355,7 @@ vec4 calculatePBRLighting(int renderMode, vec3 normal)
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
             // obtain normal from normal map
-            N = texture(normalMap, clippedTexCoord).rgb;
+            N = texture(normalMap, clippedTexCoord).rgb * side;
             V = normalize(g_tangentLightPos - g_tangentFragPos);
             L = normalize(g_tangentLightPos - g_tangentFragPos);
         }        
