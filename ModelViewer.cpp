@@ -708,14 +708,13 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 
 void ModelViewer::on_pushButtonDefaultMatls_clicked()
 {
-    _material.setOpacity(1.0f);
-    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _material.opacity() };      // 54 32 13
-    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _material.opacity() }; // 182 161 141
-    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _material.opacity() };   // 97 100 86
-    // 0.925f, 0.913f, 0.847f, 1.0f
-    setMaterialToSelectedItems(GLMaterial::DEFAULT_MAT());
-    _glWidget->updateView();
-    updateControls();
+    if(checkForActiveSelection())
+    {
+        _material.setOpacity(1.0f);
+        setMaterialToSelectedItems(GLMaterial::DEFAULT_MAT());
+        _glWidget->updateView();
+        updateControls();
+    }
 }
 
 void ModelViewer::on_pushButtonApplyTransformations_clicked()
