@@ -744,32 +744,6 @@ TriangleMesh* GLWidget::loadOBJMesh(QString fileName)
 	return mesh;
 }
 
-void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat)
-{
-	for (int id : ids)
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore[id];
-			mesh->setAmbientMaterial(mat.ambientMaterial);
-			mesh->setDiffuseMaterial(mat.diffuseMaterial);
-			mesh->setSpecularMaterial(mat.specularMaterial);
-			mesh->setEmmissiveMaterial(mat.emmissiveMaterial);
-			mesh->setSpecularReflectivity(mat.specularReflectivity);
-			mesh->setShininess(mat.shininess);
-			mesh->setOpacity(mat.opacity);
-			mesh->setMetallic(mat.bMetallic);
-			mesh->setPBRMetallic(mat.pbrMetallic);
-			mesh->setPBRRoughness(mat.pbrRoughness);
-			mesh->enableTexture(mat.bHasTexture);
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::setMaterialProps\n" << ex.what() << std::endl;
-		}
-    }
-}
-
 void GLWidget::setMaterialToObjects(const std::vector<int> &ids, const GLMaterial &mat)
 {
     for (int id : ids)
@@ -1581,13 +1555,12 @@ void GLWidget::loadFloor()
 	_lightPosition.setZ(_floorSize);
 	_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
-	_floorPlane->setAmbientMaterial(QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
-	_floorPlane->setDiffuseMaterial(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_floorPlane->setSpecularMaterial(QVector4D(0.5f, 0.5f, 0.5f, 1.0f));
-	_floorPlane->setShininess(16.0f);
+    _floorPlane->setAmbientMaterial(QVector3D(0.0f, 0.0f, 0.0f));
+    _floorPlane->setDiffuseMaterial(QVector3D(1.0f, 1.0f, 1.0f));
+    _floorPlane->setSpecularMaterial(QVector3D(0.5f, 0.5f, 0.5f));
+    _floorPlane->setShininess(16.0f);
 	_floorPlane->enableTexture(_floorTextureDisplayed);
-	_floorPlane->setTexureImage(_floorTexImage);
-	//_floorPlane->setOpacity(0.95f);
+    _floorPlane->setTexureImage(_floorTexImage);
 }
 
 void GLWidget::loadEnvMap()

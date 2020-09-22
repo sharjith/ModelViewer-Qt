@@ -6,10 +6,7 @@ GLMaterial::GLMaterial()
     *this = DEFAULT_MAT();
 }
 
-GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic, float opacity) :
-    _shininess(shininess),
-    _metallic(metallic),
-    _opacity(opacity)
+GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic, float opacity)
 {
     _ambient.setX(std::clamp(ambient.x(), 0.0f, 1.0f));
     _ambient.setY(std::clamp(ambient.y(), 0.0f, 1.0f));
@@ -27,16 +24,21 @@ GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular,
     _emissive.setY(std::clamp(emissive.y(), 0.0f, 1.0f));
     _emissive.setZ(std::clamp(emissive.z(), 0.0f, 1.0f));
 
+    _shininess = shininess;
+    _metallic = metallic;
+    _opacity = opacity;
+
 }
 
-GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity) :
-    _metalness(metalness),
-    _roughness(roughness),
-    _opacity(opacity)
+GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity)
 {
     _albedoColor.setX(std::clamp(albedo.x(), 0.0f, 1.0f));
     _albedoColor.setY(std::clamp(albedo.y(), 0.0f, 1.0f));
     _albedoColor.setZ(std::clamp(albedo.z(), 0.0f, 1.0f));
+
+    _metalness = metalness;
+    _roughness = roughness;
+    _opacity = opacity;
 }
 
 QVector3D GLMaterial::ambient() const

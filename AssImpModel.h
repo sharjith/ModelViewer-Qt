@@ -184,23 +184,7 @@ private:
 		}
 
 		// Process materials
-		GLMaterialProps materials = {
-			//{ 0.2109375f, 0.125f, 0.05078125f, 1.0f },      // ambient 54 32 13
-			//{ 0.7109375f, 0.62890625f, 0.55078125f, 1.0f }, // diffuse 182 161 141
-			//{ 0.37890625f, 0.390625f, 0.3359375f, 1.0f },   // specular 97 100 86
-			{ 126.0f / 256, 124.0f / 256, 116.0f / 256, _opacity },
-			{ 126.0f / 256, 124.0f / 256, 116.0f / 256, _opacity },
-			{ 140.0f / 256, 140.0f / 256, 130.0f / 256, _opacity },
-			{1.0f, 1.0f, 1.0f, 1.0f},   // specref
-			{ 0.0f, 0.0f, 0.0f, 1.0f }, // emissive
-			128 * 0.05f, // shininess
-			//128 * 0.2f, // shininess
-			1.0f,   // opacity
-			false, // metallic
-			1.0f,
-			0.7f,
-			false // texture
-		};
+        GLMaterial mat;
 		if (mesh->mMaterialIndex != 0)
 		{
 			aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
@@ -229,24 +213,24 @@ private:
 			material->Get(AI_MATKEY_OPACITY, opacity);
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
 			{
-				materials.ambientMaterial = QVector4D(color.r, color.g, color.b, opacity);
+                mat.setAmbient(QVector3D(color.r, color.g, color.b));
 			}
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
 			{
-				materials.diffuseMaterial = QVector4D(color.r, color.g, color.b, opacity);
+                mat.setDiffuse(QVector3D(color.r, color.g, color.b));
 			}
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
 			{
-				materials.specularMaterial = QVector4D(color.r, color.g, color.b, opacity);
+                mat.setSpecular(QVector3D(color.r, color.g, color.b));
 			}
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
 			{
-				materials.emmissiveMaterial = QVector4D(color.r, color.g, color.b, opacity);
+                mat.setEmissive(QVector3D(color.r, color.g, color.b));
 			}
 		}
 
 		// Return a mesh object created from the extracted mesh data
-		return new AssImpMesh(_prog, vertices, indices, textures, materials);
+        return new AssImpMesh(_prog, vertices, indices, textures, mat);
 	}
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
@@ -269,7 +253,6 @@ private:
 				{
 					textures.push_back(textures_loaded[j]);
 					skip = true; // A texture with the same filepath has already been loaded, continue to next one. (optimization)
-
 					break;
 				}
 			}

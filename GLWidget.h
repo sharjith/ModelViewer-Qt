@@ -86,7 +86,6 @@ public:
 	TriangleMesh* loadOBJMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
-	void setMaterialProps(const std::vector<int>& ids, const GLMaterialProps& mat);
     void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial &mat);
 	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
 	void setPBRMetallic(const std::vector<int>& ids, const float& val);

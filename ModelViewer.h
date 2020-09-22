@@ -16,7 +16,6 @@ public:
 
 	GLWidget* getGLView() const { return _glWidget; }
 
-	void setMaterialProps(const GLMaterialProps& mat);
     void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTransformation();
 	void resetTransformation();
@@ -186,11 +185,11 @@ private:
 	QAction* displayWireShaded;
 	QAction* displayRealShaded;
 
-	QVector4D _ambiMat;
-	QVector4D _diffMat;
-	QVector4D _specMat;
-	QVector4D _emmiMat;
-	QVector4D _specRef;
+    QVector3D _ambiMat;
+    QVector3D _diffMat;
+    QVector3D _specMat;
+    QVector3D _emmiMat;
+    QVector3D _specRef;
 	float _opacity;
 	float _shine;
 	bool _metallic;
@@ -221,6 +220,7 @@ private:
 	bool _textureDirOpenedFirstTime;
 
 private:
+    bool checkForActiveSelection();
 	void updateControls();
 	QString getSupportedImagesFilter();
 	void setAlbedoFromADS(const bool metallic);

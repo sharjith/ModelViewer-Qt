@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "TriangleMesh.h"
+#include "GLMaterial.h"
 
 using namespace std;
 
@@ -41,12 +42,12 @@ public:
 	vector<Vertex> _vertices;
 	vector<unsigned int> _indices;
 	vector<Texture> _textures;
-	GLMaterialProps _materials;
+    GLMaterial _material;
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterialProps materials) : TriangleMesh(shader, "AssImpMesh"),
-		_materials(materials)
+    AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh"),
+        _material(material)
 	{
 		_vertices = vertices;
 		_indices = indices;
@@ -155,7 +156,7 @@ public:
 			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
 		}
 
-		if (_opacity < 1.0f)
+        if (_material.opacity() < 1.0f)
 		{
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -211,13 +212,7 @@ private:
 			bitangents.push_back(v.Bitangent.z);
 		}
 
-		_ambientMaterial = _materials.ambientMaterial;
-		_diffuseMaterial = _materials.diffuseMaterial;
-		_specularMaterial = _materials.specularMaterial;
-		_emmissiveMaterial = _materials.emmissiveMaterial;
-		_shininess = _materials.shininess;
-		_opacity = _materials.opacity;
-		_bHasTexture = _materials.bHasTexture;
+        _bHasTexture = false;
 
 		initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 		computeBounds(points);

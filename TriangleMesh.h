@@ -6,13 +6,14 @@
 #include "BoundingBox.h"
 #include "GLMaterial.h"
 
+/*
 struct GLMaterialProps
 {
-	QVector4D ambientMaterial;
-	QVector4D diffuseMaterial;
-	QVector4D specularMaterial;
-	QVector4D specularReflectivity;
-	QVector4D emmissiveMaterial;
+    QVector3D ambientMaterial;
+    QVector3D diffuseMaterial;
+    QVector3D specularMaterial;
+    QVector3D specularReflectivity;
+    QVector3D emmissiveMaterial;
 	float   shininess;
 	float   opacity;
 	bool bMetallic;
@@ -20,6 +21,7 @@ struct GLMaterialProps
 	float pbrRoughness;
 	bool bHasTexture;
 };
+*/
 
 class TriangleMesh : public Drawable
 {
@@ -56,20 +58,17 @@ public:
 
 	virtual unsigned long long memorySize() const { return _memorySize; }
 
-	QVector4D ambientMaterial() const;
-	void setAmbientMaterial(const QVector4D& ambientMaterial);
+    QVector3D ambientMaterial() const;
+    void setAmbientMaterial(const QVector3D& ambient);
 
-	QVector4D diffuseMaterial() const;
-	void setDiffuseMaterial(const QVector4D& diffuseMaterial);
+    QVector3D diffuseMaterial() const;
+    void setDiffuseMaterial(const QVector3D& diffuse);
 
-	QVector4D specularMaterial() const;
-	void setSpecularMaterial(const QVector4D& specularMaterial);
+    QVector3D specularMaterial() const;
+    void setSpecularMaterial(const QVector3D& specular);
 
-	QVector4D emmissiveMaterial() const;
-	void setEmmissiveMaterial(const QVector4D& emmissiveMaterial);
-
-	QVector4D specularReflectivity() const;
-	void setSpecularReflectivity(const QVector4D& specularReflectivity);
+    QVector3D emmissiveMaterial() const;
+    void setEmmissiveMaterial(const QVector3D& emissive);
 
 	float opacity() const;
 	void setOpacity(const float& opacity);
@@ -79,6 +78,7 @@ public:
 
 	bool isMetallic() const;
 	void setMetallic(bool metallic);
+
 
 	bool hasTexture() const;
 	void enableTexture(const bool& bHasTexture);
@@ -201,19 +201,6 @@ protected:
 	BoundingBox    _boundingBox;
 
 	QString _name;
-
-	QVector4D _ambientMaterial;
-	QVector4D _diffuseMaterial;
-	QVector4D _specularMaterial;
-	QVector4D _emmissiveMaterial;
-	QVector4D _specularReflectivity;
-	float _opacity;
-	float _shininess;
-	bool _metallic;
-
-	QVector3D _PBRAlbedoColor;
-	float     _PBRMetallic;
-	float     _PBRRoughness;
 
     GLMaterial _material;
 
