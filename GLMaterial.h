@@ -72,8 +72,8 @@ public:
     static GLMaterial BLACK_RUBBER();
     static GLMaterial DEFAULT_MAT();
 
-signals:
-
+private:
+    void setAlbedoFromADS();
 private:
     QVector3D _ambient;
     QVector3D _diffuse;

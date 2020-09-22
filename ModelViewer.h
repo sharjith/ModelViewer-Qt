@@ -185,25 +185,16 @@ private:
 	QAction* displayWireShaded;
 	QAction* displayRealShaded;
 
-    QVector3D _ambiMat;
-    QVector3D _diffMat;
-    QVector3D _specMat;
-    QVector3D _emmiMat;
-    QVector3D _specRef;
-	float _opacity;
-	float _shine;
-	bool _metallic;
-	bool _bHasTexture;
-	QVector3D _albedoColor;
-	float _PBRMetallic;
-	float _PBRRoughness;
+    GLMaterial _material;
 
-	QString _PBRAlbedoTexture;
-	QString _PBRMetallicTexture;
-	QString _PBRRoughnessTexture;
-	QString _PBRNormalTexture;
-	QString _PBRAOTexture;
-	QString _PBRHeightTexture;
+    bool _bHasTexture;
+
+    QString _albedoTexture;
+    QString _metallicTexture;
+    QString _roughnessTexture;
+    QString _normalTexture;
+    QString _aoTexture;
+    QString _heightTexture;
 	bool    _hasAlbedoTex;
 	bool    _hasMetallicTex;
 	bool    _hasRoughnessTex;
@@ -222,8 +213,7 @@ private:
 private:
     bool checkForActiveSelection();
 	void updateControls();
-	QString getSupportedImagesFilter();
-	void setAlbedoFromADS(const bool metallic);
+    QString getSupportedQtImagesFilter();
 };
 
 #endif

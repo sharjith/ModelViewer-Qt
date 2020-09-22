@@ -1561,7 +1561,7 @@
                        </widget>
                       </item>
                       <item>
-                       <widget class="QSlider" name="sliderTransparency_2">
+                       <widget class="QSlider" name="sliderTransparencyPBR">
                         <property name="minimum">
                          <number>50</number>
                         </property>

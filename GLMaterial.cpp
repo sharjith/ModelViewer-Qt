@@ -633,3 +633,14 @@ GLMaterial GLMaterial::DEFAULT_MAT()
     return mat;
 }
 
+void GLMaterial::setAlbedoFromADS()
+{
+    QVector3D col;
+    if (_metallic)
+        col = _ambient + _diffuse;
+    else
+        col = _ambient + _diffuse;
+    _albedoColor.setX(std::clamp(col.x(), 0.0f, 1.0f));
+    _albedoColor.setY(std::clamp(col.y(), 0.0f, 1.0f));
+    _albedoColor.setZ(std::clamp(col.z(), 0.0f, 1.0f));
+}

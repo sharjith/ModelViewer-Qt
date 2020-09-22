@@ -41,18 +41,17 @@ public:
 	/*  Mesh Data  */
 	vector<Vertex> _vertices;
 	vector<unsigned int> _indices;
-	vector<Texture> _textures;
-    GLMaterial _material;
+    vector<Texture> _textures;
 
 	/*  Functions  */
 	// Constructor
-    AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh"),
-        _material(material)
+    AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
 	{
 		_vertices = vertices;
 		_indices = indices;
 		_textures = textures;
 
+        _material = material;
 		// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 		setupMesh();
 	}

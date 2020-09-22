@@ -149,25 +149,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     toolBox->setItemEnabled(2, false);
     toolBox->setCurrentIndex(0);
 
-    connect(sliderTransparency_2, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
+    connect(sliderTransparencyPBR, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
     connect(pushButtonDefaultMatlsPBR, SIGNAL(clicked()), this, SLOT(on_pushButtonDefaultMatls_clicked()));
 
-    _opacity = 1.0f;
-    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
-    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity };
-    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };
-    _ambiMat = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f};
-    _diffMat = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f};
-    _specMat = { 140 / 256.0f, 140 / 256.0f, 130 / 256.0f};
-    _shine = fabs(128.0f * 0.05f);
-    _emmiMat = { 0.0f, 0.0f, 0.0f };
-    _specRef = { 1.0f, 1.0f, 1.0f };
-    //_shine = 128 * 0.2f;
-    _metallic = false;
-    _bHasTexture = false;
-    setAlbedoFromADS(_metallic);
-    _PBRMetallic = 1.0f;
-    _PBRRoughness = 0.7f;
+    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _material.opacity() };
+    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _material.opacity() };
+    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _material.opacity() };
+
     _hasAlbedoTex = false;
     _hasMetallicTex = false;
     _hasRoughnessTex = false;
@@ -317,7 +305,12 @@ void ModelViewer::resetTransformationValues()
 
 void ModelViewer::updateControls()
 {
-    bool oldState = blockSignals(true);
+    sliderShine->blockSignals(true);
+    sliderTransparency->blockSignals(true);
+    sliderMetallic->blockSignals(true);
+    sliderRoughness->blockSignals(true);
+    sliderTransparencyPBR->blockSignals(true);
+
     QColor col;
     QString qss;
     QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -337,39 +330,43 @@ void ModelViewer::updateControls()
     // ADS Lighting
     if (radioButtonADSL->isChecked())
     {
-        sliderShine->setValue((int)_shine);
-        sliderTransparency->setValue((int)(1000 * _opacity));
+        sliderShine->setValue((int)_material.shininess());
+        sliderTransparency->setValue((int)(1000 * _material.opacity()));
 
-        col.setRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z());
+        col.setRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z());
         qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
         pushButtonMaterialAmbient->setStyleSheet(qss);
 
-        col.setRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z());
+        col.setRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z());
         qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
         pushButtonMaterialDiffuse->setStyleSheet(qss);
 
-        col.setRgbF(_specMat.x(), _specMat.y(), _specMat.z());
+        col.setRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z());
         qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
         pushButtonMaterialSpecular->setStyleSheet(qss);
 
-        col.setRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z());
+        col.setRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z());
         qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
         pushButtonMaterialEmissive->setStyleSheet(qss);
     }
     // PBR Direct Lighting
     if (radioButtonDLPBR->isChecked())
     {
-        col.setRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z());
+        col.setRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z());
         qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
         pushButtonAlbedoColor->setStyleSheet(qss);
-        sliderMetallic->setValue((int)(_PBRMetallic * 1000));
-        sliderRoughness->setValue((int)(_PBRRoughness * 1000));
-        sliderTransparency_2->setValue((int)(_opacity * 1000));
+        sliderMetallic->setValue((int)(_material.metalness() * 1000));
+        sliderRoughness->setValue((int)(_material.roughness() * 1000));
+        sliderTransparencyPBR->setValue((int)(_material.opacity() * 1000));
     }
-    blockSignals(oldState);
+    sliderShine->blockSignals(false);
+    sliderTransparency->blockSignals(false);
+    sliderMetallic->blockSignals(false);
+    sliderRoughness->blockSignals(false);
+    sliderTransparencyPBR->blockSignals(false);
 }
 
-QString ModelViewer::getSupportedImagesFilter()
+QString ModelViewer::getSupportedQtImagesFilter()
 {
     QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
     QList<QString> filters;
@@ -536,6 +533,16 @@ void ModelViewer::showSelectedItems()
     }
 }
 
+bool ModelViewer::checkForActiveSelection()
+{
+    if (listWidgetModel->selectedItems().isEmpty())
+    {
+        QMessageBox::information(this, "Selection Required", "Please select an object first");
+        return false;
+    }
+    return true;
+}
+
 void ModelViewer::displaySelectedMeshInfo()
 {
     QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
@@ -649,7 +656,7 @@ void ModelViewer::on_checkTexture_toggled(bool checked)
 void ModelViewer::on_pushButtonTexture_clicked()
 {
     QImage buf;
-    QString filter = getSupportedImagesFilter();
+    QString filter = getSupportedQtImagesFilter();
     QString fileName = QFileDialog::getOpenFileName(
                 this,
                 "Choose an image for texture",
@@ -701,10 +708,10 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 
 void ModelViewer::on_pushButtonDefaultMatls_clicked()
 {
-    _opacity = 1.0;
-    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };      // 54 32 13
-    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
-    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
+    _material.setOpacity(1.0f);
+    //_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _material.opacity() };      // 54 32 13
+    //_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _material.opacity() }; // 182 161 141
+    //_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _material.opacity() };   // 97 100 86
     // 0.925f, 0.913f, 0.847f, 1.0f
     setMaterialToSelectedItems(GLMaterial::DEFAULT_MAT());
     _glWidget->updateView();
@@ -951,89 +958,81 @@ void ModelViewer::on_pushButtonLightSpecular_clicked()
 
 void ModelViewer::on_pushButtonMaterialAmbient_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgbF(_ambiMat.x(), _ambiMat.y(), _ambiMat.z()), this, "Ambient Material Color");
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z()), this, "Ambient Material Color");
     if (c.isValid())
     {
-        _ambiMat = {
-            static_cast<float>(c.redF()),
-            static_cast<float>(c.greenF()),
-            static_cast<float>(c.blueF())};
+        if(checkForActiveSelection())
+        {
+            _material.setAmbient(QVector3D(
+                                     static_cast<float>(c.redF()),
+                                     static_cast<float>(c.greenF()),
+                                     static_cast<float>(c.blueF()))
+                                 );
+            setMaterialToSelectedItems(_material);
 
-        GLMaterial mat(_ambiMat, _diffMat, _specMat, _emmiMat, _shine, _metallic, _opacity);
-        setAlbedoFromADS(_metallic);
-        mat.setAlbedoColor(_albedoColor);
-        mat.setMetalness(_PBRMetallic);
-        mat.setRoughness(_PBRRoughness);
-        setMaterialToSelectedItems(mat);
-
-        updateControls();
-        _glWidget->updateView();
+            updateControls();
+            _glWidget->updateView();
+        }
     }
 }
 
 void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgbF(_diffMat.x(), _diffMat.y(), _diffMat.z()), this, "Diffuse Material Color");
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z()), this, "Diffuse Material Color");
     if (c.isValid())
     {
-        _diffMat = {
-            static_cast<float>(c.redF()),
-            static_cast<float>(c.greenF()),
-            static_cast<float>(c.blueF())};
+        if(checkForActiveSelection())
+        {
+            _material.setDiffuse(QVector3D(
+                                     static_cast<float>(c.redF()),
+                                     static_cast<float>(c.greenF()),
+                                     static_cast<float>(c.blueF()))
+                                 );
+            setMaterialToSelectedItems(_material);
 
-        GLMaterial mat(_ambiMat, _diffMat, _specMat, _emmiMat, _shine, _metallic, _opacity);
-        setAlbedoFromADS(_metallic);
-        mat.setAlbedoColor(_albedoColor);
-        mat.setMetalness(_PBRMetallic);
-        mat.setRoughness(_PBRRoughness);
-        setMaterialToSelectedItems(mat);
-
-        updateControls();
-        _glWidget->updateView();
+            updateControls();
+            _glWidget->updateView();
+        }
     }
 }
 
 void ModelViewer::on_pushButtonMaterialSpecular_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgbF(_specMat.x(), _specMat.y(), _specMat.z()), this, "Specular Material Color");
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z()), this, "Specular Material Color");
     if (c.isValid())
     {
-        _specMat = {
-            static_cast<float>(c.redF()),
-            static_cast<float>(c.greenF()),
-            static_cast<float>(c.blueF())};
+        if(checkForActiveSelection())
+        {
+            _material.setSpecular(QVector3D(
+                                      static_cast<float>(c.redF()),
+                                      static_cast<float>(c.greenF()),
+                                      static_cast<float>(c.blueF()))
+                                  );
+            setMaterialToSelectedItems(_material);
 
-        GLMaterial mat(_ambiMat, _diffMat, _specMat, _emmiMat, _shine, _metallic, _opacity);
-        setAlbedoFromADS(_metallic);
-        mat.setAlbedoColor(_albedoColor);
-        mat.setMetalness(_PBRMetallic);
-        mat.setRoughness(_PBRRoughness);
-        setMaterialToSelectedItems(mat);
-
-        updateControls();
-        _glWidget->updateView();
+            updateControls();
+            _glWidget->updateView();
+        }
     }
 }
 
 void ModelViewer::on_pushButtonMaterialEmissive_clicked()
 {
-    QColor c = QColorDialog::getColor(QColor::fromRgbF(_emmiMat.x(), _emmiMat.y(), _emmiMat.z()), this, "Emissive Material Color");
+    QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z()), this, "Emissive Material Color");
     if (c.isValid())
     {
-        _emmiMat = {
-            static_cast<float>(c.redF()),
-            static_cast<float>(c.greenF()),
-            static_cast<float>(c.blueF())};
+        if(checkForActiveSelection())
+        {
+            _material.setEmissive(QVector3D(
+                                      static_cast<float>(c.redF()),
+                                      static_cast<float>(c.greenF()),
+                                      static_cast<float>(c.blueF()))
+                                  );
+            setMaterialToSelectedItems(_material);
 
-        GLMaterial mat(_ambiMat, _diffMat, _specMat, _emmiMat, _shine, _metallic, _opacity);
-        setAlbedoFromADS(_metallic);
-        mat.setAlbedoColor(_albedoColor);
-        mat.setMetalness(_PBRMetallic);
-        mat.setRoughness(_PBRRoughness);
-        setMaterialToSelectedItems(mat);
-
-        updateControls();
-        _glWidget->updateView();
+            updateControls();
+            _glWidget->updateView();
+        }
     }
 }
 
@@ -1063,52 +1062,24 @@ void ModelViewer::on_sliderLightPosZ_valueChanged(int)
 
 void ModelViewer::on_sliderTransparency_valueChanged(int value)
 {
-    _opacity = (float)value / 1000.0;
+    if(checkForActiveSelection())
+    {
+        _material.setOpacity((float)value / 1000.0f);
+        setMaterialToSelectedItems(_material);
 
-    GLMaterial mat(_ambiMat, _diffMat, _specMat, _emmiMat, _shine, _metallic, _opacity);
-    setAlbedoFromADS(_metallic);
-    mat.setAlbedoColor(_albedoColor);
-    mat.setMetalness(_PBRMetallic);
-    mat.setRoughness(_PBRRoughness);
-    setMaterialToSelectedItems(mat);
-
-    _glWidget->updateView();
+        _glWidget->updateView();
+    }
 }
 
 void ModelViewer::on_sliderShine_valueChanged(int value)
 {
-    _shine = value;
-
-    GLMaterial mat(_ambiMat, _diffMat, _specMat, _emmiMat, _shine, _metallic, _opacity);
-    setAlbedoFromADS(_metallic);
-    mat.setAlbedoColor(_albedoColor);
-    mat.setMetalness(_PBRMetallic);
-    mat.setRoughness(_PBRRoughness);
-    setMaterialToSelectedItems(mat);
-
-    _glWidget->updateView();
-}
-
-void ModelViewer::setAlbedoFromADS(const bool metallic)
-{
-    QVector3D col;
-    if (metallic)
-        col = _ambiMat + _diffMat;
-    else
-        col = _ambiMat + _diffMat;
-    _albedoColor.setX(clamp(col.x(), 0.0f, 1.0f));
-    _albedoColor.setY(clamp(col.y(), 0.0f, 1.0f));
-    _albedoColor.setZ(clamp(col.z(), 0.0f, 1.0f));
-}
-
-bool ModelViewer::checkForActiveSelection()
-{
-    if (listWidgetModel->selectedItems().isEmpty())
+    if(checkForActiveSelection())
     {
-        QMessageBox::information(this, "Selection Required", "Please select an object first");
-        return false;
+        _material.setShininess(value);
+        setMaterialToSelectedItems(_material);
+
+        _glWidget->updateView();
     }
-    return true;
 }
 
 void ModelViewer::on_pushButtonBrass_clicked()
@@ -1454,6 +1425,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 
 void ModelViewer::setMaterialToSelectedItems(const GLMaterial &mat)
 {
+    _material = mat;
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -1467,15 +1439,6 @@ void ModelViewer::setMaterialToSelectedItems(const GLMaterial &mat)
             }
             _glWidget->setMaterialToObjects(ids, mat);
             _glWidget->updateView();
-            _ambiMat = mat.ambient();
-            _diffMat = mat.diffuse();
-            _specMat = mat.specular();
-            _shine = mat.shininess();
-            _metallic = mat.metallic();
-            _opacity = mat.opacity();
-            _albedoColor = mat.albedoColor();
-            _PBRMetallic = mat.metalness();
-            _PBRRoughness = mat.roughness();
             updateControls();
         }
     }
@@ -1548,7 +1511,7 @@ void ModelViewer::on_pushButtonFloorTexture_clicked()
 {
     QString appPath = QCoreApplication::applicationDirPath();
     QImage buf;
-    QString filter = getSupportedImagesFilter();
+    QString filter = getSupportedQtImagesFilter();
     QString fileName = QFileDialog::getOpenFileName(
                 this,
                 "Choose an image for texture",
@@ -1650,40 +1613,35 @@ void ModelViewer::lightingType_toggled(int, bool)
 
 void ModelViewer::on_pushButtonAlbedoColor_clicked()
 {
-    QApplication::setOverrideCursor(Qt::WaitCursor);
     if (listWidgetModel->count())
     {
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
         if (checkForActiveSelection())
         {
-            QColor c = QColorDialog::getColor(QColor::fromRgbF(_albedoColor.x(), _albedoColor.y(), _albedoColor.z()), this, "Albedo Color");
+            QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z()), this, "Albedo Color");
             if (c.isValid())
             {
-                _albedoColor = { c.red() / 255.0f, c.green() / 255.0f, c.blue() / 255.0f };
-                if (_PBRMetallic >= 0.5)
-                    _specMat = _albedoColor;
-                else
-                    _diffMat = _albedoColor;
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                _material.setAlbedoColor(QVector3D( c.red() / 255.0f, c.green() / 255.0f, c.blue() / 255.0f));
 
                 std::vector<int> ids;
-
                 for (QListWidgetItem* i : items)
                 {
                     int rowId = listWidgetModel->row(i);
                     ids.push_back(rowId);
                 }
-                _glWidget->setPBRAlbedoColor(ids, c);
+                _glWidget->setMaterialToObjects(ids, _material);
                 _glWidget->updateView();
                 updateControls();
+                QApplication::restoreOverrideCursor();
             }
         }
     }
-    QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::on_sliderMetallic_valueChanged(int value)
 {
-    _PBRMetallic = value / 1000.0f;
+    _material.setMetalness(value / 1000.0f);
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -1695,7 +1653,7 @@ void ModelViewer::on_sliderMetallic_valueChanged(int value)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setPBRMetallic(ids, _PBRMetallic);
+            _glWidget->setPBRMetallic(ids, _material.metalness());
             _glWidget->updateView();
         }
     }
@@ -1703,7 +1661,7 @@ void ModelViewer::on_sliderMetallic_valueChanged(int value)
 
 void ModelViewer::on_sliderRoughness_valueChanged(int value)
 {
-    _PBRRoughness = value / 1000.0f;
+    _material.setRoughness(value / 1000.0f);
     if (listWidgetModel->count())
     {
         std::vector<int> ids;
@@ -1715,7 +1673,7 @@ void ModelViewer::on_sliderRoughness_valueChanged(int value)
                 int rowId = listWidgetModel->row(i);
                 ids.push_back(rowId);
             }
-            _glWidget->setPBRRoughness(ids, _PBRRoughness);
+            _glWidget->setPBRRoughness(ids, _material.roughness());
             _glWidget->updateView();
         }
     }
@@ -1751,7 +1709,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
         {
             QString appPath = QCoreApplication::applicationDirPath();
             QString dirPath = appPath + "/textures/materials";
-            QString filter = getSupportedImagesFilter();
+            QString filter = getSupportedQtImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
                         "Choose an image for Albedo map texture",
@@ -1765,7 +1723,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
                 if (!img.isNull())
                 {
                     QApplication::setOverrideCursor(Qt::WaitCursor);
-                    _PBRAlbedoTexture = fileName;
+                    _albedoTexture = fileName;
                     labelAlbedoMap->setPixmap(img);
                     for (QListWidgetItem* i : items)
                     {
@@ -1812,7 +1770,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
         {
             QString appPath = QCoreApplication::applicationDirPath();
             QString dirPath = appPath + "/textures/materials";
-            QString filter = getSupportedImagesFilter();
+            QString filter = getSupportedQtImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
                         "Choose an image for Metallic map texture",
@@ -1821,7 +1779,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
-                _PBRMetallicTexture = fileName;
+                _metallicTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if (!img.isNull())
@@ -1873,7 +1831,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
         {
             QString appPath = QCoreApplication::applicationDirPath();
             QString dirPath = appPath + "/textures/materials";
-            QString filter = getSupportedImagesFilter();
+            QString filter = getSupportedQtImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
                         "Choose an image for Roughness map texture",
@@ -1882,7 +1840,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
-                _PBRRoughnessTexture = fileName;
+                _roughnessTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if (!img.isNull())
@@ -1934,7 +1892,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
         {
             QString appPath = QCoreApplication::applicationDirPath();
             QString dirPath = appPath + "/textures/materials";
-            QString filter = getSupportedImagesFilter();
+            QString filter = getSupportedQtImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
                         "Choose an image for Normal map texture",
@@ -1943,7 +1901,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
-                _PBRNormalTexture = fileName;
+                _normalTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if (!img.isNull())
@@ -1972,7 +1930,7 @@ void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
         _hasAOTex = checked;
         std::vector<int> ids;
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-       if (checkForActiveSelection())
+        if (checkForActiveSelection())
         {
             for (QListWidgetItem* i : items)
             {
@@ -1991,11 +1949,11 @@ void ModelViewer::on_pushButtonAOMap_clicked()
     {
         std::vector<int> ids;
         QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-       if (checkForActiveSelection())
+        if (checkForActiveSelection())
         {
             QString appPath = QCoreApplication::applicationDirPath();
             QString dirPath = appPath + "/textures/materials";
-            QString filter = getSupportedImagesFilter();
+            QString filter = getSupportedQtImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
                         "Choose an image for AO map texture",
@@ -2004,7 +1962,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
-                _PBRAOTexture = fileName;
+                _aoTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if (!img.isNull())
@@ -2056,7 +2014,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
         {
             QString appPath = QCoreApplication::applicationDirPath();
             QString dirPath = appPath + "/textures/materials";
-            QString filter = getSupportedImagesFilter();
+            QString filter = getSupportedQtImagesFilter();
             QString fileName = QFileDialog::getOpenFileName(
                         this,
                         "Choose an image for Height map texture",
@@ -2065,7 +2023,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             if (fileName != "")
             {
-                _PBRHeightTexture = fileName;
+                _heightTexture = fileName;
                 _textureDirOpenedFirstTime = false;
                 QPixmap img; img.load(fileName);
                 if (!img.isNull())
@@ -2110,32 +2068,32 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
 void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
 {
     bool allOK = true;
-    if (_PBRAlbedoTexture == "")
+    if (_albedoTexture == "")
     {
         QMessageBox::critical(this, "PBR Texture Missing", "Albedo map texture not set");
         allOK = false;
     }
-    if (_PBRMetallicTexture == "")
+    if (_metallicTexture == "")
     {
         QMessageBox::critical(this, "PBR Texture Missing", "Metallic map texture not set");
         allOK = false;
     }
-    if (_PBRRoughnessTexture == "")
+    if (_roughnessTexture == "")
     {
         QMessageBox::critical(this, "PBR Texture Missing", "Roughness map texture not set");
         allOK = false;
     }
-    if (_hasNormalTex && _PBRNormalTexture == "")
+    if (_hasNormalTex && _normalTexture == "")
     {
         QMessageBox::critical(this, "PBR Texture Missing", "Normal map texture not set");
         allOK = false;
     }
-    if (_hasAOTex && _PBRAOTexture == "")
+    if (_hasAOTex && _aoTexture == "")
     {
         QMessageBox::critical(this, "PBR Texture Missing", "AO map texture not set");
         allOK = false;
     }
-    if (_hasHeightTex && _PBRHeightTexture == "")
+    if (_hasHeightTex && _heightTexture == "")
     {
         QMessageBox::critical(this, "PBR Texture Missing", "Height map texture not set");
         allOK = false;
@@ -2158,32 +2116,32 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
                 _glWidget->enableAlbedoTexture(ids, _hasAlbedoTex);
                 if (_hasAlbedoTex)
                 {
-                    _glWidget->setAlbedoTexture(ids, _PBRAlbedoTexture);
+                    _glWidget->setAlbedoTexture(ids, _albedoTexture);
                 }
                 _glWidget->enableMetallicTexture(ids, _hasMetallicTex);
                 if (_hasMetallicTex)
                 {
-                    _glWidget->setMetallicTexture(ids, _PBRMetallicTexture);
+                    _glWidget->setMetallicTexture(ids, _metallicTexture);
                 }
                 _glWidget->enableRoughnessTexture(ids, _hasRoughnessTex);
                 if (_hasRoughnessTex)
                 {
-                    _glWidget->setRoughnessTexture(ids, _PBRRoughnessTexture);
+                    _glWidget->setRoughnessTexture(ids, _roughnessTexture);
                 }
                 _glWidget->enableNormalTexture(ids, _hasNormalTex);
                 if (_hasNormalTex)
                 {
-                    _glWidget->setNormalTexture(ids, _PBRNormalTexture);
+                    _glWidget->setNormalTexture(ids, _normalTexture);
                 }
                 _glWidget->enableAOTexture(ids, _hasAOTex);
                 if (_hasAOTex)
                 {
-                    _glWidget->setAOTexture(ids, _PBRAOTexture);
+                    _glWidget->setAOTexture(ids, _aoTexture);
                 }
                 _glWidget->enableHeightTexture(ids, _hasHeightTex);
                 if (_hasHeightTex)
                 {
-                    _glWidget->setHeightTexture(ids, _PBRHeightTexture);
+                    _glWidget->setHeightTexture(ids, _heightTexture);
                     _glWidget->setHeightScale(ids, static_cast<float>(_heightScale));
                 }
                 _glWidget->updateView();
