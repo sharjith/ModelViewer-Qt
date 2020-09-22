@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1265,22 +1265,6 @@
                       <property name="spacing">
                        <number>2</number>
                       </property>
-                      <item row="0" column="0" colspan="2">
-                       <widget class="QPushButton" name="pushButtonDefaultMatls">
-                        <property name="sizePolicy">
-                         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                          <horstretch>0</horstretch>
-                          <verstretch>0</verstretch>
-                         </sizepolicy>
-                        </property>
-                        <property name="toolTip">
-                         <string>Reset to default light and material</string>
-                        </property>
-                        <property name="text">
-                         <string>Default Values</string>
-                        </property>
-                       </widget>
-                      </item>
                       <item row="1" column="0">
                        <widget class="QCheckBox" name="checkTexture">
                         <property name="toolTip">
@@ -1454,6 +1438,22 @@
                       </property>
                      </spacer>
                     </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonDefaultMatls">
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="toolTip">
+                       <string>Reset to default light and material</string>
+                      </property>
+                      <property name="text">
+                       <string>Reset to Default Values</string>
+                      </property>
+                     </widget>
+                    </item>
                    </layout>
                   </item>
                  </layout>
@@ -1463,15 +1463,15 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
                   <string>Direct Lighting PBR Settings</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_24">
-                  <item row="0" column="0">
+                  <item row="1" column="0">
                    <layout class="QVBoxLayout" name="verticalLayout_7">
                     <item>
                      <widget class="QPushButton" name="pushButtonAlbedoColor">
@@ -1601,6 +1601,13 @@
                       </property>
                      </spacer>
                     </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonDefaultMatlsPBR">
+                      <property name="text">
+                       <string>Reset to Default Values</string>
+                      </property>
+                     </widget>
+                    </item>
                    </layout>
                   </item>
                  </layout>
@@ -1610,8 +1617,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2165,8 +2172,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3025,8 +3032,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3382,8 +3389,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>558</height>
+                   <width>437</width>
+                   <height>529</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4231,8 +4238,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
+  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

@@ -767,7 +767,23 @@ void GLWidget::setMaterialProps(const std::vector<int>& ids, const GLMaterialPro
 		{
 			std::cout << "Exception in GLWidget::setMaterialProps\n" << ex.what() << std::endl;
 		}
-	}
+    }
+}
+
+void GLWidget::setMaterialToObjects(const std::vector<int> &ids, const GLMaterial &mat)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setMaterial(mat);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setMaterialToObjects\n" << ex.what() << std::endl;
+        }
+    }
 }
 
 void GLWidget::setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col)

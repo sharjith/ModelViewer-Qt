@@ -74,6 +74,7 @@ HEADERS += AABB.h \
     Figure8KleinBottle.h \
     Folium.h \
     GLCamera.h \
+    GLMaterial.h \
     GLWidget.h \
     GraysKlein.h \
     Horn.h \
@@ -151,6 +152,7 @@ SOURCES += AppleSurface.cpp \
     Figure8KleinBottle.cpp \
     Folium.cpp \
     GLCamera.cpp \
+    GLMaterial.cpp \
     GLWidget.cpp \
     GraysKlein.cpp \
     Horn.cpp \

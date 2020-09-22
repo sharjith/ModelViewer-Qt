@@ -270,16 +270,16 @@ void TriangleMesh::setupTextures()
 void TriangleMesh::setupUniforms()
 {
 	_prog->bind();
-	_prog->setUniformValue("texUnit", 0);
-	_prog->setUniformValue("material.emission", _emmissiveMaterial.toVector3D());
-	_prog->setUniformValue("material.ambient", _ambientMaterial.toVector3D());
-	_prog->setUniformValue("material.diffuse", _diffuseMaterial.toVector3D());
-	_prog->setUniformValue("material.specular", _specularMaterial.toVector3D());
-	_prog->setUniformValue("material.shininess", _shininess);
-	_prog->setUniformValue("material.metallic", _metallic);
-	_prog->setUniformValue("pbrLighting.albedo", _PBRAlbedoColor);
-	_prog->setUniformValue("pbrLighting.metallic", _PBRMetallic);
-	_prog->setUniformValue("pbrLighting.roughness", _PBRRoughness);
+	_prog->setUniformValue("texUnit", 0);	
+    _prog->setUniformValue("material.ambient", _material.ambient());
+    _prog->setUniformValue("material.diffuse", _material.diffuse());
+    _prog->setUniformValue("material.specular", _material.specular());
+    _prog->setUniformValue("material.emission", _material.emissive());
+    _prog->setUniformValue("material.shininess", _material.shininess());
+    _prog->setUniformValue("material.metallic", _material.metallic());
+    _prog->setUniformValue("pbrLighting.albedo", _material.albedoColor());
+    _prog->setUniformValue("pbrLighting.metallic", _material.metalness());
+    _prog->setUniformValue("pbrLighting.roughness", _material.roughness());
 	_prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
 	_prog->setUniformValue("albedoMap", 6);
 	_prog->setUniformValue("normalMap", 7);
@@ -301,18 +301,28 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("selected", _selected);
 }
 
+GLMaterial TriangleMesh::getMaterial() const
+{
+    return _material;
+}
+
+void TriangleMesh::setMaterial(const GLMaterial &material)
+{
+    _material = material;
+}
+
 void TriangleMesh::render()
 {
-	if (!_vertexArrayObject.isCreated())
-		return;
+    if (!_vertexArrayObject.isCreated())
+        return;
 
-	setupTextures();
+    setupTextures();
 
-	setupUniforms();
+    setupUniforms();
 
-	if (_opacity < 1.0f)
-	{
-		glEnable(GL_BLEND);
+    if (_opacity < 1.0f)
+    {
+        glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else

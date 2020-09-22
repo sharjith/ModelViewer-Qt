@@ -4,6 +4,7 @@
 #include "Drawable.h"
 #include "BoundingSphere.h"
 #include "BoundingBox.h"
+#include "GLMaterial.h"
 
 struct GLMaterialProps
 {
@@ -153,9 +154,12 @@ public:
 	void clearHeightMap();
 	void clearPBRTextures();
 
+    GLMaterial getMaterial() const;
+    void setMaterial(const GLMaterial &material);
+
 protected: // methods
-	virtual void initBuffers(
-		std::vector<unsigned int>* indices,
+    virtual void initBuffers(
+            std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
 		std::vector<float>* texCoords = nullptr,
@@ -210,6 +214,8 @@ protected:
 	QVector3D _PBRAlbedoColor;
 	float     _PBRMetallic;
 	float     _PBRRoughness;
+
+    GLMaterial _material;
 
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;

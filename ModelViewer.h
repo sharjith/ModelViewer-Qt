@@ -3,7 +3,8 @@
 
 #include "ui_ModelViewer.h"
 
-#include <GLWidget.h>
+#include "GLWidget.h"
+#include "GLMaterial.h"
 
 class SphericalHarmonicsEditor;
 class ModelViewer : public QWidget, public Ui::ModelViewer
@@ -16,6 +17,7 @@ public:
 	GLWidget* getGLView() const { return _glWidget; }
 
 	void setMaterialProps(const GLMaterialProps& mat);
+    void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTransformation();
 	void resetTransformation();
 

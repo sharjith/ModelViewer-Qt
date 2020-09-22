@@ -150,6 +150,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	toolBox->setCurrentIndex(0);
 
 	connect(sliderTransparency_2, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
+    connect(pushButtonDefaultMatlsPBR, SIGNAL(clicked()), this, SLOT(on_pushButtonDefaultMatls_clicked()));
 
 	_opacity = 1.0f;
 	//_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };
@@ -704,30 +705,8 @@ void ModelViewer::on_pushButtonDefaultMatls_clicked()
 	//_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _opacity };      // 54 32 13
 	//_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _opacity }; // 182 161 141
 	//_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _opacity };   // 97 100 86
-	// 0.925f, 0.913f, 0.847f, 1.0f
-	_ambiMat = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f, _opacity };
-	_diffMat = { 126 / 256.0f, 124 / 256.0f, 116 / 256.0f, _opacity };
-	_specMat = { 140 / 256.0f, 140 / 256.0f, 130 / 256.0f, _opacity };
-	_emmiMat = { 0, 0, 0, 1 };
-	//_shine = 128 * 0.2f;
-	_shine = 128 * 0.05f;
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.7f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							_emmiMat,
-							_shine,
-							_opacity,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+	// 0.925f, 0.913f, 0.847f, 1.0f    
+    setMaterialToSelectedItems(GLMaterial::DEFAULT_MAT());
 	_glWidget->updateView();
 	updateControls();
 }
@@ -1161,7 +1140,7 @@ void ModelViewer::setAlbedoFromADS(const bool metallic)
 		col = _ambiMat.toVector3D() + _diffMat.toVector3D();
 	_albedoColor.setX(clamp(col.x(), 0.0f, 1.0f));
 	_albedoColor.setY(clamp(col.y(), 0.0f, 1.0f));
-	_albedoColor.setZ(clamp(col.z(), 0.0f, 1.0f));
+    _albedoColor.setZ(clamp(col.z(), 0.0f, 1.0f));
 }
 
 void ModelViewer::on_pushButtonBrass_clicked()
@@ -1171,28 +1150,7 @@ void ModelViewer::on_pushButtonBrass_clicked()
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
 	}
-	//Material Values
-	_ambiMat = { 0.329412f, 0.223529f, 0.027451f, 1 };
-	_diffMat = { 0.780392f, 0.568627f, 0.113725f, 1 };
-	_specMat = { 0.992157f, 0.941176f, 0.807843f, 1 };
-	_shine = fabs(128.0 * 0.21794872);
-	_metallic = true;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.65f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    setMaterialToSelectedItems(GLMaterial::BRASS());
 }
 
 void ModelViewer::on_pushButtonBronze_clicked()
@@ -1201,29 +1159,8 @@ void ModelViewer::on_pushButtonBronze_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat = { 0.2125f, 0.1275f, 0.054f, 1 };
-	_diffMat = { 0.714f, 0.4284f, 0.18144f, 1 };
-	_specMat = { 0.393548f, 0.271906f, 0.166721f, 1 };
-	_shine = fabs(128.0 * 0.2);
-	_metallic = true;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.65f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::BRONZE());
 }
 
 void ModelViewer::on_pushButtonCopper_clicked()
@@ -1232,29 +1169,8 @@ void ModelViewer::on_pushButtonCopper_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat = { 0.19125f, 0.0735f, 0.0225f, 1.0f };
-	_diffMat = { 0.7038f, 0.27048f, 0.0828f, 1.0f };
-	_specMat = { 0.256777f, 0.137622f, 0.086014f, 1.0f };
-	_shine = fabs(128.0 * 0.1);
-	_metallic = true;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.65f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::COPPER());
 }
 
 void ModelViewer::on_pushButtonGold_clicked()
@@ -1263,35 +1179,8 @@ void ModelViewer::on_pushButtonGold_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.24725f;
-	_ambiMat[1] = 0.1995f;
-	_ambiMat[2] = 0.0745f;
-	_diffMat[0] = 0.75164f;
-	_diffMat[1] = 0.60648f;
-	_diffMat[2] = 0.22648f;
-	_specMat[0] = 0.628281f;
-	_specMat[1] = 0.555802f;
-	_specMat[2] = 0.366065f;
-	_shine = fabs(128.0 * 0.4);
-	_metallic = true;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.65f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::GOLD());
 }
 
 void ModelViewer::on_pushButtonSilver_clicked()
@@ -1300,35 +1189,8 @@ void ModelViewer::on_pushButtonSilver_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.19225f;
-	_ambiMat[1] = 0.19225f;
-	_ambiMat[2] = 0.19225f;
-	_diffMat[0] = 0.50754f;
-	_diffMat[1] = 0.50654f;
-	_diffMat[2] = 0.50754f;
-	_specMat[0] = 0.508273f;
-	_specMat[1] = 0.508273f;
-	_specMat[2] = 0.508273f;
-	_shine = fabs(128.0 * 0.4);
-	_metallic = true;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.65f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::SILVER());
 }
 
 void ModelViewer::on_pushButtonChrome_clicked()
@@ -1337,35 +1199,8 @@ void ModelViewer::on_pushButtonChrome_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.25f;
-	_ambiMat[1] = 0.25f;
-	_ambiMat[2] = 0.25f;
-	_diffMat[0] = 0.4f;
-	_diffMat[1] = 0.4f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.774597f;
-	_specMat[1] = 0.774597f;
-	_specMat[2] = 0.774597f;
-	_shine = fabs(128.0 * 0.6);
-	_metallic = true;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 1.0f;
-	_PBRRoughness = 0.65f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::CHROME());
 }
 
 void ModelViewer::on_pushButtonRuby_clicked()
@@ -1374,35 +1209,8 @@ void ModelViewer::on_pushButtonRuby_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.1745f;
-	_ambiMat[1] = 0.01175f;
-	_ambiMat[2] = 0.01175f;
-	_diffMat[0] = 0.61424f;
-	_diffMat[1] = 0.04136f;
-	_diffMat[2] = 0.04136f;
-	_specMat[0] = 0.727811f;
-	_specMat[1] = 0.626959f;
-	_specMat[2] = 0.626959f;
-	_shine = fabs(128.0 * 0.6);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.025f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::RUBY());
 }
 
 void ModelViewer::on_pushButtonEmerald_clicked()
@@ -1411,35 +1219,8 @@ void ModelViewer::on_pushButtonEmerald_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0215f;
-	_ambiMat[1] = 0.1745f;
-	_ambiMat[2] = 0.0215f;
-	_diffMat[0] = 0.07568f;
-	_diffMat[1] = 0.61424f;
-	_diffMat[2] = 0.07568f;
-	_specMat[0] = 0.633f;
-	_specMat[1] = 0.727811f;
-	_specMat[2] = 0.633f;
-	_shine = fabs(128.0 * 0.6);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.025f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::EMERALD());
 }
 
 void ModelViewer::on_pushButtonTurquoise_clicked()
@@ -1448,35 +1229,8 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.1f;
-	_ambiMat[1] = 0.18725f;
-	_ambiMat[2] = 0.1745f;
-	_diffMat[0] = 0.396f;
-	_diffMat[1] = 0.74151f;
-	_diffMat[2] = 0.69102f;
-	_specMat[0] = 0.297254f;
-	_specMat[1] = 0.30829f;
-	_specMat[2] = 0.306678f;
-	_shine = fabs(128.0 * 0.1);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.025f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::TURQUOISE());
 }
 
 void ModelViewer::on_pushButtonJade_clicked()
@@ -1485,35 +1239,8 @@ void ModelViewer::on_pushButtonJade_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.135f;
-	_ambiMat[1] = 0.2225f;
-	_ambiMat[2] = 0.1575f;
-	_diffMat[0] = 0.54f;
-	_diffMat[1] = 0.89f;
-	_diffMat[2] = 0.63f;
-	_specMat[0] = 0.316228f;
-	_specMat[1] = 0.316228f;
-	_specMat[2] = 0.316228f;
-	_shine = fabs(128.0 * 0.1);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.025f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::JADE());
 }
 
 void ModelViewer::on_pushButtonObsidian_clicked()
@@ -1522,35 +1249,8 @@ void ModelViewer::on_pushButtonObsidian_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.05375f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.06625f;
-	_diffMat[0] = 0.18275f;
-	_diffMat[1] = 0.17f;
-	_diffMat[2] = 0.22525f;
-	_specMat[0] = 0.332741f;
-	_specMat[1] = 0.328634f;
-	_specMat[2] = 0.346435f;
-	_shine = fabs(128.0 * 0.3);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.025f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::OBSIDIAN());
 }
 
 void ModelViewer::on_pushButtonPearl_clicked()
@@ -1559,35 +1259,8 @@ void ModelViewer::on_pushButtonPearl_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.25f;
-	_ambiMat[1] = 0.20725f;
-	_ambiMat[2] = 0.20725f;
-	_diffMat[0] = 1.0f;
-	_diffMat[1] = 0.829f;
-	_diffMat[2] = 0.829f;
-	_specMat[1] = 0.296648f;
-	_specMat[2] = 0.296648f;
-	_specMat[0] = 0.299948f;
-	_shine = fabs(128.0 * 0.088);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.025f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::PEARL());
 }
 
 void ModelViewer::on_pushButtonBlackPlastic_clicked()
@@ -1596,35 +1269,8 @@ void ModelViewer::on_pushButtonBlackPlastic_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.01f;
-	_diffMat[1] = 0.01f;
-	_diffMat[2] = 0.01f;
-	_specMat[0] = 0.5f;
-	_specMat[1] = 0.5f;
-	_specMat[2] = 0.5f;
-	_shine = fabs(128.0 * 0.25);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.10f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::BLACK_PLASTIC());
 }
 
 void ModelViewer::on_pushButtonCyanPlastic_clicked()
@@ -1633,35 +1279,8 @@ void ModelViewer::on_pushButtonCyanPlastic_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.1f;
-	_ambiMat[2] = 0.06f;
-	_diffMat[0] = 0.0f;
-	_diffMat[1] = 0.50980392f;
-	_diffMat[2] = 0.50980392f;
-	_specMat[0] = 0.50196078f;
-	_specMat[1] = 0.50196078f;
-	_specMat[2] = 0.50196078f;
-	_shine = fabs(128.0 * 0.25);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.10f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::CYAN_PLASTIC());
 }
 
 void ModelViewer::on_pushButtonGreenPlastic_clicked()
@@ -1670,35 +1289,8 @@ void ModelViewer::on_pushButtonGreenPlastic_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.1f;
-	_diffMat[1] = 0.35f;
-	_diffMat[2] = 0.1f;
-	_specMat[0] = 0.45f;
-	_specMat[1] = 0.55f;
-	_specMat[2] = 0.45f;
-	_shine = fabs(128.0 * 0.25);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.10f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::GREEN_PLASTIC());
 }
 
 void ModelViewer::on_pushButtonRedPlastic_clicked()
@@ -1707,35 +1299,8 @@ void ModelViewer::on_pushButtonRedPlastic_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.0f;
-	_diffMat[2] = 0.0f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.6f;
-	_specMat[2] = 0.6f;
-	_shine = fabs(128.0 * 0.25);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.10f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::RED_PLASTIC());
 }
 
 void ModelViewer::on_pushButtonWhitePlastic_clicked()
@@ -1744,35 +1309,8 @@ void ModelViewer::on_pushButtonWhitePlastic_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.55f;
-	_diffMat[1] = 0.55f;
-	_diffMat[2] = 0.55f;
-	_specMat[0] = 0.70f;
-	_specMat[1] = 0.70f;
-	_specMat[2] = 0.70f;
-	_shine = fabs(128.0 * 0.25);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.10f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::WHITE_PLASTIC());
 }
 
 void ModelViewer::on_pushButtonYellowPlastic_clicked()
@@ -1781,35 +1319,8 @@ void ModelViewer::on_pushButtonYellowPlastic_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.0f;
-	_specMat[0] = 0.6f;
-	_specMat[1] = 0.6f;
-	_specMat[2] = 0.5f;
-	_shine = fabs(128.0 * 0.25);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.10f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::YELLOW_PLASTIC());
 }
 
 void ModelViewer::on_pushButtonBlackRubber_clicked()
@@ -1818,35 +1329,8 @@ void ModelViewer::on_pushButtonBlackRubber_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.02f;
-	_ambiMat[1] = 0.02f;
-	_ambiMat[2] = 0.02f;
-	_diffMat[0] = 0.01f;
-	_diffMat[1] = 0.01f;
-	_diffMat[2] = 0.01f;
-	_specMat[0] = 0.4f;
-	_specMat[1] = 0.4f;
-	_specMat[2] = 0.4f;
-	_shine = fabs(128.0 * 0.078125);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.70f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::BLACK_RUBBER());
 }
 
 void ModelViewer::on_pushButtonCyanRubber_clicked()
@@ -1855,35 +1339,8 @@ void ModelViewer::on_pushButtonCyanRubber_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.05f;
-	_diffMat[0] = 0.4f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.5f;
-	_specMat[0] = 0.04f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.7f;
-	_shine = fabs(128.0 * 0.078125);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.70f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::CYAN_RUBBER());
 }
 
 void ModelViewer::on_pushButtonGreenRubber_clicked()
@@ -1892,35 +1349,8 @@ void ModelViewer::on_pushButtonGreenRubber_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.0f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.4f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.04f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.04f;
-	_shine = fabs(128.0 * 0.078125);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.70f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::GREEN_RUBBER());
 }
 
 void ModelViewer::on_pushButtonRedRubber_clicked()
@@ -1929,35 +1359,8 @@ void ModelViewer::on_pushButtonRedRubber_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.05f;
-	_ambiMat[1] = 0.0f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.7f;
-	_diffMat[1] = 0.4f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.04f;
-	_specMat[2] = 0.04f;
-	_shine = fabs(128.0 * 0.078125);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.70f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::RED_RUBBER());
 }
 
 void ModelViewer::on_pushButtonWhiteRubber_clicked()
@@ -1966,35 +1369,8 @@ void ModelViewer::on_pushButtonWhiteRubber_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.05f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.05f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.5f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.7f;
-	_shine = fabs(128.0 * 0.078125);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.70f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::WHITE_RUBBER());
 }
 
 void ModelViewer::on_pushButtonYellowRubber_clicked()
@@ -2003,35 +1379,8 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
 	{
 		QMessageBox::information(this, "Material Selection", "Please select an object first");
 		return;
-	}
-	//Material Values
-	_ambiMat[0] = 0.05f;
-	_ambiMat[1] = 0.05f;
-	_ambiMat[2] = 0.0f;
-	_diffMat[0] = 0.5f;
-	_diffMat[1] = 0.5f;
-	_diffMat[2] = 0.4f;
-	_specMat[0] = 0.7f;
-	_specMat[1] = 0.7f;
-	_specMat[2] = 0.04f;
-	_shine = fabs(128.0 * 0.078125);
-	_metallic = false;
-	setAlbedoFromADS(_metallic);
-	_PBRMetallic = 0.0f;
-	_PBRRoughness = 0.70f;
-
-	GLMaterialProps mat = { _ambiMat,
-							_diffMat,
-							_specMat,
-							{1.0f, 1.0f, 1.0f, 1.0f},
-							{0.0f, 0.0f, 0.0f, 1.0f},
-							_shine,
-							1.0f,
-							_metallic,
-							_PBRMetallic,
-							_PBRRoughness,
-							checkTexture->isChecked() };
-	setMaterialProps(mat);
+    }
+    setMaterialToSelectedItems(GLMaterial::YELLOW_RUBBER());
 }
 
 void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
@@ -2202,7 +1551,35 @@ void ModelViewer::setMaterialProps(const GLMaterialProps& mat)
 			_glWidget->updateView();
 			updateControls();
 		}
-	}
+    }
+}
+
+void ModelViewer::setMaterialToSelectedItems(const GLMaterial &mat)
+{
+    if (listWidgetModel->count())
+    {
+        std::vector<int> ids;
+        QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+        if (!items.isEmpty())
+        {
+            for (QListWidgetItem* i : items)
+            {
+                int rowId = listWidgetModel->row(i);
+                ids.push_back(rowId);
+            }
+            _glWidget->setMaterialToObjects(ids, mat);
+            _glWidget->updateView();
+            _ambiMat = mat.ambient();
+            _diffMat = mat.diffuse();
+            _specMat = mat.specular();
+            _shine = mat.shininess();
+            _metallic = mat.metallic();
+            _albedoColor = mat.albedoColor();
+            _PBRMetallic = mat.metalness();
+            _PBRRoughness = mat.roughness();
+            updateControls();
+        }
+    }
 }
 
 void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
@@ -2500,6 +1877,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
 						int rowId = listWidgetModel->row(i);
 						ids.push_back(rowId);
 					}
+                    _glWidget->enableAlbedoTexture(ids, _hasAlbedoTex);
 					_glWidget->setAlbedoTexture(ids, fileName);
 					_glWidget->updateView();
 					QApplication::restoreOverrideCursor();
@@ -2564,6 +1942,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
 						int rowId = listWidgetModel->row(i);
 						ids.push_back(rowId);
 					}
+                    _glWidget->enableMetallicTexture(ids, _hasMetallicTex);
 					_glWidget->setMetallicTexture(ids, fileName);
 					_glWidget->updateView();
 					QApplication::restoreOverrideCursor();
@@ -2628,6 +2007,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
 						int rowId = listWidgetModel->row(i);
 						ids.push_back(rowId);
 					}
+                    _glWidget->enableRoughnessTexture(ids, _hasRoughnessTex);
 					_glWidget->setRoughnessTexture(ids, fileName);
 					_glWidget->updateView();
 					QApplication::restoreOverrideCursor();
@@ -2692,6 +2072,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
 						int rowId = listWidgetModel->row(i);
 						ids.push_back(rowId);
 					}
+                    _glWidget->enableNormalTexture(ids, _hasNormalTex);
 					_glWidget->setNormalTexture(ids, fileName);
 					_glWidget->updateView();
 				}
@@ -2756,6 +2137,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 						int rowId = listWidgetModel->row(i);
 						ids.push_back(rowId);
 					}
+                    _glWidget->enableAOTexture(ids, _hasAOTex);
 					_glWidget->setAOTexture(ids, fileName);
 					_glWidget->updateView();
 					QApplication::restoreOverrideCursor();
@@ -2820,6 +2202,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
 						int rowId = listWidgetModel->row(i);
 						ids.push_back(rowId);
 					}
+                    _glWidget->enableHeightTexture(ids, _hasHeightTex);
 					_glWidget->setHeightTexture(ids, fileName);
 					_glWidget->updateView();
 					QApplication::restoreOverrideCursor();
