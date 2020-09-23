@@ -2440,7 +2440,12 @@ void GLWidget::renderToShadowBuffer()
 	lightProjection.ortho(-extent + center.x(), extent + center.x(),
 		-extent + center.y(), extent + center.y(),
 		near_plane + center.z(), far_plane + center.z());
-	lightView.lookAt(_lightPosition, QVector3D(center.x(), center.y(), 0), QVector3D(0.0, 1.0, 0.0));
+	QVector3D lightDir;
+	if (_lockLightAndCamera)
+		lightDir = QVector3D(center.x(), center.y(), 0);
+	else
+		lightDir = _primaryCamera->getPosition() - _lightPosition;
+	lightView.lookAt(_lightPosition, lightDir, QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
 	_shadowMappingShader->bind();

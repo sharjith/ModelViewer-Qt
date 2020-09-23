@@ -227,7 +227,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 {
     vec3 halfVector; // light half vector
     if(lockLightAndCamera)
-        halfVector = normalize(source.position + vec3(0.0, 0.0, 0.0));
+        halfVector = normalize(source.position);
     else
         halfVector = normalize(source.position + cameraPos);
     float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
@@ -296,7 +296,7 @@ float calculateShadow(vec4 fragPosLightSpace)
     if(lockLightAndCamera)
         lightDir = normalize(lightSource.position);
     else
-        lightDir = normalize(fs_in_shadow.cameraPos - fs_in_shadow.FragPos);
+        lightDir = normalize(lightSource.position + fs_in_shadow.cameraPos);
     float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
 
     // PCF - Percentage Closer Filtering
@@ -327,9 +327,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     float metallic;
     float roughness;
     float ambientOcclusion;
-    vec3 N;
-    vec3 V = normalize(lightSource.position + vec3(0));
-    vec3 L = normalize(lightSource.position + vec3(0));
+    vec3 N; vec3 V; vec3 L;
+    if(lockLightAndCamera)
+    {
+        V = normalize(lightSource.position);
+        L = normalize(lightSource.position);
+    }
+    else
+    {
+        V = normalize(lightSource.position + cameraPos);
+        L = normalize(lightSource.position + cameraPos);
+    }
     vec2 texCoords = g_texCoord2d;
     vec2 clippedTexCoord = texCoords;
 
