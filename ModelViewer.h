@@ -212,6 +212,7 @@ private:
 
 private:
     bool checkForActiveSelection();
+	std::vector<int> getSelectedIDs() const;
 	void updateControls();
     QString getSupportedQtImagesFilter();
 };

@@ -211,13 +211,7 @@ void ModelViewer::setTransformation()
 	if (checkForActiveSelection())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		QVector3D translate(doubleSpinBoxDX->value(), doubleSpinBoxDY->value(), doubleSpinBoxDZ->value());
 		QVector3D rotate(doubleSpinBoxRX->value(), doubleSpinBoxRY->value(), doubleSpinBoxRZ->value());
 		QVector3D scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
@@ -231,13 +225,7 @@ void ModelViewer::resetTransformation()
 	if (checkForActiveSelection())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		doubleSpinBoxDX->setValue(0.0f);
 		doubleSpinBoxDY->setValue(0.0f);
 		doubleSpinBoxDZ->setValue(0.0f);
@@ -542,6 +530,18 @@ bool ModelViewer::checkForActiveSelection()
 	return true;
 }
 
+std::vector<int> ModelViewer::getSelectedIDs() const
+{
+	std::vector<int> ids;
+	QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+	for (QListWidgetItem* i : items)
+	{
+		int rowId = listWidgetModel->row(i);
+		ids.push_back(rowId);
+	}
+	return ids;
+}
+
 void ModelViewer::displaySelectedMeshInfo()
 {
 	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
@@ -657,39 +657,29 @@ void ModelViewer::on_checkTexture_toggled(bool checked)
 
 void ModelViewer::on_pushButtonTexture_clicked()
 {
-	QImage buf;
-	QString filter = getSupportedQtImagesFilter();
-	QString fileName = QFileDialog::getOpenFileName(
-		this,
-		"Choose an image for texture",
-		_lastOpenedDir,
-		filter);
-	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-	if (fileName != "")
+	if (checkForActiveSelection())
 	{
-		if (!buf.load(fileName))
-		{ // Load first image from file
-			qWarning("Could not read image file, using single-color instead.");
-			QImage dummy(128, 128, (QImage::Format)5);
-			dummy.fill(1);
-			buf = dummy;
-		}
-
-		if (listWidgetModel->count())
+		QImage buf;
+		QString filter = getSupportedQtImagesFilter();
+		QString fileName = QFileDialog::getOpenFileName(
+			this,
+			"Choose an image for texture",
+			_lastOpenedDir,
+			filter);
+		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+		if (fileName != "")
 		{
-			std::vector<int> ids;
-			QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-			//for (QListWidgetItem* i : (items.isEmpty() ? listWidgetModel->findItems(QString("*"), Qt::MatchWrap | Qt::MatchWildcard) : items))
-			if (!items.isEmpty())
-			{
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
-				_glWidget->setTexture(ids, buf);
-				_glWidget->updateView();
+			if (!buf.load(fileName))
+			{ // Load first image from file
+				qWarning("Could not read image file, using single-color instead.");
+				QImage dummy(128, 128, (QImage::Format)5);
+				dummy.fill(1);
+				buf = dummy;
 			}
+
+			std::vector<int> ids = getSelectedIDs();
+			_glWidget->setTexture(ids, buf);
+			_glWidget->updateView();
 		}
 	}
 }
@@ -955,10 +945,10 @@ void ModelViewer::on_pushButtonLightSpecular_clicked()
 
 void ModelViewer::on_pushButtonMaterialAmbient_clicked()
 {
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z()), this, "Ambient Material Color");
-	if (c.isValid())
+	if (checkForActiveSelection())
 	{
-		if (checkForActiveSelection())
+		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z()), this, "Ambient Material Color");
+		if (c.isValid())
 		{
 			_material.setAmbient(QVector3D(
 				static_cast<float>(c.redF()),
@@ -975,10 +965,10 @@ void ModelViewer::on_pushButtonMaterialAmbient_clicked()
 
 void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
 {
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z()), this, "Diffuse Material Color");
-	if (c.isValid())
+	if (checkForActiveSelection())
 	{
-		if (checkForActiveSelection())
+		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z()), this, "Diffuse Material Color");
+		if (c.isValid())
 		{
 			_material.setDiffuse(QVector3D(
 				static_cast<float>(c.redF()),
@@ -995,10 +985,10 @@ void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
 
 void ModelViewer::on_pushButtonMaterialSpecular_clicked()
 {
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z()), this, "Specular Material Color");
-	if (c.isValid())
+	if (checkForActiveSelection())
 	{
-		if (checkForActiveSelection())
+		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z()), this, "Specular Material Color");
+		if (c.isValid())
 		{
 			_material.setSpecular(QVector3D(
 				static_cast<float>(c.redF()),
@@ -1015,10 +1005,10 @@ void ModelViewer::on_pushButtonMaterialSpecular_clicked()
 
 void ModelViewer::on_pushButtonMaterialEmissive_clicked()
 {
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z()), this, "Emissive Material Color");
-	if (c.isValid())
+	if (checkForActiveSelection())
 	{
-		if (checkForActiveSelection())
+		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z()), this, "Emissive Material Color");
+		if (c.isValid())
 		{
 			_material.setEmissive(QVector3D(
 				static_cast<float>(c.redF()),
@@ -1378,67 +1368,15 @@ void ModelViewer::on_toolButtonOpen_clicked()
 		MainWindow::mainWindow()->activateWindow();
 		QApplication::alert(MainWindow::mainWindow());
 	}
-
-	/*
-	if (fileName != "")
-	{
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		QFileInfo fi(fileName);
-		if (fi.suffix().toLower() == "stl")
-		{
-			mesh = _glWidget->loadSTLMesh(fileName);
-			if (mesh)
-			{
-				if (!static_cast<STLMesh*>(mesh)->loaded())
-				{
-					delete mesh;
-					mesh = nullptr;
-				}
-			}
-		}
-		if (fi.suffix().toLower() == "obj")
-			mesh = _glWidget->loadOBJMesh(fileName);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-
-		if (mesh)
-		{
-			updateDisplayList();
-
-			listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-			listWidgetModel->currentItem()->setCheckState(Qt::Checked);
-
-			updateDisplayList();
-		}
-		else
-		{
-			QMessageBox::critical(this, "Error", "Model load unsuccessful!");
-		}
-		QApplication::restoreOverrideCursor();
-		MainWindow::mainWindow()->activateWindow();
-		QApplication::alert(MainWindow::mainWindow());
-	}
-	*/
 }
 
 void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)
 {
 	_material = mat;
-	if (listWidgetModel->count())
-	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		if (!items.isEmpty())
-		{
-			for (QListWidgetItem* i : items)
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
-			_glWidget->setMaterialToObjects(ids, mat);
-			_glWidget->updateView();
-			updateControls();
-		}
-	}
+	std::vector<int> ids = getSelectedIDs();
+	_glWidget->setMaterialToObjects(ids, mat);
+	_glWidget->updateView();
+	updateControls();
 }
 
 void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
@@ -1612,19 +1550,14 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z()), this, "Albedo Color");
 		if (c.isValid())
 		{
 			QApplication::setOverrideCursor(Qt::WaitCursor);
 			_material.setAlbedoColor(QVector3D(c.red() / 255.0f, c.green() / 255.0f, c.blue() / 255.0f));
 
-			std::vector<int> ids;
-			for (QListWidgetItem* i : items)
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
+			QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+			std::vector<int> ids = getSelectedIDs();
 			_glWidget->setMaterialToObjects(ids, _material);
 			_glWidget->updateView();
 			updateControls();
@@ -1638,18 +1571,9 @@ void ModelViewer::on_sliderMetallic_valueChanged(int value)
 	_material.setMetalness(value / 1000.0f);
 	if (listWidgetModel->count())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		if (!items.isEmpty())
-		{
-			for (QListWidgetItem* i : items)
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
-			_glWidget->setPBRMetallic(ids, _material.metalness());
-			_glWidget->updateView();
-		}
+		std::vector<int> ids = getSelectedIDs();
+		_glWidget->setPBRMetallic(ids, _material.metalness());
+		_glWidget->updateView();
 	}
 }
 
@@ -1658,18 +1582,9 @@ void ModelViewer::on_sliderRoughness_valueChanged(int value)
 	_material.setRoughness(value / 1000.0f);
 	if (listWidgetModel->count())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		if (!items.isEmpty())
-		{
-			for (QListWidgetItem* i : items)
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
-			_glWidget->setPBRRoughness(ids, _material.roughness());
-			_glWidget->updateView();
-		}
+		std::vector<int> ids = getSelectedIDs();
+		_glWidget->setPBRRoughness(ids, _material.roughness());
+		_glWidget->updateView();
 	}
 }
 
@@ -1678,13 +1593,7 @@ void ModelViewer::on_checkBoxAlbedoMap_toggled(bool checked)
 	if (checkForActiveSelection())
 	{
 		_hasAlbedoTex = checked;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->enableAlbedoTexture(ids, checked);
 		_glWidget->updateView();
 	}
@@ -1703,8 +1612,6 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QString appPath = QCoreApplication::applicationDirPath();
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
@@ -1723,11 +1630,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				_albedoTexture = fileName;
 				labelAlbedoMap->setPixmap(img);
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
+				std::vector<int> ids = getSelectedIDs();
 				_glWidget->enableAlbedoTexture(ids, _hasAlbedoTex);
 				_glWidget->setAlbedoTexture(ids, fileName);
 				_glWidget->updateView();
@@ -1742,13 +1645,7 @@ void ModelViewer::on_checkBoxMetallicMap_toggled(bool checked)
 	if (checkForActiveSelection())
 	{
 		_hasMetallicTex = checked;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->enableMetallicTexture(ids, checked);
 		_glWidget->updateView();
 	}
@@ -1767,8 +1664,6 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QString appPath = QCoreApplication::applicationDirPath();
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
@@ -1787,11 +1682,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
 			{
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelMetallicMap->setPixmap(img);
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
+				std::vector<int> ids = getSelectedIDs();
 				_glWidget->enableMetallicTexture(ids, _hasMetallicTex);
 				_glWidget->setMetallicTexture(ids, fileName);
 				_glWidget->updateView();
@@ -1806,13 +1697,7 @@ void ModelViewer::on_checkBoxRoughnessMap_toggled(bool checked)
 	if (checkForActiveSelection())
 	{
 		_hasRoughnessTex = checked;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->enableRoughnessTexture(ids, checked);
 		_glWidget->updateView();
 	}
@@ -1831,8 +1716,6 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QString appPath = QCoreApplication::applicationDirPath();
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
@@ -1851,11 +1734,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
 			{
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelRoughnessMap->setPixmap(img);
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
+				std::vector<int> ids = getSelectedIDs();
 				_glWidget->enableRoughnessTexture(ids, _hasRoughnessTex);
 				_glWidget->setRoughnessTexture(ids, fileName);
 				_glWidget->updateView();
@@ -1870,13 +1749,7 @@ void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
 	if (checkForActiveSelection())
 	{
 		_hasNormalTex = checked;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->enableNormalTexture(ids, checked);
 		_glWidget->updateView();
 	}
@@ -1895,8 +1768,6 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QString appPath = QCoreApplication::applicationDirPath();
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
@@ -1915,11 +1786,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
 			{
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelNormalMap->setPixmap(img);
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
+				std::vector<int> ids = getSelectedIDs();
 				_glWidget->enableNormalTexture(ids, _hasNormalTex);
 				_glWidget->setNormalTexture(ids, fileName);
 				_glWidget->updateView();
@@ -1934,13 +1801,7 @@ void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
 	if (checkForActiveSelection())
 	{
 		_hasAOTex = checked;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->enableAOTexture(ids, checked);
 		_glWidget->updateView();
 	}
@@ -1959,8 +1820,6 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QString appPath = QCoreApplication::applicationDirPath();
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
@@ -1979,11 +1838,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 			{
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelAOMap->setPixmap(img);
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
+				std::vector<int> ids = getSelectedIDs();
 				_glWidget->enableAOTexture(ids, _hasAOTex);
 				_glWidget->setAOTexture(ids, fileName);
 				_glWidget->updateView();
@@ -1998,13 +1853,7 @@ void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
 	if (checkForActiveSelection())
 	{
 		_hasHeightTex = checked;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->enableHeightTexture(ids, checked);
 		_glWidget->updateView();
 	}
@@ -2026,8 +1875,6 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 		QString appPath = QCoreApplication::applicationDirPath();
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
@@ -2046,11 +1893,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
 			{
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelHeightMap->setPixmap(img);
-				for (QListWidgetItem* i : items)
-				{
-					int rowId = listWidgetModel->row(i);
-					ids.push_back(rowId);
-				}
+				std::vector<int> ids = getSelectedIDs();
 				_glWidget->enableHeightTexture(ids, _hasHeightTex);
 				_glWidget->setHeightTexture(ids, fileName);
 				_glWidget->updateView();
@@ -2065,13 +1908,7 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
 	if (checkForActiveSelection())
 	{
 		_heightScale = val;
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
+		std::vector<int> ids = getSelectedIDs();
 		_glWidget->setHeightScale(ids, static_cast<float>(val));
 		_glWidget->updateView();
 	}
@@ -2114,15 +1951,9 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
 	{
 		if (checkForActiveSelection())
 		{
-			std::vector<int> ids;
-			QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 			QApplication::setOverrideCursor(Qt::WaitCursor);
-			for (QListWidgetItem* i : items)
-			{
-				int rowId = listWidgetModel->row(i);
-				ids.push_back(rowId);
-			}
 
+			std::vector<int> ids = getSelectedIDs();
 			_glWidget->enableAlbedoTexture(ids, _hasAlbedoTex);
 			if (_hasAlbedoTex)
 			{
@@ -2164,14 +1995,8 @@ void ModelViewer::on_pushButtonClearPBRTextures_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearPBRTextures(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
@@ -2182,14 +2007,8 @@ void ModelViewer::on_toolButtonClearAlbedo_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearAlbedoTexture(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
@@ -2200,14 +2019,8 @@ void ModelViewer::on_toolButtonClearMetallic_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearMetallicTexture(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
@@ -2218,14 +2031,8 @@ void ModelViewer::on_toolButtonClearRoughness_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearRoughnessTexture(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
@@ -2236,14 +2043,8 @@ void ModelViewer::on_toolButtonClearNormal_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearNormalTexture(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
@@ -2254,14 +2055,8 @@ void ModelViewer::on_toolButtonClearAO_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearAOTexture(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
@@ -2272,14 +2067,8 @@ void ModelViewer::on_toolButtonClearHeight_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		std::vector<int> ids;
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+		std::vector<int> ids = getSelectedIDs();
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			ids.push_back(rowId);
-		}
 		_glWidget->clearHeightTexture(ids);
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
