@@ -211,8 +211,8 @@ void main()
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
-            float factor =  material.metallic ? 1.0f : length(material.diffuse) * 1.5f;
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128 * (length(material.specular) * factor));
+            float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
+            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
         }
     }
 
