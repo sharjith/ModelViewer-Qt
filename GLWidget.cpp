@@ -2444,7 +2444,7 @@ void GLWidget::renderToShadowBuffer()
 	if (_lockLightAndCamera)
 		lightDir = QVector3D(center.x(), center.y(), 0);
 	else
-		lightDir = _primaryCamera->getPosition() - _lightPosition;
+		lightDir = _lightPosition - _primaryCamera->getPosition();
 	lightView.lookAt(_lightPosition, lightDir, QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
