@@ -216,18 +216,6 @@ void main()
         }
     }
 
-    if(renderingMode == 2 && displayMode == 0)
-    {
-        if(hasDiffuseTexture)
-        {
-            fragColor = vec4(texture2D(texture_diffuse, g_texCoord2d));
-        }
-        if(hasSpecularTexture)
-        {
-            fragColor = mix(vec4(texture2D(texture_diffuse, g_texCoord2d)), vec4(texture2D(texture_specular, g_texCoord2d)), 0.5);
-        }
-    }
-
     if(selected)
     {
         fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
@@ -247,12 +235,25 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
 
     vec3 ambient    = source.ambient;
+    if(hasDiffuseTexture)
+    {
+        ambient = source.ambient * texture2D(texture_diffuse, g_texCoord2d).rgb;
+    }    
     vec3 diffuse    = source.diffuse * nDotVP;
+    if(hasDiffuseTexture)
+    {
+        diffuse = source.diffuse * texture2D(texture_diffuse, g_texCoord2d).rgb;
+    }
     vec3 specular   = source.specular * pf;
+    if(hasSpecularTexture)
+    {
+        specular = source.specular * texture2D(texture_specular, g_texCoord2d).rgb;
+    }
+
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
-
-    vec4 colorLinear;
-
+   
+    vec4 colorLinear;      
+    
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {
         float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
