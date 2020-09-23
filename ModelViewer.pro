@@ -230,4 +230,6 @@ DISTFILES += \
     shaders/skybox.frag \
     shaders/irradiance_convolution.frag \
     shaders/brdf.vert shaders/brdf.frag \
-    shaders/prefilter.frag
+    shaders/prefilter.frag \
+    shaders/light_cube.vert \
+    shaders/light_cube.frag

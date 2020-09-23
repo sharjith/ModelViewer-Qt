@@ -182,10 +182,12 @@ public:
 	bool getGammaCorrection() const;
 	float getScreenGamma() const;
 
+    bool areLightsShown() const;
+
 signals:
-	void windowZoomEnded();
-	void rotationsSet();
-	void zoomAndPanSet();
+    void windowZoomEnded();
+    void rotationsSet();
+    void zoomAndPanSet();
 	void viewSet();
 	void displayListSet();
 	void singleSelectionDone(int);
@@ -208,6 +210,7 @@ public slots:
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
 	void setScreenGamma(double screenGamma);
+    void showLights(bool showLights);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -339,6 +342,7 @@ private:
 	QOpenGLShaderProgram* _irradianceShader;
 	QOpenGLShaderProgram* _prefilterShader;
 	QOpenGLShaderProgram* _brdfShader;
+    QOpenGLShaderProgram* _lightCubeShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
@@ -399,6 +403,9 @@ private:
 	float _screenGamma;
 	bool  _hdrToneMapping;
 
+    Cube* _lightCube;
+    bool _showLights;
+
 	QOpenGLShaderProgram     _debugShader;
 
 	ModelViewer* _viewer;
@@ -410,7 +417,9 @@ private:
 
 private:
 	void createShaderPrograms();
+    void createLights();
 	void createGeometry();
+
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
@@ -422,6 +431,7 @@ private:
 	void drawFaceNormals();
 	void drawAxis();
 	void drawCornerAxis();
+    void drawLights();
 
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();

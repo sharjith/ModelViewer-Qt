@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1466,8 +1466,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1620,8 +1620,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2175,8 +2175,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3035,8 +3035,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>542</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3392,30 +3392,14 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>558</height>
+                   <width>437</width>
+                   <height>529</height>
                   </rect>
                  </property>
                  <attribute name="label">
                   <string>Visualization Environment Settings</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_18">
-                  <item row="0" column="0">
-                   <widget class="QPushButton" name="pushButtonDefaultLights">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="toolTip">
-                     <string>Reset to default light and material</string>
-                    </property>
-                    <property name="text">
-                     <string>Default Values</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="1" column="0">
                    <widget class="QGroupBox" name="groupBox_9">
                     <property name="minimumSize">
@@ -3555,20 +3539,31 @@
                    </widget>
                   </item>
                   <item row="2" column="0" colspan="2">
-                   <widget class="QCheckBox" name="checkBoxLockLightCamera">
-                    <property name="toolTip">
-                     <string>Lock light and camera together</string>
-                    </property>
-                    <property name="layoutDirection">
-                     <enum>Qt::LeftToRight</enum>
-                    </property>
-                    <property name="text">
-                     <string>Lock Light and Camera</string>
-                    </property>
-                    <property name="checked">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
+                   <layout class="QHBoxLayout" name="horizontalLayout_18">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxLockLightCamera">
+                      <property name="toolTip">
+                       <string>Lock light and camera together</string>
+                      </property>
+                      <property name="layoutDirection">
+                       <enum>Qt::LeftToRight</enum>
+                      </property>
+                      <property name="text">
+                       <string>Lock Light and Camera</string>
+                      </property>
+                      <property name="checked">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxShowLights">
+                      <property name="text">
+                       <string>Show Lights</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
                   </item>
                   <item row="3" column="0" colspan="2">
                    <widget class="QGroupBox" name="groupBox_2">
@@ -3812,6 +3807,22 @@
                      </size>
                     </property>
                    </spacer>
+                  </item>
+                  <item row="0" column="0" colspan="2">
+                   <widget class="QPushButton" name="pushButtonDefaultLights">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Reset to default light and material</string>
+                    </property>
+                    <property name="text">
+                     <string>Default Values</string>
+                    </property>
+                   </widget>
                   </item>
                  </layout>
                 </widget>
