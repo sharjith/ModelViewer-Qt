@@ -244,20 +244,33 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
         viewDir = cameraPos;
     }
 
-    if(hasHeightTexture)
-    {
-        lightDir = normalize(g_tangentLightPos - g_tangentFragPos);
-        viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
-        texCoords = parallaxMapping(g_texCoord2d,  viewDir, texture_height);
-        clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
-        if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
-            discard;
-    }
     if(hasNormalTexture)
     {
-        // obtain normal from normal map in range [0,1]        
+        // obtain normal from normal map in range [0,1]
         normal = calcBumpedNormal(texture_normal);
-    }  
+    }
+    /*if(hasHeightTexture)
+    {
+        // offset texture coordinates with Parallax Mapping
+        vec3 viewDir = normalize(g_tangentViewPos);
+        clippedTexCoord = parallaxMapping(g_texCoord2d,  viewDir, texture_height);
+        //clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+        //if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
+            //  discard;
+        // obtain normal from normal map
+        //N = texture(normalMap, clippedTexCoord).rgb * side;
+        //V = normalize(g_tangentLightPos - g_tangentFragPos);
+        //L = normalize(g_tangentLightPos - g_tangentFragPos);
+    }*/
+    if(hasHeightTexture)
+    {
+        viewDir = normalize(g_tangentViewPos);
+        float height = texture(texture_height, g_texCoord2d).r;
+        height = height * 0.04f + (-0.03f);//scale + bias;
+        clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
+        lightDir = normalize(g_tangentLightPos);
+    }
+      
     vec3 halfVector = normalize(lightDir + viewDir); // light half vector     
     float nDotVP    = dot(normal, normalize(lightDir + viewDir));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
@@ -384,19 +397,30 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             N = calcBumpedNormal(normalMap) * side;
         else
             N = normalize(normal);
-        if(hasHeightMap)
+        
+        /*if(hasHeightMap)
         {
             // offset texture coordinates with Parallax Mapping
-            vec3 viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
-            texCoords = parallaxMapping(g_texCoord2d,  viewDir, heightMap);
-            clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
-            if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
-                discard;
+            vec3 viewDir = normalize(g_tangentViewPos);
+            clippedTexCoord = parallaxMapping(g_texCoord2d,  viewDir, heightMap);
+            //clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+            //if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
+              //  discard;
             // obtain normal from normal map
-            N = texture(normalMap, clippedTexCoord).rgb * side;
-            V = normalize(g_tangentLightPos - g_tangentFragPos);
-            L = normalize(g_tangentLightPos - g_tangentFragPos);
-        }        
+            //N = texture(normalMap, clippedTexCoord).rgb * side;
+            //V = normalize(g_tangentLightPos - g_tangentFragPos);
+            //L = normalize(g_tangentLightPos - g_tangentFragPos);
+        }*/
+        if(hasHeightMap)
+        {
+            vec3 viewDir = normalize(g_tangentViewPos);
+            float height = texture(heightMap, g_texCoord2d).r;
+            height = height * heightScale + (-0.03f);//scale + bias;
+            clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
+            //N = texture(normalMap, clippedTexCoord).rgb * side;
+            L = normalize(g_tangentLightPos);
+            V = normalize(g_tangentLightPos);
+        }
 
         // material properties
         if(hasAlbedoMap)

@@ -21,7 +21,7 @@ _hasRoughnessMap(false),
 _hasNormalMap(false),
 _hasAOMap(false),
 _hasHeightMap(false),
-_heightScale(0.5f)
+_heightScale(0.05f)
 {
 	_memorySize = 0;
 	_transX = _transY = _transZ = 0.0f;

@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1466,8 +1466,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1620,8 +1620,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2066,6 +2066,9 @@
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
+                      <property name="minimum">
+                       <double>0.010000000000000</double>
+                      </property>
                       <property name="maximum">
                        <double>1.000000000000000</double>
                       </property>
@@ -2073,7 +2076,7 @@
                        <double>0.010000000000000</double>
                       </property>
                       <property name="value">
-                       <double>0.500000000000000</double>
+                       <double>0.050000000000000</double>
                       </property>
                      </widget>
                     </item>
@@ -2175,8 +2178,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3035,8 +3038,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>376</width>
-                   <height>542</height>
+                   <width>378</width>
+                   <height>575</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3392,8 +3395,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>437</width>
-                   <height>529</height>
+                   <width>382</width>
+                   <height>558</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4268,8 +4271,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
+  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>
