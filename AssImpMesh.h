@@ -130,22 +130,24 @@ public:
 			if (name == "texture_diffuse")
 			{
 				ss << diffuseNr++; // Transfer unsigned int to stream
-				_prog->setUniformValue("hasDiffuseTexture", true);
+				_bHasDiffuseTexture = true;
+					
 			}
 			else if (name == "texture_specular")
 			{
 				ss << specularNr++; // Transfer unsigned int to stream
-				_prog->setUniformValue("hasSpecularTexture", true);
+				_bHasSpecularTexture = true;
+					
 			}
 			else if (name == "texture_normal")
 			{
 				ss << normalNr++; // Transfer unsigned int to stream
-				_prog->setUniformValue("hasNormalTexture", true);
+				_bHasNormalTexture = true;
 			}
 			else if (name == "texture_height")
 			{
 				ss << heightNr++; // Transfer unsigned int to stream
-				_prog->setUniformValue("hasHeightTexture", true);
+				_bHasHeightTexture = true;
 			}
 			number = ss.str();
 			// Now set the sampler to the correct texture unit

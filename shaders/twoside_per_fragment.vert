@@ -3,8 +3,8 @@
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexNormal;
 layout(location = 2) in vec2 texCoord2d;
-layout(location = 3) in vec3 tangentCoord;
-layout(location = 4) in vec3 bitangentCoord;
+layout(location = 3) in vec3 vertexTangent;
+layout(location = 4) in vec3 vertexBitangent;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -53,8 +53,8 @@ void main()
     //v_normal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord2d = texCoord2d;
-    v_tangent = tangentCoord;
-    v_bitangent = bitangentCoord;
+    v_tangent = vertexTangent;
+    v_bitangent = vertexBitangent;
 
     gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1);
 
@@ -76,14 +76,18 @@ void main()
     v_reflectionNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
 
     // Depth mapping
-    vec3 T = normalize(mat3(modelMatrix) * tangentCoord);
-    vec3 B = normalize(mat3(modelMatrix) * bitangentCoord);
+    vec3 T = normalize(mat3(modelMatrix) * vertexTangent);
+    vec3 B = normalize(mat3(modelMatrix) * vertexBitangent);
     vec3 N = normalize(mat3(modelMatrix) * vertexNormal);
+    if (dot(cross(N, T), B) < 0.0f)
+    {
+        T = T * -1.0f;
+    }
     mat3 TBN = transpose(mat3(T, B, N));
 
     v_tangentLightPos = TBN * lightPos;
     v_tangentViewPos  = TBN * cameraPos;
-    v_tangentFragPos  = TBN * vertexPosition;
+    v_tangentFragPos  = TBN * vec3(modelMatrix * vec4(vertexPosition, 1.0));
 
     // Moved this to geometry shader
     /*

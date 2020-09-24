@@ -6,6 +6,8 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
 _bHasTexture(false),
 _bHasDiffuseTexture(false),
 _bHasSpecularTexture(false),
+_bHasNormalTexture(false),
+_bHasHeightTexture(false),
 _sMax(1),
 _tMax(1),
 _albedoMap(0),
@@ -167,15 +169,15 @@ void TriangleMesh::initBuffers(
 		_tangentBuf.bind();
 		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 		//glEnableVertexAttribArray(3);  // Tangents
-		_prog->enableAttributeArray("tangentCoord");
-		_prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 3);
+		_prog->enableAttributeArray("vertexTangent");
+		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
 	}
 
 	if (bitangents != nullptr)
 	{
 		_bitangentBuf.bind();
-		_prog->enableAttributeArray("bitangentCoord");
-		_prog->setAttributeBuffer("bitangentCoord", GL_FLOAT, 0, 3);
+		_prog->enableAttributeArray("vertexBitangent");
+		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
 	}
 
 	_vertexArrayObject.release();
@@ -217,15 +219,15 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 		_tangentBuf.bind();
 		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 		//glEnableVertexAttribArray(3);  // Tangents
-		_prog->enableAttributeArray("tangentCoord");
-		_prog->setAttributeBuffer("tangentCoord", GL_FLOAT, 0, 3);
+		_prog->enableAttributeArray("vertexTangent");
+		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
 	}
 
 	if (_bitangents.size())
 	{
 		_bitangentBuf.bind();
-		_prog->enableAttributeArray("bitangentCoord");
-		_prog->setAttributeBuffer("bitangentCoord", GL_FLOAT, 0, 3);
+		_prog->enableAttributeArray("vertexBitangent");
+		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
 	}
 
 	_vertexArrayObject.release();
@@ -282,7 +284,9 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasHeightMap", _hasHeightMap);
 	_prog->setUniformValue("texEnabled", _bHasTexture);
 	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
-	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);    
+	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
+	_prog->setUniformValue("hasNormalTexture", _bHasNormalTexture);
+	_prog->setUniformValue("hasHeightTexture", _bHasHeightTexture);
 	_prog->setUniformValue("selected", _selected);
 }
 

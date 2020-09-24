@@ -28,6 +28,8 @@ uniform bool texEnabled;
 uniform sampler2D texUnit;
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
+uniform sampler2D texture_normal;
+uniform sampler2D texture_height;
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 // IBL
@@ -64,6 +66,8 @@ uniform bool floorRendering;
 uniform bool lockLightAndCamera = true;
 uniform bool hasDiffuseTexture = false;
 uniform bool hasSpecularTexture = false;
+uniform bool hasNormalTexture = false;
+uniform bool hasHeightTexture = false;
 uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
@@ -124,8 +128,8 @@ float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-vec2    parallaxMapping(vec2 texCoords, vec3 viewDir);
-
+vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map);
+vec3 calcBumpedNormal(sampler2D map);
 
 void main()
 {
@@ -225,29 +229,54 @@ void main()
 // ----------------------------------------------------------------------------
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec3 halfVector; // light half vector
+    vec2 texCoords = g_texCoord2d;
+    vec2 clippedTexCoord = texCoords;
+    vec3 lightDir;
+    vec3 viewDir;
     if(lockLightAndCamera)
-        halfVector = normalize(source.position);
+    {
+        lightDir = source.position;
+        viewDir = vec3(0);
+    }
     else
-        halfVector = normalize(source.position + cameraPos);
-    float nDotVP    = dot(normal, normalize(source.position));                 // normal . light direction
+    {
+        lightDir = source.position + cameraPos;
+        viewDir = cameraPos;
+    }
+
+    if(hasHeightTexture)
+    {
+        lightDir = normalize(g_tangentLightPos - g_tangentFragPos);
+        viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
+        texCoords = parallaxMapping(g_texCoord2d,  viewDir, texture_height);
+        clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+        if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
+            discard;
+    }
+    if(hasNormalTexture)
+    {
+        // obtain normal from normal map in range [0,1]        
+        normal = calcBumpedNormal(texture_normal);
+    }  
+    vec3 halfVector = normalize(lightDir + viewDir); // light half vector     
+    float nDotVP    = dot(normal, normalize(lightDir + viewDir));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
 
     vec3 ambient    = source.ambient;
     if(hasDiffuseTexture)
     {
-        ambient = source.ambient * texture2D(texture_diffuse, g_texCoord2d).rgb;
+        ambient = source.ambient * texture2D(texture_diffuse, clippedTexCoord).rgb;
     }    
     vec3 diffuse    = source.diffuse * nDotVP;
     if(hasDiffuseTexture)
     {
-        diffuse = source.diffuse * texture2D(texture_diffuse, g_texCoord2d).rgb;
+        diffuse = source.diffuse * texture2D(texture_diffuse, clippedTexCoord).rgb;
     }
     vec3 specular   = source.specular * pf;
     if(hasSpecularTexture)
     {
-        specular = source.specular * texture2D(texture_specular, g_texCoord2d).rgb;
+        specular = source.specular * texture2D(texture_specular, clippedTexCoord).rgb;
     }
 
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
@@ -352,14 +381,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     else
     {    
         if(hasNormalMap)
-            N = getNormalFromMap() * side;
+            N = calcBumpedNormal(normalMap) * side;
         else
             N = normalize(normal);
         if(hasHeightMap)
         {
             // offset texture coordinates with Parallax Mapping
             vec3 viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
-            texCoords = parallaxMapping(g_texCoord2d,  viewDir);
+            texCoords = parallaxMapping(g_texCoord2d,  viewDir, heightMap);
             clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
@@ -581,8 +610,24 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-vec2 parallaxMapping(vec2 texCoords, vec3 viewDir)
+vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map)
 {
-    float height =  texture(heightMap, texCoords).r;
+    float height =  texture(map, texCoords).r;
     return texCoords - viewDir.xy * (height * heightScale);
+}
+
+// http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
+vec3 calcBumpedNormal(sampler2D map)
+{
+    vec3 normal = normalize(g_normal);
+    vec3 tangent = normalize(g_tangent);
+    tangent = normalize(tangent - dot(tangent, normal) * normal);
+    vec3 bitangent = cross(tangent, normal);
+    vec3 bumpMapNormal = texture(map, g_texCoord2d).xyz;
+    bumpMapNormal = 2.0 * bumpMapNormal - vec3(1.0, 1.0, 1.0);
+    vec3 newNormal;
+    mat3 TBN = mat3(tangent, bitangent, normal);
+    newNormal = TBN * bumpMapNormal;
+    newNormal = normalize(newNormal);
+    return newNormal;
 }

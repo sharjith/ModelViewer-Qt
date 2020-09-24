@@ -6,23 +6,6 @@
 #include "BoundingBox.h"
 #include "GLMaterial.h"
 
-/*
-struct GLMaterialProps
-{
-    QVector3D ambientMaterial;
-    QVector3D diffuseMaterial;
-    QVector3D specularMaterial;
-    QVector3D specularReflectivity;
-    QVector3D emmissiveMaterial;
-	float   shininess;
-	float   opacity;
-	bool bMetallic;
-	float pbrMetallic;
-	float pbrRoughness;
-	bool bHasTexture;
-};
-*/
-
 class TriangleMesh : public Drawable
 {
 public:
@@ -209,6 +192,8 @@ protected:
 	bool _bHasTexture;
 	bool _bHasDiffuseTexture;
 	bool _bHasSpecularTexture;
+	bool _bHasNormalTexture;
+	bool _bHasHeightTexture;
 	unsigned int _sMax;
 	unsigned int _tMax;
 
