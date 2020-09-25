@@ -343,6 +343,7 @@ private:
 	QOpenGLShaderProgram* _prefilterShader;
 	QOpenGLShaderProgram* _brdfShader;
     QOpenGLShaderProgram* _lightCubeShader;
+    QOpenGLShaderProgram* _clippingPlaneShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
@@ -381,6 +382,7 @@ private:
 	SpringEditor* _springEditor;
 	GraysKleinEditor* _graysKleinEditor;
 	ClippingPlanesEditor* _clippingPlanesEditor;
+    Plane* _clippingPlane;
 
 	ViewMode _viewMode;
 	ViewProjection _projection;
@@ -424,7 +426,8 @@ private:
 	void loadIrradianceMap();
 	void loadFloor();
 
-	void drawMesh();
+    void drawMesh(const bool& clipped);
+    void drawSectionCapping();
 	void drawFloor();
 	void drawSkyBox();
 	void drawVertexNormals();

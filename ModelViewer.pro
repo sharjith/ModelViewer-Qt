@@ -205,6 +205,8 @@ RESOURCES += \
 DISTFILES += \
     shaders/background.frag \
     shaders/background.vert \
+    shaders/clipping_plane.frag \
+    shaders/clipping_plane.vert \
     shaders/debug_quad.vert \
     shaders/debug_quad_depth.frag \
     shaders/splitScreen.frag \

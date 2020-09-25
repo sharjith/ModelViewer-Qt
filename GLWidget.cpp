@@ -90,6 +90,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _prefilterShader = new QOpenGLShaderProgram(this);
     _brdfShader = new QOpenGLShaderProgram(this);
     _lightCubeShader = new QOpenGLShaderProgram(this);
+    _clippingPlaneShader = new QOpenGLShaderProgram(this);
 
     _viewBoundingSphereDia = 200.0f;
     _viewRange = _viewBoundingSphereDia;
@@ -144,6 +145,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _clipXFlipped = false;
     _clipYFlipped = false;
     _clipZFlipped = false;
+    _clippingPlane = nullptr;
 
     _showVertexNormals = false;
     _showFaceNormals = false;
@@ -269,6 +271,8 @@ GLWidget::~GLWidget()
         delete _brdfShader;
     if(_lightCubeShader)
         delete _lightCubeShader;
+    if(_clippingPlaneShader)
+        delete _clippingPlaneShader;
 
     _axisVBO.destroy();
     _axisVAO.destroy();
@@ -613,6 +617,7 @@ void GLWidget::updateFloorPlane()
     _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent));
     _prevLightPosition = _lightPosition;
     _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
+    _clippingPlane->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -1202,6 +1207,8 @@ void GLWidget::initializeGL()
 
     createShaderPrograms();
 
+    _clippingPlane = new Plane(_clippingPlaneShader, QVector3D(0,0,0), 1000, 1000, 1, 1);
+
     createLights();
 
     // Environment Mapping
@@ -1440,6 +1447,19 @@ void GLWidget::createShaderPrograms()
     if (!_lightCubeShader->link())
     {
         qDebug() << "Error linking shader program:" << _lightCubeShader->log();
+    }
+    // Clipping Plane shader program
+    if (!_clippingPlaneShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/clipping_plane.vert"))
+    {
+        qDebug() << "Error in vertex shader:" << _clippingPlaneShader->log();
+    }
+    if (!_clippingPlaneShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/clipping_plane.frag"))
+    {
+        qDebug() << "Error in fragment shader:" << _clippingPlaneShader->log();
+    }
+    if (!_clippingPlaneShader->link())
+    {
+        qDebug() << "Error linking shader program:" << _clippingPlaneShader->log();
     }
 
     //_debugShader
@@ -2009,6 +2029,7 @@ void GLWidget::drawFloor()
     {
         //https://open.gl/depthstencils
         glEnable(GL_STENCIL_TEST);
+        glClear(GL_STENCIL_BUFFER_BIT);
         glStencilFunc(GL_ALWAYS, 1, 0xFF);
         glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
         glStencilMask(0xFF);
@@ -2043,7 +2064,7 @@ void GLWidget::drawFloor()
         if (_reflectionsEnabled)
         {
             _fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-            drawMesh();
+            drawMesh(true);
         }
 
         glDisable(GL_STENCIL_TEST);
@@ -2087,27 +2108,30 @@ void GLWidget::drawSkyBox()
     glDisable((GL_DEPTH_TEST));
 }
 
-void GLWidget::drawMesh()
+void GLWidget::drawMesh(const bool &clipped)
 {
     QVector3D pos = _primaryCamera->getPosition();
 
-    if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    if(clipped)
     {
-        _fgShader->setUniformValue("sectionActive", true);
-    }
-    else
-    {
-        _fgShader->setUniformValue("sectionActive", false);
-    }
+        if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+        {
+            _fgShader->setUniformValue("sectionActive", true);
+        }
+        else
+        {
+            _fgShader->setUniformValue("sectionActive", false);
+        }
 
-    _fgShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-                                                       (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-    _fgShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-                                                       (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-    _fgShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-                                                       (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-    _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-                                                      pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+        _fgShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
+                                                           (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
+        _fgShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
+                                                           (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
+        _fgShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
+                                                           (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
+        _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+                                                          pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+    }
     _fgShader->setUniformValue("shadowSamples", 27.0f);
     // Render
     if (_meshStore.size() != 0)
@@ -2129,6 +2153,143 @@ void GLWidget::drawMesh()
             }
         }
     }
+}
+
+/*void GLWidget::drawSectionCapping()
+{
+    // Clipping Planes
+    if (_clipXEnabled)
+        glEnable(GL_CLIP_DISTANCE0);
+    if (_clipYEnabled)
+        glEnable(GL_CLIP_DISTANCE1);
+    if (_clipZEnabled)
+        glEnable(GL_CLIP_DISTANCE2);
+
+    if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    {
+        glEnable(GL_CLIP_DISTANCE3);
+    }
+    // ****** Rendering the mesh's clip edge ****
+    glEnable(GL_STENCIL_TEST);
+    glClear(GL_STENCIL_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    // first pass: increment stencil buffer value on back faces
+    glStencilFunc(GL_ALWAYS, 0, 0);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+    glCullFace(GL_FRONT); // render back faces only
+    drawMesh(true);
+    // second pass: decrement stencil buffer value on front faces
+    glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
+    glCullFace(GL_BACK); // render front faces only
+    drawMesh(true);
+
+    glEnable(GL_STENCIL_TEST);
+    glClear(GL_STENCIL_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    // drawing clip planes masked by stencil buffer content
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glEnable(GL_DEPTH_TEST);
+    //glDisable(MY_CLIP_PLANE);
+    glDisable(GL_CLIP_DISTANCE0);
+    glDisable(GL_CLIP_DISTANCE1);
+    glDisable(GL_CLIP_DISTANCE2);
+    glDisable(GL_CLIP_DISTANCE3);
+
+    glStencilFunc(GL_NOTEQUAL, 0, ~0);
+    _clippingPlaneShader->bind();
+    _clippingPlaneShader->setUniformValue("modelMatrix", _modelMatrix);
+    _clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
+    _clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
+    _clippingPlane->render();
+
+    glDisable(GL_STENCIL_TEST);
+    glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CLIP_DISTANCE0);
+    glDisable(GL_CLIP_DISTANCE1);
+    glDisable(GL_CLIP_DISTANCE2);
+    glDisable(GL_CLIP_DISTANCE3);
+}
+*/
+
+void GLWidget::drawSectionCapping()
+{
+    // Clipping Planes
+    if (_clipXEnabled)
+        glEnable(GL_CLIP_DISTANCE0);
+    if (_clipYEnabled)
+        glEnable(GL_CLIP_DISTANCE1);
+    if (_clipZEnabled)
+        glEnable(GL_CLIP_DISTANCE2);
+
+    if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    {
+        glEnable(GL_CLIP_DISTANCE3);
+    }
+    // https://www.opengl.org/archives/resources/code/samples/advanced/advanced97/notes/node10.html
+    // 1) The stencil buffer, color buffer, and depth buffer are cleared,
+    glEnable(GL_STENCIL_TEST);
+    glStencilFunc(GL_ALWAYS, 0, 0);
+    glClear(GL_STENCIL_BUFFER_BIT| GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);
+    // and color buffer writes are disabled.
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+
+    // 2) The capping polygon is rendered into the depth buffer,
+    // drawCappingPlane
+
+    // then depth buffer writes are disabled.
+    glDepthMask(GL_FALSE);
+
+    // 3) The stencil operation is set to increment the stencil value where the depth test passes,
+    glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
+
+    // and the model is drawn with glCullFace(GL FRONT).
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    drawMesh(true); // clipping disabled
+
+    // 4) The stencil operation is then set to decrement the stencil value where the depth test passes,
+    glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
+
+    // and the model is drawn with glCullFace(GL BACK)
+    glCullFace(GL_BACK);
+    drawMesh(true); // clipping disabled
+    glDisable(GL_CULL_FACE);
+
+    //At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
+    // the frontfacing and backfacing surfaces of the object.
+    // 5) The depth buffer is cleared, color buffer writes are enabled,
+    //glClear(GL_DEPTH_BUFFER_BIT);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+    // and the polygon representing the clipping plane is now drawn using whatever material properties are desired,
+    // with the stencil function set to GL EQUAL and the reference value set to 1.
+    // This draws the color and depth values of the cap into the framebuffer only where the stencil values equal 1.
+
+    glStencilFunc(GL_EQUAL, 1, 0xFF);
+    //glStencilFunc(GL_NOTEQUAL, 0, ~0);
+    glDepthMask(GL_TRUE);
+    // drawCappingPlane
+    _clippingPlaneShader->bind();
+    _clippingPlaneShader->setUniformValue("modelMatrix", _modelMatrix);
+    _clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
+    _clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
+    _clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.0f, 0.7f, 0.7f));
+    _clippingPlane->render();
+
+    // 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
+    // clipped object is drawn with color and depth enabled.
+    glDisable(GL_STENCIL_TEST);
+    glEnable(GL_DEPTH_TEST);
+
+    glDisable(GL_CLIP_DISTANCE0);
+    glDisable(GL_CLIP_DISTANCE1);
+    glDisable(GL_CLIP_DISTANCE2);
+    glDisable(GL_CLIP_DISTANCE3);
 }
 
 void GLWidget::drawVertexNormals()
@@ -2422,6 +2583,8 @@ void GLWidget::render(GLCamera* camera)
     glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
     glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
+
+    glDisable(GL_STENCIL_TEST);
     // Clipping Planes
     if (_clipXEnabled)
         glEnable(GL_CLIP_DISTANCE0);
@@ -2436,7 +2599,7 @@ void GLWidget::render(GLCamera* camera)
     }
 
     // Mesh
-    drawMesh();
+    drawMesh(true);
     // Vertex Normal
     drawVertexNormals();
     // Face Normal
@@ -2446,6 +2609,10 @@ void GLWidget::render(GLCamera* camera)
     glDisable(GL_CLIP_DISTANCE1);
     glDisable(GL_CLIP_DISTANCE2);
     glDisable(GL_CLIP_DISTANCE3);
+
+    if(_clipZEnabled)
+        drawSectionCapping();
+
 
     if (_displayMode == DisplayMode::REALSHADED && _floorDisplayed && camera != _orthoViewsCamera)
     {
