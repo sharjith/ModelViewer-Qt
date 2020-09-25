@@ -63,6 +63,7 @@ public:
 		return _modelNum;
 	}
 
+	void updateClippingPlane();
 	void showClippingPlaneEditor(bool show);
 	void showAxis(bool show);
 
@@ -382,7 +383,9 @@ private:
 	SpringEditor* _springEditor;
 	GraysKleinEditor* _graysKleinEditor;
 	ClippingPlanesEditor* _clippingPlanesEditor;
-    Plane* _clippingPlane;
+	Plane* _clippingPlaneXY;
+	Plane* _clippingPlaneYZ;
+	Plane* _clippingPlaneZX;
 
 	ViewMode _viewMode;
 	ViewProjection _projection;
@@ -426,7 +429,7 @@ private:
 	void loadIrradianceMap();
 	void loadFloor();
 
-    void drawMesh(const bool& clipped);
+    void drawMesh();
     void drawSectionCapping();
 	void drawFloor();
 	void drawSkyBox();

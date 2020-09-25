@@ -64,18 +64,21 @@ void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 void ClippingPlanesEditor::on_doubleSpinBoxXYCoeff_valueChanged(double val)
 {
 	_glView->_clipXCoeff = val;
+	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxYZCoeff_valueChanged(double val)
 {
 	_glView->_clipYCoeff = val;
+	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxZXCoeff_valueChanged(double val)
 {
 	_glView->_clipZCoeff = val;
+	_glView->updateClippingPlane();
 	_glView->update();
 }
 
