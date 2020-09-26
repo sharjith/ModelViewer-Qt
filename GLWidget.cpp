@@ -2569,7 +2569,10 @@ void GLWidget::render(GLCamera* camera)
     glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
     glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
-
+    if (_cappingEnabled && _displayMode != DisplayMode::REALSHADED)
+    {
+        drawSectionCapping();
+    }
 
     glDisable(GL_STENCIL_TEST);
     // Clipping Planes
@@ -2596,10 +2599,6 @@ void GLWidget::render(GLCamera* camera)
     glDisable(GL_CLIP_DISTANCE1);
     glDisable(GL_CLIP_DISTANCE2);
     glDisable(GL_CLIP_DISTANCE3);
-
-    if (_cappingEnabled)
-        drawSectionCapping();
-
 
     if (_displayMode == DisplayMode::REALSHADED && _floorDisplayed && camera != _orthoViewsCamera)
     {
