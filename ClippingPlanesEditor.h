@@ -23,6 +23,7 @@ protected slots:
 	void on_checkBoxFlipXY_toggled(bool checked);
 	void on_checkBoxFlipYZ_toggled(bool checked);
 	void on_checkBoxFlipZX_toggled(bool checked);
+	void on_checkBoxCapping_toggled(bool checked);
 	void on_doubleSpinBoxXYCoeff_valueChanged(double val);
 	void on_doubleSpinBoxYZCoeff_valueChanged(double val);
 	void on_doubleSpinBoxZXCoeff_valueChanged(double val);

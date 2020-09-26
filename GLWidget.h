@@ -226,6 +226,7 @@ private slots:
 
 protected:
 	void initializeGL();
+	void createCappingPlanes();
 	void resizeGL(int width, int height);
 	void paintGL();
 
@@ -386,6 +387,8 @@ private:
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
 	Plane* _clippingPlaneZX;
+	bool _cappingEnabled;
+	unsigned int _cappingTexture;
 
 	ViewMode _viewMode;
 	ViewProjection _projection;

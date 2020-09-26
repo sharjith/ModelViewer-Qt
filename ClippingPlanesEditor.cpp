@@ -61,6 +61,12 @@ void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 	_glView->update();
 }
 
+void ClippingPlanesEditor::on_checkBoxCapping_toggled(bool checked)
+{
+	_glView->_cappingEnabled = checked;
+	_glView->update();
+}
+
 void ClippingPlanesEditor::on_doubleSpinBoxXYCoeff_valueChanged(double val)
 {
 	_glView->_clipXCoeff = val;
