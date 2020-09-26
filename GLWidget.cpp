@@ -2089,6 +2089,7 @@ void GLWidget::drawFloor()
         }
 
         glDisable(GL_STENCIL_TEST);
+        glStencilMask(0x00);
         _floorPlane->setOpacity(0.80f);
     }
 
@@ -2197,6 +2198,7 @@ void GLWidget::drawSectionCapping()
         glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
         glEnable(GL_STENCIL_TEST);
+        glStencilMask(0xFF);
         glStencilFunc(GL_ALWAYS, 0, 0);
 
         // 2) The capping polygon is rendered into the depth buffer,
