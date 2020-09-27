@@ -7,15 +7,13 @@
 
 ClippingPlanesEditor::ClippingPlanesEditor(QWidget* parent) :
 	QWidget(parent),
-	ui(new Ui::ClippingPlanesEditor),
 	_glView(dynamic_cast<GLWidget*>(parent))
 {
-	ui->setupUi(this);
+	setupUi(this);
 }
 
 ClippingPlanesEditor::~ClippingPlanesEditor()
 {
-	delete ui;
 }
 
 void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
@@ -114,4 +112,14 @@ void ClippingPlanesEditor::on_doubleSpinBoxDZ_valueChanged(double arg1)
 	_glView->_clipDZ = arg1;
 	_glView->updateClippingPlane();
 	_glView->update();
+}
+
+void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
+{	
+	doubleSpinBoxDX->setValue(0);
+	doubleSpinBoxDY->setValue(0);
+	doubleSpinBoxDZ->setValue(0);
+	doubleSpinBoxZXCoeff->setValue(0);
+	doubleSpinBoxXYCoeff->setValue(0);
+	doubleSpinBoxYZCoeff->setValue(0);
 }

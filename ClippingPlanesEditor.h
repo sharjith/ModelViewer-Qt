@@ -2,12 +2,10 @@
 #define CLIPPINGPLANESEDITOR_H
 
 #include <QDialog>
+#include "ui_ClippingPlanesEditor.h"
 
-namespace Ui {
-	class ClippingPlanesEditor;
-}
 class GLWidget;
-class ClippingPlanesEditor : public QWidget
+class ClippingPlanesEditor : public QWidget, Ui::ClippingPlanesEditor
 {
 	Q_OBJECT
 
@@ -27,6 +25,7 @@ protected slots:
 	void on_doubleSpinBoxXYCoeff_valueChanged(double val);
 	void on_doubleSpinBoxYZCoeff_valueChanged(double val);
 	void on_doubleSpinBoxZXCoeff_valueChanged(double val);
+	void on_pushButtonResetCoeffs_clicked();
 
 private slots:
 	void on_doubleSpinBoxDX_valueChanged(double arg1);
@@ -34,8 +33,6 @@ private slots:
 	void on_doubleSpinBoxDZ_valueChanged(double arg1);
 
 private:
-	Ui::ClippingPlanesEditor* ui;
-
 	GLWidget* _glView;
 };
 
