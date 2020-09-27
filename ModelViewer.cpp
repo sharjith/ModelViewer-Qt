@@ -138,7 +138,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(doubleSpinBoxSkyBoxFOV, SIGNAL(valueChanged(double)), _glWidget, SLOT(setSkyBoxFOV(double)));
 	connect(doubleSpinBoxFloorOffset, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorOffsetPercent(double)));
 	connect(checkBoxSkyBoxHDRI, SIGNAL(toggled(bool)), _glWidget, SLOT(setSkyBoxTextureHDRI(bool)));
-    connect(checkBoxShowLights, SIGNAL(toggled(bool)), _glWidget, SLOT(showLights(bool)));
+	connect(checkBoxShowLights, SIGNAL(toggled(bool)), _glWidget, SLOT(showLights(bool)));
 
 	connect(checkBoxHDRToneMapping, SIGNAL(toggled(bool)), _glWidget, SLOT(enableHDRToneMapping(bool)));
 	connect(checkBoxGammaCorrection, SIGNAL(toggled(bool)), _glWidget, SLOT(enableGammaCorrection(bool)));

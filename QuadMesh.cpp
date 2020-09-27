@@ -15,7 +15,7 @@ void QuadMesh::render()
 
 	setupUniforms();
 
-    if (_material.opacity() < 1.0f)
+	if (_material.opacity() < 1.0f)
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

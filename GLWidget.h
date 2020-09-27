@@ -87,7 +87,7 @@ public:
 	TriangleMesh* loadOBJMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
-    void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial &mat);
+	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
 	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
 	void setPBRMetallic(const std::vector<int>& ids, const float& val);
 	void setPBRRoughness(const std::vector<int>& ids, const float& val);
@@ -183,12 +183,12 @@ public:
 	bool getGammaCorrection() const;
 	float getScreenGamma() const;
 
-    bool areLightsShown() const;
+	bool areLightsShown() const;
 
 signals:
-    void windowZoomEnded();
-    void rotationsSet();
-    void zoomAndPanSet();
+	void windowZoomEnded();
+	void rotationsSet();
+	void zoomAndPanSet();
 	void viewSet();
 	void displayListSet();
 	void singleSelectionDone(int);
@@ -211,7 +211,7 @@ public slots:
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
 	void setScreenGamma(double screenGamma);
-    void showLights(bool showLights);
+	void showLights(bool showLights);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -344,8 +344,8 @@ private:
 	QOpenGLShaderProgram* _irradianceShader;
 	QOpenGLShaderProgram* _prefilterShader;
 	QOpenGLShaderProgram* _brdfShader;
-    QOpenGLShaderProgram* _lightCubeShader;
-    QOpenGLShaderProgram* _clippingPlaneShader;
+	QOpenGLShaderProgram* _lightCubeShader;
+	QOpenGLShaderProgram* _clippingPlaneShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
@@ -411,8 +411,8 @@ private:
 	float _screenGamma;
 	bool  _hdrToneMapping;
 
-    Cube* _lightCube;
-    bool _showLights;
+	Cube* _lightCube;
+	bool _showLights;
 
 	QOpenGLShaderProgram     _debugShader;
 
@@ -425,22 +425,22 @@ private:
 
 private:
 	void createShaderPrograms();
-    void createLights();
+	void createLights();
 	void createGeometry();
 
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
 
-    void drawMesh();
-    void drawSectionCapping();
+	void drawMesh();
+	void drawSectionCapping();
 	void drawFloor();
 	void drawSkyBox();
 	void drawVertexNormals();
 	void drawFaceNormals();
 	void drawAxis();
 	void drawCornerAxis();
-    void drawLights();
+	void drawLights();
 
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();
@@ -463,8 +463,8 @@ private:
 
 	QRect getViewportFromPoint(const QPoint& pixel);
 	QRect getClientRectFromPoint(const QPoint& pixel);
-    unsigned int loadTextureFromFile(const char* path);
-    void setupClippingUniforms(QOpenGLShaderProgram *prog, QVector3D pos);
+	unsigned int loadTextureFromFile(const char* path);
+	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 };
 
 #endif

@@ -184,7 +184,7 @@ private:
 		}
 
 		// Process materials
-        GLMaterial mat;
+		GLMaterial mat;
 		if (mesh->mMaterialIndex != 0)
 		{
 			aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
@@ -213,24 +213,24 @@ private:
 			material->Get(AI_MATKEY_OPACITY, opacity);
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
 			{
-                mat.setAmbient(QVector3D(color.r, color.g, color.b));
+				mat.setAmbient(QVector3D(color.r, color.g, color.b));
 			}
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
 			{
-                mat.setDiffuse(QVector3D(color.r, color.g, color.b));
+				mat.setDiffuse(QVector3D(color.r, color.g, color.b));
 			}
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
 			{
-                mat.setSpecular(QVector3D(color.r, color.g, color.b));
+				mat.setSpecular(QVector3D(color.r, color.g, color.b));
 			}
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
 			{
-                mat.setEmissive(QVector3D(color.r, color.g, color.b));
+				mat.setEmissive(QVector3D(color.r, color.g, color.b));
 			}
 		}
 
 		// Return a mesh object created from the extracted mesh data
-        return new AssImpMesh(_prog, vertices, indices, textures, mat);
+		return new AssImpMesh(_prog, vertices, indices, textures, mat);
 	}
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.

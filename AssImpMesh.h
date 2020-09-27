@@ -41,17 +41,17 @@ public:
 	/*  Mesh Data  */
 	vector<Vertex> _vertices;
 	vector<unsigned int> _indices;
-    vector<Texture> _textures;
+	vector<Texture> _textures;
 
 	/*  Functions  */
 	// Constructor
-    AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
+	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
 	{
 		_vertices = vertices;
 		_indices = indices;
 		_textures = textures;
 
-        _material = material;
+		_material = material;
 		// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 		setupMesh();
 	}
@@ -131,13 +131,11 @@ public:
 			{
 				ss << diffuseNr++; // Transfer unsigned int to stream
 				_bHasDiffuseTexture = true;
-					
 			}
 			else if (name == "texture_specular")
 			{
 				ss << specularNr++; // Transfer unsigned int to stream
 				_bHasSpecularTexture = true;
-					
 			}
 			else if (name == "texture_normal")
 			{
@@ -157,7 +155,7 @@ public:
 			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
 		}
 
-        if (_material.opacity() < 1.0f)
+		if (_material.opacity() < 1.0f)
 		{
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -213,7 +211,7 @@ private:
 			bitangents.push_back(v.Bitangent.z);
 		}
 
-        _bHasTexture = false;
+		_bHasTexture = false;
 
 		initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 		computeBounds(points);

@@ -16,7 +16,7 @@ public:
 
 	GLWidget* getGLView() const { return _glWidget; }
 
-    void setMaterialToSelectedItems(const GLMaterial& mat);
+	void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTransformation();
 	void resetTransformation();
 
@@ -185,16 +185,16 @@ private:
 	QAction* displayWireShaded;
 	QAction* displayRealShaded;
 
-    GLMaterial _material;
+	GLMaterial _material;
 
-    bool _bHasTexture;
+	bool _bHasTexture;
 
-    QString _albedoTexture;
-    QString _metallicTexture;
-    QString _roughnessTexture;
-    QString _normalTexture;
-    QString _aoTexture;
-    QString _heightTexture;
+	QString _albedoTexture;
+	QString _metallicTexture;
+	QString _roughnessTexture;
+	QString _normalTexture;
+	QString _aoTexture;
+	QString _heightTexture;
 	bool    _hasAlbedoTex;
 	bool    _hasMetallicTex;
 	bool    _hasRoughnessTex;
@@ -211,10 +211,10 @@ private:
 	bool _textureDirOpenedFirstTime;
 
 private:
-    bool checkForActiveSelection();
+	bool checkForActiveSelection();
 	std::vector<int> getSelectedIDs() const;
 	void updateControls();
-    QString getSupportedQtImagesFilter();
+	QString getSupportedQtImagesFilter();
 };
 
 #endif

@@ -257,17 +257,17 @@ void TriangleMesh::setupTextures()
 void TriangleMesh::setupUniforms()
 {
 	_prog->bind();
-	_prog->setUniformValue("texUnit", 0);	
-    _prog->setUniformValue("material.ambient", _material.ambient());
-    _prog->setUniformValue("material.diffuse", _material.diffuse());
-    _prog->setUniformValue("material.specular", _material.specular());
-    _prog->setUniformValue("material.emission", _material.emissive());
-    _prog->setUniformValue("material.shininess", _material.shininess());
-    _prog->setUniformValue("material.metallic", _material.metallic());
-    _prog->setUniformValue("alpha", _material.opacity());
-    _prog->setUniformValue("pbrLighting.albedo", _material.albedoColor());
-    _prog->setUniformValue("pbrLighting.metallic", _material.metalness());
-    _prog->setUniformValue("pbrLighting.roughness", _material.roughness());
+	_prog->setUniformValue("texUnit", 0);
+	_prog->setUniformValue("material.ambient", _material.ambient());
+	_prog->setUniformValue("material.diffuse", _material.diffuse());
+	_prog->setUniformValue("material.specular", _material.specular());
+	_prog->setUniformValue("material.emission", _material.emissive());
+	_prog->setUniformValue("material.shininess", _material.shininess());
+	_prog->setUniformValue("material.metallic", _material.metallic());
+	_prog->setUniformValue("alpha", _material.opacity());
+	_prog->setUniformValue("pbrLighting.albedo", _material.albedoColor());
+	_prog->setUniformValue("pbrLighting.metallic", _material.metalness());
+	_prog->setUniformValue("pbrLighting.roughness", _material.roughness());
 	_prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
 	_prog->setUniformValue("albedoMap", 6);
 	_prog->setUniformValue("normalMap", 7);
@@ -292,26 +292,26 @@ void TriangleMesh::setupUniforms()
 
 GLMaterial TriangleMesh::getMaterial() const
 {
-    return _material;
+	return _material;
 }
 
-void TriangleMesh::setMaterial(const GLMaterial &material)
+void TriangleMesh::setMaterial(const GLMaterial& material)
 {
-    _material = material;
+	_material = material;
 }
 
 void TriangleMesh::render()
 {
-    if (!_vertexArrayObject.isCreated())
-        return;
+	if (!_vertexArrayObject.isCreated())
+		return;
 
-    setupTextures();
+	setupTextures();
 
-    setupUniforms();
+	setupUniforms();
 
-    if (_material.opacity() < 1.0f)
-    {
-        glEnable(GL_BLEND);
+	if (_material.opacity() < 1.0f)
+	{
+		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	}
 	else
@@ -650,88 +650,88 @@ void TriangleMesh::enableTexture(const bool& bHasTexture)
 
 float TriangleMesh::shininess() const
 {
-    return _material.shininess();
+	return _material.shininess();
 }
 
 void TriangleMesh::setShininess(const float& shine)
 {
-    _material.setShininess(shine);
+	_material.setShininess(shine);
 }
 
 float TriangleMesh::opacity() const
 {
-    return _material.opacity();
+	return _material.opacity();
 }
 
 void TriangleMesh::setOpacity(const float& opacity)
 {
-    _material.setOpacity(opacity);
+	_material.setOpacity(opacity);
 }
 
 QVector3D TriangleMesh::emmissiveMaterial() const
 {
-    return _material.emissive();
+	return _material.emissive();
 }
 
 void TriangleMesh::setEmmissiveMaterial(const QVector3D& emissive)
 {
-    _material.setEmissive(emissive);
+	_material.setEmissive(emissive);
 }
 
 QVector3D TriangleMesh::specularMaterial() const
 {
-    return _material.specular();
+	return _material.specular();
 }
 
 void TriangleMesh::setSpecularMaterial(const QVector3D& specular)
 {
-    _material.setSpecular(specular);
+	_material.setSpecular(specular);
 }
 
 QVector3D TriangleMesh::diffuseMaterial() const
 {
-    return _material.diffuse();
+	return _material.diffuse();
 }
 
 void TriangleMesh::setDiffuseMaterial(const QVector3D& diffuse)
 {
-    _material.setDiffuse(diffuse);
+	_material.setDiffuse(diffuse);
 }
 
 QVector3D TriangleMesh::ambientMaterial() const
 {
-    return _material.ambient();
+	return _material.ambient();
 }
 
 void TriangleMesh::setAmbientMaterial(const QVector3D& ambient)
 {
-    _material.setAmbient(ambient);
+	_material.setAmbient(ambient);
 }
 
 bool TriangleMesh::isMetallic() const
 {
-    return _material.metallic();
+	return _material.metallic();
 }
 
 void TriangleMesh::setMetallic(bool metallic)
 {
-    _material.setMetallic(metallic);
-    _material.setMetalness(metallic ? 1.0f : 0.0f);
+	_material.setMetallic(metallic);
+	_material.setMetalness(metallic ? 1.0f : 0.0f);
 }
 
 void TriangleMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)
 {
-    _material.setAlbedoColor(QVector3D(r, g, b ));
+	_material.setAlbedoColor(QVector3D(r, g, b));
 }
 
 void TriangleMesh::setPBRMetallic(const float& val)
 {
-    _material.setMetalness(val);
+	_material.setMetalness(val);
 }
 
 void TriangleMesh::setPBRRoughness(const float& val)
 {
-    _material.setRoughness(val);
+	_material.setRoughness(val);
 }
 
 QOpenGLVertexArrayObject& TriangleMesh::getVAO()

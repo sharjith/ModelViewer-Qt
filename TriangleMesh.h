@@ -41,17 +41,17 @@ public:
 
 	virtual unsigned long long memorySize() const { return _memorySize; }
 
-    QVector3D ambientMaterial() const;
-    void setAmbientMaterial(const QVector3D& ambient);
+	QVector3D ambientMaterial() const;
+	void setAmbientMaterial(const QVector3D& ambient);
 
-    QVector3D diffuseMaterial() const;
-    void setDiffuseMaterial(const QVector3D& diffuse);
+	QVector3D diffuseMaterial() const;
+	void setDiffuseMaterial(const QVector3D& diffuse);
 
-    QVector3D specularMaterial() const;
-    void setSpecularMaterial(const QVector3D& specular);
+	QVector3D specularMaterial() const;
+	void setSpecularMaterial(const QVector3D& specular);
 
-    QVector3D emmissiveMaterial() const;
-    void setEmmissiveMaterial(const QVector3D& emissive);
+	QVector3D emmissiveMaterial() const;
+	void setEmmissiveMaterial(const QVector3D& emissive);
 
 	float opacity() const;
 	void setOpacity(const float& opacity);
@@ -61,7 +61,6 @@ public:
 
 	bool isMetallic() const;
 	void setMetallic(bool metallic);
-
 
 	bool hasTexture() const;
 	void enableTexture(const bool& bHasTexture);
@@ -137,12 +136,12 @@ public:
 	void clearHeightMap();
 	void clearPBRTextures();
 
-    GLMaterial getMaterial() const;
-    void setMaterial(const GLMaterial &material);
+	GLMaterial getMaterial() const;
+	void setMaterial(const GLMaterial& material);
 
 protected: // methods
-    virtual void initBuffers(
-            std::vector<unsigned int>* indices,
+	virtual void initBuffers(
+		std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
 		std::vector<float>* texCoords = nullptr,
@@ -185,7 +184,7 @@ protected:
 
 	QString _name;
 
-    GLMaterial _material;
+	GLMaterial _material;
 
 	QImage _texImage, _texBuffer;
 	unsigned int _texture;
