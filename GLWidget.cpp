@@ -2502,7 +2502,7 @@ void GLWidget::render(GLCamera* camera)
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
-	if (_cappingEnabled && _displayMode != DisplayMode::REALSHADED)
+    if (_cappingEnabled && !_floorDisplayed)
 	{
 		drawSectionCapping();
 	}
