@@ -626,9 +626,12 @@ void GLWidget::updateFloorPlane()
 
 void GLWidget::updateClippingPlane()
 {
-    _clippingPlaneXY->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, _clipZCoeff, _floorSize, _floorSize);
-    _clippingPlaneYZ->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, _clipXCoeff, _floorSize, _floorSize);
-    _clippingPlaneZX->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, _clipYCoeff, _floorSize, _floorSize);
+    float xside = _clipXFlipped || _clipXCoeff < 0 ? -1.0f : 1.0f;
+    float yside = _clipYFlipped || _clipYCoeff < 0 ? 1.0f : -1.0f;
+    float zside = _clipZFlipped || _clipZCoeff < 0 ? -1.0f : 1.0f;
+    _clippingPlaneXY->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, _clipZCoeff * zside, _floorSize, _floorSize);
+    _clippingPlaneYZ->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, _clipXCoeff * xside, _floorSize, _floorSize);
+    _clippingPlaneZX->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, _clipYCoeff * yside, _floorSize, _floorSize);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -2134,24 +2137,7 @@ void GLWidget::drawMesh()
 {
     QVector3D pos = _primaryCamera->getPosition();
 
-
-    if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
-    {
-        _fgShader->setUniformValue("sectionActive", true);
-    }
-    else
-    {
-        _fgShader->setUniformValue("sectionActive", false);
-    }
-
-    _fgShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-                                                       (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-    _fgShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-                                                       (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-    _fgShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-                                                       (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-    _fgShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-                                                      pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+    setupClippingUniforms(_fgShader, pos);
 
     _fgShader->setUniformValue("shadowSamples", 27.0f);
     // Render
@@ -2175,7 +2161,6 @@ void GLWidget::drawMesh()
         }
     }
 }
-
 
 void GLWidget::drawSectionCapping()
 {
@@ -2281,17 +2266,8 @@ void GLWidget::drawSectionCapping()
 void GLWidget::drawVertexNormals()
 {
     QVector3D pos = _primaryCamera->getPosition();
-    _vertexNormalShader->bind();
-    _vertexNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
-    _vertexNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
-    _vertexNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-                                                                 (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-    _vertexNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-                                                                 (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-    _vertexNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-                                                                 (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-    _vertexNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-                                                                pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+    setupClippingUniforms(_vertexNormalShader, pos);
+
     if (_meshStore.size() != 0)
     {
         for (int i : _displayedObjectsIds)
@@ -2309,17 +2285,7 @@ void GLWidget::drawVertexNormals()
 void GLWidget::drawFaceNormals()
 {
     QVector3D pos = _primaryCamera->getPosition();
-    _faceNormalShader->bind();
-    _faceNormalShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
-    _faceNormalShader->setUniformValue("projectionMatrix", _projectionMatrix);
-    _faceNormalShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? -1 : 1, 0, 0) + pos),
-                                                               (_clipXFlipped ? -1 : 1) * pos.x() + _clipXCoeff));
-    _faceNormalShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? -1 : 1, 0) + pos),
-                                                               (_clipYFlipped ? -1 : 1) * pos.y() + _clipYCoeff));
-    _faceNormalShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? -1 : 1) + pos),
-                                                               (_clipZFlipped ? -1 : 1) * pos.z() + _clipZCoeff));
-    _faceNormalShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-                                                              pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+    setupClippingUniforms(_faceNormalShader, pos);
 
     if (_meshStore.size() != 0)
     {
@@ -2775,6 +2741,29 @@ void GLWidget::splitScreen()
 
     _bgSplitVAO.release();
     _bgSplitShader.release();
+}
+
+void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
+{
+    prog->bind();
+    if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    {
+        _fgShader->setUniformValue("sectionActive", true);
+    }
+    else
+    {
+        _fgShader->setUniformValue("sectionActive", false);
+    }
+    prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
+    prog->setUniformValue("projectionMatrix", _projectionMatrix);
+    prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
+                                                       (_clipXFlipped ? 1 : -1) * (pos.x() + _clipXCoeff)));
+    prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
+                                                       (_clipYFlipped ? 1 : -1) * (pos.y() + _clipYCoeff)));
+    prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
+                                                       (_clipZFlipped ? 1 : -1) * (pos.z() + _clipZCoeff)));
+    prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+                                                      pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
 
 void GLWidget::checkAndStopTimers()
