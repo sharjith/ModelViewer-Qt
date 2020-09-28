@@ -83,8 +83,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	TriangleMesh* loadSTLMesh(QString fileName);
-	TriangleMesh* loadOBJMesh(QString fileName);
+    TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);

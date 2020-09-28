@@ -46,14 +46,11 @@
 #include "ClippingPlanesEditor.h"
 
 #include "STLMesh.h"
-#include "ObjMesh.h"
+#include "Plane.h"
+#include "ModelViewer.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
-
-#include "Plane.h"
-
-#include "ModelViewer.h"
 
 using glm::mat4;
 using glm::vec3;
@@ -762,16 +759,6 @@ TriangleMesh* GLWidget::loadAssImpMesh(QString fileName)
 			addToDisplay(mesh);
 	}
 	return model;
-}
-
-TriangleMesh* GLWidget::loadOBJMesh(QString fileName)
-{
-	makeCurrent();
-	std::unique_ptr<ObjMesh> obj = ObjMesh::load(_fgShader, fileName.toLocal8Bit().data());
-	TriangleMesh* mesh = static_cast<TriangleMesh*>(obj.release());
-	if (mesh)
-		addToDisplay(mesh);
-	return mesh;
 }
 
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
@@ -1503,7 +1490,7 @@ void GLWidget::createCappingPlanes()
 	_clippingPlaneXY = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_cappingTexture = loadTextureFromFile("textures/metal.png");
+    _cappingTexture = loadTextureFromFile("textures/hatch.png");
 	glActiveTexture(GL_TEXTURE13);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 }
@@ -2202,7 +2189,7 @@ void GLWidget::drawSectionCapping()
 		glDepthMask(GL_TRUE);
         glEnable(GL_DEPTH_TEST);
 		// drawCappingPlane
-		{
+        {
             QMatrix4x4 model;
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
@@ -2531,11 +2518,11 @@ void GLWidget::render(GLCamera* camera)
 	glDisable(GL_STENCIL_TEST);
     if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
 	{
+        if(_cappingEnabled && !_floorDisplayed)
+            drawSectionCapping();
 		// Clipping Planes
         if (_clipYZEnabled)
 		{
-            if(_cappingEnabled && !_floorDisplayed)
-                drawSectionCapping();
 			glEnable(GL_CLIP_DISTANCE0);
 			// Mesh
 			drawMesh();
@@ -2546,9 +2533,7 @@ void GLWidget::render(GLCamera* camera)
 			glDisable(GL_CLIP_DISTANCE0);			
 		}
         if (_clipZXEnabled)
-		{
-            if(_cappingEnabled && !_floorDisplayed)
-                drawSectionCapping();
+        {
 			glEnable(GL_CLIP_DISTANCE1);
 			// Mesh
 			drawMesh();
@@ -2559,9 +2544,7 @@ void GLWidget::render(GLCamera* camera)
 			glDisable(GL_CLIP_DISTANCE1);			
 		}
         if (_clipXYEnabled)
-		{
-            if(_cappingEnabled && !_floorDisplayed)
-                drawSectionCapping();
+        {
 			glEnable(GL_CLIP_DISTANCE2);
 			// Mesh
 			drawMesh();
