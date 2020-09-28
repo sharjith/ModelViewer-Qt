@@ -121,6 +121,9 @@ _skyBox(nullptr)
 
 	_lightPosition = { 25.0f, 25.0f, 50.0f };
 	_prevLightPosition = _lightPosition;
+    _lightOffsetX = 0.0f;
+    _lightOffsetY = 0.0f;
+    _lightOffsetZ = 0.0f;
 
 	_displayMode = DisplayMode::SHADED;
 	_renderingMode = RenderingMode::ADS_PHONG;
@@ -138,9 +141,9 @@ _skyBox(nullptr)
 
 	_modelName = "Model";
 
-	_clipXEnabled = false;
-	_clipYEnabled = false;
-	_clipZEnabled = false;
+    _clipYZEnabled = false;
+    _clipZXEnabled = false;
+    _clipXYEnabled = false;
 
 	_clipXFlipped = false;
 	_clipYFlipped = false;
@@ -406,9 +409,12 @@ QVector3D GLWidget::getLightPosition() const
 	return _lightPosition;
 }
 
-void GLWidget::setLightPosition(const QVector3D& lightPosition)
+void GLWidget::setLightOffset(const QVector3D& offset)
 {
-	_lightPosition = _prevLightPosition + lightPosition;
+    //_lightPosition = _prevLightPosition + lightPosition;
+    _lightOffsetX = offset.x();
+    _lightOffsetY = offset.y();
+    _lightOffsetZ = offset.z();
 }
 
 QVector4D GLWidget::getSpecularLight() const
@@ -616,9 +622,9 @@ void GLWidget::updateFloorPlane()
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(_boundingSphere.getRadius() * 0.05f);
-	_lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f);
-	_lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f);
-	_lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent));
+    _lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
+    _lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
+    _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_prevLightPosition = _lightPosition;
 	_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 	updateClippingPlane();
@@ -1246,7 +1252,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.position", _lightPosition);
+    _fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("texUnit", 0);
 	_fgShader->setUniformValue("envMap", 1);
@@ -1622,7 +1628,7 @@ void GLWidget::loadFloor()
 
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
-	_lightPosition.setZ(_floorSize);
+    _lightPosition.setZ(_floorSize + _lightOffsetZ);
 	_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
 	_floorPlane->setAmbientMaterial(QVector3D(0.0f, 0.0f, 0.0f));
@@ -2139,15 +2145,16 @@ void GLWidget::drawSectionCapping()
 	for (int i = 0; i < 3; ++i)
 	{
 		// Clipping Planes
-		if (_clipXEnabled && i == 0)
+        if (_clipYZEnabled && i == 0)
 			glEnable(GL_CLIP_DISTANCE0);
-		if (_clipYEnabled && i == 1)
+        if (_clipZXEnabled && i == 1)
 			glEnable(GL_CLIP_DISTANCE1);
-		if (_clipZEnabled && i == 2)
+        if (_clipXYEnabled && i == 2)
 			glEnable(GL_CLIP_DISTANCE2);
 
 		// https://www.opengl.org/archives/resources/code/samples/advanced/advanced97/notes/node10.html
 		// https://glbook.gamedev.net/GLBOOK/glbook.gamedev.net/moglgp/advclip.html
+        // https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 		// 1) The stencil buffer, color buffer, and depth buffer are cleared,
 		glClear(GL_STENCIL_BUFFER_BIT);
 		glStencilMask(0x0);
@@ -2160,7 +2167,7 @@ void GLWidget::drawSectionCapping()
 		glStencilFunc(GL_ALWAYS, 0, 0);
 
 		// 2) The capping polygon is rendered into the depth buffer,
-		// drawCappingPlane
+        // drawCappingPlane
 
 		// then depth buffer writes are disabled.
 		glDepthMask(GL_FALSE);
@@ -2196,38 +2203,45 @@ void GLWidget::drawSectionCapping()
 		glEnable(GL_DEPTH_TEST);
 		// drawCappingPlane
 		{
-			QMatrix4x4 model;
+            QMatrix4x4 model;
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
-			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
+
 			glActiveTexture(GL_TEXTURE13);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
-			_clippingPlaneShader->setUniformValue("hatchMap", 13);
-			if (_clipZEnabled && i == 2)
-				_clippingPlaneXY->render(); // XY Plane
+            _clippingPlaneShader->setUniformValue("hatchMap", 13);
 
+            // YZ Plane
 			model.rotate(90.0f, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
-			if (_clipXEnabled && i == 0)
-				_clippingPlaneYZ->render(); // YZ Plane
+            if (_clipYZEnabled && i == 0)
+                _clippingPlaneYZ->render();
+            // ZX Plane
 			model.setToIdentity();
 			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
-			if (_clipYEnabled && i == 1)
-				_clippingPlaneZX->render(); // ZX Plane
+            if (_clipZXEnabled && i == 1)
+                _clippingPlaneZX->render();
+            // XY Plane
+            model.setToIdentity();
+            _clippingPlaneShader->bind();
+            _clippingPlaneShader->setUniformValue("modelMatrix", model);
+            _clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
+            if (_clipXYEnabled && i == 2)
+                _clippingPlaneXY->render();
 		}	
 		// Clipping Planes
-		if (_clipXEnabled && i == 0)
+        if (_clipYZEnabled && i == 0)
 			glDisable(GL_CLIP_DISTANCE0);
-		if (_clipYEnabled && i == 1)
+        if (_clipZXEnabled && i == 1)
 			glDisable(GL_CLIP_DISTANCE1);
-		if (_clipZEnabled && i == 2)
+        if (_clipXYEnabled && i == 2)
 			glDisable(GL_CLIP_DISTANCE2);
 	}
 	// 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
@@ -2441,7 +2455,7 @@ void GLWidget::drawCornerAxis()
 void GLWidget::drawLights()
 {
 	QMatrix4x4 model;
-	model.translate(_lightPosition);
+    model.translate(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_lightCubeShader->bind();
 	_lightCubeShader->setUniformValue("modelMatrix", model);
 	QMatrix4x4 viewMat = _viewMatrix;
@@ -2481,7 +2495,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.position", _lightPosition);
+    _fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	_fgShader->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
@@ -2495,7 +2509,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("shadowsEnabled", showShadows);
 	_fgShader->setUniformValue("reflectionMapEnabled", false);
 	_fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
-	_fgShader->setUniformValue("lightPos", _lightPosition);
+    _fgShader->setUniformValue("lightPos", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("modelMatrix", _modelMatrix);
 	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
 	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
@@ -2507,38 +2521,12 @@ void GLWidget::render(GLCamera* camera)
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
-	/*
-    if (_cappingEnabled && !_floorDisplayed)
-	{
-		//drawSectionCapping();
-		// Clipping Planes
-		if (_clipXEnabled)
-		{
-			glEnable(GL_CLIP_DISTANCE0);
-			drawSectionCapping();
-			glDisable(GL_CLIP_DISTANCE0);
-		}
-
-		if (_clipYEnabled)
-		{
-			glDisable(GL_CLIP_DISTANCE1);
-			drawSectionCapping();
-			glDisable(GL_CLIP_DISTANCE1);
-		}
-		if (_clipZEnabled)
-		{
-			glEnable(GL_CLIP_DISTANCE2);
-			drawSectionCapping();
-			glDisable(GL_CLIP_DISTANCE2);
-		}
-	}
-	*/
-
+    // https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 	glDisable(GL_STENCIL_TEST);
-	if (_clipXEnabled || _clipYEnabled || _clipZEnabled)
+    if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
 	{
 		// Clipping Planes
-		if (_clipXEnabled)
+        if (_clipYZEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE0);
 			// Mesh
@@ -2552,7 +2540,7 @@ void GLWidget::render(GLCamera* camera)
 			if(_cappingEnabled && !_floorDisplayed)
 				drawSectionCapping();
 		}
-		if (_clipYEnabled)
+        if (_clipZXEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE1);
 			// Mesh
@@ -2566,7 +2554,7 @@ void GLWidget::render(GLCamera* camera)
 			if(_cappingEnabled && !_floorDisplayed)
 				drawSectionCapping();
 		}
-		if (_clipZEnabled)
+        if (_clipXYEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE2);
 			// Mesh
@@ -2639,10 +2627,10 @@ void GLWidget::renderToShadowBuffer()
 		near_plane + center.z(), far_plane + center.z());
 	QVector3D lightDir;
 	if (_lockLightAndCamera)
-		lightDir = QVector3D(center.x(), center.y(), 0);
+        lightDir = QVector3D(center.x(), center.y(), 0);
 	else
-		lightDir = _lightPosition - _primaryCamera->getPosition();
-	lightView.lookAt(_lightPosition, lightDir, QVector3D(0.0, 1.0, 0.0));
+        lightDir = _lightPosition  - QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ) - _primaryCamera->getPosition();
+    lightView.lookAt(_lightPosition  + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ), lightDir, QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
 	_shadowMappingShader->bind();
@@ -2780,7 +2768,7 @@ void GLWidget::splitScreen()
 void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 {
 	prog->bind();
-	if (_clipXEnabled || _clipYEnabled || _clipZEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+    if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
 		_fgShader->setUniformValue("sectionActive", true);
 	}

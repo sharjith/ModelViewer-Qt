@@ -392,12 +392,12 @@ void ModelViewer::updateDisplayList()
 		id++;
 	}
 	float range = _glWidget->getBoundingSphere().getRadius();
-	sliderLightPosX->setRange(-range, range);
+    sliderLightPosX->setRange(-range, range);
 	sliderLightPosX->setSingleStep(range / 100);
 	sliderLightPosY->setRange(-range, range);
 	sliderLightPosY->setSingleStep(range / 100);
-	sliderLightPosZ->setRange(-range, range);
-	sliderLightPosZ->setSingleStep(range / 100);
+    sliderLightPosZ->setRange(-range, range);
+    sliderLightPosZ->setSingleStep(range / 100);
 	QApplication::restoreOverrideCursor();
 }
 
@@ -1026,7 +1026,7 @@ void ModelViewer::on_pushButtonMaterialEmissive_clicked()
 
 void ModelViewer::on_sliderLightPosX_valueChanged(int)
 {
-	_glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
+    _glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
 		static_cast<float>(sliderLightPosY->value()),
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();
@@ -1034,7 +1034,7 @@ void ModelViewer::on_sliderLightPosX_valueChanged(int)
 
 void ModelViewer::on_sliderLightPosY_valueChanged(int)
 {
-	_glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
+    _glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
 		static_cast<float>(sliderLightPosY->value()),
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();
@@ -1042,7 +1042,7 @@ void ModelViewer::on_sliderLightPosY_valueChanged(int)
 
 void ModelViewer::on_sliderLightPosZ_valueChanged(int)
 {
-	_glWidget->setLightPosition(QVector3D(static_cast<float>(sliderLightPosX->value()),
+    _glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
 		static_cast<float>(sliderLightPosY->value()),
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();

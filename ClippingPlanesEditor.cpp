@@ -25,21 +25,21 @@ void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 
 void ClippingPlanesEditor::on_checkBoxXY_toggled(bool checked)
 {
-	_glView->_clipXEnabled = checked;
+	_glView->_clipYZEnabled = checked;
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxYZ_toggled(bool checked)
 {
-	_glView->_clipYEnabled = checked;
+	_glView->_clipZXEnabled = checked;
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxZX_toggled(bool checked)
 {
-	_glView->_clipZEnabled = checked;
+	_glView->_clipXYEnabled = checked;
 	_glView->updateClippingPlane();
 	_glView->update();
 }
