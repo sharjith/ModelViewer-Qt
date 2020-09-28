@@ -2139,11 +2139,11 @@ void GLWidget::drawSectionCapping()
 	for (int i = 0; i < 3; ++i)
 	{
 		// Clipping Planes
-		if (_clipXEnabled)
+		if (_clipXEnabled && i == 0)
 			glEnable(GL_CLIP_DISTANCE0);
-		if (_clipYEnabled)
+		if (_clipYEnabled && i == 1)
 			glEnable(GL_CLIP_DISTANCE1);
-		if (_clipZEnabled)
+		if (_clipZEnabled && i == 2)
 			glEnable(GL_CLIP_DISTANCE2);
 
 		// https://www.opengl.org/archives/resources/code/samples/advanced/advanced97/notes/node10.html
@@ -2186,16 +2186,14 @@ void GLWidget::drawSectionCapping()
 		// 5) The depth buffer is cleared, color buffer writes are enabled,
 		//glClear(GL_DEPTH_BUFFER_BIT);
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		glEnable(GL_DEPTH_TEST);
-		glDisable(GL_CLIP_DISTANCE0);
-		glDisable(GL_CLIP_DISTANCE1);
-		glDisable(GL_CLIP_DISTANCE2);
+		glEnable(GL_DEPTH_TEST);		
 
 		// and the polygon representing the clipping plane is now drawn using whatever material properties are desired,
 		// with the stencil function set to GL EQUAL and the reference value set to 1.
 		// This draws the color and depth values of the cap into the framebuffer only where the stencil values equal 1.
 		glStencilFunc(GL_EQUAL, 1, 0xFF);
 		glDepthMask(GL_TRUE);
+		glEnable(GL_DEPTH_TEST);
 		// drawCappingPlane
 		{
 			QMatrix4x4 model;
@@ -2207,27 +2205,34 @@ void GLWidget::drawSectionCapping()
 			glActiveTexture(GL_TEXTURE13);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 			_clippingPlaneShader->setUniformValue("hatchMap", 13);
-			if (_clipZEnabled)
+			if (_clipZEnabled && i == 2)
 				_clippingPlaneXY->render(); // XY Plane
 
 			model.rotate(90.0f, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
-			if (_clipXEnabled)
+			if (_clipXEnabled && i == 0)
 				_clippingPlaneYZ->render(); // YZ Plane
 			model.setToIdentity();
 			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
-			if (_clipYEnabled)
+			if (_clipYEnabled && i == 1)
 				_clippingPlaneZX->render(); // ZX Plane
-		}
-		// 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
-		// clipped object is drawn with color and depth enabled.
-		glDisable(GL_STENCIL_TEST);
+		}	
+		// Clipping Planes
+		if (_clipXEnabled && i == 0)
+			glDisable(GL_CLIP_DISTANCE0);
+		if (_clipYEnabled && i == 1)
+			glDisable(GL_CLIP_DISTANCE1);
+		if (_clipZEnabled && i == 2)
+			glDisable(GL_CLIP_DISTANCE2);
 	}
+	// 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
+	// clipped object is drawn with color and depth enabled.
+	glDisable(GL_STENCIL_TEST);
 }
 
 void GLWidget::drawVertexNormals()
@@ -2502,36 +2507,98 @@ void GLWidget::render(GLCamera* camera)
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
+	/*
     if (_cappingEnabled && !_floorDisplayed)
 	{
-		drawSectionCapping();
+		//drawSectionCapping();
+		// Clipping Planes
+		if (_clipXEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE0);
+			drawSectionCapping();
+			glDisable(GL_CLIP_DISTANCE0);
+		}
+
+		if (_clipYEnabled)
+		{
+			glDisable(GL_CLIP_DISTANCE1);
+			drawSectionCapping();
+			glDisable(GL_CLIP_DISTANCE1);
+		}
+		if (_clipZEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE2);
+			drawSectionCapping();
+			glDisable(GL_CLIP_DISTANCE2);
+		}
 	}
+	*/
 
 	glDisable(GL_STENCIL_TEST);
-	// Clipping Planes
-	if (_clipXEnabled)
-		glEnable(GL_CLIP_DISTANCE0);
-	if (_clipYEnabled)
-		glEnable(GL_CLIP_DISTANCE1);
-	if (_clipZEnabled)
-		glEnable(GL_CLIP_DISTANCE2);
+	if (_clipXEnabled || _clipYEnabled || _clipZEnabled)
+	{
+		// Clipping Planes
+		if (_clipXEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE0);
+			// Mesh
+			drawMesh();
+			// Vertex Normal
+			drawVertexNormals();
+			// Face Normal
+			drawFaceNormals();
+			glDisable(GL_CLIP_DISTANCE0);
 
+			if(_cappingEnabled && !_floorDisplayed)
+				drawSectionCapping();
+		}
+		if (_clipYEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE1);
+			// Mesh
+			drawMesh();
+			// Vertex Normal
+			drawVertexNormals();
+			// Face Normal
+			drawFaceNormals();
+			glDisable(GL_CLIP_DISTANCE1);
+
+			if(_cappingEnabled && !_floorDisplayed)
+				drawSectionCapping();
+		}
+		if (_clipZEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE2);
+			// Mesh
+			drawMesh();
+			// Vertex Normal
+			drawVertexNormals();
+			// Face Normal
+			drawFaceNormals();
+			glDisable(GL_CLIP_DISTANCE2);
+
+			if(_cappingEnabled && !_floorDisplayed)
+				drawSectionCapping();
+		}
+	}
+	else
+	{
+		// Mesh
+		drawMesh();
+		// Vertex Normal
+		drawVertexNormals();
+		// Face Normal
+		drawFaceNormals();
+	}
+
+	/*
 	if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
 		glEnable(GL_CLIP_DISTANCE3);
 	}
-
-	// Mesh
-	drawMesh();
-	// Vertex Normal
-	drawVertexNormals();
-	// Face Normal
-	drawFaceNormals();
-
-	glDisable(GL_CLIP_DISTANCE0);
-	glDisable(GL_CLIP_DISTANCE1);
-	glDisable(GL_CLIP_DISTANCE2);
+	
 	glDisable(GL_CLIP_DISTANCE3);
+	*/
 
 	if (_displayMode == DisplayMode::REALSHADED && _floorDisplayed && camera != _orthoViewsCamera)
 	{
