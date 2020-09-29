@@ -2198,9 +2198,11 @@ void GLWidget::drawSectionCapping()
 			glActiveTexture(GL_TEXTURE13);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
             _clippingPlaneShader->setUniformValue("hatchMap", 13);
-
+			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
+			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
+			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
             // YZ Plane
-			model.rotate(90.0f, QVector3D(0.0f, 1.0f, 0.0f));
+			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
@@ -2209,8 +2211,8 @@ void GLWidget::drawSectionCapping()
                 _clippingPlaneYZ->render();
             }
             // ZX Plane
-			model.setToIdentity();
-			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+			model.setToIdentity();			
+			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
@@ -2220,6 +2222,7 @@ void GLWidget::drawSectionCapping()
             }
             // XY Plane
             model.setToIdentity();
+			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
             _clippingPlaneShader->bind();
             _clippingPlaneShader->setUniformValue("modelMatrix", model);
             _clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
