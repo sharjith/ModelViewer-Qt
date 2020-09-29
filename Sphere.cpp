@@ -5,7 +5,7 @@
 
 #include <glm/gtc/constants.hpp>
 
-Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Sphere", nSlices, nStacks)
+Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : GridMesh(prog, "Sphere", nSlices, nStacks)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -58,7 +58,7 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 
 	// Generate the element list
 	idx = 0;
-	/*for( unsigned int i = 0; i < nSlices; i++ ) {
+    for( unsigned int i = 0; i < nSlices; i++ ) {
 		unsigned int stackStart = i * (nStacks + 1);
 		unsigned int nextStackStart = (i+1) * (nStacks+1);
 		for( unsigned int j = 0; j < nStacks; j++ ) {
@@ -82,8 +82,8 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 				idx += 6;
 			}
 		}
-	}*/
-	for (unsigned int i = 0; i < nSlices; i++) {
+    }
+    /*for (unsigned int i = 0; i < nSlices; i++) {
 		unsigned int stackStart = i * (nStacks + 1);
 		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
 		for (unsigned int j = 0; j < nStacks; j++) {
@@ -110,8 +110,8 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 				//el[idx + 5] = nextStackStart + j + 1;
 				idx += 4;
 			}
-		}
-	}
+        }
+    }*/
 
 	initBuffers(&el, &p, &n, &tex, &tg, &bt);
 	computeBounds(p);

@@ -77,6 +77,7 @@ HEADERS += AABB.h \
     GLMaterial.h \
     GLWidget.h \
     GraysKlein.h \
+    GridMesh.h \
     Horn.h \
     IDrawable.h \
     IParametricSurface.h \
@@ -91,7 +92,6 @@ HEADERS += AABB.h \
     Periwinkle.h \
     Plane.h \
     Point.h \
-    QuadMesh.h \
     Resource.h \
     STLMesh.h \
     SaddleTorus.h \
@@ -155,6 +155,7 @@ SOURCES += AppleSurface.cpp \
     GLMaterial.cpp \
     GLWidget.cpp \
     GraysKlein.cpp \
+    GridMesh.cpp \
     Horn.cpp \
     KleinBottle.cpp \
     LimpetTorus.cpp \
@@ -170,7 +171,6 @@ SOURCES += AppleSurface.cpp \
     Periwinkle.cpp \
     Plane.cpp \
     Point.cpp \
-    QuadMesh.cpp \
     SaddleTorus.cpp \
     Sphere.cpp \
     SphericalHarmonic.cpp \

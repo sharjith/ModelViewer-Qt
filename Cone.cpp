@@ -7,7 +7,7 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :QuadMesh(prog, "Cone", nSlices, nStacks)
+Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :GridMesh(prog, "Cone", nSlices, nStacks)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -88,7 +88,7 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 
 	// Generate the element list
 	idx = 0;
-	/*for (unsigned int i = 0; i < nSlices; i++)
+    /*for (unsigned int i = 0; i < nSlices; i++)
 	{
 		unsigned int stackStart = i * (nStacks + 1);
 		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
@@ -102,8 +102,8 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			el[idx + 5] = nextStackStart + j + 1;
 			idx += 6;
 		}
-	}*/
-	for (unsigned int i = 0; i < nSlices; i++)
+    }*/
+    for (unsigned int i = 0; i < nSlices; i++)
 	{
 		unsigned int stackStart = i * (nStacks + 1);
 		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
@@ -113,22 +113,22 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			el[idx + 1] = stackStart + j + 1;
 			el[idx + 2] = nextStackStart + j + 1;
 			el[idx + 3] = nextStackStart + j;
-			//el[idx + 4] = stackStart + j;
-			//el[idx + 5] = nextStackStart + j + 1;
-			idx += 4;
+            el[idx + 4] = stackStart + j;
+            el[idx + 5] = nextStackStart + j + 1;
+            idx += 6;
 		}
-	}
+    }
 
 	// Bottom face
-	unsigned int j = ((nSlices + 1) * (nStacks + 1));
+    unsigned int j = ((nSlices + 1) * (nStacks + 1));
 	for (unsigned int i = 0; i < nSlices; i++, j++)
 	{
 		el[idx + 0] = j;
 		el[idx + 1] = ((nSlices + 1) * (nStacks + 1)) + nSlices + 1;
 		el[idx + 2] = j + 1;
-		el[idx + 3] = j;
-		idx += 4;
-	}
+        //el[idx + 3] = j;
+        idx += 3;
+    }
 
 	initBuffers(&el, &p, &n, &tex);
 	computeBounds(p);

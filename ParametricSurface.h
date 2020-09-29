@@ -1,9 +1,9 @@
 #pragma once
 
 #include "IParametricSurface.h"
-#include "QuadMesh.h"
+#include "GridMesh.h"
 
-class ParametricSurface : public QuadMesh, public IParametricSurface
+class ParametricSurface : public GridMesh, public IParametricSurface
 {
 public:
 	ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);

@@ -3,7 +3,7 @@
 #include <iostream>
 
 ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :
-	QuadMesh(prog, "Prametric Surface", nSlices, nStacks)
+    GridMesh(prog, "Prametric Surface", nSlices, nStacks)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -60,7 +60,7 @@ QVector3D ParametricSurface::normalAtParameter(const float& u, const float& v)
 void ParametricSurface::buildMesh()
 {
 	int nVerts = ((_slices + 1) * (_stacks + 1));
-	int elements = ((_slices * (_stacks)) * 4);
+    int elements = ((_slices * (_stacks)) * 6);
 
 	// Verts
 	std::vector<float> p(3 * nVerts);
@@ -119,8 +119,10 @@ void ParametricSurface::buildMesh()
 			el[idx + 1] = stackStart + j + 1;
 			el[idx + 2] = nextStackStart + j + 1;
 			el[idx + 3] = nextStackStart + j;
+            el[idx + 4] = stackStart + j;
+            el[idx + 5] = nextStackStart + j + 1;
 
-			idx += 4;
+            idx += 6;
 		}
 	}
 

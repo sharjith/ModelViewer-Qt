@@ -1,9 +1,9 @@
 #pragma once
 
-#include "QuadMesh.h"
+#include "GridMesh.h"
 #include <glm/glm.hpp>
 
-class Teapot : public QuadMesh
+class Teapot : public GridMesh
 {
 public:
 	Teapot(QOpenGLShaderProgram* prog, float size, int grid, const glm::mat4& lidTransform);

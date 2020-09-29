@@ -7,7 +7,7 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : QuadMesh(prog, "Cylinder", nSlices, nStacks)
+Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : GridMesh(prog, "Cylinder", nSlices, nStacks)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -157,9 +157,9 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 			el[idx + 1] = stackStart + j + 1;
 			el[idx + 2] = nextStackStart + j + 1;
 			el[idx + 3] = nextStackStart + j;
-			//el[idx + 4] = stackStart + j;
-			//el[idx + 5] = nextStackStart + j + 1;
-			idx += 4;
+            el[idx + 4] = stackStart + j;
+            el[idx + 5] = nextStackStart + j + 1;
+            idx += 6;
 		}
 	}
 
@@ -170,8 +170,8 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 		el[idx + 0] = j;
 		el[idx + 1] = ((nSlices + 1) * (nStacks + 1)) + nSlices + 1;
 		el[idx + 2] = j + 1;
-		el[idx + 3] = j;
-		idx += 4;
+        //el[idx + 3] = j;
+        idx += 3;
 	}
 
 	// Top face
@@ -181,8 +181,8 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 		el[idx + 0] = j;
 		el[idx + 1] = j + 1;
 		el[idx + 2] = (((nSlices + 1) * (nStacks + 1)) + nSlices * 2) + 3;
-		el[idx + 3] = j;
-		idx += 4;
+        //el[idx + 3] = j;
+        idx += 3;
 	}
 
 	initBuffers(&el, &p, &n, &tex);
