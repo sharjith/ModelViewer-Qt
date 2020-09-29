@@ -3004,15 +3004,15 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_currentViewRange = _viewRange;
 
     QPoint cen = getClientRectFromPoint(e->pos()).center();
-    float sign = (cen.x() > e->x() || cen.y() < e->y()) ? 1.0f : -1.0f;
+    float sign = (cen.x() > e->x() || cen.y() < e->y()) && (zoomStep < 0) ? -1.0f : 1.0f;
     QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
     Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
     QVector3D p1(cen.x(), height() - cen.y(), Z.z());
     QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
     QVector3D p2(e->x(), height() - e->y(), Z.z());
-    QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+    QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(e->pos()));
     float dist = P.distanceToPoint(O);
-    QVector3D OP = (P - O)/dist * sign;
+    QVector3D OP = (P - O) * sign * 0.05f;
     _primaryCamera->move(OP.x(), OP.y(), OP.z());
     _currentTranslation = _primaryCamera->getPosition();
 
