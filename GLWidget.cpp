@@ -2958,6 +2958,19 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			_viewRange = 50000.0f;
 		_currentViewRange = _viewRange;
 
+        QPoint cen = getClientRectFromPoint(e->pos()).center();
+        float sign = (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) ? 1.0f : -1.0f;
+        QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+        QVector3D p1(cen.x(), height() - cen.y(), Z.z());
+        QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+        QVector3D p2(_middleButtonPoint.x(), height() - _middleButtonPoint.y(), Z.z());
+        QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+        float dist = P.distanceToPoint(O);
+        QVector3D OP = (P - O)/dist * sign;
+        _primaryCamera->move(OP.x(), OP.y(), OP.z());
+        _currentTranslation = _primaryCamera->getPosition();
+
 		resizeGL(width(), height());
 
 		_middleButtonPoint = downPoint;
@@ -2989,6 +3002,19 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	if (_viewRange > 500000.0f)
 		_viewRange = 500000.0f;
 	_currentViewRange = _viewRange;
+
+    QPoint cen = getClientRectFromPoint(e->pos()).center();
+    float sign = (cen.x() > e->x() || cen.y() < e->y()) ? 1.0f : -1.0f;
+    QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+    Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+    QVector3D p1(cen.x(), height() - cen.y(), Z.z());
+    QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+    QVector3D p2(e->x(), height() - e->y(), Z.z());
+    QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
+    float dist = P.distanceToPoint(O);
+    QVector3D OP = (P - O)/dist * sign;
+    _primaryCamera->move(OP.x(), OP.y(), OP.z());
+    _currentTranslation = _primaryCamera->getPosition();
 
 	resizeGL(width(), height());
 	update();
