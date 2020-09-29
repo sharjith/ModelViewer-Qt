@@ -10,5 +10,5 @@ out vec4 fragColor;
 void main()
 {
     fragColor = vec4(planeColor, 1.0f);
-    //fragColor = texture(hatchMap, texCoord);
+    fragColor = mix(fragColor, texture(hatchMap, texCoord), 0.75);
 }

@@ -1490,7 +1490,7 @@ void GLWidget::createCappingPlanes()
 	_clippingPlaneXY = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-    _cappingTexture = loadTextureFromFile("textures/hatch.png");
+    _cappingTexture = loadTextureFromFile("textures/patterns/hatch_01.png");
 	glActiveTexture(GL_TEXTURE13);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 }
