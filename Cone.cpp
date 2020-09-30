@@ -47,7 +47,7 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			p[idx] = (radius - phi * tan(ang)) * nx; p[idx + 1] = (radius - phi * tan(ang)) * ny; p[idx + 2] = nz - height / 2.0f;
 			glm::vec3 o(0, 0, (nz * height) - height / 2.0f);
 			glm::vec3 v((nx * radius), (ny * radius), (nz * height) - height / 2.0f);
-			glm::vec3 normal = v - o;
+			glm::vec3 normal = o - v;
 			normal = glm::normalize(normal);
 			normal = -normal;
 			n[idx] = normal.x; n[idx + 1] = normal.y; n[idx + 2] = normal.z;
@@ -109,12 +109,12 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
 		for (unsigned int j = 0; j < nStacks; j++)
 		{
-			el[idx + 0] = stackStart + j;
+			el[idx + 2] = stackStart + j;
 			el[idx + 1] = stackStart + j + 1;
-			el[idx + 2] = nextStackStart + j + 1;
-			el[idx + 3] = nextStackStart + j;
+			el[idx + 0] = nextStackStart + j + 1;
+			el[idx + 5] = nextStackStart + j;
             el[idx + 4] = stackStart + j;
-            el[idx + 5] = nextStackStart + j + 1;
+            el[idx + 3] = nextStackStart + j + 1;
             idx += 6;
 		}
     }
