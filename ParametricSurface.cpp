@@ -44,7 +44,7 @@ QVector3D ParametricSurface::normalAtParameter(const float& u, const float& v)
 		t2 = vVec - oVec;
 	}
 
-	QVector3D normal = QVector3D::crossProduct(t2, t1);
+	QVector3D normal = QVector3D::crossProduct(t1, t2);
 	normal = normal.normalized();
 
 	// store for use immediately after calling this funtion
@@ -115,12 +115,12 @@ void ParametricSurface::buildMesh()
 		for (unsigned int j = 0; j < _stacks; j++)
 		{
 			// For quad mesh
-			el[idx + 0] = stackStart + j;
+			el[idx + 2] = stackStart + j;
 			el[idx + 1] = stackStart + j + 1;
-			el[idx + 2] = nextStackStart + j + 1;
-			el[idx + 3] = nextStackStart + j;
+			el[idx + 0] = nextStackStart + j + 1;
+			el[idx + 5] = nextStackStart + j;
             el[idx + 4] = stackStart + j;
-            el[idx + 5] = nextStackStart + j + 1;
+            el[idx + 3] = nextStackStart + j + 1;
 
             idx += 6;
 		}
