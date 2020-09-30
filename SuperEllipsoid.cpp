@@ -93,8 +93,8 @@ Point SuperEllipsoid::pointAtParameter(const float& u, const float& v)
 		return sign(sin(w)) * pow(fabs(sin(w)), m);
 	};
 
-	x = _radius * _scaleX * auxC(u, _n1) * auxC(v, _n2);
-	y = _radius * _scaleY * auxC(u, _n1) * auxS(v, _n2);
+	x = _radius * _scaleY * auxC(u, _n1) * auxS(v, _n2);
+	y = _radius * _scaleX * auxC(u, _n1) * auxC(v, _n2);
 	z = _radius * _scaleZ * auxS(u, _n1);
 
 	P.setParam(x, y, z);

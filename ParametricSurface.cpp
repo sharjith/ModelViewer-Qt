@@ -115,12 +115,12 @@ void ParametricSurface::buildMesh()
 		for (unsigned int j = 0; j < _stacks; j++)
 		{
 			// For quad mesh
-			el[idx + 2] = stackStart + j;
-			el[idx + 1] = stackStart + j + 1;
 			el[idx + 0] = nextStackStart + j + 1;
+			el[idx + 1] = stackStart + j + 1;
+			el[idx + 2] = stackStart + j;
+			el[idx + 3] = nextStackStart + j + 1;
+			el[idx + 4] = stackStart + j;
 			el[idx + 5] = nextStackStart + j;
-            el[idx + 4] = stackStart + j;
-            el[idx + 3] = nextStackStart + j + 1;
 
             idx += 6;
 		}

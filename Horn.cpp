@@ -46,8 +46,8 @@ Point Horn::pointAtParameter(const float& u, const float& v)
 	/*Horn
 	Where 0 <= u <= 1, 0 <= v <= 2pi
 	*/
-	x = _radius * (2 + u * cos(v)) * sin(2 * glm::pi<float>() * u);
-	y = _radius * (2 + u * cos(v)) * cos(2 * glm::pi<float>() * u) + 2 * u;
+	x = _radius * (2 + u * cos(v)) * cos(2 * glm::pi<float>() * u) + 2 * u;
+	y = _radius * (2 + u * cos(v)) * sin(2 * glm::pi<float>() * u);
 	z = _radius * u * sin(v);
 
 	P.setParam(x, y, z);

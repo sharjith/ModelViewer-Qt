@@ -46,8 +46,8 @@ Point Crescent::pointAtParameter(const float& u, const float& v)
 	/*Crescent
 	Where 0 <= u <= 1, 0 <= v <= 1
 	*/
-	x = _radius * ((2 + sin(2 * glm::pi<float>() * u) * sin(2 * glm::pi<float>() * v)) * sin(3 * glm::pi<float>() * v));
-	y = _radius * ((2 + sin(2 * glm::pi<float>() * u) * sin(2 * glm::pi<float>() * v)) * cos(3 * glm::pi<float>() * v));
+	x = _radius * ((2 + sin(2 * glm::pi<float>() * u) * sin(2 * glm::pi<float>() * v)) * cos(3 * glm::pi<float>() * v));
+	y = _radius * ((2 + sin(2 * glm::pi<float>() * u) * sin(2 * glm::pi<float>() * v)) * sin(3 * glm::pi<float>() * v));
 	z = _radius * (cos(2 * glm::pi<float>() * u) * sin(2 * glm::pi<float>() * v) + 4 * v - 2);
 
 	P.setParam(x, y, z);

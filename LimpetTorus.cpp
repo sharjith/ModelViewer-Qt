@@ -44,8 +44,8 @@ Point LimpetTorus::pointAtParameter(const float& u, const float& v)
 
 	//http://paulbourke.net/geometry/toroidal/
 	// Limpet Torus
-	y = _radius * sin(u) / (sqrt(2) + sin(v));
-	x = _radius * cos(u) / (sqrt(2) + sin(v));
+	x = _radius * sin(u) / (sqrt(2) + sin(v));
+	y = _radius * cos(u) / (sqrt(2) + sin(v));
 	z = _radius * 1 / (sqrt(2) + cos(v)) - _radius;
 
 	P.setParam(x, y, z);

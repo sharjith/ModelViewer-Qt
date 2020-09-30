@@ -47,8 +47,8 @@ Point BoySurface::pointAtParameter(const float& u, const float& v)
 	// and 0 <= u, v <= pi
 	float A = 2.0f / 3.0f;
 	float B = sqrt(2.0f);
-	x = _radius * (A * ((cos(u) * cos(2 * v) + B * sin(u) * cos(v)) * cos(u)) / (B - sin(2 * u) * sin(3 * v)));
-	y = _radius * (A * ((cos(u) * sin(2 * v) - B * sin(u) * sin(v)) * cos(u)) / (B - sin(2 * u) * sin(3 * v)));
+	x = _radius * (A * ((cos(u) * sin(2 * v) - B * sin(u) * sin(v)) * cos(u)) / (B - sin(2 * u) * sin(3 * v)));
+	y = _radius * (A * ((cos(u) * cos(2 * v) + B * sin(u) * cos(v)) * cos(u)) / (B - sin(2 * u) * sin(3 * v)));
 	z = _radius * (B * (cos(u) * cos(u)) / (B - sin(2 * u) * sin(3 * v))) - _radius;
 
 	P.setParam(x, y, z);
