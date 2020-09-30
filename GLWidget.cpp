@@ -88,6 +88,7 @@ _skyBox(nullptr)
 	_brdfShader = new QOpenGLShaderProgram(this);
 	_lightCubeShader = new QOpenGLShaderProgram(this);
 	_clippingPlaneShader = new QOpenGLShaderProgram(this);
+	_clippedMeshShader = new QOpenGLShaderProgram(this);
 
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
@@ -277,6 +278,8 @@ GLWidget::~GLWidget()
 		delete _lightCubeShader;
 	if (_clippingPlaneShader)
 		delete _clippingPlaneShader;
+	if (_clippedMeshShader)
+		delete _clippedMeshShader;
 
 	_axisVBO.destroy();
 	_axisVAO.destroy();
@@ -1468,6 +1471,19 @@ void GLWidget::createShaderPrograms()
 	{
 		qDebug() << "Error linking shader program:" << _clippingPlaneShader->log();
 	}
+	// Clipped Mesh shader program
+	if (!_clippedMeshShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/clipped_mesh.vert"))
+	{
+		qDebug() << "Error in vertex shader:" << _clippedMeshShader->log();
+	}
+	if (!_clippedMeshShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/clipped_mesh.frag"))
+	{
+		qDebug() << "Error in fragment shader:" << _clippedMeshShader->log();
+	}
+	if (!_clippedMeshShader->link())
+	{
+		qDebug() << "Error linking shader program:" << _clippedMeshShader->log();
+	}
 
 	//_debugShader
 	// Shadow Depth quad shader program
@@ -2052,7 +2068,7 @@ void GLWidget::drawFloor()
 		if (_reflectionsEnabled)
 		{
 			_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-			drawMesh();
+			drawMesh(_fgShader);
 		}
 
 		glStencilMask(0x00);
@@ -2098,13 +2114,12 @@ void GLWidget::drawSkyBox()
 	glDisable((GL_DEPTH_TEST));
 }
 
-void GLWidget::drawMesh()
+void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 {
 	QVector3D pos = _primaryCamera->getPosition();
 
-	setupClippingUniforms(_fgShader, pos);
-
-	_fgShader->setUniformValue("shadowSamples", 27.0f);
+	setupClippingUniforms(prog, pos);
+	
 	// Render
 	if (_meshStore.size() != 0)
 	{
@@ -2115,7 +2130,7 @@ void GLWidget::drawMesh()
 				TriangleMesh* mesh = _meshStore.at(i);
 				if (mesh)
 				{
-					mesh->setProg(_fgShader);
+					mesh->setProg(prog);
 					mesh->render();
 				}
 			}
@@ -2129,6 +2144,11 @@ void GLWidget::drawMesh()
 
 void GLWidget::drawSectionCapping()
 {
+	// We use a lightweight shader without lighting and stuff for drawing the clipped mesh
+	_clippedMeshShader->bind();
+	_clippedMeshShader->setUniformValue("modelMatrix", _modelMatrix);
+	_clippedMeshShader->setUniformValue("viewMatrix", _viewMatrix);
+	_clippedMeshShader->setUniformValue("projectionMatrix", _projectionMatrix);
     for (int i = 0; i < 3; ++i)
 	{
 		// Clipping Planes
@@ -2165,14 +2185,14 @@ void GLWidget::drawSectionCapping()
 		// and the model is drawn with glCullFace(GL FRONT).
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_FRONT);
-		drawMesh();
+		drawMesh(_clippedMeshShader);
 
 		// 4) The stencil operation is then set to decrement the stencil value where the depth test passes,
 		glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
 
 		// and the model is drawn with glCullFace(GL BACK)
 		glCullFace(GL_BACK);
-		drawMesh();
+		drawMesh(_clippedMeshShader);
 		glDisable(GL_CULL_FACE);
 
 		//At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
@@ -2512,6 +2532,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
 	_fgShader->setUniformValue("gammaCorrection", _gammaCorrection);
 	_fgShader->setUniformValue("screenGamma", _screenGamma);
+	_fgShader->setUniformValue("shadowSamples", 27.0f);
 
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
@@ -2527,7 +2548,7 @@ void GLWidget::render(GLCamera* camera)
 		{
 			glEnable(GL_CLIP_DISTANCE0);
 			// Mesh
-			drawMesh();
+			drawMesh(_fgShader);
 			// Vertex Normal
 			drawVertexNormals();
 			// Face Normal
@@ -2538,7 +2559,7 @@ void GLWidget::render(GLCamera* camera)
         {
 			glEnable(GL_CLIP_DISTANCE1);
 			// Mesh
-			drawMesh();
+			drawMesh(_fgShader);
 			// Vertex Normal
 			drawVertexNormals();
 			// Face Normal
@@ -2549,7 +2570,7 @@ void GLWidget::render(GLCamera* camera)
         {
 			glEnable(GL_CLIP_DISTANCE2);
 			// Mesh
-			drawMesh();
+			drawMesh(_fgShader);
 			// Vertex Normal
 			drawVertexNormals();
 			// Face Normal
@@ -2560,7 +2581,7 @@ void GLWidget::render(GLCamera* camera)
 	else
 	{
 		// Mesh
-		drawMesh();
+		drawMesh(_fgShader);
 		// Vertex Normal
 		drawVertexNormals();
 		// Face Normal

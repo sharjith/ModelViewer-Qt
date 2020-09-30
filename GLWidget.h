@@ -348,6 +348,7 @@ private:
 	QOpenGLShaderProgram* _brdfShader;
 	QOpenGLShaderProgram* _lightCubeShader;
 	QOpenGLShaderProgram* _clippingPlaneShader;
+	QOpenGLShaderProgram* _clippedMeshShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
@@ -434,7 +435,7 @@ private:
 	void loadIrradianceMap();
 	void loadFloor();
 
-	void drawMesh();
+	void drawMesh(QOpenGLShaderProgram* prog);
 	void drawSectionCapping();
 	void drawFloor();
 	void drawSkyBox();
