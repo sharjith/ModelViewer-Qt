@@ -2465,7 +2465,6 @@ void GLWidget::drawLights()
 
 void GLWidget::render(GLCamera* camera)
 {
-	//renderToShadowBuffer();
 	glEnable(GL_DEPTH_TEST);
 
 	_viewMatrix.setToIdentity();
@@ -2931,13 +2930,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 			_lowResEnabled = true;
-		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
-		QVector3D p1(downPoint.x(), height() - downPoint.y(), Z.z());
-		QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
-		QVector3D p2(_rightButtonPoint.x(), height() - _rightButtonPoint.y(), Z.z());
-		QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(downPoint));
-		QVector3D OP = P - O;
+		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _rightButtonPoint);
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_currentTranslation = _primaryCamera->getPosition();
 
@@ -2948,6 +2941,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 			_lowResEnabled = true;
+		// Zoom
 		if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
 			_viewRange /= 1.05f;
 		else
@@ -2958,16 +2952,11 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			_viewRange = 50000.0f;
 		_currentViewRange = _viewRange;
 
-        QPoint cen = getClientRectFromPoint(e->pos()).center();
+		// Translate to focus on mouse center
+        QPoint cen = getClientRectFromPoint(downPoint).center();
         float sign = (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) ? 1.0f : -1.0f;
-        QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
-        QVector3D p1(cen.x(), height() - cen.y(), Z.z());
-        QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
-        QVector3D p2(_middleButtonPoint.x(), height() - _middleButtonPoint.y(), Z.z());
-        QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
-        float dist = P.distanceToPoint(O);
-        QVector3D OP = (P - O)/dist * sign;
+		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _middleButtonPoint);
+		OP *= sign * 0.05f;
         _primaryCamera->move(OP.x(), OP.y(), OP.z());
         _currentTranslation = _primaryCamera->getPosition();
 
@@ -2987,6 +2976,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 {
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
+	// Zoom
 	QPoint numDegrees = e->angleDelta() / 8;
 	QPoint numSteps = numDegrees / 15;
 	float zoomStep = numSteps.y();
@@ -3003,16 +2993,11 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 		_viewRange = 500000.0f;
 	_currentViewRange = _viewRange;
 
+	// Translate to focus on mouse center
     QPoint cen = getClientRectFromPoint(e->pos()).center();
-    float sign = (cen.x() > e->x() || cen.y() < e->y()) && (zoomStep < 0) ? -1.0f : 1.0f;
-    QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-    Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
-    QVector3D p1(cen.x(), height() - cen.y(), Z.z());
-    QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(cen));
-    QVector3D p2(e->x(), height() - e->y(), Z.z());
-    QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(e->pos()));
-    float dist = P.distanceToPoint(O);
-    QVector3D OP = (P - O) * sign * 0.05f;
+    float sign = (e->x() > cen.x() || e->y() < cen.y()) && (zoomStep > 0) ? 1.0f : -1.0f;
+	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->pos());
+	OP *= sign * 0.05f;
     _primaryCamera->move(OP.x(), OP.y(), OP.z());
     _currentTranslation = _primaryCamera->getPosition();
 
@@ -3293,6 +3278,18 @@ QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
 	}
 
 	return clientRect;
+}
+
+QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end)
+{
+	QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+	Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(start));
+	QVector3D p1(start.x(), height() - start.y(), Z.z());
+	QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(start));
+	QVector3D p2(end.x(), height() - end.y(), Z.z());
+	QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(start));
+	QVector3D OP = P - O;
+	return OP;
 }
 
 unsigned int GLWidget::loadTextureFromFile(char const* path)

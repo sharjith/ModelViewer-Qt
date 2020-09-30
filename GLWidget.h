@@ -465,6 +465,7 @@ private:
 
 	QRect getViewportFromPoint(const QPoint& pixel);
 	QRect getClientRectFromPoint(const QPoint& pixel);
+	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
 	unsigned int loadTextureFromFile(const char* path);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 };
