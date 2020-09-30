@@ -44,13 +44,23 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
-			p[idx] = (radius - phi * tan(ang)) * nx; p[idx + 1] = (radius - phi * tan(ang)) * ny; p[idx + 2] = nz - height / 2.0f;
-			glm::vec3 o(0, 0, (nz * height) - height / 2.0f);
-			glm::vec3 v((nx * radius), (ny * radius), (nz * height) - height / 2.0f);
-			glm::vec3 normal = o - v;
+			glm::vec3 o(0, 0, nz - height / 2.0f);
+			glm::vec3 v((radius - phi * tanf(ang)) * nx, (radius - phi * tanf(ang)) * ny, nz - height / 2.0f);
+			p[idx] = v.x;
+			p[idx + 1] = v.y;
+			p[idx + 2] = v.z;		
+			float r = glm::distance(v, o);
+			glm::vec3 q(0, 0, v.z - tanf(ang) * r);
+			glm::vec3 normal = v - q;
 			normal = glm::normalize(normal);
-			normal = -normal;
-			n[idx] = normal.x; n[idx + 1] = normal.y; n[idx + 2] = normal.z;
+			if (j == nStacks) 
+			{
+				n[idx] = 0.0f; n[idx + 1] = 0.0f; n[idx + 2] = 1.0f;
+			}
+			else 
+			{
+				n[idx] = normal.x; n[idx + 1] = normal.y; n[idx + 2] = normal.z;
+			}
 			idx += 3;
 
 			tex[tIdx] = s;
