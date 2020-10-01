@@ -151,7 +151,7 @@ protected: // methods
 
 	virtual void deleteBuffers();
 	virtual void setupTransformation();
-	virtual void computeBounds(std::vector<float> points);
+	virtual void computeBounds();
 	virtual bool rayIntersectsTriangle(const QVector3D& rayOrigin,
 		const QVector3D& rayVector,
 		const QVector3D& vertex0,

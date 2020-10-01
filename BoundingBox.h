@@ -45,7 +45,7 @@ public:
 	inline double zMax() const { return _zMax; }
 	inline double zMin() const { return _zMin; }
 	Point center() const;
-	double BoundingRadius() const;
+	double boundingRadius() const;
 	bool contains(const Point& P) const;
 	void addBox(const BoundingBox&);
 	QRect project(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window);

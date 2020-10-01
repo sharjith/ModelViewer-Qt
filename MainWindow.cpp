@@ -19,7 +19,6 @@ MainWindow::MainWindow(QWidget* parent)
 
 	Q_INIT_RESOURCE(ModelViewer);
 
-	//setCentralWidget(_editor);
 	setCentralWidget((ui->mdiArea));
 	ModelViewer* viewer = new ModelViewer(nullptr);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);

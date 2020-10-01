@@ -196,7 +196,7 @@ _loaded(false)
 			//std::cout << "Elements " << elements.size() << std::endl;
 
 			initBuffers(&elements, &points, &norms, &texcords, &tangents, &bitangents);
-			computeBounds(points);
+			computeBounds();
 			_loaded = true;
 		}
 	}

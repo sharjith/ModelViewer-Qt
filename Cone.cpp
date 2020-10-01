@@ -1,5 +1,5 @@
 #include "Cone.h"
-
+#include "Point.h"
 #include <cstdio>
 #include <cmath>
 
@@ -7,7 +7,9 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :GridMesh(prog, "Cone", nSlices, nStacks)
+Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :GridMesh(prog, "Cone", nSlices, nStacks),
+_radius(radius),
+_height(height)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -44,13 +46,23 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
-			p[idx] = (radius - phi * tan(ang)) * nx; p[idx + 1] = (radius - phi * tan(ang)) * ny; p[idx + 2] = nz - height / 2.0f;
-			glm::vec3 o(0, 0, (nz * height) - height / 2.0f);
-			glm::vec3 v((nx * radius), (ny * radius), (nz * height) - height / 2.0f);
-			glm::vec3 normal = o - v;
+			glm::vec3 o(0, 0, nz - height / 2.0f);
+			glm::vec3 v((radius - phi * tanf(ang)) * nx, (radius - phi * tanf(ang)) * ny, nz - height / 2.0f);
+			p[idx] = v.x;
+			p[idx + 1] = v.y;
+			p[idx + 2] = v.z;
+			float r = glm::distance(v, o);
+			glm::vec3 q(0, 0, v.z - tanf(ang) * r);
+			glm::vec3 normal = v - q;
 			normal = glm::normalize(normal);
-			normal = -normal;
-			n[idx] = normal.x; n[idx + 1] = normal.y; n[idx + 2] = normal.z;
+			if (j == nStacks)
+			{
+				n[idx] = 0.0f; n[idx + 1] = 0.0f; n[idx + 2] = 1.0f;
+			}
+			else
+			{
+				n[idx] = normal.x; n[idx + 1] = normal.y; n[idx + 2] = normal.z;
+			}
 			idx += 3;
 
 			tex[tIdx] = s;
@@ -88,22 +100,7 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 
 	// Generate the element list
 	idx = 0;
-    /*for (unsigned int i = 0; i < nSlices; i++)
-	{
-		unsigned int stackStart = i * (nStacks + 1);
-		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
-		for (unsigned int j = 0; j < nStacks; j++)
-		{
-			el[idx + 0] = stackStart + j;
-			el[idx + 1] = stackStart + j + 1;
-			el[idx + 2] = nextStackStart + j + 1;
-			el[idx + 3] = nextStackStart + j;
-			el[idx + 4] = stackStart + j;
-			el[idx + 5] = nextStackStart + j + 1;
-			idx += 6;
-		}
-    }*/
-    for (unsigned int i = 0; i < nSlices; i++)
+	for (unsigned int i = 0; i < nSlices; i++)
 	{
 		unsigned int stackStart = i * (nStacks + 1);
 		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
@@ -113,23 +110,44 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 			el[idx + 1] = stackStart + j + 1;
 			el[idx + 0] = nextStackStart + j + 1;
 			el[idx + 5] = nextStackStart + j;
-            el[idx + 4] = stackStart + j;
-            el[idx + 3] = nextStackStart + j + 1;
-            idx += 6;
+			el[idx + 4] = stackStart + j;
+			el[idx + 3] = nextStackStart + j + 1;
+			idx += 6;
 		}
-    }
+	}
 
 	// Bottom face
-    unsigned int j = ((nSlices + 1) * (nStacks + 1));
+	unsigned int j = ((nSlices + 1) * (nStacks + 1));
 	for (unsigned int i = 0; i < nSlices; i++, j++)
 	{
 		el[idx + 0] = j;
 		el[idx + 1] = ((nSlices + 1) * (nStacks + 1)) + nSlices + 1;
 		el[idx + 2] = j + 1;
-        //el[idx + 3] = j;
-        idx += 3;
-    }
+		//el[idx + 3] = j;
+		idx += 3;
+	}
 
 	initBuffers(&el, &p, &n, &tex);
-	computeBounds(p);
+	computeBounds();
+}
+
+void Cone::computeBounds()
+{
+	QList<float> xVals, yVals, zVals;
+	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	{
+		xVals.push_back(_trsfpoints.at(i));
+		yVals.push_back(_trsfpoints.at(i + 1));
+		zVals.push_back(_trsfpoints.at(i + 2));
+	}
+	std::sort(xVals.begin(), xVals.end(), std::less<float>());
+	std::sort(yVals.begin(), yVals.end(), std::less<float>());
+	std::sort(zVals.begin(), zVals.end(), std::less<float>());
+	_boundingBox.setLimits(xVals.first(), xVals.last(),
+		yVals.first(), yVals.last(),
+		zVals.first(), zVals.last());
+	Point cen = _boundingBox.center();
+
+	_boundingSphere.setCenter(cen.getX(), cen.getY(), cen.getZ());	
+	_boundingSphere.setRadius(sqrt(_radius * _radius + _height / 2.0f * _height / 2.0f));
 }

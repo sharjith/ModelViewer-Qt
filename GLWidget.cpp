@@ -77,19 +77,6 @@ _skyBox(nullptr)
 
 	_quadVAO = 0;
 
-	_fgShader = new QOpenGLShaderProgram(this);
-	_axisShader = new QOpenGLShaderProgram(this);
-	_vertexNormalShader = new QOpenGLShaderProgram(this);
-	_faceNormalShader = new QOpenGLShaderProgram(this);
-	_shadowMappingShader = new QOpenGLShaderProgram(this);
-	_skyBoxShader = new QOpenGLShaderProgram(this);
-	_irradianceShader = new QOpenGLShaderProgram(this);
-	_prefilterShader = new QOpenGLShaderProgram(this);
-	_brdfShader = new QOpenGLShaderProgram(this);
-	_lightCubeShader = new QOpenGLShaderProgram(this);
-	_clippingPlaneShader = new QOpenGLShaderProgram(this);
-	_clippedMeshShader = new QOpenGLShaderProgram(this);
-
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
 	_rubberBandZoomRatio = 1.0f;
@@ -119,9 +106,9 @@ _skyBox(nullptr)
 
 	_lightPosition = { 25.0f, 25.0f, 50.0f };
 	_prevLightPosition = _lightPosition;
-    _lightOffsetX = 0.0f;
-    _lightOffsetY = 0.0f;
-    _lightOffsetZ = 0.0f;
+	_lightOffsetX = 0.0f;
+	_lightOffsetY = 0.0f;
+	_lightOffsetZ = 0.0f;
 
 	_displayMode = DisplayMode::SHADED;
 	_renderingMode = RenderingMode::ADS_PHONG;
@@ -139,9 +126,9 @@ _skyBox(nullptr)
 
 	_modelName = "Model";
 
-    _clipYZEnabled = false;
-    _clipZXEnabled = false;
-    _clipXYEnabled = false;
+	_clipYZEnabled = false;
+	_clipZXEnabled = false;
+	_clipXYEnabled = false;
 
 	_clipXFlipped = false;
 	_clipYFlipped = false;
@@ -156,7 +143,7 @@ _skyBox(nullptr)
 	_showFaceNormals = false;
 
 	_envMapEnabled = false;
-    _shadowsEnabled = false;
+	_shadowsEnabled = false;
 	_reflectionsEnabled = false;
 	_floorDisplayed = false;
 	_floorTextureDisplayed = true;
@@ -254,32 +241,25 @@ GLWidget::~GLWidget()
 	{
 		delete a;
 	}
-	if (_primaryCamera)
-		delete _primaryCamera;
-	if (_fgShader)
-		delete _fgShader;
-	if (_axisShader)
-		delete _axisShader;
-	if (_vertexNormalShader)
-		delete _vertexNormalShader;
-	if (_faceNormalShader)
-		delete _faceNormalShader;
-	if (_shadowMappingShader)
-		delete _shadowMappingShader;
-	if (_skyBoxShader)
-		delete _skyBoxShader;
-	if (_irradianceShader)
-		delete _irradianceShader;
-	if (_prefilterShader)
-		delete _prefilterShader;
-	if (_brdfShader)
-		delete _brdfShader;
-	if (_lightCubeShader)
-		delete _lightCubeShader;
-	if (_clippingPlaneShader)
-		delete _clippingPlaneShader;
-	if (_clippedMeshShader)
-		delete _clippedMeshShader;
+	if (_primaryCamera)	delete _primaryCamera;
+	if (_fgShader)	delete _fgShader;
+	if (_axisShader) delete _axisShader;
+	if (_vertexNormalShader) delete _vertexNormalShader;
+	if (_faceNormalShader) delete _faceNormalShader;
+	if (_shadowMappingShader) delete _shadowMappingShader;
+	if (_skyBoxShader) delete _skyBoxShader;
+	if (_irradianceShader) delete _irradianceShader;
+	if (_prefilterShader) delete _prefilterShader;
+	if (_brdfShader) delete _brdfShader;
+	if (_lightCubeShader) delete _lightCubeShader;
+	if (_clippingPlaneShader) delete _clippingPlaneShader;
+	if (_clippedMeshShader) delete _clippedMeshShader;
+
+	if (_textShader) delete _textShader;
+	if (_bgShader) delete _bgShader;
+	if (_bgSplitShader) delete _bgSplitShader;
+
+	if (_debugShader) delete _debugShader;
 
 	_axisVBO.destroy();
 	_axisVAO.destroy();
@@ -411,10 +391,10 @@ QVector3D GLWidget::getLightPosition() const
 
 void GLWidget::setLightOffset(const QVector3D& offset)
 {
-    //_lightPosition = _prevLightPosition + lightPosition;
-    _lightOffsetX = offset.x();
-    _lightOffsetY = offset.y();
-    _lightOffsetZ = offset.z();
+	//_lightPosition = _prevLightPosition + lightPosition;
+	_lightOffsetX = offset.x();
+	_lightOffsetY = offset.y();
+	_lightOffsetZ = offset.z();
 }
 
 QVector4D GLWidget::getSpecularLight() const
@@ -622,9 +602,9 @@ void GLWidget::updateFloorPlane()
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(_boundingSphere.getRadius() * 0.05f);
-    _lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
-    _lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
-    _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+	_lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
+	_lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
+	_lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_prevLightPosition = _lightPosition;
 	_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 	updateClippingPlane();
@@ -632,12 +612,12 @@ void GLWidget::updateFloorPlane()
 
 void GLWidget::updateClippingPlane()
 {
-    float xside = _clipXFlipped || _clipXCoeff > 0 ? -1.0f : 1.0f;
-    float yside = _clipYFlipped || _clipYCoeff > 0 ? 1.0f : -1.0f;
-    float zside = _clipZFlipped || _clipZCoeff > 0 ? -1.0f : 1.0f;
-    _clippingPlaneXY->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipZCoeff * zside, _floorSize, _floorSize);
-    _clippingPlaneYZ->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipXCoeff * xside, _floorSize, _floorSize);
-    _clippingPlaneZX->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipYCoeff * yside, _floorSize, _floorSize);
+	float xside = _clipXFlipped || _clipXCoeff > 0 ? -1.0f : 1.0f;
+	float yside = _clipYFlipped || _clipYCoeff > 0 ? 1.0f : -1.0f;
+	float zside = _clipZFlipped || _clipZCoeff > 0 ? -1.0f : 1.0f;
+	_clippingPlaneXY->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipZCoeff * zside, _floorSize, _floorSize);
+	_clippingPlaneYZ->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipXCoeff * xside, _floorSize, _floorSize);
+	_clippingPlaneZX->setPlane(_clippingPlaneShader, _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipYCoeff * yside, _floorSize, _floorSize);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -1230,19 +1210,19 @@ void GLWidget::initializeGL()
 
 	createGeometry();
 
-	_textShader.bind();
-	_textRenderer = new TextRenderer(&_textShader, width(), height());
+	_textShader->bind();
+	_textRenderer = new TextRenderer(_textShader, width(), height());
 	_textRenderer->Load("fonts/arial.ttf", 20);
-	_axisTextRenderer = new TextRenderer(&_textShader, width(), height());
+	_axisTextRenderer = new TextRenderer(_textShader, width(), height());
 	_axisTextRenderer->Load("fonts/arialbd.ttf", 16);
-	_textShader.release();
+	_textShader->release();
 
 	// Set lighting information
 	_fgShader->bind();
 	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-    _fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("texUnit", 0);
 	_fgShader->setUniformValue("envMap", 1);
@@ -1262,8 +1242,8 @@ void GLWidget::initializeGL()
 	setRoughnessTexture(ids,    "textures/materials/gold/roughness.png");
 	setAOTexture(ids,           "textures/materials/gold/ao.png");*/
 
-	_debugShader.bind();
-	_debugShader.setUniformValue("depthMap", 0);
+	_debugShader->bind();
+	_debugShader->setUniformValue("depthMap", 0);
 
 	_viewMatrix.setToIdentity();
 	glEnable(GL_DEPTH_TEST);
@@ -1271,234 +1251,115 @@ void GLWidget::initializeGL()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
 }
 
+bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
+	const QString& fragmentProg, const QString& geometryProg,
+	const QString& tessControlProg, const QString& tessEvalProg)
+{
+	if (prog == nullptr || vertexProg == "" || fragmentProg == "")
+		return false;
+
+	bool success = prog->addShaderFromSourceFile(QOpenGLShader::Vertex, vertexProg);
+	if (!success)
+	{
+		qDebug() << "Error in vertex shader:" << prog->objectName() << prog->log();
+	}
+	if (tessControlProg != "")
+	{
+		success = prog->addShaderFromSourceFile(QOpenGLShader::TessellationControl, tessControlProg);
+		if (!success)
+		{
+			qDebug() << "Error in tessellation  control shader:" << prog->log();
+		}
+	}
+	if (tessEvalProg != "")
+	{
+		success = prog->addShaderFromSourceFile(QOpenGLShader::TessellationEvaluation, tessEvalProg);
+		if (!success)
+		{
+			qDebug() << "Error in tessellation  evaluation shader:" << prog->log();
+		}
+	}
+	if (geometryProg != "")
+	{
+		success = prog->addShaderFromSourceFile(QOpenGLShader::Geometry, geometryProg);
+		if (!success)
+		{
+			qDebug() << "Error in geometry shader:" << prog->log();
+		}
+	}
+	success = prog->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentProg);
+	if (!success)
+	{
+		qDebug() << "Error in fragment shader:" << prog->log();
+	}
+	if (success)
+	{
+		success = prog->link();
+		if (!success)
+		{
+			qDebug() << "Error linking shader program:" << prog->log();
+		}
+	}
+
+	return success;
+}
+
 void GLWidget::createShaderPrograms()
 {
 	// Foreground objects shader program
-	// per fragment lighting
-	if (!_fgShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/twoside_per_fragment.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _fgShader->log();
-	}
-	if (!_fgShader->addShaderFromSourceFile(QOpenGLShader::Geometry, "shaders/twoside_per_fragment.geom"))
-	{
-		qDebug() << "Error in geometry shader:" << _fgShader->log();
-	}
-	if (!_fgShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/twoside_per_fragment.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _fgShader->log();
-	}
-	if (!_fgShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _fgShader->log();
-	}
+	// Per fragment lighting
+	_fgShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_fgShader, "shaders/twoside_per_fragment.vert",
+		"shaders/twoside_per_fragment.frag", "shaders/twoside_per_fragment.geom");
 	// Axis
-	if (!_axisShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/axis.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _axisShader->log();
-	}
-	if (!_axisShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/axis.frag"))
-	{
-		qDebug() << "Error in geometry shader:" << _axisShader->log();
-	}
-	if (!_axisShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _axisShader->log();
-	}
+	_axisShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_axisShader, "shaders/axis.vert", "shaders/axis.frag");
 	// Vertex Normal
-	if (!_vertexNormalShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/vertex_normal.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _vertexNormalShader->log();
-	}
-	if (!_vertexNormalShader->addShaderFromSourceFile(QOpenGLShader::Geometry, "shaders/vertex_normal.geom"))
-	{
-		qDebug() << "Error in geometry shader:" << _vertexNormalShader->log();
-	}
-	if (!_vertexNormalShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/vertex_normal.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _vertexNormalShader->log();
-	}
-	if (!_vertexNormalShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _vertexNormalShader->log();
-	}
+	_vertexNormalShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_vertexNormalShader, "shaders/vertex_normal.vert",
+		"shaders/vertex_normal.frag", "shaders/vertex_normal.geom");
 	// Face Normal
-	if (!_faceNormalShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/face_normal.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _faceNormalShader->log();
-	}
-	if (!_faceNormalShader->addShaderFromSourceFile(QOpenGLShader::Geometry, "shaders/face_normal.geom"))
-	{
-		qDebug() << "Error in geometry shader:" << _faceNormalShader->log();
-	}
-	if (!_faceNormalShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/face_normal.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _faceNormalShader->log();
-	}
-	if (!_faceNormalShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _faceNormalShader->log();
-	}
+	_faceNormalShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_faceNormalShader, "shaders/face_normal.vert",
+		"shaders/face_normal.frag", "shaders/face_normal.geom");
 	// Shadow mapping
-	if (!_shadowMappingShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/shadow_mapping_depth.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _shadowMappingShader->log();
-	}
-	if (!_shadowMappingShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/shadow_mapping_depth.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _shadowMappingShader->log();
-	}
-	if (!_shadowMappingShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _shadowMappingShader->log();
-	}
+	_shadowMappingShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_shadowMappingShader, "shaders/shadow_mapping_depth.vert",
+		"shaders/shadow_mapping_depth.frag");
 	// Sky Box
-	if (!_skyBoxShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/skybox.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _skyBoxShader->log();
-	}
-	if (!_skyBoxShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/skybox.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _skyBoxShader->log();
-	}
-	if (!_skyBoxShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _skyBoxShader->log();
-	}
+	_skyBoxShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_skyBoxShader, "shaders/skybox.vert", "shaders/skybox.frag");
 	// Irradiance Map
-	if (!_irradianceShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/skybox.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _irradianceShader->log();
-	}
-	if (!_irradianceShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/irradiance_convolution.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _irradianceShader->log();
-	}
-	if (!_irradianceShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _irradianceShader->log();
-	}
+	_irradianceShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_irradianceShader, "shaders/skybox.vert", "shaders/irradiance_convolution.frag");
 	// Prefilter Map
-	if (!_prefilterShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/skybox.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _prefilterShader->log();
-	}
-	if (!_prefilterShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/prefilter.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _prefilterShader->log();
-	}
-	if (!_prefilterShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _prefilterShader->log();
-	}
+	_prefilterShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_prefilterShader, "shaders/skybox.vert", "shaders/prefilter.frag");
 	// BRDF LUT Map
-	if (!_brdfShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/brdf.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _brdfShader->log();
-	}
-	if (!_brdfShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/brdf.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _brdfShader->log();
-	}
-	if (!_brdfShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _brdfShader->log();
-	}
+	_brdfShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_brdfShader, "shaders/brdf.vert", "shaders/brdf.frag");
 	// Text shader program
-	if (!_textShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/text.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _textShader.log();
-	}
-	if (!_textShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/text.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _textShader.log();
-	}
-	if (!_textShader.link())
-	{
-		qDebug() << "Error linking shader program:" << _textShader.log();
-	}
-
+	_textShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_textShader, "shaders/text.vert", "shaders/text.frag");
 	// Background gradient shader program
-	if (!_bgShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/background.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _bgShader.log();
-	}
-	if (!_bgShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/background.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _bgShader.log();
-	}
-	if (!_bgShader.link())
-	{
-		qDebug() << "Error linking shader program:" << _bgShader.log();
-	}
-
+	_bgShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_bgShader, "shaders/background.vert", "shaders/background.frag");
 	// Background split shader program
-	if (!_bgSplitShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/splitScreen.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _bgSplitShader.log();
-	}
-	if (!_bgSplitShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/splitScreen.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _bgSplitShader.log();
-	}
-	if (!_bgSplitShader.link())
-	{
-		qDebug() << "Error linking shader program:" << _bgSplitShader.log();
-	}
-
+	_bgSplitShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_bgSplitShader, "shaders/splitScreen.vert", "shaders/splitScreen.frag");
 	// Light Cube shader program
-	if (!_lightCubeShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/light_cube.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _lightCubeShader->log();
-	}
-	if (!_lightCubeShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/light_cube.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _lightCubeShader->log();
-	}
-	if (!_lightCubeShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _lightCubeShader->log();
-	}
+	_lightCubeShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_lightCubeShader, "shaders/light_cube.vert", "shaders/light_cube.frag");
 	// Clipping Plane shader program
-	if (!_clippingPlaneShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/clipping_plane.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _clippingPlaneShader->log();
-	}
-	if (!_clippingPlaneShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/clipping_plane.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _clippingPlaneShader->log();
-	}
-	if (!_clippingPlaneShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _clippingPlaneShader->log();
-	}
+	_clippingPlaneShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_clippingPlaneShader, "shaders/clipping_plane.vert", "shaders/clipping_plane.frag");
 	// Clipped Mesh shader program
-	if (!_clippedMeshShader->addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/clipped_mesh.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _clippedMeshShader->log();
-	}
-	if (!_clippedMeshShader->addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/clipped_mesh.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _clippedMeshShader->log();
-	}
-	if (!_clippedMeshShader->link())
-	{
-		qDebug() << "Error linking shader program:" << _clippedMeshShader->log();
-	}
+	_clippedMeshShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_clippedMeshShader, "shaders/clipped_mesh.vert", "shaders/clipped_mesh.frag");
 
-	//_debugShader
-	// Shadow Depth quad shader program
-	if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Vertex, "shaders/debug_quad.vert"))
-	{
-		qDebug() << "Error in vertex shader:" << _debugShader.log();
-	}
-	if (!_debugShader.addShaderFromSourceFile(QOpenGLShader::Fragment, "shaders/debug_quad_depth.frag"))
-	{
-		qDebug() << "Error in fragment shader:" << _debugShader.log();
-	}
-	if (!_debugShader.link())
-	{
-		qDebug() << "Error linking shader program:" << _debugShader.log();
-	}
+	// Shadow Depth quad shader program - for debugging
+	_debugShader = new QOpenGLShaderProgram(this);
+	loadCompileAndLinkShaderFromFile(_debugShader, "shaders/debug_quad.vert", "shaders/debug_quad_depth.frag");
 }
 
 void GLWidget::createCappingPlanes()
@@ -1506,7 +1367,7 @@ void GLWidget::createCappingPlanes()
 	_clippingPlaneXY = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-    _cappingTexture = loadTextureFromFile("textures/patterns/hatch_02.png");
+	_cappingTexture = loadTextureFromFile("textures/patterns/hatch_02.png");
 	glActiveTexture(GL_TEXTURE13);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 }
@@ -1631,7 +1492,7 @@ void GLWidget::loadFloor()
 
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
-    _lightPosition.setZ(_floorSize + _lightOffsetZ);
+	_lightPosition.setZ(_floorSize + _lightOffsetZ);
 	_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
 	_floorPlane->setAmbientMaterial(QVector3D(0.0f, 0.0f, 0.0f));
@@ -1890,9 +1751,9 @@ void GLWidget::resizeGL(int width, int height)
 	_textRenderer->setHeight(height);
 	QMatrix4x4 projection;
 	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
-	_textShader.bind();
-	_textShader.setUniformValue("projection", projection);
-	_textShader.release();
+	_textShader->bind();
+	_textShader->setUniformValue("projection", projection);
+	_textShader->release();
 
 	update();
 }
@@ -1952,9 +1813,9 @@ void GLWidget::paintGL()
 		{
 			QMatrix4x4 projection;
 			projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
-			_textShader.bind();
-			_textShader.setUniformValue("projection", projection);
-			_textShader.release();
+			_textShader->bind();
+			_textShader->setUniformValue("projection", projection);
+			_textShader->release();
 			glViewport(0, 0, width(), height());
 			if (_shadowsEnabled)
 				renderToShadowBuffer();
@@ -1963,7 +1824,7 @@ void GLWidget::paintGL()
 
 			gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
 				_bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
-            render(_primaryCamera);
+			render(_primaryCamera);
 			drawCornerAxis();
 		}
 
@@ -2119,7 +1980,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 	QVector3D pos = _primaryCamera->getPosition();
 
 	setupClippingUniforms(prog, pos);
-	
+
 	// Render
 	if (_meshStore.size() != 0)
 	{
@@ -2149,22 +2010,22 @@ void GLWidget::drawSectionCapping()
 	_clippedMeshShader->setUniformValue("modelMatrix", _modelMatrix);
 	_clippedMeshShader->setUniformValue("viewMatrix", _viewMatrix);
 	_clippedMeshShader->setUniformValue("projectionMatrix", _projectionMatrix);
-    for (int i = 0; i < 3; ++i)
+	for (int i = 0; i < 3; ++i)
 	{
 		// Clipping Planes
-        if (_clipYZEnabled && i == 0)
+		if (_clipYZEnabled && i == 0)
 			glEnable(GL_CLIP_DISTANCE0);
-        if (_clipZXEnabled && i == 1)
+		if (_clipZXEnabled && i == 1)
 			glEnable(GL_CLIP_DISTANCE1);
-        if (_clipXYEnabled && i == 2)
+		if (_clipXYEnabled && i == 2)
 			glEnable(GL_CLIP_DISTANCE2);
 
 		// https://www.opengl.org/archives/resources/code/samples/advanced/advanced97/notes/node10.html
 		// https://glbook.gamedev.net/GLBOOK/glbook.gamedev.net/moglgp/advclip.html
-        // https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
+		// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 		// 1) The stencil buffer, color buffer, and depth buffer are cleared,
 		glClear(GL_STENCIL_BUFFER_BIT);
-        glStencilMask(0x0);
+		glStencilMask(0x0);
 		glDisable(GL_DEPTH_TEST);
 		// and color buffer writes are disabled.
 		glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
@@ -2174,7 +2035,7 @@ void GLWidget::drawSectionCapping()
 		glStencilFunc(GL_ALWAYS, 0, 0);
 
 		// 2) The capping polygon is rendered into the depth buffer,
-        // drawCappingPlane
+		// drawCappingPlane
 
 		// then depth buffer writes are disabled.
 		glDepthMask(GL_FALSE);
@@ -2198,71 +2059,71 @@ void GLWidget::drawSectionCapping()
 		//At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
 		// the frontfacing and backfacing surfaces of the object.
 		// 5) The depth buffer is cleared, color buffer writes are enabled,
-        glClear(GL_DEPTH_BUFFER_BIT);
+		glClear(GL_DEPTH_BUFFER_BIT);
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		glEnable(GL_DEPTH_TEST);		
+		glEnable(GL_DEPTH_TEST);
 
 		// and the polygon representing the clipping plane is now drawn using whatever material properties are desired,
 		// with the stencil function set to GL EQUAL and the reference value set to 1.
 		// This draws the color and depth values of the cap into the framebuffer only where the stencil values equal 1.
 		glStencilFunc(GL_EQUAL, 1, 0xFF);
 		glDepthMask(GL_TRUE);
-        glEnable(GL_DEPTH_TEST);
+		glEnable(GL_DEPTH_TEST);
 		// drawCappingPlane
-        {
-            QMatrix4x4 model;
+		{
+			QMatrix4x4 model;
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			glActiveTexture(GL_TEXTURE13);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
-            _clippingPlaneShader->setUniformValue("hatchMap", 13);
+			_clippingPlaneShader->setUniformValue("hatchMap", 13);
 			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
-            // YZ Plane
+			// YZ Plane
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
-            if (_clipYZEnabled && i == 0)
-            {
-                _clippingPlaneYZ->render();
-            }
-            // ZX Plane
-			model.setToIdentity();			
+			if (_clipYZEnabled && i == 0)
+			{
+				_clippingPlaneYZ->render();
+			}
+			// ZX Plane
+			model.setToIdentity();
 			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
-            if (_clipZXEnabled && i == 1)
-            {
-                _clippingPlaneZX->render();
-            }
-            // XY Plane
-            model.setToIdentity();
+			if (_clipZXEnabled && i == 1)
+			{
+				_clippingPlaneZX->render();
+			}
+			// XY Plane
+			model.setToIdentity();
 			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
-            _clippingPlaneShader->bind();
-            _clippingPlaneShader->setUniformValue("modelMatrix", model);
-            _clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
-            if (_clipXYEnabled && i == 2)
-            {
-                _clippingPlaneXY->render();
-            }
-		}	
+			_clippingPlaneShader->bind();
+			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
+			if (_clipXYEnabled && i == 2)
+			{
+				_clippingPlaneXY->render();
+			}
+		}
 		// Clipping Planes
-        if (_clipYZEnabled && i == 0)
+		if (_clipYZEnabled && i == 0)
 			glDisable(GL_CLIP_DISTANCE0);
-        if (_clipZXEnabled && i == 1)
+		if (_clipZXEnabled && i == 1)
 			glDisable(GL_CLIP_DISTANCE1);
-        if (_clipXYEnabled && i == 2)
+		if (_clipXYEnabled && i == 2)
 			glDisable(GL_CLIP_DISTANCE2);
 	}
 	// 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
 	// clipped object is drawn with color and depth enabled.
 	glDisable(GL_STENCIL_TEST);
-    glDisable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);
 }
 
 void GLWidget::drawVertexNormals()
@@ -2471,7 +2332,7 @@ void GLWidget::drawCornerAxis()
 void GLWidget::drawLights()
 {
 	QMatrix4x4 model;
-    model.translate(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	model.translate(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_lightCubeShader->bind();
 	_lightCubeShader->setUniformValue("modelMatrix", model);
 	QMatrix4x4 viewMat = _viewMatrix;
@@ -2510,7 +2371,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-    _fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	_fgShader->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
@@ -2524,7 +2385,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("shadowsEnabled", showShadows);
 	_fgShader->setUniformValue("reflectionMapEnabled", false);
 	_fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
-    _fgShader->setUniformValue("lightPos", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	_fgShader->setUniformValue("lightPos", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("modelMatrix", _modelMatrix);
 	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
 	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
@@ -2537,14 +2398,14 @@ void GLWidget::render(GLCamera* camera)
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
-    // https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
+	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 	glDisable(GL_STENCIL_TEST);
-    if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
+	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
 	{
-        if(_cappingEnabled && !_floorDisplayed)
-            drawSectionCapping();
+		if (_cappingEnabled && !_floorDisplayed)
+			drawSectionCapping();
 		// Clipping Planes
-        if (_clipYZEnabled)
+		if (_clipYZEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE0);
 			// Mesh
@@ -2553,10 +2414,10 @@ void GLWidget::render(GLCamera* camera)
 			drawVertexNormals();
 			// Face Normal
 			drawFaceNormals();
-			glDisable(GL_CLIP_DISTANCE0);			
+			glDisable(GL_CLIP_DISTANCE0);
 		}
-        if (_clipZXEnabled)
-        {
+		if (_clipZXEnabled)
+		{
 			glEnable(GL_CLIP_DISTANCE1);
 			// Mesh
 			drawMesh(_fgShader);
@@ -2564,10 +2425,10 @@ void GLWidget::render(GLCamera* camera)
 			drawVertexNormals();
 			// Face Normal
 			drawFaceNormals();
-			glDisable(GL_CLIP_DISTANCE1);			
+			glDisable(GL_CLIP_DISTANCE1);
 		}
-        if (_clipXYEnabled)
-        {
+		if (_clipXYEnabled)
+		{
 			glEnable(GL_CLIP_DISTANCE2);
 			// Mesh
 			drawMesh(_fgShader);
@@ -2575,7 +2436,7 @@ void GLWidget::render(GLCamera* camera)
 			drawVertexNormals();
 			// Face Normal
 			drawFaceNormals();
-            glDisable(GL_CLIP_DISTANCE2);
+			glDisable(GL_CLIP_DISTANCE2);
 		}
 	}
 	else
@@ -2593,7 +2454,7 @@ void GLWidget::render(GLCamera* camera)
 	{
 		glEnable(GL_CLIP_DISTANCE3);
 	}
-	
+
 	glDisable(GL_CLIP_DISTANCE3);
 	*/
 
@@ -2636,10 +2497,10 @@ void GLWidget::renderToShadowBuffer()
 		near_plane + center.z(), far_plane + center.z());
 	QVector3D lightDir;
 	if (_lockLightAndCamera)
-        lightDir = QVector3D(center.x(), center.y(), 0);
+		lightDir = QVector3D(center.x(), center.y(), 0);
 	else
-        lightDir = _lightPosition  - QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ) - _primaryCamera->getPosition();
-    lightView.lookAt(_lightPosition  + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ), lightDir, QVector3D(0.0, 1.0, 0.0));
+		lightDir = _lightPosition - QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ) - _primaryCamera->getPosition();
+	lightView.lookAt(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ), lightDir, QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
 	_shadowMappingShader->bind();
@@ -2710,10 +2571,10 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 	glDisable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	_bgShader.bind();
+	_bgShader->bind();
 
-	_bgShader.setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
-	_bgShader.setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
+	_bgShader->setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
+	_bgShader->setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
 
 	_bgVAO.bind();
 	glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -2721,7 +2582,7 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 	glEnable(GL_DEPTH_TEST);
 
 	_bgVAO.release();
-	_bgShader.release();
+	_bgShader->release();
 }
 
 void GLWidget::splitScreen()
@@ -2752,9 +2613,9 @@ void GLWidget::splitScreen()
 
 		_bgSplitVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
-		_bgSplitShader.bind();
-		_bgSplitShader.enableAttributeArray("vertexPosition");
-		_bgSplitShader.setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 2);
+		_bgSplitShader->bind();
+		_bgSplitShader->enableAttributeArray("vertexPosition");
+		_bgSplitShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 2);
 
 		_bgSplitVBO.release();
 	}
@@ -2771,13 +2632,13 @@ void GLWidget::splitScreen()
 	glEnable(GL_DEPTH_TEST);
 
 	_bgSplitVAO.release();
-	_bgSplitShader.release();
+	_bgSplitShader->release();
 }
 
 void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 {
 	prog->bind();
-    if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
 		_fgShader->setUniformValue("sectionActive", true);
 	}
@@ -2787,12 +2648,12 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	}
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
-    prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
-        (_clipXFlipped ? 1 : -1) * (pos.x() + -_clipXCoeff)));
-    prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
-        (_clipYFlipped ? 1 : -1) * (pos.y() + -_clipYCoeff)));
-    prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
-        (_clipZFlipped ? 1 : -1) * (pos.z() + -_clipZCoeff)));
+	prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
+		(_clipXFlipped ? 1 : -1) * (pos.x() + -_clipXCoeff)));
+	prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
+		(_clipYFlipped ? 1 : -1) * (pos.y() + -_clipYCoeff)));
+	prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
+		(_clipZFlipped ? 1 : -1) * (pos.z() + -_clipZCoeff)));
 	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
@@ -2974,12 +2835,12 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_currentViewRange = _viewRange;
 
 		// Translate to focus on mouse center
-        QPoint cen = getClientRectFromPoint(downPoint).center();
-        float sign = (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) ? 1.0f : -1.0f;
+		QPoint cen = getClientRectFromPoint(downPoint).center();
+		float sign = (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) ? 1.0f : -1.0f;
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _middleButtonPoint);
 		OP *= sign * 0.05f;
-        _primaryCamera->move(OP.x(), OP.y(), OP.z());
-        _currentTranslation = _primaryCamera->getPosition();
+		_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		_currentTranslation = _primaryCamera->getPosition();
 
 		resizeGL(width(), height());
 
@@ -3015,13 +2876,13 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_currentViewRange = _viewRange;
 
 	// Translate to focus on mouse center
-    QPoint cen = getClientRectFromPoint(e->pos()).center();
-    float sign = (e->x() > cen.x() || e->y() < cen.y() || 
+	QPoint cen = getClientRectFromPoint(e->pos()).center();
+	float sign = (e->x() > cen.x() || e->y() < cen.y() ||
 		(e->x() < cen.x() && e->y() > cen.y())) && (zoomStep > 0) ? 1.0f : -1.0f;
 	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->pos());
 	OP *= sign * 0.05f;
-    _primaryCamera->move(OP.x(), OP.y(), OP.z());
-    _currentTranslation = _primaryCamera->getPosition();
+	_primaryCamera->move(OP.x(), OP.y(), OP.z());
+	_currentTranslation = _primaryCamera->getPosition();
 
 	resizeGL(width(), height());
 	update();

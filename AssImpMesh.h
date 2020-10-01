@@ -159,8 +159,8 @@ public:
 		{
 			glEnable(GL_BLEND);
 			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-            glEnable(GL_LINE_SMOOTH);
-            glEnable(GL_POLYGON_SMOOTH);
+			glEnable(GL_LINE_SMOOTH);
+			glEnable(GL_POLYGON_SMOOTH);
 		}
 		else
 		{
@@ -216,6 +216,6 @@ private:
 		_bHasTexture = false;
 
 		initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
-		computeBounds(points);
+		computeBounds();
 	}
 };

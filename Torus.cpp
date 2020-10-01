@@ -53,39 +53,24 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 	}
 
 	idx = 0;
-    for( unsigned int ring = 0; ring < nrings; ring++ )
-    {
-        unsigned int ringStart = ring * nsides;
-        unsigned int nextRingStart = (ring + 1) * nsides;
-        for( unsigned int side = 0; side < nsides; side++ )
-        {
-            int nextSide = (side+1) % nsides;
-            // The quad
-            el[idx] = (ringStart + side);
-            el[idx+1] = (nextRingStart + side);
-            el[idx+2] = (nextRingStart + nextSide);
-            el[idx+3] = ringStart + side;
-            el[idx+4] = nextRingStart + nextSide;
-            el[idx+5] = (ringStart + nextSide);
-            idx += 6;
-        }
-    }
-    /*for (unsigned int ring = 0; ring < nrings; ring++) {
+	for (unsigned int ring = 0; ring < nrings; ring++)
+	{
 		unsigned int ringStart = ring * nsides;
 		unsigned int nextRingStart = (ring + 1) * nsides;
-		for (unsigned int side = 0; side < nsides; side++) {
+		for (unsigned int side = 0; side < nsides; side++)
+		{
 			int nextSide = (side + 1) % nsides;
 			// The quad
 			el[idx] = (ringStart + side);
 			el[idx + 1] = (nextRingStart + side);
 			el[idx + 2] = (nextRingStart + nextSide);
-			//el[idx + 3] = ringStart + side;
-			//el[idx + 4] = nextRingStart + nextSide;
-			el[idx + 3] = (ringStart + nextSide);
-			idx += 4;
+			el[idx + 3] = ringStart + side;
+			el[idx + 4] = nextRingStart + nextSide;
+			el[idx + 5] = (ringStart + nextSide);
+			idx += 6;
 		}
-    }*/
+	}
 
 	initBuffers(&el, &p, &n, &tex);
-	computeBounds(p);
+	computeBounds();
 }

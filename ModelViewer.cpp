@@ -102,7 +102,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	tabWidget->setParent(_glWidget);
 	_glWidget->layout()->addWidget(tabWidget);
 	tabWidget->setAutoHide(true);
-	//connect(_glWidget, SIGNAL(displayListSet()), this, SLOT(updateDisplayList()));
 
 	QObject::connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
 	QObject::connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
@@ -152,10 +151,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(sliderTransparencyPBR, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
 	connect(pushButtonDefaultMatlsPBR, SIGNAL(clicked()), this, SLOT(on_pushButtonDefaultMatls_clicked()));
-
-	//_ambiMat = { 0.2109375f, 0.125f, 0.05078125f, _material.opacity() };
-	//_diffMat = { 0.7109375f, 0.62890625f, 0.55078125f, _material.opacity() };
-	//_specMat = { 0.37890625f, 0.390625f, 0.3359375f, _material.opacity() };
 
 	_hasAlbedoTex = false;
 	_hasMetallicTex = false;
@@ -392,12 +387,12 @@ void ModelViewer::updateDisplayList()
 		id++;
 	}
 	float range = _glWidget->getBoundingSphere().getRadius();
-    sliderLightPosX->setRange(-range, range);
+	sliderLightPosX->setRange(-range, range);
 	sliderLightPosX->setSingleStep(range / 100);
 	sliderLightPosY->setRange(-range, range);
 	sliderLightPosY->setSingleStep(range / 100);
-    sliderLightPosZ->setRange(-range, range);
-    sliderLightPosZ->setSingleStep(range / 100);
+	sliderLightPosZ->setRange(-range, range);
+	sliderLightPosZ->setSingleStep(range / 100);
 	QApplication::restoreOverrideCursor();
 }
 
@@ -1026,7 +1021,7 @@ void ModelViewer::on_pushButtonMaterialEmissive_clicked()
 
 void ModelViewer::on_sliderLightPosX_valueChanged(int)
 {
-    _glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
+	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
 		static_cast<float>(sliderLightPosY->value()),
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();
@@ -1034,7 +1029,7 @@ void ModelViewer::on_sliderLightPosX_valueChanged(int)
 
 void ModelViewer::on_sliderLightPosY_valueChanged(int)
 {
-    _glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
+	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
 		static_cast<float>(sliderLightPosY->value()),
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();
@@ -1042,7 +1037,7 @@ void ModelViewer::on_sliderLightPosY_valueChanged(int)
 
 void ModelViewer::on_sliderLightPosZ_valueChanged(int)
 {
-    _glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
+	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
 		static_cast<float>(sliderLightPosY->value()),
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();

@@ -18,9 +18,9 @@ void GridMesh::render()
 	if (_material.opacity() < 1.0f)
 	{
 		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);        
-        glEnable(GL_LINE_SMOOTH);
-        glEnable(GL_POLYGON_SMOOTH);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_LINE_SMOOTH);
+		glEnable(GL_POLYGON_SMOOTH);
 	}
 	else
 	{
@@ -28,7 +28,7 @@ void GridMesh::render()
 	}
 
 	_vertexArrayObject.bind();
-    glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
 	_prog->release();
 	glDisable(GL_BLEND);

@@ -10,7 +10,7 @@ using glm::mat3;
 using glm::vec4;
 
 Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4& lidTransform) :
-    GridMesh(prog, "Teapot", grid, grid),
+	GridMesh(prog, "Teapot", grid, grid),
 	_size(size)
 {
 	int verts = 32 * (grid + 1) * (grid + 1);
@@ -26,7 +26,7 @@ Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4& lid
 	moveLid(grid, p, lidTransform);
 
 	initBuffers(&el, &p, &n, &tc, &tg, &bt);
-	computeBounds(p);
+	computeBounds();
 }
 
 void Teapot::generatePatches(std::vector<float>& p,
@@ -169,19 +169,19 @@ void Teapot::buildPatch(vec3 patch[][4],
 	{
 		int iStart = i * (grid + 1) + startIndex;
 		int nextiStart = (i + 1) * (grid + 1) + startIndex;
-        for( int j = 0; j < grid; j++)
+		for (int j = 0; j < grid; j++)
 		{
 			el[elIndex] = iStart + j;
-			el[elIndex+1] = nextiStart + j + 1;
-			el[elIndex+2] = nextiStart + j;
+			el[elIndex + 1] = nextiStart + j + 1;
+			el[elIndex + 2] = nextiStart + j;
 
-			el[elIndex+3] = iStart + j;
-			el[elIndex+4] = iStart + j + 1;
-			el[elIndex+5] = nextiStart + j + 1;
+			el[elIndex + 3] = iStart + j;
+			el[elIndex + 4] = iStart + j + 1;
+			el[elIndex + 5] = nextiStart + j + 1;
 
 			elIndex += 6;
-        }
-        /*
+		}
+		/*
 		for (int j = 0; j < grid; j++)
 		{
 			el[elIndex] = iStart + j;
@@ -190,7 +190,7 @@ void Teapot::buildPatch(vec3 patch[][4],
 			el[elIndex + 3] = nextiStart + j;
 
 			elIndex += 4;
-        }*/
+		}*/
 	}
 }
 

@@ -1,4 +1,5 @@
 #include "Cylinder.h"
+#include "Point.h"
 
 #include <cstdio>
 #include <cmath>
@@ -7,7 +8,9 @@
 #include <glm/vec3.hpp>
 #include <glm/glm.hpp>
 
-Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : GridMesh(prog, "Cylinder", nSlices, nStacks)
+Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : GridMesh(prog, "Cylinder", nSlices, nStacks),
+_radius(radius),
+_height(height)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -40,14 +43,13 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 			nx = cosf(theta);
 			ny = sinf(theta);
 			nz = (phi);
-			p[idx] = radius * nx;
-			p[idx + 1] = radius * ny;
-			p[idx + 2] = height * nz - height / 2.0f;
-			glm::vec3 o(0, 0, (nz * height));
+			glm::vec3 o(0, 0, (nz * height) - height / 2.0f);
 			glm::vec3 v((nx * radius), (ny * radius), (nz * height) - height / 2.0f);
-			glm::vec3 normal = o - v;
+			p[idx] = v.x;
+			p[idx + 1] = v.y;
+			p[idx + 2] = v.z;
+			glm::vec3 normal = v - o;
 			normal = glm::normalize(normal);
-			normal = -normal;
 			n[idx] = normal.x;
 			n[idx + 1] = normal.y;
 			n[idx + 2] = normal.z;
@@ -132,21 +134,6 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	// Generate the element list
 	// Body
 	idx = 0;
-	/*for (unsigned int i = 0; i < nSlices; i++)
-	{
-		unsigned int stackStart = i * (nStacks + 1);
-		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
-		for (unsigned int j = 0; j < nStacks; j++)
-		{
-			el[idx + 0] = stackStart + j;
-			el[idx + 1] = stackStart + j + 1;
-			el[idx + 2] = nextStackStart + j + 1;
-			el[idx + 3] = nextStackStart + j;
-			el[idx + 4] = stackStart + j;
-			el[idx + 5] = nextStackStart + j + 1;
-			idx += 6;
-		}
-	}*/
 	for (unsigned int i = 0; i < nSlices; i++)
 	{
 		unsigned int stackStart = i * (nStacks + 1);
@@ -158,8 +145,8 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 			el[idx + 2] = stackStart + j;
 			el[idx + 3] = nextStackStart + j + 1;
 			el[idx + 5] = nextStackStart + j;
-            el[idx + 4] = stackStart + j;
-            idx += 6;
+			el[idx + 4] = stackStart + j;
+			idx += 6;
 		}
 	}
 
@@ -170,8 +157,8 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 		el[idx + 0] = j;
 		el[idx + 1] = ((nSlices + 1) * (nStacks + 1)) + nSlices + 1;
 		el[idx + 2] = j + 1;
-        //el[idx + 3] = j;
-        idx += 3;
+		//el[idx + 3] = j;
+		idx += 3;
 	}
 
 	// Top face
@@ -181,10 +168,31 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 		el[idx + 0] = j;
 		el[idx + 1] = j + 1;
 		el[idx + 2] = (((nSlices + 1) * (nStacks + 1)) + nSlices * 2) + 3;
-        //el[idx + 3] = j;
-        idx += 3;
+		//el[idx + 3] = j;
+		idx += 3;
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-	computeBounds(p);
+	computeBounds();
+}
+
+void Cylinder::computeBounds()
+{
+	QList<float> xVals, yVals, zVals;
+	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	{
+		xVals.push_back(_trsfpoints.at(i));
+		yVals.push_back(_trsfpoints.at(i + 1));
+		zVals.push_back(_trsfpoints.at(i + 2));
+	}
+	std::sort(xVals.begin(), xVals.end(), std::less<float>());
+	std::sort(yVals.begin(), yVals.end(), std::less<float>());
+	std::sort(zVals.begin(), zVals.end(), std::less<float>());
+	_boundingBox.setLimits(xVals.first(), xVals.last(),
+		yVals.first(), yVals.last(),
+		zVals.first(), zVals.last());
+	Point cen = _boundingBox.center();
+
+	_boundingSphere.setCenter(cen.getX(), cen.getY(), cen.getZ());
+	_boundingSphere.setRadius(sqrt(_radius * _radius + _height / 2.0f * _height / 2.0f));
 }
