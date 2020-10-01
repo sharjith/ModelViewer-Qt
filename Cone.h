@@ -9,4 +9,8 @@ public:
 
 protected:
 	void computeBounds();
+
+private:
+	float _radius;
+	float _height;
 };
