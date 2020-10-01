@@ -58,32 +58,7 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 
 	// Generate the element list
 	idx = 0;
-    for( unsigned int i = 0; i < nSlices; i++ ) {
-		unsigned int stackStart = i * (nStacks + 1);
-		unsigned int nextStackStart = (i+1) * (nStacks+1);
-		for( unsigned int j = 0; j < nStacks; j++ ) {
-			if( j == 0 ) {
-				el[idx] = stackStart;
-				el[idx+1] = stackStart + 1;
-				el[idx+2] = nextStackStart + 1;
-				idx += 3;
-			} else if( j == nStacks - 1) {
-				el[idx] = stackStart + j;
-				el[idx+1] = stackStart + j + 1;
-				el[idx+2] = nextStackStart + j;
-				idx += 3;
-			} else {
-				el[idx] = stackStart + j;
-				el[idx+1] = stackStart + j + 1;
-				el[idx+2] = nextStackStart + j + 1;
-				el[idx+3] = nextStackStart + j;
-				el[idx+4] = stackStart + j;
-				el[idx+5] = nextStackStart + j + 1;
-				idx += 6;
-			}
-		}
-    }
-    /*for (unsigned int i = 0; i < nSlices; i++) {
+	for (unsigned int i = 0; i < nSlices; i++) {
 		unsigned int stackStart = i * (nStacks + 1);
 		unsigned int nextStackStart = (i + 1) * (nStacks + 1);
 		for (unsigned int j = 0; j < nStacks; j++) {
@@ -91,27 +66,25 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 				el[idx] = stackStart;
 				el[idx + 1] = stackStart + 1;
 				el[idx + 2] = nextStackStart + 1;
-				el[idx + 3] = stackStart;
-				idx += 4;
+				idx += 3;
 			}
 			else if (j == nStacks - 1) {
 				el[idx] = stackStart + j;
 				el[idx + 1] = stackStart + j + 1;
 				el[idx + 2] = nextStackStart + j;
-				el[idx + 3] = stackStart + j;
-				idx += 4;
+				idx += 3;
 			}
 			else {
 				el[idx] = stackStart + j;
 				el[idx + 1] = stackStart + j + 1;
 				el[idx + 2] = nextStackStart + j + 1;
 				el[idx + 3] = nextStackStart + j;
-				//el[idx + 4] = stackStart + j;
-				//el[idx + 5] = nextStackStart + j + 1;
-				idx += 4;
+				el[idx + 4] = stackStart + j;
+				el[idx + 5] = nextStackStart + j + 1;
+				idx += 6;
 			}
-        }
-    }*/
+		}
+	}
 
 	initBuffers(&el, &p, &n, &tex, &tg, &bt);
 	computeBounds();

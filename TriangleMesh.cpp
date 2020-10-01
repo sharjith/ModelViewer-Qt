@@ -314,8 +314,8 @@ void TriangleMesh::render()
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_LINE_SMOOTH);
-        glEnable(GL_POLYGON_SMOOTH);
+		glEnable(GL_LINE_SMOOTH);
+		glEnable(GL_POLYGON_SMOOTH);
 	}
 	else
 	{
@@ -432,7 +432,7 @@ void TriangleMesh::computeBounds()
 	_boundingBox.setLimits(xVals.first(), xVals.last(),
 		yVals.first(), yVals.last(),
 		zVals.first(), zVals.last());
-	Point cen = _boundingBox.center();	
+	Point cen = _boundingBox.center();
 }
 
 float TriangleMesh::getHighestXValue() const

@@ -83,7 +83,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-    TriangleMesh* loadSTLMesh(QString fileName);
+	TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
@@ -154,7 +154,7 @@ public:
 	void setSpecularLight(const QVector4D& specularLight);
 
 	QVector3D getLightPosition() const;
-    void setLightOffset(const QVector3D& offset);
+	void setLightOffset(const QVector3D& offset);
 
 	bool isShaded() const;
 	void setDisplayMode(DisplayMode mode);
@@ -285,9 +285,9 @@ private:
 	float _clipDY;
 	float _clipDZ;
 
-    bool _clipYZEnabled;
-    bool _clipZXEnabled;
-    bool _clipXYEnabled;
+	bool _clipYZEnabled;
+	bool _clipZXEnabled;
+	bool _clipXYEnabled;
 
 	bool _clipXFlipped;
 	bool _clipYFlipped;
@@ -327,9 +327,9 @@ private:
 
 	QVector3D _lightPosition;
 	QVector3D _prevLightPosition;
-    float _lightOffsetX;
-    float _lightOffsetY;
-    float _lightOffsetZ;
+	float _lightOffsetX;
+	float _lightOffsetY;
+	float _lightOffsetZ;
 
 	QMatrix4x4 _lightSpaceMatrix;
 
@@ -360,12 +360,12 @@ private:
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
 
-	QOpenGLShaderProgram*     _textShader;
+	QOpenGLShaderProgram* _textShader;
 
-	QOpenGLShaderProgram*     _bgShader;
+	QOpenGLShaderProgram* _bgShader;
 	QOpenGLVertexArrayObject _bgVAO;
 
-	QOpenGLShaderProgram*     _bgSplitShader;
+	QOpenGLShaderProgram* _bgSplitShader;
 	QOpenGLVertexArrayObject _bgSplitVAO;
 	QOpenGLBuffer _bgSplitVBO;
 
@@ -417,7 +417,7 @@ private:
 	Cube* _lightCube;
 	bool _showLights;
 
-	QOpenGLShaderProgram*     _debugShader;
+	QOpenGLShaderProgram* _debugShader;
 
 	ModelViewer* _viewer;
 
@@ -427,8 +427,8 @@ private:
 	unsigned long long _displayedObjectsMemSize;
 
 private:
-	bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg, 
-		const QString& fragmentProg, const QString& geometryProg = "", 
+	bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
+		const QString& fragmentProg, const QString& geometryProg = "",
 		const QString& tessControlProg = "", const QString& tessEvalProg = "");
 	void createShaderPrograms();
 	void createLights();

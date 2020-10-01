@@ -115,7 +115,7 @@ void ClippingPlanesEditor::on_doubleSpinBoxDZ_valueChanged(double arg1)
 }
 
 void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
-{	
+{
 	doubleSpinBoxDX->setValue(0);
 	doubleSpinBoxDY->setValue(0);
 	doubleSpinBoxDZ->setValue(0);

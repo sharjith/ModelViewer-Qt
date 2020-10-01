@@ -1356,7 +1356,7 @@ void GLWidget::createShaderPrograms()
 	// Clipped Mesh shader program
 	_clippedMeshShader = new QOpenGLShaderProgram(this);
 	loadCompileAndLinkShaderFromFile(_clippedMeshShader, "shaders/clipped_mesh.vert", "shaders/clipped_mesh.frag");
-	
+
 	// Shadow Depth quad shader program - for debugging
 	_debugShader = new QOpenGLShaderProgram(this);
 	loadCompileAndLinkShaderFromFile(_debugShader, "shaders/debug_quad.vert", "shaders/debug_quad_depth.frag");
