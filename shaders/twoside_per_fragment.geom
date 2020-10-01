@@ -65,6 +65,23 @@ uniform float alpha;
 
 void main()
 {
+    // initialize to remove warning
+    g_edgeDistance = vec3(0);
+    gs_out_shadow.FragPos = vec3(0);
+    gs_out_shadow.Normal = vec3(0);
+    gs_out_shadow.TexCoords = vec2(0);
+    gs_out_shadow.FragPosLightSpace = vec4(0);
+    gs_out_shadow.cameraPos = vec3(0);
+    gs_out_shadow.lightPos = vec3(0);    
+    g_reflectionPosition = vec3(0);
+    g_reflectionNormal = vec3(0);
+    g_tangentLightPos = vec3(0);
+    g_tangentViewPos = vec3(0);
+    g_tangentFragPos = vec3(0);
+    g_tangent = vec3(0);
+    g_bitangent = vec3(0);
+    // end initialization
+
     if(displayMode == 2) // WireShaded
     {
         // Transform each vertex into viewport space
