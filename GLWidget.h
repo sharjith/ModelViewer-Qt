@@ -360,12 +360,12 @@ private:
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
 
-	QOpenGLShaderProgram     _textShader;
+	QOpenGLShaderProgram*     _textShader;
 
-	QOpenGLShaderProgram     _bgShader;
+	QOpenGLShaderProgram*     _bgShader;
 	QOpenGLVertexArrayObject _bgVAO;
 
-	QOpenGLShaderProgram     _bgSplitShader;
+	QOpenGLShaderProgram*     _bgSplitShader;
 	QOpenGLVertexArrayObject _bgSplitVAO;
 	QOpenGLBuffer _bgSplitVBO;
 
@@ -417,7 +417,7 @@ private:
 	Cube* _lightCube;
 	bool _showLights;
 
-	QOpenGLShaderProgram     _debugShader;
+	QOpenGLShaderProgram*     _debugShader;
 
 	ModelViewer* _viewer;
 
@@ -427,6 +427,9 @@ private:
 	unsigned long long _displayedObjectsMemSize;
 
 private:
+	bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg, 
+		const QString& fragmentProg, const QString& geometryProg = "", 
+		const QString& tessControlProg = "", const QString& tessEvalProg = "");
 	void createShaderPrograms();
 	void createLights();
 	void createGeometry();
