@@ -68,6 +68,7 @@ void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 void ClippingPlanesEditor::on_checkBoxCapping_toggled(bool checked)
 {
 	_glView->_cappingEnabled = checked;
+	_glView->showFloor(!checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }

@@ -192,6 +192,7 @@ signals:
 	void displayListSet();
 	void singleSelectionDone(int);
 	void sweepSelectionDone(QList<int>);
+	void floorShown(bool);
 
 public slots:
 	void animateViewChange();
