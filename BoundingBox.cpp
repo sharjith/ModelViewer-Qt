@@ -42,7 +42,7 @@ Point BoundingBox::center() const
 	return P;
 }
 
-double BoundingBox::BoundingRadius() const
+double BoundingBox::boundingRadius() const
 {
 	double rad;
 	Point pMax(xMax(), yMax(), zMax());

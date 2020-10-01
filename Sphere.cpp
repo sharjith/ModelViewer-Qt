@@ -114,5 +114,5 @@ Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
     }*/
 
 	initBuffers(&el, &p, &n, &tex, &tg, &bt);
-	computeBounds(p);
+	computeBounds();
 }

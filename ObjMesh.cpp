@@ -81,7 +81,7 @@ std::unique_ptr<ObjMesh> ObjMesh::load(QOpenGLShaderProgram* prog, const char* f
 		QFileInfo fi(fileName);
 		QString fName = fi.baseName();
 		mesh->setName(fName);
-		mesh->computeBounds(glMesh.points);
+		mesh->computeBounds();
 		return mesh;
 	}
 	catch (const std::exception& ex)

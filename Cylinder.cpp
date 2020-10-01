@@ -1,4 +1,5 @@
 #include "Cylinder.h"
+#include "Point.h"
 
 #include <cstdio>
 #include <cmath>
@@ -185,5 +186,26 @@ Cylinder::Cylinder(QOpenGLShaderProgram* prog, float radius, float height, unsig
 	}
 
 	initBuffers(&el, &p, &n, &tex);
-	computeBounds(p);
+	computeBounds();
+}
+
+void Cylinder::computeBounds()
+{
+	QList<float> xVals, yVals, zVals;
+	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	{
+		xVals.push_back(_trsfpoints.at(i));
+		yVals.push_back(_trsfpoints.at(i + 1));
+		zVals.push_back(_trsfpoints.at(i + 2));
+	}
+	std::sort(xVals.begin(), xVals.end(), std::less<float>());
+	std::sort(yVals.begin(), yVals.end(), std::less<float>());
+	std::sort(zVals.begin(), zVals.end(), std::less<float>());
+	_boundingBox.setLimits(xVals.first(), xVals.last(),
+		yVals.first(), yVals.last(),
+		zVals.first(), zVals.last());
+	Point cen = _boundingBox.center();
+
+	_boundingSphere.setCenter(cen.getX(), cen.getY(), cen.getZ());
+	_boundingSphere.setRadius(_boundingBox.boundingRadius());
 }

@@ -1,6 +1,7 @@
 #include "TriangleMesh.h"
 #include <algorithm>
 #include <iostream>
+#include "Point.h"
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog), _name(name),
 _bHasTexture(false),
@@ -356,13 +357,13 @@ void TriangleMesh::deleteBuffers()
 	}
 }
 
-void TriangleMesh::computeBounds(std::vector<float> points)
+void TriangleMesh::computeBounds()
 {
 	// Ritter's algorithm
 	std::vector<QVector3D> aPoints;
-	for (ulong i = 0; i < points.size(); i += 3)
+	for (ulong i = 0; i < _trsfpoints.size(); i += 3)
 	{
-		aPoints.push_back(QVector3D(points[i], points[i + 1], points[i + 2]));
+		aPoints.push_back(QVector3D(_trsfpoints[i], _trsfpoints[i + 1], _trsfpoints[i + 2]));
 	}
 	QVector3D xmin, xmax, ymin, ymax, zmin, zmax;
 	xmin = ymin = zmin = QVector3D(1, 1, 1) * INFINITY;
@@ -431,6 +432,7 @@ void TriangleMesh::computeBounds(std::vector<float> points)
 	_boundingBox.setLimits(xVals.first(), xVals.last(),
 		yVals.first(), yVals.last(),
 		zVals.first(), zVals.last());
+	Point cen = _boundingBox.center();	
 }
 
 float TriangleMesh::getHighestXValue() const
@@ -521,7 +523,7 @@ void TriangleMesh::resetTransformations()
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-	computeBounds(_points);
+	computeBounds();
 }
 
 std::vector<unsigned int> TriangleMesh::getIndices() const
@@ -629,7 +631,7 @@ void TriangleMesh::setupTransformation()
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
-	computeBounds(_trsfpoints);
+	computeBounds();
 }
 
 void TriangleMesh::setTexureImage(const QImage& texImage)

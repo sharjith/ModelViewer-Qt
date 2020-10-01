@@ -87,5 +87,5 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
     }*/
 
 	initBuffers(&el, &p, &n, &tex);
-	computeBounds(p);
+	computeBounds();
 }

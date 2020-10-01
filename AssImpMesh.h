@@ -216,6 +216,6 @@ private:
 		_bHasTexture = false;
 
 		initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
-		computeBounds(points);
+		computeBounds();
 	}
 };

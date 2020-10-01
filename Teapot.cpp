@@ -26,7 +26,7 @@ Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4& lid
 	moveLid(grid, p, lidTransform);
 
 	initBuffers(&el, &p, &n, &tc, &tg, &bt);
-	computeBounds(p);
+	computeBounds();
 }
 
 void Teapot::generatePatches(std::vector<float>& p,
