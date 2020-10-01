@@ -665,6 +665,7 @@ void GLWidget::showFloor(bool show)
 {
 	_floorDisplayed = show;
 	update();
+	emit floorShown(show);
 }
 
 void GLWidget::setFloorTexture(QImage img)
