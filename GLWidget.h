@@ -271,8 +271,8 @@ private:
 
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
-	QVector3D _rubberBandPan;
-	float _rubberBandZoomRatio;
+	float _rubberBandRadius;
+	QVector3D _rubberBandCenter;
 
 	bool _bMultiView;
 

@@ -79,7 +79,7 @@ _skyBox(nullptr)
 
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
-	_rubberBandZoomRatio = 1.0f;
+	//_rubberBandZoomRatio = 1.0f;
 	_FOV = 45.0f;
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
@@ -459,28 +459,25 @@ void GLWidget::performWindowZoom()
 	_bWindowZoomActive = false;
 	if (_rubberBand)
 	{
-		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-		QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
-		QPoint clientWinCen = clientRect.center();
-		QVector3D o(clientWinCen.x(), clientRect.height() - clientWinCen.y(), Z.z());
-		QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
 		QRect zoomRect = _rubberBand->geometry();
 		if (zoomRect.width() == 0 || zoomRect.height() == 0)
 		{
 			emit windowZoomEnded();
 			return;
 		}
+
+		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+		QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());			
 		QPoint zoomWinCen = zoomRect.center();
 		QVector3D p(zoomWinCen.x(), clientRect.height() - zoomWinCen.y(), Z.z());
 		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+		QPoint zoomWinCorner = zoomRect.bottomRight();
+		QVector3D q(zoomWinCorner.x(), clientRect.height() - zoomWinCorner.y(), Z.z());
+		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-		double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
-		double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
-		_rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
-		_rubberBandPan = P - O;
+		_rubberBandCenter = P;		
+		_rubberBandRadius = P.distanceToPoint(Q);
 	}
 	if (!_animateWindowZoomTimer->isActive())
 	{
@@ -2650,11 +2647,11 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
 	prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
-		(_clipXFlipped ? 1 : -1) * (pos.x() + -_clipXCoeff)));
+		(_clipXFlipped ? 1 : -1) * (pos.x() -_clipXCoeff)));
 	prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
-		(_clipYFlipped ? 1 : -1) * (pos.y() + -_clipYCoeff)));
+		(_clipYFlipped ? 1 : -1) * (pos.y() -_clipYCoeff)));
 	prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
-		(_clipZFlipped ? 1 : -1) * (pos.z() + -_clipZCoeff)));
+		(_clipZFlipped ? 1 : -1) * (pos.z() -_clipZCoeff)));
 	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
@@ -3057,11 +3054,9 @@ void GLWidget::animateWindowZoom()
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
 	float fov = _primaryCamera->getFOV();
-	float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio * fov / 100);
-	QVector3D panRatio = (_rubberBandPan * fov / 100);
-	float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
-	QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;
-	setZoomAndPan(_currentViewRange / zoom, pan);
+	float radius = _rubberBandRadius * 2; 
+	radius = _projection == ViewProjection::PERSPECTIVE ? radius + 2 * fov: radius;
+	setZoomAndPan(radius, -_currentTranslation + _rubberBandCenter);
 	resizeGL(width(), height());
 }
 
