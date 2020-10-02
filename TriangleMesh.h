@@ -139,8 +139,13 @@ public:
 	GLMaterial getMaterial() const;
 	void setMaterial(const GLMaterial& material);
 
+    void setDiffuseTex(unsigned int diffuseTex);
+    void setSpecularTex(unsigned int specularTex);
+    void setNormalTex(unsigned int normalTex);
+    void setHeightTex(unsigned int heightTex);
+
 protected: // methods
-	virtual void initBuffers(
+    virtual void initBuffers(
 		std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
@@ -187,15 +192,22 @@ protected:
 	GLMaterial _material;
 
 	QImage _texImage, _texBuffer;
-	unsigned int _texture;
-	bool _bHasTexture;
-	bool _bHasDiffuseTexture;
-	bool _bHasSpecularTexture;
-	bool _bHasNormalTexture;
-	bool _bHasHeightTexture;
-	unsigned int _sMax;
+    // ADS texture light maps
+    unsigned int _texture;
+    unsigned int _diffuseTex;
+    unsigned int _specularTex;
+    unsigned int _normalTex;
+    unsigned int _heightTex;
+    bool _hasTexture;
+    bool _hasDiffuseTexture;
+    bool _hasSpecularTexture;
+    bool _hasNormalTexture;
+    bool _hasHeightTexture;
+
+    unsigned int _sMax;
 	unsigned int _tMax;
 
+    // PBR texture maps
 	unsigned int _albedoMap;
 	unsigned int _metallicMap;
 	unsigned int _roughnessMap;

@@ -4,11 +4,11 @@
 #include "Point.h"
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog), _name(name),
-_bHasTexture(false),
-_bHasDiffuseTexture(false),
-_bHasSpecularTexture(false),
-_bHasNormalTexture(false),
-_bHasHeightTexture(false),
+_hasTexture(false),
+_hasDiffuseTexture(false),
+_hasSpecularTexture(false),
+_hasNormalTexture(false),
+_hasHeightTexture(false),
 _sMax(1),
 _tMax(1),
 _albedoMap(0),
@@ -283,17 +283,41 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasNormalMap", _hasNormalMap);
 	_prog->setUniformValue("hasAOMap", _hasAOMap);
 	_prog->setUniformValue("hasHeightMap", _hasHeightMap);
-	_prog->setUniformValue("texEnabled", _bHasTexture);
-	_prog->setUniformValue("hasDiffuseTexture", _bHasDiffuseTexture);
-	_prog->setUniformValue("hasSpecularTexture", _bHasSpecularTexture);
-	_prog->setUniformValue("hasNormalTexture", _bHasNormalTexture);
-	_prog->setUniformValue("hasHeightTexture", _bHasHeightTexture);
+    _prog->setUniformValue("texEnabled", _hasTexture);
+    _prog->setUniformValue("hasDiffuseTexture", _hasDiffuseTexture);
+    _prog->setUniformValue("hasSpecularTexture", _hasSpecularTexture);
+    _prog->setUniformValue("hasNormalTexture", _hasNormalTexture);
+    _prog->setUniformValue("hasHeightTexture", _hasHeightTexture);
 	_prog->setUniformValue("selected", _selected);
+}
+
+void TriangleMesh::setHeightTex(unsigned int heightTex)
+{
+    _heightTex = heightTex;
+    _hasHeightTexture = true;
+}
+
+void TriangleMesh::setNormalTex(unsigned int normalTex)
+{
+    _normalTex = normalTex;
+    _hasNormalTexture = true;
+}
+
+void TriangleMesh::setSpecularTex(unsigned int specularTex)
+{
+    _specularTex = specularTex;
+    _hasSpecularTexture = true;
+}
+
+void TriangleMesh::setDiffuseTex(unsigned int diffuseTex)
+{
+    _diffuseTex = diffuseTex;
+    _hasDiffuseTexture = true;
 }
 
 GLMaterial TriangleMesh::getMaterial() const
 {
-	return _material;
+    return _material;
 }
 
 void TriangleMesh::setMaterial(const GLMaterial& material)
@@ -644,12 +668,12 @@ void TriangleMesh::setTexureImage(const QImage& texImage)
 
 bool TriangleMesh::hasTexture() const
 {
-	return _bHasTexture;
+    return _hasTexture;
 }
 
 void TriangleMesh::enableTexture(const bool& bHasTexture)
 {
-	_bHasTexture = bHasTexture;
+    _hasTexture = bHasTexture;
 }
 
 float TriangleMesh::shininess() const
