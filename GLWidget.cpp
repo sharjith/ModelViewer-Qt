@@ -1178,7 +1178,7 @@ void GLWidget::initializeGL()
 	cout << "Shader Version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
 		<< endl;
 
-#ifdef DEBUG
+#ifdef QT_DEBUG
 	int n = 0;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
 	for (int i = 0; i < n; i++)
