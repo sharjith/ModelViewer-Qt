@@ -387,7 +387,7 @@ void ModelViewer::updateDisplayList()
 		listWidgetModel->addItem(item);
 		id++;
 	}
-	float range = _glWidget->getBoundingSphere().getRadius();
+    float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);
 	sliderLightPosX->setSingleStep(range / 100);
 	sliderLightPosY->setRange(-range, range);
