@@ -1379,8 +1379,8 @@ void GLWidget::createGeometry()
 {
 	_meshStore.push_back(new Cube(_fgShader, 100.0f));
 	_meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
-	_meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 50.0f, 2));
-	_meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 50.0f, 2));
+    _meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
+    _meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
 	_meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f, 2, 2));
 	_meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
 	_meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
