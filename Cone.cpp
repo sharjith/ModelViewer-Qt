@@ -57,7 +57,7 @@ _height(height)
 			normal = glm::normalize(normal);
 			if (j == nStacks)
 			{
-				n[idx] = 0.0f; n[idx + 1] = 0.0f; n[idx + 2] = 1.0f;
+                n[idx] = n[idx - 3]; n[idx + 1] = n[idx - 2]; n[idx + 2] = n[idx - 1];
 			}
 			else
 			{

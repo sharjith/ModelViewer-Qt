@@ -1302,7 +1302,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 {
 	TriangleMesh* mesh = nullptr;
 
-	QString supportedExtensions = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
+    QString supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
 		"*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
 		"*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
 		"*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
@@ -1319,7 +1319,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 		"Terragen Terrain ( *.ter );;" "3D GameStudio Model ( *.mdl );;" "3D GameStudio Terrain ( *.hmp );;"
 		"Ogre (*.mesh.xml, *.skeleton.xml, *.material);;" "Milkshape 3D ( *.ms3d );;" "LightWave Model ( *.lwo );;"
 		"LightWave Scene ( *.lws );;" "Modo Model ( *.lxo );;" "CharacterStudio Motion ( *.csm );;"
-		"Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
+        "Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
 
 	QFileDialog fileDialog(this, tr("Open Model File"), _lastOpenedDir, supportedExtensions);
 	fileDialog.setFileMode(QFileDialog::ExistingFile);
@@ -1506,7 +1506,7 @@ void ModelViewer::switchToRealisticRendering()
 	if (toolButtonDisplayMode->defaultAction() != displayRealShaded)
 	{
 		QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
-		displayRealShaded->trigger();
+        displayRealShaded->trigger();
 		toolButtonDisplayMode->setDefaultAction(displayRealShaded);
 	}
 }
