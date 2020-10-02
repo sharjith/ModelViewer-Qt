@@ -72,14 +72,12 @@ _skyBox(nullptr)
 	_viewer = static_cast<ModelViewer*>(parent);
 
 	_bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
-	_bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
-	//_bgBotColor = QColor::fromRgbF(0.925f, 0.925f, 0.925f, 1.0f);
+    _bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
 
 	_quadVAO = 0;
 
 	_viewBoundingSphereDia = 200.0f;
-	_viewRange = _viewBoundingSphereDia;
-	//_rubberBandZoomRatio = 1.0f;
+    _viewRange = _viewBoundingSphereDia;
 	_FOV = 45.0f;
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
@@ -104,8 +102,7 @@ _skyBox(nullptr)
 	_diffuseLight = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_specularLight = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-	_lightPosition = { 25.0f, 25.0f, 50.0f };
-	_prevLightPosition = _lightPosition;
+    _lightPosition = { 25.0f, 25.0f, 50.0f };
 	_lightOffsetX = 0.0f;
 	_lightOffsetY = 0.0f;
 	_lightOffsetZ = 0.0f;
@@ -242,24 +239,9 @@ GLWidget::~GLWidget()
 		delete a;
 	}
 	if (_primaryCamera)	delete _primaryCamera;
-	if (_fgShader)	delete _fgShader;
-	if (_axisShader) delete _axisShader;
-	if (_vertexNormalShader) delete _vertexNormalShader;
-	if (_faceNormalShader) delete _faceNormalShader;
-	if (_shadowMappingShader) delete _shadowMappingShader;
-	if (_skyBoxShader) delete _skyBoxShader;
-	if (_irradianceShader) delete _irradianceShader;
-	if (_prefilterShader) delete _prefilterShader;
-	if (_brdfShader) delete _brdfShader;
-	if (_lightCubeShader) delete _lightCubeShader;
-	if (_clippingPlaneShader) delete _clippingPlaneShader;
-	if (_clippedMeshShader) delete _clippedMeshShader;
+    if(_orthoViewsCamera) delete _orthoViewsCamera;
 
-	if (_textShader) delete _textShader;
-	if (_bgShader) delete _bgShader;
-	if (_bgSplitShader) delete _bgSplitShader;
-
-	if (_debugShader) delete _debugShader;
+    cleanUpShaders();
 
 	_axisVBO.destroy();
 	_axisVAO.destroy();
@@ -268,6 +250,26 @@ GLWidget::~GLWidget()
 	_bgSplitVAO.destroy();
 
 	_bgVAO.destroy();
+}
+
+void GLWidget::cleanUpShaders()
+{
+    if (_fgShader)	delete _fgShader;
+    if (_axisShader) delete _axisShader;
+    if (_vertexNormalShader) delete _vertexNormalShader;
+    if (_faceNormalShader) delete _faceNormalShader;
+    if (_shadowMappingShader) delete _shadowMappingShader;
+    if (_skyBoxShader) delete _skyBoxShader;
+    if (_irradianceShader) delete _irradianceShader;
+    if (_prefilterShader) delete _prefilterShader;
+    if (_brdfShader) delete _brdfShader;
+    if (_lightCubeShader) delete _lightCubeShader;
+    if (_clippingPlaneShader) delete _clippingPlaneShader;
+    if (_clippedMeshShader) delete _clippedMeshShader;
+    if (_textShader) delete _textShader;
+    if (_bgShader) delete _bgShader;
+    if (_bgSplitShader) delete _bgSplitShader;
+    if (_debugShader) delete _debugShader;
 }
 
 void GLWidget::updateView()
@@ -391,7 +393,6 @@ QVector3D GLWidget::getLightPosition() const
 
 void GLWidget::setLightOffset(const QVector3D& offset)
 {
-	//_lightPosition = _prevLightPosition + lightPosition;
 	_lightOffsetX = offset.x();
 	_lightOffsetY = offset.y();
 	_lightOffsetZ = offset.z();
@@ -601,8 +602,7 @@ void GLWidget::updateFloorPlane()
 	_lightCube->setSize(_boundingSphere.getRadius() * 0.05f);
 	_lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
 	_lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
-	_lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
-	_prevLightPosition = _lightPosition;
+    _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 	updateClippingPlane();
 }
@@ -1178,7 +1178,7 @@ void GLWidget::initializeGL()
 	cout << "Shader Version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
 		<< endl;
 
-#ifdef DEBUG
+#ifdef QT_DEBUG
 	int n = 0;
 	glGetIntegerv(GL_NUM_EXTENSIONS, &n);
 	for (int i = 0; i < n; i++)
@@ -1266,7 +1266,7 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 		success = prog->addShaderFromSourceFile(QOpenGLShader::TessellationControl, tessControlProg);
 		if (!success)
 		{
-			qDebug() << "Error in tessellation  control shader:" << prog->log();
+            qDebug() << "Error in tessellation  control shader:" << prog->objectName() << prog->log();
 		}
 	}
 	if (tessEvalProg != "")
@@ -1274,7 +1274,7 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 		success = prog->addShaderFromSourceFile(QOpenGLShader::TessellationEvaluation, tessEvalProg);
 		if (!success)
 		{
-			qDebug() << "Error in tessellation  evaluation shader:" << prog->log();
+            qDebug() << "Error in tessellation  evaluation shader:" << prog->objectName() << prog->log();
 		}
 	}
 	if (geometryProg != "")
@@ -1282,20 +1282,20 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 		success = prog->addShaderFromSourceFile(QOpenGLShader::Geometry, geometryProg);
 		if (!success)
 		{
-			qDebug() << "Error in geometry shader:" << prog->log();
+            qDebug() << "Error in geometry shader:" << prog->objectName() << prog->log();
 		}
 	}
 	success = prog->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentProg);
 	if (!success)
 	{
-		qDebug() << "Error in fragment shader:" << prog->log();
+        qDebug() << "Error in fragment shader:" << prog->objectName() << prog->log();
 	}
 	if (success)
 	{
 		success = prog->link();
 		if (!success)
 		{
-			qDebug() << "Error linking shader program:" << prog->log();
+            qDebug() << "Error linking shader program:" << prog->objectName() << prog->log();
 		}
 	}
 
@@ -1306,57 +1306,57 @@ void GLWidget::createShaderPrograms()
 {
 	// Foreground objects shader program
 	// Per fragment lighting
-	_fgShader = new QOpenGLShaderProgram(this);
+    _fgShader = new QOpenGLShaderProgram(this); _fgShader->setObjectName("_fgShader");
 	loadCompileAndLinkShaderFromFile(_fgShader, "shaders/twoside_per_fragment.vert",
 		"shaders/twoside_per_fragment.frag", "shaders/twoside_per_fragment.geom");
 	// Axis
-	_axisShader = new QOpenGLShaderProgram(this);
+    _axisShader = new QOpenGLShaderProgram(this); _axisShader->setObjectName("_axisShader");
 	loadCompileAndLinkShaderFromFile(_axisShader, "shaders/axis.vert", "shaders/axis.frag");
 	// Vertex Normal
-	_vertexNormalShader = new QOpenGLShaderProgram(this);
+    _vertexNormalShader = new QOpenGLShaderProgram(this); _vertexNormalShader->setObjectName("_vertexNormalShader");
 	loadCompileAndLinkShaderFromFile(_vertexNormalShader, "shaders/vertex_normal.vert",
 		"shaders/vertex_normal.frag", "shaders/vertex_normal.geom");
 	// Face Normal
-	_faceNormalShader = new QOpenGLShaderProgram(this);
+    _faceNormalShader = new QOpenGLShaderProgram(this); _faceNormalShader->setObjectName("_faceNormalShader");
 	loadCompileAndLinkShaderFromFile(_faceNormalShader, "shaders/face_normal.vert",
 		"shaders/face_normal.frag", "shaders/face_normal.geom");
 	// Shadow mapping
-	_shadowMappingShader = new QOpenGLShaderProgram(this);
+    _shadowMappingShader = new QOpenGLShaderProgram(this); _shadowMappingShader->setObjectName("_shadowMappingShader");
 	loadCompileAndLinkShaderFromFile(_shadowMappingShader, "shaders/shadow_mapping_depth.vert",
 		"shaders/shadow_mapping_depth.frag");
 	// Sky Box
-	_skyBoxShader = new QOpenGLShaderProgram(this);
+    _skyBoxShader = new QOpenGLShaderProgram(this); _skyBoxShader->setObjectName("_skyBoxShader");
 	loadCompileAndLinkShaderFromFile(_skyBoxShader, "shaders/skybox.vert", "shaders/skybox.frag");
 	// Irradiance Map
-	_irradianceShader = new QOpenGLShaderProgram(this);
+    _irradianceShader = new QOpenGLShaderProgram(this); _irradianceShader->setObjectName("_irradianceShader");
 	loadCompileAndLinkShaderFromFile(_irradianceShader, "shaders/skybox.vert", "shaders/irradiance_convolution.frag");
 	// Prefilter Map
-	_prefilterShader = new QOpenGLShaderProgram(this);
+    _prefilterShader = new QOpenGLShaderProgram(this); _prefilterShader->setObjectName("_prefilterShader");
 	loadCompileAndLinkShaderFromFile(_prefilterShader, "shaders/skybox.vert", "shaders/prefilter.frag");
 	// BRDF LUT Map
-	_brdfShader = new QOpenGLShaderProgram(this);
+    _brdfShader = new QOpenGLShaderProgram(this); _brdfShader->setObjectName("_brdfShader");
 	loadCompileAndLinkShaderFromFile(_brdfShader, "shaders/brdf.vert", "shaders/brdf.frag");
 	// Text shader program
-	_textShader = new QOpenGLShaderProgram(this);
+    _textShader = new QOpenGLShaderProgram(this); _textShader->setObjectName("_textShader");
 	loadCompileAndLinkShaderFromFile(_textShader, "shaders/text.vert", "shaders/text.frag");
 	// Background gradient shader program
-	_bgShader = new QOpenGLShaderProgram(this);
+    _bgShader = new QOpenGLShaderProgram(this); _bgShader->setObjectName("_bgShader");
 	loadCompileAndLinkShaderFromFile(_bgShader, "shaders/background.vert", "shaders/background.frag");
 	// Background split shader program
-	_bgSplitShader = new QOpenGLShaderProgram(this);
+    _bgSplitShader = new QOpenGLShaderProgram(this); _bgSplitShader->setObjectName("_bgSplitShader");
 	loadCompileAndLinkShaderFromFile(_bgSplitShader, "shaders/splitScreen.vert", "shaders/splitScreen.frag");
 	// Light Cube shader program
-	_lightCubeShader = new QOpenGLShaderProgram(this);
+    _lightCubeShader = new QOpenGLShaderProgram(this); _lightCubeShader->setObjectName("_lightCubeShader");
 	loadCompileAndLinkShaderFromFile(_lightCubeShader, "shaders/light_cube.vert", "shaders/light_cube.frag");
 	// Clipping Plane shader program
-	_clippingPlaneShader = new QOpenGLShaderProgram(this);
+    _clippingPlaneShader = new QOpenGLShaderProgram(this); _clippingPlaneShader->setObjectName("_clippingPlaneShader");
 	loadCompileAndLinkShaderFromFile(_clippingPlaneShader, "shaders/clipping_plane.vert", "shaders/clipping_plane.frag");
 	// Clipped Mesh shader program
-	_clippedMeshShader = new QOpenGLShaderProgram(this);
+    _clippedMeshShader = new QOpenGLShaderProgram(this); _clippedMeshShader->setObjectName("_clippedMeshShader");
 	loadCompileAndLinkShaderFromFile(_clippedMeshShader, "shaders/clipped_mesh.vert", "shaders/clipped_mesh.frag");
 
 	// Shadow Depth quad shader program - for debugging
-	_debugShader = new QOpenGLShaderProgram(this);
+    _debugShader = new QOpenGLShaderProgram(this); _debugShader->setObjectName("_debugShader");
 	loadCompileAndLinkShaderFromFile(_debugShader, "shaders/debug_quad.vert", "shaders/debug_quad_depth.frag");
 }
 
@@ -1379,8 +1379,8 @@ void GLWidget::createGeometry()
 {
 	_meshStore.push_back(new Cube(_fgShader, 100.0f));
 	_meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
-	_meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 50.0f, 2));
-	_meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 50.0f, 2));
+    _meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
+    _meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
 	_meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f, 2, 2));
 	_meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
 	_meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));

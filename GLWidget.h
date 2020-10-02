@@ -184,6 +184,8 @@ public:
 
 	bool areLightsShown() const;
 
+        void cleanUpShaders();
+        
 signals:
 	void windowZoomEnded();
 	void rotationsSet();
@@ -326,8 +328,7 @@ private:
 	QVector4D _diffuseLight;
 	QVector4D _specularLight;
 
-	QVector3D _lightPosition;
-	QVector3D _prevLightPosition;
+    QVector3D _lightPosition;
 	float _lightOffsetX;
 	float _lightOffsetY;
 	float _lightOffsetZ;
