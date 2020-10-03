@@ -276,40 +276,43 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
 
-    vec3 ambient    = source.ambient;
-    if(hasDiffuseTexture)
-    {
-        ambient = source.ambient * texture2D(texture_diffuse, clippedTexCoord).rgb;
-    }    
-    vec3 diffuse    = source.diffuse * nDotVP;
-    if(hasDiffuseTexture)
-    {
-        diffuse = source.diffuse * texture2D(texture_diffuse, clippedTexCoord).rgb;
-    }
-    vec3 specular   = source.specular * pf;
-    if(hasSpecularTexture)
-    {
-        specular = source.specular * texture2D(texture_specular, clippedTexCoord).rgb;
-    }
+    vec3 ambient    = source.ambient;        
+    vec3 diffuse    = source.diffuse * nDotVP;    
+    vec3 specular   = source.specular * pf;    
 
     vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
    
     vec4 colorLinear;      
     
+    vec3 matAmbient = mat.ambient;
+    if(hasDiffuseTexture)
+    {
+        matAmbient = texture2D(texture_diffuse, clippedTexCoord).rgb;
+    }
+    vec3 matDiffuse = mat.diffuse;
+    if(hasDiffuseTexture)
+    {
+        matDiffuse = nDotVP * texture2D(texture_diffuse, clippedTexCoord).rgb;
+    }
+    vec3 matSpecular = mat.specular;
+    if(hasSpecularTexture)
+    {
+        matSpecular = pf * texture2D(texture_specular, clippedTexCoord).rgb;
+    }
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {
         float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
         colorLinear =  vec4(clamp(sceneColor +
-                             (ambient  * mat.ambient + 1 - shadowFactor) *
-                             (diffuse  * mat.diffuse +
-                              specular * mat.specular), 0.f, 1.f ), alpha);
+                             (ambient  * matAmbient + 1 - shadowFactor) *
+                             (diffuse  * matDiffuse +
+                              specular * matSpecular), 0.f, 1.f ), alpha);
     }
     else
     {
         colorLinear =  vec4(clamp(sceneColor +
-                             ambient  * mat.ambient +
-                             diffuse  * mat.diffuse +
-                             specular * mat.specular, 0.f, 1.f ), alpha);
+                             ambient  * matAmbient +
+                             diffuse  * matDiffuse +
+                             specular * matSpecular, 0.f, 1.f ), alpha);
     }
 
     // HDR tonemapping
