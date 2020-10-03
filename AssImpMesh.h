@@ -73,7 +73,7 @@ public:
 
 		for (unsigned int i = 0; i < _textures.size(); i++)
 		{
-			glActiveTexture(GL_TEXTURE0 + i); // Active proper texture unit before binding
+            glActiveTexture(GL_TEXTURE10 + i); // Active proper texture unit before binding
 			// Retrieve texture number (the N in diffuse_textureN)
 			stringstream ss;
 			string number;
