@@ -938,6 +938,22 @@ void GLWidget::clearADSHeightTexMap(const std::vector<int>& ids)
     }
 }
 
+void GLWidget::clearADSTexMaps(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearADSTextures();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSTexMaps\n" << ex.what() << std::endl;
+		}
+	}
+}
+
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
 {
 	for (int id : ids)

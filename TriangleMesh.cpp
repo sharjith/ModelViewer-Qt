@@ -380,6 +380,19 @@ void TriangleMesh::clearHeightTex()
     _heightTex = 0;
 }
 
+void TriangleMesh::clearADSTextures()
+{
+	glDeleteTextures(1, &_diffuseTex);
+	_diffuseTex = 0;
+	glDeleteTextures(1, &_specularTex);
+	_specularTex = 0;
+	glDeleteTextures(1, &_normalTex);
+	_normalTex = 0;
+	glDeleteTextures(1, &_heightTex);
+	_heightTex = 0;
+}
+
+
 GLMaterial TriangleMesh::getMaterial() const
 {
     return _material;

@@ -194,6 +194,9 @@ private slots:
 
     void on_toolButtonClearHeightTex_clicked();
 
+	void on_pushButtonApplyADSTexture_clicked();
+	void on_pushButtonClearADSTextures_clicked();
+
 protected:
 	void showEvent(QShowEvent* event);
 

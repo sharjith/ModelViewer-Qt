@@ -153,6 +153,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(sliderTransparencyPBR, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
 	connect(pushButtonDefaultMatlsPBR, SIGNAL(clicked()), this, SLOT(on_pushButtonDefaultMatls_clicked()));
 
+	_hasADSDiffuseTex = false;
+	_hasADSSpecularTex = false;
+	_hasADSNormalTex = false;
+	_hasADSHeightTex = false;
 	_hasAlbedoTex = false;
 	_hasMetallicTex = false;
 	_hasRoughnessTex = false;
@@ -1915,17 +1919,17 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
 void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
 {
 	bool allOK = true;
-	if (_albedoTexture == "")
+	if (!_hasAlbedoTex || (_hasAlbedoTex && _albedoTexture == ""))
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Albedo map texture not set");
 		allOK = false;
 	}
-	else if (_metallicTexture == "")
+	else if (!_hasMetallicTex || (_hasMetallicTex && _metallicTexture == ""))
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Metallic map texture not set");
 		allOK = false;
 	}
-	else if (_roughnessTexture == "")
+	else if (!_hasRoughnessTex || (_hasRoughnessTex && _roughnessTexture == ""))
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Roughness map texture not set");
 		allOK = false;
@@ -2327,4 +2331,73 @@ void ModelViewer::on_toolButtonClearHeightTex_clicked()
         _glWidget->updateView();
         QApplication::restoreOverrideCursor();
     }
+}
+
+void ModelViewer::on_pushButtonApplyADSTexture_clicked()
+{
+	bool allOK = true;
+	if (!_hasADSDiffuseTex || (_hasADSDiffuseTex && _diffuseADSTexture == ""))
+	{
+		QMessageBox::critical(this, "ADS Texture Missing", "Diffuse map texture not set");
+		allOK = false;
+	}
+	else if (_hasADSSpecularTex && _specularADSTexture == "")
+	{
+		QMessageBox::critical(this, "ADS Texture Missing", "Specular map texture not set");
+		allOK = false;
+	}	
+	else if (_hasADSNormalTex && _normalADSTexture == "")
+	{
+		QMessageBox::critical(this, "ADS Texture Missing", "Normal map texture not set");
+		allOK = false;
+	}
+	else if (_hasADSHeightTex && _heightADSTexture == "")
+	{
+		QMessageBox::critical(this, "ADS Texture Missing", "Height map texture not set");
+		allOK = false;
+	}
+	
+	if (allOK)
+	{
+		if (checkForActiveSelection())
+		{
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+
+			std::vector<int> ids = getSelectedIDs();
+			_glWidget->enableADSDiffuseTexMap(ids, _hasADSDiffuseTex);
+			if (_hasADSDiffuseTex)
+			{
+				_glWidget->setADSDiffuseTexMap(ids, _diffuseADSTexture);
+			}
+			_glWidget->enableADSSpecularTexMap(ids, _hasADSSpecularTex);
+			if (_hasADSSpecularTex)
+			{
+				_glWidget->setADSSpecularTexMap(ids, _specularADSTexture);
+			}
+			_glWidget->enableADSNormalTexMap(ids, _hasADSNormalTex);
+			if (_hasADSNormalTex)
+			{
+				_glWidget->setADSNormalTexMap(ids, _normalADSTexture);
+			}			
+			_glWidget->enableADSHeightTexMap(ids, _hasADSHeightTex);
+			if (_hasADSHeightTex)
+			{
+				_glWidget->setADSHeightTexMap(ids, _heightADSTexture);			
+			}
+			_glWidget->updateView();
+			QApplication::restoreOverrideCursor();
+		}
+	}
+}
+
+void ModelViewer::on_pushButtonClearADSTextures_clicked()
+{
+	if (checkForActiveSelection())
+	{
+		std::vector<int> ids = getSelectedIDs();
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		_glWidget->clearADSTexMaps(ids);
+		_glWidget->updateView();
+		QApplication::restoreOverrideCursor();
+	}
 }

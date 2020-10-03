@@ -152,6 +152,7 @@ public:
     void clearSpecularTex();
     void clearNormalTex();
     void clearHeightTex();
+	void clearADSTextures();
 
 protected: // methods
     virtual void initBuffers(
