@@ -128,7 +128,7 @@ public:
 		// Always good practice to set everything back to defaults once configured.
 		for (unsigned int i = 0; i < _textures.size(); i++)
 		{
-			glActiveTexture(GL_TEXTURE0 + i);
+			glActiveTexture(GL_TEXTURE10 + i);
 			glBindTexture(GL_TEXTURE_2D, 0);
 		}
 	}
