@@ -252,25 +252,36 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     /*if(hasHeightTexture)
     {
         // offset texture coordinates with Parallax Mapping
-        vec3 viewDir = normalize(g_tangentViewPos);
+        if(lockLightAndCamera)
+            viewDir = normalize(g_tangentViewPos);
+        else
+            viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
         clippedTexCoord = parallaxMapping(g_texCoord2d,  viewDir, texture_height);
-        //clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
-        //if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
-            //  discard;
+        clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+        if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
+              discard;
         // obtain normal from normal map
-        //N = texture(normalMap, clippedTexCoord).rgb * side;
-        //V = normalize(g_tangentLightPos - g_tangentFragPos);
-        //L = normalize(g_tangentLightPos - g_tangentFragPos);
+        normal = texture(texture_normal, clippedTexCoord).rgb;   
+        if(lockLightAndCamera)
+            lightDir = normalize(g_tangentLightPos);
+        else
+            lightDir = normalize(g_tangentLightPos - g_tangentFragPos);
     }*/
     if(hasHeightTexture)
     {
-        viewDir = normalize(g_tangentViewPos);
+        if(lockLightAndCamera)
+            viewDir = normalize(g_tangentLightPos);
+        else
+            viewDir = normalize(g_tangentLightPos + g_tangentViewPos);
         float height = texture(texture_height, g_texCoord2d).r;
         height = height * 0.04f + (-0.03f);//scale + bias;
         clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
-        lightDir = normalize(g_tangentLightPos);
+        if(lockLightAndCamera)
+            lightDir = normalize(g_tangentLightPos);
+        else
+            lightDir = normalize(g_tangentLightPos + g_tangentViewPos);
     }
-      
+    
     vec3 halfVector = normalize(lightDir + viewDir); // light half vector     
     float nDotVP    = dot(normal, normalize(lightDir + viewDir));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
@@ -406,17 +417,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             // offset texture coordinates with Parallax Mapping
             vec3 viewDir = normalize(g_tangentViewPos);
             clippedTexCoord = parallaxMapping(g_texCoord2d,  viewDir, heightMap);
-            //clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
-            //if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
-              //  discard;
+            clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+            if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
+                discard;
             // obtain normal from normal map
-            //N = texture(normalMap, clippedTexCoord).rgb * side;
-            //V = normalize(g_tangentLightPos - g_tangentFragPos);
-            //L = normalize(g_tangentLightPos - g_tangentFragPos);
+            N = texture(normalMap, clippedTexCoord).rgb * side;
+            V = normalize(g_tangentLightPos);
+            L = normalize(g_tangentLightPos);
         }*/
         if(hasHeightMap)
         {
-            vec3 viewDir = normalize(g_tangentViewPos);
+            vec3 viewDir = normalize(g_tangentLightPos);
             float height = texture(heightMap, g_texCoord2d).r;
             height = height * heightScale + (-0.03f);//scale + bias;
             clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
