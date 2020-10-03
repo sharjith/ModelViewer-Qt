@@ -86,31 +86,47 @@ public:
 	TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
+    void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
+    void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
+    void clearADSDiffuseTexMap(const std::vector<int>& ids);
+
+    void enableADSSpecularTexMap(const std::vector<int>& ids, const bool& enable);
+    void setADSSpecularTexMap(const std::vector<int>& ids, const QString& path);
+    void clearADSSpecularTexMap(const std::vector<int>& ids);
+
+    void enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable);
+    void setADSNormalTexMap(const std::vector<int>& ids, const QString& path);
+    void clearADSNormalTexMap(const std::vector<int>& ids);
+
+    void enableADSHeightTexMap(const std::vector<int>& ids, const bool& enable);
+    void setADSHeightTexMap(const std::vector<int>& ids, const QString& path);
+    void clearADSHeightTexMap(const std::vector<int>& ids);
+
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
 	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
 	void setPBRMetallic(const std::vector<int>& ids, const float& val);
 	void setPBRRoughness(const std::vector<int>& ids, const float& val);
 
-	void clearPBRTextures(const std::vector<int>& ids);
-	void enableAlbedoTexture(const std::vector<int>& ids, const bool& enable);
-	void setAlbedoTexture(const std::vector<int>& ids, const QString& path);
-	void clearAlbedoTexture(const std::vector<int>& ids);
-	void enableMetallicTexture(const std::vector<int>& ids, const bool& enable);
-	void setMetallicTexture(const std::vector<int>& ids, const QString& path);
-	void clearMetallicTexture(const std::vector<int>& ids);
-	void enableRoughnessTexture(const std::vector<int>& ids, const bool& enable);
-	void setRoughnessTexture(const std::vector<int>& ids, const QString& path);
-	void clearRoughnessTexture(const std::vector<int>& ids);
-	void enableNormalTexture(const std::vector<int>& ids, const bool& enable);
-	void setNormalTexture(const std::vector<int>& ids, const QString& path);
-	void clearNormalTexture(const std::vector<int>& ids);
-	void enableAOTexture(const std::vector<int>& ids, const bool& enable);
-	void setAOTexture(const std::vector<int>& ids, const QString& path);
-	void clearAOTexture(const std::vector<int>& ids);
-	void enableHeightTexture(const std::vector<int>& ids, const bool& enable);
-	void setHeightTexture(const std::vector<int>& ids, const QString& path);
-	void clearHeightTexture(const std::vector<int>& ids);
-	void setHeightScale(const std::vector<int>& ids, const float& scale);
+    void clearPBRTexMaps(const std::vector<int>& ids);
+    void enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& path);
+    void clearPBRAlbedoTexMap(const std::vector<int>& ids);
+    void enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBRMetallicTexMap(const std::vector<int>& ids, const QString& path);
+    void clearPBRMetallicTexMap(const std::vector<int>& ids);
+    void enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBRRoughnessTexMap(const std::vector<int>& ids, const QString& path);
+    void clearPBRRoughnessTexMap(const std::vector<int>& ids);
+    void enablePBRNormalTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBRNormalTexMap(const std::vector<int>& ids, const QString& path);
+    void clearPBRNormalTexMap(const std::vector<int>& ids);
+    void enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBRAOTexMap(const std::vector<int>& ids, const QString& path);
+    void clearPBRAOTexMap(const std::vector<int>& ids);
+    void enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBRHeightTexMap(const std::vector<int>& ids, const QString& path);
+    void clearPBRHeightTexMap(const std::vector<int>& ids);
+    void setPBRHeightScale(const std::vector<int>& ids, const float& scale);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);

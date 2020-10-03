@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>580</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1375,7 +1375,7 @@
                   <item row="3" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_19">
                     <item>
-                     <widget class="QCheckBox" name="checkBox">
+                     <widget class="QCheckBox" name="checkBoxDiffuseTex">
                       <property name="text">
                        <string>Diffuse Light Map</string>
                       </property>
@@ -1454,7 +1454,7 @@
                   <item row="4" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_20">
                     <item>
-                     <widget class="QCheckBox" name="checkBox_2">
+                     <widget class="QCheckBox" name="checkBoxSpecularTex">
                       <property name="text">
                        <string>Specular Light Map</string>
                       </property>
@@ -1533,7 +1533,7 @@
                   <item row="5" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_21">
                     <item>
-                     <widget class="QCheckBox" name="checkBox_3">
+                     <widget class="QCheckBox" name="checkBoxNormalTex">
                       <property name="text">
                        <string>Normal Map</string>
                       </property>
@@ -1612,7 +1612,7 @@
                   <item row="6" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_22">
                     <item>
-                     <widget class="QCheckBox" name="checkBox_4">
+                     <widget class="QCheckBox" name="checkBoxHeightTex">
                       <property name="text">
                        <string>Height Map</string>
                       </property>
@@ -1772,8 +1772,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>580</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1926,8 +1926,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>580</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2484,8 +2484,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>580</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3344,8 +3344,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
-                   <height>575</height>
+                   <width>376</width>
+                   <height>580</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3701,8 +3701,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>558</height>
+                   <width>437</width>
+                   <height>567</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4573,7 +4573,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox</sender>
+   <sender>checkBoxDiffuseTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>pushButtonDiffuseTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4589,7 +4589,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox</sender>
+   <sender>checkBoxDiffuseTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>labelDiffuseTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4605,7 +4605,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox</sender>
+   <sender>checkBoxDiffuseTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>toolButtonClearDiffuseTex</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4621,7 +4621,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_2</sender>
+   <sender>checkBoxSpecularTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>pushButtonSpecularTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4637,7 +4637,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_2</sender>
+   <sender>checkBoxSpecularTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>labelSpecularTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4653,7 +4653,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_2</sender>
+   <sender>checkBoxSpecularTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>toolButtonClearSpecularTex</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4669,7 +4669,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_3</sender>
+   <sender>checkBoxNormalTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>pushButtonNormalTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4685,7 +4685,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_3</sender>
+   <sender>checkBoxNormalTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>labelNormalTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4701,7 +4701,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_3</sender>
+   <sender>checkBoxNormalTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>toolButtonClearNormalTex</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4717,7 +4717,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_4</sender>
+   <sender>checkBoxHeightTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>pushButtonHeightTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4733,7 +4733,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_4</sender>
+   <sender>checkBoxHeightTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>labelHeightTexture</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4749,7 +4749,7 @@
    </hints>
   </connection>
   <connection>
-   <sender>checkBox_4</sender>
+   <sender>checkBoxHeightTex</sender>
    <signal>toggled(bool)</signal>
    <receiver>toolButtonClearHeightTex</receiver>
    <slot>setEnabled(bool)</slot>
@@ -4770,7 +4770,7 @@
  </slots>
  <buttongroups>
   <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

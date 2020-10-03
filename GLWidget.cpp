@@ -742,6 +742,202 @@ TriangleMesh* GLWidget::loadAssImpMesh(QString fileName)
 	return model;
 }
 
+void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableDiffuseTex(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableADSDiffuseTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path)
+{
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setDiffuseTex(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setADSDiffuseTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearADSDiffuseTexMap(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearDiffuseTex();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearADSDiffuseTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableADSSpecularTexMap(const std::vector<int>& ids, const bool& enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableSpecularTex(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableADSSpecularTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setADSSpecularTexMap(const std::vector<int>& ids, const QString& path)
+{
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setSpecularTex(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setADSSpecularTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearADSSpecularTexMap(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearSpecularTex();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearADSSpecularTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableNormalTex(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableADSNormalTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setADSNormalTexMap(const std::vector<int>& ids, const QString& path)
+{
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setNormalTex(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setADSNormalTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearADSNormalTexMap(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearNormalTex();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearADSNormalTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableADSHeightTexMap(const std::vector<int>& ids, const bool& enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableHeightTex(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableADSHeightTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setADSHeightTexMap(const std::vector<int>& ids, const QString& path)
+{
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setHeightTex(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setADSHeightTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearADSHeightTexMap(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearHeightTex();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearADSHeightTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
 {
 	for (int id : ids)
@@ -806,7 +1002,7 @@ void GLWidget::setPBRRoughness(const std::vector<int>& ids, const float& val)
 	}
 }
 
-void GLWidget::clearPBRTextures(const std::vector<int>& ids)
+void GLWidget::clearPBRTexMaps(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -822,7 +1018,7 @@ void GLWidget::clearPBRTextures(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::enableAlbedoTexture(const std::vector<int>& ids, const bool& enable)
+void GLWidget::enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)
 	{
@@ -838,7 +1034,7 @@ void GLWidget::enableAlbedoTexture(const std::vector<int>& ids, const bool& enab
 	}
 }
 
-void GLWidget::setAlbedoTexture(const std::vector<int>& ids, const QString& path)
+void GLWidget::setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
 	for (int id : ids)
@@ -855,7 +1051,7 @@ void GLWidget::setAlbedoTexture(const std::vector<int>& ids, const QString& path
 	}
 }
 
-void GLWidget::clearAlbedoTexture(const std::vector<int>& ids)
+void GLWidget::clearPBRAlbedoTexMap(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -871,7 +1067,7 @@ void GLWidget::clearAlbedoTexture(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::enableMetallicTexture(const std::vector<int>& ids, const bool& enable)
+void GLWidget::enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)
 	{
@@ -887,7 +1083,7 @@ void GLWidget::enableMetallicTexture(const std::vector<int>& ids, const bool& en
 	}
 }
 
-void GLWidget::setMetallicTexture(const std::vector<int>& ids, const QString& path)
+void GLWidget::setPBRMetallicTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
 	for (int id : ids)
@@ -904,7 +1100,7 @@ void GLWidget::setMetallicTexture(const std::vector<int>& ids, const QString& pa
 	}
 }
 
-void GLWidget::clearMetallicTexture(const std::vector<int>& ids)
+void GLWidget::clearPBRMetallicTexMap(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -920,7 +1116,7 @@ void GLWidget::clearMetallicTexture(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::enableRoughnessTexture(const std::vector<int>& ids, const bool& enable)
+void GLWidget::enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)
 	{
@@ -936,7 +1132,7 @@ void GLWidget::enableRoughnessTexture(const std::vector<int>& ids, const bool& e
 	}
 }
 
-void GLWidget::setRoughnessTexture(const std::vector<int>& ids, const QString& path)
+void GLWidget::setPBRRoughnessTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
 	for (int id : ids)
@@ -953,7 +1149,7 @@ void GLWidget::setRoughnessTexture(const std::vector<int>& ids, const QString& p
 	}
 }
 
-void GLWidget::clearRoughnessTexture(const std::vector<int>& ids)
+void GLWidget::clearPBRRoughnessTexMap(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -969,7 +1165,7 @@ void GLWidget::clearRoughnessTexture(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::enableNormalTexture(const std::vector<int>& ids, const bool& enable)
+void GLWidget::enablePBRNormalTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)
 	{
@@ -985,7 +1181,7 @@ void GLWidget::enableNormalTexture(const std::vector<int>& ids, const bool& enab
 	}
 }
 
-void GLWidget::setNormalTexture(const std::vector<int>& ids, const QString& path)
+void GLWidget::setPBRNormalTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
 	for (int id : ids)
@@ -1002,7 +1198,7 @@ void GLWidget::setNormalTexture(const std::vector<int>& ids, const QString& path
 	}
 }
 
-void GLWidget::clearNormalTexture(const std::vector<int>& ids)
+void GLWidget::clearPBRNormalTexMap(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -1018,7 +1214,7 @@ void GLWidget::clearNormalTexture(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool& enable)
+void GLWidget::enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)
 	{
@@ -1034,7 +1230,7 @@ void GLWidget::enableAOTexture(const std::vector<int>& ids, const bool& enable)
 	}
 }
 
-void GLWidget::setAOTexture(const std::vector<int>& ids, const QString& path)
+void GLWidget::setPBRAOTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
 	for (int id : ids)
@@ -1051,7 +1247,7 @@ void GLWidget::setAOTexture(const std::vector<int>& ids, const QString& path)
 	}
 }
 
-void GLWidget::clearAOTexture(const std::vector<int>& ids)
+void GLWidget::clearPBRAOTexMap(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -1067,7 +1263,7 @@ void GLWidget::clearAOTexture(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool& enable)
+void GLWidget::enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)
 	{
@@ -1083,7 +1279,7 @@ void GLWidget::enableHeightTexture(const std::vector<int>& ids, const bool& enab
 	}
 }
 
-void GLWidget::setHeightTexture(const std::vector<int>& ids, const QString& path)
+void GLWidget::setPBRHeightTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
 	for (int id : ids)
@@ -1100,7 +1296,7 @@ void GLWidget::setHeightTexture(const std::vector<int>& ids, const QString& path
 	}
 }
 
-void GLWidget::clearHeightTexture(const std::vector<int>& ids)
+void GLWidget::clearPBRHeightTexMap(const std::vector<int>& ids)
 {
 	for (int id : ids)
 	{
@@ -1116,7 +1312,7 @@ void GLWidget::clearHeightTexture(const std::vector<int>& ids)
 	}
 }
 
-void GLWidget::setHeightScale(const std::vector<int>& ids, const float& scale)
+void GLWidget::setPBRHeightScale(const std::vector<int>& ids, const float& scale)
 {
 	for (int id : ids)
 	{
@@ -1366,7 +1562,7 @@ void GLWidget::createCappingPlanes()
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_cappingTexture = loadTextureFromFile("textures/patterns/hatch_02.png");
-	glActiveTexture(GL_TEXTURE13);
+    glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 }
 
@@ -2076,7 +2272,7 @@ void GLWidget::drawSectionCapping()
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			glActiveTexture(GL_TEXTURE13);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
-			_clippingPlaneShader->setUniformValue("hatchMap", 13);
+            _clippingPlaneShader->setUniformValue("hatchMap", 6);
 			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;

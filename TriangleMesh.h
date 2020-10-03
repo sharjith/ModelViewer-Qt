@@ -139,10 +139,19 @@ public:
 	GLMaterial getMaterial() const;
 	void setMaterial(const GLMaterial& material);
 
+    void enableDiffuseTex(bool enable);
     void setDiffuseTex(unsigned int diffuseTex);
+    void enableSpecularTex(bool enable);
     void setSpecularTex(unsigned int specularTex);
+    void enableNormalTex(bool enable);
     void setNormalTex(unsigned int normalTex);
+    void enableHeightTex(bool enable);
     void setHeightTex(unsigned int heightTex);
+
+    void clearDiffuseTex();
+    void clearSpecularTex();
+    void clearNormalTex();
+    void clearHeightTex();
 
 protected: // methods
     virtual void initBuffers(

@@ -170,6 +170,30 @@ private slots:
 
 	void on_toolButtonClearHeight_clicked();
 
+    void on_checkBoxDiffuseTex_toggled(bool checked);
+
+    void on_pushButtonDiffuseTexture_clicked();
+
+    void on_toolButtonClearDiffuseTex_clicked();
+
+    void on_checkBoxSpecularTex_toggled(bool checked);
+
+    void on_pushButtonSpecularTexture_clicked();
+
+    void on_toolButtonClearSpecularTex_clicked();
+
+    void on_checkBoxNormalTex_toggled(bool checked);
+
+    void on_pushButtonNormalTexture_clicked();
+
+    void on_toolButtonClearNormalTex_clicked();
+
+    void on_checkBoxHeightTex_toggled(bool checked);
+
+    void on_pushButtonHeightTexture_clicked();
+
+    void on_toolButtonClearHeightTex_clicked();
+
 protected:
 	void showEvent(QShowEvent* event);
 
@@ -188,6 +212,15 @@ private:
 	GLMaterial _material;
 
 	bool _bHasTexture;
+
+    QString _diffuseADSTexture;
+    QString _specularADSTexture;
+    QString _normalADSTexture;
+    QString _heightADSTexture;
+    bool    _hasADSDiffuseTex;
+    bool    _hasADSSpecularTex;
+    bool    _hasADSNormalTex;
+    bool    _hasADSHeightTex;
 
 	QString _albedoTexture;
 	QString _metallicTexture;
