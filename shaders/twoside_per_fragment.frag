@@ -129,7 +129,7 @@ float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
 vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map);
-vec3 calcBumpedNormal(sampler2D map);
+vec3    calcBumpedNormal(sampler2D map);
 
 void main()
 {

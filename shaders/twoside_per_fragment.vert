@@ -76,17 +76,17 @@ void main()
     v_reflectionNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
 
     // Depth mapping
-    vec3 T = normalize(mat3(normalMatrix) * vertexTangent);
-    vec3 B = normalize(mat3(normalMatrix) * vertexBitangent);
-    vec3 N = normalize(mat3(normalMatrix) * vertexNormal);
+    vec3 T = normalize(mat3(modelMatrix) * vertexTangent);
+    vec3 B = normalize(mat3(modelMatrix) * vertexBitangent);
+    vec3 N = normalize(mat3(modelMatrix) * vertexNormal);
     if (dot(cross(N, T), B) < 0.0f)
     {
         T = T * -1.0f;
     }
     mat3 TBN = transpose(mat3(T, B, N));
 
-    v_tangentLightPos = TBN * lightPos - v_position;
-    v_tangentViewPos  = TBN * cameraPos - v_position;
+    v_tangentLightPos = TBN * lightPos;
+    v_tangentViewPos  = TBN * cameraPos;
     v_tangentFragPos  = TBN * v_position;
 
     // Moved this to geometry shader
