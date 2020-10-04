@@ -76,9 +76,9 @@ void main()
     v_reflectionNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
 
     // Depth mapping
-    vec3 T = normalize(mat3(modelMatrix) * vertexTangent);
-    //vec3 B = normalize(mat3(modelMatrix) * vertexBitangent);
-    vec3 N = normalize(mat3(modelMatrix) * vertexNormal);
+    vec3 T = normalize((mat3(modelViewMatrix)) * vertexTangent);
+    //vec3 B = normalize((mat3(modelViewMatrix)) * vertexBitangent);
+    vec3 N = normalize((mat3(modelViewMatrix)) * vertexNormal);
     vec3 B = cross(N, T);
     if (dot(cross(N, T), B) < 0.0f)
     {

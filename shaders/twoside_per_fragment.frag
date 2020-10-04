@@ -270,16 +270,16 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     if(hasHeightTexture)
     {
         if(lockLightAndCamera)
-            viewDir = normalize(g_tangentLightPos - g_tangentFragPos);
+            viewDir = normalize(g_tangentLightPos);
         else
-            viewDir = normalize(g_tangentLightPos + g_tangentViewPos);
+            viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
         float height = texture(texture_height, g_texCoord2d).r;
-        height = height * 0.04f + (-0.01f);//scale + bias;
+        height = height * 0.08f + (-0.01f);//scale + bias;
         clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
         if(lockLightAndCamera)
-            lightDir = normalize(g_tangentLightPos - g_tangentFragPos);
+            lightDir = normalize(g_tangentLightPos);
         else
-            lightDir = normalize(g_tangentLightPos + g_tangentViewPos);
+            lightDir = normalize(g_tangentLightPos + g_tangentFragPos);
         normal = calcBumpedNormal(texture_normal, clippedTexCoord);
     }
     
@@ -429,13 +429,25 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }*/
         if(hasHeightMap)
         {
-            vec3 viewDir = normalize(g_tangentLightPos);
+            vec3 viewDir;
+            if(lockLightAndCamera)
+                viewDir = normalize(g_tangentLightPos);
+            else
+                viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
             float height = texture(heightMap, g_texCoord2d).r;
-            height = height * heightScale + (-0.03f);//scale + bias;
+            height = height * heightScale + (-0.01f);//scale + bias;
             clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
-            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
-            L = normalize(g_tangentLightPos);
-            V = normalize(g_tangentLightPos);
+            if(lockLightAndCamera)
+            {
+                L = normalize(g_tangentLightPos);
+                V = normalize(g_tangentLightPos);
+            }
+            else
+            {
+                L = normalize(g_tangentLightPos + g_tangentFragPos);
+                V = normalize(g_tangentLightPos + g_tangentFragPos);
+            }
+            N = calcBumpedNormal(normalMap, clippedTexCoord);
         }
 
         // material properties
