@@ -77,8 +77,9 @@ void main()
 
     // Depth mapping
     vec3 T = normalize(mat3(modelMatrix) * vertexTangent);
-    vec3 B = normalize(mat3(modelMatrix) * vertexBitangent);
+    //vec3 B = normalize(mat3(modelMatrix) * vertexBitangent);
     vec3 N = normalize(mat3(modelMatrix) * vertexNormal);
+    vec3 B = cross(N, T);
     if (dot(cross(N, T), B) < 0.0f)
     {
         T = T * -1.0f;
