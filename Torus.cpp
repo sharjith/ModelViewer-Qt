@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cmath>
 #include <glm/gtc/constants.hpp>
+#include <glm/glm.hpp>
 
 Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings, unsigned int sMax, unsigned int tMax) :GridMesh(prog, "Torus", nsides, nrings)
 {
@@ -14,6 +15,10 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 	std::vector<float> p(3 * nVerts);
 	// Normals
 	std::vector<float> n(3 * nVerts);
+    // Tangents
+    std::vector<float> tg(3 * nVerts);
+    // Bitangents
+    std::vector<float> bt(3 * nVerts);
 	// Tex coords
 	std::vector<float> tex(2 * nVerts);
 	// Elements
@@ -48,6 +53,18 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 			n[idx] /= len;
 			n[idx + 1] /= len;
 			n[idx + 2] /= len;
+            float cudu = cos(u + 0.0001f);
+            float sudu = sin(u + 0.0001f);
+            float cvdv = cos(v + 0.0001f);
+            float svdv = sin(v) + 0.001f;
+            float dr = (outerRadius + innerRadius * cvdv);
+            float dx = dr * cudu;
+            float dy = dr * sudu;
+            float dz = innerRadius * svdv;
+            glm::vec3 tgt = glm::vec3(dx, dy, dz) - glm::vec3(p[idx], p[idx+1], p[idx+2]);
+            glm::vec3 btg = glm::cross(glm::vec3(n[idx], n[idx+1], n[idx+2]), tgt);
+            tg[idx] = tgt.x; tg[idx+1] = tgt.y; tg[idx+2] = tgt.z;
+            bt[idx] = btg.x; bt[idx+1] = btg.y; bt[idx+2] = btg.z;
 			idx += 3;
 		}
 	}
@@ -71,6 +88,6 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 		}
 	}
 
-	initBuffers(&el, &p, &n, &tex);
+    initBuffers(&el, &p, &n, &tex, &tg, &bt);
 	computeBounds();
 }
