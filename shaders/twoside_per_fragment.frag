@@ -270,14 +270,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     if(hasHeightTexture)
     {
         if(lockLightAndCamera)
-            viewDir = normalize(g_tangentLightPos);
+            viewDir = normalize(-g_tangentFragPos - g_tangentViewPos);
         else
             viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
         float height = texture(texture_height, g_texCoord2d).r;
         height = height * 0.08f + (-0.01f);//scale + bias;
         clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
         if(lockLightAndCamera)
-            lightDir = normalize(g_tangentLightPos);
+            lightDir = normalize(-g_tangentFragPos - g_tangentLightPos);
         else
             lightDir = normalize(g_tangentLightPos + g_tangentFragPos);
         normal = calcBumpedNormal(texture_normal, clippedTexCoord);
@@ -416,7 +416,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         /*if(hasHeightMap)
         {
             // offset texture coordinates with Parallax Mapping
-            vec3 viewDir = normalize(g_tangentViewPos);
+            vec3 viewDir = normalize(-g_tangentFragPos - g_tangentViewPos);
             clippedTexCoord = parallaxMapping(g_texCoord2d,  viewDir, heightMap);
             clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
@@ -431,23 +431,26 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         {
             vec3 viewDir;
             if(lockLightAndCamera)
-                viewDir = normalize(g_tangentLightPos);
+                viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
             else
                 viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
             float height = texture(heightMap, g_texCoord2d).r;
-            height = height * heightScale + (-0.01f);//scale + bias;
-            clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
+            height = height * heightScale + (-0.01f);//scale + bias;            
+            texCoords = g_texCoord2d + (height * viewDir.xy);
+            clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
+            if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
+                discard;
             if(lockLightAndCamera)
             {
-                L = normalize(g_tangentLightPos);
-                V = normalize(g_tangentLightPos);
+                L = normalize(g_tangentLightPos - g_tangentFragPos);
+                V = normalize(g_tangentLightPos - g_tangentFragPos);
             }
             else
             {
                 L = normalize(g_tangentLightPos + g_tangentFragPos);
                 V = normalize(g_tangentLightPos + g_tangentFragPos);
             }
-            N = calcBumpedNormal(normalMap, clippedTexCoord);
+            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;            
         }
 
         // material properties
