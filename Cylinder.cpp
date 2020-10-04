@@ -21,6 +21,10 @@ _height(height)
 	std::vector<float> p(3 * nVerts);
 	// Normals
 	std::vector<float> n(3 * nVerts);
+	// Tangents
+	std::vector<float> tg(3 * nVerts);
+	// Bitangents
+	std::vector<float> bt(3 * nVerts);
 	// Tex coords
 	std::vector<float> tex(2 * nVerts);
 	// Elements
@@ -45,14 +49,21 @@ _height(height)
 			nz = (phi);
 			glm::vec3 o(0, 0, (nz * height) - height / 2.0f);
 			glm::vec3 v((nx * radius), (ny * radius), (nz * height) - height / 2.0f);
-			p[idx] = v.x;
+			p[idx + 0] = v.x;
 			p[idx + 1] = v.y;
 			p[idx + 2] = v.z;
 			glm::vec3 normal = v - o;
 			normal = glm::normalize(normal);
-			n[idx] = normal.x;
+			n[idx + 0] = normal.x;
 			n[idx + 1] = normal.y;
 			n[idx + 2] = normal.z;
+			tg[idx + 0] = 0.0f;
+			tg[idx + 1] = 0.0f;
+			tg[idx + 2] = 1.0f;
+			glm::vec3 tangent = glm::cross(normal, glm::vec3(0.0f, 0.0f, 1.0f));
+			bt[idx + 0] = tangent.x;
+			bt[idx + 1] = tangent.y;
+			bt[idx + 2] = tangent.z;
 			idx += 3;
 
 			tex[tIdx] = s;
@@ -70,29 +81,44 @@ _height(height)
 		ny = sinf(theta);
 		nz = 0;
 
-		p[idx] = radius * nx;
+		p[idx + 0] = radius * nx;
 		p[idx + 1] = radius * ny;
 		p[idx + 2] = nz - height / 2.0f;
-		n[idx] = 0;
+		n[idx + 0] = 0;
 		n[idx + 1] = 0;
 		n[idx + 2] = -1.0f;
+		glm::vec3 tangent = glm::normalize(glm::vec3(radius * nx, radius * ny, nz - height / 2.0f)
+		- glm::vec3(0.0f, 0.0f, nz - height / 2.0f));
+		glm::vec3 bitangent = glm::cross(tangent, glm::vec3(0.0f, 0.0f, -1.0f));
+		tg[idx + 0] = tangent.x;
+		tg[idx + 1] = tangent.y;
+		tg[idx + 2] = tangent.z;
+		bt[idx + 0] = bitangent.x;
+		bt[idx + 1] = bitangent.y;
+		bt[idx + 2] = bitangent.z;
 		idx += 3;
 		s = (-nx + 1.0f) * 0.5f;
 		t = (ny + 1.0f) * 0.5f;
-		tex[tIdx] = s;
+		tex[tIdx + 0] = s;
 		tex[tIdx + 1] = t;
 		tIdx += 2;
 	}
 
 	// bottom center
-	p[idx] = 0;
+	p[idx + 0] = 0;
 	p[idx + 1] = 0;
 	p[idx + 2] = -height / 2.0f;
-	n[idx] = 0;
+	n[idx + 0] = 0;
 	n[idx + 1] = 0;
-	n[idx + 2] = -1.0f;
+	n[idx + 2] = -height / 2.0f -1.0f;	
+	tg[idx + 0] = 1.0f;
+	tg[idx + 1] = 0.0f;
+	tg[idx + 2] = -height / 2.0f;
+	bt[idx + 0] = 0.0f;
+	bt[idx + 1] = 1.0f;
+	bt[idx + 2] = -height / 2.0f;
 	idx += 3;
-	tex[tIdx] = 0.5;
+	tex[tIdx + 0] = 0.5;
 	tex[tIdx + 1] = 0.5;
 	tIdx += 2;
 
@@ -105,29 +131,44 @@ _height(height)
 		ny = sinf(theta);
 		nz = height;
 
-		p[idx] = radius * nx;
+		p[idx + 0] = radius * nx;
 		p[idx + 1] = radius * ny;
 		p[idx + 2] = nz - height / 2.0f;
-		n[idx] = 0;
+		n[idx + 0] = 0;
 		n[idx + 1] = 0;
 		n[idx + 2] = 1.0f;
+		glm::vec3 tangent = glm::normalize(glm::vec3(radius * nx, radius * ny, nz - height / 2.0f)
+			- glm::vec3(0.0f, 0.0f, nz - height / 2.0f));
+		glm::vec3 bitangent = glm::cross(tangent, glm::vec3(0.0f, 0.0f, 1.0f));
+		tg[idx + 0] = tangent.x;
+		tg[idx + 1] = tangent.y;
+		tg[idx + 2] = tangent.z;
+		bt[idx + 0] = bitangent.x;
+		bt[idx + 1] = bitangent.y;
+		bt[idx + 2] = bitangent.z;
 		idx += 3;
 		s = (nx + 1.0f) * 0.5f;
 		t = (ny + 1.0f) * 0.5f;
-		tex[tIdx] = s;
+		tex[tIdx + 0] = s;
 		tex[tIdx + 1] = t;
 		tIdx += 2;
 	}
 
 	// top center
-	p[idx] = 0;
+	p[idx + 0] = 0;
 	p[idx + 1] = 0;
 	p[idx + 2] = height / 2;
-	n[idx] = 0;
+	n[idx + 0] = 0;
 	n[idx + 1] = 0;
 	n[idx + 2] = 1.0f;
+	tg[idx + 0] = 1.0f;
+	tg[idx + 1] = 0.0f;
+	tg[idx + 2] = height / 2.0f;
+	bt[idx + 0] = 0.0f;
+	bt[idx + 1] = 1.0f;
+	bt[idx + 2] = height / 2.0f;
 	idx += 3;
-	tex[tIdx] = 0.5;
+	tex[tIdx + 0] = 0.5;
 	tex[tIdx + 1] = 0.5;
 	tIdx += 2;
 
@@ -157,7 +198,6 @@ _height(height)
 		el[idx + 0] = j;
 		el[idx + 1] = ((nSlices + 1) * (nStacks + 1)) + nSlices + 1;
 		el[idx + 2] = j + 1;
-		//el[idx + 3] = j;
 		idx += 3;
 	}
 
@@ -168,11 +208,10 @@ _height(height)
 		el[idx + 0] = j;
 		el[idx + 1] = j + 1;
 		el[idx + 2] = (((nSlices + 1) * (nStacks + 1)) + nSlices * 2) + 3;
-		//el[idx + 3] = j;
 		idx += 3;
 	}
 
-	initBuffers(&el, &p, &n, &tex);
+	initBuffers(&el, &p, &n, &tex, &tg, &bt);
 	computeBounds();
 }
 
