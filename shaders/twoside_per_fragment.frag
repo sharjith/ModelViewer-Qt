@@ -129,7 +129,7 @@ float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
 vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map);
-vec3    calcBumpedNormal(sampler2D map);
+vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 
 void main()
 {
@@ -247,7 +247,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     if(hasNormalTexture)
     {
         // obtain normal from normal map in range [0,1]
-        normal = calcBumpedNormal(texture_normal);
+        normal = calcBumpedNormal(texture_normal, g_texCoord2d);
     }
     /*if(hasHeightTexture)
     {
@@ -270,16 +270,17 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     if(hasHeightTexture)
     {
         if(lockLightAndCamera)
-            viewDir = normalize(g_tangentLightPos);
+            viewDir = normalize(g_tangentLightPos - g_tangentFragPos);
         else
             viewDir = normalize(g_tangentLightPos + g_tangentViewPos);
         float height = texture(texture_height, g_texCoord2d).r;
-        height = height * 0.04f + (-0.03f);//scale + bias;
+        height = height * 0.04f + (-0.01f);//scale + bias;
         clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
         if(lockLightAndCamera)
-            lightDir = normalize(g_tangentLightPos);
+            lightDir = normalize(g_tangentLightPos - g_tangentFragPos);
         else
             lightDir = normalize(g_tangentLightPos + g_tangentViewPos);
+        normal = calcBumpedNormal(texture_normal, clippedTexCoord);
     }
     
     vec3 halfVector = normalize(lightDir + viewDir); // light half vector     
@@ -408,7 +409,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     else
     {    
         if(hasNormalMap)
-            N = calcBumpedNormal(normalMap) * side;
+            N = calcBumpedNormal(normalMap, g_texCoord2d) * side;
         else
             N = normalize(normal);
         
@@ -421,7 +422,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
                 discard;
             // obtain normal from normal map
-            N = texture(normalMap, clippedTexCoord).rgb * side;
+            //N = texture(normalMap, clippedTexCoord).rgb * side;
+            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
             V = normalize(g_tangentLightPos);
             L = normalize(g_tangentLightPos);
         }*/
@@ -431,7 +433,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             float height = texture(heightMap, g_texCoord2d).r;
             height = height * heightScale + (-0.03f);//scale + bias;
             clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
-            //N = texture(normalMap, clippedTexCoord).rgb * side;
+            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
             L = normalize(g_tangentLightPos);
             V = normalize(g_tangentLightPos);
         }
@@ -655,13 +657,13 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map)
 }
 
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
-vec3 calcBumpedNormal(sampler2D map)
+vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
     vec3 normal = normalize(g_normal);
     vec3 tangent = normalize(g_tangent);
     tangent = normalize(tangent - dot(tangent, normal) * normal);
     vec3 bitangent = cross(tangent, normal);
-    vec3 bumpMapNormal = texture(map, g_texCoord2d).xyz;
+    vec3 bumpMapNormal = texture(map, texCoord).xyz;
     bumpMapNormal = 2.0 * bumpMapNormal - vec3(1.0, 1.0, 1.0);
     vec3 newNormal;
     mat3 TBN = mat3(tangent, bitangent, normal);
