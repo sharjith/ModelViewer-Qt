@@ -163,6 +163,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_hasAOTex = false;
 	_hasNormalTex = false;
 	_hasHeightTex = false;
+	_heightScale = 0.05f;
 
 	updateControls();
 }
