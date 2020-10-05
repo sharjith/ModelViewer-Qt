@@ -183,8 +183,14 @@ void ModelViewer::setListRow(int index)
 		QListWidgetItem* item = listWidgetModel->item(index);
 		item->setSelected(!item->isSelected());
 		listWidgetModel->setCurrentItem(item);
-		if (toolBox->currentIndex() == 3)
-			updateTransformationValues();
+		if (toolBox->currentIndex() == 4)
+		{
+			if (listWidgetModel->selectedItems().count() == 1)
+				updateTransformationValues();
+			else
+				resetTransformationValues();
+		}
+
 	}
 	else
 	{
@@ -615,6 +621,7 @@ void ModelViewer::showPredefinedMaterialsPage()
 void ModelViewer::showTransformationsPage()
 {
 	toolBox->setCurrentIndex(4);
+	updateTransformationValues();
 }
 
 void ModelViewer::showEnvironmentPage()
