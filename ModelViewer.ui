@@ -38,7 +38,7 @@
      </property>
      <widget class="QFrame" name="viewerframe">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
         <horstretch>100</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
@@ -1124,14 +1124,14 @@
      </widget>
      <widget class="QFrame" name="controlsframe">
       <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>0</horstretch>
+       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+        <horstretch>100</horstretch>
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
       <property name="minimumSize">
        <size>
-        <width>400</width>
+        <width>450</width>
         <height>0</height>
        </size>
       </property>
@@ -1241,7 +1241,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
+                   <width>403</width>
                    <height>586</height>
                   </rect>
                  </property>
@@ -1475,14 +1475,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -1554,14 +1554,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -1633,14 +1633,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -1712,14 +1712,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -1786,7 +1786,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
+                   <width>403</width>
                    <height>586</height>
                   </rect>
                  </property>
@@ -1940,7 +1940,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
+                   <width>403</width>
                    <height>586</height>
                   </rect>
                  </property>
@@ -1987,14 +1987,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -2082,14 +2082,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -2164,14 +2164,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -2243,14 +2243,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -2322,14 +2322,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -2444,14 +2444,14 @@
                       </property>
                       <property name="minimumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="maximumSize">
                        <size>
-                        <width>32</width>
-                        <height>32</height>
+                        <width>42</width>
+                        <height>42</height>
                        </size>
                       </property>
                       <property name="frameShape">
@@ -2498,7 +2498,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
+                   <width>403</width>
                    <height>586</height>
                   </rect>
                  </property>
@@ -3358,7 +3358,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>378</width>
+                   <width>403</width>
                    <height>586</height>
                   </rect>
                  </property>
@@ -3715,8 +3715,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>569</height>
+                   <width>428</width>
+                   <height>586</height>
                   </rect>
                  </property>
                  <attribute name="label">
