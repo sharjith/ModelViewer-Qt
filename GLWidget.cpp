@@ -3395,6 +3395,8 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 		GLenum format = GL_RGBA;
 		if (nrComponents == 1)
 			format = GL_RED;
+		else if (nrComponents == 2)
+			format = GL_RG;
 		else if (nrComponents == 3)
 			format = GL_RGB;
 		else if (nrComponents == 4)
