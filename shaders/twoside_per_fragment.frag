@@ -28,6 +28,7 @@ uniform bool texEnabled;
 uniform sampler2D texUnit;
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
+uniform sampler2D texture_emissive;
 uniform sampler2D texture_normal;
 uniform sampler2D texture_height;
 uniform samplerCube envMap;
@@ -66,6 +67,7 @@ uniform bool floorRendering;
 uniform bool lockLightAndCamera = true;
 uniform bool hasDiffuseTexture = false;
 uniform bool hasSpecularTexture = false;
+uniform bool hasEmissiveTexture = false;
 uniform bool hasNormalTexture = false;
 uniform bool hasHeightTexture = false;
 uniform bool hdrToneMapping = false;
@@ -291,11 +293,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 ambient    = source.ambient;        
     vec3 diffuse    = source.diffuse * nDotVP;    
     vec3 specular   = source.specular * pf;    
-
-    vec3 sceneColor = mat.emission + mat.ambient * model.ambient;
    
-    vec4 colorLinear;      
-    
     vec3 matAmbient = mat.ambient;
     if(hasDiffuseTexture)
     {
@@ -311,6 +309,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     {
         matSpecular = pf * texture2D(texture_specular, clippedTexCoord).rgb;
     }
+    vec3 matEmissive = mat.emission;
+    if(hasEmissiveTexture)
+    {
+        matEmissive = texture2D(texture_emissive, clippedTexCoord).rgb;
+    }
+
+    vec3 sceneColor = matEmissive + matAmbient * model.ambient;
+    vec4 colorLinear;
     if(shadowsEnabled && displayMode == 3) // Shadow Mapping
     {
         float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);

@@ -94,6 +94,10 @@ public:
     void setADSSpecularTexMap(const std::vector<int>& ids, const QString& path);
     void clearADSSpecularTexMap(const std::vector<int>& ids);
 
+    void enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& enable);
+    void setADSEmissiveTexMap(const std::vector<int>& ids, const QString& path);
+    void clearADSEmissiveTexMap(const std::vector<int>& ids);
+
     void enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable);
     void setADSNormalTexMap(const std::vector<int>& ids, const QString& path);
     void clearADSNormalTexMap(const std::vector<int>& ids);

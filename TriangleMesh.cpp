@@ -6,11 +6,13 @@
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog), _name(name),
     _diffuseTex(0),
     _specularTex(0),
+    _emissiveTex(0),
     _normalTex(0),
     _heightTex(0),
     _hasTexture(false),
     _hasDiffuseTexture(false),
     _hasSpecularTexture(false),
+    _hasEmissiveTexture(false),
     _hasNormalTexture(false),
     _hasHeightTexture(false),    
     _sMax(1),
@@ -250,21 +252,23 @@ void TriangleMesh::setupTextures()
     glActiveTexture(GL_TEXTURE11);
     glBindTexture(GL_TEXTURE_2D, _specularTex);
     glActiveTexture(GL_TEXTURE12);
-    glBindTexture(GL_TEXTURE_2D, _normalTex);
+    glBindTexture(GL_TEXTURE_2D, _emissiveTex);
     glActiveTexture(GL_TEXTURE13);
+    glBindTexture(GL_TEXTURE_2D, _normalTex);
+    glActiveTexture(GL_TEXTURE14);
     glBindTexture(GL_TEXTURE_2D, _heightTex);
 
-    glActiveTexture(GL_TEXTURE14);
-    glBindTexture(GL_TEXTURE_2D, _albedoMap);
     glActiveTexture(GL_TEXTURE15);
-    glBindTexture(GL_TEXTURE_2D, _normalMap);
+    glBindTexture(GL_TEXTURE_2D, _albedoMap);
     glActiveTexture(GL_TEXTURE16);
-    glBindTexture(GL_TEXTURE_2D, _metallicMap);
+    glBindTexture(GL_TEXTURE_2D, _normalMap);
     glActiveTexture(GL_TEXTURE17);
-    glBindTexture(GL_TEXTURE_2D, _roughnessMap);
+    glBindTexture(GL_TEXTURE_2D, _metallicMap);
     glActiveTexture(GL_TEXTURE18);
-    glBindTexture(GL_TEXTURE_2D, _aoMap);
+    glBindTexture(GL_TEXTURE_2D, _roughnessMap);
     glActiveTexture(GL_TEXTURE19);
+    glBindTexture(GL_TEXTURE_2D, _aoMap);
+    glActiveTexture(GL_TEXTURE20);
     glBindTexture(GL_TEXTURE_2D, _heightMap);
 }
 
@@ -283,24 +287,26 @@ void TriangleMesh::setupUniforms()
     // ADS light texture maps
     _prog->setUniformValue("hasDiffuseTexture", _hasDiffuseTexture);
     _prog->setUniformValue("hasSpecularTexture", _hasSpecularTexture);
+    _prog->setUniformValue("hasEmissiveTexture", _hasEmissiveTexture);
     _prog->setUniformValue("hasNormalTexture", _hasNormalTexture);
     _prog->setUniformValue("hasHeightTexture", _hasHeightTexture);
     _prog->setUniformValue("texture_diffuse", 10);
     _prog->setUniformValue("texture_specular", 11);
-    _prog->setUniformValue("texture_normal", 12);
-    _prog->setUniformValue("texture_height", 13);
+    _prog->setUniformValue("texture_emissive", 12);
+    _prog->setUniformValue("texture_normal", 13);
+    _prog->setUniformValue("texture_height", 14);
     // PBR Direct Lighting
     _prog->setUniformValue("pbrLighting.albedo", _material.albedoColor());
     _prog->setUniformValue("pbrLighting.metallic", _material.metalness());
     _prog->setUniformValue("pbrLighting.roughness", _material.roughness());
     _prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
     // PBR Texture Maps
-    _prog->setUniformValue("albedoMap", 14);
-    _prog->setUniformValue("normalMap", 15);
-    _prog->setUniformValue("metallicMap", 16);
-    _prog->setUniformValue("roughnessMap", 17);
-    _prog->setUniformValue("aoMap", 18);
-    _prog->setUniformValue("heightMap", 19);
+    _prog->setUniformValue("albedoMap", 15);
+    _prog->setUniformValue("normalMap", 16);
+    _prog->setUniformValue("metallicMap", 17);
+    _prog->setUniformValue("roughnessMap", 18);
+    _prog->setUniformValue("aoMap", 19);
+    _prog->setUniformValue("heightMap", 20);
     _prog->setUniformValue("heightScale", _heightScale);
     _prog->setUniformValue("hasAlbedoMap", _hasAlbedoMap);
     _prog->setUniformValue("hasMetallicMap", _hasMetallicMap);
@@ -348,6 +354,18 @@ void TriangleMesh::setSpecularTex(unsigned int specularTex)
     _hasSpecularTexture = true;
 }
 
+void TriangleMesh::enableEmissiveTex(bool enable)
+{
+    _hasEmissiveTexture = enable;
+}
+
+void TriangleMesh::setEmissiveTex(unsigned int emissiveTex)
+{
+    glDeleteTextures(1, &_emissiveTex);
+    _emissiveTex = emissiveTex;
+    _hasEmissiveTexture = true;
+}
+
 void TriangleMesh::enableDiffuseTex(bool enable)
 {
     _hasDiffuseTexture = enable;
@@ -372,6 +390,12 @@ void TriangleMesh::clearSpecularTex()
     _specularTex = 0;
 }
 
+void TriangleMesh::clearEmissiveTex()
+{
+    glDeleteTextures(1, &_emissiveTex);
+    _emissiveTex = 0;
+}
+
 void TriangleMesh::clearNormalTex()
 {
     glDeleteTextures(1, &_normalTex);
@@ -390,6 +414,8 @@ void TriangleMesh::clearADSTextures()
     _diffuseTex = 0;
     glDeleteTextures(1, &_specularTex);
     _specularTex = 0;
+    glDeleteTextures(1, &_emissiveTex);
+    _emissiveTex = 0;
     glDeleteTextures(1, &_normalTex);
     _normalTex = 0;
     glDeleteTextures(1, &_heightTex);
@@ -440,6 +466,7 @@ TriangleMesh::~TriangleMesh()
     deleteBuffers();
     glDeleteTextures(1, &_diffuseTex);
     glDeleteTextures(1, &_specularTex);
+    glDeleteTextures(1, &_emissiveTex);
     glDeleteTextures(1, &_normalTex);
     glDeleteTextures(1, &_heightTex);
     glDeleteTextures(1, &_albedoMap);

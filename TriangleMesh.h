@@ -143,6 +143,8 @@ public:
     void setDiffuseTex(unsigned int diffuseTex);
     void enableSpecularTex(bool enable);
     void setSpecularTex(unsigned int specularTex);
+    void enableEmissiveTex(bool enable);
+    void setEmissiveTex(unsigned int emissiveTex);
     void enableNormalTex(bool enable);
     void setNormalTex(unsigned int normalTex);
     void enableHeightTex(bool enable);
@@ -150,6 +152,7 @@ public:
 
     void clearDiffuseTex();
     void clearSpecularTex();
+    void clearEmissiveTex();
     void clearNormalTex();
     void clearHeightTex();
 	void clearADSTextures();
@@ -206,11 +209,13 @@ protected:
     unsigned int _texture;
     unsigned int _diffuseTex;
     unsigned int _specularTex;
+    unsigned int _emissiveTex;
     unsigned int _normalTex;
     unsigned int _heightTex;
     bool _hasTexture;
     bool _hasDiffuseTexture;
     bool _hasSpecularTexture;
+    bool _hasEmissiveTexture;
     bool _hasNormalTexture;
     bool _hasHeightTexture;
 

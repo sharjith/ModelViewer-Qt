@@ -155,6 +155,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
+    _hasADSEmissiveTex = false;
 	_hasADSNormalTex = false;
 	_hasADSHeightTex = false;
 	_hasAlbedoTex = false;
@@ -2208,6 +2209,70 @@ void ModelViewer::on_toolButtonClearSpecularTex_clicked()
         std::vector<int> ids = getSelectedIDs();
         QApplication::setOverrideCursor(Qt::WaitCursor);
         _glWidget->clearADSSpecularTexMap(ids);
+        _glWidget->updateView();
+        QApplication::restoreOverrideCursor();
+    }
+}
+
+void ModelViewer::on_checkBoxEmissiveTex_toggled(bool checked)
+{
+    if (checkForActiveSelection())
+    {
+        _hasADSEmissiveTex = checked;
+        std::vector<int> ids = getSelectedIDs();
+        _glWidget->enableADSEmissiveTexMap(ids, checked);
+        _glWidget->updateView();
+    }
+    else
+    {
+        checkBoxEmissiveTex->blockSignals(true);
+        checkBoxEmissiveTex->setChecked(!checked);
+        pushButtonEmissiveTexture->setEnabled(!checked);
+        labelEmissiveTexture->setEnabled(!checked);
+        toolButtonClearEmissiveTex->setEnabled(!checked);
+        checkBoxEmissiveTex->blockSignals(false);
+    }
+}
+
+void ModelViewer::on_pushButtonEmissiveTexture_clicked()
+{
+    if (checkForActiveSelection())
+    {
+        QString appPath = QCoreApplication::applicationDirPath();
+        QString dirPath = appPath + "/textures/materials";
+        QString filter = getSupportedQtImagesFilter();
+        QString fileName = QFileDialog::getOpenFileName(
+            this,
+            "Choose an image for ADS Emissive texture",
+            _textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
+            filter);
+        _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+        if (fileName != "")
+        {
+            _emissiveADSTexture = fileName;
+            _textureDirOpenedFirstTime = false;
+            QPixmap img; img.load(fileName);
+            if (!img.isNull())
+            {
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                labelEmissiveTexture->setPixmap(img);
+                std::vector<int> ids = getSelectedIDs();
+                _glWidget->enableADSEmissiveTexMap(ids, _hasADSEmissiveTex);
+                _glWidget->setADSEmissiveTexMap(ids, fileName);
+                _glWidget->updateView();
+                QApplication::restoreOverrideCursor();
+            }
+        }
+    }
+}
+
+void ModelViewer::on_toolButtonClearEmissiveTex_clicked()
+{
+    if (checkForActiveSelection())
+    {
+        std::vector<int> ids = getSelectedIDs();
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        _glWidget->clearADSEmissiveTexMap(ids);
         _glWidget->updateView();
         QApplication::restoreOverrideCursor();
     }

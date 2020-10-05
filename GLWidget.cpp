@@ -477,8 +477,8 @@ void GLWidget::performWindowZoom()
 		QVector3D q(zoomWinCorner.x(), clientRect.height() - zoomWinCorner.y(), Z.z());
 		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-		_rubberBandCenter = P;		
-		_rubberBandRadius = P.distanceToPoint(Q);
+        _rubberBandCenter = P;
+        _rubberBandRadius = P.distanceToPoint(Q) * 0.75f;
 	}
 	if (!_animateWindowZoomTimer->isActive())
 	{
@@ -836,6 +836,55 @@ void GLWidget::clearADSSpecularTexMap(const std::vector<int>& ids)
         catch (const std::exception& ex)
         {
             std::cout << "Exception in GLWidget::clearADSSpecularTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableEmissiveTex(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enableADSEmissiveTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setADSEmissiveTexMap(const std::vector<int>& ids, const QString& path)
+{
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setEmissiveTex(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setADSEmissiveTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearADSEmissiveTexMap(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearEmissiveTex();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearADSEmissiveTexMap\n" << ex.what() << std::endl;
         }
     }
 }

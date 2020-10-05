@@ -151,47 +151,37 @@ private slots:
 
 	void on_checkBoxHeightMap_toggled(bool checked);
 	void on_pushButtonHeightMap_clicked();
-
 	void on_doubleSpinBoxHeightScale_valueChanged(double val);
 
 	void on_pushButtonApplyPBRTexture_clicked();
-
 	void on_pushButtonClearPBRTextures_clicked();
 
 	void on_toolButtonClearAlbedo_clicked();
-
 	void on_toolButtonClearMetallic_clicked();
-
 	void on_toolButtonClearRoughness_clicked();
-
 	void on_toolButtonClearNormal_clicked();
-
 	void on_toolButtonClearAO_clicked();
 
 	void on_toolButtonClearHeight_clicked();
 
     void on_checkBoxDiffuseTex_toggled(bool checked);
-
     void on_pushButtonDiffuseTexture_clicked();
-
     void on_toolButtonClearDiffuseTex_clicked();
 
     void on_checkBoxSpecularTex_toggled(bool checked);
-
     void on_pushButtonSpecularTexture_clicked();
-
     void on_toolButtonClearSpecularTex_clicked();
 
+    void on_checkBoxEmissiveTex_toggled(bool checked);
+    void on_pushButtonEmissiveTexture_clicked();
+    void on_toolButtonClearEmissiveTex_clicked();
+
     void on_checkBoxNormalTex_toggled(bool checked);
-
     void on_pushButtonNormalTexture_clicked();
-
     void on_toolButtonClearNormalTex_clicked();
 
     void on_checkBoxHeightTex_toggled(bool checked);
-
     void on_pushButtonHeightTexture_clicked();
-
     void on_toolButtonClearHeightTex_clicked();
 
 	void on_pushButtonApplyADSTexture_clicked();
@@ -218,10 +208,12 @@ private:
 
     QString _diffuseADSTexture;
     QString _specularADSTexture;
+    QString _emissiveADSTexture;
     QString _normalADSTexture;
     QString _heightADSTexture;
     bool    _hasADSDiffuseTex;
     bool    _hasADSSpecularTex;
+    bool    _hasADSEmissiveTex;
     bool    _hasADSNormalTex;
     bool    _hasADSHeightTex;
 

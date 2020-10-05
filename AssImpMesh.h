@@ -68,6 +68,7 @@ public:
 		// Bind appropriate textures
 		unsigned int diffuseNr = 1;
 		unsigned int specularNr = 1;
+        unsigned int emissiveNr = 1;
 		unsigned int normalNr = 1;
 		unsigned int heightNr = 1;
 
@@ -89,6 +90,11 @@ public:
 				ss << specularNr++; // Transfer unsigned int to stream
 				_hasSpecularTexture = true;
 			}
+            else if (name == "texture_emissive")
+            {
+                ss << emissiveNr++; // Transfer unsigned int to stream
+                _hasEmissiveTexture = true;
+            }
 			else if (name == "texture_normal")
 			{
 				ss << normalNr++; // Transfer unsigned int to stream
