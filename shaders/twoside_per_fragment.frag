@@ -269,14 +269,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     }*/
     if(hasHeightTexture)
     {
-        if(lockLightAndCamera)
+        if(!lockLightAndCamera)
             viewDir = normalize(-g_tangentFragPos - g_tangentViewPos);
         else
-            viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
+            viewDir = normalize(g_tangentFragPos + g_tangentFragPos);
         float height = texture(texture_height, g_texCoord2d).r;
         height = height * 0.08f + (-0.01f);//scale + bias;
         clippedTexCoord = g_texCoord2d + (height * viewDir.xy);
-        if(lockLightAndCamera)
+        if(!lockLightAndCamera)
             lightDir = normalize(-g_tangentFragPos - g_tangentLightPos);
         else
             lightDir = normalize(g_tangentLightPos + g_tangentFragPos);
