@@ -293,3 +293,30 @@ unsigned int AssImpModel::textureFromFile(const char* path, string directory)
     return textureID;
 }
 
+bool AssImpModel::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
+{
+    bool intersects = false;
+
+    std::vector<AssImpMesh*> meshes = this->getMeshes();
+    for (AssImpMesh* mesh : meshes)
+    {
+        intersects = mesh->intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
+        if (intersects)
+            break;
+    }
+
+    return intersects;
+}
+
+void AssImpModel::select()
+{
+    for (AssImpMesh* mesh : meshes)
+        mesh->select();
+}
+
+void AssImpModel::deselect()
+{
+    for (AssImpMesh* mesh : meshes)
+        mesh->deselect();
+}
+

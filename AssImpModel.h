@@ -33,6 +33,12 @@ public:
 
     vector<AssImpMesh*> getMeshes() const;
 
+    // for selection
+    virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
+
+    virtual void select();
+    virtual void deselect();
+
 private:
 	/*  Model Data  */
 	vector<AssImpMesh*> meshes;
