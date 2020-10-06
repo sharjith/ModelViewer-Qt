@@ -136,6 +136,8 @@ FORMS += \
     SuperEllipsoidEditor.ui \
     SpringEditor.ui
 SOURCES += AppleSurface.cpp \
+    AssImpMesh.cpp \
+    AssImpModel.cpp \
     BackgroundColor.cpp \
     BentHorns.cpp \
     BoundingBox.cpp \
