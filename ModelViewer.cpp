@@ -158,6 +158,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _hasADSEmissiveTex = false;
 	_hasADSNormalTex = false;
 	_hasADSHeightTex = false;
+	_hasADSOpacityTex = false;
 	_hasAlbedoTex = false;
 	_hasMetallicTex = false;
 	_hasRoughnessTex = false;
@@ -191,7 +192,6 @@ void ModelViewer::setListRow(int index)
 			else
 				resetTransformationValues();
 		}
-
 	}
 	else
 	{
@@ -2111,7 +2111,7 @@ void ModelViewer::on_pushButtonDiffuseTexture_clicked()
     if (checkForActiveSelection())
     {
         QString appPath = QCoreApplication::applicationDirPath();
-        QString dirPath = appPath + "/textures/materials";
+        QString dirPath = appPath + "/textures/lightmaps";
         QString filter = getSupportedQtImagesFilter();
         QString fileName = QFileDialog::getOpenFileName(
             this,
@@ -2175,7 +2175,7 @@ void ModelViewer::on_pushButtonSpecularTexture_clicked()
     if (checkForActiveSelection())
     {
         QString appPath = QCoreApplication::applicationDirPath();
-        QString dirPath = appPath + "/textures/materials";
+        QString dirPath = appPath + "/textures/lightmaps";
         QString filter = getSupportedQtImagesFilter();
         QString fileName = QFileDialog::getOpenFileName(
             this,
@@ -2239,7 +2239,7 @@ void ModelViewer::on_pushButtonEmissiveTexture_clicked()
     if (checkForActiveSelection())
     {
         QString appPath = QCoreApplication::applicationDirPath();
-        QString dirPath = appPath + "/textures/materials";
+        QString dirPath = appPath + "/textures/lightmaps";
         QString filter = getSupportedQtImagesFilter();
         QString fileName = QFileDialog::getOpenFileName(
             this,
@@ -2303,7 +2303,7 @@ void ModelViewer::on_pushButtonNormalTexture_clicked()
     if (checkForActiveSelection())
     {
         QString appPath = QCoreApplication::applicationDirPath();
-        QString dirPath = appPath + "/textures/materials";
+        QString dirPath = appPath + "/textures/lightmaps";
         QString filter = getSupportedQtImagesFilter();
         QString fileName = QFileDialog::getOpenFileName(
             this,
@@ -2367,7 +2367,7 @@ void ModelViewer::on_pushButtonHeightTexture_clicked()
     if (checkForActiveSelection())
     {
         QString appPath = QCoreApplication::applicationDirPath();
-        QString dirPath = appPath + "/textures/materials";
+        QString dirPath = appPath + "/textures/lightmaps";
         QString filter = getSupportedQtImagesFilter();
         QString fileName = QFileDialog::getOpenFileName(
             this,
@@ -2401,6 +2401,70 @@ void ModelViewer::on_toolButtonClearHeightTex_clicked()
         std::vector<int> ids = getSelectedIDs();
         QApplication::setOverrideCursor(Qt::WaitCursor);
         _glWidget->clearADSHeightTexMap(ids);
+        _glWidget->updateView();
+        QApplication::restoreOverrideCursor();
+    }
+}
+
+void ModelViewer::on_checkBoxOpacityTex_toggled(bool checked)
+{
+    if (checkForActiveSelection())
+    {
+        _hasADSOpacityTex = checked;
+        std::vector<int> ids = getSelectedIDs();
+        _glWidget->enableADSOpacityTexMap(ids, checked);
+        _glWidget->updateView();
+    }
+    else
+    {
+        checkBoxOpacityTex->blockSignals(true);
+        checkBoxOpacityTex->setChecked(!checked);
+        pushButtonOpacityTexture->setEnabled(!checked);
+        labelOpacityTexture->setEnabled(!checked);
+        toolButtonClearOpacityTex->setEnabled(!checked);
+        checkBoxOpacityTex->blockSignals(false);
+    }
+}
+
+void ModelViewer::on_pushButtonOpacityTexture_clicked()
+{
+    if (checkForActiveSelection())
+    {
+        QString appPath = QCoreApplication::applicationDirPath();
+        QString dirPath = appPath + "/textures/lightmaps";
+        QString filter = getSupportedQtImagesFilter();
+        QString fileName = QFileDialog::getOpenFileName(
+            this,
+            "Choose an image for ADS Opacity texture",
+            _textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
+            filter);
+        _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+        if (fileName != "")
+        {
+            _opacityADSTexture = fileName;
+            _textureDirOpenedFirstTime = false;
+            QPixmap img; img.load(fileName);
+            if (!img.isNull())
+            {
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                labelOpacityTexture->setPixmap(img);
+                std::vector<int> ids = getSelectedIDs();
+                _glWidget->enableADSOpacityTexMap(ids, _hasADSHeightTex);
+                _glWidget->setADSOpacityTexMap(ids, fileName);
+                _glWidget->updateView();
+                QApplication::restoreOverrideCursor();
+            }
+        }
+    }
+}
+
+void ModelViewer::on_toolButtonClearOpacityTex_clicked()
+{
+    if (checkForActiveSelection())
+    {
+        std::vector<int> ids = getSelectedIDs();
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        _glWidget->clearADSOpacityTexMap(ids);
         _glWidget->updateView();
         QApplication::restoreOverrideCursor();
     }

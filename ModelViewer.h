@@ -184,6 +184,10 @@ private slots:
     void on_pushButtonHeightTexture_clicked();
     void on_toolButtonClearHeightTex_clicked();
 
+	void on_checkBoxOpacityTex_toggled(bool checked);
+	void on_pushButtonOpacityTexture_clicked();
+	void on_toolButtonClearOpacityTex_clicked();
+
 	void on_pushButtonApplyADSTexture_clicked();
 	void on_pushButtonClearADSTextures_clicked();
 
@@ -210,12 +214,14 @@ private:
     QString _specularADSTexture;
     QString _emissiveADSTexture;
     QString _normalADSTexture;
-    QString _heightADSTexture;
+	QString _heightADSTexture;
+	QString _opacityADSTexture;
     bool    _hasADSDiffuseTex;
     bool    _hasADSSpecularTex;
     bool    _hasADSEmissiveTex;
     bool    _hasADSNormalTex;
-    bool    _hasADSHeightTex;
+	bool    _hasADSHeightTex;
+	bool    _hasADSOpacityTex;
 
 	QString _albedoTexture;
 	QString _metallicTexture;

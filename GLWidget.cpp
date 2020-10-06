@@ -987,6 +987,55 @@ void GLWidget::clearADSHeightTexMap(const std::vector<int>& ids)
     }
 }
 
+void GLWidget::enableADSOpacityTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableOpacityTex(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableADSOpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setADSOpacityTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setOpacityTex(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setADSOpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearADSOpacityTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearOpacityTex();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSOpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
+}
+
 void GLWidget::clearADSTexMaps(const std::vector<int>& ids)
 {
 	for (int id : ids)

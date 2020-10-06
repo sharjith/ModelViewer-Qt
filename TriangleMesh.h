@@ -149,12 +149,15 @@ public:
     void setNormalTex(unsigned int normalTex);
     void enableHeightTex(bool enable);
     void setHeightTex(unsigned int heightTex);
+	void enableOpacityTex(bool enable);
+	void setOpacityTex(unsigned int opacityTex);
 
     void clearDiffuseTex();
     void clearSpecularTex();
     void clearEmissiveTex();
     void clearNormalTex();
-    void clearHeightTex();
+	void clearHeightTex();
+	void clearOpacityTex();
 	void clearADSTextures();
 
 protected: // methods
@@ -211,13 +214,15 @@ protected:
     unsigned int _specularTex;
     unsigned int _emissiveTex;
     unsigned int _normalTex;
-    unsigned int _heightTex;
+	unsigned int _heightTex;
+	unsigned int _opacityTex;
     bool _hasTexture;
     bool _hasDiffuseTexture;
     bool _hasSpecularTexture;
     bool _hasEmissiveTexture;
     bool _hasNormalTexture;
-    bool _hasHeightTexture;
+	bool _hasHeightTexture;
+	bool _hasOpacityTexture;
 
     unsigned int _sMax;
 	unsigned int _tMax;

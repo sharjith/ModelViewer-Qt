@@ -23,14 +23,24 @@ in GS_OUT_SHADOW {
     vec3 lightPos;
 } fs_in_shadow;
 
-uniform float alpha;
+uniform float opacity;
 uniform bool texEnabled;
 uniform sampler2D texUnit;
+
+// ADS light maps
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
 uniform sampler2D texture_emissive;
 uniform sampler2D texture_normal;
 uniform sampler2D texture_height;
+uniform sampler2D texture_opacity;
+uniform bool hasDiffuseTexture = false;
+uniform bool hasSpecularTexture = false;
+uniform bool hasEmissiveTexture = false;
+uniform bool hasNormalTexture = false;
+uniform bool hasHeightTexture = false;
+uniform bool hasOpacityTexture = false;
+
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 // IBL
@@ -65,11 +75,6 @@ uniform bool selected;
 uniform vec4 reflectColor;
 uniform bool floorRendering;
 uniform bool lockLightAndCamera = true;
-uniform bool hasDiffuseTexture = false;
-uniform bool hasSpecularTexture = false;
-uniform bool hasEmissiveTexture = false;
-uniform bool hasNormalTexture = false;
-uniform bool hasHeightTexture = false;
 uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
@@ -122,6 +127,7 @@ layout( location = 0 ) out vec4 fragColor;
 float   calculateShadow(vec4 fragPosLightSpace);
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
+void    applyEnvironmentMapping(float alpha);
 
 vec3    getNormalFromMap();
 mat3    getTBNFromMap();
@@ -199,28 +205,13 @@ void main()
             fragColor = mix(v_color, Line.Color, mixVal);
     }
 
-    if(envMapEnabled && displayMode == 3) // Environment mapping
+    // Get alpha from maps if available
+    float alpha = opacity;
+    if(renderingMode == 0 && hasOpacityTexture)
     {
-
-        if(alpha < 1.0f && !floorRendering) // Transparent - refract
-        {
-            vec4 colour = fragColor;
-            vec3 I = normalize(g_reflectionPosition - cameraPos);
-            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
-            if(texEnabled == true)
-                fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
-            else
-                fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
-            fragColor = mix(fragColor, colour, alpha/1.0f);
-        }
-        else if(renderingMode == 0)// Opaque - Reflect
-        {
-            vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
-            float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
-        }
+        alpha = 1.0f - texture(texture_opacity, g_texCoord2d).r;
     }
+    applyEnvironmentMapping(alpha);
 
     if(selected)
     {
@@ -230,7 +221,7 @@ void main()
 
 // ----------------------------------------------------------------------------
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
-{
+{    
     vec2 texCoords = g_texCoord2d;
     vec2 clippedTexCoord = texCoords;
     vec3 lightDir;
@@ -284,7 +275,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
             lightDir = normalize(g_tangentLightPos + g_tangentFragPos);
         normal = calcBumpedNormal(texture_normal, clippedTexCoord);
     }
-    
+        
     vec3 halfVector = normalize(lightDir + viewDir); // light half vector     
     float nDotVP    = dot(normal, normalize(lightDir + viewDir));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
@@ -313,6 +304,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     if(hasEmissiveTexture)
     {
         matEmissive = texture2D(texture_emissive, clippedTexCoord).rgb;
+    }
+    float alpha = opacity;
+    if(hasOpacityTexture)
+    {
+        alpha = texture(texture_opacity, clippedTexCoord).r;
     }
 
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;
@@ -583,7 +579,39 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     if(gammaCorrection)
         color = pow(color, vec3(1.0/screenGamma));
 
+    float alpha = opacity;
+    if(hasOpacityTexture)
+    {
+        alpha = texture(texture_opacity, clippedTexCoord).r;
+    }
+
     return vec4(color, alpha);
+}
+
+void applyEnvironmentMapping(float alpha)
+{
+    if(envMapEnabled && displayMode == 3) // Environment mapping
+    {
+
+        if(alpha < 1.0f && !floorRendering) // Transparent - refract
+        {
+            vec4 colour = fragColor;
+            vec3 I = normalize(g_reflectionPosition - cameraPos);
+            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
+            if(texEnabled == true)
+                fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
+            else
+                fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+            fragColor = mix(fragColor, colour, alpha/1.0f);
+        }
+        else if(renderingMode == 0)// Opaque - Reflect
+        {
+            vec3 I = normalize(cameraPos - g_reflectionPosition);
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
+            float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
+            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
+        }
+    }
 }
 
 // ----------------------------------------------------------------------------

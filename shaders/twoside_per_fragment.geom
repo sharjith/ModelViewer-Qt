@@ -61,8 +61,6 @@ out float g_clipDistY;
 out float g_clipDistZ;
 out float g_clipDist;
 
-uniform float alpha;
-
 void main()
 {
     // initialize to remove warning

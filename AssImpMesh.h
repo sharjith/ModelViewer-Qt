@@ -62,7 +62,6 @@ public:
 			return;
 
 		setupTextures();
-
 		setupUniforms();
 
 		// Bind appropriate textures
@@ -71,6 +70,7 @@ public:
         unsigned int emissiveNr = 1;
 		unsigned int normalNr = 1;
 		unsigned int heightNr = 1;
+		unsigned int opacityNr = 1;
 
 		for (unsigned int i = 0; i < _textures.size(); i++)
 		{
@@ -80,30 +80,30 @@ public:
 			string number;
 			string name = _textures[i].type;
 
+			// Transfer unsigned int to stream
 			if (name == "texture_diffuse")
 			{
-				ss << diffuseNr++; // Transfer unsigned int to stream
-				_hasDiffuseTexture = true;
+				ss << diffuseNr++;
 			}
 			else if (name == "texture_specular")
 			{
-				ss << specularNr++; // Transfer unsigned int to stream
-				_hasSpecularTexture = true;
+				ss << specularNr++;
 			}
             else if (name == "texture_emissive")
             {
-                ss << emissiveNr++; // Transfer unsigned int to stream
-                _hasEmissiveTexture = true;
+                ss << emissiveNr++;
             }
 			else if (name == "texture_normal")
 			{
-				ss << normalNr++; // Transfer unsigned int to stream
-				_hasNormalTexture = true;
+				ss << normalNr++;
 			}
 			else if (name == "texture_height")
 			{
-				ss << heightNr++; // Transfer unsigned int to stream
-				_hasHeightTexture = true;
+				ss << heightNr++;
+			}
+			else if (name == "texture_opacity")
+			{
+				ss << opacityNr++;
 			}
 			number = ss.str();
 			// Now set the sampler to the correct texture unit
@@ -111,7 +111,7 @@ public:
 			_prog->setUniformValue((name + number).c_str(), i);
 			// And finally bind the texture
 			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
-		}
+		}	
 
 		if (_material.opacity() < 1.0f)
 		{
@@ -172,6 +172,36 @@ private:
 		}
 
 		_hasTexture = false;
+
+		for (unsigned int i = 0; i < _textures.size(); i++)
+		{
+			string name = _textures[i].type;
+
+			if (name == "texture_diffuse")
+			{
+				_hasDiffuseTexture = true;
+			}
+			else if (name == "texture_specular")
+			{
+				_hasSpecularTexture = true;
+			}
+			else if (name == "texture_emissive")
+			{
+				_hasEmissiveTexture = true;
+			}
+			else if (name == "texture_normal")
+			{
+				_hasNormalTexture = true;
+			}
+			else if (name == "texture_height")
+			{				
+				_hasHeightTexture = true;
+			}
+			else if (name == "texture_opacity")
+			{				
+				_hasOpacityTexture = true;
+			}
+		}
 
 		initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 		computeBounds();

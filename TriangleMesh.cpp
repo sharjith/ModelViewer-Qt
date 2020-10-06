@@ -9,12 +9,14 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _emissiveTex(0),
     _normalTex(0),
     _heightTex(0),
+    _opacityTex(0),
     _hasTexture(false),
     _hasDiffuseTexture(false),
     _hasSpecularTexture(false),
     _hasEmissiveTexture(false),
     _hasNormalTexture(false),
-    _hasHeightTexture(false),    
+    _hasHeightTexture(false),
+    _hasOpacityTexture(false),
     _sMax(1),
     _tMax(1),
     _albedoMap(0),
@@ -257,18 +259,20 @@ void TriangleMesh::setupTextures()
     glBindTexture(GL_TEXTURE_2D, _normalTex);
     glActiveTexture(GL_TEXTURE14);
     glBindTexture(GL_TEXTURE_2D, _heightTex);
-
     glActiveTexture(GL_TEXTURE15);
-    glBindTexture(GL_TEXTURE_2D, _albedoMap);
-    glActiveTexture(GL_TEXTURE16);
-    glBindTexture(GL_TEXTURE_2D, _normalMap);
-    glActiveTexture(GL_TEXTURE17);
-    glBindTexture(GL_TEXTURE_2D, _metallicMap);
-    glActiveTexture(GL_TEXTURE18);
-    glBindTexture(GL_TEXTURE_2D, _roughnessMap);
-    glActiveTexture(GL_TEXTURE19);
-    glBindTexture(GL_TEXTURE_2D, _aoMap);
+    glBindTexture(GL_TEXTURE_2D, _opacityTex);
+
     glActiveTexture(GL_TEXTURE20);
+    glBindTexture(GL_TEXTURE_2D, _albedoMap);
+    glActiveTexture(GL_TEXTURE21);
+    glBindTexture(GL_TEXTURE_2D, _normalMap);
+    glActiveTexture(GL_TEXTURE22);
+    glBindTexture(GL_TEXTURE_2D, _metallicMap);
+    glActiveTexture(GL_TEXTURE23);
+    glBindTexture(GL_TEXTURE_2D, _roughnessMap);
+    glActiveTexture(GL_TEXTURE24);
+    glBindTexture(GL_TEXTURE_2D, _aoMap);
+    glActiveTexture(GL_TEXTURE25);
     glBindTexture(GL_TEXTURE_2D, _heightMap);
 }
 
@@ -283,30 +287,32 @@ void TriangleMesh::setupUniforms()
     _prog->setUniformValue("material.emission", _material.emissive());
     _prog->setUniformValue("material.shininess", _material.shininess());
     _prog->setUniformValue("material.metallic", _material.metallic());
-    _prog->setUniformValue("alpha", _material.opacity());
+    _prog->setUniformValue("opacity", _material.opacity());
     // ADS light texture maps
     _prog->setUniformValue("hasDiffuseTexture", _hasDiffuseTexture);
     _prog->setUniformValue("hasSpecularTexture", _hasSpecularTexture);
     _prog->setUniformValue("hasEmissiveTexture", _hasEmissiveTexture);
     _prog->setUniformValue("hasNormalTexture", _hasNormalTexture);
     _prog->setUniformValue("hasHeightTexture", _hasHeightTexture);
+    _prog->setUniformValue("hasOpacityTexture", _hasOpacityTexture);
     _prog->setUniformValue("texture_diffuse", 10);
     _prog->setUniformValue("texture_specular", 11);
     _prog->setUniformValue("texture_emissive", 12);
     _prog->setUniformValue("texture_normal", 13);
     _prog->setUniformValue("texture_height", 14);
+    _prog->setUniformValue("texture_opacity", 15);
     // PBR Direct Lighting
     _prog->setUniformValue("pbrLighting.albedo", _material.albedoColor());
     _prog->setUniformValue("pbrLighting.metallic", _material.metalness());
     _prog->setUniformValue("pbrLighting.roughness", _material.roughness());
     _prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
     // PBR Texture Maps
-    _prog->setUniformValue("albedoMap", 15);
-    _prog->setUniformValue("normalMap", 16);
-    _prog->setUniformValue("metallicMap", 17);
-    _prog->setUniformValue("roughnessMap", 18);
-    _prog->setUniformValue("aoMap", 19);
-    _prog->setUniformValue("heightMap", 20);
+    _prog->setUniformValue("albedoMap", 20);
+    _prog->setUniformValue("normalMap", 21);
+    _prog->setUniformValue("metallicMap", 22);
+    _prog->setUniformValue("roughnessMap", 23);
+    _prog->setUniformValue("aoMap", 24);
+    _prog->setUniformValue("heightMap", 25);
     _prog->setUniformValue("heightScale", _heightScale);
     _prog->setUniformValue("hasAlbedoMap", _hasAlbedoMap);
     _prog->setUniformValue("hasMetallicMap", _hasMetallicMap);
@@ -316,6 +322,18 @@ void TriangleMesh::setupUniforms()
     _prog->setUniformValue("hasHeightMap", _hasHeightMap);
 
     _prog->setUniformValue("selected", _selected);
+}
+
+void TriangleMesh::enableOpacityTex(bool enable)
+{
+    _hasOpacityTexture = enable;
+}
+
+void TriangleMesh::setOpacityTex(unsigned int opacityTex)
+{
+    glDeleteTextures(1, &_opacityTex);
+    _opacityTex = opacityTex;
+    _hasOpacityTexture = true;
 }
 
 void TriangleMesh::enableHeightTex(bool enable)
@@ -406,6 +424,12 @@ void TriangleMesh::clearHeightTex()
 {
     glDeleteTextures(1, &_heightTex);
     _heightTex = 0;
+}
+
+void TriangleMesh::clearOpacityTex()
+{
+    glDeleteTextures(1, &_opacityTex);
+    _opacityTex = 0;
 }
 
 void TriangleMesh::clearADSTextures()

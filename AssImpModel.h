@@ -205,11 +205,14 @@ private:
             vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emissive");
             textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
             // 4. normal maps
-            std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_NORMALS, "texture_normal");
+            std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
 			textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
             // 5. height maps
-            std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_height");
+            std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
 			textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+			// 5. opacity maps
+			std::vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
+			textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
 
 			aiColor3D color(0.f, 0.f, 0.f);
 			float opacity = 1.0f;
@@ -229,6 +232,10 @@ private:
 			if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
 			{
 				mat.setEmissive(QVector3D(color.r, color.g, color.b));
+			}
+			if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity))
+			{
+				mat.setOpacity(opacity);
 			}
 		}
 

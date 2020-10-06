@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>1702</width>
-    <height>1229</height>
+    <height>1477</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -1241,8 +1241,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>413</width>
-                   <height>618</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1255,11 +1255,169 @@
                   <string>ADS Lighting Settings</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_21">
-                  <item row="11" column="0">
-                   <widget class="QPushButton" name="pushButtonClearADSTextures">
-                    <property name="text">
-                     <string>Clear All Textures from Selection</string>
+                  <item row="0" column="0">
+                   <layout class="QHBoxLayout" name="horizontalLayout_23">
+                    <item>
+                     <widget class="QCheckBox" name="checkTexture">
+                      <property name="toolTip">
+                       <string>Enable/Disable Texture</string>
+                      </property>
+                      <property name="text">
+                       <string>Texture</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonTexture">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="sizePolicy">
+                       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                        <horstretch>0</horstretch>
+                        <verstretch>0</verstretch>
+                       </sizepolicy>
+                      </property>
+                      <property name="toolTip">
+                       <string>Select the image file for texture</string>
+                      </property>
+                      <property name="text">
+                       <string>Select Texture Image</string>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="1" column="0">
+                   <widget class="QGroupBox" name="groupBox_3">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
                     </property>
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>0</height>
+                     </size>
+                    </property>
+                    <property name="title">
+                     <string>Material Colours</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_19">
+                     <item row="0" column="0">
+                      <widget class="QPushButton" name="pushButtonMaterialAmbient">
+                       <property name="text">
+                        <string>Ambient Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="2">
+                      <widget class="QPushButton" name="pushButtonMaterialEmissive">
+                       <property name="text">
+                        <string>Emissive Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QPushButton" name="pushButtonMaterialDiffuse">
+                       <property name="text">
+                        <string>Diffuse Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QPushButton" name="pushButtonMaterialSpecular">
+                       <property name="text">
+                        <string>Specular Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item row="2" column="0">
+                   <widget class="QGroupBox" name="groupBox_11">
+                    <property name="title">
+                     <string>Shininess</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_2">
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="valueShine">
+                       <property name="text">
+                        <string>Value</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QSlider" name="sliderShine">
+                       <property name="maximum">
+                        <number>128</number>
+                       </property>
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item row="3" column="0">
+                   <widget class="QGroupBox" name="groupBox_7">
+                    <property name="title">
+                     <string>Opacity</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_4">
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="valueOpacity">
+                       <property name="text">
+                        <string>Transparent</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QSlider" name="sliderTransparency">
+                       <property name="minimum">
+                        <number>50</number>
+                       </property>
+                       <property name="maximum">
+                        <number>1000</number>
+                       </property>
+                       <property name="value">
+                        <number>1000</number>
+                       </property>
+                       <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QLabel" name="valueOpacity_4">
+                       <property name="text">
+                        <string>Opaque</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
                    </widget>
                   </item>
                   <item row="4" column="0">
@@ -1275,13 +1433,6 @@
                     </property>
                     <property name="text">
                      <string>Reset to Default Values</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="10" column="0">
-                   <widget class="QPushButton" name="pushButtonApplyADSTexture">
-                    <property name="text">
-                     <string>Apply Textures to Selection</string>
                     </property>
                    </widget>
                   </item>
@@ -1443,183 +1594,84 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="12" column="0">
-                   <spacer name="verticalSpacer">
-                    <property name="orientation">
-                     <enum>Qt::Vertical</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>218</width>
-                      <height>121</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item row="1" column="0">
-                   <widget class="QGroupBox" name="groupBox_3">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>0</height>
-                     </size>
-                    </property>
-                    <property name="title">
-                     <string>Material Colours</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_19">
-                     <item row="0" column="0">
-                      <widget class="QPushButton" name="pushButtonMaterialAmbient">
-                       <property name="text">
-                        <string>Ambient Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="2">
-                      <widget class="QPushButton" name="pushButtonMaterialEmissive">
-                       <property name="text">
-                        <string>Emissive Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="2">
-                      <widget class="QPushButton" name="pushButtonMaterialDiffuse">
-                       <property name="text">
-                        <string>Diffuse Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QPushButton" name="pushButtonMaterialSpecular">
-                       <property name="text">
-                        <string>Specular Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="0" column="0">
-                   <layout class="QHBoxLayout" name="horizontalLayout_23">
+                  <item row="7" column="0">
+                   <layout class="QHBoxLayout" name="horizontalLayout_25">
                     <item>
-                     <widget class="QCheckBox" name="checkTexture">
-                      <property name="toolTip">
-                       <string>Enable/Disable Texture</string>
-                      </property>
+                     <widget class="QCheckBox" name="checkBoxEmissiveTex">
                       <property name="text">
-                       <string>Texture</string>
+                       <string>Emissive Light Map</string>
                       </property>
                      </widget>
                     </item>
                     <item>
-                     <widget class="QPushButton" name="pushButtonTexture">
+                     <spacer name="horizontalSpacer_16">
+                      <property name="orientation">
+                       <enum>Qt::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>40</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonEmissiveTexture">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
+                      <property name="text">
+                       <string>Select Texture</string>
                       </property>
-                      <property name="toolTip">
-                       <string>Select the image file for texture</string>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="labelEmissiveTexture">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>42</width>
+                        <height>42</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>42</width>
+                        <height>42</height>
+                       </size>
+                      </property>
+                      <property name="frameShape">
+                       <enum>QFrame::Panel</enum>
+                      </property>
+                      <property name="frameShadow">
+                       <enum>QFrame::Raised</enum>
                       </property>
                       <property name="text">
-                       <string>Select Texture Image</string>
+                       <string/>
+                      </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QToolButton" name="toolButtonClearEmissiveTex">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="text">
+                       <string>...</string>
+                      </property>
+                      <property name="icon">
+                       <iconset resource="ModelViewer.qrc">
+                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
                    </layout>
-                  </item>
-                  <item row="2" column="0">
-                   <widget class="QGroupBox" name="groupBox_11">
-                    <property name="title">
-                     <string>Shininess</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_2">
-                     <item row="0" column="0">
-                      <widget class="QLabel" name="valueShine">
-                       <property name="text">
-                        <string>Value</string>
-                       </property>
-                       <property name="alignment">
-                        <set>Qt::AlignCenter</set>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="1">
-                      <widget class="QSlider" name="sliderShine">
-                       <property name="maximum">
-                        <number>128</number>
-                       </property>
-                       <property name="orientation">
-                        <enum>Qt::Horizontal</enum>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="3" column="0">
-                   <widget class="QGroupBox" name="groupBox_7">
-                    <property name="title">
-                     <string>Opacity</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_4">
-                     <item row="0" column="0">
-                      <widget class="QLabel" name="valueOpacity">
-                       <property name="text">
-                        <string>Transparent</string>
-                       </property>
-                       <property name="alignment">
-                        <set>Qt::AlignCenter</set>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="1">
-                      <widget class="QSlider" name="sliderTransparency">
-                       <property name="minimum">
-                        <number>50</number>
-                       </property>
-                       <property name="maximum">
-                        <number>1000</number>
-                       </property>
-                       <property name="value">
-                        <number>1000</number>
-                       </property>
-                       <property name="orientation">
-                        <enum>Qt::Horizontal</enum>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="2">
-                      <widget class="QLabel" name="valueOpacity_4">
-                       <property name="text">
-                        <string>Opaque</string>
-                       </property>
-                       <property name="alignment">
-                        <set>Qt::AlignCenter</set>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
                   </item>
                   <item row="8" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_21">
@@ -1779,17 +1831,17 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="7" column="0">
-                   <layout class="QHBoxLayout" name="horizontalLayout_25">
+                  <item row="10" column="0">
+                   <layout class="QHBoxLayout" name="horizontalLayout_24">
                     <item>
-                     <widget class="QCheckBox" name="checkBoxEmissiveTex">
+                     <widget class="QCheckBox" name="checkBoxOpacityTex">
                       <property name="text">
-                       <string>Emissive Light Map</string>
+                       <string>Opacity Map</string>
                       </property>
                      </widget>
                     </item>
                     <item>
-                     <spacer name="horizontalSpacer_16">
+                     <spacer name="horizontalSpacer_15">
                       <property name="orientation">
                        <enum>Qt::Horizontal</enum>
                       </property>
@@ -1802,7 +1854,7 @@
                      </spacer>
                     </item>
                     <item>
-                     <widget class="QPushButton" name="pushButtonEmissiveTexture">
+                     <widget class="QPushButton" name="pushButtonOpacityTexture">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
@@ -1812,7 +1864,7 @@
                      </widget>
                     </item>
                     <item>
-                     <widget class="QLabel" name="labelEmissiveTexture">
+                     <widget class="QLabel" name="labelOpacityTexture">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
@@ -1843,7 +1895,7 @@
                      </widget>
                     </item>
                     <item>
-                     <widget class="QToolButton" name="toolButtonClearEmissiveTex">
+                     <widget class="QToolButton" name="toolButtonClearOpacityTex">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
@@ -1858,6 +1910,33 @@
                     </item>
                    </layout>
                   </item>
+                  <item row="11" column="0">
+                   <widget class="QPushButton" name="pushButtonApplyADSTexture">
+                    <property name="text">
+                     <string>Apply Textures to Selection</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="12" column="0">
+                   <widget class="QPushButton" name="pushButtonClearADSTextures">
+                    <property name="text">
+                     <string>Clear All Textures from Selection</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="13" column="0">
+                   <spacer name="verticalSpacer">
+                    <property name="orientation">
+                     <enum>Qt::Vertical</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>218</width>
+                      <height>121</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
                  </layout>
                 </widget>
                 <widget class="QWidget" name="pageDLPBRSettings">
@@ -1865,8 +1944,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>580</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2019,8 +2098,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>580</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2577,8 +2656,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>580</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3437,8 +3516,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>580</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3794,8 +3873,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>437</width>
-                   <height>567</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4272,12 +4351,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1414</x>
-     <y>1043</y>
+     <x>1398</x>
+     <y>1053</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1543</x>
-     <y>1044</y>
+     <x>1530</x>
+     <y>1055</y>
     </hint>
    </hints>
   </connection>
@@ -4288,12 +4367,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1414</x>
-     <y>1043</y>
+     <x>1398</x>
+     <y>1053</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1672</x>
-     <y>1044</y>
+     <x>1661</x>
+     <y>1055</y>
     </hint>
    </hints>
   </connection>
@@ -4304,12 +4383,12 @@
    <slot>setChecked(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1488</x>
-     <y>887</y>
+     <x>1463</x>
+     <y>917</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1673</x>
-     <y>1013</y>
+     <x>1662</x>
+     <y>1028</y>
     </hint>
    </hints>
   </connection>
@@ -4320,12 +4399,12 @@
    <slot>setChecked(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1488</x>
-     <y>887</y>
+     <x>1463</x>
+     <y>917</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1414</x>
-     <y>1043</y>
+     <x>1398</x>
+     <y>1053</y>
     </hint>
    </hints>
   </connection>
@@ -4336,12 +4415,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1364</x>
-     <y>724</y>
+     <x>1342</x>
+     <y>798</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1597</x>
-     <y>724</y>
+     <x>1594</x>
+     <y>801</y>
     </hint>
    </hints>
   </connection>
@@ -4352,12 +4431,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1433</x>
-     <y>773</y>
+     <x>1396</x>
+     <y>848</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1597</x>
-     <y>773</y>
+     <x>1594</x>
+     <y>851</y>
     </hint>
    </hints>
   </connection>
@@ -4368,12 +4447,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1364</x>
-     <y>724</y>
+     <x>1342</x>
+     <y>798</y>
     </hint>
     <hint type="destinationlabel">
      <x>1642</x>
-     <y>714</y>
+     <y>811</y>
     </hint>
    </hints>
   </connection>
@@ -4384,12 +4463,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1433</x>
-     <y>773</y>
+     <x>1396</x>
+     <y>848</y>
     </hint>
     <hint type="destinationlabel">
      <x>1642</x>
-     <y>754</y>
+     <y>861</y>
     </hint>
    </hints>
   </connection>
@@ -4400,12 +4479,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>822</y>
+     <x>1340</x>
+     <y>898</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1597</x>
-     <y>822</y>
+     <x>1594</x>
+     <y>901</y>
     </hint>
    </hints>
   </connection>
@@ -4416,12 +4495,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>822</y>
+     <x>1340</x>
+     <y>898</y>
     </hint>
     <hint type="destinationlabel">
      <x>1642</x>
-     <y>794</y>
+     <y>911</y>
     </hint>
    </hints>
   </connection>
@@ -4432,12 +4511,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>822</y>
+     <x>1340</x>
+     <y>898</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1466</x>
-     <y>863</y>
+     <x>1464</x>
+     <y>939</y>
     </hint>
    </hints>
   </connection>
@@ -4448,12 +4527,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>822</y>
+     <x>1340</x>
+     <y>898</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1672</x>
-     <y>863</y>
+     <x>1671</x>
+     <y>939</y>
     </hint>
    </hints>
   </connection>
@@ -4464,12 +4543,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1386</x>
-     <y>675</y>
+     <x>1362</x>
+     <y>748</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1597</x>
-     <y>675</y>
+     <x>1594</x>
+     <y>751</y>
     </hint>
    </hints>
   </connection>
@@ -4480,12 +4559,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1386</x>
-     <y>675</y>
+     <x>1362</x>
+     <y>748</y>
     </hint>
     <hint type="destinationlabel">
      <x>1642</x>
-     <y>674</y>
+     <y>761</y>
     </hint>
    </hints>
   </connection>
@@ -4496,12 +4575,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1365</x>
-     <y>626</y>
+     <x>1344</x>
+     <y>698</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1597</x>
-     <y>626</y>
+     <x>1594</x>
+     <y>701</y>
     </hint>
    </hints>
   </connection>
@@ -4512,12 +4591,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1365</x>
-     <y>626</y>
+     <x>1344</x>
+     <y>698</y>
     </hint>
     <hint type="destinationlabel">
      <x>1642</x>
-     <y>634</y>
+     <y>711</y>
     </hint>
    </hints>
   </connection>
@@ -4528,12 +4607,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1361</x>
-     <y>577</y>
+     <x>1342</x>
+     <y>648</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1597</x>
-     <y>577</y>
+     <x>1594</x>
+     <y>651</y>
     </hint>
    </hints>
   </connection>
@@ -4544,12 +4623,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1361</x>
-     <y>577</y>
+     <x>1342</x>
+     <y>648</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1644</x>
-     <y>586</y>
+     <x>1642</x>
+     <y>661</y>
     </hint>
    </hints>
   </connection>
@@ -4560,12 +4639,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1361</x>
-     <y>577</y>
+     <x>1342</x>
+     <y>648</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1672</x>
-     <y>576</y>
+     <x>1671</x>
+     <y>651</y>
     </hint>
    </hints>
   </connection>
@@ -4576,12 +4655,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1365</x>
-     <y>626</y>
+     <x>1344</x>
+     <y>698</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1672</x>
-     <y>625</y>
+     <x>1671</x>
+     <y>701</y>
     </hint>
    </hints>
   </connection>
@@ -4592,12 +4671,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1386</x>
-     <y>675</y>
+     <x>1362</x>
+     <y>748</y>
     </hint>
     <hint type="destinationlabel">
      <x>1671</x>
-     <y>669</y>
+     <y>751</y>
     </hint>
    </hints>
   </connection>
@@ -4608,12 +4687,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1364</x>
-     <y>724</y>
+     <x>1342</x>
+     <y>798</y>
     </hint>
     <hint type="destinationlabel">
      <x>1671</x>
-     <y>709</y>
+     <y>801</y>
     </hint>
    </hints>
   </connection>
@@ -4624,12 +4703,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1433</x>
-     <y>773</y>
+     <x>1396</x>
+     <y>848</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1672</x>
-     <y>772</y>
+     <x>1671</x>
+     <y>851</y>
     </hint>
    </hints>
   </connection>
@@ -4640,12 +4719,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>822</y>
+     <x>1340</x>
+     <y>898</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1672</x>
-     <y>821</y>
+     <x>1671</x>
+     <y>901</y>
     </hint>
    </hints>
   </connection>
@@ -4656,12 +4735,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1333</x>
-     <y>506</y>
+     <x>1324</x>
+     <y>585</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1659</x>
-     <y>507</y>
+     <x>1671</x>
+     <y>588</y>
     </hint>
    </hints>
   </connection>
@@ -4672,12 +4751,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1395</x>
-     <y>812</y>
+     <x>1369</x>
+     <y>867</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1584</x>
-     <y>812</y>
+     <x>1594</x>
+     <y>870</y>
     </hint>
    </hints>
   </connection>
@@ -4688,12 +4767,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1395</x>
-     <y>812</y>
+     <x>1369</x>
+     <y>867</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1631</x>
-     <y>821</y>
+     <x>1642</x>
+     <y>880</y>
     </hint>
    </hints>
   </connection>
@@ -4704,12 +4783,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1395</x>
-     <y>812</y>
+     <x>1369</x>
+     <y>867</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1659</x>
-     <y>811</y>
+     <x>1671</x>
+     <y>870</y>
     </hint>
    </hints>
   </connection>
@@ -4720,12 +4799,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1405</x>
-     <y>861</y>
+     <x>1376</x>
+     <y>917</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1584</x>
-     <y>861</y>
+     <x>1594</x>
+     <y>920</y>
     </hint>
    </hints>
   </connection>
@@ -4736,12 +4815,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1405</x>
-     <y>861</y>
+     <x>1376</x>
+     <y>917</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1631</x>
-     <y>870</y>
+     <x>1642</x>
+     <y>930</y>
     </hint>
    </hints>
   </connection>
@@ -4752,12 +4831,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1405</x>
-     <y>861</y>
+     <x>1376</x>
+     <y>917</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1659</x>
-     <y>860</y>
+     <x>1671</x>
+     <y>920</y>
     </hint>
    </hints>
   </connection>
@@ -4768,12 +4847,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1364</x>
-     <y>959</y>
+     <x>1342</x>
+     <y>1017</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1584</x>
-     <y>959</y>
+     <x>1594</x>
+     <y>1020</y>
     </hint>
    </hints>
   </connection>
@@ -4784,12 +4863,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1364</x>
-     <y>959</y>
+     <x>1342</x>
+     <y>1017</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1631</x>
-     <y>968</y>
+     <x>1642</x>
+     <y>1030</y>
     </hint>
    </hints>
   </connection>
@@ -4800,12 +4879,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1364</x>
-     <y>959</y>
+     <x>1342</x>
+     <y>1017</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1659</x>
-     <y>958</y>
+     <x>1671</x>
+     <y>1020</y>
     </hint>
    </hints>
   </connection>
@@ -4816,12 +4895,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>1008</y>
+     <x>1340</x>
+     <y>1067</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1584</x>
-     <y>1008</y>
+     <x>1594</x>
+     <y>1070</y>
     </hint>
    </hints>
   </connection>
@@ -4832,12 +4911,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>1008</y>
+     <x>1340</x>
+     <y>1067</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1631</x>
-     <y>1017</y>
+     <x>1642</x>
+     <y>1080</y>
     </hint>
    </hints>
   </connection>
@@ -4848,12 +4927,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1359</x>
-     <y>1008</y>
+     <x>1340</x>
+     <y>1067</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1659</x>
-     <y>1007</y>
+     <x>1671</x>
+     <y>1070</y>
     </hint>
    </hints>
   </connection>
@@ -4864,12 +4943,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1320</x>
-     <y>896</y>
+     <x>1375</x>
+     <y>967</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1530</x>
-     <y>898</y>
+     <x>1594</x>
+     <y>970</y>
     </hint>
    </hints>
   </connection>
@@ -4880,12 +4959,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1286</x>
-     <y>896</y>
+     <x>1375</x>
+     <y>967</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1616</x>
-     <y>898</y>
+     <x>1642</x>
+     <y>980</y>
     </hint>
    </hints>
   </connection>
@@ -4896,12 +4975,60 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>1307</x>
-     <y>897</y>
+     <x>1375</x>
+     <y>967</y>
     </hint>
     <hint type="destinationlabel">
-     <x>1645</x>
-     <y>896</y>
+     <x>1671</x>
+     <y>970</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxOpacityTex</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>pushButtonOpacityTexture</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1298</x>
+     <y>1107</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1558</x>
+     <y>1111</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxOpacityTex</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>labelOpacityTexture</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1306</x>
+     <y>1107</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1626</x>
+     <y>1117</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxOpacityTex</sender>
+   <signal>toggled(bool)</signal>
+   <receiver>toolButtonClearOpacityTex</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>1286</x>
+     <y>1106</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>1663</x>
+     <y>1107</y>
     </hint>
    </hints>
   </connection>
@@ -4911,7 +5038,7 @@
  </slots>
  <buttongroups>
   <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

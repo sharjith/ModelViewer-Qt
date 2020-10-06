@@ -106,6 +106,10 @@ public:
     void setADSHeightTexMap(const std::vector<int>& ids, const QString& path);
     void clearADSHeightTexMap(const std::vector<int>& ids);
 
+	void enableADSOpacityTexMap(const std::vector<int>& ids, const bool& enable);
+	void setADSOpacityTexMap(const std::vector<int>& ids, const QString& path);
+	void clearADSOpacityTexMap(const std::vector<int>& ids);
+
 	void clearADSTexMaps(const std::vector<int>& ids);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
