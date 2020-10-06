@@ -79,66 +79,22 @@ public:
 		PERSPECTIVE = (ORTHOGRAPHIC + 1)
 	};
 
-	GLCamera()
-	{
-		resetAll();
-	}
+    GLCamera();
+    GLCamera(float width, float height, float range, float fov);
 
-	GLCamera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _FOV(fov)
-	{
-		resetAll();
-		updateProjectionMatrix();
-	}
+    void setScreenSize(float w, float h);
+    QPoint getScreenSize() const;
 
-	void setScreenSize(float w, float h)
-	{
-		_width = w;
-		_height = h;
-		updateProjectionMatrix();
-	}
+    float getAspectRatio() const;
 
-	QPoint getScreenSize() const
-	{
-		return QPoint(_width, _height);
-	}
+    void setFOV(float fov);
+    float getFOV() const;
 
-	float getAspectRatio() const
-	{
-		return _width / _height;
-	}
+    void setViewRange(float range);
+    float getViewRange() const;
 
-	void setFOV(float fov)
-	{
-		_FOV = fov;
-		updateProjectionMatrix();
-	}
-
-	float getFOV() const
-	{
-		return _FOV;
-	}
-
-	void setViewRange(float range)
-	{
-		_viewRange = range;
-		updateProjectionMatrix();
-	}
-
-	float getViewRange() const
-	{
-		return _viewRange;
-	}
-
-	void setProjectionType(ProjectionType proj)
-	{
-		_projectionType = proj;
-		updateProjectionMatrix();
-	}
-
-	ProjectionType getProjectionType() const
-	{
-		return _projectionType;
-	}
+    void setProjectionType(ProjectionType proj);
+    ProjectionType getProjectionType() const;
 
 	void resetAll(void);
 	void updateViewMatrix(void);

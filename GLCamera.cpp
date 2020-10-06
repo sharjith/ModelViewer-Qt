@@ -16,6 +16,66 @@
 //////////////////////////////////////////////////////////////////////
 
 // GLCamera
+GLCamera::GLCamera()
+{
+    resetAll();
+}
+
+GLCamera::GLCamera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _FOV(fov)
+{
+    resetAll();
+    updateProjectionMatrix();
+}
+
+void GLCamera::setScreenSize(float w, float h)
+{
+    _width = w;
+    _height = h;
+    updateProjectionMatrix();
+}
+
+QPoint GLCamera::getScreenSize() const
+{
+    return QPoint(_width, _height);
+}
+
+float GLCamera::getAspectRatio() const
+{
+    return _width / _height;
+}
+
+void GLCamera::setFOV(float fov)
+{
+    _FOV = fov;
+    updateProjectionMatrix();
+}
+
+float GLCamera::getFOV() const
+{
+    return _FOV;
+}
+
+void GLCamera::setViewRange(float range)
+{
+    _viewRange = range;
+    updateProjectionMatrix();
+}
+
+float GLCamera::getViewRange() const
+{
+    return _viewRange;
+}
+
+void GLCamera::setProjectionType(ProjectionType proj)
+{
+    _projectionType = proj;
+    updateProjectionMatrix();
+}
+
+GLCamera::ProjectionType GLCamera::getProjectionType() const
+{
+    return _projectionType;
+}
 
 void GLCamera::resetAll(void)
 {
@@ -79,11 +139,11 @@ void GLCamera::updateProjectionMatrix(void)
 	}
 	else
 	{
-		if (w <= h)
-			_projectionMatrix.perspective(_FOV, static_cast<double>(h) / static_cast<double>(w), 1, halfRange * 10000.0f);
+        if (w <= h)
+            _projectionMatrix.perspective(_FOV, static_cast<double>(h) / static_cast<double>(w), 1, halfRange * 10000.0f);
 		else
-			_projectionMatrix.perspective(_FOV, static_cast<double>(w) / static_cast<double>(h), 1, halfRange * 10000.0f);
-		_projectionMatrix.translate(0.0, 0.0, -halfRange * 2.5);
+            _projectionMatrix.perspective(_FOV, static_cast<double>(w) / static_cast<double>(h), 1, halfRange * 10000.0f);
+        _projectionMatrix.translate(0.0, 0.0, -halfRange * 2.5);
 	}
 }
 
