@@ -1503,9 +1503,10 @@ void ModelViewer::on_toolButtonZoomView_clicked()
 
 void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 {
+    QString texpath = checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes";
 	QString appPath = QCoreApplication::applicationDirPath();
 	QString dir = QFileDialog::getExistingDirectory(this, tr("Select Skybox Texture Folder"),
-		appPath + "/textures/envmap/skyboxes",
+        appPath + texpath,
 		QFileDialog::ShowDirsOnly
 		| QFileDialog::DontResolveSymlinks);
 	if (dir != "")
