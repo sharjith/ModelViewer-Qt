@@ -299,6 +299,8 @@ private:
 
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
+    QVector3D _rubberBandPan;
+    GLfloat _rubberBandZoomRatio;
 	float _rubberBandRadius;
 	QVector3D _rubberBandCenter;
 

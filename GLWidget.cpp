@@ -457,6 +457,7 @@ void GLWidget::beginWindowZoom()
 
 void GLWidget::performWindowZoom()
 {
+    /*
 	_bWindowZoomActive = false;
 	if (_rubberBand)
 	{
@@ -486,6 +487,34 @@ void GLWidget::performWindowZoom()
 		_slerpStep = 0.0f;
 	}
 	emit windowZoomEnded();
+    */
+    _bWindowZoomActive = false;
+    if (_rubberBand)
+    {
+        QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+
+        QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
+        QPoint clientWinCen = clientRect.center();
+        QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
+        QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+
+        QRect zoomRect = _rubberBand->geometry();
+        QPoint zoomWinCen = zoomRect.center();
+        QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
+        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+
+        double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
+        double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
+        _rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
+        _rubberBandPan = P - O;
+    }
+    if (!_animateWindowZoomTimer->isActive())
+    {
+        _animateWindowZoomTimer->start(5);
+        _slerpStep = 0.0f;
+    }
+    emit windowZoomEnded();
 }
 
 void GLWidget::setProjection(ViewProjection proj)
@@ -3366,7 +3395,8 @@ void GLWidget::animateWindowZoom()
 	float fov = _primaryCamera->getFOV();
 	float radius = _rubberBandRadius * 2; 
 	radius = _projection == ViewProjection::PERSPECTIVE ? radius + 2 * fov: radius;
-	setZoomAndPan(radius, -_currentTranslation + _rubberBandCenter);
+    //setZoomAndPan(radius, -_currentTranslation + _rubberBandCenter);
+    setZoomAndPan(_currentViewRange /_rubberBandZoomRatio, _rubberBandPan);
 	resizeGL(width(), height());
 }
 
