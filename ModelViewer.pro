@@ -24,7 +24,7 @@ win32-g++{
     INCLUDEPATH += D:\Software\libs\freetype-2.10.1\include
     INCLUDEPATH += D:\Software\libs\assimp-5.0.1\include
     LIBS += -L"D:\Software\libs\freetype-2.10.1\build" -lfreetype
-build    LIBS += -L"D:\Software\libs\assimp-5.0.1\build\code" -lassimp -llibzlibstatic -llibIrrXML
+    LIBS += -L"D:\Software\libs\assimp-5.0.1\build\code" -lassimp -llibzlibstatic -llibIrrXML
 }
 
 CONFIG += c++17
