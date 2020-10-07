@@ -3184,10 +3184,10 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_currentViewRange = _viewRange;
 
 	// Translate to focus on mouse center
-	QPoint cen = getClientRectFromPoint(e->pos()).center();
-	float sign = (e->x() > cen.x() || e->y() < cen.y() ||
-		(e->x() < cen.x() && e->y() > cen.y())) && (zoomStep > 0) ? 1.0f : -1.0f;
-	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->pos());
+    QPoint cen = getClientRectFromPoint(e->position().toPoint()).center();
+    float sign = (e->position().x() > cen.x() || e->position().y() < cen.y() ||
+        (e->position().x() < cen.x() && e->position().y() > cen.y())) && (zoomStep > 0) ? 1.0f : -1.0f;
+    QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->position().toPoint());
 	OP *= sign * 0.05f;
 	_primaryCamera->move(OP.x(), OP.y(), OP.z());
 	_currentTranslation = _primaryCamera->getPosition();
