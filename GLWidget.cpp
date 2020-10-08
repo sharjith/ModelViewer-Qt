@@ -4020,7 +4020,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		}
 		else
 		{
-			myMenu.addAction("Bagkground Color", this, SLOT(setBackgroundColor()));
+			myMenu.addAction("Background Color", this, SLOT(setBackgroundColor()));
 		}
 		// Show context menu at handling position
 		myMenu.exec(mapToGlobal(pos));
