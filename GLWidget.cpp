@@ -457,37 +457,6 @@ void GLWidget::beginWindowZoom()
 
 void GLWidget::performWindowZoom()
 {
-    /*
-	_bWindowZoomActive = false;
-	if (_rubberBand)
-	{
-		QRect zoomRect = _rubberBand->geometry();
-		if (zoomRect.width() == 0 || zoomRect.height() == 0)
-		{
-			emit windowZoomEnded();
-			return;
-		}
-
-		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-		QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());			
-		QPoint zoomWinCen = zoomRect.center();
-		QVector3D p(zoomWinCen.x(), clientRect.height() - zoomWinCen.y(), Z.z());
-		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-		QPoint zoomWinCorner = zoomRect.bottomRight();
-		QVector3D q(zoomWinCorner.x(), clientRect.height() - zoomWinCorner.y(), Z.z());
-		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-        _rubberBandCenter = P;
-        _rubberBandRadius = P.distanceToPoint(Q) * 0.75f;
-	}
-	if (!_animateWindowZoomTimer->isActive())
-	{
-		_animateWindowZoomTimer->start(5);
-		_slerpStep = 0.0f;
-	}
-	emit windowZoomEnded();
-    */
     _bWindowZoomActive = false;
     if (_rubberBand)
     {
@@ -3392,11 +3361,12 @@ void GLWidget::animateWindowZoom()
 {
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
-	float fov = _primaryCamera->getFOV();
-	float radius = _rubberBandRadius * 2; 
-	radius = _projection == ViewProjection::PERSPECTIVE ? radius + 2 * fov: radius;
-    //setZoomAndPan(radius, -_currentTranslation + _rubberBandCenter);
-    setZoomAndPan(_currentViewRange /_rubberBandZoomRatio, _rubberBandPan);
+    float fov = _primaryCamera->getFOV();
+    float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio * fov / 100);
+    QVector3D panRatio = (_rubberBandPan * fov / 100);
+    float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
+    QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;
+    setZoomAndPan(_currentViewRange / zoom, pan);
 	resizeGL(width(), height());
 }
 
