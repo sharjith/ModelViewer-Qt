@@ -6,34 +6,6 @@ _stacks(stacks)
 {
 }
 
-void GridMesh::render()
-{
-	if (!_vertexArrayObject.isCreated())
-		return;
-
-	setupTextures();
-
-	setupUniforms();
-
-	if (_material.opacity() < 1.0f)
-	{
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_POLYGON_SMOOTH);
-	}
-	else
-	{
-		glDisable(GL_BLEND);
-	}
-
-	_vertexArrayObject.bind();
-	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
-	_vertexArrayObject.release();
-	_prog->release();
-	glDisable(GL_BLEND);
-}
-
 GridMesh::~GridMesh()
 {
 }
