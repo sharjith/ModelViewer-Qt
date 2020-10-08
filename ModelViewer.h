@@ -149,6 +149,11 @@ private slots:
 	void on_checkBoxAOMap_toggled(bool checked);
 	void on_pushButtonAOMap_clicked();
 
+    void on_checkBoxOpacityMap_toggled(bool checked);
+    void on_checkBoxOpacMapInvert_toggled(bool inverted);
+    void on_pushButtonOpacityMap_clicked();
+    void on_toolButtonClearOpacityMap_clicked();
+
 	void on_checkBoxHeightMap_toggled(bool checked);
 	void on_pushButtonHeightMap_clicked();
 	void on_doubleSpinBoxHeightScale_valueChanged(double val);
@@ -229,12 +234,14 @@ private:
 	QString _roughnessTexture;
 	QString _normalTexture;
 	QString _aoTexture;
+    QString _opacityPBRTexture;
 	QString _heightTexture;
 	bool    _hasAlbedoTex;
 	bool    _hasMetallicTex;
 	bool    _hasRoughnessTex;
 	bool    _hasNormalTex;
 	bool    _hasAOTex;
+    bool    _hasPBROpacTex;
 	bool    _hasHeightTex;
 	float   _heightScale;
 

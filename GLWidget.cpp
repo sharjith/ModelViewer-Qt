@@ -1391,6 +1391,71 @@ void GLWidget::clearPBRAOTexMap(const std::vector<int>& ids)
 	}
 }
 
+void GLWidget::enablePBROpacityTexMap(const std::vector<int>& ids, const bool& enable)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->enableOpacityMap(enable);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::enablePBROpacityTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::setPBROpacityTexMap(const std::vector<int>& ids, const QString& path)
+{
+    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->setOpacityMap(texId);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::setPBROpacityTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->invertOpacityMap(inverted);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::invertPBROpacityTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
+void GLWidget::clearPBROpacityTexMap(const std::vector<int>& ids)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->clearOpacityMap();
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::clearPBROpacityTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable)
 {
 	for (int id : ids)

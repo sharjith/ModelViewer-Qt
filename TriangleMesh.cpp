@@ -25,13 +25,16 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _roughnessMap(0),
     _normalMap(0),
     _aoMap(0),
+    _opacityMap(0),
     _hasAlbedoMap(false),
     _hasMetallicMap(false),
     _hasRoughnessMap(false),
     _hasNormalMap(false),
     _hasAOMap(false),
     _hasHeightMap(false),
-    _heightScale(0.05f)
+    _heightScale(0.05f),
+    _hasOpacityMap(false),
+    _opacityMapInverted(false)
 {
     _memorySize = 0;
     _transX = _transY = _transZ = 0.0f;
@@ -275,6 +278,8 @@ void TriangleMesh::setupTextures()
     glBindTexture(GL_TEXTURE_2D, _aoMap);
     glActiveTexture(GL_TEXTURE25);
     glBindTexture(GL_TEXTURE_2D, _heightMap);
+    glActiveTexture(GL_TEXTURE26);
+    glBindTexture(GL_TEXTURE_2D, _opacityMap);
 }
 
 void TriangleMesh::setupUniforms()
@@ -316,12 +321,15 @@ void TriangleMesh::setupUniforms()
     _prog->setUniformValue("roughnessMap", 23);
     _prog->setUniformValue("aoMap", 24);
     _prog->setUniformValue("heightMap", 25);
+    _prog->setUniformValue("opacityMap", 26);
     _prog->setUniformValue("heightScale", _heightScale);
     _prog->setUniformValue("hasAlbedoMap", _hasAlbedoMap);
     _prog->setUniformValue("hasMetallicMap", _hasMetallicMap);
     _prog->setUniformValue("hasRoughnessMap", _hasRoughnessMap);
     _prog->setUniformValue("hasNormalMap", _hasNormalMap);
     _prog->setUniformValue("hasAOMap", _hasAOMap);
+    _prog->setUniformValue("hasOpacityMap", _hasOpacityMap);
+    _prog->setUniformValue("opacityMapInverted", _opacityMapInverted);
     _prog->setUniformValue("hasHeightMap", _hasHeightMap);
 
     _prog->setUniformValue("selected", _selected);
@@ -474,7 +482,7 @@ void TriangleMesh::render()
 
     setupUniforms();
 
-    if (_material.opacity() < 1.0f || _hasOpacityTexture)
+    if (_material.opacity() < 1.0f || _hasOpacityTexture || _hasOpacityMap)
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -1030,22 +1038,20 @@ void TriangleMesh::enableNormalMap(bool hasNormalMap)
     _hasNormalMap = hasNormalMap;
 }
 
-void TriangleMesh::setHeightMap(unsigned int heightMap)
+bool TriangleMesh::hasOpacityMap() const
 {
-    glDeleteTextures(1, &_heightMap);
-    _heightMap = heightMap;
+    return _hasOpacityMap;
 }
 
-void TriangleMesh::setAOMap(unsigned int aoMap)
+void TriangleMesh::enableOpacityMap(bool hasOpacityMap)
 {
-    glDeleteTextures(1, &_aoMap);
-    _aoMap = aoMap;
+    _hasOpacityMap = hasOpacityMap;
 }
 
-void TriangleMesh::setRoughnessMap(unsigned int roughnessMap)
+void TriangleMesh::setAlbedoMap(unsigned int albedoMap)
 {
-    glDeleteTextures(1, &_roughnessMap);
-    _roughnessMap = roughnessMap;
+    glDeleteTextures(1, &_albedoMap);
+    _albedoMap = albedoMap;
 }
 
 void TriangleMesh::setMetallicMap(unsigned int metallicMap)
@@ -1054,17 +1060,30 @@ void TriangleMesh::setMetallicMap(unsigned int metallicMap)
     _metallicMap = metallicMap;
 }
 
+void TriangleMesh::setRoughnessMap(unsigned int roughnessMap)
+{
+    glDeleteTextures(1, &_roughnessMap);
+    _roughnessMap = roughnessMap;
+}
+
 void TriangleMesh::setNormalMap(unsigned int normalMap)
 {
     glDeleteTextures(1, &_normalMap);
     _normalMap = normalMap;
 }
 
-void TriangleMesh::setAlbedoMap(unsigned int albedoMap)
+void TriangleMesh::setAOMap(unsigned int aoMap)
 {
-    glDeleteTextures(1, &_albedoMap);
-    _albedoMap = albedoMap;
+    glDeleteTextures(1, &_aoMap);
+    _aoMap = aoMap;
 }
+
+void TriangleMesh::setHeightMap(unsigned int heightMap)
+{
+    glDeleteTextures(1, &_heightMap);
+    _heightMap = heightMap;
+}
+
 
 float TriangleMesh::getHeightScale() const
 {
@@ -1074,6 +1093,17 @@ float TriangleMesh::getHeightScale() const
 void TriangleMesh::setHeightScale(float heightScale)
 {
     _heightScale = heightScale;
+}
+
+void TriangleMesh::setOpacityMap(unsigned int opacityMap)
+{
+    glDeleteTextures(1, &_opacityMap);
+    _opacityMap = opacityMap;
+}
+
+void TriangleMesh::invertOpacityMap(bool invert)
+{
+    _opacityMapInverted = invert;
 }
 
 void TriangleMesh::clearAlbedoMap()
@@ -1110,6 +1140,12 @@ void TriangleMesh::clearHeightMap()
 {
     glDeleteTextures(1, &_heightMap);
     _heightMap = 0;
+}
+
+void TriangleMesh::clearOpacityMap()
+{
+    glDeleteTextures(1, &_opacityMap);
+    _opacityMap = 0;
 }
 
 void TriangleMesh::clearPBRTextures()

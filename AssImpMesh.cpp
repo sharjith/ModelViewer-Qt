@@ -73,7 +73,7 @@ void AssImpMesh::render()
         glBindTexture(GL_TEXTURE_2D, _textures[i].id);
     }
 
-    if (_material.opacity() < 1.0f || _hasOpacityTexture)
+    if (_material.opacity() < 1.0f || _hasOpacityTexture || _hasOpacityMap)
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

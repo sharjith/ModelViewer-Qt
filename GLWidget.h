@@ -134,6 +134,12 @@ public:
     void enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable);
     void setPBRAOTexMap(const std::vector<int>& ids, const QString& path);
     void clearPBRAOTexMap(const std::vector<int>& ids);
+
+    void enablePBROpacityTexMap(const std::vector<int>& ids, const bool& enable);
+    void setPBROpacityTexMap(const std::vector<int>& ids, const QString& path);
+    void invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted);
+    void clearPBROpacityTexMap(const std::vector<int>& ids);
+
     void enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable);
     void setPBRHeightTexMap(const std::vector<int>& ids, const QString& path);
     void clearPBRHeightTexMap(const std::vector<int>& ids);

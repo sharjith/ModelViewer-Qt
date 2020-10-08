@@ -163,6 +163,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_hasMetallicTex = false;
 	_hasRoughnessTex = false;
 	_hasAOTex = false;
+    _hasPBROpacTex = false;
 	_hasNormalTex = false;
 	_hasHeightTex = false;
 	_heightScale = 0.05f;
@@ -1860,6 +1861,81 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 	}
 }
 
+void ModelViewer::on_checkBoxOpacityMap_toggled(bool checked)
+{
+    if (checkForActiveSelection())
+    {
+        _hasPBROpacTex = checked;
+        std::vector<int> ids = getSelectedIDs();
+        _glWidget->enablePBROpacityTexMap(ids, checked);
+        _glWidget->updateView();
+    }
+    else
+    {
+        checkBoxOpacityMap->blockSignals(true);
+        checkBoxOpacityMap->setChecked(!checked);
+        checkBoxOpacMapInvert->setEnabled(!checked);
+        pushButtonOpacityMap->setEnabled(!checked);
+        labelOpacityMap->setEnabled(!checked);
+        toolButtonClearOpacityMap->setEnabled(!checked);
+        checkBoxOpacityMap->blockSignals(false);
+    }
+}
+
+void ModelViewer::on_checkBoxOpacMapInvert_toggled(bool inverted)
+{
+    if (checkForActiveSelection())
+    {
+        std::vector<int> ids = getSelectedIDs();
+        _glWidget->invertPBROpacityTexMap(ids, inverted);
+        _glWidget->updateView();
+    }
+}
+
+void ModelViewer::on_pushButtonOpacityMap_clicked()
+{
+    if (checkForActiveSelection())
+    {
+        QString appPath = QCoreApplication::applicationDirPath();
+        QString dirPath = appPath + "/textures/materials";
+        QString filter = getSupportedQtImagesFilter();
+        QString fileName = QFileDialog::getOpenFileName(
+            this,
+            "Choose an image for PBR Opacity texture",
+            _textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
+            filter);
+        _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+        if (fileName != "")
+        {
+            _opacityPBRTexture = fileName;
+            _textureDirOpenedFirstTime = false;
+            QPixmap img; img.load(fileName);
+            if (!img.isNull())
+            {
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+                labelOpacityMap->setPixmap(img);
+                std::vector<int> ids = getSelectedIDs();
+                _glWidget->enablePBROpacityTexMap(ids, _hasPBROpacTex);
+                _glWidget->setPBROpacityTexMap(ids, fileName);
+                _glWidget->updateView();
+                QApplication::restoreOverrideCursor();
+            }
+        }
+    }
+}
+
+void ModelViewer::on_toolButtonClearOpacityMap_clicked()
+{
+    if (checkForActiveSelection())
+    {
+        std::vector<int> ids = getSelectedIDs();
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        _glWidget->clearADSOpacityTexMap(ids);
+        _glWidget->updateView();
+        QApplication::restoreOverrideCursor();
+    }
+}
+
 void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
@@ -1991,6 +2067,11 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
 			{
                 _glWidget->setPBRAOTexMap(ids, _aoTexture);
 			}
+            _glWidget->enablePBROpacityTexMap(ids, _hasPBROpacTex);
+            if (_hasPBROpacTex)
+            {
+                _glWidget->setPBROpacityTexMap(ids, _opacityPBRTexture);
+            }
             _glWidget->enablePBRHeightTexMap(ids, _hasHeightTex);
 			if (_hasHeightTex)
 			{
@@ -2534,6 +2615,11 @@ void ModelViewer::on_pushButtonApplyADSTexture_clicked()
 			{
 				_glWidget->setADSHeightTexMap(ids, _heightADSTexture);			
 			}
+            _glWidget->enableADSOpacityTexMap(ids, _hasADSOpacityTex);
+            if (_hasADSOpacityTex)
+            {
+                _glWidget->setADSOpacityTexMap(ids, _opacityADSTexture);
+            }
 			_glWidget->updateView();
 			QApplication::restoreOverrideCursor();
 		}

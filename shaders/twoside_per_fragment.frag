@@ -56,6 +56,7 @@ uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D heightMap;
 uniform sampler2D aoMap;
+uniform sampler2D opacityMap;
 uniform bool hasAlbedoMap;
 uniform bool hasMetallicMap;
 uniform bool hasRoughnessMap;
@@ -63,6 +64,8 @@ uniform bool hasNormalMap;
 uniform bool hasAOMap;
 uniform bool hasHeightMap;
 uniform float heightScale;
+uniform bool hasOpacityMap;
+uniform bool opacityMapInverted = false;
 
 uniform bool envMapEnabled;
 uniform bool shadowsEnabled;
@@ -587,9 +590,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         color = pow(color, vec3(1.0/screenGamma));
 
     float alpha = opacity;
-    if(hasOpacityTexture)
+    if(hasOpacityMap)
     {
-        alpha = texture(texture_opacity, clippedTexCoord).r;
+        if(opacityMapInverted)
+            alpha = 1.0f - texture(opacityMap, clippedTexCoord).r;
+        else
+            alpha = texture(opacityMap, clippedTexCoord).r;
     }
 
     return vec4(color, alpha);

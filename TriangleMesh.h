@@ -106,6 +106,8 @@ public:
 	void setRoughnessMap(unsigned int roughnessMap);
 	void setAOMap(unsigned int aoMap);
 	void setHeightMap(unsigned int heightMap);
+    void setOpacityMap(unsigned int opacityMap);
+    void invertOpacityMap(bool invert);
 
 	bool hasAlbedoMap() const;
 	void enableAlbedoMap(bool hasAlbedoMap);
@@ -128,12 +130,16 @@ public:
 	float getHeightScale() const;
 	void setHeightScale(float heightScale);
 
+    bool hasOpacityMap() const;
+    void enableOpacityMap(bool hasHeightMap);
+
 	void clearAlbedoMap();
 	void clearMetallicMap();
 	void clearRoughnessMap();
 	void clearNormalMap();
 	void clearAOMap();
 	void clearHeightMap();
+    void clearOpacityMap();
 	void clearPBRTextures();
 
 	GLMaterial getMaterial() const;
@@ -236,6 +242,7 @@ protected:
 	unsigned int _normalMap;
 	unsigned int _aoMap;
 	unsigned int _heightMap;
+    unsigned int _opacityMap;
 	bool _hasAlbedoMap;
 	bool _hasMetallicMap;
 	bool _hasRoughnessMap;
@@ -243,6 +250,8 @@ protected:
 	bool _hasAOMap;
 	bool _hasHeightMap;
 	float _heightScale;
+    bool _hasOpacityMap;
+    bool _opacityMapInverted;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
