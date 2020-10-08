@@ -40,6 +40,7 @@ uniform bool hasEmissiveTexture = false;
 uniform bool hasNormalTexture = false;
 uniform bool hasHeightTexture = false;
 uniform bool hasOpacityTexture = false;
+uniform bool opacityTextureInverted = false;
 
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
@@ -209,7 +210,10 @@ void main()
     float alpha = opacity;
     if(renderingMode == 0 && hasOpacityTexture)
     {
-        alpha = 1.0f - texture(texture_opacity, g_texCoord2d).r;
+        if(opacityTextureInverted)
+            alpha = 1.0f - texture(texture_opacity, g_texCoord2d).r;
+        else
+            alpha = texture(texture_opacity, g_texCoord2d).r;
     }
     applyEnvironmentMapping(alpha);
 
@@ -308,7 +312,10 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     float alpha = opacity;
     if(hasOpacityTexture)
     {
-        alpha = texture(texture_opacity, clippedTexCoord).r;
+        if(opacityTextureInverted)
+            alpha = 1.0f - texture(texture_opacity, clippedTexCoord).r;
+        else
+            alpha = texture(texture_opacity, clippedTexCoord).r;
     }
 
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;

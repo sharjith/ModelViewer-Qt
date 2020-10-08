@@ -185,6 +185,7 @@ private slots:
     void on_toolButtonClearHeightTex_clicked();
 
 	void on_checkBoxOpacityTex_toggled(bool checked);
+    void on_checkBoxOpacInvert_toggled(bool inverted);
 	void on_pushButtonOpacityTexture_clicked();
 	void on_toolButtonClearOpacityTex_clicked();
 

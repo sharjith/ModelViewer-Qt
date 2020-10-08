@@ -17,6 +17,7 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _hasNormalTexture(false),
     _hasHeightTexture(false),
     _hasOpacityTexture(false),
+    _opacityTextureInverted(false),
     _sMax(1),
     _tMax(1),
     _albedoMap(0),
@@ -295,6 +296,8 @@ void TriangleMesh::setupUniforms()
     _prog->setUniformValue("hasNormalTexture", _hasNormalTexture);
     _prog->setUniformValue("hasHeightTexture", _hasHeightTexture);
     _prog->setUniformValue("hasOpacityTexture", _hasOpacityTexture);
+    _prog->setUniformValue("opacityTextureInverted", _opacityTextureInverted);
+
     _prog->setUniformValue("texture_diffuse", 10);
     _prog->setUniformValue("texture_specular", 11);
     _prog->setUniformValue("texture_emissive", 12);
@@ -327,6 +330,11 @@ void TriangleMesh::setupUniforms()
 void TriangleMesh::enableOpacityTex(bool enable)
 {
     _hasOpacityTexture = enable;
+}
+
+void TriangleMesh::invertOpacityTex(bool invert)
+{
+    _opacityTextureInverted = invert;
 }
 
 void TriangleMesh::setOpacityTex(unsigned int opacityTex)
@@ -466,7 +474,7 @@ void TriangleMesh::render()
 
     setupUniforms();
 
-    if (_material.opacity() < 1.0f)
+    if (_material.opacity() < 1.0f || _hasOpacityTexture)
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

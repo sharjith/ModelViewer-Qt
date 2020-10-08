@@ -107,6 +107,7 @@ public:
     void clearADSHeightTexMap(const std::vector<int>& ids);
 
 	void enableADSOpacityTexMap(const std::vector<int>& ids, const bool& enable);
+    void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted);
 	void setADSOpacityTexMap(const std::vector<int>& ids, const QString& path);
 	void clearADSOpacityTexMap(const std::vector<int>& ids);
 

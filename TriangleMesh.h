@@ -150,6 +150,7 @@ public:
     void enableHeightTex(bool enable);
     void setHeightTex(unsigned int heightTex);
 	void enableOpacityTex(bool enable);
+    void invertOpacityTex(bool invert);
 	void setOpacityTex(unsigned int opacityTex);
 
     void clearDiffuseTex();
@@ -223,6 +224,7 @@ protected:
     bool _hasNormalTexture;
 	bool _hasHeightTexture;
 	bool _hasOpacityTexture;
+    bool _opacityTextureInverted;
 
     unsigned int _sMax;
 	unsigned int _tMax;

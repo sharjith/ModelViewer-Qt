@@ -2420,10 +2420,22 @@ void ModelViewer::on_checkBoxOpacityTex_toggled(bool checked)
     {
         checkBoxOpacityTex->blockSignals(true);
         checkBoxOpacityTex->setChecked(!checked);
+        checkBoxOpacInvert->setEnabled(!checked);
         pushButtonOpacityTexture->setEnabled(!checked);
         labelOpacityTexture->setEnabled(!checked);
         toolButtonClearOpacityTex->setEnabled(!checked);
         checkBoxOpacityTex->blockSignals(false);
+    }
+}
+
+void ModelViewer::on_checkBoxOpacInvert_toggled(bool inverted)
+{
+    if (checkForActiveSelection())
+    {
+        //_hasADSOpacityTex = checked;
+        std::vector<int> ids = getSelectedIDs();
+        _glWidget->invertADSOpacityTexMap(ids, inverted);
+        _glWidget->updateView();
     }
 }
 

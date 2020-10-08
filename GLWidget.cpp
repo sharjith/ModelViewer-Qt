@@ -1001,6 +1001,22 @@ void GLWidget::enableADSOpacityTexMap(const std::vector<int>& ids, const bool& e
 	}
 }
 
+void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted)
+{
+    for (int id : ids)
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore[id];
+            mesh->invertOpacityTex(inverted);
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception in GLWidget::invertADSOpacityTexMap\n" << ex.what() << std::endl;
+        }
+    }
+}
+
 void GLWidget::setADSOpacityTexMap(const std::vector<int>& ids, const QString& path)
 {
 	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
