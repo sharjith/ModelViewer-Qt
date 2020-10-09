@@ -509,12 +509,14 @@ TriangleMesh::~TriangleMesh()
     glDeleteTextures(1, &_emissiveADSMap);
     glDeleteTextures(1, &_normalADSMap);
     glDeleteTextures(1, &_heightADSMap);
+    glDeleteTextures(1, &_opacityADSMap);
     glDeleteTextures(1, &_albedoPBRMap);
     glDeleteTextures(1, &_metallicPBRMap);
     glDeleteTextures(1, &_roughnessPBRMap);
     glDeleteTextures(1, &_normalPBRMap);
     glDeleteTextures(1, &_aoPBRMap);
     glDeleteTextures(1, &_heightPBRMap);
+    glDeleteTextures(1, &_opacityPBRMap);
 }
 
 void TriangleMesh::deleteBuffers()
