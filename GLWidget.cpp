@@ -472,6 +472,11 @@ void GLWidget::performWindowZoom()
         QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
         QRect zoomRect = _rubberBand->geometry();
+		if (zoomRect.width() == 0 || zoomRect.height() == 0)
+		{
+			emit windowZoomEnded();
+			return;
+		}
         QPoint zoomWinCen = zoomRect.center();
         QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
         QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
@@ -3670,12 +3675,20 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 	if (!_displayedObjectsIds.size())
 		return ids;
 
+	QRect rubberRect = _rubberBand->geometry();
+	if (rubberRect.width() == 0 || rubberRect.height() == 0)
+	{
+		return ids;
+	}
+
 	QRect viewport = getViewportFromPoint(pixel);
 	for (int i : _displayedObjectsIds)
 	{
 		TriangleMesh* mesh = _meshStore.at(i);
-		QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());
-		bool intersects = _rubberBand->geometry().contains(objRect.center());
+		QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());		
+		QRect interRect = rubberRect.intersected(objRect);
+		// Intersection rectangle of rubberband and object is more than 5% of objRect		
+		bool intersects = (float(interRect.width() * interRect.height()) >= float(objRect.width() * objRect.height()) * 0.05f);
 		if (intersects)
 		{
 			ids.push_back(i);
