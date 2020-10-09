@@ -110,10 +110,11 @@ private slots:
 	void on_toolButtonShowHideAxis_toggled(bool checked);
 	void on_toolButtonVertexNormal_clicked(bool checked);
 	void on_toolButtonFaceNormal_clicked(bool checked);
-	void on_checkBoxSelectAll_toggled(bool checked);
+
+    void on_checkBoxSelectAll_stateChanged(int arg1);
 
 	void on_listWidgetModel_itemChanged(QListWidgetItem*);
-	void on_listWidgetModel_itemSelectionChanged();
+    void on_listWidgetModel_itemSelectionChanged();
 	void on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item);
 
 	void on_checkBoxShadowMapping_toggled(bool checked);

@@ -1172,6 +1172,9 @@
                 <property name="text">
                  <string>Check/Uncheck All</string>
                 </property>
+                <property name="tristate">
+                 <bool>true</bool>
+                </property>
                </widget>
               </item>
               <item>
@@ -1180,7 +1183,7 @@
                  <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
                 </property>
                 <property name="selectionMode">
-                 <enum>QAbstractItemView::ExtendedSelection</enum>
+                 <enum>QAbstractItemView::MultiSelection</enum>
                 </property>
                </widget>
               </item>
@@ -5294,8 +5297,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
+  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>
