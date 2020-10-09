@@ -162,7 +162,10 @@ _skyBox(nullptr)
 
 	_environmentMap = 0;
 	_shadowMap = 0;
-	_shadowMapFBO = 0;
+	_shadowMapFBO = 0;	
+	_irradianceMap = 0;
+	_prefilterMap = 0;
+	_brdfLUTTexture = 0;
 
 	_clipXCoeff = 0.0f;
 	_clipYCoeff = 0.0f;
@@ -1979,6 +1982,8 @@ void GLWidget::loadIrradianceMap()
 
 	// PBR: create an irradiance cubemap, and re-scale capture FBO to irradiance scale.
 	// --------------------------------------------------------------------------------
+	if (_irradianceMap)
+		glDeleteTextures(1, &_irradianceMap);
 	glGenTextures(1, &_irradianceMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 	for (unsigned int i = 0; i < 6; ++i)
@@ -2021,6 +2026,8 @@ void GLWidget::loadIrradianceMap()
 
 	// PBR: create a pre-filter cubemap, and re-scale capture FBO to pre-filter scale.
 	// --------------------------------------------------------------------------------
+	if (_prefilterMap)
+		glDeleteTextures(1, &_prefilterMap);
 	glGenTextures(1, &_prefilterMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	for (unsigned int i = 0; i < 6; ++i)
@@ -2075,6 +2082,8 @@ void GLWidget::loadIrradianceMap()
 
 	// PBR: generate a 2D LUT from the BRDF equations used.
 	// ----------------------------------------------------
+	if (_brdfLUTTexture)
+		glDeleteTextures(1, &_brdfLUTTexture);
 	glGenTextures(1, &_brdfLUTTexture);
 
 	// pre-allocate enough memory for the LUT texture.

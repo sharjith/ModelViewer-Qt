@@ -58,6 +58,7 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
 
     _vertexArrayObject.create();
 
+    _texture = 0;
     if (!_texBuffer.load("textures/opengllogo.png"))
     { // Load first image from file
         qWarning("Could not read image file, using single-color instead.");
@@ -503,7 +504,8 @@ void TriangleMesh::render()
 
 TriangleMesh::~TriangleMesh()
 {
-    deleteBuffers();
+    deleteBuffers();    
+    glDeleteTextures(1, &_texture);
     glDeleteTextures(1, &_diffuseADSMap);
     glDeleteTextures(1, &_specularADSMap);
     glDeleteTextures(1, &_emissiveADSMap);
