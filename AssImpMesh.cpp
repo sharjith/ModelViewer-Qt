@@ -16,6 +16,17 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, ve
     setupMesh();
 }
 
+AssImpMesh::~AssImpMesh()
+{
+    if (_textures.size())
+    {
+        for (Texture t : _textures)
+        {
+            glDeleteTextures(1, &t.id);
+        }
+    }
+}
+
 void AssImpMesh::render()
 {
     if (!_vertexArrayObject.isCreated())
