@@ -3606,7 +3606,10 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 	int id = -1;
 
 	if (!_displayedObjectsIds.size())
+    {
+        emit singleSelectionDone(id);
 		return id;
+    }
 
 	QVector3D rayPos, rayDir;
 	QVector3D intersectionPoint;
