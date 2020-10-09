@@ -95,26 +95,3 @@ void Cube::setSize(const float& size)
 	_boundingSphere.setRadius(sqrt(3) * (size / 2));
 	_boundingBox.setLimits(-side, side, -side, side, -side, side);
 }
-
-bool Cube::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
-{
-	bool intersects = false;
-	for (unsigned int i = 0; i < _trsfpoints.size(); i += 12)
-	{
-		QVector3D v0(_trsfpoints[i + 0], _trsfpoints[i + 1], _trsfpoints[i + 2]);
-		QVector3D v1(_trsfpoints[i + 3], _trsfpoints[i + 4], _trsfpoints[i + 5]);
-		QVector3D v2(_trsfpoints[i + 6], _trsfpoints[i + 7], _trsfpoints[i + 8]);
-		intersects = rayIntersectsTriangle(rayPos, rayDir, v0, v1, v2, outIntersectionPoint);
-		if (intersects)
-			break;
-
-		QVector3D v3(_trsfpoints[i + 6], _trsfpoints[i + 7], _trsfpoints[i + 8]);
-		QVector3D v4(_trsfpoints[i + 9], _trsfpoints[i + 10], _trsfpoints[i + 11]);
-		QVector3D v5(_trsfpoints[i + 0], _trsfpoints[i + 1], _trsfpoints[i + 2]);
-		intersects = rayIntersectsTriangle(rayPos, rayDir, v3, v4, v5, outIntersectionPoint);
-		if (intersects)
-			break;
-	}
-
-	return intersects;
-}

@@ -538,7 +538,7 @@ void TriangleMesh::computeBounds()
 {
     // Ritter's algorithm
     std::vector<QVector3D> aPoints;
-    for (ulong i = 0; i < _trsfpoints.size(); i += 3)
+    for (size_t i = 0; i < _trsfpoints.size(); i += 3)
     {
         aPoints.push_back(QVector3D(_trsfpoints[i], _trsfpoints[i + 1], _trsfpoints[i + 2]));
     }
@@ -926,14 +926,28 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
     if (_trsfpoints.size() == 0)
     {
         return intersects;
-    }
-    for (size_t i = 0; i < _trsfpoints.size() - 9; i += 9)
-    {
-        QVector3D v0(_trsfpoints[i + 0], _trsfpoints[i + 1], _trsfpoints[i + 2]);
-        QVector3D v1(_trsfpoints[i + 3], _trsfpoints[i + 4], _trsfpoints[i + 5]);
-        QVector3D v2(_trsfpoints[i + 6], _trsfpoints[i + 7], _trsfpoints[i + 8]);
+    }   
+    size_t offset = 3; // each index points to 3 floats
+    for (size_t i = 0; i < _indices.size() - offset;)
+    {        
+        // Vertex 1
+        QVector3D v1(_trsfpoints[offset * _indices[i] + 0], // x coordinate
+            _trsfpoints[offset * _indices[i] + 1],          // y coordinate
+            _trsfpoints[offset * _indices[i] + 2]);         // z coordinate
+        i++;
 
-        intersects = rayIntersectsTriangle(rayPos, rayDir, v0, v1, v2, outIntersectionPoint);
+        // Vertex 2
+        QVector3D v2(_trsfpoints[offset * _indices[i] + 0], // x coordinate
+            _trsfpoints[offset * _indices[i] + 1],          // y coordinate
+            _trsfpoints[offset * _indices[i] + 2]);         // z coordinate
+        i++;
+
+        // Vertex 3
+        QVector3D v3(_trsfpoints[offset * _indices[i] + 0], // x coordinate
+            _trsfpoints[offset * _indices[i] + 1],          // y coordinate
+            _trsfpoints[offset * _indices[i] + 2]);         // z coordinate
+        i++;
+        intersects = rayIntersectsTriangle(rayPos, rayDir, v1, v2, v3, outIntersectionPoint);
         if (intersects)
             break;
     }
