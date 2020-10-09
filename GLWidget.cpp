@@ -110,16 +110,16 @@ _skyBox(nullptr)
 	_displayMode = DisplayMode::SHADED;
 	_renderingMode = RenderingMode::ADS_PHONG;
 
-	_bMultiView = false;
+	_multiViewActive = false;
 
-	_bShowAxis = true;
+	_showAxis = true;
 
-	_bWindowZoomActive = false;
+	_windowZoomActive = false;
 	_rubberBand = nullptr;
 
-	_bZoomView = false;
-	_bPanView = false;
-	_bRotateView = false;
+	_viewZooming = false;
+	_viewPanning = false;
+	_viewRotating = false;
 
 	_modelName = "Model";
 
@@ -451,13 +451,13 @@ void GLWidget::fitAll()
 
 void GLWidget::beginWindowZoom()
 {
-	_bWindowZoomActive = true;
+	_windowZoomActive = true;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
 }
 
 void GLWidget::performWindowZoom()
 {
-    _bWindowZoomActive = false;
+    _windowZoomActive = false;
     if (_rubberBand)
     {
         QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
@@ -494,19 +494,19 @@ void GLWidget::setProjection(ViewProjection proj)
 
 void GLWidget::setRotationActive(bool active)
 {
-	_bRotateView = active;
+	_viewRotating = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
 }
 
 void GLWidget::setPanningActive(bool active)
 {
-	_bPanView = active;
+	_viewPanning = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
 }
 
 void GLWidget::setZoomingActive(bool active)
 {
-	_bZoomView = active;
+	_viewZooming = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
 }
 
@@ -628,7 +628,7 @@ void GLWidget::showClippingPlaneEditor(bool show)
 
 void GLWidget::showAxis(bool show)
 {
-	_bShowAxis = show;
+	_showAxis = show;
 	update();
 }
 
@@ -747,7 +747,7 @@ void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& e
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableDiffuseTex(enable);
+            mesh->enableDiffuseADSMap(enable);
         }
         catch (const std::exception& ex)
         {
@@ -764,7 +764,7 @@ void GLWidget::setADSDiffuseTexMap(const std::vector<int>& ids, const QString& p
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->setDiffuseTex(texId);
+            mesh->setDiffuseADSMap(texId);
         }
         catch (const std::exception& ex)
         {
@@ -780,7 +780,7 @@ void GLWidget::clearADSDiffuseTexMap(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->clearDiffuseTex();
+            mesh->clearDiffuseADSMap();
         }
         catch (const std::exception& ex)
         {
@@ -796,7 +796,7 @@ void GLWidget::enableADSSpecularTexMap(const std::vector<int>& ids, const bool& 
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableSpecularTex(enable);
+            mesh->enableSpecularADSMap(enable);
         }
         catch (const std::exception& ex)
         {
@@ -813,7 +813,7 @@ void GLWidget::setADSSpecularTexMap(const std::vector<int>& ids, const QString& 
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->setSpecularTex(texId);
+            mesh->setSpecularADSMap(texId);
         }
         catch (const std::exception& ex)
         {
@@ -829,7 +829,7 @@ void GLWidget::clearADSSpecularTexMap(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->clearSpecularTex();
+            mesh->clearSpecularADSMap();
         }
         catch (const std::exception& ex)
         {
@@ -845,7 +845,7 @@ void GLWidget::enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& 
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableEmissiveTex(enable);
+            mesh->enableEmissiveADSMap(enable);
         }
         catch (const std::exception& ex)
         {
@@ -862,7 +862,7 @@ void GLWidget::setADSEmissiveTexMap(const std::vector<int>& ids, const QString& 
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->setEmissiveTex(texId);
+            mesh->setEmissiveADSMap(texId);
         }
         catch (const std::exception& ex)
         {
@@ -878,7 +878,7 @@ void GLWidget::clearADSEmissiveTexMap(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->clearEmissiveTex();
+            mesh->clearEmissiveADSMap();
         }
         catch (const std::exception& ex)
         {
@@ -894,7 +894,7 @@ void GLWidget::enableADSNormalTexMap(const std::vector<int>& ids, const bool& en
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableNormalTex(enable);
+            mesh->enableNormalADSMap(enable);
         }
         catch (const std::exception& ex)
         {
@@ -911,7 +911,7 @@ void GLWidget::setADSNormalTexMap(const std::vector<int>& ids, const QString& pa
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->setNormalTex(texId);
+            mesh->setNormalADSMap(texId);
         }
         catch (const std::exception& ex)
         {
@@ -927,7 +927,7 @@ void GLWidget::clearADSNormalTexMap(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->clearNormalTex();
+            mesh->clearNormalADSMap();
         }
         catch (const std::exception& ex)
         {
@@ -943,7 +943,7 @@ void GLWidget::enableADSHeightTexMap(const std::vector<int>& ids, const bool& en
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableHeightTex(enable);
+            mesh->enableHeightADSMap(enable);
         }
         catch (const std::exception& ex)
         {
@@ -960,7 +960,7 @@ void GLWidget::setADSHeightTexMap(const std::vector<int>& ids, const QString& pa
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->setHeightTex(texId);
+            mesh->setHeightADSMap(texId);
         }
         catch (const std::exception& ex)
         {
@@ -976,7 +976,7 @@ void GLWidget::clearADSHeightTexMap(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->clearHeightTex();
+            mesh->clearHeightADSMap();
         }
         catch (const std::exception& ex)
         {
@@ -992,7 +992,7 @@ void GLWidget::enableADSOpacityTexMap(const std::vector<int>& ids, const bool& e
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableOpacityTex(enable);
+			mesh->enableOpacityADSMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1008,7 +1008,7 @@ void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& i
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->invertOpacityTex(inverted);
+            mesh->invertOpacityADSMap(inverted);
         }
         catch (const std::exception& ex)
         {
@@ -1025,7 +1025,7 @@ void GLWidget::setADSOpacityTexMap(const std::vector<int>& ids, const QString& p
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setOpacityTex(texId);
+			mesh->setOpacityADSMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1041,7 +1041,7 @@ void GLWidget::clearADSOpacityTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearOpacityTex();
+			mesh->clearOpacityADSMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1057,7 +1057,7 @@ void GLWidget::clearADSTexMaps(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearADSTextures();
+			mesh->clearAllADSMaps();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1137,7 +1137,7 @@ void GLWidget::clearPBRTexMaps(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearPBRTextures();
+			mesh->clearAllPBRMaps();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1153,7 +1153,7 @@ void GLWidget::enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& en
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableAlbedoMap(enable);
+			mesh->enableAlbedoPBRMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1170,7 +1170,7 @@ void GLWidget::setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& pa
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setAlbedoMap(texId);
+			mesh->setAlbedoPBRMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1186,7 +1186,7 @@ void GLWidget::clearPBRAlbedoTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearAlbedoMap();
+			mesh->clearAlbedoPBRMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1202,7 +1202,7 @@ void GLWidget::enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& 
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableMetallicMap(enable);
+			mesh->enableMetallicPBRMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1219,7 +1219,7 @@ void GLWidget::setPBRMetallicTexMap(const std::vector<int>& ids, const QString& 
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setMetallicMap(texId);
+			mesh->setMetallicPBRMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1235,7 +1235,7 @@ void GLWidget::clearPBRMetallicTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearMetallicMap();
+			mesh->clearMetallicPBRMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1251,7 +1251,7 @@ void GLWidget::enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool&
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableRoughnessMap(enable);
+			mesh->enableRoughnessPBRMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1268,7 +1268,7 @@ void GLWidget::setPBRRoughnessTexMap(const std::vector<int>& ids, const QString&
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setRoughnessMap(texId);
+			mesh->setRoughnessPBRMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1284,7 +1284,7 @@ void GLWidget::clearPBRRoughnessTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearRoughnessMap();
+			mesh->clearRoughnessPBRMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1300,7 +1300,7 @@ void GLWidget::enablePBRNormalTexMap(const std::vector<int>& ids, const bool& en
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableNormalMap(enable);
+			mesh->enableNormalPBRMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1317,7 +1317,7 @@ void GLWidget::setPBRNormalTexMap(const std::vector<int>& ids, const QString& pa
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setNormalMap(texId);
+			mesh->setNormalPBRMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1333,7 +1333,7 @@ void GLWidget::clearPBRNormalTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearNormalMap();
+			mesh->clearNormalPBRMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1349,7 +1349,7 @@ void GLWidget::enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableAOMap(enable);
+			mesh->enableAOPBRMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1366,7 +1366,7 @@ void GLWidget::setPBRAOTexMap(const std::vector<int>& ids, const QString& path)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setAOMap(texId);
+			mesh->setAOPBRMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1382,7 +1382,7 @@ void GLWidget::clearPBRAOTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearAOMap();
+			mesh->clearAOPBRMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1398,7 +1398,7 @@ void GLWidget::enablePBROpacityTexMap(const std::vector<int>& ids, const bool& e
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->enableOpacityMap(enable);
+            mesh->enableOpacityPBRMap(enable);
         }
         catch (const std::exception& ex)
         {
@@ -1415,7 +1415,7 @@ void GLWidget::setPBROpacityTexMap(const std::vector<int>& ids, const QString& p
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->setOpacityMap(texId);
+            mesh->setOpacityPBRMap(texId);
         }
         catch (const std::exception& ex)
         {
@@ -1431,7 +1431,7 @@ void GLWidget::invertPBROpacityTexMap(const std::vector<int>& ids, const bool& i
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->invertOpacityMap(inverted);
+            mesh->invertOpacityPBRMap(inverted);
         }
         catch (const std::exception& ex)
         {
@@ -1447,7 +1447,7 @@ void GLWidget::clearPBROpacityTexMap(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore[id];
-            mesh->clearOpacityMap();
+            mesh->clearOpacityPBRMap();
         }
         catch (const std::exception& ex)
         {
@@ -1463,7 +1463,7 @@ void GLWidget::enablePBRHeightTexMap(const std::vector<int>& ids, const bool& en
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->enableHeightMap(enable);
+			mesh->enableHeightPBRMap(enable);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1480,7 +1480,7 @@ void GLWidget::setPBRHeightTexMap(const std::vector<int>& ids, const QString& pa
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setHeightMap(texId);
+			mesh->setHeightPBRMap(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1496,7 +1496,7 @@ void GLWidget::clearPBRHeightTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->clearHeightMap();
+			mesh->clearHeightPBRMap();
 		}
 		catch (const std::exception& ex)
 		{
@@ -1512,7 +1512,7 @@ void GLWidget::setPBRHeightScale(const std::vector<int>& ids, const float& scale
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setHeightScale(scale);
+			mesh->setHeightPBRMapScale(scale);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2155,7 +2155,7 @@ void GLWidget::paintGL()
 			_bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
 
 		_modelMatrix.setToIdentity();
-		if (_bMultiView)
+		if (_multiViewActive)
 		{
 			glViewport(0, 0, width(), height());
 			if (_shadowsEnabled)
@@ -2853,7 +2853,7 @@ void GLWidget::render(GLCamera* camera)
 	if (_skyBoxEnabled)
 		drawSkyBox();
 
-	if (_bShowAxis)
+	if (_showAxis)
 		drawAxis();
 
 	if (_showLights)
@@ -3109,7 +3109,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_leftButtonPoint.setX(e->x());
 		_leftButtonPoint.setY(e->y());
 
-		if (!(e->modifiers() & Qt::ControlModifier) && !_bWindowZoomActive && !_bRotateView && !_bPanView && !_bZoomView)
+		if (!(e->modifiers() & Qt::ControlModifier) && !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
 			mouseSelect(QPoint(e->x(), e->y()));
@@ -3124,13 +3124,13 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_rubberBand->show();
 	}
 
-	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _bPanView))
+	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewPanning))
 	{
 		_rightButtonPoint.setX(e->x());
 		_rightButtonPoint.setY(e->y());
 	}
 
-	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _bRotateView))
+	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewRotating))
 	{
 		_middleButtonPoint.setX(e->x());
 		_middleButtonPoint.setY(e->y());
@@ -3142,17 +3142,17 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
 		_rubberBand->hide();
-		if (_bWindowZoomActive)
+		if (_windowZoomActive)
 		{
 			performWindowZoom();
 		}
-		else if (e->modifiers() == Qt::NoModifier && !_bRotateView && !_bPanView && !_bZoomView)
+		else if (e->modifiers() == Qt::NoModifier && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			sweepSelect(e->pos());
 		}
-		_bRotateView = false;
-		_bPanView = false;
-		_bZoomView = false;
+		_viewRotating = false;
+		_viewPanning = false;
+		_viewZooming = false;
 	}
 
 	if (e->button() & Qt::RightButton)
@@ -3171,17 +3171,17 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
 	QPoint downPoint(e->x(), e->y());
-	if (e->buttons() == Qt::LeftButton && !_bPanView && !_bZoomView)
+	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
-		if (e->modifiers() == Qt::NoModifier && !_bRotateView && !_bPanView && !_bZoomView)
+		if (e->modifiers() == Qt::NoModifier && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
 		}
-		if (_bWindowZoomActive)
+		if (_windowZoomActive)
 		{
 			setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
 		}
-		else if ((e->modifiers() & Qt::ControlModifier) || _bRotateView)
+		else if ((e->modifiers() & Qt::ControlModifier) || _viewRotating)
 		{
 			if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 				_lowResEnabled = true;
@@ -3195,7 +3195,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			_viewMode = ViewMode::NONE;
 		}
 	}
-	else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bPanView))
+	else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning))
 	{
 		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 			_lowResEnabled = true;
@@ -3206,7 +3206,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_rightButtonPoint = downPoint;
 		setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
 	}
-	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _bZoomView))
+	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming))
 	{
 		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 			_lowResEnabled = true;
@@ -3279,10 +3279,10 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 {
 	if (event->key() == Qt::Key_Escape)
 	{
-		_bRotateView = false;
-		_bPanView = false;
-		_bZoomView = false;
-		_bWindowZoomActive = false;
+		_viewRotating = false;
+		_viewPanning = false;
+		_viewZooming = false;
+		_windowZoomActive = false;
 		setCursor(QCursor(Qt::ArrowCursor));
 	}
 	if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
@@ -3499,7 +3499,7 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
 QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 {
 	QRect viewport;
-	if (_bMultiView)
+	if (_multiViewActive)
 	{
 		// top view
 		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)
@@ -3526,7 +3526,7 @@ QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
 {
 	QRect clientRect;
-	if (_bMultiView)
+	if (_multiViewActive)
 	{
 		// top view
 		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)

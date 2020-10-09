@@ -73,7 +73,7 @@ void AssImpMesh::render()
         glBindTexture(GL_TEXTURE_2D, _textures[i].id);
     }
 
-    if (_material.opacity() < 1.0f || _hasOpacityTexture || _hasOpacityMap)
+    if (_material.opacity() < 1.0f || _hasOpacityADSMap || _hasOpacityPBRMap)
     {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -139,27 +139,27 @@ void AssImpMesh::setupMesh()
 
         if (name == "texture_diffuse")
         {
-            _hasDiffuseTexture = true;
+            _hasDiffuseADSMap = true;
         }
         else if (name == "texture_specular")
         {
-            _hasSpecularTexture = true;
+            _hasSpecularADSMap = true;
         }
         else if (name == "texture_emissive")
         {
-            _hasEmissiveTexture = true;
+            _hasEmissiveADSMap = true;
         }
         else if (name == "texture_normal")
         {
-            _hasNormalTexture = true;
+            _hasNormalADSMap = true;
         }
         else if (name == "texture_height")
         {
-            _hasHeightTexture = true;
+            _hasHeightADSMap = true;
         }
         else if (name == "texture_opacity")
         {
-            _hasOpacityTexture = true;
+            _hasOpacityADSMap = true;
         }
     }
 

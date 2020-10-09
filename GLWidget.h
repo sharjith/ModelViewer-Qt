@@ -45,7 +45,7 @@ public:
 	void setViewMode(ViewMode mode);
 	void setProjection(ViewProjection proj);
 
-	void setMultiView(bool active) { _bMultiView = active; }
+	void setMultiView(bool active) { _multiViewActive = active; }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
@@ -277,10 +277,10 @@ private:
 	RenderingMode _renderingMode;
 	QColor      _bgTopColor;
 	QColor      _bgBotColor;
-	bool _bWindowZoomActive;
-	bool _bZoomView;
-	bool _bPanView;
-	bool _bRotateView;
+	bool _windowZoomActive;
+	bool _viewZooming;
+	bool _viewPanning;
+	bool _viewRotating;
 	int _modelNum;
 	QImage _texImage, _texBuffer, _floorTexImage;
 	float _floorTexRepeatS, _floorTexRepeatT;
@@ -311,9 +311,9 @@ private:
 	float _rubberBandRadius;
 	QVector3D _rubberBandCenter;
 
-	bool _bMultiView;
+	bool _multiViewActive;
 
-	bool _bShowAxis;
+	bool _showAxis;
 
 	float _clipXCoeff;
 	float _clipYCoeff;

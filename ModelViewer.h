@@ -6,7 +6,6 @@
 #include "GLWidget.h"
 #include "GLMaterial.h"
 
-class SphericalHarmonicsEditor;
 class ModelViewer : public QWidget, public Ui::ModelViewer
 {
 	Q_OBJECT
@@ -229,24 +228,24 @@ private:
 	bool    _hasADSHeightTex;
 	bool    _hasADSOpacityTex;
 
-	QString _albedoTexture;
-	QString _metallicTexture;
-	QString _roughnessTexture;
-	QString _normalTexture;
-	QString _aoTexture;
+	QString _albedoPBRTexture;
+	QString _metallicPBRTexture;
+	QString _roughnessPBRTexture;
+	QString _normalPBRTexture;
+	QString _aoPBRTexture;
     QString _opacityPBRTexture;
-	QString _heightTexture;
-	bool    _hasAlbedoTex;
-	bool    _hasMetallicTex;
-	bool    _hasRoughnessTex;
-	bool    _hasNormalTex;
-	bool    _hasAOTex;
+	QString _heightPBRTexture;
+	bool    _hasPBRAlbedoTex;
+	bool    _hasPBRMetallicTex;
+	bool    _hasPBRRoughnessTex;
+	bool    _hasPBRNormalTex;
+	bool    _hasPBRAOTex;
     bool    _hasPBROpacTex;
-	bool    _hasHeightTex;
-	float   _heightScale;
+	bool    _hasPBRHeightTex;
+	float   _heightPBRTexScale;
 
-	bool _bFirstTime;
-	bool _bDeletionInProgress;
+	bool _runningFirstTime;
+	bool _deletionInProgress;
 
 	QString _lastOpenedDir;
 	QString _lastSelectedFilter;

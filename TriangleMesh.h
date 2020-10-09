@@ -100,72 +100,72 @@ public:
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
-	void setAlbedoMap(unsigned int albedoMap);
-	void setNormalMap(unsigned int normalMap);
-	void setMetallicMap(unsigned int metallicMap);
-	void setRoughnessMap(unsigned int roughnessMap);
-	void setAOMap(unsigned int aoMap);
-	void setHeightMap(unsigned int heightMap);
-    void setOpacityMap(unsigned int opacityMap);
-    void invertOpacityMap(bool invert);
+	void setAlbedoPBRMap(unsigned int albedoMap);
+	void setNormalPBRMap(unsigned int normalMap);
+	void setMetallicPBRMap(unsigned int metallicMap);
+	void setRoughnessPBRMap(unsigned int roughnessMap);
+	void setAOPBRMap(unsigned int aoMap);
+	void setHeightPBRMap(unsigned int heightMap);
+    void setOpacityPBRMap(unsigned int opacityMap);
+    void invertOpacityPBRMap(bool invert);
 
-	bool hasAlbedoMap() const;
-	void enableAlbedoMap(bool hasAlbedoMap);
+	bool hasAlbedoPBRMap() const;
+	void enableAlbedoPBRMap(bool hasAlbedoMap);
 
-	bool hasMetallicMap() const;
-	void enableMetallicMap(bool hasMetallicMap);
+	bool hasMetallicPBRMap() const;
+	void enableMetallicPBRMap(bool hasMetallicMap);
 
-	bool hasRoughnessMap() const;
-	void enableRoughnessMap(bool hasRoughnessMap);
+	bool hasRoughnessPBRMap() const;
+	void enableRoughnessPBRMap(bool hasRoughnessMap);
 
-	bool hasNormalMap() const;
-	void enableNormalMap(bool hasNormalMap);
+	bool hasNormalPBRMap() const;
+	void enableNormalPBRMap(bool hasNormalMap);
 
-	bool hasAOMap() const;
-	void enableAOMap(bool hasAOMap);
+	bool hasAOPBRMap() const;
+	void enableAOPBRMap(bool hasAOMap);
 
-	bool hasHeightMap() const;
-	void enableHeightMap(bool hasHeightMap);
+	bool hasHeightPBRMap() const;
+	void enableHeightPBRMap(bool hasHeightMap);
 
-	float getHeightScale() const;
-	void setHeightScale(float heightScale);
+	float getHeightPBRMapScale() const;
+	void setHeightPBRMapScale(float heightScale);
 
-    bool hasOpacityMap() const;
-    void enableOpacityMap(bool hasHeightMap);
+    bool hasOpacityPBRMap() const;
+    void enableOpacityPBRMap(bool hasHeightMap);
 
-	void clearAlbedoMap();
-	void clearMetallicMap();
-	void clearRoughnessMap();
-	void clearNormalMap();
-	void clearAOMap();
-	void clearHeightMap();
-    void clearOpacityMap();
-	void clearPBRTextures();
+	void clearAlbedoPBRMap();
+	void clearMetallicPBRMap();
+	void clearRoughnessPBRMap();
+	void clearNormalPBRMap();
+	void clearAOPBRMap();
+	void clearHeightPBRMap();
+    void clearOpacityPBRMap();
+	void clearAllPBRMaps();
 
 	GLMaterial getMaterial() const;
 	void setMaterial(const GLMaterial& material);
 
-    void enableDiffuseTex(bool enable);
-    void setDiffuseTex(unsigned int diffuseTex);
-    void enableSpecularTex(bool enable);
-    void setSpecularTex(unsigned int specularTex);
-    void enableEmissiveTex(bool enable);
-    void setEmissiveTex(unsigned int emissiveTex);
-    void enableNormalTex(bool enable);
-    void setNormalTex(unsigned int normalTex);
-    void enableHeightTex(bool enable);
-    void setHeightTex(unsigned int heightTex);
-	void enableOpacityTex(bool enable);
-    void invertOpacityTex(bool invert);
-	void setOpacityTex(unsigned int opacityTex);
+    void enableDiffuseADSMap(bool enable);
+    void setDiffuseADSMap(unsigned int diffuseTex);
+    void enableSpecularADSMap(bool enable);
+    void setSpecularADSMap(unsigned int specularTex);
+    void enableEmissiveADSMap(bool enable);
+    void setEmissiveADSMap(unsigned int emissiveTex);
+    void enableNormalADSMap(bool enable);
+    void setNormalADSMap(unsigned int normalTex);
+    void enableHeightADSMap(bool enable);
+    void setHeightADSMap(unsigned int heightTex);
+	void enableOpacityADSMap(bool enable);
+    void invertOpacityADSMap(bool invert);
+	void setOpacityADSMap(unsigned int opacityTex);
 
-    void clearDiffuseTex();
-    void clearSpecularTex();
-    void clearEmissiveTex();
-    void clearNormalTex();
-	void clearHeightTex();
-	void clearOpacityTex();
-	void clearADSTextures();
+    void clearDiffuseADSMap();
+    void clearSpecularADSMap();
+    void clearEmissiveADSMap();
+    void clearNormalADSMap();
+	void clearHeightADSMap();
+	void clearOpacityADSMap();
+	void clearAllADSMaps();
 
 protected: // methods
     virtual void initBuffers(
@@ -217,41 +217,41 @@ protected:
 	QImage _texImage, _texBuffer;
     // ADS texture light maps
     unsigned int _texture;
-    unsigned int _diffuseTex;
-    unsigned int _specularTex;
-    unsigned int _emissiveTex;
-    unsigned int _normalTex;
-	unsigned int _heightTex;
-	unsigned int _opacityTex;
+    unsigned int _diffuseADSMap;
+    unsigned int _specularADSMap;
+    unsigned int _emissiveADSMap;
+    unsigned int _normalADSMap;
+	unsigned int _heightADSMap;
+	unsigned int _opacityADSMap;
     bool _hasTexture;
-    bool _hasDiffuseTexture;
-    bool _hasSpecularTexture;
-    bool _hasEmissiveTexture;
-    bool _hasNormalTexture;
-	bool _hasHeightTexture;
-	bool _hasOpacityTexture;
-    bool _opacityTextureInverted;
+    bool _hasDiffuseADSMap;
+    bool _hasSpecularADSMap;
+    bool _hasEmissiveADSMap;
+    bool _hasNormalADSMap;
+	bool _hasHeightADSMap;
+	bool _hasOpacityADSMap;
+    bool _opacityADSMapInverted;
 
     unsigned int _sMax;
 	unsigned int _tMax;
 
     // PBR texture maps
-	unsigned int _albedoMap;
-	unsigned int _metallicMap;
-	unsigned int _roughnessMap;
-	unsigned int _normalMap;
-	unsigned int _aoMap;
-	unsigned int _heightMap;
-    unsigned int _opacityMap;
-	bool _hasAlbedoMap;
-	bool _hasMetallicMap;
-	bool _hasRoughnessMap;
-	bool _hasNormalMap;
-	bool _hasAOMap;
-	bool _hasHeightMap;
-	float _heightScale;
-    bool _hasOpacityMap;
-    bool _opacityMapInverted;
+	unsigned int _albedoPBRMap;
+	unsigned int _metallicPBRMap;
+	unsigned int _roughnessPBRMap;
+	unsigned int _normalPBRMap;
+	unsigned int _aoPBRMap;
+	unsigned int _heightPBRMap;
+    unsigned int _opacityPBRMap;
+	bool _hasAlbedoPBRMap;
+	bool _hasMetallicPBRMap;
+	bool _hasRoughnessPBRMap;
+	bool _hasNormalPBRMap;
+	bool _hasAOPBRMap;
+	bool _hasHeightPBRMap;
+	float _heightPBRMapScale;
+    bool _hasOpacityPBRMap;
+    bool _opacityPBRMapInverted;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

@@ -9,8 +9,8 @@
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
-	_bFirstTime = true;
-	_bDeletionInProgress = false;
+	_runningFirstTime = true;
+	_deletionInProgress = false;
 
 	_lastOpenedDir = QApplication::applicationDirPath();
 	_lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
@@ -159,14 +159,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_hasADSNormalTex = false;
 	_hasADSHeightTex = false;
 	_hasADSOpacityTex = false;
-	_hasAlbedoTex = false;
-	_hasMetallicTex = false;
-	_hasRoughnessTex = false;
-	_hasAOTex = false;
+	_hasPBRAlbedoTex = false;
+	_hasPBRMetallicTex = false;
+	_hasPBRRoughnessTex = false;
+	_hasPBRAOTex = false;
     _hasPBROpacTex = false;
-	_hasNormalTex = false;
-	_hasHeightTex = false;
-	_heightScale = 0.05f;
+	_hasPBRNormalTex = false;
+	_hasPBRHeightTex = false;
+	_heightPBRTexScale = 0.05f;
 
 	updateControls();
 }
@@ -410,10 +410,10 @@ void ModelViewer::updateDisplayList()
 void ModelViewer::showEvent(QShowEvent*)
 {
 	//showMaximized();
-	if (_bFirstTime)
+	if (_runningFirstTime)
 	{
 		updateDisplayList();
-		_bFirstTime = false;
+		_runningFirstTime = false;
 	}
 }
 
@@ -459,7 +459,7 @@ void ModelViewer::deleteSelectedItems()
 		if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
 		{
 			QApplication::setOverrideCursor(Qt::WaitCursor);
-			_bDeletionInProgress = true;
+			_deletionInProgress = true;
 			// If multiple selection is on, we need to erase all selected items
 			for (QListWidgetItem* item : selectedItems)
 			{
@@ -483,7 +483,7 @@ void ModelViewer::deleteSelectedItems()
 				on_listWidgetModel_itemChanged(nullptr);
 			}
 			_glWidget->update();
-			_bDeletionInProgress = false;
+			_deletionInProgress = false;
 			QApplication::restoreOverrideCursor();
 		}
 	}
@@ -1293,7 +1293,7 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
 
 void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 {
-	if (!_bDeletionInProgress) // check to avoid unnecessary selection triggering in view
+	if (!_deletionInProgress) // check to avoid unnecessary selection triggering in view
 	{
 		for (int i = 0; i < listWidgetModel->count(); i++)
 		{
@@ -1605,7 +1605,7 @@ void ModelViewer::on_checkBoxAlbedoMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
 	{
-		_hasAlbedoTex = checked;
+		_hasPBRAlbedoTex = checked;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->enablePBRAlbedoTexMap(ids, checked);
 		_glWidget->updateView();
@@ -1641,10 +1641,10 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
 			if (!img.isNull())
 			{
 				QApplication::setOverrideCursor(Qt::WaitCursor);
-				_albedoTexture = fileName;
+				_albedoPBRTexture = fileName;
 				labelAlbedoMap->setPixmap(img);
 				std::vector<int> ids = getSelectedIDs();
-                _glWidget->enablePBRAlbedoTexMap(ids, _hasAlbedoTex);
+                _glWidget->enablePBRAlbedoTexMap(ids, _hasPBRAlbedoTex);
                 _glWidget->setPBRAlbedoTexMap(ids, fileName);
 				_glWidget->updateView();
 				QApplication::restoreOverrideCursor();
@@ -1657,7 +1657,7 @@ void ModelViewer::on_checkBoxMetallicMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
 	{
-		_hasMetallicTex = checked;
+		_hasPBRMetallicTex = checked;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->enablePBRMetallicTexMap(ids, checked);
 		_glWidget->updateView();
@@ -1688,7 +1688,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		if (fileName != "")
 		{
-			_metallicTexture = fileName;
+			_metallicPBRTexture = fileName;
 			_textureDirOpenedFirstTime = false;
 			QPixmap img; img.load(fileName);
 			if (!img.isNull())
@@ -1696,7 +1696,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelMetallicMap->setPixmap(img);
 				std::vector<int> ids = getSelectedIDs();
-                _glWidget->enablePBRMetallicTexMap(ids, _hasMetallicTex);
+                _glWidget->enablePBRMetallicTexMap(ids, _hasPBRMetallicTex);
                 _glWidget->setPBRMetallicTexMap(ids, fileName);
 				_glWidget->updateView();
 				QApplication::restoreOverrideCursor();
@@ -1709,7 +1709,7 @@ void ModelViewer::on_checkBoxRoughnessMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
 	{
-		_hasRoughnessTex = checked;
+		_hasPBRRoughnessTex = checked;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->enablePBRRoughnessTexMap(ids, checked);
 		_glWidget->updateView();
@@ -1740,7 +1740,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		if (fileName != "")
 		{
-			_roughnessTexture = fileName;
+			_roughnessPBRTexture = fileName;
 			_textureDirOpenedFirstTime = false;
 			QPixmap img; img.load(fileName);
 			if (!img.isNull())
@@ -1748,7 +1748,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelRoughnessMap->setPixmap(img);
 				std::vector<int> ids = getSelectedIDs();
-                _glWidget->enablePBRRoughnessTexMap(ids, _hasRoughnessTex);
+                _glWidget->enablePBRRoughnessTexMap(ids, _hasPBRRoughnessTex);
                 _glWidget->setPBRRoughnessTexMap(ids, fileName);
 				_glWidget->updateView();
 				QApplication::restoreOverrideCursor();
@@ -1761,7 +1761,7 @@ void ModelViewer::on_checkBoxNormalMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
 	{
-		_hasNormalTex = checked;
+		_hasPBRNormalTex = checked;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->enablePBRNormalTexMap(ids, checked);
 		_glWidget->updateView();
@@ -1792,7 +1792,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		if (fileName != "")
 		{
-			_normalTexture = fileName;
+			_normalPBRTexture = fileName;
 			_textureDirOpenedFirstTime = false;
 			QPixmap img; img.load(fileName);
 			if (!img.isNull())
@@ -1800,7 +1800,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelNormalMap->setPixmap(img);
 				std::vector<int> ids = getSelectedIDs();
-                _glWidget->enablePBRNormalTexMap(ids, _hasNormalTex);
+                _glWidget->enablePBRNormalTexMap(ids, _hasPBRNormalTex);
                 _glWidget->setPBRNormalTexMap(ids, fileName);
 				_glWidget->updateView();
 				QApplication::restoreOverrideCursor();
@@ -1813,7 +1813,7 @@ void ModelViewer::on_checkBoxAOMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
 	{
-		_hasAOTex = checked;
+		_hasPBRAOTex = checked;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->enablePBRAOTexMap(ids, checked);
 		_glWidget->updateView();
@@ -1844,7 +1844,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		if (fileName != "")
 		{
-			_aoTexture = fileName;
+			_aoPBRTexture = fileName;
 			_textureDirOpenedFirstTime = false;
 			QPixmap img; img.load(fileName);
 			if (!img.isNull())
@@ -1852,7 +1852,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelAOMap->setPixmap(img);
 				std::vector<int> ids = getSelectedIDs();
-                _glWidget->enablePBRAOTexMap(ids, _hasAOTex);
+                _glWidget->enablePBRAOTexMap(ids, _hasPBRAOTex);
                 _glWidget->setPBRAOTexMap(ids, fileName);
 				_glWidget->updateView();
 				QApplication::restoreOverrideCursor();
@@ -1940,7 +1940,7 @@ void ModelViewer::on_checkBoxHeightMap_toggled(bool checked)
 {
 	if (checkForActiveSelection())
 	{
-		_hasHeightTex = checked;
+		_hasPBRHeightTex = checked;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->enablePBRHeightTexMap(ids, checked);
 		_glWidget->updateView();
@@ -1974,7 +1974,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		if (fileName != "")
 		{
-			_heightTexture = fileName;
+			_heightPBRTexture = fileName;
 			_textureDirOpenedFirstTime = false;
 			QPixmap img; img.load(fileName);
 			if (!img.isNull())
@@ -1982,7 +1982,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
 				QApplication::setOverrideCursor(Qt::WaitCursor);
 				labelHeightMap->setPixmap(img);
 				std::vector<int> ids = getSelectedIDs();
-                _glWidget->enablePBRHeightTexMap(ids, _hasHeightTex);
+                _glWidget->enablePBRHeightTexMap(ids, _hasPBRHeightTex);
                 _glWidget->setPBRHeightTexMap(ids, fileName);
 				_glWidget->updateView();
 				QApplication::restoreOverrideCursor();
@@ -1995,7 +1995,7 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
 {
 	if (checkForActiveSelection())
 	{
-		_heightScale = val;
+		_heightPBRTexScale = val;
 		std::vector<int> ids = getSelectedIDs();
         _glWidget->setPBRHeightScale(ids, static_cast<float>(val));
 		_glWidget->updateView();
@@ -2005,32 +2005,32 @@ void ModelViewer::on_doubleSpinBoxHeightScale_valueChanged(double val)
 void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
 {
 	bool allOK = true;
-	if (!_hasAlbedoTex || (_hasAlbedoTex && _albedoTexture == ""))
+	if (!_hasPBRAlbedoTex || (_hasPBRAlbedoTex && _albedoPBRTexture == ""))
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Albedo map texture not set");
 		allOK = false;
 	}
-	else if (!_hasMetallicTex || (_hasMetallicTex && _metallicTexture == ""))
+	else if (!_hasPBRMetallicTex || (_hasPBRMetallicTex && _metallicPBRTexture == ""))
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Metallic map texture not set");
 		allOK = false;
 	}
-	else if (!_hasRoughnessTex || (_hasRoughnessTex && _roughnessTexture == ""))
+	else if (!_hasPBRRoughnessTex || (_hasPBRRoughnessTex && _roughnessPBRTexture == ""))
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Roughness map texture not set");
 		allOK = false;
 	}
-	else if (_hasNormalTex && _normalTexture == "")
+	else if (_hasPBRNormalTex && _normalPBRTexture == "")
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Normal map texture not set");
 		allOK = false;
 	}
-	else if (_hasAOTex && _aoTexture == "")
+	else if (_hasPBRAOTex && _aoPBRTexture == "")
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "AO map texture not set");
 		allOK = false;
 	}
-	else if (_hasHeightTex && _heightTexture == "")
+	else if (_hasPBRHeightTex && _heightPBRTexture == "")
 	{
 		QMessageBox::critical(this, "PBR Texture Missing", "Height map texture not set");
 		allOK = false;
@@ -2042,41 +2042,41 @@ void ModelViewer::on_pushButtonApplyPBRTexture_clicked()
 			QApplication::setOverrideCursor(Qt::WaitCursor);
 
 			std::vector<int> ids = getSelectedIDs();
-            _glWidget->enablePBRAlbedoTexMap(ids, _hasAlbedoTex);
-			if (_hasAlbedoTex)
+            _glWidget->enablePBRAlbedoTexMap(ids, _hasPBRAlbedoTex);
+			if (_hasPBRAlbedoTex)
 			{
-                _glWidget->setPBRAlbedoTexMap(ids, _albedoTexture);
+                _glWidget->setPBRAlbedoTexMap(ids, _albedoPBRTexture);
 			}
-            _glWidget->enablePBRMetallicTexMap(ids, _hasMetallicTex);
-			if (_hasMetallicTex)
+            _glWidget->enablePBRMetallicTexMap(ids, _hasPBRMetallicTex);
+			if (_hasPBRMetallicTex)
 			{
-                _glWidget->setPBRMetallicTexMap(ids, _metallicTexture);
+                _glWidget->setPBRMetallicTexMap(ids, _metallicPBRTexture);
 			}
-            _glWidget->enablePBRRoughnessTexMap(ids, _hasRoughnessTex);
-			if (_hasRoughnessTex)
+            _glWidget->enablePBRRoughnessTexMap(ids, _hasPBRRoughnessTex);
+			if (_hasPBRRoughnessTex)
 			{
-                _glWidget->setPBRRoughnessTexMap(ids, _roughnessTexture);
+                _glWidget->setPBRRoughnessTexMap(ids, _roughnessPBRTexture);
 			}
-            _glWidget->enablePBRNormalTexMap(ids, _hasNormalTex);
-			if (_hasNormalTex)
+            _glWidget->enablePBRNormalTexMap(ids, _hasPBRNormalTex);
+			if (_hasPBRNormalTex)
 			{
-                _glWidget->setPBRNormalTexMap(ids, _normalTexture);
+                _glWidget->setPBRNormalTexMap(ids, _normalPBRTexture);
 			}
-            _glWidget->enablePBRAOTexMap(ids, _hasAOTex);
-			if (_hasAOTex)
+            _glWidget->enablePBRAOTexMap(ids, _hasPBRAOTex);
+			if (_hasPBRAOTex)
 			{
-                _glWidget->setPBRAOTexMap(ids, _aoTexture);
+                _glWidget->setPBRAOTexMap(ids, _aoPBRTexture);
 			}
             _glWidget->enablePBROpacityTexMap(ids, _hasPBROpacTex);
             if (_hasPBROpacTex)
             {
                 _glWidget->setPBROpacityTexMap(ids, _opacityPBRTexture);
             }
-            _glWidget->enablePBRHeightTexMap(ids, _hasHeightTex);
-			if (_hasHeightTex)
+            _glWidget->enablePBRHeightTexMap(ids, _hasPBRHeightTex);
+			if (_hasPBRHeightTex)
 			{
-                _glWidget->setPBRHeightTexMap(ids, _heightTexture);
-                _glWidget->setPBRHeightScale(ids, static_cast<float>(_heightScale));
+                _glWidget->setPBRHeightTexMap(ids, _heightPBRTexture);
+                _glWidget->setPBRHeightScale(ids, static_cast<float>(_heightPBRTexScale));
 			}
 			_glWidget->updateView();
 			QApplication::restoreOverrideCursor();
