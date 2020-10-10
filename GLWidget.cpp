@@ -78,7 +78,7 @@ _skyBox(nullptr)
 
 	_viewBoundingSphereDia = 200.0f;
     _viewRange = _viewBoundingSphereDia;
-	_FOV = 45.0f;
+	_FOV = 15.0f;
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
 	_projection = ViewProjection::ORTHOGRAPHIC;
@@ -686,7 +686,7 @@ void GLWidget::showFloorTexture(bool show)
 void GLWidget::addToDisplay(TriangleMesh* mesh)
 {
 	_meshStore.push_back(mesh);
-    _displayedObjectsIds.push_back(_meshStore.size()-1);
+    _displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
 }
 
 void GLWidget::removeFromDisplay(int index)
@@ -3458,12 +3458,12 @@ void GLWidget::animateWindowZoom()
 {
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
-    float fov = _primaryCamera->getFOV();
+    /*float fov = _primaryCamera->getFOV();
     float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio * fov / 100);
     QVector3D panRatio = (_rubberBandPan * fov / 100);
     float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
-    QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;
-    setZoomAndPan(_currentViewRange / zoom, pan);
+    QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;*/
+    setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
 	resizeGL(width(), height());
 }
 
