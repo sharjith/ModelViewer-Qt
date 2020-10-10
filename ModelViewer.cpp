@@ -34,7 +34,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
     displayShaded = new QAction(QIcon(":/new/prefix1/res/shaded.png"), "Shaded", this);
     displayShaded->setObjectName(QString::fromUtf8("displayShaded"));
-    displayShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_S));
+    displayShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_S));
 
     displayWireframe = new QAction(QIcon(":/new/prefix1/res/wireframe.png"), "Wireframe", this);
     displayWireframe->setObjectName(QString::fromUtf8("displayWireframe"));
