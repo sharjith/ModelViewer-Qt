@@ -407,9 +407,9 @@ void ModelViewer::updateDisplayList()
         else
             item->setCheckState(Qt::Unchecked);
         listWidgetModel->addItem(item);
-        id++;
-        on_listWidgetModel_itemChanged(item);
+        id++;        
     }
+    on_listWidgetModel_itemChanged(nullptr);
     float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
     sliderLightPosX->setRange(-range, range);
     sliderLightPosY->setRange(-range, range);
