@@ -1183,7 +1183,7 @@
                  <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
                 </property>
                 <property name="selectionMode">
-                 <enum>QAbstractItemView::MultiSelection</enum>
+                 <enum>QAbstractItemView::ExtendedSelection</enum>
                 </property>
                </widget>
               </item>
@@ -5297,8 +5297,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>
