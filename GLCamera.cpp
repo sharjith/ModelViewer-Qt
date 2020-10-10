@@ -140,10 +140,17 @@ void GLCamera::updateProjectionMatrix(void)
 	else
 	{
         if (w <= h)
-            _projectionMatrix.perspective(_FOV, static_cast<double>(h) / static_cast<double>(w), 1, halfRange * 10000.0f);
+            _projectionMatrix.perspective(_FOV, h / w, 1, halfRange * 100000.0f);
 		else
-            _projectionMatrix.perspective(_FOV, static_cast<double>(w) / static_cast<double>(h), 1, halfRange * 10000.0f);
-        _projectionMatrix.translate(0.0, 0.0, -halfRange * 2.5);
+            _projectionMatrix.perspective(_FOV, w / h, 1, halfRange * 100000.0f);
+
+		// https://www.edmundoptics.com/knowledge-center/application-notes/imaging/understanding-focal-length-and-field-of-view
+		// Adjust camera translation according to FOV
+		float HFOV = (w <= h) ? h / w : w / h;
+		float AFOV = _FOV * PI / 180.0f;
+		float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
+		wd = wd + wd * 0.2; // error correction
+		_projectionMatrix.translate(0.0, 0.0, -halfRange * wd);
 	}
 }
 
