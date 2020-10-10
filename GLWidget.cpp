@@ -686,6 +686,7 @@ void GLWidget::showFloorTexture(bool show)
 void GLWidget::addToDisplay(TriangleMesh* mesh)
 {
 	_meshStore.push_back(mesh);
+    _displayedObjectsIds.push_back(_meshStore.size()-1);
 }
 
 void GLWidget::removeFromDisplay(int index)
@@ -3123,7 +3124,8 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_leftButtonPoint.setX(e->x());
 		_leftButtonPoint.setY(e->y());
 
-		if (!(e->modifiers() & Qt::ControlModifier) && !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
+        if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+                && !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
 			mouseSelect(QPoint(e->x(), e->y()));
@@ -3160,7 +3162,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 		{
 			performWindowZoom();
 		}
-		else if (e->modifiers() == Qt::NoModifier && !_viewRotating && !_viewPanning && !_viewZooming)
+        else if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			sweepSelect(e->pos());
 		}
@@ -3187,7 +3189,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	QPoint downPoint(e->x(), e->y());
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
-		if (e->modifiers() == Qt::NoModifier && !_viewRotating && !_viewPanning && !_viewZooming)
+        if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
 		}
