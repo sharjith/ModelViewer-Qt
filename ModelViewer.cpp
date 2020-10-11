@@ -22,11 +22,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
     isometricView->setObjectName(QString::fromUtf8("isometricView"));
-    isometricView->setShortcut(QKeySequence(Qt::Key_Home));
+    isometricView->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_A));
 
     dimetricView = new QAction(QIcon(":/new/prefix1/res/dimetric.png"), "Dimetric", this);
     dimetricView->setObjectName(QString::fromUtf8("dimetricView"));
-    dimetricView->setShortcut(QKeySequence(Qt::SHIFT + Qt::Key_End));
+    dimetricView->setShortcut(QKeySequence(Qt::Key_Home));
 
     trimetricView = new QAction(QIcon(":/new/prefix1/res/trimetric.png"), "Trimetric", this);
     trimetricView->setObjectName(QString::fromUtf8("trimetricView"));
