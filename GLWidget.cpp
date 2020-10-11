@@ -69,17 +69,17 @@ _clippingPlanesEditor(nullptr),
 _floorPlane(nullptr),
 _skyBox(nullptr)
 {
-    setFocusPolicy(Qt::StrongFocus);
+	setFocusPolicy(Qt::StrongFocus);
 
 	_viewer = static_cast<ModelViewer*>(parent);
 
 	_bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
-    _bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
+	_bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
 
 	_quadVAO = 0;
 
 	_viewBoundingSphereDia = 200.0f;
-    _viewRange = _viewBoundingSphereDia;
+	_viewRange = _viewBoundingSphereDia;
 	_FOV = 15.0f;
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
@@ -104,7 +104,7 @@ _skyBox(nullptr)
 	_diffuseLight = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_specularLight = { 0.5f, 0.5f, 0.5f, 1.0f };
 
-    _lightPosition = { 25.0f, 25.0f, 50.0f };
+	_lightPosition = { 25.0f, 25.0f, 50.0f };
 	_lightOffsetX = 0.0f;
 	_lightOffsetY = 0.0f;
 	_lightOffsetZ = 0.0f;
@@ -164,7 +164,7 @@ _skyBox(nullptr)
 
 	_environmentMap = 0;
 	_shadowMap = 0;
-	_shadowMapFBO = 0;	
+	_shadowMapFBO = 0;
 	_irradianceMap = 0;
 	_prefilterMap = 0;
 	_brdfLUTTexture = 0;
@@ -191,10 +191,10 @@ _skyBox(nullptr)
 
 	_displayedObjectsMemSize = 0;
 
-    _keyboardNavTimer = new QTimer(this);
-    _keyboardNavTimer->setTimerType(Qt::PreciseTimer);
-    connect(_keyboardNavTimer, SIGNAL(timeout()), this, SLOT(performKeyboardNav()));
-    _keyboardNavTimer->start(15);
+	_keyboardNavTimer = new QTimer(this);
+	_keyboardNavTimer->setTimerType(Qt::PreciseTimer);
+	connect(_keyboardNavTimer, SIGNAL(timeout()), this, SLOT(performKeyboardNav()));
+	_keyboardNavTimer->start(15);
 
 	_animateViewTimer = new QTimer(this);
 	_animateViewTimer->setTimerType(Qt::PreciseTimer);
@@ -249,9 +249,9 @@ GLWidget::~GLWidget()
 		delete a;
 	}
 	if (_primaryCamera)	delete _primaryCamera;
-    if(_orthoViewsCamera) delete _orthoViewsCamera;
+	if (_orthoViewsCamera) delete _orthoViewsCamera;
 
-    cleanUpShaders();
+	cleanUpShaders();
 
 	_axisVBO.destroy();
 	_axisVAO.destroy();
@@ -264,22 +264,22 @@ GLWidget::~GLWidget()
 
 void GLWidget::cleanUpShaders()
 {
-    if (_fgShader)	delete _fgShader;
-    if (_axisShader) delete _axisShader;
-    if (_vertexNormalShader) delete _vertexNormalShader;
-    if (_faceNormalShader) delete _faceNormalShader;
-    if (_shadowMappingShader) delete _shadowMappingShader;
-    if (_skyBoxShader) delete _skyBoxShader;
-    if (_irradianceShader) delete _irradianceShader;
-    if (_prefilterShader) delete _prefilterShader;
-    if (_brdfShader) delete _brdfShader;
-    if (_lightCubeShader) delete _lightCubeShader;
-    if (_clippingPlaneShader) delete _clippingPlaneShader;
-    if (_clippedMeshShader) delete _clippedMeshShader;
-    if (_textShader) delete _textShader;
-    if (_bgShader) delete _bgShader;
-    if (_bgSplitShader) delete _bgSplitShader;
-    if (_debugShader) delete _debugShader;
+	if (_fgShader)	delete _fgShader;
+	if (_axisShader) delete _axisShader;
+	if (_vertexNormalShader) delete _vertexNormalShader;
+	if (_faceNormalShader) delete _faceNormalShader;
+	if (_shadowMappingShader) delete _shadowMappingShader;
+	if (_skyBoxShader) delete _skyBoxShader;
+	if (_irradianceShader) delete _irradianceShader;
+	if (_prefilterShader) delete _prefilterShader;
+	if (_brdfShader) delete _brdfShader;
+	if (_lightCubeShader) delete _lightCubeShader;
+	if (_clippingPlaneShader) delete _clippingPlaneShader;
+	if (_clippedMeshShader) delete _clippedMeshShader;
+	if (_textShader) delete _textShader;
+	if (_bgShader) delete _bgShader;
+	if (_bgSplitShader) delete _bgSplitShader;
+	if (_debugShader) delete _debugShader;
 }
 
 void GLWidget::updateView()
@@ -441,9 +441,9 @@ void GLWidget::setAmbientLight(const QVector4D& ambientLight)
 void GLWidget::setViewMode(ViewMode mode)
 {
 	if (!_animateViewTimer->isActive())
-    {
-        _keyboardNavTimer->stop();
-        _animateViewTimer->start(5);
+	{
+		_keyboardNavTimer->stop();
+		_animateViewTimer->start(5);
 		_viewMode = mode;
 		_slerpStep = 0.0f;
 	}
@@ -454,8 +454,8 @@ void GLWidget::fitAll()
 	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
 
 	if (!_animateFitAllTimer->isActive())
-    {
-        _keyboardNavTimer->stop();
+	{
+		_keyboardNavTimer->stop();
 		_animateFitAllTimer->start(5);
 		_slerpStep = 0.0f;
 	}
@@ -469,39 +469,39 @@ void GLWidget::beginWindowZoom()
 
 void GLWidget::performWindowZoom()
 {
-    _windowZoomActive = false;
-    if (_rubberBand)
-    {
-        QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+	_windowZoomActive = false;
+	if (_rubberBand)
+	{
+		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-        QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
-        QPoint clientWinCen = clientRect.center();
-        QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
-        QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+		QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
+		QPoint clientWinCen = clientRect.center();
+		QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
+		QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-        QRect zoomRect = _rubberBand->geometry();
+		QRect zoomRect = _rubberBand->geometry();
 		if (zoomRect.width() == 0 || zoomRect.height() == 0)
 		{
 			emit windowZoomEnded();
 			return;
 		}
-        QPoint zoomWinCen = zoomRect.center();
-        QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
-        QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
+		QPoint zoomWinCen = zoomRect.center();
+		QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
+		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-        double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
-        double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
-        _rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
-        _rubberBandPan = P - O;
-    }
-    if (!_animateWindowZoomTimer->isActive())
-    {
-        _keyboardNavTimer->stop();
-        _animateWindowZoomTimer->start(5);
-        _slerpStep = 0.0f;
-    }
-    emit windowZoomEnded();
+		double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
+		double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
+		_rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
+		_rubberBandPan = P - O;
+	}
+	if (!_animateWindowZoomTimer->isActive())
+	{
+		_keyboardNavTimer->stop();
+		_animateWindowZoomTimer->start(5);
+		_slerpStep = 0.0f;
+	}
+	emit windowZoomEnded();
 }
 
 void GLWidget::setProjection(ViewProjection proj)
@@ -618,7 +618,7 @@ void GLWidget::updateFloorPlane()
 	_lightCube->setSize(_boundingSphere.getRadius() * 0.05f);
 	_lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
 	_lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
-    _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+	_lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 	updateClippingPlane();
 }
@@ -696,7 +696,7 @@ void GLWidget::showFloorTexture(bool show)
 void GLWidget::addToDisplay(TriangleMesh* mesh)
 {
 	_meshStore.push_back(mesh);
-    _displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
+	_displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
 }
 
 void GLWidget::removeFromDisplay(int index)
@@ -710,8 +710,8 @@ void GLWidget::centerScreen(int index)
 {
 	_centerScreenObjectId = index;
 	if (!_animateCenterScreenTimer->isActive())
-    {
-        _keyboardNavTimer->stop();
+	{
+		_keyboardNavTimer->stop();
 		_animateCenterScreenTimer->start(5);
 		_slerpStep = 0.0f;
 	}
@@ -762,247 +762,247 @@ TriangleMesh* GLWidget::loadAssImpMesh(QString fileName)
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->enableDiffuseADSMap(enable);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::enableADSDiffuseTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableDiffuseADSMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableADSDiffuseTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path)
 {
-    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->setDiffuseADSMap(texId);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::setADSDiffuseTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setDiffuseADSMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setADSDiffuseTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::clearADSDiffuseTexMap(const std::vector<int>& ids)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->clearDiffuseADSMap();
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::clearADSDiffuseTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearDiffuseADSMap();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSDiffuseTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::enableADSSpecularTexMap(const std::vector<int>& ids, const bool& enable)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->enableSpecularADSMap(enable);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::enableADSSpecularTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableSpecularADSMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableADSSpecularTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setADSSpecularTexMap(const std::vector<int>& ids, const QString& path)
 {
-    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->setSpecularADSMap(texId);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::setADSSpecularTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setSpecularADSMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setADSSpecularTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::clearADSSpecularTexMap(const std::vector<int>& ids)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->clearSpecularADSMap();
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::clearADSSpecularTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearSpecularADSMap();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSSpecularTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& enable)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->enableEmissiveADSMap(enable);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::enableADSEmissiveTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableEmissiveADSMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableADSEmissiveTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setADSEmissiveTexMap(const std::vector<int>& ids, const QString& path)
 {
-    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->setEmissiveADSMap(texId);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::setADSEmissiveTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setEmissiveADSMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setADSEmissiveTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::clearADSEmissiveTexMap(const std::vector<int>& ids)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->clearEmissiveADSMap();
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::clearADSEmissiveTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearEmissiveADSMap();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSEmissiveTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->enableNormalADSMap(enable);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::enableADSNormalTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableNormalADSMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableADSNormalTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setADSNormalTexMap(const std::vector<int>& ids, const QString& path)
 {
-    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->setNormalADSMap(texId);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::setADSNormalTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setNormalADSMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setADSNormalTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::clearADSNormalTexMap(const std::vector<int>& ids)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->clearNormalADSMap();
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::clearADSNormalTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearNormalADSMap();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSNormalTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::enableADSHeightTexMap(const std::vector<int>& ids, const bool& enable)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->enableHeightADSMap(enable);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::enableADSHeightTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableHeightADSMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableADSHeightTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setADSHeightTexMap(const std::vector<int>& ids, const QString& path)
 {
-    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->setHeightADSMap(texId);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::setADSHeightTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setHeightADSMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setADSHeightTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::clearADSHeightTexMap(const std::vector<int>& ids)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->clearHeightADSMap();
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::clearADSHeightTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearHeightADSMap();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearADSHeightTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::enableADSOpacityTexMap(const std::vector<int>& ids, const bool& enable)
@@ -1023,18 +1023,18 @@ void GLWidget::enableADSOpacityTexMap(const std::vector<int>& ids, const bool& e
 
 void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->invertOpacityADSMap(inverted);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::invertADSOpacityTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->invertOpacityADSMap(inverted);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::invertADSOpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setADSOpacityTexMap(const std::vector<int>& ids, const QString& path)
@@ -1413,67 +1413,67 @@ void GLWidget::clearPBRAOTexMap(const std::vector<int>& ids)
 
 void GLWidget::enablePBROpacityTexMap(const std::vector<int>& ids, const bool& enable)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->enableOpacityPBRMap(enable);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::enablePBROpacityTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableOpacityPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enablePBROpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::setPBROpacityTexMap(const std::vector<int>& ids, const QString& path)
 {
-    unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->setOpacityPBRMap(texId);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::setPBROpacityTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setOpacityPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setPBROpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->invertOpacityPBRMap(inverted);
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::invertPBROpacityTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->invertOpacityPBRMap(inverted);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::invertPBROpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::clearPBROpacityTexMap(const std::vector<int>& ids)
 {
-    for (int id : ids)
-    {
-        try
-        {
-            TriangleMesh* mesh = _meshStore[id];
-            mesh->clearOpacityPBRMap();
-        }
-        catch (const std::exception& ex)
-        {
-            std::cout << "Exception in GLWidget::clearPBROpacityTexMap\n" << ex.what() << std::endl;
-        }
-    }
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->clearOpacityPBRMap();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearPBROpacityTexMap\n" << ex.what() << std::endl;
+		}
+	}
 }
 
 void GLWidget::enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable)
@@ -1675,7 +1675,7 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 		success = prog->addShaderFromSourceFile(QOpenGLShader::TessellationControl, tessControlProg);
 		if (!success)
 		{
-            qDebug() << "Error in tessellation  control shader:" << prog->objectName() << prog->log();
+			qDebug() << "Error in tessellation  control shader:" << prog->objectName() << prog->log();
 		}
 	}
 	if (tessEvalProg != "")
@@ -1683,7 +1683,7 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 		success = prog->addShaderFromSourceFile(QOpenGLShader::TessellationEvaluation, tessEvalProg);
 		if (!success)
 		{
-            qDebug() << "Error in tessellation  evaluation shader:" << prog->objectName() << prog->log();
+			qDebug() << "Error in tessellation  evaluation shader:" << prog->objectName() << prog->log();
 		}
 	}
 	if (geometryProg != "")
@@ -1691,20 +1691,20 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 		success = prog->addShaderFromSourceFile(QOpenGLShader::Geometry, geometryProg);
 		if (!success)
 		{
-            qDebug() << "Error in geometry shader:" << prog->objectName() << prog->log();
+			qDebug() << "Error in geometry shader:" << prog->objectName() << prog->log();
 		}
 	}
 	success = prog->addShaderFromSourceFile(QOpenGLShader::Fragment, fragmentProg);
 	if (!success)
 	{
-        qDebug() << "Error in fragment shader:" << prog->objectName() << prog->log();
+		qDebug() << "Error in fragment shader:" << prog->objectName() << prog->log();
 	}
 	if (success)
 	{
 		success = prog->link();
 		if (!success)
 		{
-            qDebug() << "Error linking shader program:" << prog->objectName() << prog->log();
+			qDebug() << "Error linking shader program:" << prog->objectName() << prog->log();
 		}
 	}
 
@@ -1715,57 +1715,57 @@ void GLWidget::createShaderPrograms()
 {
 	// Foreground objects shader program
 	// Per fragment lighting
-    _fgShader = new QOpenGLShaderProgram(this); _fgShader->setObjectName("_fgShader");
+	_fgShader = new QOpenGLShaderProgram(this); _fgShader->setObjectName("_fgShader");
 	loadCompileAndLinkShaderFromFile(_fgShader, "shaders/twoside_per_fragment.vert",
 		"shaders/twoside_per_fragment.frag", "shaders/twoside_per_fragment.geom");
 	// Axis
-    _axisShader = new QOpenGLShaderProgram(this); _axisShader->setObjectName("_axisShader");
+	_axisShader = new QOpenGLShaderProgram(this); _axisShader->setObjectName("_axisShader");
 	loadCompileAndLinkShaderFromFile(_axisShader, "shaders/axis.vert", "shaders/axis.frag");
 	// Vertex Normal
-    _vertexNormalShader = new QOpenGLShaderProgram(this); _vertexNormalShader->setObjectName("_vertexNormalShader");
+	_vertexNormalShader = new QOpenGLShaderProgram(this); _vertexNormalShader->setObjectName("_vertexNormalShader");
 	loadCompileAndLinkShaderFromFile(_vertexNormalShader, "shaders/vertex_normal.vert",
 		"shaders/vertex_normal.frag", "shaders/vertex_normal.geom");
 	// Face Normal
-    _faceNormalShader = new QOpenGLShaderProgram(this); _faceNormalShader->setObjectName("_faceNormalShader");
+	_faceNormalShader = new QOpenGLShaderProgram(this); _faceNormalShader->setObjectName("_faceNormalShader");
 	loadCompileAndLinkShaderFromFile(_faceNormalShader, "shaders/face_normal.vert",
 		"shaders/face_normal.frag", "shaders/face_normal.geom");
 	// Shadow mapping
-    _shadowMappingShader = new QOpenGLShaderProgram(this); _shadowMappingShader->setObjectName("_shadowMappingShader");
+	_shadowMappingShader = new QOpenGLShaderProgram(this); _shadowMappingShader->setObjectName("_shadowMappingShader");
 	loadCompileAndLinkShaderFromFile(_shadowMappingShader, "shaders/shadow_mapping_depth.vert",
 		"shaders/shadow_mapping_depth.frag");
 	// Sky Box
-    _skyBoxShader = new QOpenGLShaderProgram(this); _skyBoxShader->setObjectName("_skyBoxShader");
+	_skyBoxShader = new QOpenGLShaderProgram(this); _skyBoxShader->setObjectName("_skyBoxShader");
 	loadCompileAndLinkShaderFromFile(_skyBoxShader, "shaders/skybox.vert", "shaders/skybox.frag");
 	// Irradiance Map
-    _irradianceShader = new QOpenGLShaderProgram(this); _irradianceShader->setObjectName("_irradianceShader");
+	_irradianceShader = new QOpenGLShaderProgram(this); _irradianceShader->setObjectName("_irradianceShader");
 	loadCompileAndLinkShaderFromFile(_irradianceShader, "shaders/skybox.vert", "shaders/irradiance_convolution.frag");
 	// Prefilter Map
-    _prefilterShader = new QOpenGLShaderProgram(this); _prefilterShader->setObjectName("_prefilterShader");
+	_prefilterShader = new QOpenGLShaderProgram(this); _prefilterShader->setObjectName("_prefilterShader");
 	loadCompileAndLinkShaderFromFile(_prefilterShader, "shaders/skybox.vert", "shaders/prefilter.frag");
 	// BRDF LUT Map
-    _brdfShader = new QOpenGLShaderProgram(this); _brdfShader->setObjectName("_brdfShader");
+	_brdfShader = new QOpenGLShaderProgram(this); _brdfShader->setObjectName("_brdfShader");
 	loadCompileAndLinkShaderFromFile(_brdfShader, "shaders/brdf.vert", "shaders/brdf.frag");
 	// Text shader program
-    _textShader = new QOpenGLShaderProgram(this); _textShader->setObjectName("_textShader");
+	_textShader = new QOpenGLShaderProgram(this); _textShader->setObjectName("_textShader");
 	loadCompileAndLinkShaderFromFile(_textShader, "shaders/text.vert", "shaders/text.frag");
 	// Background gradient shader program
-    _bgShader = new QOpenGLShaderProgram(this); _bgShader->setObjectName("_bgShader");
+	_bgShader = new QOpenGLShaderProgram(this); _bgShader->setObjectName("_bgShader");
 	loadCompileAndLinkShaderFromFile(_bgShader, "shaders/background.vert", "shaders/background.frag");
 	// Background split shader program
-    _bgSplitShader = new QOpenGLShaderProgram(this); _bgSplitShader->setObjectName("_bgSplitShader");
+	_bgSplitShader = new QOpenGLShaderProgram(this); _bgSplitShader->setObjectName("_bgSplitShader");
 	loadCompileAndLinkShaderFromFile(_bgSplitShader, "shaders/splitScreen.vert", "shaders/splitScreen.frag");
 	// Light Cube shader program
-    _lightCubeShader = new QOpenGLShaderProgram(this); _lightCubeShader->setObjectName("_lightCubeShader");
+	_lightCubeShader = new QOpenGLShaderProgram(this); _lightCubeShader->setObjectName("_lightCubeShader");
 	loadCompileAndLinkShaderFromFile(_lightCubeShader, "shaders/light_cube.vert", "shaders/light_cube.frag");
 	// Clipping Plane shader program
-    _clippingPlaneShader = new QOpenGLShaderProgram(this); _clippingPlaneShader->setObjectName("_clippingPlaneShader");
+	_clippingPlaneShader = new QOpenGLShaderProgram(this); _clippingPlaneShader->setObjectName("_clippingPlaneShader");
 	loadCompileAndLinkShaderFromFile(_clippingPlaneShader, "shaders/clipping_plane.vert", "shaders/clipping_plane.frag");
 	// Clipped Mesh shader program
-    _clippedMeshShader = new QOpenGLShaderProgram(this); _clippedMeshShader->setObjectName("_clippedMeshShader");
+	_clippedMeshShader = new QOpenGLShaderProgram(this); _clippedMeshShader->setObjectName("_clippedMeshShader");
 	loadCompileAndLinkShaderFromFile(_clippedMeshShader, "shaders/clipped_mesh.vert", "shaders/clipped_mesh.frag");
 
 	// Shadow Depth quad shader program - for debugging
-    _debugShader = new QOpenGLShaderProgram(this); _debugShader->setObjectName("_debugShader");
+	_debugShader = new QOpenGLShaderProgram(this); _debugShader->setObjectName("_debugShader");
 	loadCompileAndLinkShaderFromFile(_debugShader, "shaders/debug_quad.vert", "shaders/debug_quad_depth.frag");
 }
 
@@ -1775,7 +1775,7 @@ void GLWidget::createCappingPlanes()
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_cappingTexture = loadTextureFromFile("textures/patterns/hatch_02.png");
-    glActiveTexture(GL_TEXTURE6);
+	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 }
 
@@ -1788,8 +1788,8 @@ void GLWidget::createGeometry()
 {
 	_meshStore.push_back(new Cube(_fgShader, 100.0f));
 	_meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
-    _meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
-    _meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
+	_meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
+	_meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
 	_meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f, 2, 2));
 	_meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
 	_meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
@@ -2491,7 +2491,7 @@ void GLWidget::drawSectionCapping()
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			glActiveTexture(GL_TEXTURE13);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
-            _clippingPlaneShader->setUniformValue("hatchMap", 6);
+			_clippingPlaneShader->setUniformValue("hatchMap", 6);
 			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
@@ -3062,11 +3062,11 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
 	prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
-		(_clipXFlipped ? 1 : -1) * (pos.x() -_clipXCoeff)));
+		(_clipXFlipped ? 1 : -1) * (pos.x() - _clipXCoeff)));
 	prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
-		(_clipYFlipped ? 1 : -1) * (pos.y() -_clipYCoeff)));
+		(_clipYFlipped ? 1 : -1) * (pos.y() - _clipYCoeff)));
 	prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
-		(_clipZFlipped ? 1 : -1) * (pos.z() -_clipZCoeff)));
+		(_clipZFlipped ? 1 : -1) * (pos.z() - _clipZCoeff)));
 	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
@@ -3135,8 +3135,8 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_leftButtonPoint.setX(e->x());
 		_leftButtonPoint.setY(e->y());
 
-        if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
-                && !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
+		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
 			mouseSelect(QPoint(e->x(), e->y()));
@@ -3173,7 +3173,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 		{
 			performWindowZoom();
 		}
-        else if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
+		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			sweepSelect(e->pos());
 		}
@@ -3200,7 +3200,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	QPoint downPoint(e->x(), e->y());
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
-        if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
+		if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
 		}
@@ -3304,99 +3304,102 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 void GLWidget::keyPressEvent(QKeyEvent* event)
 {
-    keys[event->key()] = true;
-    QWidget::keyPressEvent(event);
+	_keys[event->key()] = true;
+	QWidget::keyPressEvent(event);
 
-    if (keys[Qt::Key_Escape])
-    {
-        _viewRotating = false;
-        _viewPanning = false;
-        _viewZooming = false;
-        _windowZoomActive = false;
-        setCursor(QCursor(Qt::ArrowCursor));
-    }
+	if (_keys[Qt::Key_Escape])
+	{
+		_viewRotating = false;
+		_viewPanning = false;
+		_viewZooming = false;
+		_windowZoomActive = false;
+		setCursor(QCursor(Qt::ArrowCursor));
+	}
 
-    if(keys[ Qt::Key_F2])
-        fitAll();
-    if(keys[ Qt::Key_Delete])
-        deleteSelectedItem();
-    if(keys[ Qt::Key_Space])
-        hideSelectedItem();
+	if (_keys[Qt::Key_F2])
+		fitAll();
+	if (_keys[Qt::Key_Delete])
+		deleteSelectedItem();
+	if (_keys[Qt::Key_Space])
+		hideSelectedItem();
 
-    update();
+	update();
 }
 
 void GLWidget::keyReleaseEvent(QKeyEvent* event)
 {
-    keys[event->key()] = false;
-    QWidget::keyReleaseEvent(event);
+	_keys[event->key()] = false;
+	QWidget::keyReleaseEvent(event);
 }
 
 void GLWidget::performKeyboardNav()
 {
-	float factor = _viewBoundingSphereDia * 0.01f;
-    // https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
-    if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
-    {
-        if(keys[Qt::Key_A])
-            _primaryCamera->moveAcross(factor);
-        if(keys[Qt::Key_D])
-            _primaryCamera->moveAcross(-factor);
-        if(keys[Qt::Key_W])
-            _primaryCamera->moveForward(-factor);
-        if(keys[Qt::Key_S])
-            _primaryCamera->moveForward(factor);
-    }
-    else
-    {
-        if(keys[Qt::Key_A])
-            _primaryCamera->moveAcross(factor);
-        if(keys[Qt::Key_D])
-            _primaryCamera->moveAcross(-factor);
-        if(keys[Qt::Key_W])
-            _primaryCamera->moveUpward(-factor);
-        if(keys[Qt::Key_S])
-            _primaryCamera->moveUpward(factor);
-    }
-
-    if(keys[Qt::Key_J])
-        _primaryCamera->rotateY(2.0f);
-    if(keys[Qt::Key_L])
-        _primaryCamera->rotateY(-2.0f);
-    if(keys[Qt::Key_I])
-        _primaryCamera->rotateX(2.0f);
-    if(keys[Qt::Key_K])
-        _primaryCamera->rotateX(-2.0f);
-    if(keys[Qt::Key_M])
-        _primaryCamera->rotateZ(2.0f);
-    if(keys[Qt::Key_N])
-        _primaryCamera->rotateZ(-2.0f);
-    if(keys[Qt::Key_Q] || keys[Qt::Key_Z])
-    {
-		// Zoom
-        if(keys[Qt::Key_Q])
-			_viewRange /= 1.025f;
+	if (QApplication::keyboardModifiers() == Qt::NoModifier)
+	{
+		float factor = _viewBoundingSphereDia * 0.01f;
+		// https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
+		if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+		{
+			if (_keys[Qt::Key_A])
+				_primaryCamera->moveAcross(factor);
+			if (_keys[Qt::Key_D])
+				_primaryCamera->moveAcross(-factor);
+			if (_keys[Qt::Key_W])
+				_primaryCamera->moveForward(-factor);
+			if (_keys[Qt::Key_S])
+				_primaryCamera->moveForward(factor);
+		}
 		else
-			_viewRange *= 1.025f;
-        if (_viewRange < 0.05)
-            _viewRange = 0.05f;
-        if (_viewRange > 500000.0)
-            _viewRange = 500000.0f;        
-        // Translate to focus on mouse center
-        QPoint pos = mapFromGlobal(QCursor::pos());
-        QPoint cen = getClientRectFromPoint(pos).center();
-        float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
-            (pos.x() < cen.x() && pos.y() > cen.y())) && keys[Qt::Key_Q] ? 1.0f : -1.0f;
-        QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
-        OP *= sign * 0.02f;
-        _primaryCamera->move(OP.x(), OP.y(), OP.z());
-    }   
+		{
+			if (_keys[Qt::Key_A])
+				_primaryCamera->moveAcross(factor);
+			if (_keys[Qt::Key_D])
+				_primaryCamera->moveAcross(-factor);
+			if (_keys[Qt::Key_W])
+				_primaryCamera->moveUpward(-factor);
+			if (_keys[Qt::Key_S])
+				_primaryCamera->moveUpward(factor);
+		}
 
-	_currentViewRange = _viewRange;
-    _currentTranslation = _primaryCamera->getPosition();
-    _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
-    resizeGL(width(), height());
-    update();
+		if (_keys[Qt::Key_J])
+			_primaryCamera->rotateY(2.0f);
+		if (_keys[Qt::Key_L])
+			_primaryCamera->rotateY(-2.0f);
+		if (_keys[Qt::Key_I])
+			_primaryCamera->rotateX(2.0f);
+		if (_keys[Qt::Key_K])
+			_primaryCamera->rotateX(-2.0f);
+		if (_keys[Qt::Key_M])
+			_primaryCamera->rotateZ(2.0f);
+		if (_keys[Qt::Key_N])
+			_primaryCamera->rotateZ(-2.0f);
+		if (_keys[Qt::Key_Q] || _keys[Qt::Key_Z])
+		{
+			// Zoom
+			if (_keys[Qt::Key_Q])
+				_viewRange /= 1.025f;
+			else
+				_viewRange *= 1.025f;
+			if (_viewRange < 0.05)
+				_viewRange = 0.05f;
+			if (_viewRange > 500000.0)
+				_viewRange = 500000.0f;
+			// Translate to focus on mouse center
+			QPoint pos = mapFromGlobal(QCursor::pos());
+			QPoint cen = getClientRectFromPoint(pos).center();
+			float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
+				(pos.x() < cen.x() && pos.y() > cen.y())) && _keys[Qt::Key_Q] ? 1.0f : -1.0f;
+			QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
+			OP *= sign * 0.02f;
+			_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		}
+
+		_currentViewRange = _viewRange;
+		_currentTranslation = _primaryCamera->getPosition();
+		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+		resizeGL(width(), height());
+		update();
+	}
 }
 
 void GLWidget::animateViewChange()
@@ -3455,12 +3458,12 @@ void GLWidget::animateWindowZoom()
 {
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
-    /*float fov = _primaryCamera->getFOV();
-    float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio * fov / 100);
-    QVector3D panRatio = (_rubberBandPan * fov / 100);
-    float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
-    QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;*/
-    setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
+	/*float fov = _primaryCamera->getFOV();
+	float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio * fov / 100);
+	QVector3D panRatio = (_rubberBandPan * fov / 100);
+	float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
+	QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;*/
+	setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
 	resizeGL(width(), height());
 }
 
@@ -3483,31 +3486,31 @@ void GLWidget::stopAnimations()
 	_animateFitAllTimer->stop();
 	_animateWindowZoomTimer->stop();
 	_animateCenterScreenTimer->stop();
-    _keyboardNavTimer->start();
-	QTimer::singleShot(100, this, SLOT(disableLowRes())); 
+	_keyboardNavTimer->start();
+	QTimer::singleShot(100, this, SLOT(disableLowRes()));
 }
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir)
 {
-    if (_projection == ViewProjection::PERSPECTIVE)
+	if (_projection == ViewProjection::PERSPECTIVE)
 	{
-        QVector3D Z(0, 0, -_viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+		QVector3D Z(0, 0, -_viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
 		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
-        QVector3D p(pixel.x(), height() - pixel.y() - 1, Z.z());
+		QVector3D p(pixel.x(), height() - pixel.y() - 1, Z.z());
 		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
 		orig = QVector3D(P.x(), P.y(), P.z());
 
-        QVector3D Z1(0, 0, _viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-        Z1 = Z1.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
-        QVector3D q(pixel.x(), height() - pixel.y() - 1, Z1.z());
-        QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+		QVector3D Z1(0, 0, _viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+		Z1 = Z1.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+		QVector3D q(pixel.x(), height() - pixel.y() - 1, Z1.z());
+		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
 
-        //QVector3D viewDir = _primaryCamera->getViewDir();
-        //dir = viewDir;
-        dir = (Q-P).normalized();
+		//QVector3D viewDir = _primaryCamera->getViewDir();
+		//dir = viewDir;
+		dir = (Q - P).normalized();
 	}
-    else
+	else
 	{
 		QVector3D nearPoint(pixel.x(), height() - pixel.y() - 1, 0.0f);
 		QVector3D farPoint(pixel.x(), height() - pixel.y() - 1, 1.0f);
@@ -3626,10 +3629,10 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 	int id = -1;
 
 	if (!_displayedObjectsIds.size())
-    {
-        emit singleSelectionDone(id);
+	{
+		emit singleSelectionDone(id);
 		return id;
-    }
+	}
 
 	QVector3D rayPos, rayDir;
 	QVector3D intersectionPoint;
@@ -3691,9 +3694,9 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 	for (int i : _displayedObjectsIds)
 	{
 		TriangleMesh* mesh = _meshStore.at(i);
-		QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());		
+		QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());
 		QRect interRect = rubberRect.intersected(objRect);
-		// Intersection rectangle of rubberband and object is more than 5% of objRect		
+		// Intersection rectangle of rubberband and object is more than 5% of objRect
 		bool intersects = (float(interRect.width() * interRect.height()) >= float(objRect.width() * objRect.height()) * 0.05f);
 		if (intersects)
 		{
