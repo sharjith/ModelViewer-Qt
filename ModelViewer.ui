@@ -1244,8 +1244,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1993,8 +1993,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2147,8 +2147,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2836,8 +2836,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3696,8 +3696,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>436</width>
+                   <height>749</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3710,9 +3710,6 @@
                   <string>Object Transformations</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_11">
-                  <property name="spacing">
-                   <number>2</number>
-                  </property>
                   <item row="0" column="0">
                    <widget class="QGroupBox" name="groupBox_5">
                     <property name="title">
@@ -3812,20 +3809,106 @@
                     </layout>
                    </widget>
                   </item>
-                  <item row="5" column="0">
-                   <spacer name="verticalSpacer_2">
-                    <property name="orientation">
-                     <enum>Qt::Vertical</enum>
+                  <item row="0" column="1">
+                   <widget class="QGroupBox" name="groupBox_6">
+                    <property name="title">
+                     <string>Rotations</string>
                     </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>20</width>
-                      <height>40</height>
-                     </size>
+                    <property name="flat">
+                     <bool>true</bool>
                     </property>
-                   </spacer>
+                    <layout class="QGridLayout" name="gridLayout_9">
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="label_4">
+                       <property name="text">
+                        <string>RX</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QDoubleSpinBox" name="doubleSpinBoxRX">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
+                       <property name="suffix">
+                        <string> deg</string>
+                       </property>
+                       <property name="decimals">
+                        <number>3</number>
+                       </property>
+                       <property name="minimum">
+                        <double>-180.000000000000000</double>
+                       </property>
+                       <property name="maximum">
+                        <double>180.000000000000000</double>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QLabel" name="label_5">
+                       <property name="text">
+                        <string>RY</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="1">
+                      <widget class="QDoubleSpinBox" name="doubleSpinBoxRY">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
+                       <property name="suffix">
+                        <string> deg</string>
+                       </property>
+                       <property name="decimals">
+                        <number>3</number>
+                       </property>
+                       <property name="minimum">
+                        <double>-180.000000000000000</double>
+                       </property>
+                       <property name="maximum">
+                        <double>180.000000000000000</double>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="0">
+                      <widget class="QLabel" name="label_6">
+                       <property name="text">
+                        <string>RZ</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="2" column="1">
+                      <widget class="QDoubleSpinBox" name="doubleSpinBoxRZ">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
+                       </property>
+                       <property name="suffix">
+                        <string> deg</string>
+                       </property>
+                       <property name="decimals">
+                        <number>3</number>
+                       </property>
+                       <property name="minimum">
+                        <double>-180.000000000000000</double>
+                       </property>
+                       <property name="maximum">
+                        <double>180.000000000000000</double>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
                   </item>
-                  <item row="2" column="0">
+                  <item row="0" column="2">
                    <widget class="QGroupBox" name="groupBox_8">
                     <property name="title">
                      <string>Scaling</string>
@@ -3933,118 +4016,32 @@
                     </layout>
                    </widget>
                   </item>
-                  <item row="1" column="0">
-                   <widget class="QGroupBox" name="groupBox_6">
-                    <property name="title">
-                     <string>Rotations</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_9">
-                     <item row="0" column="0">
-                      <widget class="QLabel" name="label_4">
-                       <property name="text">
-                        <string>RX</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="1">
-                      <widget class="QDoubleSpinBox" name="doubleSpinBoxRX">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="suffix">
-                        <string> deg</string>
-                       </property>
-                       <property name="decimals">
-                        <number>3</number>
-                       </property>
-                       <property name="minimum">
-                        <double>-180.000000000000000</double>
-                       </property>
-                       <property name="maximum">
-                        <double>180.000000000000000</double>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QLabel" name="label_5">
-                       <property name="text">
-                        <string>RY</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="1">
-                      <widget class="QDoubleSpinBox" name="doubleSpinBoxRY">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="suffix">
-                        <string> deg</string>
-                       </property>
-                       <property name="decimals">
-                        <number>3</number>
-                       </property>
-                       <property name="minimum">
-                        <double>-180.000000000000000</double>
-                       </property>
-                       <property name="maximum">
-                        <double>180.000000000000000</double>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="0">
-                      <widget class="QLabel" name="label_6">
-                       <property name="text">
-                        <string>RZ</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="2" column="1">
-                      <widget class="QDoubleSpinBox" name="doubleSpinBoxRZ">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="suffix">
-                        <string> deg</string>
-                       </property>
-                       <property name="decimals">
-                        <number>3</number>
-                       </property>
-                       <property name="minimum">
-                        <double>-180.000000000000000</double>
-                       </property>
-                       <property name="maximum">
-                        <double>180.000000000000000</double>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="3" column="0">
+                  <item row="1" column="0" colspan="3">
                    <widget class="QPushButton" name="pushButtonApplyTransformations">
                     <property name="text">
                      <string>Apply Transformations</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="4" column="0">
+                  <item row="2" column="0" colspan="3">
                    <widget class="QPushButton" name="pushButtonResetTransformations">
                     <property name="text">
                      <string>Reset Transformations</string>
                     </property>
                    </widget>
+                  </item>
+                  <item row="3" column="0" colspan="3">
+                   <spacer name="verticalSpacer_2">
+                    <property name="orientation">
+                     <enum>Qt::Vertical</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>20</width>
+                      <height>40</height>
+                     </size>
+                    </property>
+                   </spacer>
                   </item>
                  </layout>
                 </widget>
@@ -4053,8 +4050,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>437</width>
-                   <height>758</height>
+                   <width>428</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4517,8 +4514,153 @@
   </customwidget>
  </customwidgets>
  <tabstops>
+  <tabstop>checkBoxSelectAll</tabstop>
+  <tabstop>listWidgetModel</tabstop>
+  <tabstop>radioButtonADSL</tabstop>
+  <tabstop>radioButtonDLPBR</tabstop>
+  <tabstop>radioButtonTXPBR</tabstop>
   <tabstop>checkTexture</tabstop>
   <tabstop>pushButtonTexture</tabstop>
+  <tabstop>pushButtonMaterialAmbient</tabstop>
+  <tabstop>pushButtonMaterialDiffuse</tabstop>
+  <tabstop>pushButtonMaterialSpecular</tabstop>
+  <tabstop>pushButtonMaterialEmissive</tabstop>
+  <tabstop>sliderShine</tabstop>
+  <tabstop>sliderTransparency</tabstop>
+  <tabstop>pushButtonDefaultMatls</tabstop>
+  <tabstop>checkBoxDiffuseTex</tabstop>
+  <tabstop>pushButtonDiffuseTexture</tabstop>
+  <tabstop>toolButtonClearDiffuseTex</tabstop>
+  <tabstop>checkBoxSpecularTex</tabstop>
+  <tabstop>pushButtonSpecularTexture</tabstop>
+  <tabstop>toolButtonClearSpecularTex</tabstop>
+  <tabstop>checkBoxEmissiveTex</tabstop>
+  <tabstop>pushButtonEmissiveTexture</tabstop>
+  <tabstop>toolButtonClearEmissiveTex</tabstop>
+  <tabstop>checkBoxNormalTex</tabstop>
+  <tabstop>pushButtonNormalTexture</tabstop>
+  <tabstop>toolButtonClearNormalTex</tabstop>
+  <tabstop>checkBoxHeightTex</tabstop>
+  <tabstop>pushButtonHeightTexture</tabstop>
+  <tabstop>toolButtonClearHeightTex</tabstop>
+  <tabstop>checkBoxOpacityTex</tabstop>
+  <tabstop>checkBoxOpacInvert</tabstop>
+  <tabstop>pushButtonOpacityTexture</tabstop>
+  <tabstop>toolButtonClearOpacityTex</tabstop>
+  <tabstop>pushButtonApplyADSTexture</tabstop>
+  <tabstop>pushButtonClearADSTextures</tabstop>
+  <tabstop>pushButtonAlbedoColor</tabstop>
+  <tabstop>sliderMetallic</tabstop>
+  <tabstop>sliderRoughness</tabstop>
+  <tabstop>sliderTransparencyPBR</tabstop>
+  <tabstop>pushButtonDefaultMatlsPBR</tabstop>
+  <tabstop>checkBoxAlbedoMap</tabstop>
+  <tabstop>pushButtonAlbedoMap</tabstop>
+  <tabstop>toolButtonClearAlbedo</tabstop>
+  <tabstop>checkBoxMetallicMap</tabstop>
+  <tabstop>pushButtonMetallicMap</tabstop>
+  <tabstop>toolButtonClearMetallic</tabstop>
+  <tabstop>checkBoxRoughnessMap</tabstop>
+  <tabstop>pushButtonRoughnessMap</tabstop>
+  <tabstop>toolButtonClearRoughness</tabstop>
+  <tabstop>checkBoxNormalMap</tabstop>
+  <tabstop>pushButtonNormalMap</tabstop>
+  <tabstop>toolButtonClearNormal</tabstop>
+  <tabstop>checkBoxAOMap</tabstop>
+  <tabstop>pushButtonAOMap</tabstop>
+  <tabstop>toolButtonClearAO</tabstop>
+  <tabstop>checkBoxOpacityMap</tabstop>
+  <tabstop>checkBoxOpacMapInvert</tabstop>
+  <tabstop>pushButtonOpacityMap</tabstop>
+  <tabstop>toolButtonClearOpacityMap</tabstop>
+  <tabstop>checkBoxHeightMap</tabstop>
+  <tabstop>pushButtonHeightMap</tabstop>
+  <tabstop>toolButtonClearHeight</tabstop>
+  <tabstop>doubleSpinBoxHeightScale</tabstop>
+  <tabstop>pushButtonApplyPBRTexture</tabstop>
+  <tabstop>pushButtonClearPBRTextures</tabstop>
+  <tabstop>pushButtonBrass</tabstop>
+  <tabstop>pushButtonBronze</tabstop>
+  <tabstop>pushButtonCopper</tabstop>
+  <tabstop>pushButtonGold</tabstop>
+  <tabstop>pushButtonSilver</tabstop>
+  <tabstop>pushButtonChrome</tabstop>
+  <tabstop>pushButtonRuby</tabstop>
+  <tabstop>pushButtonEmerald</tabstop>
+  <tabstop>pushButtonTurquoise</tabstop>
+  <tabstop>pushButtonPearl</tabstop>
+  <tabstop>pushButtonJade</tabstop>
+  <tabstop>pushButtonObsidian</tabstop>
+  <tabstop>pushButtonRedPlastic</tabstop>
+  <tabstop>pushButtonGreenPlastic</tabstop>
+  <tabstop>pushButtonCyanPlastic</tabstop>
+  <tabstop>pushButtonYellowPlastic</tabstop>
+  <tabstop>pushButtonWhitePlastic</tabstop>
+  <tabstop>pushButtonBlackPlastic</tabstop>
+  <tabstop>pushButtonRedRubber</tabstop>
+  <tabstop>pushButtonGreenRubber</tabstop>
+  <tabstop>pushButtonCyanRubber</tabstop>
+  <tabstop>pushButtonYellowRubber</tabstop>
+  <tabstop>pushButtonWhiteRubber</tabstop>
+  <tabstop>pushButtonBlackRubber</tabstop>
+  <tabstop>doubleSpinBoxDX</tabstop>
+  <tabstop>doubleSpinBoxDY</tabstop>
+  <tabstop>doubleSpinBoxDZ</tabstop>
+  <tabstop>doubleSpinBoxRX</tabstop>
+  <tabstop>doubleSpinBoxRY</tabstop>
+  <tabstop>doubleSpinBoxRZ</tabstop>
+  <tabstop>doubleSpinBoxSX</tabstop>
+  <tabstop>doubleSpinBoxSY</tabstop>
+  <tabstop>doubleSpinBoxSZ</tabstop>
+  <tabstop>pushButtonApplyTransformations</tabstop>
+  <tabstop>pushButtonResetTransformations</tabstop>
+  <tabstop>pushButtonDefaultLights</tabstop>
+  <tabstop>pushButtonLightAmbient</tabstop>
+  <tabstop>pushButtonLightDiffuse</tabstop>
+  <tabstop>pushButtonLightSpecular</tabstop>
+  <tabstop>sliderLightPosX</tabstop>
+  <tabstop>sliderLightPosY</tabstop>
+  <tabstop>sliderLightPosZ</tabstop>
+  <tabstop>checkBoxLockLightCamera</tabstop>
+  <tabstop>checkBoxShowLights</tabstop>
+  <tabstop>checkBoxShadowMapping</tabstop>
+  <tabstop>checkBoxReflections</tabstop>
+  <tabstop>checkBoxFloor</tabstop>
+  <tabstop>checkBoxSkyBox</tabstop>
+  <tabstop>checkBoxSkyBoxHDRI</tabstop>
+  <tabstop>doubleSpinBoxSkyBoxFOV</tabstop>
+  <tabstop>pushButtonSkyBoxTex</tabstop>
+  <tabstop>checkBoxEnvMapping</tabstop>
+  <tabstop>doubleSpinBoxFloorOffset</tabstop>
+  <tabstop>checkBoxFloorTexture</tabstop>
+  <tabstop>pushButtonFloorTexture</tabstop>
+  <tabstop>doubleSpinBoxRepeatS</tabstop>
+  <tabstop>doubleSpinBoxRepeatT</tabstop>
+  <tabstop>checkBoxHDRToneMapping</tabstop>
+  <tabstop>checkBoxGammaCorrection</tabstop>
+  <tabstop>doubleSpinBoxScreenGamma</tabstop>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>toolButtonOpen</tabstop>
+  <tabstop>toolButtonSave</tabstop>
+  <tabstop>toolButtonRotateView</tabstop>
+  <tabstop>toolButtonPanView</tabstop>
+  <tabstop>toolButtonZoomView</tabstop>
+  <tabstop>toolButtonFitAll</tabstop>
+  <tabstop>toolButtonWindowZoom</tabstop>
+  <tabstop>toolButtonTopView</tabstop>
+  <tabstop>toolButtonBottomView</tabstop>
+  <tabstop>toolButtonLeftView</tabstop>
+  <tabstop>toolButtonRightView</tabstop>
+  <tabstop>toolButtonFrontView</tabstop>
+  <tabstop>toolButtonBackView</tabstop>
+  <tabstop>toolButtonIsometricView</tabstop>
+  <tabstop>toolButtonProjection</tabstop>
+  <tabstop>toolButtonMultiView</tabstop>
+  <tabstop>toolButtonDisplayMode</tabstop>
+  <tabstop>toolButtonVertexNormal</tabstop>
+  <tabstop>toolButtonFaceNormal</tabstop>
+  <tabstop>toolButtonSectionView</tabstop>
+  <tabstop>toolButtonShowHideAxis</tabstop>
  </tabstops>
  <resources>
   <include location="ModelViewer.qrc"/>
