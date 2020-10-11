@@ -3334,28 +3334,29 @@ void GLWidget::keyReleaseEvent(QKeyEvent* event)
 
 void GLWidget::performKeyboardNav()
 {
+	float factor = _viewBoundingSphereDia * 0.01f;
     // https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
     if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
     {
         if(keys[Qt::Key_A])
-            _primaryCamera->moveAcross(2.0f);
+            _primaryCamera->moveAcross(factor);
         if(keys[Qt::Key_D])
-            _primaryCamera->moveAcross(-2.0f);
+            _primaryCamera->moveAcross(-factor);
         if(keys[Qt::Key_W])
-            _primaryCamera->moveForward(-2.0f);
+            _primaryCamera->moveForward(-factor);
         if(keys[Qt::Key_S])
-            _primaryCamera->moveForward(2.0);
+            _primaryCamera->moveForward(factor);
     }
     else
     {
         if(keys[Qt::Key_A])
-            _primaryCamera->moveAcross(2.0f);
+            _primaryCamera->moveAcross(factor);
         if(keys[Qt::Key_D])
-            _primaryCamera->moveAcross(-2.0f);
+            _primaryCamera->moveAcross(-factor);
         if(keys[Qt::Key_W])
-            _primaryCamera->moveUpward(-2.0f);
+            _primaryCamera->moveUpward(-factor);
         if(keys[Qt::Key_S])
-            _primaryCamera->moveUpward(2.0f);
+            _primaryCamera->moveUpward(factor);
     }
 
     if(keys[Qt::Key_Left])
