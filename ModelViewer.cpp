@@ -433,6 +433,10 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 	{
 		if (event->key() == Qt::Key_A)
 			toolButtonIsometricView->animateClick();
+		if (event->key() == Qt::Key_P)
+			toolButtonProjection->animateClick();
+		if (event->key() == Qt::Key_M)
+			toolButtonMultiView->animateClick();
 	}
 
 	QWidget::keyPressEvent(event);
