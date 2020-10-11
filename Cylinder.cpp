@@ -88,7 +88,7 @@ _height(height)
 		n[idx + 1] = 0;
 		n[idx + 2] = -1.0f;
 		glm::vec3 tangent = glm::normalize(glm::vec3(radius * nx, radius * ny, nz - height / 2.0f)
-		- glm::vec3(0.0f, 0.0f, nz - height / 2.0f));
+			- glm::vec3(0.0f, 0.0f, nz - height / 2.0f));
 		glm::vec3 bitangent = glm::cross(tangent, glm::vec3(0.0f, 0.0f, -1.0f));
 		tg[idx + 0] = tangent.x;
 		tg[idx + 1] = tangent.y;
@@ -110,7 +110,7 @@ _height(height)
 	p[idx + 2] = -height / 2.0f;
 	n[idx + 0] = 0;
 	n[idx + 1] = 0;
-	n[idx + 2] = -height / 2.0f -1.0f;	
+	n[idx + 2] = -height / 2.0f - 1.0f;
 	tg[idx + 0] = 1.0f;
 	tg[idx + 1] = 0.0f;
 	tg[idx + 2] = -height / 2.0f;

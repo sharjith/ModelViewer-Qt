@@ -7,7 +7,7 @@ class GridMesh : public TriangleMesh
 {
 public:
 	GridMesh(QOpenGLShaderProgram* prog, const QString name, unsigned int slices, unsigned int stacks);
-    virtual ~GridMesh();
+	virtual ~GridMesh();
 
 protected:
 	unsigned int _slices;

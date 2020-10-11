@@ -86,28 +86,28 @@ public:
 	TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
-    void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
-    void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
-    void clearADSDiffuseTexMap(const std::vector<int>& ids);
+	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
+	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
+	void clearADSDiffuseTexMap(const std::vector<int>& ids);
 
-    void enableADSSpecularTexMap(const std::vector<int>& ids, const bool& enable);
-    void setADSSpecularTexMap(const std::vector<int>& ids, const QString& path);
-    void clearADSSpecularTexMap(const std::vector<int>& ids);
+	void enableADSSpecularTexMap(const std::vector<int>& ids, const bool& enable);
+	void setADSSpecularTexMap(const std::vector<int>& ids, const QString& path);
+	void clearADSSpecularTexMap(const std::vector<int>& ids);
 
-    void enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& enable);
-    void setADSEmissiveTexMap(const std::vector<int>& ids, const QString& path);
-    void clearADSEmissiveTexMap(const std::vector<int>& ids);
+	void enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& enable);
+	void setADSEmissiveTexMap(const std::vector<int>& ids, const QString& path);
+	void clearADSEmissiveTexMap(const std::vector<int>& ids);
 
-    void enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable);
-    void setADSNormalTexMap(const std::vector<int>& ids, const QString& path);
-    void clearADSNormalTexMap(const std::vector<int>& ids);
+	void enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable);
+	void setADSNormalTexMap(const std::vector<int>& ids, const QString& path);
+	void clearADSNormalTexMap(const std::vector<int>& ids);
 
-    void enableADSHeightTexMap(const std::vector<int>& ids, const bool& enable);
-    void setADSHeightTexMap(const std::vector<int>& ids, const QString& path);
-    void clearADSHeightTexMap(const std::vector<int>& ids);
+	void enableADSHeightTexMap(const std::vector<int>& ids, const bool& enable);
+	void setADSHeightTexMap(const std::vector<int>& ids, const QString& path);
+	void clearADSHeightTexMap(const std::vector<int>& ids);
 
 	void enableADSOpacityTexMap(const std::vector<int>& ids, const bool& enable);
-    void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted);
+	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted);
 	void setADSOpacityTexMap(const std::vector<int>& ids, const QString& path);
 	void clearADSOpacityTexMap(const std::vector<int>& ids);
 
@@ -118,32 +118,32 @@ public:
 	void setPBRMetallic(const std::vector<int>& ids, const float& val);
 	void setPBRRoughness(const std::vector<int>& ids, const float& val);
 
-    void clearPBRTexMaps(const std::vector<int>& ids);
-    void enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& path);
-    void clearPBRAlbedoTexMap(const std::vector<int>& ids);
-    void enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBRMetallicTexMap(const std::vector<int>& ids, const QString& path);
-    void clearPBRMetallicTexMap(const std::vector<int>& ids);
-    void enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBRRoughnessTexMap(const std::vector<int>& ids, const QString& path);
-    void clearPBRRoughnessTexMap(const std::vector<int>& ids);
-    void enablePBRNormalTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBRNormalTexMap(const std::vector<int>& ids, const QString& path);
-    void clearPBRNormalTexMap(const std::vector<int>& ids);
-    void enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBRAOTexMap(const std::vector<int>& ids, const QString& path);
-    void clearPBRAOTexMap(const std::vector<int>& ids);
+	void clearPBRTexMaps(const std::vector<int>& ids);
+	void enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRAlbedoTexMap(const std::vector<int>& ids);
+	void enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRMetallicTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRMetallicTexMap(const std::vector<int>& ids);
+	void enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRRoughnessTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRRoughnessTexMap(const std::vector<int>& ids);
+	void enablePBRNormalTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRNormalTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRNormalTexMap(const std::vector<int>& ids);
+	void enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRAOTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRAOTexMap(const std::vector<int>& ids);
 
-    void enablePBROpacityTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBROpacityTexMap(const std::vector<int>& ids, const QString& path);
-    void invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted);
-    void clearPBROpacityTexMap(const std::vector<int>& ids);
+	void enablePBROpacityTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBROpacityTexMap(const std::vector<int>& ids, const QString& path);
+	void invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted);
+	void clearPBROpacityTexMap(const std::vector<int>& ids);
 
-    void enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable);
-    void setPBRHeightTexMap(const std::vector<int>& ids, const QString& path);
-    void clearPBRHeightTexMap(const std::vector<int>& ids);
-    void setPBRHeightScale(const std::vector<int>& ids, const float& scale);
+	void enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRHeightTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRHeightTexMap(const std::vector<int>& ids);
+	void setPBRHeightScale(const std::vector<int>& ids, const float& scale);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
@@ -217,8 +217,8 @@ public:
 
 	bool areLightsShown() const;
 
-        void cleanUpShaders();
-        
+	void cleanUpShaders();
+
 signals:
 	void windowZoomEnded();
 	void rotationsSet();
@@ -236,7 +236,7 @@ public slots:
 	void animateCenterScreen();
 	void stopAnimations();
 	void checkAndStopTimers();
-    void performKeyboardNav();
+	void performKeyboardNav();
 	void disableLowRes();
 	void lockLightAndCamera(bool lock);
 	void setFloorTexRepeatS(double floorTexRepeatS);
@@ -271,58 +271,58 @@ protected:
 	void mouseMoveEvent(QMouseEvent*);
 	void wheelEvent(QWheelEvent*);
 	void keyPressEvent(QKeyEvent* event);
-    void keyReleaseEvent(QKeyEvent* event);
-	void closeEvent(QCloseEvent* event);    
+	void keyReleaseEvent(QKeyEvent* event);
+	void closeEvent(QCloseEvent* event);
 
 private:
-    bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
-        const QString& fragmentProg, const QString& geometryProg = "",
-        const QString& tessControlProg = "", const QString& tessEvalProg = "");
-    void createShaderPrograms();
-    void createLights();
-    void createGeometry();
+	bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
+		const QString& fragmentProg, const QString& geometryProg = "",
+		const QString& tessControlProg = "", const QString& tessEvalProg = "");
+	void createShaderPrograms();
+	void createLights();
+	void createGeometry();
 
-    void loadEnvMap();
-    void loadIrradianceMap();
-    void loadFloor();
+	void loadEnvMap();
+	void loadIrradianceMap();
+	void loadFloor();
 
-    void drawMesh(QOpenGLShaderProgram* prog);
-    void drawSectionCapping();
-    void drawFloor();
-    void drawSkyBox();
-    void drawVertexNormals();
-    void drawFaceNormals();
-    void drawAxis();
-    void drawCornerAxis();
-    void drawLights();
+	void drawMesh(QOpenGLShaderProgram* prog);
+	void drawSectionCapping();
+	void drawFloor();
+	void drawSkyBox();
+	void drawVertexNormals();
+	void drawFaceNormals();
+	void drawAxis();
+	void drawCornerAxis();
+	void drawLights();
 
-    void render(GLCamera* camera);
-    void renderToShadowBuffer();
-    void renderQuad();
+	void render(GLCamera* camera);
+	void renderToShadowBuffer();
+	void renderQuad();
 
-    void gradientBackground(float top_r, float top_g, float top_b, float top_a,
-        float bot_r, float bot_g, float bot_b, float bot_a);
-    void splitScreen();
+	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
+		float bot_r, float bot_g, float bot_b, float bot_a);
+	void splitScreen();
 
-    void setRotations(float xRot, float yRot, float zRot);
-    void setZoomAndPan(float zoom, QVector3D pan);
-    void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
+	void setRotations(float xRot, float yRot, float zRot);
+	void setZoomAndPan(float zoom, QVector3D pan);
+	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 
-    void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
-    int mouseSelect(const QPoint& pixel);
-    QList<int> sweepSelect(const QPoint& pixel);
+	void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
+	int mouseSelect(const QPoint& pixel);
+	QList<int> sweepSelect(const QPoint& pixel);
 
-    float highestModelZ();
-    float lowestModelZ();
+	float highestModelZ();
+	float lowestModelZ();
 
-    QRect getViewportFromPoint(const QPoint& pixel);
-    QRect getClientRectFromPoint(const QPoint& pixel);
-    QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
-    unsigned int loadTextureFromFile(const char* path);
-    void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
+	QRect getViewportFromPoint(const QPoint& pixel);
+	QRect getClientRectFromPoint(const QPoint& pixel);
+	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
+	unsigned int loadTextureFromFile(const char* path);
+	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 
 private:
-    QMap<int, bool> keys;
+	QMap<int, bool> _keys;
 	DisplayMode _displayMode;
 	RenderingMode _renderingMode;
 	QColor      _bgTopColor;
@@ -356,8 +356,8 @@ private:
 
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
-    QVector3D _rubberBandPan;
-    GLfloat _rubberBandZoomRatio;
+	QVector3D _rubberBandPan;
+	GLfloat _rubberBandZoomRatio;
 	float _rubberBandRadius;
 	QVector3D _rubberBandCenter;
 
@@ -413,7 +413,7 @@ private:
 	QVector4D _diffuseLight;
 	QVector4D _specularLight;
 
-    QVector3D _lightPosition;
+	QVector3D _lightPosition;
 	float _lightOffsetX;
 	float _lightOffsetY;
 	float _lightOffsetZ;
@@ -486,7 +486,7 @@ private:
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;
 
-    QTimer* _keyboardNavTimer;
+	QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
 	QTimer* _animateFitAllTimer;
 	QTimer* _animateWindowZoomTimer;

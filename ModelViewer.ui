@@ -781,6 +781,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Ctrl+A</string>
+                    </property>
                     <property name="checkable">
                      <bool>false</bool>
                     </property>
@@ -826,6 +829,9 @@
                       <width>48</width>
                       <height>48</height>
                      </size>
+                    </property>
+                    <property name="shortcut">
+                     <string>Ctrl+P</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -1244,8 +1250,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>766</height>
+                   <width>424</width>
+                   <height>751</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1993,8 +1999,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>766</height>
+                   <width>424</width>
+                   <height>751</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2147,8 +2153,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>766</height>
+                   <width>424</width>
+                   <height>751</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2836,8 +2842,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>766</height>
+                   <width>424</width>
+                   <height>751</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3696,8 +3702,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>436</width>
-                   <height>749</height>
+                   <width>466</width>
+                   <height>737</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4050,8 +4056,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>766</height>
+                   <width>424</width>
+                   <height>751</height>
                   </rect>
                  </property>
                  <attribute name="label">

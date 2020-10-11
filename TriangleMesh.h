@@ -106,8 +106,8 @@ public:
 	void setRoughnessPBRMap(unsigned int roughnessMap);
 	void setAOPBRMap(unsigned int aoMap);
 	void setHeightPBRMap(unsigned int heightMap);
-    void setOpacityPBRMap(unsigned int opacityMap);
-    void invertOpacityPBRMap(bool invert);
+	void setOpacityPBRMap(unsigned int opacityMap);
+	void invertOpacityPBRMap(bool invert);
 
 	bool hasAlbedoPBRMap() const;
 	void enableAlbedoPBRMap(bool hasAlbedoMap);
@@ -130,8 +130,8 @@ public:
 	float getHeightPBRMapScale() const;
 	void setHeightPBRMapScale(float heightScale);
 
-    bool hasOpacityPBRMap() const;
-    void enableOpacityPBRMap(bool hasHeightMap);
+	bool hasOpacityPBRMap() const;
+	void enableOpacityPBRMap(bool hasHeightMap);
 
 	void clearAlbedoPBRMap();
 	void clearMetallicPBRMap();
@@ -139,36 +139,36 @@ public:
 	void clearNormalPBRMap();
 	void clearAOPBRMap();
 	void clearHeightPBRMap();
-    void clearOpacityPBRMap();
+	void clearOpacityPBRMap();
 	void clearAllPBRMaps();
 
 	GLMaterial getMaterial() const;
 	void setMaterial(const GLMaterial& material);
 
-    void enableDiffuseADSMap(bool enable);
-    void setDiffuseADSMap(unsigned int diffuseTex);
-    void enableSpecularADSMap(bool enable);
-    void setSpecularADSMap(unsigned int specularTex);
-    void enableEmissiveADSMap(bool enable);
-    void setEmissiveADSMap(unsigned int emissiveTex);
-    void enableNormalADSMap(bool enable);
-    void setNormalADSMap(unsigned int normalTex);
-    void enableHeightADSMap(bool enable);
-    void setHeightADSMap(unsigned int heightTex);
+	void enableDiffuseADSMap(bool enable);
+	void setDiffuseADSMap(unsigned int diffuseTex);
+	void enableSpecularADSMap(bool enable);
+	void setSpecularADSMap(unsigned int specularTex);
+	void enableEmissiveADSMap(bool enable);
+	void setEmissiveADSMap(unsigned int emissiveTex);
+	void enableNormalADSMap(bool enable);
+	void setNormalADSMap(unsigned int normalTex);
+	void enableHeightADSMap(bool enable);
+	void setHeightADSMap(unsigned int heightTex);
 	void enableOpacityADSMap(bool enable);
-    void invertOpacityADSMap(bool invert);
+	void invertOpacityADSMap(bool invert);
 	void setOpacityADSMap(unsigned int opacityTex);
 
-    void clearDiffuseADSMap();
-    void clearSpecularADSMap();
-    void clearEmissiveADSMap();
-    void clearNormalADSMap();
+	void clearDiffuseADSMap();
+	void clearSpecularADSMap();
+	void clearEmissiveADSMap();
+	void clearNormalADSMap();
 	void clearHeightADSMap();
 	void clearOpacityADSMap();
 	void clearAllADSMaps();
 
 protected: // methods
-    virtual void initBuffers(
+	virtual void initBuffers(
 		std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
@@ -215,34 +215,34 @@ protected:
 	GLMaterial _material;
 
 	QImage _texImage, _texBuffer;
-    // ADS texture light maps
-    unsigned int _texture;
-    unsigned int _diffuseADSMap;
-    unsigned int _specularADSMap;
-    unsigned int _emissiveADSMap;
-    unsigned int _normalADSMap;
+	// ADS texture light maps
+	unsigned int _texture;
+	unsigned int _diffuseADSMap;
+	unsigned int _specularADSMap;
+	unsigned int _emissiveADSMap;
+	unsigned int _normalADSMap;
 	unsigned int _heightADSMap;
 	unsigned int _opacityADSMap;
-    bool _hasTexture;
-    bool _hasDiffuseADSMap;
-    bool _hasSpecularADSMap;
-    bool _hasEmissiveADSMap;
-    bool _hasNormalADSMap;
+	bool _hasTexture;
+	bool _hasDiffuseADSMap;
+	bool _hasSpecularADSMap;
+	bool _hasEmissiveADSMap;
+	bool _hasNormalADSMap;
 	bool _hasHeightADSMap;
 	bool _hasOpacityADSMap;
-    bool _opacityADSMapInverted;
+	bool _opacityADSMapInverted;
 
-    unsigned int _sMax;
+	unsigned int _sMax;
 	unsigned int _tMax;
 
-    // PBR texture maps
+	// PBR texture maps
 	unsigned int _albedoPBRMap;
 	unsigned int _metallicPBRMap;
 	unsigned int _roughnessPBRMap;
 	unsigned int _normalPBRMap;
 	unsigned int _aoPBRMap;
 	unsigned int _heightPBRMap;
-    unsigned int _opacityPBRMap;
+	unsigned int _opacityPBRMap;
 	bool _hasAlbedoPBRMap;
 	bool _hasMetallicPBRMap;
 	bool _hasRoughnessPBRMap;
@@ -250,8 +250,8 @@ protected:
 	bool _hasAOPBRMap;
 	bool _hasHeightPBRMap;
 	float _heightPBRMapScale;
-    bool _hasOpacityPBRMap;
-    bool _opacityPBRMapInverted;
+	bool _hasOpacityPBRMap;
+	bool _opacityPBRMapInverted;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

@@ -111,10 +111,10 @@ private slots:
 	void on_toolButtonVertexNormal_clicked(bool checked);
 	void on_toolButtonFaceNormal_clicked(bool checked);
 
-    void on_checkBoxSelectAll_stateChanged(int arg1);
+	void on_checkBoxSelectAll_stateChanged(int arg1);
 
 	void on_listWidgetModel_itemChanged(QListWidgetItem*);
-    void on_listWidgetModel_itemSelectionChanged();
+	void on_listWidgetModel_itemSelectionChanged();
 	void on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item);
 
 	void on_checkBoxShadowMapping_toggled(bool checked);
@@ -149,10 +149,10 @@ private slots:
 	void on_checkBoxAOMap_toggled(bool checked);
 	void on_pushButtonAOMap_clicked();
 
-    void on_checkBoxOpacityMap_toggled(bool checked);
-    void on_checkBoxOpacMapInvert_toggled(bool inverted);
-    void on_pushButtonOpacityMap_clicked();
-    void on_toolButtonClearOpacityMap_clicked();
+	void on_checkBoxOpacityMap_toggled(bool checked);
+	void on_checkBoxOpacMapInvert_toggled(bool inverted);
+	void on_pushButtonOpacityMap_clicked();
+	void on_toolButtonClearOpacityMap_clicked();
 
 	void on_checkBoxHeightMap_toggled(bool checked);
 	void on_pushButtonHeightMap_clicked();
@@ -169,28 +169,28 @@ private slots:
 
 	void on_toolButtonClearHeight_clicked();
 
-    void on_checkBoxDiffuseTex_toggled(bool checked);
-    void on_pushButtonDiffuseTexture_clicked();
-    void on_toolButtonClearDiffuseTex_clicked();
+	void on_checkBoxDiffuseTex_toggled(bool checked);
+	void on_pushButtonDiffuseTexture_clicked();
+	void on_toolButtonClearDiffuseTex_clicked();
 
-    void on_checkBoxSpecularTex_toggled(bool checked);
-    void on_pushButtonSpecularTexture_clicked();
-    void on_toolButtonClearSpecularTex_clicked();
+	void on_checkBoxSpecularTex_toggled(bool checked);
+	void on_pushButtonSpecularTexture_clicked();
+	void on_toolButtonClearSpecularTex_clicked();
 
-    void on_checkBoxEmissiveTex_toggled(bool checked);
-    void on_pushButtonEmissiveTexture_clicked();
-    void on_toolButtonClearEmissiveTex_clicked();
+	void on_checkBoxEmissiveTex_toggled(bool checked);
+	void on_pushButtonEmissiveTexture_clicked();
+	void on_toolButtonClearEmissiveTex_clicked();
 
-    void on_checkBoxNormalTex_toggled(bool checked);
-    void on_pushButtonNormalTexture_clicked();
-    void on_toolButtonClearNormalTex_clicked();
+	void on_checkBoxNormalTex_toggled(bool checked);
+	void on_pushButtonNormalTexture_clicked();
+	void on_toolButtonClearNormalTex_clicked();
 
-    void on_checkBoxHeightTex_toggled(bool checked);
-    void on_pushButtonHeightTexture_clicked();
-    void on_toolButtonClearHeightTex_clicked();
+	void on_checkBoxHeightTex_toggled(bool checked);
+	void on_pushButtonHeightTexture_clicked();
+	void on_toolButtonClearHeightTex_clicked();
 
 	void on_checkBoxOpacityTex_toggled(bool checked);
-    void on_checkBoxOpacInvert_toggled(bool inverted);
+	void on_checkBoxOpacInvert_toggled(bool inverted);
 	void on_pushButtonOpacityTexture_clicked();
 	void on_toolButtonClearOpacityTex_clicked();
 
@@ -199,6 +199,7 @@ private slots:
 
 protected:
 	void showEvent(QShowEvent* event);
+	void keyPressEvent(QKeyEvent* event);
 
 private:
 	GLWidget* _glWidget;
@@ -216,16 +217,16 @@ private:
 
 	bool _bHasTexture;
 
-    QString _diffuseADSTexture;
-    QString _specularADSTexture;
-    QString _emissiveADSTexture;
-    QString _normalADSTexture;
+	QString _diffuseADSTexture;
+	QString _specularADSTexture;
+	QString _emissiveADSTexture;
+	QString _normalADSTexture;
 	QString _heightADSTexture;
 	QString _opacityADSTexture;
-    bool    _hasADSDiffuseTex;
-    bool    _hasADSSpecularTex;
-    bool    _hasADSEmissiveTex;
-    bool    _hasADSNormalTex;
+	bool    _hasADSDiffuseTex;
+	bool    _hasADSSpecularTex;
+	bool    _hasADSEmissiveTex;
+	bool    _hasADSNormalTex;
 	bool    _hasADSHeightTex;
 	bool    _hasADSOpacityTex;
 
@@ -234,14 +235,14 @@ private:
 	QString _roughnessPBRTexture;
 	QString _normalPBRTexture;
 	QString _aoPBRTexture;
-    QString _opacityPBRTexture;
+	QString _opacityPBRTexture;
 	QString _heightPBRTexture;
 	bool    _hasPBRAlbedoTex;
 	bool    _hasPBRMetallicTex;
 	bool    _hasPBRRoughnessTex;
 	bool    _hasPBRNormalTex;
 	bool    _hasPBRAOTex;
-    bool    _hasPBROpacTex;
+	bool    _hasPBROpacTex;
 	bool    _hasPBRHeightTex;
 	float   _heightPBRTexScale;
 

@@ -79,22 +79,22 @@ public:
 		PERSPECTIVE = (ORTHOGRAPHIC + 1)
 	};
 
-    GLCamera();
-    GLCamera(float width, float height, float range, float fov);
+	GLCamera();
+	GLCamera(float width, float height, float range, float fov);
 
-    void setScreenSize(float w, float h);
-    QPoint getScreenSize() const;
+	void setScreenSize(float w, float h);
+	QPoint getScreenSize() const;
 
-    float getAspectRatio() const;
+	float getAspectRatio() const;
 
-    void setFOV(float fov);
-    float getFOV() const;
+	void setFOV(float fov);
+	float getFOV() const;
 
-    void setViewRange(float range);
-    float getViewRange() const;
+	void setViewRange(float range);
+	float getViewRange() const;
 
-    void setProjectionType(ProjectionType proj);
-    ProjectionType getProjectionType() const;
+	void setProjectionType(ProjectionType proj);
+	ProjectionType getProjectionType() const;
 
 	void resetAll(void);
 	void updateViewMatrix(void);

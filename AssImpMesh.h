@@ -40,17 +40,17 @@ struct Texture
 class AssImpMesh : public TriangleMesh
 {
 public:
-	
+
 	/*  Functions  */
 	// Constructor
-    AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material);
+	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material);
 	~AssImpMesh();
-    void render();
+	void render();
 
 private:
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
-    void setupMesh();
+	void setupMesh();
 
 private:
 	/*  Mesh Data  */
