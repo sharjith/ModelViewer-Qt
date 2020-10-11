@@ -3316,7 +3316,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		setCursor(QCursor(Qt::ArrowCursor));
 	}
 
-	if (_keys[Qt::Key_F2])
+	if (_keys[Qt::Key_Home])
 		fitAll();
 	if (_keys[Qt::Key_Delete])
 		deleteSelectedItem();
