@@ -69,6 +69,8 @@ _clippingPlanesEditor(nullptr),
 _floorPlane(nullptr),
 _skyBox(nullptr)
 {
+    setFocusPolicy(Qt::StrongFocus);
+
 	_viewer = static_cast<ModelViewer*>(parent);
 
 	_bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
@@ -188,6 +190,11 @@ _skyBox(nullptr)
 	_zScale = 1.0f;
 
 	_displayedObjectsMemSize = 0;
+
+    _keyboardNavTimer = new QTimer(this);
+    _keyboardNavTimer->setTimerType(Qt::PreciseTimer);
+    connect(_keyboardNavTimer, SIGNAL(timeout()), this, SLOT(performKeyboardNav()));
+    _keyboardNavTimer->start(15);
 
 	_animateViewTimer = new QTimer(this);
 	_animateViewTimer->setTimerType(Qt::PreciseTimer);
@@ -434,8 +441,9 @@ void GLWidget::setAmbientLight(const QVector4D& ambientLight)
 void GLWidget::setViewMode(ViewMode mode)
 {
 	if (!_animateViewTimer->isActive())
-	{
-		_animateViewTimer->start(5);
+    {
+        _keyboardNavTimer->stop();
+        _animateViewTimer->start(5);
 		_viewMode = mode;
 		_slerpStep = 0.0f;
 	}
@@ -446,7 +454,8 @@ void GLWidget::fitAll()
 	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
 
 	if (!_animateFitAllTimer->isActive())
-	{
+    {
+        _keyboardNavTimer->stop();
 		_animateFitAllTimer->start(5);
 		_slerpStep = 0.0f;
 	}
@@ -488,6 +497,7 @@ void GLWidget::performWindowZoom()
     }
     if (!_animateWindowZoomTimer->isActive())
     {
+        _keyboardNavTimer->stop();
         _animateWindowZoomTimer->start(5);
         _slerpStep = 0.0f;
     }
@@ -700,7 +710,8 @@ void GLWidget::centerScreen(int index)
 {
 	_centerScreenObjectId = index;
 	if (!_animateCenterScreenTimer->isActive())
-	{
+    {
+        _keyboardNavTimer->stop();
 		_animateCenterScreenTimer->start(5);
 		_slerpStep = 0.0f;
 	}
@@ -3293,113 +3304,111 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 void GLWidget::keyPressEvent(QKeyEvent* event)
 {
-	if (event->key() == Qt::Key_Escape)
-	{
-		_viewRotating = false;
-		_viewPanning = false;
-		_viewZooming = false;
-		_windowZoomActive = false;
-		setCursor(QCursor(Qt::ArrowCursor));
-	}
-	if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
-	{
-		switch (event->key())
-		{
-		case Qt::Key_A:
-			_primaryCamera->moveAcross(5.0f);
-			break;
-		case Qt::Key_D:
-			_primaryCamera->moveAcross(-5.0f);
-			break;
-		case Qt::Key_W:
-			_primaryCamera->moveForward(-5.0f);
-			break;
-		case Qt::Key_S:
-			_primaryCamera->moveForward(5.0);
-			break;
-		default:
-			break;
-		}
-	}
-	else
-	{
-		switch (event->key())
-		{
-		case Qt::Key_A:
-			_primaryCamera->moveAcross(5.0f);
-			break;
-		case Qt::Key_D:
-			_primaryCamera->moveAcross(-5.0f);
-			break;
-		case Qt::Key_W:
-			_primaryCamera->moveUpward(-5.0f);
-			break;
-		case Qt::Key_S:
-			_primaryCamera->moveUpward(5.0f);
-			break;
-		default:
-			break;
-		}
-	}
-	switch (event->key())
-	{
-	case Qt::Key_Left:
-		_primaryCamera->rotateY(2.0f);
-		break;
-	case Qt::Key_Right:
-		_primaryCamera->rotateY(-2.0f);
-		break;
-	case Qt::Key_Up:
-		_primaryCamera->rotateX(2.0f);
-		break;
-	case Qt::Key_Down:
-		_primaryCamera->rotateX(-2.0f);
-		break;
-	case Qt::Key_PageUp:
-		_primaryCamera->rotateZ(2.0f);
-		break;
-	case Qt::Key_PageDown:
-		_primaryCamera->rotateZ(-2.0f);
-		break;
-	case Qt::Key_Plus:
-	{
-		_viewRange /= 1.05f;
-		if (_viewRange < 0.05)
-			_viewRange = 0.05f;
-		if (_viewRange > 500000.0)
-			_viewRange = 500000.0f;
-		_currentViewRange = _viewRange;
-		resizeGL(width(), height());
-		break;
-	}
-	case Qt::Key_Minus:
-	{
-		_viewRange *= 1.05f;
-		if (_viewRange < 0.05)
-			_viewRange = 0.05f;
-		if (_viewRange > 500000.0)
-			_viewRange = 500000.0f;
-		_currentViewRange = _viewRange;
-		resizeGL(width(), height());
-		break;
-	}
-	case Qt::Key_F2:
-		fitAll();
-		break;
-	case Qt::Key_Delete:
-		deleteSelectedItem();
-		break;
-	case Qt::Key_Space:
-		hideSelectedItem();
-		break;
-	default:
-		break;
-	}
-	_currentTranslation = _primaryCamera->getPosition();
-	_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
-	update();
+    keys[event->key()] = true;
+    QWidget::keyPressEvent(event);
 
-	QWidget::keyPressEvent(event);
+    if (keys[Qt::Key_Escape])
+    {
+        _viewRotating = false;
+        _viewPanning = false;
+        _viewZooming = false;
+        _windowZoomActive = false;
+        setCursor(QCursor(Qt::ArrowCursor));
+    }
+
+    if(keys[ Qt::Key_F2])
+        fitAll();
+    if(keys[ Qt::Key_Delete])
+        deleteSelectedItem();
+    if(keys[ Qt::Key_Space])
+        hideSelectedItem();
+
+    update();
+}
+
+void GLWidget::keyReleaseEvent(QKeyEvent* event)
+{
+    keys[event->key()] = false;
+    QWidget::keyReleaseEvent(event);
+}
+
+void GLWidget::performKeyboardNav()
+{
+    // https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
+    if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+    {
+        if(keys[Qt::Key_A])
+            _primaryCamera->moveAcross(2.0f);
+        if(keys[Qt::Key_D])
+            _primaryCamera->moveAcross(-2.0f);
+        if(keys[Qt::Key_W])
+            _primaryCamera->moveForward(-2.0f);
+        if(keys[Qt::Key_S])
+            _primaryCamera->moveForward(2.0);
+    }
+    else
+    {
+        if(keys[Qt::Key_A])
+            _primaryCamera->moveAcross(2.0f);
+        if(keys[Qt::Key_D])
+            _primaryCamera->moveAcross(-2.0f);
+        if(keys[Qt::Key_W])
+            _primaryCamera->moveUpward(-2.0f);
+        if(keys[Qt::Key_S])
+            _primaryCamera->moveUpward(2.0f);
+    }
+
+    if(keys[Qt::Key_Left])
+        _primaryCamera->rotateY(2.0f);
+    if(keys[Qt::Key_Right])
+        _primaryCamera->rotateY(-2.0f);
+    if(keys[Qt::Key_Up])
+        _primaryCamera->rotateX(2.0f);
+    if(keys[Qt::Key_Down])
+        _primaryCamera->rotateX(-2.0f);
+    if(keys[Qt::Key_PageUp])
+        _primaryCamera->rotateZ(2.0f);
+    if(keys[Qt::Key_PageDown])
+        _primaryCamera->rotateZ(-2.0f);
+    if(keys[Qt::Key_Plus])
+    {
+        _viewRange /= 1.05f;
+        if (_viewRange < 0.05)
+            _viewRange = 0.05f;
+        if (_viewRange > 500000.0)
+            _viewRange = 500000.0f;
+        _currentViewRange = _viewRange;
+        // Translate to focus on mouse center
+        QPoint pos = mapFromGlobal(QCursor::pos());
+        QPoint cen = getClientRectFromPoint(pos).center();
+        float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
+            (pos.x() < cen.x() && pos.y() > cen.y())) ? 1.0f : -1.0f;
+        QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
+        OP *= sign * 0.05f;
+        _primaryCamera->move(OP.x(), OP.y(), OP.z());
+    }
+    if(keys[Qt::Key_Minus])
+    {
+        _viewRange *= 1.05f;
+        if (_viewRange < 0.05)
+            _viewRange = 0.05f;
+        if (_viewRange > 500000.0)
+            _viewRange = 500000.0f;
+        _currentViewRange = _viewRange;
+        // Translate to focus on mouse center
+        QPoint pos = mapFromGlobal(QCursor::pos());
+        QPoint cen = getClientRectFromPoint(pos).center();
+        float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
+            (pos.x() < cen.x() && pos.y() > cen.y())) ? 1.0f : -1.0f;
+        QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
+        OP *= -sign * 0.05f;
+        _primaryCamera->move(OP.x(), OP.y(), OP.z());
+    }
+
+    _currentTranslation = _primaryCamera->getPosition();
+    _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+    resizeGL(width(), height());
+    update();
 }
 
 void GLWidget::animateViewChange()
@@ -3486,8 +3495,8 @@ void GLWidget::stopAnimations()
 	_animateFitAllTimer->stop();
 	_animateWindowZoomTimer->stop();
 	_animateCenterScreenTimer->stop();
-
-	QTimer::singleShot(100, this, SLOT(disableLowRes()));
+    _keyboardNavTimer->start();
+	QTimer::singleShot(100, this, SLOT(disableLowRes())); 
 }
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir)

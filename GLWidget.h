@@ -236,6 +236,7 @@ public slots:
 	void animateCenterScreen();
 	void stopAnimations();
 	void checkAndStopTimers();
+    void performKeyboardNav();
 	void disableLowRes();
 	void lockLightAndCamera(bool lock);
 	void setFloorTexRepeatS(double floorTexRepeatS);
@@ -270,9 +271,58 @@ protected:
 	void mouseMoveEvent(QMouseEvent*);
 	void wheelEvent(QWheelEvent*);
 	void keyPressEvent(QKeyEvent* event);
-	void closeEvent(QCloseEvent* event);
+    void keyReleaseEvent(QKeyEvent* event);
+	void closeEvent(QCloseEvent* event);    
 
 private:
+    bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
+        const QString& fragmentProg, const QString& geometryProg = "",
+        const QString& tessControlProg = "", const QString& tessEvalProg = "");
+    void createShaderPrograms();
+    void createLights();
+    void createGeometry();
+
+    void loadEnvMap();
+    void loadIrradianceMap();
+    void loadFloor();
+
+    void drawMesh(QOpenGLShaderProgram* prog);
+    void drawSectionCapping();
+    void drawFloor();
+    void drawSkyBox();
+    void drawVertexNormals();
+    void drawFaceNormals();
+    void drawAxis();
+    void drawCornerAxis();
+    void drawLights();
+
+    void render(GLCamera* camera);
+    void renderToShadowBuffer();
+    void renderQuad();
+
+    void gradientBackground(float top_r, float top_g, float top_b, float top_a,
+        float bot_r, float bot_g, float bot_b, float bot_a);
+    void splitScreen();
+
+    void setRotations(float xRot, float yRot, float zRot);
+    void setZoomAndPan(float zoom, QVector3D pan);
+    void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
+
+    void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
+    int mouseSelect(const QPoint& pixel);
+    QList<int> sweepSelect(const QPoint& pixel);
+
+    float highestModelZ();
+    float lowestModelZ();
+
+    QRect getViewportFromPoint(const QPoint& pixel);
+    QRect getClientRectFromPoint(const QPoint& pixel);
+    QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
+    unsigned int loadTextureFromFile(const char* path);
+    void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
+
+private:
+    QMap<int, bool> keys;
 	DisplayMode _displayMode;
 	RenderingMode _renderingMode;
 	QColor      _bgTopColor;
@@ -436,6 +486,7 @@ private:
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;
 
+    QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
 	QTimer* _animateFitAllTimer;
 	QTimer* _animateWindowZoomTimer;
@@ -462,53 +513,6 @@ private:
 	unsigned int _quadVBO;
 
 	unsigned long long _displayedObjectsMemSize;
-
-private:
-	bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
-		const QString& fragmentProg, const QString& geometryProg = "",
-		const QString& tessControlProg = "", const QString& tessEvalProg = "");
-	void createShaderPrograms();
-	void createLights();
-	void createGeometry();
-
-	void loadEnvMap();
-	void loadIrradianceMap();
-	void loadFloor();
-
-	void drawMesh(QOpenGLShaderProgram* prog);
-	void drawSectionCapping();
-	void drawFloor();
-	void drawSkyBox();
-	void drawVertexNormals();
-	void drawFaceNormals();
-	void drawAxis();
-	void drawCornerAxis();
-	void drawLights();
-
-	void render(GLCamera* camera);
-	void renderToShadowBuffer();
-	void renderQuad();
-
-	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
-		float bot_r, float bot_g, float bot_b, float bot_a);
-	void splitScreen();
-
-	void setRotations(float xRot, float yRot, float zRot);
-	void setZoomAndPan(float zoom, QVector3D pan);
-	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
-
-	void convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir);
-	int mouseSelect(const QPoint& pixel);
-	QList<int> sweepSelect(const QPoint& pixel);
-
-	float highestModelZ();
-	float lowestModelZ();
-
-	QRect getViewportFromPoint(const QPoint& pixel);
-	QRect getClientRectFromPoint(const QPoint& pixel);
-	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
-	unsigned int loadTextureFromFile(const char* path);
-	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 };
 
 #endif
