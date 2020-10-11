@@ -3359,53 +3359,40 @@ void GLWidget::performKeyboardNav()
             _primaryCamera->moveUpward(factor);
     }
 
-    if(keys[Qt::Key_Left])
+    if(keys[Qt::Key_J])
         _primaryCamera->rotateY(2.0f);
-    if(keys[Qt::Key_Right])
+    if(keys[Qt::Key_L])
         _primaryCamera->rotateY(-2.0f);
-    if(keys[Qt::Key_Up])
+    if(keys[Qt::Key_I])
         _primaryCamera->rotateX(2.0f);
-    if(keys[Qt::Key_Down])
+    if(keys[Qt::Key_K])
         _primaryCamera->rotateX(-2.0f);
-    if(keys[Qt::Key_PageUp])
+    if(keys[Qt::Key_M])
         _primaryCamera->rotateZ(2.0f);
-    if(keys[Qt::Key_PageDown])
+    if(keys[Qt::Key_N])
         _primaryCamera->rotateZ(-2.0f);
-    if(keys[Qt::Key_Plus])
+    if(keys[Qt::Key_Q] || keys[Qt::Key_Z])
     {
-        _viewRange /= 1.05f;
+		// Zoom
+        if(keys[Qt::Key_Q])
+			_viewRange /= 1.025f;
+		else
+			_viewRange *= 1.025f;
         if (_viewRange < 0.05)
             _viewRange = 0.05f;
         if (_viewRange > 500000.0)
-            _viewRange = 500000.0f;
-        _currentViewRange = _viewRange;
+            _viewRange = 500000.0f;        
         // Translate to focus on mouse center
         QPoint pos = mapFromGlobal(QCursor::pos());
         QPoint cen = getClientRectFromPoint(pos).center();
         float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
-            (pos.x() < cen.x() && pos.y() > cen.y())) ? 1.0f : -1.0f;
+            (pos.x() < cen.x() && pos.y() > cen.y())) && keys[Qt::Key_Q] ? 1.0f : -1.0f;
         QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
-        OP *= sign * 0.05f;
+        OP *= sign * 0.02f;
         _primaryCamera->move(OP.x(), OP.y(), OP.z());
-    }
-    if(keys[Qt::Key_Minus])
-    {
-        _viewRange *= 1.05f;
-        if (_viewRange < 0.05)
-            _viewRange = 0.05f;
-        if (_viewRange > 500000.0)
-            _viewRange = 500000.0f;
-        _currentViewRange = _viewRange;
-        // Translate to focus on mouse center
-        QPoint pos = mapFromGlobal(QCursor::pos());
-        QPoint cen = getClientRectFromPoint(pos).center();
-        float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
-            (pos.x() < cen.x() && pos.y() > cen.y())) ? 1.0f : -1.0f;
-        QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
-        OP *= -sign * 0.05f;
-        _primaryCamera->move(OP.x(), OP.y(), OP.z());
-    }
+    }   
 
+	_currentViewRange = _viewRange;
     _currentTranslation = _primaryCamera->getPosition();
     _currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
     resizeGL(width(), height());
