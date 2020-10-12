@@ -344,6 +344,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Alt+R</string>
+                    </property>
                     <property name="checkable">
                      <bool>false</bool>
                     </property>
@@ -381,6 +384,9 @@
                       <width>48</width>
                       <height>48</height>
                      </size>
+                    </property>
+                    <property name="shortcut">
+                     <string>Alt+P</string>
                     </property>
                     <property name="checkable">
                      <bool>false</bool>
@@ -420,6 +426,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Alt+Z</string>
+                    </property>
                     <property name="checkable">
                      <bool>false</bool>
                     </property>
@@ -458,6 +467,9 @@
                       <height>48</height>
                      </size>
                     </property>
+                    <property name="shortcut">
+                     <string>Home</string>
+                    </property>
                     <property name="checkable">
                      <bool>false</bool>
                     </property>
@@ -492,6 +504,9 @@
                       <width>48</width>
                       <height>48</height>
                      </size>
+                    </property>
+                    <property name="shortcut">
+                     <string>Alt+W</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>

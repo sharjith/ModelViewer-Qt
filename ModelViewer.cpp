@@ -434,6 +434,17 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 		if (event->key() == Qt::Key_M)
 			toolButtonMultiView->animateClick();
 	}
+    if (event->modifiers() == Qt::AltModifier)
+    {
+        if (event->key() == Qt::Key_Z)
+            toolButtonZoomView->animateClick();
+        if (event->key() == Qt::Key_P)
+            toolButtonPanView->animateClick();
+        if (event->key() == Qt::Key_R)
+            toolButtonRotateView->animateClick();
+        if (event->key() == Qt::Key_W)
+            toolButtonWindowZoom->animateClick();
+    }
 
 	QWidget::keyPressEvent(event);
 }
