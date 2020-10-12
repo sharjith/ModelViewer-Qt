@@ -147,9 +147,8 @@ void GLCamera::updateProjectionMatrix(void)
 		// https://www.edmundoptics.com/knowledge-center/application-notes/imaging/understanding-focal-length-and-field-of-view
 		// Adjust camera translation according to FOV
 		float HFOV = (w <= h) ? h / w : w / h;
-		float AFOV = _FOV * PI / 180.0f;
-		float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
-		wd = wd + wd * 0.2; // error correction
+        float AFOV = _FOV * PIdiv180;
+        float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
 		_projectionMatrix.translate(0.0, 0.0, -halfRange * wd);
 	}
 }
