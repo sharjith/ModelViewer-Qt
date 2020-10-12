@@ -659,7 +659,7 @@
                      </size>
                     </property>
                     <property name="shortcut">
-                     <string>Ctrl+R</string>
+                     <string>Ctrl+J</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -741,7 +741,7 @@
                      </size>
                     </property>
                     <property name="shortcut">
-                     <string>Ctrl+G</string>
+                     <string>Ctrl+R</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -882,7 +882,7 @@
                      </size>
                     </property>
                     <property name="shortcut">
-                     <string>F4</string>
+                     <string>Ctrl+M</string>
                     </property>
                     <property name="checkable">
                      <bool>true</bool>
@@ -1250,8 +1250,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>424</width>
-                   <height>751</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1999,8 +1999,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>424</width>
-                   <height>751</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2153,8 +2153,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>424</width>
-                   <height>751</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2842,8 +2842,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>424</width>
-                   <height>751</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3702,8 +3702,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>466</width>
-                   <height>737</height>
+                   <width>528</width>
+                   <height>758</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4056,8 +4056,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>424</width>
-                   <height>751</height>
+                   <width>437</width>
+                   <height>758</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5446,7 +5446,7 @@
  </slots>
  <buttongroups>
   <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

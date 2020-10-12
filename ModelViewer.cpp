@@ -97,11 +97,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_glWidget->setMouseTracking(true);
 	// Put the GL widget inside the frame
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
-	flayout->addWidget(_glWidget, 1);
-	_glWidget->installEventFilter(tabWidget);
-	tabWidget->setParent(_glWidget);
-	_glWidget->layout()->addWidget(tabWidget);
-	tabWidget->setAutoHide(true);
+	flayout->addWidget(_glWidget, 1);    
+    _glWidget->installEventFilter(tabWidget);
+    tabWidget->setParent(_glWidget);
+    _glWidget->layout()->addWidget(tabWidget);
+    tabWidget->setAutoHide(true);
 
 	connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
 	connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
@@ -115,22 +115,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_O), this);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonOpen_clicked()));
-
-	// Views
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_T), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonTopView_clicked()));
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_B), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonBottomView_clicked()));
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_F), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonFrontView_clicked()));
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_R), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonBackView_clicked()));
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_L), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonLeftView_clicked()));
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_J), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonRightView_clicked()));
-	shortcut = new QShortcut(QKeySequence(Qt::Key_F4), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(clickMultiViewButton()));
 
 	connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
 	connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
@@ -431,6 +415,18 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 {
 	if (event->modifiers() == Qt::ControlModifier)
 	{
+        if (event->key() == Qt::Key_T)
+            toolButtonTopView->animateClick();
+        if (event->key() == Qt::Key_B)
+            toolButtonBottomView->animateClick();
+        if (event->key() == Qt::Key_F)
+            toolButtonFrontView->animateClick();
+        if (event->key() == Qt::Key_R)
+            toolButtonBackView->animateClick();
+        if (event->key() == Qt::Key_L)
+            toolButtonLeftView->animateClick();
+        if (event->key() == Qt::Key_J)
+            toolButtonRightView->animateClick();
 		if (event->key() == Qt::Key_A)
 			toolButtonIsometricView->animateClick();
 		if (event->key() == Qt::Key_P)
