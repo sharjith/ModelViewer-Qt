@@ -48,9 +48,7 @@ public:
 	void setMultiView(bool active) { _multiViewActive = active; }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
-	void setZoomingActive(bool active);
-
-	void fitAll();
+	void setZoomingActive(bool active);	
 
 	void beginWindowZoom();
 	void performWindowZoom();
@@ -219,7 +217,7 @@ public:
 
 	void cleanUpShaders();
 
-signals:
+signals:	
 	void windowZoomEnded();
 	void rotationsSet();
 	void zoomAndPanSet();
@@ -236,6 +234,7 @@ public slots:
 	void animateCenterScreen();
 	void stopAnimations();
 	void checkAndStopTimers();
+	void fitAll();
 	void performKeyboardNav();
 	void disableLowRes();
 	void lockLightAndCamera(bool lock);
