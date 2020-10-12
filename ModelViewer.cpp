@@ -1380,44 +1380,47 @@ void ModelViewer::on_toolButtonOpen_clicked()
 		"Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
 
 	QFileDialog fileDialog(this, tr("Open Model File"), _lastOpenedDir, supportedExtensions);
-	fileDialog.setFileMode(QFileDialog::ExistingFile);
+	fileDialog.setFileMode(QFileDialog::ExistingFiles);
 	fileDialog.selectNameFilter(_lastSelectedFilter);
-	QString fileName;
+	QStringList fileNames;
 	if (fileDialog.exec())
 	{
-		fileName = fileDialog.selectedFiles()[0];
+		fileNames = fileDialog.selectedFiles();		
 		_lastSelectedFilter = fileDialog.selectedNameFilter();
 	}
 
-	if (fileName != "")
+	if (fileNames.count())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		QFileInfo fi(fileName);
-		if (fi.suffix().toLower() == "stl")
-		{
-			mesh = _glWidget->loadSTLMesh(fileName);
-			if (mesh)
+		for (QString fileName : fileNames)
+		{			
+			_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+			QFileInfo fi(fileName);
+			if (fi.suffix().toLower() == "stl")
 			{
-				if (!static_cast<STLMesh*>(mesh)->loaded())
+				mesh = _glWidget->loadSTLMesh(fileName);
+				if (mesh)
 				{
-					delete mesh;
-					mesh = nullptr;
+					if (!static_cast<STLMesh*>(mesh)->loaded())
+					{
+						delete mesh;
+						mesh = nullptr;
+					}
 				}
 			}
-		}
-		else
-		{
-			mesh = _glWidget->loadAssImpMesh(fileName);
-		}
-		if (mesh)
-		{
-			updateDisplayList();
+			else
+			{
+				mesh = _glWidget->loadAssImpMesh(fileName);
+			}
+			if (mesh)
+			{
+				updateDisplayList();
 
-			listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-			listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+				listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+				listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
-			updateDisplayList();
+				updateDisplayList();
+			}			
 		}
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();
