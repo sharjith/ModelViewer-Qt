@@ -4119,6 +4119,8 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		}
 		else
 		{
+			myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));
+			myMenu.addSeparator();
 			myMenu.addAction("Background Color", this, SLOT(setBackgroundColor()));
 		}
 		// Show context menu at handling position
