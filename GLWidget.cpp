@@ -3176,10 +3176,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			sweepSelect(e->pos());
-		}
-		_viewRotating = false;
-		_viewPanning = false;
-		_viewZooming = false;
+		}		
 	}
 
 	if (e->button() & Qt::RightButton)
@@ -3191,7 +3188,10 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	}
 
 	_lowResEnabled = false;
-	setCursor(QCursor(Qt::ArrowCursor));
+	if (!_viewRotating && !_viewPanning && !_viewZooming)
+	{
+		setCursor(QCursor(Qt::ArrowCursor));
+	}
 	update();
 }
 
@@ -4119,7 +4119,13 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		}
 		else
 		{
-			myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));
+			myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));						
+			QAction* action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), "Zoom Area");
+			action->setCheckable(true);
+			connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonWindowZoom_clicked(bool)));
+			myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), "Zoom", _viewer, SLOT(on_toolButtonZoomView_clicked()));
+			myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), "Pan", _viewer, SLOT(on_toolButtonPanView_clicked()));
+			myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), "Rotate", _viewer, SLOT(on_toolButtonRotateView_clicked()));
 			myMenu.addSeparator();
 			myMenu.addAction("Background Color", this, SLOT(setBackgroundColor()));
 		}
