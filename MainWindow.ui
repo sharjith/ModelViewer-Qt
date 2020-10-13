@@ -2,14 +2,6 @@
 <ui version="4.0">
  <class>MainWindow</class>
  <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>1050</width>
-    <height>900</height>
-   </rect>
-  </property>
   <property name="windowTitle">
    <string>3D Model Viewer</string>
   </property>
@@ -57,8 +49,8 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1050</width>
-     <height>23</height>
+     <width>658</width>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
