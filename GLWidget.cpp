@@ -48,6 +48,7 @@
 #include "STLMesh.h"
 #include "Plane.h"
 #include "ModelViewer.h"
+#include "MainWindow.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
@@ -514,18 +515,21 @@ void GLWidget::setRotationActive(bool active)
 {
 	_viewRotating = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
+	MainWindow::mainWindow()->statusBar()->showMessage("Press Esc to deactivate rotation mode");
 }
 
 void GLWidget::setPanningActive(bool active)
 {
 	_viewPanning = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
+	MainWindow::mainWindow()->statusBar()->showMessage("Press Esc to deactivate panning mode");
 }
 
 void GLWidget::setZoomingActive(bool active)
 {
 	_viewZooming = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
+	MainWindow::mainWindow()->statusBar()->showMessage("Press Esc to deactivate zooming mode");
 }
 
 void GLWidget::setDisplayList(const std::vector<int>& ids)
@@ -3314,6 +3318,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		_viewZooming = false;
 		_windowZoomActive = false;
 		setCursor(QCursor(Qt::ArrowCursor));
+		MainWindow::mainWindow()->statusBar()->showMessage("");
 	}
 
 	if (_keys[Qt::Key_Home])
