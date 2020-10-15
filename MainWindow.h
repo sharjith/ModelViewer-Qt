@@ -17,6 +17,8 @@ public:
 	static MainWindow* mainWindow();
 	~MainWindow();
 
+	static void showStatusMessage(const QString& message);
+
 protected:
 	MainWindow(QWidget* parent = Q_NULLPTR);
 	void showEvent(QShowEvent* event);

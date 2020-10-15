@@ -32,6 +32,11 @@ MainWindow::~MainWindow()
 	delete ui;
 }
 
+void MainWindow::showStatusMessage(const QString& message)
+{
+	_mainWindow->statusBar()->showMessage(message);
+}
+
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
 {
 	close();
