@@ -95,6 +95,18 @@ void AssImpMesh::render()
 		glDisable(GL_BLEND);
 	}
 
+	// Handle lighting normal for negative scaling
+	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
+		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
+		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
+		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
+	{
+		glFrontFace(GL_CW);
+	}
+	else
+	{
+		glFrontFace(GL_CCW);
+	}
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
