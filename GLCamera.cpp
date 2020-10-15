@@ -16,13 +16,17 @@
 //////////////////////////////////////////////////////////////////////
 
 // GLCamera
-GLCamera::GLCamera()
+GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _FOV(45.0f)
 {
+	_projectionType = ProjectionType::ORTHOGRAPHIC;
+	_viewProj = ViewProjection::SE_ISOMETRIC_VIEW;
 	resetAll();
 }
 
 GLCamera::GLCamera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _FOV(fov)
 {
+	_projectionType = ProjectionType::ORTHOGRAPHIC;
+	_viewProj = ViewProjection::SE_ISOMETRIC_VIEW;
 	resetAll();
 	updateProjectionMatrix();
 }
@@ -139,18 +143,27 @@ void GLCamera::updateProjectionMatrix(void)
 	}
 	else
 	{		
-		_projectionMatrix.perspective(_FOV, w / h, 1.0f, _viewRange * 1000.0f);	
+		// https://www.khronos.org/opengl/wiki/Viewing_and_Transformations#How_do_I_keep_my_aspect_ratio_correct_after_a_window_resize.3F
+		float aspectYScale = 1.0;
+		float conditionalAspect = 1.0f;
+		if (w / h < conditionalAspect)
+		{
+			aspectYScale *= w / h / conditionalAspect;
+		}
+		_projectionMatrix.perspective(atanf(tanf(_FOV * PI / 360.0) / aspectYScale) * 360.0 / PI
+			, w / h, 1.0f, _viewRange * 1000.0f);
 		// https://www.edmundoptics.com/knowledge-center/application-notes/imaging/understanding-focal-length-and-field-of-view
 		// Adjust camera translation according to FOV
 		float radAngle = _FOV * PI/180.0;
-		float radHFOV = 2.0f * atan(tan(radAngle / 2.0f) * w/h);
+		float radHFOV = 2.0f * atanf(tanf(radAngle / 2.0f) * w/h);
 		float HFOV = radHFOV * 180.0/PI;
 		//float HFOV = h / w;// (w <= h) ? h / w : w / h;
         float AFOV = _FOV * PIdiv180;
         float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
 		//qDebug() << "WD: " << wd;
 		wd = wd + wd * 0.2f;
-		_projectionMatrix.translate(0.0, 0.0, -_viewRange * 4);
+		float shift = -_viewRange * 4;
+		_projectionMatrix.translate(0.0, 0.0, shift);
 	}
 }
 
