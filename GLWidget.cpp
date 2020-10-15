@@ -513,6 +513,8 @@ void GLWidget::setProjection(ViewProjection proj)
 
 void GLWidget::setRotationActive(bool active)
 {
+    _viewPanning = false;
+    _viewZooming = false;
 	_viewRotating = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
 	MainWindow::showStatusMessage("Press Esc to deactivate rotation mode");
@@ -520,6 +522,8 @@ void GLWidget::setRotationActive(bool active)
 
 void GLWidget::setPanningActive(bool active)
 {
+    _viewRotating = false;
+    _viewZooming = false;
 	_viewPanning = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
 	MainWindow::showStatusMessage("Press Esc to deactivate panning mode");
@@ -527,6 +531,8 @@ void GLWidget::setPanningActive(bool active)
 
 void GLWidget::setZoomingActive(bool active)
 {
+    _viewPanning = false;
+    _viewRotating = false;
 	_viewZooming = active;
 	setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
 	MainWindow::showStatusMessage("Press Esc to deactivate zooming mode");
@@ -2385,7 +2391,7 @@ void GLWidget::drawSkyBox()
 	_skyBoxShader->setUniformValue("gammaCorrection", _gammaCorrection);
 	_skyBoxShader->setUniformValue("screenGamma", _screenGamma);
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
+    glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	_skyBox->render();
 	glDepthFunc(GL_LESS); // set depth function back to default
