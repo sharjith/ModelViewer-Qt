@@ -17,6 +17,11 @@ Folium::~Folium()
 {
 }
 
+TriangleMesh* Folium::clone()
+{
+	return new Folium(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float Folium::firstUParameter() const
 {
 	return -glm::pi<float>();

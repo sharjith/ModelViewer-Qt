@@ -17,6 +17,11 @@ SpindleShell::~SpindleShell()
 {
 }
 
+TriangleMesh* SpindleShell::clone()
+{
+	return new SpindleShell(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float SpindleShell::firstUParameter() const
 {
 	return 0.0;

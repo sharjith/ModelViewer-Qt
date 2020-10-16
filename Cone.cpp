@@ -156,6 +156,11 @@ _height(height)
 	computeBounds();
 }
 
+TriangleMesh* Cone::clone()
+{
+	return new Cone(_prog, _radius, _height, _slices, _stacks, _sMax, _tMax);
+}
+
 void Cone::computeBounds()
 {
 	QList<float> xVals, yVals, zVals;

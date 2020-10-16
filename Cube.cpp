@@ -1,9 +1,14 @@
 #include "Cube.h"
 #include <cstdio>
 
-Cube::Cube(QOpenGLShaderProgram* prog, float size) : GridMesh(prog, "Cube", 1, 1)
+Cube::Cube(QOpenGLShaderProgram* prog, float size) : GridMesh(prog, "Cube", 1, 1), _size(size)
 {
-	setSize(size);
+	setSize(_size);
+}
+
+TriangleMesh* Cube::clone()
+{
+	return new Cube(_prog, _size);
 }
 
 void Cube::setSize(const float& size)

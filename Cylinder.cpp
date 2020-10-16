@@ -215,6 +215,11 @@ _height(height)
 	computeBounds();
 }
 
+TriangleMesh* Cylinder::clone()
+{
+	return new Cylinder(_prog, _radius, _height, _slices, _stacks, _sMax, _tMax);
+}
+
 void Cylinder::computeBounds()
 {
 	QList<float> xVals, yVals, zVals;

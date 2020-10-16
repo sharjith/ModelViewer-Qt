@@ -20,6 +20,11 @@ GraysKlein::~GraysKlein()
 {
 }
 
+TriangleMesh* GraysKlein::clone()
+{
+	return new GraysKlein(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float GraysKlein::firstUParameter() const
 {
 	return 0.0;

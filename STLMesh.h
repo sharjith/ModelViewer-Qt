@@ -11,6 +11,8 @@ public:
 
 	bool loaded() const;
 
+	virtual TriangleMesh* clone();
+
 private:
 	QString _stlFilePath;
 	bool _loaded;

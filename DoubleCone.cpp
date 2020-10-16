@@ -17,6 +17,11 @@ DoubleCone::~DoubleCone()
 {
 }
 
+TriangleMesh* DoubleCone::clone()
+{
+	return new DoubleCone(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float DoubleCone::firstUParameter() const
 {
 	return 0.0;

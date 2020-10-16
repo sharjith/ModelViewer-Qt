@@ -17,6 +17,11 @@ TwistedTriaxial::~TwistedTriaxial()
 {
 }
 
+TriangleMesh* TwistedTriaxial::clone()
+{
+	return new TwistedTriaxial(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float TwistedTriaxial::firstUParameter() const
 {
 	return -glm::pi<float>();

@@ -28,6 +28,7 @@ public:
 	// Constructor, expects a filepath to a 3D model.
 	AssImpModel(QOpenGLShaderProgram* prog, GLchar* path);
 
+	virtual TriangleMesh* clone();
 	// Draws the model, and thus all its meshes
 	virtual void render();
 
@@ -40,6 +41,7 @@ public:
 	virtual void deselect();
 
 private:
+	std::string _path;
 	/*  Model Data  */
 	vector<AssImpMesh*> meshes;
 	string directory;

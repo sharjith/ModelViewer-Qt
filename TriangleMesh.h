@@ -20,6 +20,8 @@ public:
 		_name = name;
 	}
 
+	virtual TriangleMesh* clone() = 0;
+
 	virtual void render();
 	virtual void select()
 	{

@@ -17,6 +17,11 @@ Horn::~Horn()
 {
 }
 
+TriangleMesh* Horn::clone()
+{
+	return new Horn(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float Horn::firstUParameter() const
 {
 	return 0.0;

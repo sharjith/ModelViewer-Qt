@@ -17,6 +17,11 @@ Crescent::~Crescent()
 {
 }
 
+TriangleMesh* Crescent::clone()
+{
+	return new Crescent(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float Crescent::firstUParameter() const
 {
 	return 0.0;

@@ -4,7 +4,9 @@
 #include <glm/gtc/constants.hpp>
 #include <glm/glm.hpp>
 
-Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings, unsigned int sMax, unsigned int tMax) :GridMesh(prog, "Torus", nsides, nrings)
+Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, unsigned int nsides, unsigned int nrings, unsigned int sMax, unsigned int tMax) :GridMesh(prog, "Torus", nsides, nrings),
+_innerRadius(innerRadius),
+_outerRadius(outerRadius)
 {
 	_sMax = sMax;
 	_tMax = tMax;
@@ -36,10 +38,10 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 			float v = side * sideFactor;
 			float cv = cos(v);
 			float sv = sin(v);
-			float r = (outerRadius + innerRadius * cv);
+			float r = (_outerRadius + _innerRadius * cv);
 			p[idx] = r * cu;
 			p[idx + 1] = r * su;
-			p[idx + 2] = innerRadius * sv;
+			p[idx + 2] = _innerRadius * sv;
 			n[idx] = cv * cu * r;
 			n[idx + 1] = cv * su * r;
 			n[idx + 2] = sv * r;
@@ -90,4 +92,9 @@ Torus::Torus(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, u
 
 	initBuffers(&el, &p, &n, &tex, &tg, &bt);
 	computeBounds();
+}
+
+TriangleMesh* Torus::clone()
+{
+	return new Torus(_prog, _outerRadius, _innerRadius, _slices, _stacks, _sMax, _tMax);
 }

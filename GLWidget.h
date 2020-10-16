@@ -54,6 +54,8 @@ public:
 	void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
+	void duplicateObjects(const std::vector<int>& ids);
+
 	void updateFloorPlane();
 	void updateBoundingSphere();
 	int getModelNum() const
@@ -250,13 +252,7 @@ public slots:
 
 private slots:
 	void showContextMenu(const QPoint& pos);
-	void centerDisplayList();
-	void hideSelectedItem();
-	void showOnlySelectedItem();
-	void deleteSelectedItem();
-	void displayMeshInfo();
-	void showPropertiesPage();
-	void showTransformationsPage();
+	void centerDisplayList();	
 	void setBackgroundColor();
 
 protected:

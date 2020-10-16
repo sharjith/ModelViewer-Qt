@@ -27,6 +27,11 @@ SphericalHarmonic::~SphericalHarmonic()
 {
 }
 
+TriangleMesh* SphericalHarmonic::clone()
+{
+	return new SphericalHarmonic(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float SphericalHarmonic::firstUParameter() const
 {
 	return 0.0;

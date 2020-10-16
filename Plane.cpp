@@ -4,15 +4,36 @@
 #include <cmath>
 
 Plane::Plane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax) :
-	TriangleMesh(prog, "Plane")
+	TriangleMesh(prog, "Plane"),
+	_center(center),
+	_xSize(xsize),
+	_ySize(ysize),
+	_xDivs(xdivs),
+	_yDivs(ydivs),
+	_zLevel(zlevel)
 {
-	buildMesh(center, xsize, ysize, xdivs, ydivs, zlevel, smax, tmax);
+	_sMax = smax;
+	_tMax = tmax;
+	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
 }
 
 void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax)
 {
+	_center = center;
+	_xSize = xsize;
+	_ySize = ysize;
+	_xDivs = xdivs;
+	_yDivs = ydivs;
+	_zLevel = zlevel;
+	_sMax = smax;
+	_tMax = tmax;
 	setProg(prog);
-	buildMesh(center, xsize, ysize, xdivs, ydivs, zlevel, smax, tmax);
+	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
+}
+
+TriangleMesh* Plane::clone()
+{
+	return new Plane(_prog, _center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
 }
 
 void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax)

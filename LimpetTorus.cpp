@@ -17,6 +17,11 @@ LimpetTorus::~LimpetTorus()
 {
 }
 
+TriangleMesh* LimpetTorus::clone()
+{
+	return new LimpetTorus(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float LimpetTorus::firstUParameter() const
 {
 	return 0.0;

@@ -17,6 +17,11 @@ SaddleTorus::~SaddleTorus()
 {
 }
 
+TriangleMesh* SaddleTorus::clone()
+{
+	return new SaddleTorus(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float SaddleTorus::firstUParameter() const
 {
 	return 0.0;

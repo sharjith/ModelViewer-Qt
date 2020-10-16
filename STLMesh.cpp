@@ -210,3 +210,8 @@ bool STLMesh::loaded() const
 {
 	return _loaded;
 }
+
+TriangleMesh* STLMesh::clone()
+{
+	return new STLMesh(_prog, _stlFilePath);
+}

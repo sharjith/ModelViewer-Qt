@@ -3,15 +3,10 @@
 
 #include <cstdio>
 
-#include <glm/gtc/matrix_transform.hpp>
-using glm::vec3;
-using glm::mat4;
-using glm::mat3;
-using glm::vec4;
-
 Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4& lidTransform) :
 	GridMesh(prog, "Teapot", grid, grid),
-	_size(size)
+	_size(size),
+	_lidTransform(lidTransform)
 {
 	int verts = 32 * (grid + 1) * (grid + 1);
 	int faces = grid * grid * 32;
@@ -23,10 +18,15 @@ Teapot::Teapot(QOpenGLShaderProgram* prog, float size, int grid, const mat4& lid
 	std::vector<unsigned int> el(faces * 6);
 
 	generatePatches(p, n, tc, tg, bt, el, grid);
-	moveLid(grid, p, lidTransform);
+	moveLid(grid, p, _lidTransform);
 
 	initBuffers(&el, &p, &n, &tc, &tg, &bt);
 	computeBounds();
+}
+
+TriangleMesh* Teapot::clone()
+{
+	return new Teapot(_prog, _size, _slices, _lidTransform);
 }
 
 void Teapot::generatePatches(std::vector<float>& p,

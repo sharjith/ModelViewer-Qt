@@ -19,6 +19,11 @@ TwistedPseudoSphere::~TwistedPseudoSphere()
 {
 }
 
+TriangleMesh* TwistedPseudoSphere::clone()
+{
+	return new TwistedPseudoSphere(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float TwistedPseudoSphere::firstUParameter() const
 {
 	return 0.0f;

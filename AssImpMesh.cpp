@@ -26,6 +26,11 @@ AssImpMesh::~AssImpMesh()
 	}
 }
 
+TriangleMesh* AssImpMesh::clone()
+{
+	return new AssImpMesh(_prog, _vertices, _indices, _textures, _material);
+}
+
 void AssImpMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
@@ -131,7 +136,7 @@ void AssImpMesh::setupMesh()
 	std::vector<float> tangents;
 	std::vector<float> bitangents;
 
-	for (Vertex v : _vertices)
+	for (const Vertex& v : _vertices)
 	{
 		points.push_back(v.Position.x);
 		points.push_back(v.Position.y);

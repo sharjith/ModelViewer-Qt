@@ -17,6 +17,11 @@ WrinkledPeriwinkle::~WrinkledPeriwinkle()
 {
 }
 
+TriangleMesh* WrinkledPeriwinkle::clone()
+{
+	return new WrinkledPeriwinkle(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float WrinkledPeriwinkle::firstUParameter() const
 {
 	return 0.0;

@@ -31,6 +31,7 @@ public slots:
 	void showSelectedItems();
 	void showOnlySelectedItems();
 	void hideSelectedItems();
+	void duplicateSelectedItems();
 	void deleteSelectedItems();
 	void displaySelectedMeshInfo();
 	void showVisualizationModelPage();

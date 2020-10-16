@@ -20,6 +20,11 @@ SuperToroid::~SuperToroid()
 {
 }
 
+TriangleMesh* SuperToroid::clone()
+{
+	return new SuperToroid(_prog, _outerRadius, _innerRadius, _n1, _n2, _slices, _stacks, _sMax, _tMax);
+}
+
 float SuperToroid::firstUParameter() const
 {
 	return 0.0;

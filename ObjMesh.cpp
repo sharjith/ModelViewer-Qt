@@ -124,6 +124,11 @@ std::unique_ptr<ObjMesh> ObjMesh::loadWithAdjacency(QOpenGLShaderProgram* prog, 
 	return mesh;
 }
 
+TriangleMesh* ObjMesh::clone()
+{
+	return new ObjMesh(_prog);
+}
+
 void ObjMesh::ObjMeshData::load(const char* fileName, Aabb& bbox)
 {
 	ifstream objStream(fileName, std::ios::in);

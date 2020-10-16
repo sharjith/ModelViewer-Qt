@@ -17,6 +17,11 @@ SteinerSurface::~SteinerSurface()
 {
 }
 
+TriangleMesh* SteinerSurface::clone()
+{
+	return new SteinerSurface(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float SteinerSurface::firstUParameter() const
 {
 	return 0.0;

@@ -17,6 +17,11 @@ BoySurface::~BoySurface()
 {
 }
 
+TriangleMesh* BoySurface::clone()
+{
+	return new BoySurface(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float BoySurface::firstUParameter() const
 {
 	return 0.0;

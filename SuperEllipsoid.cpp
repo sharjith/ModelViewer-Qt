@@ -22,6 +22,11 @@ SuperEllipsoid::~SuperEllipsoid()
 {
 }
 
+TriangleMesh* SuperEllipsoid::clone()
+{
+	return new SuperEllipsoid(_prog, _radius, _scaleX, _scaleY, _scaleZ, _n1, _n2, _slices, _stacks, _sMax, _tMax);
+}
+
 float SuperEllipsoid::firstUParameter() const
 {
 	return -glm::pi<float>() / 2;

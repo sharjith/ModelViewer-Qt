@@ -17,6 +17,11 @@ AppleSurface::~AppleSurface()
 {
 }
 
+TriangleMesh* AppleSurface::clone()
+{
+	return new AppleSurface(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float AppleSurface::firstUParameter() const
 {
 	return 0.0;

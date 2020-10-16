@@ -17,6 +17,11 @@ Figure8KleinBottle::~Figure8KleinBottle()
 {
 }
 
+TriangleMesh* Figure8KleinBottle::clone()
+{
+	return new Figure8KleinBottle(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float Figure8KleinBottle::firstUParameter() const
 {
 	return 0.0;

@@ -6,6 +6,7 @@ using namespace std;
 // Constructor, expects a filepath to a 3D model.
 AssImpModel::AssImpModel(QOpenGLShaderProgram* prog, GLchar* path) : TriangleMesh(prog, "AssImpModel")
 {
+	_path = std::string(path);
 	this->loadModel(path);
 	QFileInfo f;
 	f.setFile(QString(path));
@@ -17,6 +18,11 @@ AssImpModel::AssImpModel(QOpenGLShaderProgram* prog, GLchar* path) : TriangleMes
 		sph.addSphere(this->meshes[i]->getBoundingSphere());
 	}
 	_boundingSphere = sph;
+}
+
+TriangleMesh* AssImpModel::clone()
+{
+	return new AssImpModel(_prog, _path.data());
 }
 
 // Draws the model, and thus all its meshes

@@ -17,6 +17,8 @@ public:
 	static std::unique_ptr<ObjMesh> load(QOpenGLShaderProgram* prog, const char* fileName, bool center = false, bool genTangents = false);
 	static std::unique_ptr<ObjMesh> loadWithAdjacency(QOpenGLShaderProgram* prog, const char* fileName, bool center = false);
 
+	virtual TriangleMesh* clone();
+
 	void render() override;
 
 protected:

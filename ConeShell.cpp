@@ -17,6 +17,11 @@ ConeShell::~ConeShell()
 {
 }
 
+TriangleMesh* ConeShell::clone()
+{
+	return new ConeShell(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float ConeShell::firstUParameter() const
 {
 	return 0.0;

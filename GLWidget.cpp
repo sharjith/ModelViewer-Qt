@@ -593,6 +593,23 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	emit displayListSet();
 }
 
+void GLWidget::duplicateObjects(const std::vector<int>& ids)
+{
+	makeCurrent();
+	for (int id : ids)
+	{
+		TriangleMesh* mesh = _meshStore.at(id);
+		if (mesh)
+		{			
+			TriangleMesh* newMesh = mesh->clone();
+			if (newMesh)
+			{
+				addToDisplay(newMesh);
+			}
+		}
+	}
+}
+
 void GLWidget::updateBoundingSphere()
 {
 	_currentTranslation = _primaryCamera->getPosition();
@@ -3330,9 +3347,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 	if (_keys[Qt::Key_Home])
 		fitAll();
 	if (_keys[Qt::Key_Delete])
-		deleteSelectedItem();
+		_viewer->deleteSelectedItems();
 	if (_keys[Qt::Key_Space])
-		hideSelectedItem();
+		_viewer->hideSelectedItems();
 
 	update();
 }
@@ -4119,14 +4136,15 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
 			}
 
-			myMenu.addAction("Visualization settings", this, SLOT(showPropertiesPage()));
-			myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
-			myMenu.addAction("Hide", this, SLOT(hideSelectedItem()));
-			myMenu.addAction("Show Only", this, SLOT(showOnlySelectedItem()));
-			myMenu.addAction("Delete", this, SLOT(deleteSelectedItem()));
+			myMenu.addAction("Visualization settings", _viewer, SLOT(showVisualizationModelPage()));
+			myMenu.addAction("Transformations", _viewer, SLOT(showTransformationsPage()));
+			myMenu.addAction("Hide", _viewer, SLOT(hideSelectedItems()));
+			myMenu.addAction("Show Only", _viewer, SLOT(showOnlySelectedItems()));
+			myMenu.addAction("Duplicate", _viewer, SLOT(duplicateSelectedItems()));
+			myMenu.addAction("Delete", _viewer, SLOT(deleteSelectedItems()));
 
 			if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
-				myMenu.addAction("Mesh Info", this, SLOT(displayMeshInfo()));
+				myMenu.addAction("Mesh Info", _viewer, SLOT(displaySelectedMeshInfo()));
 		}
 		else
 		{
@@ -4152,36 +4170,6 @@ void GLWidget::centerDisplayList()
 	{
 		listWidgetModel->scrollToItem(listWidgetModel->selectedItems().at(0));
 	}
-}
-
-void GLWidget::deleteSelectedItem()
-{
-	_viewer->deleteSelectedItems();
-}
-
-void GLWidget::hideSelectedItem()
-{
-	_viewer->hideSelectedItems();
-}
-
-void GLWidget::showOnlySelectedItem()
-{
-	_viewer->showOnlySelectedItems();
-}
-
-void GLWidget::displayMeshInfo()
-{
-	_viewer->displaySelectedMeshInfo();
-}
-
-void GLWidget::showPropertiesPage()
-{
-	_viewer->showVisualizationModelPage();
-}
-
-void GLWidget::showTransformationsPage()
-{
-	_viewer->showTransformationsPage();
 }
 
 #include "BackgroundColor.h"

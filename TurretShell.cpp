@@ -17,6 +17,11 @@ TurretShell::~TurretShell()
 {
 }
 
+TriangleMesh* TurretShell::clone()
+{
+	return new TurretShell(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float TurretShell::firstUParameter() const
 {
 	return 0.0;

@@ -18,6 +18,11 @@ TopShell::~TopShell()
 {
 }
 
+TriangleMesh* TopShell::clone()
+{
+	return new TopShell(_prog, _center, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float TopShell::firstUParameter() const
 {
 	return 0.0;

@@ -17,6 +17,11 @@ KleinBottle::~KleinBottle()
 {
 }
 
+TriangleMesh* KleinBottle::clone()
+{
+	return new KleinBottle(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float KleinBottle::firstUParameter() const
 {
 	return 0.0;

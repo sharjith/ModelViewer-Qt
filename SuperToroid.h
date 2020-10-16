@@ -10,6 +10,8 @@ public:
 	SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float innerRadius, float sinPower, float cosPower, unsigned int nSlices, unsigned int nStacks, unsigned int sMax = 1, unsigned int tMax = 1);
 	~SuperToroid();
 
+	virtual TriangleMesh* clone();
+
 	virtual float firstUParameter() const;
 	virtual float firstVParameter() const;
 	virtual float lastUParameter() const;

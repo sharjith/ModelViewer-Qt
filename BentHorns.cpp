@@ -17,6 +17,11 @@ BentHorns::~BentHorns()
 {
 }
 
+TriangleMesh* BentHorns::clone()
+{
+	return new BentHorns(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float BentHorns::firstUParameter() const
 {
 	return -glm::pi<float>();

@@ -20,6 +20,11 @@ Spring::~Spring()
 {
 }
 
+TriangleMesh* Spring::clone()
+{
+	return new Spring(_prog, _sectionRadius, _coilRadius, _pitch, _turns, _slices, _stacks, _sMax, _tMax);
+}
+
 float Spring::firstUParameter() const
 {
 	return 0.0;

@@ -17,6 +17,11 @@ TriaxialHexatorus::~TriaxialHexatorus()
 {
 }
 
+TriangleMesh* TriaxialHexatorus::clone()
+{
+	return new TriaxialHexatorus(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float TriaxialHexatorus::firstUParameter() const
 {
 	return -glm::pi<float>();

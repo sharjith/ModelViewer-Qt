@@ -17,6 +17,11 @@ BreatherSurface::~BreatherSurface()
 {
 }
 
+TriangleMesh* BreatherSurface::clone()
+{
+	return new BreatherSurface(_prog, _radius, _slices, _stacks, _sMax, _tMax);;
+}
+
 float BreatherSurface::firstUParameter() const
 {
 	return -13.2f;

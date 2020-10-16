@@ -17,6 +17,11 @@ Periwinkle::~Periwinkle()
 {
 }
 
+TriangleMesh* Periwinkle::clone()
+{
+	return new Periwinkle(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float Periwinkle::firstUParameter() const
 {
 	return 0.0;

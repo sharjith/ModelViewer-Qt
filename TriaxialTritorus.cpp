@@ -17,6 +17,11 @@ TriaxialTritorus::~TriaxialTritorus()
 {
 }
 
+TriangleMesh* TriaxialTritorus::clone()
+{
+	return new TriaxialTritorus(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float TriaxialTritorus::firstUParameter() const
 {
 	return -glm::pi<float>();

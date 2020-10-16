@@ -17,6 +17,11 @@ VerrillMinimal::~VerrillMinimal()
 {
 }
 
+TriangleMesh* VerrillMinimal::clone()
+{
+	return new VerrillMinimal(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float VerrillMinimal::firstUParameter() const
 {
 	return 0.0;

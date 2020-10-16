@@ -16,6 +16,11 @@ BowTie::~BowTie()
 {
 }
 
+TriangleMesh* BowTie::clone()
+{
+	return new BowTie(_prog, _radius, _slices, _stacks, _sMax, _tMax);
+}
+
 float BowTie::firstUParameter() const
 {
 	return 0.0;

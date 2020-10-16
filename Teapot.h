@@ -2,15 +2,23 @@
 
 #include "GridMesh.h"
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+using glm::vec3;
+using glm::mat4;
+using glm::mat3;
+using glm::vec4;
 
 class Teapot : public GridMesh
 {
 public:
 	Teapot(QOpenGLShaderProgram* prog, float size, int grid, const glm::mat4& lidTransform);
 
+	virtual TriangleMesh* clone();
+
 private:
 	//unsigned int faces;
 	int _size;
+	mat4 _lidTransform;
 
 	void generatePatches(std::vector<float>& p,
 		std::vector<float>& n,

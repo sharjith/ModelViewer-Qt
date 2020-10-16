@@ -466,6 +466,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
 		myMenu.addAction("Show", this, SLOT(showSelectedItems()));
 		myMenu.addAction("Show Only", this, SLOT(showOnlySelectedItems()));
+		myMenu.addAction("Duplicate", this, SLOT(duplicateSelectedItems()));
 		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
 
 		if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
@@ -481,6 +482,27 @@ void ModelViewer::centerScreen()
 	QListWidgetItem* item = listWidgetModel->currentItem();
 	int rowId = listWidgetModel->row(item);
 	_glWidget->centerScreen(rowId);
+}
+
+void ModelViewer::duplicateSelectedItems()
+{
+	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
+	if (!selectedItems.isEmpty())
+	{
+		if (QMessageBox::question(this, "Confirmation", "Duplicate selection?") == QMessageBox::Yes)
+		{
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+			std::vector<int> ids = getSelectedIDs();
+			_glWidget->duplicateObjects(ids);
+			updateDisplayList();
+
+			listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+			listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+
+			updateDisplayList();
+			QApplication::restoreOverrideCursor();
+		}
+	}
 }
 
 void ModelViewer::deleteSelectedItems()
