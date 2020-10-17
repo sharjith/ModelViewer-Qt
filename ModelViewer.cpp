@@ -1420,15 +1420,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
 			QFileInfo fi(fileName);
 			if (fi.suffix().toLower() == "stl")
 			{
-				mesh = _glWidget->loadSTLMesh(fileName);
-				if (mesh)
-				{
-					if (!static_cast<STLMesh*>(mesh)->loaded())
-					{
-						delete mesh;
-						mesh = nullptr;
-					}
-				}
+				mesh = _glWidget->loadSTLMesh(fileName);				
 			}
 			else
 			{

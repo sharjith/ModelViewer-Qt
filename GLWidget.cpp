@@ -50,6 +50,8 @@
 #include "ModelViewer.h"
 #include "MainWindow.h"
 
+#include "stl_reader.h"
+
 #include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
 
@@ -764,13 +766,21 @@ void GLWidget::deselect(int id)
 	}
 }
 
+
 TriangleMesh* GLWidget::loadSTLMesh(QString fileName)
 {
 	makeCurrent();
-	STLMesh* mesh = new STLMesh(_fgShader, fileName);
-	if (mesh && mesh->loaded())
-		addToDisplay(mesh);
-	return mesh;
+	std::vector<float> points, normals;
+	std::vector<unsigned int> tris, solids;
+	bool success = stl_reader::ReadStlFile(fileName.toLocal8Bit().data(), points, normals, tris, solids);
+	if (success && points.size())
+	{
+		STLMesh* mesh = new STLMesh(_fgShader, points);
+		if (mesh)
+			addToDisplay(mesh);
+		return mesh;
+	}
+	return nullptr;
 }
 
 #include "AssImpModel.h"
@@ -1870,13 +1880,21 @@ void GLWidget::createGeometry()
 	_sphericalHarmonicsEditor = new SphericalHarmonicsEditor(sph, this);
 	_upperLayout->addWidget(_sphericalHarmonicsEditor);
 
+	QString fileName;
 #ifdef WIN32
-	STLMesh* mesh = new STLMesh(_fgShader, QString("D:/work/progs/qt5/ModelViewer-Github/data/Logo.stl"));
+	fileName = "D:/work/progs/qt5/ModelViewer-Github/data/Logo.stl";
 #else
-	STLMesh* mesh = new STLMesh(_fgShader, QString("/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo.stl"));
+	fileName = "/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo.stl";
 #endif
-	if (mesh && mesh->loaded())
-		_meshStore.push_back(mesh);
+	std::vector<float> points, normals;
+	std::vector<unsigned int> tris, solids;
+	bool success = stl_reader::ReadStlFile(fileName.toLocal8Bit().data(), points, normals, tris, solids);
+	if (success && points.size())
+	{
+		STLMesh* mesh = new STLMesh(_fgShader, points);
+		if (mesh)
+			_meshStore.push_back(mesh);
+	}
 }
 
 void GLWidget::loadFloor()

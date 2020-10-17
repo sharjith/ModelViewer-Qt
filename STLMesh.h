@@ -7,15 +7,12 @@
 class STLMesh : public TriangleMesh
 {
 public:
-	STLMesh(QOpenGLShaderProgram* prog, QString stlfilepath);
-
-	bool loaded() const;
+	STLMesh(QOpenGLShaderProgram* prog, std::vector<float> points);
 
 	virtual TriangleMesh* clone();
 
 private:
-	QString _stlFilePath;
-	bool _loaded;
+	std::vector<float> _points;	
 };
 
 #endif // STLMESH_H
