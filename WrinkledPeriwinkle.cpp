@@ -9,7 +9,7 @@ WrinkledPeriwinkle::WrinkledPeriwinkle(QOpenGLShaderProgram* prog, float radius,
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Wrinkled Periwinkle";
+	setName("Wrinkled Periwinkle");
 	buildMesh();
 }
 

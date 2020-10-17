@@ -9,7 +9,7 @@ AppleSurface::AppleSurface(QOpenGLShaderProgram* prog, float radius, unsigned in
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Apple Surface";
+	setName("Apple Surface");
 	buildMesh();
 }
 

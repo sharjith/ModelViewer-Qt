@@ -9,7 +9,7 @@ LimpetTorus::LimpetTorus(QOpenGLShaderProgram* prog, float radius, unsigned int 
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Limpet Torus";
+	setName("Limpet Torus");
 	buildMesh();
 }
 

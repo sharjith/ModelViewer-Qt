@@ -153,6 +153,7 @@ SOURCES += AppleSurface.cpp \
     Cube.cpp \
     Cylinder.cpp \
     DoubleCone.cpp \
+	Drawable.cpp \
     Figure8KleinBottle.cpp \
     Folium.cpp \
     GLCamera.cpp \

@@ -8,7 +8,7 @@
 BowTie::BowTie(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) : ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 _radius(radius)
 {
-	_name = "Bow Tie";
+	setName("Bow Tie");
 	buildMesh();
 }
 

@@ -9,7 +9,7 @@ Crescent::Crescent(QOpenGLShaderProgram* prog, float radius, unsigned int nSlice
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Crescent";
+	setName("Crescent");
 	buildMesh();
 }
 

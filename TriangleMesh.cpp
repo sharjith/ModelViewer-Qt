@@ -3,7 +3,7 @@
 #include <iostream>
 #include "Point.h"
 
-TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog), _name(name),
+TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _diffuseADSMap(0),
 _specularADSMap(0),
 _emissiveADSMap(0),
@@ -36,6 +36,7 @@ _heightPBRMapScale(0.05f),
 _hasOpacityPBRMap(false),
 _opacityPBRMapInverted(false)
 {
+	setName(name);
 	_memorySize = 0;
 	_transX = _transY = _transZ = 0.0f;
 	_rotateX = _rotateY = _rotateZ = 0.0f;

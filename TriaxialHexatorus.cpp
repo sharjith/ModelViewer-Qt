@@ -9,7 +9,7 @@ TriaxialHexatorus::TriaxialHexatorus(QOpenGLShaderProgram* prog, float radius, u
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Triaxial Hexatorus";
+	setName("Triaxial Hexatorus");
 	buildMesh();
 }
 

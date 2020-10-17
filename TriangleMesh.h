@@ -15,11 +15,6 @@ public:
 
 	virtual void setProg(QOpenGLShaderProgram* prog);
 
-	virtual void setName(const QString& name)
-	{
-		_name = name;
-	}
-
 	virtual TriangleMesh* clone() = 0;
 
 	virtual void render();
@@ -211,8 +206,6 @@ protected:
 
 	BoundingSphere _boundingSphere;
 	BoundingBox    _boundingBox;
-
-	QString _name;
 
 	GLMaterial _material;
 

@@ -9,7 +9,7 @@ TurretShell::TurretShell(QOpenGLShaderProgram* prog, float radius, unsigned int 
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Turret Shell";
+	setName("Turret Shell");
 	buildMesh();
 }
 

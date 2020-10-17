@@ -14,7 +14,7 @@ SuperEllipsoid::SuperEllipsoid(QOpenGLShaderProgram* prog, float radius, float s
 	_n1(n1),
 	_n2(n2)
 {
-	_name = "Super Ellipsoid";
+	setName("Super Ellipsoid");
 	buildMesh();
 }
 

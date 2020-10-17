@@ -9,7 +9,7 @@ Horn::Horn(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, unsig
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Horn";
+	setName("Horn");
 	buildMesh();
 }
 

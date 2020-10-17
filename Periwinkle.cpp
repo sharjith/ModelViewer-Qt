@@ -9,7 +9,7 @@ Periwinkle::Periwinkle(QOpenGLShaderProgram* prog, float radius, unsigned int nS
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Periwinkle Sea Shell";
+	setName("Periwinkle Sea Shell");
 	buildMesh();
 }
 

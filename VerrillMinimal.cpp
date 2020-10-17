@@ -9,7 +9,7 @@ VerrillMinimal::VerrillMinimal(QOpenGLShaderProgram* prog, float radius, unsigne
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Verrill Minimal Surface";
+	setName("Verrill Minimal Surface");
 	buildMesh();
 }
 

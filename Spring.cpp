@@ -12,7 +12,7 @@ Spring::Spring(QOpenGLShaderProgram* prog, float sectionRadius, float coilRadius
 	_pitch(pitch),
 	_turns(turns)
 {
-	_name = "Spring";
+	setName("Spring");
 	buildMesh();
 }
 

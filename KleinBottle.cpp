@@ -9,7 +9,7 @@ KleinBottle::KleinBottle(QOpenGLShaderProgram* prog, float radius, unsigned int 
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Klein Bottle";
+	setName("Klein Bottle");
 	buildMesh();
 }
 

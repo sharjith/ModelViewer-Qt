@@ -12,7 +12,7 @@ SuperToroid::SuperToroid(QOpenGLShaderProgram* prog, float outerRadius, float in
 	_n1(n1),
 	_n2(n2)
 {
-	_name = "Super Toroid";
+	setName("Super Toroid");
 	buildMesh();
 }
 

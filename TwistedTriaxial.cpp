@@ -9,7 +9,7 @@ TwistedTriaxial::TwistedTriaxial(QOpenGLShaderProgram* prog, float radius, unsig
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Twisted Triaxial";
+	setName("Twisted Triaxial");
 	buildMesh();
 }
 

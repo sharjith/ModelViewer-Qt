@@ -9,7 +9,7 @@ TriaxialTritorus::TriaxialTritorus(QOpenGLShaderProgram* prog, float radius, uns
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Triaxial Tritorus";
+	setName("Triaxial Tritorus");
 	buildMesh();
 }
 

@@ -9,7 +9,7 @@ DoubleCone::DoubleCone(QOpenGLShaderProgram* prog, float radius, unsigned int nS
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	_name = "Double Cone";
+	setName("Double Cone");
 	buildMesh();
 }
 
