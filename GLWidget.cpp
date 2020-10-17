@@ -777,7 +777,10 @@ TriangleMesh* GLWidget::loadSTLMesh(QString fileName)
 	{
 		STLMesh* mesh = new STLMesh(_fgShader, points);
 		if (mesh)
+		{
+			mesh->setAutoIncrName(QFileInfo(fileName).baseName());
 			addToDisplay(mesh);
+		}
 		return mesh;
 	}
 	return nullptr;
@@ -1893,7 +1896,10 @@ void GLWidget::createGeometry()
 	{
 		STLMesh* mesh = new STLMesh(_fgShader, points);
 		if (mesh)
+		{
+			mesh->setAutoIncrName(QFileInfo(fileName).baseName());
 			_meshStore.push_back(mesh);
+		}
 	}
 }
 

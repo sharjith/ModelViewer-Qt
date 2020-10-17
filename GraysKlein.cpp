@@ -12,7 +12,7 @@ GraysKlein::GraysKlein(QOpenGLShaderProgram* prog, float radius, unsigned int nS
 	_N(2),
 	_radius(radius)
 {
-	setName("Gray's Klein Bottle");
+	setAutoIncrName("Gray's Klein Bottle");
 	buildMesh();
 }
 

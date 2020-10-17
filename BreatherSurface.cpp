@@ -9,7 +9,7 @@ BreatherSurface::BreatherSurface(QOpenGLShaderProgram* prog, float radius, unsig
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Breather Surface");
+	setAutoIncrName("Breather Surface");
 	buildMesh();
 }
 

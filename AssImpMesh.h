@@ -43,7 +43,7 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material);
+	AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material);
 	~AssImpMesh();
 	virtual TriangleMesh* clone();
 	void render();

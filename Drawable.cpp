@@ -24,7 +24,7 @@ void Drawable::setProg(QOpenGLShaderProgram* prog)
 	_prog = prog;
 }
 
-void Drawable::setName(const QString& name)
+void Drawable::setAutoIncrName(const QString& name)
 {
 	_name = name + QString("_%1").arg(_count);
 }

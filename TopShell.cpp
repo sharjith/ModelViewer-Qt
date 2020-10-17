@@ -10,7 +10,7 @@ TopShell::TopShell(QOpenGLShaderProgram* prog, Point center, float radius, unsig
 	_radius(radius),
 	_center(center)
 {
-	setName("Top Sea Shell");
+	setAutoIncrName("Top Sea Shell");
 	buildMesh();
 }
 

@@ -9,7 +9,7 @@ SpindleShell::SpindleShell(QOpenGLShaderProgram* prog, float radius, unsigned in
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Spindle Sea Shell");
+	setAutoIncrName("Spindle Sea Shell");
 	buildMesh();
 }
 

@@ -9,7 +9,7 @@ SphericalHarmonic::SphericalHarmonic(QOpenGLShaderProgram* prog, float radius, u
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Spherical Harmonics");
+	setAutoIncrName("Spherical Harmonics");
 
 	_coeff1 = 0.0f;
 	_coeff2 = 0.0f;

@@ -94,9 +94,6 @@ _points(points)
 	std::vector<float> tangents;
 	std::vector<float> bitangents;
 	std::vector<float> texcords;
-
-
-
 	std::vector<float> xCoords;
 	std::vector<float> yCoords;
 	std::vector<float> zCoords;
@@ -171,18 +168,12 @@ _points(points)
 			texcords.push_back(1.0f);
 		}
 
-		//std::cout << "Coords " << points.size() << std::endl;
-		//std::cout << "Normals " << norms.size() << std::endl;
-
 		const size_t numTris = _points.size() / 3;
-		//std::cout << "Triangles: " << numTris << std::endl;
-
+		
 		for (unsigned int itri = 0; itri < numTris; ++itri)
 		{
 			elements.push_back(itri);
 		}
-
-		//std::cout << "Elements " << elements.size() << std::endl;
 
 		initBuffers(&elements, &points, &norms, &texcords, &tangents, &bitangents);
 		computeBounds();
@@ -193,7 +184,6 @@ _points(points)
 		std::cout << "Exception in STLMesh::STLMesh\n" << e.what() << std::endl;
 	}
 }
-
 
 TriangleMesh* STLMesh::clone()
 {

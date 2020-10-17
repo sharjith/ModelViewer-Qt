@@ -9,7 +9,7 @@ SaddleTorus::SaddleTorus(QOpenGLShaderProgram* prog, float radius, unsigned int 
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Saddle Torus");
+	setAutoIncrName("Saddle Torus");
 	buildMesh();
 }
 

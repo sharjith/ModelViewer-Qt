@@ -9,7 +9,7 @@ BentHorns::BentHorns(QOpenGLShaderProgram* prog, float radius, unsigned int nSli
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Bent Horns");
+	setAutoIncrName("Bent Horns");
 	buildMesh();
 }
 

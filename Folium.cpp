@@ -9,7 +9,7 @@ Folium::Folium(QOpenGLShaderProgram* prog, float radius, unsigned int nSlices, u
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Folium");
+	setAutoIncrName("Folium");
 	buildMesh();
 }
 

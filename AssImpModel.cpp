@@ -10,11 +10,10 @@ AssImpModel::AssImpModel(QOpenGLShaderProgram* prog, GLchar* path) : TriangleMes
 	this->loadModel(path);
 	QFileInfo f;
 	f.setFile(QString(path));
-	setName(f.baseName());
+	setAutoIncrName(f.baseName());
 	BoundingSphere sph;
 	for (unsigned int i = 0; i < this->meshes.size(); i++)
-	{
-		this->meshes[i]->setName(f.baseName() + QString("%1").arg(i));
+	{		
 		sph.addSphere(this->meshes[i]->getBoundingSphere());
 	}
 	_boundingSphere = sph;
@@ -217,7 +216,7 @@ AssImpMesh* AssImpModel::processMesh(aiMesh* mesh, const aiScene* scene)
 	}
 
 	// Return a mesh object created from the extracted mesh data
-	return new AssImpMesh(_prog, vertices, indices, textures, mat);
+	return new AssImpMesh(_prog, QFileInfo(QString(_path.data())).baseName(), vertices, indices, textures, mat);
 }
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.

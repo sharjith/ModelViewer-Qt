@@ -4,8 +4,9 @@ using namespace std;
 
 /*  Functions  */
 // Constructor
-AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
+AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
 {
+	setAutoIncrName(name);
 	_vertices = vertices;
 	_indices = indices;
 	_textures = textures;
@@ -28,7 +29,7 @@ AssImpMesh::~AssImpMesh()
 
 TriangleMesh* AssImpMesh::clone()
 {
-	return new AssImpMesh(_prog, _vertices, _indices, _textures, _material);
+	return new AssImpMesh(_prog, _name, _vertices, _indices, _textures, _material);
 }
 
 void AssImpMesh::render()

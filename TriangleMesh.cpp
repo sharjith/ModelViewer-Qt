@@ -36,7 +36,7 @@ _heightPBRMapScale(0.05f),
 _hasOpacityPBRMap(false),
 _opacityPBRMapInverted(false)
 {
-	setName(name);
+	setAutoIncrName(name);
 	_memorySize = 0;
 	_transX = _transY = _transZ = 0.0f;
 	_rotateX = _rotateY = _rotateZ = 0.0f;

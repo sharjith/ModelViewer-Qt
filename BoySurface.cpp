@@ -9,7 +9,7 @@ BoySurface::BoySurface(QOpenGLShaderProgram* prog, float radius, unsigned int nS
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Boy's Surface");
+	setAutoIncrName("Boy's Surface");
 	buildMesh();
 }
 

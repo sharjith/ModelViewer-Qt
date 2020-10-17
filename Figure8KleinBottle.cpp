@@ -9,7 +9,7 @@ Figure8KleinBottle::Figure8KleinBottle(QOpenGLShaderProgram* prog, float radius,
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Figure 8 Klein Bottle");
+	setAutoIncrName("Figure 8 Klein Bottle");
 	buildMesh();
 }
 

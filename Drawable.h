@@ -11,7 +11,8 @@ public:
 	virtual ~Drawable();
 	virtual QOpenGLShaderProgram* prog() const;
 	virtual void setProg(QOpenGLShaderProgram* prog);
-	virtual void setName(const QString& name);
+	virtual void setAutoIncrName(const QString& name);
+	virtual void setName(const QString& name) { _name = name; }
 	virtual bool isSelected() const;
 
 protected:

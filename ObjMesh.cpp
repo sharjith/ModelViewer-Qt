@@ -80,7 +80,7 @@ std::unique_ptr<ObjMesh> ObjMesh::load(QOpenGLShaderProgram* prog, const char* f
 
 		QFileInfo fi(fileName);
 		QString fName = fi.baseName();
-		mesh->setName(fName);
+		mesh->setAutoIncrName(fName);
 		mesh->computeBounds();
 		return mesh;
 	}

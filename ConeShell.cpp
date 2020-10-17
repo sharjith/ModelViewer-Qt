@@ -9,7 +9,7 @@ ConeShell::ConeShell(QOpenGLShaderProgram* prog, float radius, unsigned int nSli
 	ParametricSurface(prog, nSlices, nStacks, sMax, tMax),
 	_radius(radius)
 {
-	setName("Cone Sea Shell");
+	setAutoIncrName("Cone Sea Shell");
 	buildMesh();
 }
 
