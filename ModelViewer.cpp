@@ -102,7 +102,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _glWidget->layout()->addWidget(tabWidget);
     tabWidget->setAutoHide(true);
 
-	connect(_glWidget, SIGNAL(windowZoomEnded()), toolButtonWindowZoom, SLOT(toggle()));
+    connect(_glWidget, &GLWidget::windowZoomEnded, this, [this](){
+                if(toolButtonWindowZoom->isChecked())
+                    toolButtonWindowZoom->setChecked(false);
+    });
 	connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
 	connect(_glWidget, SIGNAL(sweepSelectionDone(QList<int>)), this, SLOT(setListRows(QList<int>)));
 	connect(_glWidget, SIGNAL(floorShown(bool)), checkBoxFloor, SLOT(setChecked(bool)));
