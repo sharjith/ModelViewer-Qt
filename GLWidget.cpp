@@ -4127,7 +4127,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
 			}
 
-			myMenu.addAction("Visualization settings", _viewer, SLOT(showVisualizationModelPage()));
+            myMenu.addAction("Visualization Settings", _viewer, SLOT(showVisualizationModelPage()));
 			myMenu.addAction("Transformations", _viewer, SLOT(showTransformationsPage()));
 			myMenu.addAction("Hide", _viewer, SLOT(hideSelectedItems()));
 			myMenu.addAction("Show Only", _viewer, SLOT(showOnlySelectedItems()));
