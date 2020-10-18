@@ -21,7 +21,7 @@ class SuperEllipsoidEditor;
 class SpringEditor;
 class ClippingPlanesEditor;
 class GraysKleinEditor;
-class STLMesh;
+class AssImpModel;
 class Plane;
 class Cube;
 
@@ -83,7 +83,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	TriangleMesh* loadAssImpMesh(QString fileName);
+	AssImpModel* loadAssImpModel(QString fileName);
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);

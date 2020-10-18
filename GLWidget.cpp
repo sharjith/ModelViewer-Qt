@@ -765,7 +765,7 @@ void GLWidget::deselect(int id)
 
 
 #include "AssImpModel.h"
-TriangleMesh* GLWidget::loadAssImpMesh(QString fileName)
+AssImpModel* GLWidget::loadAssImpModel(QString fileName)
 {
 	makeCurrent();
 	AssImpModel* model = new AssImpModel(_fgShader, const_cast<GLchar*>(fileName.toStdString().c_str()));
@@ -1867,7 +1867,7 @@ void GLWidget::createGeometry()
 #else
 	fileName = "/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo.stl";
 #endif
-	loadAssImpMesh(fileName);
+	loadAssImpModel(fileName);
 }
 
 void GLWidget::loadFloor()

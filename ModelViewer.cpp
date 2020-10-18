@@ -1377,9 +1377,10 @@ void ModelViewer::on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item)
 	item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
 }
 
+#include "AssImpModel.h"
 void ModelViewer::on_toolButtonOpen_clicked()
 {
-	TriangleMesh* mesh = nullptr;
+	AssImpModel* model = nullptr;
 
 	QString supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
 		"*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
@@ -1418,9 +1419,9 @@ void ModelViewer::on_toolButtonOpen_clicked()
 			_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 			QFileInfo fi(fileName);
 
-			mesh = _glWidget->loadAssImpMesh(fileName);
+			model = _glWidget->loadAssImpModel(fileName);
 			
-			if (mesh)
+			if (model)
 			{
 				updateDisplayList();
 
@@ -1428,6 +1429,8 @@ void ModelViewer::on_toolButtonOpen_clicked()
 				listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
 				updateDisplayList();
+
+				delete model;
 			}			
 		}
 		QApplication::restoreOverrideCursor();
