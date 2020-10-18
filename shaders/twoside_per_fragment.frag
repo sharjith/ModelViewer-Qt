@@ -539,7 +539,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     // add to outgoing radiance Lo
     Lo += (kD * albedo / PI + specular) * radiance * NdotL;  // note that we already multiplied the BRDF by the Fresnel (kS) so we won't multiply by kS again
 
-    // ambient lighting (note that the next IBL tutorial will replace
+    // ambient lighting (note that the IBL will replace
     // this ambient lighting with environment lighting).
     vec3 ambient;
     // ambient lighting (we now use IBL as the ambient term)
@@ -580,7 +580,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         ambient = ((lightSource.ambient * diffuse)  + specular) * ambientOcclusion;
     }
 
-    vec3 color = ambient + Lo;
+    // Emission map
+    vec3 matEmissive = material.emission;
+    if(hasEmissiveTexture)
+    {
+        matEmissive = texture2D(texture_emissive, clippedTexCoord).rgb;
+    }
+
+    vec3 color = matEmissive + ambient + Lo;
 
     // HDR tonemapping
     if(hdrToneMapping)
