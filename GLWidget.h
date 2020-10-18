@@ -83,7 +83,6 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	TriangleMesh* loadSTLMesh(QString fileName);
 	TriangleMesh* loadAssImpMesh(QString fileName);
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);

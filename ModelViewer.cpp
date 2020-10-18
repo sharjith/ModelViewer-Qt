@@ -4,7 +4,6 @@
 #include "GLWidget.h"
 #include "SphericalHarmonicsEditor.h"
 #include "TriangleMesh.h"
-#include "STLMesh.h"
 #include "MeshProperties.h"
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)

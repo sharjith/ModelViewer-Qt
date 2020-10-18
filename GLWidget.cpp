@@ -45,12 +45,9 @@
 #include "SphericalHarmonicsEditor.h"
 #include "ClippingPlanesEditor.h"
 
-#include "STLMesh.h"
 #include "Plane.h"
 #include "ModelViewer.h"
 #include "MainWindow.h"
-
-#include "stl_reader.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
@@ -766,25 +763,6 @@ void GLWidget::deselect(int id)
 	}
 }
 
-
-TriangleMesh* GLWidget::loadSTLMesh(QString fileName)
-{
-	makeCurrent();
-	std::vector<float> points, normals;
-	std::vector<unsigned int> tris, solids;
-	bool success = stl_reader::ReadStlFile(fileName.toLocal8Bit().data(), points, normals, tris, solids);
-	if (success && points.size())
-	{
-		STLMesh* mesh = new STLMesh(_fgShader, points);
-		if (mesh)
-		{
-			mesh->setAutoIncrName(QFileInfo(fileName).baseName());
-			addToDisplay(mesh);
-		}
-		return mesh;
-	}
-	return nullptr;
-}
 
 #include "AssImpModel.h"
 TriangleMesh* GLWidget::loadAssImpMesh(QString fileName)
@@ -1889,18 +1867,7 @@ void GLWidget::createGeometry()
 #else
 	fileName = "/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo.stl";
 #endif
-	std::vector<float> points, normals;
-	std::vector<unsigned int> tris, solids;
-	bool success = stl_reader::ReadStlFile(fileName.toLocal8Bit().data(), points, normals, tris, solids);
-	if (success && points.size())
-	{
-		STLMesh* mesh = new STLMesh(_fgShader, points);
-		if (mesh)
-		{
-			mesh->setAutoIncrName(QFileInfo(fileName).baseName());
-			_meshStore.push_back(mesh);
-		}
-	}
+	loadAssImpMesh(fileName);
 }
 
 void GLWidget::loadFloor()

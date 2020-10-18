@@ -95,7 +95,6 @@ HEADERS += AABB.h \
     Plane.h \
     Point.h \
     Resource.h \
-    STLMesh.h \
     SaddleTorus.h \
     Sphere.h \
     SphericalHarmonic.h \
@@ -125,8 +124,7 @@ HEADERS += AABB.h \
     SuperToroidEditor.h \
     SuperEllipsoidEditor.h \
     SpringEditor.h \
-    stb_image.h \
-    stl_reader.h
+    stb_image.h
 FORMS += \
     BackgroundColor.ui \
     MainWindow.ui \
@@ -167,7 +165,6 @@ SOURCES += AppleSurface.cpp \
     MeshProperties.cpp \
     ModelObjectList.cpp \
     ModelViewer.cpp \
-    STLMesh.cpp \
     ToolPanel.cpp \
     main.cpp \
     MainWindow.cpp \
