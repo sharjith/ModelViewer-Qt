@@ -1418,14 +1418,9 @@ void ModelViewer::on_toolButtonOpen_clicked()
 		{			
 			_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 			QFileInfo fi(fileName);
-			if (fi.suffix().toLower() == "stl")
-			{
-				mesh = _glWidget->loadSTLMesh(fileName);				
-			}
-			else
-			{
-				mesh = _glWidget->loadAssImpMesh(fileName);
-			}
+
+			mesh = _glWidget->loadAssImpMesh(fileName);
+			
 			if (mesh)
 			{
 				updateDisplayList();
