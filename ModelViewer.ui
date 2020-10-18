@@ -150,16 +150,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonOpen">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -195,16 +189,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonSave">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -295,16 +283,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonRotateView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -336,16 +318,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonPanView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -377,16 +353,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonZoomView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -418,16 +388,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonFitAll">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -456,16 +420,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonWindowZoom">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -501,16 +459,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonTopView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -542,16 +494,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonBottomView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -583,16 +529,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonLeftView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -624,16 +564,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonRightView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -665,16 +599,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonFrontView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -706,16 +634,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonBackView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -747,16 +669,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonIsometricView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -795,16 +711,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonProjection">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -847,16 +757,10 @@
                     <property name="enabled">
                      <bool>true</bool>
                     </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -898,16 +802,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonDisplayMode">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -940,16 +838,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonVertexNormal">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -976,16 +868,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonFaceNormal">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -1019,16 +905,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonSectionView">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -1054,16 +934,10 @@
                   </item>
                   <item>
                    <widget class="QToolButton" name="toolButtonShowHideAxis">
-                    <property name="minimumSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
                     <property name="maximumSize">
                      <size>
-                      <width>48</width>
-                      <height>48</height>
+                      <width>42</width>
+                      <height>42</height>
                      </size>
                     </property>
                     <property name="toolTip">
@@ -1238,8 +1112,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>395</width>
-                   <height>766</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1987,8 +1861,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>395</width>
-                   <height>766</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2141,8 +2015,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>395</width>
-                   <height>766</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2830,8 +2704,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>395</width>
-                   <height>766</height>
+                   <width>426</width>
+                   <height>771</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3690,8 +3564,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>436</width>
-                   <height>749</height>
+                   <width>528</width>
+                   <height>758</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4044,8 +3918,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>395</width>
-                   <height>766</height>
+                   <width>437</width>
+                   <height>758</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5433,8 +5307,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>
