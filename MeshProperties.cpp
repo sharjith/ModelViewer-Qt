@@ -4,7 +4,7 @@
 
 MeshProperties::MeshProperties(TriangleMesh* mesh, QObject* parent) : QObject(parent), _mesh(mesh)
 {
-	_meshPoints = _mesh->getPoints();
+	_meshPoints = _mesh->getTrsfPoints();
 	calculateSurfaceAreaAndVolume();
 }
 
@@ -40,12 +40,28 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 {
 	_surfaceArea = 0;
 	_volume = 0;
-	try {
-		for (size_t i = 0; i < _meshPoints.size(); i += 9)
+	try {		
+		std::vector<unsigned int> indices = _mesh->getIndices();
+		size_t offset = 3; // each index points to 3 floats
+		for (size_t i = 0; i < indices.size();)
 		{
-			QVector3D p1(_meshPoints.at(i + 0), _meshPoints.at(i + 1), _meshPoints.at(i + 2));
-			QVector3D p2(_meshPoints.at(i + 3), _meshPoints.at(i + 4), _meshPoints.at(i + 5));
-			QVector3D p3(_meshPoints.at(i + 6), _meshPoints.at(i + 7), _meshPoints.at(i + 8));
+			// Vertex 1
+			QVector3D p1(_meshPoints[offset * indices[i] + 0], // x coordinate
+				_meshPoints[offset * indices[i] + 1],          // y coordinate
+				_meshPoints[offset * indices[i] + 2]);         // z coordinate
+			i++;
+
+			// Vertex 2
+			QVector3D p2(_meshPoints[offset * indices[i] + 0], // x coordinate
+				_meshPoints[offset * indices[i] + 1],          // y coordinate
+				_meshPoints[offset * indices[i] + 2]);         // z coordinate
+			i++;
+
+			// Vertex 3
+			QVector3D p3(_meshPoints[offset * indices[i] + 0], // x coordinate
+				_meshPoints[offset * indices[i] + 1],          // y coordinate
+				_meshPoints[offset * indices[i] + 2]);         // z coordinate
+			i++;
 
 			_volume += QVector3D::dotProduct(p1, (QVector3D::crossProduct(p2, p3))) / 6.0f;
 

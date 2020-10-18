@@ -944,7 +944,7 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 		return intersects;
 	}
 	size_t offset = 3; // each index points to 3 floats
-	for (size_t i = 0; i < _indices.size() - offset;)
+	for (size_t i = 0; i < _indices.size();)
 	{
 		// Vertex 1
 		QVector3D v1(_trsfpoints[offset * _indices[i] + 0], // x coordinate

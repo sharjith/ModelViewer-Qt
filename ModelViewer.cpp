@@ -612,7 +612,7 @@ void ModelViewer::displaySelectedMeshInfo()
 	{
 		QString name = QString("Mesh name: %1\n").arg(mesh->getName());
 		QString points = QString("Points: %1\n").arg(mesh->getPoints().size() / 3);
-		QString triangles = QString("Triangles: %1\n").arg(mesh->getIndices().size() / 2);
+		QString triangles = QString("Triangles: %1\n").arg(mesh->getIndices().size() / 3);
 		unsigned long long rawmem = mesh->memorySize();
 		unsigned long long mem = 0;
 		QString units;
