@@ -3509,21 +3509,21 @@ void GLWidget::stopAnimations()
 	QTimer::singleShot(100, this, SLOT(disableLowRes()));
 }
 
-void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVector3D& orig, QVector3D& dir)
+void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir)
 {
 	if (_projection == ViewProjection::PERSPECTIVE)
 	{
 		QVector3D Z(0, 0, -_viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+		Z = Z.project(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
 		QVector3D p(pixel.x(), height() - pixel.y() - 1, Z.z());
-		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
 
 		orig = QVector3D(P.x(), P.y(), P.z());
 
 		QVector3D Z1(0, 0, _viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z1 = Z1.project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+		Z1 = Z1.project(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
 		QVector3D q(pixel.x(), height() - pixel.y() - 1, Z1.z());
-		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
+		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
 
 		//QVector3D viewDir = _primaryCamera->getViewDir();
 		//dir = viewDir;
@@ -3533,8 +3533,8 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, QVe
 	{
 		QVector3D nearPoint(pixel.x(), height() - pixel.y() - 1, 0.0f);
 		QVector3D farPoint(pixel.x(), height() - pixel.y() - 1, 1.0f);
-		orig = nearPoint.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport);
-		dir = farPoint.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, viewport) - orig;
+		orig = nearPoint.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
+		dir = farPoint.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport) - orig;
 	}
 }
 
@@ -3656,7 +3656,19 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 	QVector3D rayPos, rayDir;
 	QVector3D intersectionPoint;
 	QRect viewport = getViewportFromPoint(pixel);
-	convertClickToRay(pixel, viewport, rayPos, rayDir);
+	GLCamera* camera = _primaryCamera;
+	if (_multiViewActive)
+	{
+		if (viewport.x() == viewport.width() && viewport.y() == 0)
+		{
+			camera = _primaryCamera;
+		}
+		else
+		{
+			camera = _orthoViewsCamera;
+		}
+	}
+	convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
 
 	QMap<int, float> selectedIdsDist;
 	for (int i : _displayedObjectsIds)
