@@ -1053,6 +1053,9 @@
                 <property name="selectionMode">
                  <enum>QAbstractItemView::ExtendedSelection</enum>
                 </property>
+                <property name="layoutMode">
+                 <enum>QListView::Batched</enum>
+                </property>
                </widget>
               </item>
              </layout>
@@ -1112,8 +1115,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>427</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1861,8 +1864,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>427</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2015,8 +2018,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>427</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2704,8 +2707,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>426</width>
-                   <height>771</height>
+                   <width>427</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3564,8 +3567,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>528</width>
-                   <height>758</height>
+                   <width>436</width>
+                   <height>749</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3918,8 +3921,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>437</width>
-                   <height>758</height>
+                   <width>427</width>
+                   <height>766</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5307,8 +5310,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>
