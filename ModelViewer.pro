@@ -89,7 +89,6 @@ HEADERS += AABB.h \
     MeshProperties.h \
     ModelObjectList.h \
     ModelViewer.h \
-    ObjMesh.h \
     ParametricSurface.h \
     Periwinkle.h \
     Plane.h \
@@ -168,7 +167,6 @@ SOURCES += AppleSurface.cpp \
     ToolPanel.cpp \
     main.cpp \
     MainWindow.cpp \
-    ObjMesh.cpp \
     ParametricSurface.cpp \
     Periwinkle.cpp \
     Plane.cpp \
