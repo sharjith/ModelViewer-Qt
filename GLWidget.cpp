@@ -85,6 +85,8 @@ _skyBox(nullptr)
 	_viewMode = ViewMode::ISOMETRIC;
 	_projection = ViewProjection::ORTHOGRAPHIC;
 
+	_autoFitViewOnUpdate = true;
+
 	_primaryCamera = new GLCamera(width(), height(), _viewRange, _FOV);
 	_primaryCamera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
 
@@ -461,6 +463,11 @@ void GLWidget::fitAll()
 	}
 }
 
+void GLWidget::setAutoFitViewOnUpdate(bool update)
+{
+	_autoFitViewOnUpdate = update;
+}
+
 void GLWidget::beginWindowZoom()
 {
 	_windowZoomActive = true;
@@ -556,9 +563,6 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		_primaryCamera->setPosition(0, 0, 0);
 		_currentTranslation = _primaryCamera->getPosition();
 		_boundingSphere.setRadius(1.0);
-		_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
-		_viewRange = _viewBoundingSphereDia;
-		_currentViewRange = _viewRange;
 	}
 	else
 	{
@@ -578,7 +582,6 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 			}
 		}
 		_displayedObjectsMemSize = memSize;
-		//qDebug() << "Display memory size: " << _displayedObjectsMemSize << " bytes";
 	}
 
 	if (_floorPlane)
@@ -586,7 +589,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		updateFloorPlane();
 	}
 
-	fitAll();
+	if(_autoFitViewOnUpdate)
+		fitAll();
+
 	update();
 
 	emit displayListSet();
@@ -633,7 +638,7 @@ void GLWidget::updateBoundingSphere()
 		updateFloorPlane();
 	}
 
-	fitAll();
+	//fitAll();
 	update();
 }
 
@@ -3476,12 +3481,7 @@ void GLWidget::animateFitAll()
 void GLWidget::animateWindowZoom()
 {
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
-		_lowResEnabled = true;
-	/*float fov = _primaryCamera->getFOV();
-	float perspRatio = _rubberBandZoomRatio - (_rubberBandZoomRatio * fov / 100);
-	QVector3D panRatio = (_rubberBandPan * fov / 100);
-	float zoom = _projection == ViewProjection::PERSPECTIVE ? perspRatio : _rubberBandZoomRatio;
-	QVector3D pan = _projection == ViewProjection::PERSPECTIVE ? panRatio : _rubberBandPan;*/
+		_lowResEnabled = true;	
 	setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
 	resizeGL(width(), height());
 }
@@ -3524,9 +3524,7 @@ void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, GLC
 		Z1 = Z1.project(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
 		QVector3D q(pixel.x(), height() - pixel.y() - 1, Z1.z());
 		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
-
-		//QVector3D viewDir = _primaryCamera->getViewDir();
-		//dir = viewDir;
+		
 		dir = (Q - P).normalized();
 	}
 	else

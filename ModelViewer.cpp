@@ -102,6 +102,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     _glWidget->layout()->addWidget(tabWidget);
     tabWidget->setAutoHide(true);
 
+	connect(checkBoxAutoFitView, SIGNAL(toggled(bool)), _glWidget, SLOT(setAutoFitViewOnUpdate(bool)));
+
     connect(_glWidget, &GLWidget::windowZoomEnded, this, [this](){
                 if(toolButtonWindowZoom->isChecked())
                     toolButtonWindowZoom->setChecked(false);
@@ -112,6 +114,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
+
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
 
@@ -395,6 +398,7 @@ void ModelViewer::updateDisplayList()
 		listWidgetModel->addItem(item);
 		id++;
 	}
+	_glWidget->fitAll();
 	on_listWidgetModel_itemChanged(nullptr);
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);

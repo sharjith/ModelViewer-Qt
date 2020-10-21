@@ -236,6 +236,7 @@ public slots:
 	void stopAnimations();
 	void checkAndStopTimers();
 	void fitAll();
+	void setAutoFitViewOnUpdate(bool update);
 	void performKeyboardNav();
 	void disableLowRes();
 	void lockLightAndCamera(bool lock);
@@ -343,6 +344,8 @@ private:
 	float _viewRange;
 	float _viewBoundingSphereDia;
 	float _FOV;
+
+	bool _autoFitViewOnUpdate;
 
 	QPoint _leftButtonPoint;
 	QPoint _rightButtonPoint;
