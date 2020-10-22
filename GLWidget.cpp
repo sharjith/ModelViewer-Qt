@@ -638,7 +638,6 @@ void GLWidget::updateBoundingSphere()
 		updateFloorPlane();
 	}
 
-	//fitAll();
 	update();
 }
 
@@ -4143,9 +4142,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			myMenu.addAction("Show Only", _viewer, SLOT(showOnlySelectedItems()));
 			myMenu.addAction("Duplicate", _viewer, SLOT(duplicateSelectedItems()));
 			myMenu.addAction("Delete", _viewer, SLOT(deleteSelectedItems()));
-
-			if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
-				myMenu.addAction("Mesh Info", _viewer, SLOT(displaySelectedMeshInfo()));
+			myMenu.addAction("Mesh Info", _viewer, SLOT(displaySelectedMeshInfo()));
 		}
 		else
 		{

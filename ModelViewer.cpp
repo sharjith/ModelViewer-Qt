@@ -473,10 +473,8 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction("Show", this, SLOT(showSelectedItems()));
 		myMenu.addAction("Show Only", this, SLOT(showOnlySelectedItems()));
 		myMenu.addAction("Duplicate", this, SLOT(duplicateSelectedItems()));
-		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
-
-		if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
-			myMenu.addAction("Mesh Info", this, SLOT(displaySelectedMeshInfo()));
+		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));		
+		myMenu.addAction("Mesh Info", this, SLOT(displaySelectedMeshInfo()));
 
 		// Show context menu at handling position
 		myMenu.exec(listWidgetModel->mapToGlobal(pos));
@@ -610,17 +608,40 @@ std::vector<int> ModelViewer::getSelectedIDs() const
 }
 
 void ModelViewer::displaySelectedMeshInfo()
-{
-	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-	int rowId = listWidgetModel->row(selectedItems.at(0));
-	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-	TriangleMesh* mesh = meshes.at(rowId);
-	if (mesh)
+{	
+	std::vector<int> selected = getSelectedIDs();
+	if (selected.size() != 0)
 	{
-		QString name = QString("Mesh name: %1\n").arg(mesh->getName());
-		QString points = QString("Points: %1\n").arg(mesh->getPoints().size() / 3);
-		QString triangles = QString("Triangles: %1\n").arg(mesh->getIndices().size() / 3);
-		unsigned long long rawmem = mesh->memorySize();
+		std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+		QString name;
+		size_t points = 0, triangles = 0;
+		unsigned long long rawmem = 0;
+		float surfArea = 0, volume = 0;
+		TriangleMesh* mesh = nullptr;
+		if (selected.size() > 1)
+			name = "Multiple Meshes\n";
+		else
+			name = meshes.at(selected[0])->getName() + "\n";
+		for (int id : selected)
+		{
+			mesh = meshes.at(id);
+			points += mesh->getPoints().size() / 3;
+			triangles += mesh->getIndices().size() / 3;
+			rawmem += mesh->memorySize();
+			try
+			{
+				MeshProperties props(mesh);
+				surfArea += props.surfaceArea();
+				volume += props.volume();
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
+			}
+		}
+
+		QString strpoints = QString("Points: %1\n").arg(points);
+		QString strtriangles = QString("Triangles: %1\n").arg(triangles);
 		unsigned long long mem = 0;
 		QString units;
 		if (rawmem < 1024)
@@ -645,16 +666,10 @@ void ModelViewer::displaySelectedMeshInfo()
 		}
 		QString meshSize = QString("Memory: %1 ").arg(mem) + units + "\n";
 		QString meshProps;
-		try
-		{
-			MeshProperties props(mesh);
-			meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(props.volume()).arg(props.surfaceArea());
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
-		}
-		QString info = name + points + triangles + meshSize + meshProps;
+
+		meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(volume).arg(surfArea);
+
+		QString info = name + strpoints + strtriangles + meshSize + meshProps;
 		QMessageBox::information(this, "Mesh Info", info);
 	}
 }
