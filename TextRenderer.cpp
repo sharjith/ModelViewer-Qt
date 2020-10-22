@@ -18,7 +18,7 @@ TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsig
 	else
 		projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(_width) * ratio, static_cast<float>(_height)));
 	_prog->setUniformValue("projection", projection);
-	_prog->setAttributeValue("text", 0);
+    _prog->setUniformValue("text", 0);
 	// Configure VAO/VBO for texture quads
 	//glGenVertexArrays(1, &this->VAO);
 	_charVAO.create();
@@ -109,7 +109,7 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
 	// Activate corresponding updateMatrix state
 	_prog->bind();
 	_prog->setUniformValue("textColor", QVector3D(color.x, color.y, color.z));
-	glActiveTexture(GL_TEXTURE0);
+    glActiveTexture(GL_TEXTURE0);
 	//glBindVertexArray(this->VAO);
 	_charVAO.bind();
 
