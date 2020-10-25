@@ -2,6 +2,7 @@
 #define MESHPROPERTIES_H
 
 #include <QObject>
+#include "BoundingBox.h"
 
 class TriangleMesh;
 class MeshProperties : public QObject
@@ -19,6 +20,8 @@ public:
 
 	float volume() const;
 
+	BoundingBox boundingBox() const;
+
 signals:
 
 private:
@@ -29,6 +32,7 @@ private:
 	std::vector<float> _meshPoints;
 	float _surfaceArea;
 	float _volume;
+	BoundingBox _boundingBox;
 };
 
 #endif // MESHPROPERTIES_H

@@ -618,10 +618,12 @@ void ModelViewer::displaySelectedMeshInfo()
 		unsigned long long rawmem = 0;
 		float surfArea = 0, volume = 0;
 		TriangleMesh* mesh = nullptr;
+		BoundingBox bbox;
 		if (selected.size() > 1)
 			name = "Multiple Meshes\n";
 		else
 			name = meshes.at(selected[0])->getName() + "\n";
+		int meshCount = 0;
 		for (int id : selected)
 		{
 			mesh = meshes.at(id);
@@ -633,11 +635,16 @@ void ModelViewer::displaySelectedMeshInfo()
 				MeshProperties props(mesh);
 				surfArea += props.surfaceArea();
 				volume += props.volume();
+				if (meshCount == 0)
+					bbox = props.boundingBox();
+				else
+					bbox.addBox(props.boundingBox());
 			}
 			catch (const std::exception& ex)
 			{
 				std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
 			}
+			meshCount++;
 		}
 
 		QString strpoints = QString("Points: %1\n").arg(points);
@@ -668,6 +675,12 @@ void ModelViewer::displaySelectedMeshInfo()
 		QString meshProps;
 
 		meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(volume).arg(surfArea);
+
+		meshProps += QString("Bounding Limits:\n\tXMin %1  XMax %2\n\tYMin %3  YMax %4\n\tZMin %5  ZMax %6\n")
+			.arg(bbox.xMin()).arg(bbox.xMax()).arg(bbox.yMin()).arg(bbox.yMax()).arg(bbox.zMin()).arg(bbox.zMax());
+
+		meshProps += QString("Bounding Size:\n\tX %1\n\tY %2\n\tZ %3")
+			.arg(fabs(bbox.xMax() - bbox.xMin())).arg(fabs(bbox.yMax() - bbox.yMin())).arg(fabs(bbox.zMax() - bbox.zMin()));
 
 		QString info = name + strpoints + strtriangles + meshSize + meshProps;
 		QMessageBox::information(this, "Mesh Info", info);

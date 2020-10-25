@@ -36,6 +36,11 @@ float MeshProperties::volume() const
 	return _volume;
 }
 
+BoundingBox MeshProperties::boundingBox() const
+{
+	return _mesh->getBoundingBox();
+}
+
 void MeshProperties::calculateSurfaceAreaAndVolume()
 {
 	_surfaceArea = 0;
