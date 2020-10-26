@@ -4,8 +4,9 @@
 #include <QtOpenGL>
 #include <QOpenGLFunctions_4_5_Core>
 
-class Drawable : public IDrawable, public QOpenGLFunctions_4_5_Core
+class Drawable : public QObject, public IDrawable, public QOpenGLFunctions_4_5_Core
 {
+    Q_OBJECT
 public:
 	Drawable(QOpenGLShaderProgram* prog);
 	virtual ~Drawable();

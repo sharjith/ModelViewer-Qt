@@ -58,7 +58,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 HEADERS += AABB.h \
     AppleSurface.h \
     AssImpMesh.h \
-    AssImpModel.h \
+    AssImpModelLoader.h \
     BackgroundColor.h \
     BentHorns.h \
     BoundingBox.h \
@@ -136,7 +136,7 @@ FORMS += \
     SpringEditor.ui
 SOURCES += AppleSurface.cpp \
     AssImpMesh.cpp \
-    AssImpModel.cpp \
+    AssImpModelLoader.cpp \
     BackgroundColor.cpp \
     BentHorns.cpp \
     BoundingBox.cpp \

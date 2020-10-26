@@ -8,6 +8,7 @@
 
 class TriangleMesh : public Drawable
 {
+    Q_OBJECT
 public:
 	TriangleMesh(QOpenGLShaderProgram* prog, const QString name);
 

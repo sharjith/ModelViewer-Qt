@@ -1412,11 +1412,8 @@ void ModelViewer::on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item)
 	item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
 }
 
-#include "AssImpModel.h"
 void ModelViewer::on_toolButtonOpen_clicked()
 {
-	AssImpModel* model = nullptr;
-
 	QString supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
 		"*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
 		"*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
@@ -1454,19 +1451,14 @@ void ModelViewer::on_toolButtonOpen_clicked()
 			_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 			QFileInfo fi(fileName);
 
-			model = _glWidget->loadAssImpModel(fileName);
-			
-			if (model)
-			{
-				updateDisplayList();
+            _glWidget->loadAssImpModel(fileName);
 
-				listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-				listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+            updateDisplayList();
 
-				updateDisplayList();
+            listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+            listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
-				delete model;
-			}			
+            updateDisplayList();
 		}
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();

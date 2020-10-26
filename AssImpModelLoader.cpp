@@ -1,47 +1,25 @@
-#include "AssImpModel.h"
+#include "AssImpModelLoader.h"
 
 using namespace std;
 
 /*  Functions   */
 // Constructor, expects a filepath to a 3D model.
-AssImpModel::AssImpModel(QOpenGLShaderProgram* prog, GLchar* path) : TriangleMesh(prog, "AssImpModel")
+AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog)
 {
-	_path = std::string(path);
-	this->loadModel(path);
-	QFileInfo f;
-	f.setFile(QString(path));
-	setAutoIncrName(f.baseName());
-	BoundingSphere sph;
-	for (unsigned int i = 0; i < this->meshes.size(); i++)
-	{		
-		sph.addSphere(this->meshes[i]->getBoundingSphere());
-	}
-	_boundingSphere = sph;
+    initializeOpenGLFunctions();
 }
 
-TriangleMesh* AssImpModel::clone()
+vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 {
-	return new AssImpModel(_prog, _path.data());
-}
-
-// Draws the model, and thus all its meshes
-void AssImpModel::render()
-{
-	for (unsigned int i = 0; i < this->meshes.size(); i++)
-	{
-		this->meshes[i]->render();
-	}
-}
-
-vector<AssImpMesh*> AssImpModel::getMeshes() const
-{
-	return meshes;
+    return _meshes;
 }
 
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
-void AssImpModel::loadModel(string path)
+void AssImpModelLoader::loadModel(string path)
 {
+    _path = std::string(path);
+    _meshes.clear();
 	// Read file via ASSIMP
 	Assimp::Importer importer;
 	const aiScene* scene = importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast 
@@ -61,7 +39,7 @@ void AssImpModel::loadModel(string path)
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-void AssImpModel::processNode(aiNode* node, const aiScene* scene)
+void AssImpModelLoader::processNode(aiNode* node, const aiScene* scene)
 {
 	// Process each mesh located at the current node
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
@@ -70,7 +48,7 @@ void AssImpModel::processNode(aiNode* node, const aiScene* scene)
 		// The scene contains all the data, node is just to keep stuff organized (like relations between nodes).
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 
-		this->meshes.push_back(this->processMesh(mesh, scene));
+        this->_meshes.push_back(this->processMesh(mesh, scene));
 	}
 
 	// After we've processed all of the meshes (if any) we then recursively process each of the children nodes
@@ -80,7 +58,7 @@ void AssImpModel::processNode(aiNode* node, const aiScene* scene)
 	}
 }
 
-AssImpMesh* AssImpModel::processMesh(aiMesh* mesh, const aiScene* scene)
+AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 {
 	// Data to fill
 	vector<Vertex> vertices;
@@ -222,7 +200,7 @@ AssImpMesh* AssImpModel::processMesh(aiMesh* mesh, const aiScene* scene)
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.
 // The required info is returned as a Texture struct.
-vector<Texture> AssImpModel::loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName)
+vector<Texture> AssImpModelLoader::loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName)
 {
 	vector<Texture> textures;
 
@@ -260,7 +238,7 @@ vector<Texture> AssImpModel::loadMaterialTextures(aiMaterial* mat, aiTextureType
 	return textures;
 }
 
-unsigned int AssImpModel::textureFromFile(const char* path, string directory)
+unsigned int AssImpModelLoader::textureFromFile(const char* path, string directory)
 {
 	//Generate texture ID and load texture data
 	string filename = string(path);
@@ -295,31 +273,4 @@ unsigned int AssImpModel::textureFromFile(const char* path, string directory)
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	return textureID;
-}
-
-bool AssImpModel::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
-{
-	bool intersects = false;
-
-	std::vector<AssImpMesh*> meshes = this->getMeshes();
-	for (AssImpMesh* mesh : meshes)
-	{
-		intersects = mesh->intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
-		if (intersects)
-			break;
-	}
-
-	return intersects;
-}
-
-void AssImpModel::select()
-{
-	for (AssImpMesh* mesh : meshes)
-		mesh->select();
-}
-
-void AssImpModel::deselect()
-{
-	for (AssImpMesh* mesh : meshes)
-		mesh->deselect();
 }

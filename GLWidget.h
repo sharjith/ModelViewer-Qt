@@ -21,9 +21,11 @@ class SuperEllipsoidEditor;
 class SpringEditor;
 class ClippingPlanesEditor;
 class GraysKleinEditor;
-class AssImpModel;
+class AssImpModelLoader;
 class Plane;
 class Cube;
+
+class AssImpModelLoader;
 
 class ModelViewer;
 
@@ -83,7 +85,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	AssImpModel* loadAssImpModel(QString fileName);
+    void loadAssImpModel(QString fileName);
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
@@ -510,6 +512,8 @@ private:
 	unsigned int _quadVBO;
 
 	unsigned long long _displayedObjectsMemSize;
+
+    AssImpModelLoader* _assimpModelLoader;
 };
 
 #endif
