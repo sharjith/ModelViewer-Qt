@@ -776,9 +776,10 @@ void GLWidget::deselect(int id)
 
 void GLWidget::loadAssImpModel(QString fileName)
 {
-    makeCurrent();
-    if(!_assimpModelLoader)
-        _assimpModelLoader = new AssImpModelLoader(_fgShader);
+    makeCurrent();    
+    MainWindow::showStatusMessage("Reading file: " + fileName);
+    MainWindow::showProgressBar();
+    qApp->processEvents();
     if (_assimpModelLoader)
     {
         _assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()));
@@ -786,6 +787,22 @@ void GLWidget::loadAssImpModel(QString fileName)
         for (AssImpMesh* mesh : meshes)
             addToDisplay(mesh);
     }
+    MainWindow::showStatusMessage("");
+    MainWindow::setProgressValue(0);
+    MainWindow::hideProgressBar();
+}
+
+void GLWidget::showMeshLoadingProgress(float percent)
+{
+    MainWindow::showStatusMessage(QString("Processing mesh: %1").arg(percent));
+    makeCurrent();
+}
+
+void GLWidget::showModelLoadingProgress(int nodeNum, int totalNodes)
+{
+    MainWindow::showStatusMessage(QString("Processing node: %1/%2").arg(nodeNum).arg(totalNodes));
+    MainWindow::setProgressValue((int)((float)nodeNum/(float)totalNodes*100.0f));
+    makeCurrent();
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
@@ -1632,6 +1649,10 @@ void GLWidget::initializeGL()
 
     createShaderPrograms();
 
+    _assimpModelLoader = new AssImpModelLoader(_fgShader);
+    connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
+    connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
+
     createCappingPlanes();
 
     createLights();
@@ -1877,7 +1898,7 @@ void GLWidget::createGeometry()
 #else
     fileName = "/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo/Logo.stl";
 #endif
-    loadAssImpModel(fileName);
+    //loadAssImpModel(fileName);
 }
 
 void GLWidget::loadFloor()

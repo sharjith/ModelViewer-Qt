@@ -85,7 +85,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-    void loadAssImpModel(QString fileName);
+    void loadAssImpModel(QString fileName);    
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
@@ -250,7 +250,9 @@ public slots:
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
 	void setScreenGamma(double screenGamma);
-	void showLights(bool showLights);
+    void showLights(bool showLights);
+    void showMeshLoadingProgress(float percent);
+    void showModelLoadingProgress(int nodeNum, int totalNodes);
 
 private slots:
 	void showContextMenu(const QPoint& pos);

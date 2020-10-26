@@ -35,11 +35,11 @@ void AssImpModelLoader::loadModel(string path)
 	this->directory = path.substr(0, path.find_last_of('/'));
 
 	// Process ASSIMP's root node recursively
-	this->processNode(scene->mRootNode, scene);
+    this->processNode(0, scene->mRootNode, scene);
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-void AssImpModelLoader::processNode(aiNode* node, const aiScene* scene)
+void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* scene)
 {
 	// Process each mesh located at the current node
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
@@ -54,8 +54,9 @@ void AssImpModelLoader::processNode(aiNode* node, const aiScene* scene)
 	// After we've processed all of the meshes (if any) we then recursively process each of the children nodes
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
 	{
-		this->processNode(node->mChildren[i], scene);
-	}
+        this->processNode(++nodeNum, node->mChildren[i], scene);
+        emit nodeProcessed(nodeNum, node->mNumChildren);
+    }
 }
 
 AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
@@ -67,8 +68,9 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 
 	// Walk through each of the mesh's vertices
 	int step = 0;
-	for (unsigned int i = 0; i < mesh->mNumVertices; i++)
-	{
+    unsigned int nbVertices = mesh->mNumVertices;
+    for (unsigned int i = 0; i < nbVertices; i++)
+	{        
 		step++;
 		Vertex vertex;
 		glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
@@ -124,7 +126,12 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 				step = 0;
 			}
 		}
-		vertices.push_back(vertex);
+        vertices.push_back(vertex);
+
+        if(i % 100000 == 0)
+        {
+            emit verticesProcessed(static_cast<float>(i)/nbVertices * 100.0f);
+        }
 	}
 
 	// Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.

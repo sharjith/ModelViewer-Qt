@@ -2,6 +2,8 @@
 
 #include <QMainWindow>
 
+class QProgressBar;
+
 namespace Ui
 {
 	class MainWindow;
@@ -18,6 +20,9 @@ public:
 	~MainWindow();
 
 	static void showStatusMessage(const QString& message);
+    static void showProgressBar();
+    static void hideProgressBar();
+    static void setProgressValue(const int& value);
 
 protected:
 	MainWindow(QWidget* parent = Q_NULLPTR);
@@ -42,9 +47,10 @@ private slots:
 
 private:
 	Ui::MainWindow* ui;
+    QProgressBar* _progressBar;
 	QList<ModelViewer*> _viewers;
 
-	bool _bFirstTime;
+    bool _bFirstTime;
 
 	static int _viewerCount;
 	static MainWindow* _mainWindow;

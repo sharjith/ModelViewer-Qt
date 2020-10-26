@@ -35,6 +35,10 @@ public:
 
     vector<AssImpMesh*> getMeshes() const;
 
+signals:
+    void verticesProcessed(float percent);
+    void nodeProcessed(int nodeNum, int totalNodes);
+
 private:
     QOpenGLShaderProgram* _prog;
 	std::string _path;
@@ -44,9 +48,9 @@ private:
 	vector<Texture> textures_loaded;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-	void processNode(aiNode* node, const aiScene* scene);
+    void processNode(int nodeNum, aiNode* node, const aiScene* scene);
 
-	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
+    AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
 	// The required info is returned as a Texture struct.

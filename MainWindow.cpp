@@ -3,6 +3,7 @@
 #include "ModelViewer.h"
 #include "GLWidget.h"
 #include <QtOpenGL>
+#include <QProgressBar>
 
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
@@ -19,6 +20,11 @@ MainWindow::MainWindow(QWidget* parent)
 
 	Q_INIT_RESOURCE(ModelViewer);
 
+
+    _progressBar = new QProgressBar(ui->statusBar);
+    ui->statusBar->addPermanentWidget(_progressBar);
+    _progressBar->hide();
+
 	setCentralWidget((ui->mdiArea));
 	ModelViewer* viewer = new ModelViewer(nullptr);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
@@ -34,7 +40,27 @@ MainWindow::~MainWindow()
 
 void MainWindow::showStatusMessage(const QString& message)
 {
-	_mainWindow->statusBar()->showMessage(message);
+    _mainWindow->statusBar()->showMessage(message);
+    _mainWindow->statusBar()->update();
+}
+
+void MainWindow::showProgressBar()
+{
+    _mainWindow->_progressBar->show();
+}
+
+void MainWindow::hideProgressBar()
+{
+    _mainWindow->_progressBar->hide();
+}
+
+void MainWindow::setProgressValue(const int& value)
+{
+    if(value == 0)
+        _mainWindow->_progressBar->reset();
+    else
+        _mainWindow->_progressBar->setValue(value);
+    _mainWindow->_progressBar->update();
 }
 
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
