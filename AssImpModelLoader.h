@@ -62,7 +62,7 @@ private:
 	/*  Model Data  */
     vector<AssImpMesh*> _meshes;
 	string directory;
-	vector<Texture> textures_loaded;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
+	vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
     void processNode(int nodeNum, aiNode* node, const aiScene* scene);

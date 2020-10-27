@@ -42,6 +42,7 @@ void AssImpModelLoader::loadModel(string path)
 {
     _path = std::string(path);
     _meshes.clear();
+	_loadedTextures.clear();
 	// Read file via ASSIMP		
 	const aiScene* scene = _importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast 
 		| aiProcess_ImproveCacheLocality);
@@ -240,11 +241,11 @@ vector<Texture> AssImpModelLoader::loadMaterialTextures(aiMaterial* mat, aiTextu
 		// Check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
 		GLboolean skip = false;
 
-		for (unsigned int j = 0; j < textures_loaded.size(); j++)
+		for (unsigned int j = 0; j < _loadedTextures.size(); j++)
 		{
-			if (textures_loaded[j].path == str)
+			if (_loadedTextures[j].path == str)
 			{
-				textures.push_back(textures_loaded[j]);
+				textures.push_back(_loadedTextures[j]);
 				skip = true; // A texture with the same filepath has already been loaded, continue to next one. (optimization)
 				break;
 			}
@@ -259,7 +260,7 @@ vector<Texture> AssImpModelLoader::loadMaterialTextures(aiMaterial* mat, aiTextu
 			texture.path = str;
 			textures.push_back(texture);
 
-			this->textures_loaded.push_back(texture);  // Store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
+			this->_loadedTextures.push_back(texture);  // Store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
 		}
 	}
 
