@@ -799,7 +799,7 @@ void GLWidget::showFileReadingProgress(float percent)
     makeCurrent();
 }
 
-void GLWidget::showMeshLoadingProgress(float percent)
+void GLWidget::showMeshLoadingProgress(float /*percent*/)
 {
     makeCurrent();
 }
