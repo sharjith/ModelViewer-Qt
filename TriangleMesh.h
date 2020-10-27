@@ -12,7 +12,7 @@ class TriangleMesh : public Drawable
 public:
 	TriangleMesh(QOpenGLShaderProgram* prog, const QString name);
 
-	virtual ~TriangleMesh();
+    virtual ~TriangleMesh();
 
 	virtual void setProg(QOpenGLShaderProgram* prog);
 
@@ -63,7 +63,7 @@ public:
 	bool hasTexture() const;
 	void enableTexture(const bool& bHasTexture);
 
-	void setTexureImage(const QImage& texImage);
+    void setTexureImage(const QImage& texImage);
 
 	void setPBRAlbedoColor(const float& r, const float& g, const float& b);
 	void setPBRMetallic(const float& val);
@@ -165,6 +165,8 @@ public:
 	void clearOpacityADSMap();
 	void clearAllADSMaps();
 
+    void deleteTextures();
+
 protected: // methods
 	virtual void initBuffers(
 		std::vector<unsigned int>* indices,
@@ -212,7 +214,7 @@ protected:
 
 	QImage _texImage, _texBuffer;
 	// ADS texture light maps
-	unsigned int _texture;
+    unsigned int _texture;
 	unsigned int _diffuseADSMap;
 	unsigned int _specularADSMap;
 	unsigned int _emissiveADSMap;
