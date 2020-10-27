@@ -15,11 +15,22 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/ProgressHandler.hpp>
+using namespace Assimp;
 
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
 
 using namespace std;
+
+class AssImpModelProgressHandler : public QObject, public ProgressHandler
+{
+    Q_OBJECT
+public:   
+    virtual bool Update(float percentage);
+signals:
+    void fileReadProcessed(float percent);
+};
 
 class AssImpModelLoader : public QObject, public QOpenGLFunctions_4_5_Core
 {
@@ -29,15 +40,21 @@ public:
 	// Constructor, expects a filepath to a 3D model.
     AssImpModelLoader(QOpenGLShaderProgram* prog);
 
+    ~AssImpModelLoader();
+
     /*  Functions   */
     // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
     void loadModel(string path);
 
-    vector<AssImpMesh*> getMeshes() const;
+    vector<AssImpMesh*> getMeshes() const;    
 
 signals:
+    void fileReadProcessed(float percent);
     void verticesProcessed(float percent);
     void nodeProcessed(int nodeNum, int totalNodes);
+
+public slots:
+    void processFileReadProgress(float percentage);
 
 private:
     QOpenGLShaderProgram* _prog;
@@ -57,4 +74,7 @@ private:
 	vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName);
 
 	unsigned int textureFromFile(const char* path, string directory);
+
+    Assimp::Importer _importer;
+    AssImpModelProgressHandler* _progHandler;
 };

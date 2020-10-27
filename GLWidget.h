@@ -251,7 +251,8 @@ public slots:
 	void enableGammaCorrection(bool gammaCorrection);
 	void setScreenGamma(double screenGamma);
     void showLights(bool showLights);
-    void showMeshLoadingProgress(float percent);
+	void showFileReadingProgress(float percent);
+	void showMeshLoadingProgress(float percent);
     void showModelLoadingProgress(int nodeNum, int totalNodes);
 
 private slots:

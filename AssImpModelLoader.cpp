@@ -2,11 +2,33 @@
 
 using namespace std;
 
+bool AssImpModelProgressHandler::Update(float percentage)
+{
+	emit fileReadProcessed(percentage);	
+	return true;
+}
+
+
 /*  Functions   */
 // Constructor, expects a filepath to a 3D model.
 AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog)
 {
     initializeOpenGLFunctions();
+	_progHandler = new AssImpModelProgressHandler();
+	_importer.SetProgressHandler(_progHandler);
+	connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
+}
+
+AssImpModelLoader::~AssImpModelLoader()
+{
+	disconnect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
+	//delete _progHandler; // causes crash
+	_progHandler = nullptr;	
+}
+
+void AssImpModelLoader::processFileReadProgress(float percentage)
+{
+	emit fileReadProcessed(percentage);
 }
 
 vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
@@ -20,15 +42,14 @@ void AssImpModelLoader::loadModel(string path)
 {
     _path = std::string(path);
     _meshes.clear();
-	// Read file via ASSIMP
-	Assimp::Importer importer;
-	const aiScene* scene = importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast 
+	// Read file via ASSIMP		
+	const aiScene* scene = _importer.ReadFile(path, aiProcessPreset_TargetRealtime_Fast 
 		| aiProcess_ImproveCacheLocality);
 
 	// Check for errors
 	if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
 	{
-		cout << "ERROR::ASSIMP:: " << importer.GetErrorString() << endl;
+		cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
 		return;
 	}
 	// Retrieve the directory path of the filepath
@@ -281,3 +302,4 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, string directo
 
 	return textureID;
 }
+

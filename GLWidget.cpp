@@ -792,6 +792,13 @@ void GLWidget::loadAssImpModel(QString fileName)
     MainWindow::hideProgressBar();
 }
 
+
+void GLWidget::showFileReadingProgress(float percent)
+{
+    MainWindow::setProgressValue((int)((float)percent * 100.0f));
+    makeCurrent();
+}
+
 void GLWidget::showMeshLoadingProgress(float percent)
 {
     MainWindow::showStatusMessage(QString("Processing mesh: %1").arg(percent));
@@ -1650,8 +1657,10 @@ void GLWidget::initializeGL()
     createShaderPrograms();
 
     _assimpModelLoader = new AssImpModelLoader(_fgShader);
+    connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
+    
 
     createCappingPlanes();
 
@@ -3875,6 +3884,7 @@ void GLWidget::showLights(bool showLights)
     _showLights = showLights;
     update();
 }
+
 
 float GLWidget::getScreenGamma() const
 {
