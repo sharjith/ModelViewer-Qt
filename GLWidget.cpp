@@ -779,7 +779,6 @@ void GLWidget::loadAssImpModel(QString fileName)
     makeCurrent();    
     MainWindow::showStatusMessage("Reading file: " + fileName);
     MainWindow::showProgressBar();
-    qApp->processEvents();
     if (_assimpModelLoader)
     {
         _assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()));
