@@ -801,7 +801,6 @@ void GLWidget::showFileReadingProgress(float percent)
 
 void GLWidget::showMeshLoadingProgress(float percent)
 {
-    MainWindow::showStatusMessage(QString("Processing mesh: %1").arg(percent));
     makeCurrent();
 }
 

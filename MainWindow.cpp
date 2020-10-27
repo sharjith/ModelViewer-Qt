@@ -42,6 +42,7 @@ void MainWindow::showStatusMessage(const QString& message)
 {
     _mainWindow->statusBar()->showMessage(message);
     _mainWindow->statusBar()->update();
+	qApp->processEvents(QEventLoop::ExcludeUserInputEvents, 10);
 }
 
 void MainWindow::showProgressBar()
@@ -61,6 +62,7 @@ void MainWindow::setProgressValue(const int& value)
     else
         _mainWindow->_progressBar->setValue(value);
     _mainWindow->_progressBar->update();
+	qApp->processEvents(QEventLoop::ExcludeUserInputEvents, 10);
 }
 
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
