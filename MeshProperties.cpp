@@ -51,21 +51,21 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 		for (size_t i = 0; i < indices.size();)
 		{
 			// Vertex 1
-			QVector3D p1(_meshPoints[offset * indices[i] + 0], // x coordinate
-				_meshPoints[offset * indices[i] + 1],          // y coordinate
-				_meshPoints[offset * indices[i] + 2]);         // z coordinate
+			QVector3D p1(_meshPoints.at(offset * indices.at(i) + 0), // x coordinate
+				_meshPoints.at(offset * indices.at(i) + 1),          // y coordinate
+				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
 			i++;
 
 			// Vertex 2
-			QVector3D p2(_meshPoints[offset * indices[i] + 0], // x coordinate
-				_meshPoints[offset * indices[i] + 1],          // y coordinate
-				_meshPoints[offset * indices[i] + 2]);         // z coordinate
+			QVector3D p2(_meshPoints.at(offset * indices.at(i) + 0), // x coordinate
+				_meshPoints.at(offset * indices.at(i) + 1),          // y coordinate
+				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
 			i++;
 
 			// Vertex 3
-			QVector3D p3(_meshPoints[offset * indices[i] + 0], // x coordinate
-				_meshPoints[offset * indices[i] + 1],          // y coordinate
-				_meshPoints[offset * indices[i] + 2]);         // z coordinate
+			QVector3D p3(_meshPoints.at(offset * indices.at(i) + 0), // x coordinate
+				_meshPoints.at(offset * indices.at(i) + 1),          // y coordinate
+				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
 			i++;
 
 			_volume += QVector3D::dotProduct(p1, (QVector3D::crossProduct(p2, p3))) / 6.0f;

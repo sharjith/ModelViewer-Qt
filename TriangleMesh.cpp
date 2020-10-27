@@ -510,7 +510,7 @@ void TriangleMesh::render()
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
-	_prog->release();	
+	_prog->release();
 	glDisable(GL_BLEND);
 }
 
@@ -943,29 +943,34 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 	{
 		return intersects;
 	}
-	size_t offset = 3; // each index points to 3 floats
-	for (size_t i = 0; i < _indices.size();)
-	{
-		// Vertex 1
-		QVector3D v1(_trsfpoints[offset * _indices[i] + 0], // x coordinate
-			_trsfpoints[offset * _indices[i] + 1],          // y coordinate
-			_trsfpoints[offset * _indices[i] + 2]);         // z coordinate
-		i++;
+	try {
+		size_t offset = 3; // each index points to 3 floats
+		for (size_t i = 0; i < _indices.size() - offset;)
+		{
+			// Vertex 1
+			QVector3D v1(_trsfpoints.at(offset * _indices.at(i) + 0), // x coordinate
+				_trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
+				_trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+			i++;
 
-		// Vertex 2
-		QVector3D v2(_trsfpoints[offset * _indices[i] + 0], // x coordinate
-			_trsfpoints[offset * _indices[i] + 1],          // y coordinate
-			_trsfpoints[offset * _indices[i] + 2]);         // z coordinate
-		i++;
+			// Vertex 2
+			QVector3D v2(_trsfpoints.at(offset * _indices.at(i) + 0), // x coordinate
+			_trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
+				_trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+			i++;
 
-		// Vertex 3
-		QVector3D v3(_trsfpoints[offset * _indices[i] + 0], // x coordinate
-			_trsfpoints[offset * _indices[i] + 1],          // y coordinate
-			_trsfpoints[offset * _indices[i] + 2]);         // z coordinate
-		i++;
-		intersects = rayIntersectsTriangle(rayPos, rayDir, v1, v2, v3, outIntersectionPoint);
-		if (intersects)
-			break;
+			// Vertex 3
+			QVector3D v3(_trsfpoints[offset * _indices.at(i) + 0], // x coordinate
+				_trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
+				_trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+			i++;
+			intersects = rayIntersectsTriangle(rayPos, rayDir, v1, v2, v3, outIntersectionPoint);
+			if (intersects)
+				break;
+		}
+	}
+	catch (const std::exception& ex) {
+		std::cout << "Exception raised in TriangleMesh::intersectsWithRay\n" << ex.what() << std::endl;
 	}
 
 	return intersects;
