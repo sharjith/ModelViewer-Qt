@@ -3397,9 +3397,14 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     if (_keys[Qt::Key_Home])
         fitAll();
     if (_keys[Qt::Key_Delete])
-        _viewer->deleteSelectedItems();
+        _viewer->deleteSelectedItems();    
     if (_keys[Qt::Key_Space])
-        _viewer->hideSelectedItems();
+    {
+        if(event->modifiers()& Qt::ShiftModifier)
+            _viewer->showOnlySelectedItems();
+        else
+            _viewer->hideSelectedItems();
+    }
 
     update();
 }
