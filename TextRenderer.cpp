@@ -38,7 +38,17 @@ TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsig
 	//glBindBuffer(GL_ARRAY_BUFFER, 0);
 	_charVBO.release();
 	//glBindVertexArray(0);
-	_charVAO.release();
+    _charVAO.release();
+}
+
+TextRenderer::~TextRenderer()
+{
+    for(auto el : _characters)
+    {
+        unsigned int texture = el.second.TextureID;
+        std::cout << "TextRenderer::~TextRenderer : texture = " << texture << std::endl;
+        glDeleteTextures(1, &texture);
+    }
 }
 
 void TextRenderer::Load(std::string font, unsigned int fontSize)

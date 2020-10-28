@@ -26,6 +26,7 @@ public:
 public:
 	// Constructor
 	TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsigned int height);
+    ~TextRenderer();
 	// Pre-compiles a list of characters from the given font
 	void Load(std::string font, unsigned int fontSize);
 	// Renders a string of text using the precompiled list of characters
