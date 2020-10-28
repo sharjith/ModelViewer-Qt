@@ -70,6 +70,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 		// Generate texture
 		unsigned int texture;
 		glGenTextures(1, &texture);
+		std::cout << "TextRenderer::Load : _texture = " << texture << std::endl;
 		glBindTexture(GL_TEXTURE_2D, texture);
 		glTexImage2D(
 			GL_TEXTURE_2D,
