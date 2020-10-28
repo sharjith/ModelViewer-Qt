@@ -456,6 +456,46 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 	QWidget::keyPressEvent(event);
 }
 
+void ModelViewer::dragEnterEvent(QDragEnterEvent *event)
+{
+    if (event->mimeData()->hasUrls())
+    {
+        event->acceptProposedAction();
+    }
+}
+
+void ModelViewer::dropEvent(QDropEvent *event)
+{
+    QString supportedExtensions = "dae xml blend bvh 3ds ase obj ply dxf ifc "
+        "nff smd vta mdl md2 md3 pk3 mdc md5mesh md5anim "
+        "md5camera x q3o q3s raw ac stl dxf irrmesh xml "
+        "irr off. ter mdl hmp mesh.xml skeleton.xml material "
+        "ms3d lwo lws lxo csm ply cob scn xgl zgl";
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    foreach (const QUrl &url, event->mimeData()->urls())
+    {
+        QString fileName = url.toLocalFile();
+        _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+        QFileInfo fi(fileName);
+        QString extn = fi.completeSuffix();
+        if(!supportedExtensions.contains(extn))
+        {
+            QMessageBox::critical(this, "Error", "Unsupported file format");
+            QApplication::restoreOverrideCursor();
+            return;
+        }
+        _glWidget->loadAssImpModel(fileName);
+
+        updateDisplayList();
+
+        listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+        listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+
+        updateDisplayList();
+    }
+    QApplication::restoreOverrideCursor();
+}
+
 void ModelViewer::showContextMenu(const QPoint& pos)
 {
 	setFocus();

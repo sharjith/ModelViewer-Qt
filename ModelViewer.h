@@ -201,6 +201,8 @@ private slots:
 protected:
 	void showEvent(QShowEvent* event);
 	void keyPressEvent(QKeyEvent* event);
+    void dragEnterEvent(QDragEnterEvent *event);
+    void dropEvent(QDropEvent *event);
 
 private:
 	GLWidget* _glWidget;
