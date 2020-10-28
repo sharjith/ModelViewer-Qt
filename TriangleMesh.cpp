@@ -70,7 +70,7 @@ TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Dra
     _texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
 
     glGenTextures(1, &_texture);
-    std::cout << "TriangleMesh::TriangleMesh : _texture = " << _texture << std::endl;
+    //std::cout << "TriangleMesh::TriangleMesh : _texture = " << _texture << std::endl;
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, _texture);
 
@@ -517,7 +517,7 @@ void TriangleMesh::render()
 
 void TriangleMesh::deleteTextures()
 {
-    std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
+    //std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
     if(_texture)
         glDeleteTextures(1, &_texture);
     if(_diffuseADSMap)
