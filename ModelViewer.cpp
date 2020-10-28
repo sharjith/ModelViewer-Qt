@@ -386,9 +386,10 @@ void ModelViewer::updateDisplayList()
 	std::vector<TriangleMesh*> store = _glWidget->getMeshStore();
 	std::vector<int> ids = _glWidget->getDisplayedObjectsIds();
 	int id = 0;
+	QListWidgetItem* item = nullptr;
 	for (TriangleMesh* mesh : store)
 	{
-		QListWidgetItem* item = new QListWidgetItem(mesh->getName());
+		item = new QListWidgetItem(mesh->getName());
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable); // set checkable flag
 		// AND initialize check state
 		if (std::count(ids.begin(), ids.end(), id))
@@ -399,7 +400,7 @@ void ModelViewer::updateDisplayList()
 		id++;
 	}
 	_glWidget->fitAll();
-	on_listWidgetModel_itemChanged(nullptr);
+	on_listWidgetModel_itemChanged(item);
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);
 	sliderLightPosY->setRange(-range, range);
@@ -518,6 +519,7 @@ void ModelViewer::deleteSelectedItems()
 		{
 			QApplication::setOverrideCursor(Qt::WaitCursor);
 			_deletionInProgress = true;
+			int rowId = 0;
 			// If multiple selection is on, we need to erase all selected items
 			for (QListWidgetItem* item : selectedItems)
 			{
@@ -525,7 +527,7 @@ void ModelViewer::deleteSelectedItems()
 			}
 			for (QListWidgetItem* item : selectedItems)
 			{
-				int rowId = listWidgetModel->row(item);
+				rowId = listWidgetModel->row(item);
 
 				// Remove the displayed object
 				_glWidget->removeFromDisplay(rowId);
@@ -537,8 +539,8 @@ void ModelViewer::deleteSelectedItems()
 			}
 			if (listWidgetModel->count())
 			{
-				listWidgetModel->setCurrentRow(0);
-				on_listWidgetModel_itemChanged(nullptr);
+				listWidgetModel->setCurrentRow(rowId);
+				on_listWidgetModel_itemChanged(listWidgetModel->item(rowId));				
 			}
 			_glWidget->update();
 			_deletionInProgress = false;
@@ -1357,7 +1359,7 @@ void ModelViewer::on_pushButtonYellowRubber_clicked()
 	}
 }
 
-void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
+void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 {
 	if (listWidgetModel->count())
 	{
@@ -1371,6 +1373,8 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem*)
 				ids.push_back(rowId);
 			}
 		}
+
+		listWidgetModel->scrollToItem(item);
 
 		// Update the tristate checkbox
 		checkBoxSelectAll->blockSignals(true);

@@ -1676,7 +1676,6 @@ void GLWidget::initializeGL()
     connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
     
-
     createCappingPlanes();
 
     createLights();
@@ -3722,6 +3721,9 @@ int GLWidget::mouseSelect(const QPoint& pixel)
             camera = _orthoViewsCamera;
         }
     }
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    
     convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
 
     QMap<int, float> selectedIdsDist;
@@ -3758,6 +3760,9 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         id = selectedIdsDist.key(lowestDist);
     }
     //qDebug() << "Selected Id: " << id;
+
+    QApplication::restoreOverrideCursor();
+
     emit singleSelectionDone(id);
     return id;
 }
@@ -3776,6 +3781,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
     }
 
     QRect viewport = getViewportFromPoint(pixel);
+    QApplication::setOverrideCursor(Qt::WaitCursor);
     for (int i : _displayedObjectsIds)
     {
         TriangleMesh* mesh = _meshStore.at(i);
@@ -3788,6 +3794,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
             ids.push_back(i);
         }
     }
+    QApplication::restoreOverrideCursor();
 
     emit sweepSelectionDone(ids);
     return ids;
