@@ -551,7 +551,7 @@ void TriangleMesh::deleteTextures()
 TriangleMesh::~TriangleMesh()
 {
     deleteBuffers();
-    deleteTextures();
+    //deleteTextures();
 }
 
 void TriangleMesh::deleteBuffers()
