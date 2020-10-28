@@ -116,6 +116,7 @@ void MainWindow::on_actionNew_triggered()
 
 void MainWindow::on_actionTile_Horizontally_triggered()
 {
+    ui->mdiArea->tileSubWindows();
 	QMdiArea* mdiArea = ui->mdiArea;
 	if (mdiArea->subWindowList().isEmpty())
 		return;
@@ -133,6 +134,7 @@ void MainWindow::on_actionTile_Horizontally_triggered()
 
 void MainWindow::on_actionTile_Vertically_triggered()
 {
+    ui->mdiArea->tileSubWindows();
 	QMdiArea* mdiArea = ui->mdiArea;
 	if (mdiArea->subWindowList().isEmpty())
 		return;
