@@ -68,8 +68,12 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _springEditor(nullptr),
     _graysKleinEditor(nullptr),
     _clippingPlanesEditor(nullptr),
+    _clippingPlaneXY(nullptr),
+    _clippingPlaneYZ(nullptr),
+    _clippingPlaneZX(nullptr),
     _floorPlane(nullptr),
     _skyBox(nullptr),
+    _lightCube(nullptr),
     _assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
@@ -263,18 +267,32 @@ GLWidget::~GLWidget()
 
     cleanUpShaders();
 
-    //std::cout << "GLWidget::~GLWidget : _environmentMap = " << _environmentMap << std::endl;
+
+    std::cout << "GLWidget::~GLWidget : _environmentMap = " << _environmentMap << std::endl;
     glDeleteTextures(1, &_environmentMap);
-    //std::cout << "GLWidget::~GLWidget : _shadowMap = " << _shadowMap << std::endl;
+    std::cout << "GLWidget::~GLWidget : _shadowMap = " << _shadowMap << std::endl;
     glDeleteTextures(1, &_shadowMap);
-    //std::cout << "GLWidget::~GLWidget : _irradianceMap = " << _irradianceMap << std::endl;
+    std::cout << "GLWidget::~GLWidget : _irradianceMap = " << _irradianceMap << std::endl;
     glDeleteTextures(1, &_irradianceMap);
-    //std::cout << "GLWidget::~GLWidget : _prefilterMap = " << _prefilterMap << std::endl;
+    std::cout << "GLWidget::~GLWidget : _prefilterMap = " << _prefilterMap << std::endl;
     glDeleteTextures(1, &_prefilterMap);
-    //std::cout << "GLWidget::~GLWidget : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
+    std::cout << "GLWidget::~GLWidget : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
     glDeleteTextures(1, &_brdfLUTTexture);
-    //std::cout << "GLWidget::~GLWidget : _cappingTexture = " << _cappingTexture << std::endl;
+    std::cout << "GLWidget::~GLWidget : _cappingTexture = " << _cappingTexture << std::endl;
     glDeleteTextures(1, &_cappingTexture);
+
+    if (_clippingPlaneXY)
+        delete _clippingPlaneXY;
+    if (_clippingPlaneYZ)
+        delete _clippingPlaneYZ;
+    if (_clippingPlaneZX)
+        delete _clippingPlaneZX;
+    if (_floorPlane)
+        delete _floorPlane;
+    if (_skyBox)
+        delete _skyBox;
+    if (_lightCube)
+        delete _lightCube;
 
     _axisVBO.destroy();
     _axisVAO.destroy();
@@ -1675,6 +1693,14 @@ void GLWidget::initializeGL()
     connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
+
+    // Text rendering
+    _textShader->bind();
+    _textRenderer = new TextRenderer(_textShader, width(), height());
+    _textRenderer->Load("fonts/arial.ttf", 20);
+    _axisTextRenderer = new TextRenderer(_textShader, width(), height());
+    _axisTextRenderer->Load("fonts/arialbd.ttf", 16);
+    _textShader->release();
     
     createCappingPlanes();
 
@@ -1688,13 +1714,6 @@ void GLWidget::initializeGL()
     loadFloor();
 
     createGeometry();
-
-    _textShader->bind();
-    _textRenderer = new TextRenderer(_textShader, width(), height());
-    _textRenderer->Load("fonts/arial.ttf", 20);
-    _axisTextRenderer = new TextRenderer(_textShader, width(), height());
-    _axisTextRenderer->Load("fonts/arialbd.ttf", 16);
-    _textShader->release();
 
     // Set lighting information
     _fgShader->bind();
@@ -1932,10 +1951,9 @@ void GLWidget::loadFloor()
     if (_shadowMap == 0)
     {
         glGenTextures(1, &_shadowMap);
-        //std::cout << "GLWidget::loadFloor : _shadowMap = " << _shadowMap << std::endl;
+        std::cout << "GLWidget::loadFloor : _shadowMap = " << _shadowMap << std::endl;
         glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, _shadowMap);
-        //glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
         glGenerateMipmap(GL_TEXTURE_2D);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
@@ -1998,7 +2016,7 @@ void GLWidget::loadEnvMap()
 
     glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     glGenTextures(1, &_environmentMap);
-    //std::cout << "GLWidget::loadEnvMap : _environmentMap = " << _environmentMap << std::endl;
+    std::cout << "GLWidget::loadEnvMap : _environmentMap = " << _environmentMap << std::endl;
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
@@ -2076,7 +2094,7 @@ void GLWidget::loadIrradianceMap()
     if (_irradianceMap)
         glDeleteTextures(1, &_irradianceMap);
     glGenTextures(1, &_irradianceMap);
-    //std::cout << "GLWidget::loadIrradianceMap : _irradianceMap = " << _irradianceMap << std::endl;
+    std::cout << "GLWidget::loadIrradianceMap : _irradianceMap = " << _irradianceMap << std::endl;
     glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
     for (unsigned int i = 0; i < 6; ++i)
     {
@@ -2121,7 +2139,7 @@ void GLWidget::loadIrradianceMap()
     if (_prefilterMap)
         glDeleteTextures(1, &_prefilterMap);
     glGenTextures(1, &_prefilterMap);
-    //std::cout << "GLWidget::loadIrradianceMap : _prefilterMap = " << _prefilterMap << std::endl;
+    std::cout << "GLWidget::loadIrradianceMap : _prefilterMap = " << _prefilterMap << std::endl;
     glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
     for (unsigned int i = 0; i < 6; ++i)
     {
@@ -2178,7 +2196,7 @@ void GLWidget::loadIrradianceMap()
     if (_brdfLUTTexture)
         glDeleteTextures(1, &_brdfLUTTexture);
     glGenTextures(1, &_brdfLUTTexture);
-    //std::cout << "GLWidget::loadIrradianceMap : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
+    std::cout << "GLWidget::loadIrradianceMap : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
 
     // pre-allocate enough memory for the LUT texture.
     glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
@@ -3665,7 +3683,7 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 {
     unsigned int textureID;
     glGenTextures(1, &textureID);
-    //std::cout << "GLWidget::loadTextureFromFile : textureID = " << textureID << std::endl;
+    std::cout << "GLWidget::loadTextureFromFile : textureID = " << textureID << std::endl;
 
     int width, height, nrComponents;
     unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 0);

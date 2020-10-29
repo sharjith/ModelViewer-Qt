@@ -43,12 +43,17 @@ TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsig
 
 TextRenderer::~TextRenderer()
 {
-    for(auto el : _characters)
-    {
-        unsigned int texture = el.second.TextureID;
-        //std::cout << "TextRenderer::~TextRenderer : texture = " << texture << std::endl;
-        glDeleteTextures(1, &texture);
-    }
+	deleteTextures();
+}
+
+void TextRenderer::deleteTextures()
+{
+	for (auto el : _characters)
+	{
+		unsigned int texture = el.second.TextureID;
+		std::cout << "TextRenderer::~TextRenderer : texture = " << texture << std::endl;
+		glDeleteTextures(1, &texture);
+	}
 }
 
 void TextRenderer::Load(std::string font, unsigned int fontSize)
@@ -67,7 +72,9 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 	// Set size to load glyphs as
 	FT_Set_Pixel_Sizes(face, 0, _fontSize);
 	// Disable byte-alignment restriction
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);	
+	// clear existing textures if any
+	deleteTextures();
 	// Then for the first 128 ASCII characters, pre-load/compile their characters and store them
 	for (unsigned char c = 0; c < 128; c++)
 	{
@@ -80,7 +87,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 		// Generate texture
 		unsigned int texture;
 		glGenTextures(1, &texture);
-        //std::cout << "TextRenderer::Load : _texture = " << texture << std::endl;
+        std::cout << "TextRenderer::Load : _texture = " << texture << std::endl;
 		glBindTexture(GL_TEXTURE_2D, texture);
 		glTexImage2D(
 			GL_TEXTURE_2D,

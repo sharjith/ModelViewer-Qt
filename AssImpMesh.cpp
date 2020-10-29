@@ -10,6 +10,10 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex
 	_vertices = vertices;
 	_indices = indices;
 	_textures = textures;
+	for (Texture t : _textures)
+	{
+		std::cout << "AssImpMesh::AssImpMesh : texture = " << t.id << std::endl;
+	}
 
 	_material = material;
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
@@ -22,6 +26,7 @@ AssImpMesh::~AssImpMesh()
 	{
 		for (Texture t : _textures)
 		{
+			std::cout << "AssImpMesh::~AssImpMesh : texture = " << t.id << std::endl;
 			glDeleteTextures(1, &t.id);
 		}
 	}
