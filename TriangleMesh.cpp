@@ -518,34 +518,35 @@ void TriangleMesh::render()
 void TriangleMesh::deleteTextures()
 {
     std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
-    if(_texture)
-        glDeleteTextures(1, &_texture);
-    if(_diffuseADSMap)
-        glDeleteTextures(1, &_diffuseADSMap);
-    if(_specularADSMap)
-        glDeleteTextures(1, &_specularADSMap);
-    if(_emissiveADSMap)
-        glDeleteTextures(1, &_emissiveADSMap);
-    if(_normalADSMap)
-        glDeleteTextures(1, &_normalADSMap);
-    if(_heightADSMap)
-        glDeleteTextures(1, &_heightADSMap);
-    if(_opacityADSMap)
-        glDeleteTextures(1, &_opacityADSMap);
-    if(_albedoPBRMap)
-        glDeleteTextures(1, &_albedoPBRMap);
-    if(_metallicPBRMap)
-        glDeleteTextures(1, &_metallicPBRMap);
-    if(_roughnessPBRMap)
-        glDeleteTextures(1, &_roughnessPBRMap);
-    if(_normalPBRMap)
-        glDeleteTextures(1, &_normalPBRMap);
-    if(_aoPBRMap)
-        glDeleteTextures(1, &_aoPBRMap);
-    if(_heightPBRMap)
-        glDeleteTextures(1, &_heightPBRMap);
-    if(_opacityPBRMap)
-        glDeleteTextures(1, &_opacityPBRMap);
+
+    glBindTexture(_texture, 0);
+    glDeleteTextures(1, &_texture);
+    glBindTexture(_diffuseADSMap, 0);
+    glDeleteTextures(1, &_diffuseADSMap);
+    glBindTexture(_specularADSMap, 0);
+    glDeleteTextures(1, &_specularADSMap);
+    glBindTexture(_emissiveADSMap, 0);
+    glDeleteTextures(1, &_emissiveADSMap);
+    glBindTexture(_normalADSMap, 0);
+    glDeleteTextures(1, &_normalADSMap);
+    glBindTexture(_heightADSMap, 0);
+    glDeleteTextures(1, &_heightADSMap);
+    glBindTexture(_opacityADSMap, 0);
+    glDeleteTextures(1, &_opacityADSMap);
+    glBindTexture(_albedoPBRMap, 0);
+    glDeleteTextures(1, &_albedoPBRMap);
+    glBindTexture(_metallicPBRMap, 0);
+    glDeleteTextures(1, &_metallicPBRMap);
+    glBindTexture(_roughnessPBRMap, 0);
+    glDeleteTextures(1, &_roughnessPBRMap);
+    glBindTexture(_normalPBRMap, 0);
+    glDeleteTextures(1, &_normalPBRMap);
+    glBindTexture(_aoPBRMap, 0);
+    glDeleteTextures(1, &_aoPBRMap);
+    glBindTexture(_heightPBRMap, 0);
+    glDeleteTextures(1, &_heightPBRMap);
+    glBindTexture(_opacityPBRMap, 0);
+    glDeleteTextures(1, &_opacityPBRMap);
 }
 
 TriangleMesh::~TriangleMesh()
