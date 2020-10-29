@@ -1032,49 +1032,50 @@
          </property>
          <layout class="QGridLayout" name="gridLayout_15">
           <item row="0" column="0">
-           <widget class="QSplitter" name="splitter_3">
+           <widget class="QSplitter" name="splitter_2">
             <property name="orientation">
              <enum>Qt::Vertical</enum>
             </property>
-            <widget class="QSplitter" name="splitter_2">
-             <property name="orientation">
-              <enum>Qt::Vertical</enum>
-             </property>
-             <widget class="QWidget" name="layoutWidget">
-              <layout class="QHBoxLayout" name="horizontalLayout_27">
-               <item>
-                <widget class="QCheckBox" name="checkBoxSelectAll">
-                 <property name="text">
-                  <string>Hide/Show All</string>
-                 </property>
-                 <property name="tristate">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="checkBoxAutoFitView">
-                 <property name="text">
-                  <string>Auto Fit View On Hide/Show</string>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-             <widget class="ModelObjectList" name="listWidgetModel">
-              <property name="styleSheet">
-               <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
-              </property>
-              <property name="selectionMode">
-               <enum>QAbstractItemView::ExtendedSelection</enum>
-              </property>
-              <property name="layoutMode">
-               <enum>QListView::Batched</enum>
-              </property>
-             </widget>
+            <widget class="QWidget" name="">
+             <layout class="QVBoxLayout" name="verticalLayout">
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_27">
+                <item>
+                 <widget class="QCheckBox" name="checkBoxSelectAll">
+                  <property name="text">
+                   <string>Hide/Show All</string>
+                  </property>
+                  <property name="tristate">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QCheckBox" name="checkBoxAutoFitView">
+                  <property name="text">
+                   <string>Auto Fit View On Hide/Show</string>
+                  </property>
+                  <property name="checked">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="ModelObjectList" name="listWidgetModel">
+                <property name="styleSheet">
+                 <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
+                </property>
+                <property name="selectionMode">
+                 <enum>QAbstractItemView::ExtendedSelection</enum>
+                </property>
+                <property name="layoutMode">
+                 <enum>QListView::Batched</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
             </widget>
             <widget class="QWidget" name="layoutWidget1">
              <layout class="QVBoxLayout" name="verticalLayout_5">
@@ -1132,7 +1133,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>461</width>
-                   <height>777</height>
+                   <height>769</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1881,7 +1882,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>461</width>
-                   <height>777</height>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2035,7 +2036,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>461</width>
-                   <height>777</height>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2724,7 +2725,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>461</width>
-                   <height>777</height>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3584,7 +3585,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>507</width>
-                   <height>764</height>
+                   <height>756</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3938,7 +3939,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>461</width>
-                   <height>777</height>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5327,7 +5328,7 @@
  </slots>
  <buttongroups>
   <buttongroup name="buttonGroupviewManip"/>
-  <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>
