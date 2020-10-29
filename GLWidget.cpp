@@ -3377,7 +3377,6 @@ void GLWidget::wheelEvent(QWheelEvent* e)
         _viewRange *= zoomFactor;
     else
         _viewRange /= zoomFactor;
-    std::cout << "viewrange" << _viewRange << std::endl;
     if (_viewRange < 0.15f)
         _viewRange = 0.15f;
     if (_viewRange > _boundingSphere.getRadius()*100.0f)
