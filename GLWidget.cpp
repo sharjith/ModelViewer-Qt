@@ -3337,10 +3337,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
             _viewRange /= 1.05f;
         else
             _viewRange *= 1.05f;
-        if (_viewRange < 0.05)
-            _viewRange = 0.05f;
-        if (_viewRange > 50000.0)
-            _viewRange = 50000.0f;
+        if (_viewRange < 0.15)
+            _viewRange = 0.15f;
+        if (_viewRange > _boundingSphere.getRadius() * 100.0f)
+            _viewRange = _boundingSphere.getRadius() * 100.0f;
         _currentViewRange = _viewRange;
 
         // Translate to focus on mouse center
@@ -3377,11 +3377,11 @@ void GLWidget::wheelEvent(QWheelEvent* e)
         _viewRange *= zoomFactor;
     else
         _viewRange /= zoomFactor;
-
-    if (_viewRange < 0.05f)
-        _viewRange = 0.05f;
-    if (_viewRange > 500000.0f)
-        _viewRange = 500000.0f;
+    std::cout << "viewrange" << _viewRange << std::endl;
+    if (_viewRange < 0.15f)
+        _viewRange = 0.15f;
+    if (_viewRange > _boundingSphere.getRadius()*100.0f)
+        _viewRange = _boundingSphere.getRadius()*100.0f;
     _currentViewRange = _viewRange;
 
     // Translate to focus on mouse center
