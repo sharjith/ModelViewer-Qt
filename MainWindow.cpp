@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget* parent)
     _progressBar->hide();
 
 	setCentralWidget((ui->mdiArea));
-	ModelViewer* viewer = new ModelViewer(nullptr);
+	ModelViewer* viewer = new ModelViewer(ui->mdiArea);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
