@@ -519,33 +519,20 @@ void TriangleMesh::deleteTextures()
 {
     std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
 
-    glBindTexture(_texture, 0);
+    glBindTexture(GL_TEXTURE_2D, 0);
     glDeleteTextures(1, &_texture);
-    glBindTexture(_diffuseADSMap, 0);
     glDeleteTextures(1, &_diffuseADSMap);
-    glBindTexture(_specularADSMap, 0);
     glDeleteTextures(1, &_specularADSMap);
-    glBindTexture(_emissiveADSMap, 0);
     glDeleteTextures(1, &_emissiveADSMap);
-    glBindTexture(_normalADSMap, 0);
     glDeleteTextures(1, &_normalADSMap);
-    glBindTexture(_heightADSMap, 0);
     glDeleteTextures(1, &_heightADSMap);
-    glBindTexture(_opacityADSMap, 0);
     glDeleteTextures(1, &_opacityADSMap);
-    glBindTexture(_albedoPBRMap, 0);
     glDeleteTextures(1, &_albedoPBRMap);
-    glBindTexture(_metallicPBRMap, 0);
     glDeleteTextures(1, &_metallicPBRMap);
-    glBindTexture(_roughnessPBRMap, 0);
     glDeleteTextures(1, &_roughnessPBRMap);
-    glBindTexture(_normalPBRMap, 0);
     glDeleteTextures(1, &_normalPBRMap);
-    glBindTexture(_aoPBRMap, 0);
     glDeleteTextures(1, &_aoPBRMap);
-    glBindTexture(_heightPBRMap, 0);
     glDeleteTextures(1, &_heightPBRMap);
-    glBindTexture(_opacityPBRMap, 0);
     glDeleteTextures(1, &_opacityPBRMap);
 }
 
