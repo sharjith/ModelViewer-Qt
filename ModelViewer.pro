@@ -122,6 +122,7 @@ HEADERS += AABB.h \
     SuperToroidEditor.h \
     SuperEllipsoidEditor.h \
     SpringEditor.h \
+    mikktspace.h \
     stb_image.h
 FORMS += \
     BackgroundColor.ui \
@@ -196,6 +197,7 @@ SOURCES += AppleSurface.cpp \
     SuperToroidEditor.cpp \
     SuperEllipsoidEditor.cpp \
     SpringEditor.cpp \
+    mikktspace.c \
     stb_image.cpp
 
 RESOURCES += \
