@@ -512,6 +512,8 @@ void TriangleMesh::render()
     glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
     _vertexArrayObject.release();
     _prog->release();
+
+    glBindTexture(GL_TEXTURE_2D, 0);
     glDisable(GL_BLEND);
 }
 
@@ -519,7 +521,6 @@ void TriangleMesh::deleteTextures()
 {
     std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
 
-    glBindTexture(GL_TEXTURE_2D, 0);
     glDeleteTextures(1, &_texture);
     glDeleteTextures(1, &_diffuseADSMap);
     glDeleteTextures(1, &_specularADSMap);
