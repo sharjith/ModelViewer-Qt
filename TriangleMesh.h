@@ -6,6 +6,8 @@
 #include "BoundingBox.h"
 #include "GLMaterial.h"
 
+class Triangle;
+
 class TriangleMesh : public Drawable
 {
     Q_OBJECT
@@ -177,6 +179,8 @@ protected: // methods
 		std::vector<float>* bitangents = nullptr
 	);
 
+	void buildTriangles();
+
 	virtual void deleteBuffers();
 	virtual void setupTransformation();
 	virtual void computeBounds();
@@ -209,6 +213,8 @@ protected:
 
 	BoundingSphere _boundingSphere;
 	BoundingBox    _boundingBox;
+
+	std::vector<Triangle*> _triangles;
 
 	GLMaterial _material;
 

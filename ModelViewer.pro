@@ -107,7 +107,10 @@ HEADERS += AABB.h \
     ToolPanel.h \
     TopShell.h \
     Torus.h \
+    Triangle.h \
+    TriangleBaldwinWeber.h \
     TriangleMesh.h \
+    TriangleMollerTrumbore.h \
     TriaxialHexatorus.h \
     TriaxialTritorus.h \
     TwistedPseudoSphere.h \
@@ -165,6 +168,9 @@ SOURCES += AppleSurface.cpp \
     ModelObjectList.cpp \
     ModelViewer.cpp \
     ToolPanel.cpp \
+    Triangle.cpp \
+    TriangleBaldwinWeber.cpp \
+    TriangleMollerTrumbore.cpp \
     main.cpp \
     MainWindow.cpp \
     ParametricSurface.cpp \

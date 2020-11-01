@@ -1,7 +1,10 @@
 #include "TriangleMesh.h"
+#include "TriangleMollerTrumbore.h"
+#include "TriangleBaldwinWeber.h"
+#include "Point.h"
+
 #include <algorithm>
 #include <iostream>
-#include "Point.h"
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
     _texture(0),
@@ -97,6 +100,9 @@ void TriangleMesh::initBuffers(
     _points = *points;
     _trsfpoints = _points;
     _normals = *normals;
+
+    // build the triangles for selection
+    buildTriangles();
 
     if (texCoords)
         _texCoords = *texCoords;
@@ -197,6 +203,44 @@ void TriangleMesh::initBuffers(
     }
 
     _vertexArrayObject.release();
+}
+
+void TriangleMesh::buildTriangles()
+{
+    if (_triangles.size())
+    {
+        for (Triangle* t : _triangles)
+            delete t;
+        _triangles.clear();
+    }
+    try {
+        size_t offset = 3; // each index points to 3 floats
+        for (size_t i = 0; i < _indices.size();)
+        {
+            // Vertex 1
+            QVector3D v1(_trsfpoints.at(offset * _indices.at(i) + 0), // x coordinate
+                _trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
+                _trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+            i++;
+
+            // Vertex 2
+            QVector3D v2(_trsfpoints.at(offset * _indices.at(i) + 0), // x coordinate
+                _trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
+                _trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+            i++;
+
+            // Vertex 3
+            QVector3D v3(_trsfpoints[offset * _indices.at(i) + 0], // x coordinate
+                _trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
+                _trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+            i++;
+
+            _triangles.push_back(new TriangleMollerTrumbore(v1, v2, v3, this));
+        }
+    }
+    catch (const std::exception& ex) {
+        std::cout << "Exception raised in TriangleMesh::buildTriangles\n" << ex.what() << std::endl;
+    }
 }
 
 void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
@@ -541,6 +585,8 @@ TriangleMesh::~TriangleMesh()
 {
     deleteBuffers();
     deleteTextures();
+    for (Triangle* t : _triangles)
+        delete t;
 }
 
 void TriangleMesh::deleteBuffers()
@@ -834,6 +880,7 @@ void TriangleMesh::setupTransformation()
     _prog->enableAttributeArray("vertexNormal");
     _prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
+    buildTriangles();
     computeBounds();
 }
 
@@ -949,7 +996,16 @@ QOpenGLVertexArrayObject& TriangleMesh::getVAO()
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
     bool intersects = false;
-    if (_trsfpoints.size() == 0)
+    if (_triangles.size())
+    {
+        for (Triangle* t : _triangles)
+        {
+            intersects = t->intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
+            if (intersects)
+                break;
+        }
+    }
+    /*if (_trsfpoints.size() == 0)
     {
         return intersects;
     }
@@ -981,7 +1037,7 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
     }
     catch (const std::exception& ex) {
         std::cout << "Exception raised in TriangleMesh::intersectsWithRay\n" << ex.what() << std::endl;
-    }
+    }*/
 
     return intersects;
 }
