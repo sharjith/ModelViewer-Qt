@@ -48,10 +48,10 @@ TextRenderer::~TextRenderer()
 
 void TextRenderer::deleteTextures()
 {
-	for (auto el : _characters)
+	for (const auto& el : _characters)
 	{
 		unsigned int texture = el.second.TextureID;
-		std::cout << "TextRenderer::~TextRenderer : texture = " << texture << std::endl;
+		//std::cout << "TextRenderer::~TextRenderer : texture = " << texture << std::endl;
 		glDeleteTextures(1, &texture);
 	}
 }
