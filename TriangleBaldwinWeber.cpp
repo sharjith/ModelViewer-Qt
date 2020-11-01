@@ -17,7 +17,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
     float x1, x2;
     float num = QVector3D::dotProduct(_vertex0, normal );                 // Element (3,4) of each transformation matrix
 
-    if (  fabs( normal.x() ) > fabs( normal.y() )  &&  fabs( normal.x() ) > fabs( normal.z() )  ) {
+    if (  fabs( normal.x() ) > fabs( normal.y() )  &&  fabs( normal.x() ) > fabs( normal.z() )  ) 
+    {
 
         x1 = _vertex1.y() * _vertex0.z() - _vertex1.z() * _vertex0.y();
         x2 = _vertex2.y() * _vertex0.z() - _vertex2.z() * _vertex1.y();
@@ -37,7 +38,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
         _transformation[7] = normal.z() / normal.x();
         _transformation[8] = -num / normal.x();
     }
-    else if (  fabs( normal.y() ) > fabs( normal.z() )  ) {
+    else if (  fabs( normal.y() ) > fabs( normal.z() )  ) 
+    {
 
         x1 = _vertex1.z() * _vertex0.x() - _vertex1.x() * _vertex0.z();
         x2 = _vertex2.z() * _vertex0.x() - _vertex2.x() * _vertex0.z();
@@ -57,7 +59,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
         _transformation[7] = normal.z() / normal.y();
         _transformation[8] = -num / normal.y();
     }
-    else if ( fabs( normal.z() ) > 0.0f ) {
+    else if ( fabs( normal.z() ) > 0.0f ) 
+    {
 
         x1 = _vertex1.x() * _vertex0.y() - _vertex1.y() * _vertex0.x();
         x2 = _vertex2.x() * _vertex0.y() - _vertex2.y() * _vertex0.x();
@@ -77,7 +80,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
         _transformation[7] = normal.y() / normal.z();
         _transformation[8] = -num / normal.z();
     }
-    else {
+    else 
+    {
         std::cout << "TriangleBaldwinWeber::TriangleBaldwinWeber Error: Building precomputed-transformation triangle from degenerate source " << std::endl;
     }
 }
@@ -89,7 +93,8 @@ bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVec
     // Get barycentric z components of ray origin and direction for calculation of t value
     float xg, yg;                       // The barycentric coordinates
 
-    if ( _fixedColumn == 1 ) {
+    if ( _fixedColumn == 1 ) 
+    {
 
         const float transS = rayPos.x() + _transformation[6] * rayPos.y() + _transformation[7] * rayPos.z() + _transformation[8];
         const float transD = rayDir.x() + _transformation[6] * rayDir.y() + _transformation[7] * rayDir.z();
@@ -104,7 +109,8 @@ bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVec
         xg = _transformation[0] * wr[1] + _transformation[1] * wr[2] + _transformation[2];
         yg = _transformation[3] * wr[1] + _transformation[4] * wr[2] + _transformation[5];
     }
-    else if ( _fixedColumn == 2 ) {
+    else if ( _fixedColumn == 2 ) 
+    {
 
         const float transS = _transformation[6] * rayPos.x() + rayPos.y() + _transformation[7] * rayPos.z() + _transformation[8];
         const float transD = _transformation[6] * rayDir.x() + rayDir.y() + _transformation[7] * rayDir.z();
@@ -119,7 +125,8 @@ bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVec
         xg = _transformation[0] * wr[0] + _transformation[1] * wr[2] + _transformation[2];
         yg = _transformation[3] * wr[0] + _transformation[4] * wr[2] + _transformation[5];
     }
-    else if ( _fixedColumn == 3 ) {
+    else if ( _fixedColumn == 3 )
+    {
 
         const float transS = _transformation[6] * rayPos.x() + _transformation[7] * rayPos.y() + rayPos.z() + _transformation[8];
         const float transD = _transformation[6] * rayDir.x() + _transformation[7] * rayDir.y() + rayDir.z();
@@ -134,14 +141,15 @@ bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVec
         xg = _transformation[0] * wr[0] + _transformation[1] * wr[1] + _transformation[2];
         yg = _transformation[3] * wr[0] + _transformation[4] * wr[1] + _transformation[5];
     }
-    else {
+    else 
+    {
         // Invalid fixed-column code, treat ray as missing triangle
         return false;
     }
 
-
     // Final check of barycentric coordinates to see if intersection is inside or outside triangle
-    if (  xg >= 0.0f  &&  yg >= 0.0f  &&  yg + xg < 1.0f  ){
+    if (  xg >= 0.0f  &&  yg >= 0.0f  &&  yg + xg < 1.0f  )
+    {
         return true;
     }
 
