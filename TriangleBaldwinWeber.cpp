@@ -11,7 +11,6 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
     QVector3D edge1, edge2;
     edge1 = _vertex1 - _vertex0;
     edge2 = _vertex2 - _vertex0;
-
     QVector3D normal = QVector3D::crossProduct(edge1, edge2);
 
     // Build transformation from global to barycentric coordinates.
@@ -44,7 +43,6 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
         x2 = _vertex2.z() * _vertex0.x() - _vertex2.x() * _vertex0.z();
 
         // b = 1 case
-
         _fixedColumn = 2;
 
         _transformation[0] = -edge2.z() / normal.y();
@@ -65,7 +63,6 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
         x2 = _vertex2.x() * _vertex0.y() - _vertex2.y() * _vertex0.x();
 
         // c = 1 case
-
         _fixedColumn = 3;
 
         _transformation[0] = edge2.y() / normal.z();
@@ -90,7 +87,6 @@ constexpr float tNear = -FLT_MAX;
 bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVector3D &rayDir, QVector3D &outIntersectionPoint)
 {
     // Get barycentric z components of ray origin and direction for calculation of t value
-
     float xg, yg;                       // The barycentric coordinates
 
     if ( _fixedColumn == 1 ) {
@@ -145,7 +141,6 @@ bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVec
 
 
     // Final check of barycentric coordinates to see if intersection is inside or outside triangle
-
     if (  xg >= 0.0f  &&  yg >= 0.0f  &&  yg + xg < 1.0f  ){
         return true;
     }
