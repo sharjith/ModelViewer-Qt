@@ -25,9 +25,9 @@ public:
 signals:
 
 protected:
+    QVector3D _vertex0;
     QVector3D _vertex1;
     QVector3D _vertex2;
-    QVector3D _vertex3;
 
 };
 

@@ -18,14 +18,14 @@ bool TriangleMollerTrumbore::intersectsWithRay(const QVector3D &rayPos, const QV
     const float EPSILON = 0.0000001f;
     QVector3D edge1, edge2, h, s, q;
     float a, f, u, v;
-    edge1 = _vertex2 - _vertex1;
-    edge2 = _vertex3 - _vertex1;
+    edge1 = _vertex1 - _vertex0;
+    edge2 = _vertex2 - _vertex0;
     h = QVector3D::crossProduct(rayDir, edge2);
     a = QVector3D::dotProduct(edge1, h);
     if (a > -EPSILON && a < EPSILON)
         return false;    // This ray is parallel to this triangle.
     f = 1.0f / a;
-    s = rayPos - _vertex1;
+    s = rayPos - _vertex0;
     u = f * QVector3D::dotProduct(s, h);
     if (u < 0.0f || u > 1.0f)
         return false;

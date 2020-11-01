@@ -8,25 +8,22 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
     _fixedColumn(0)
 {
     // Calculate edges and normal
-
     QVector3D edge1, edge2;
-    edge1 = _vertex2 - _vertex1;
-    edge2 = _vertex3 - _vertex1;
+    edge1 = _vertex1 - _vertex0;
+    edge2 = _vertex2 - _vertex0;
 
-    QVector3D normal = this->normal();
+    QVector3D normal = QVector3D::crossProduct(edge1, edge2);
 
     // Build transformation from global to barycentric coordinates.
-
     float x1, x2;
-    float num = QVector3D::dotProduct(_vertex1, normal );                 // Element (3,4) of each transformation matrix
+    float num = QVector3D::dotProduct(_vertex0, normal );                 // Element (3,4) of each transformation matrix
 
     if (  fabs( normal.x() ) > fabs( normal.y() )  &&  fabs( normal.x() ) > fabs( normal.z() )  ) {
 
-        x1 = _vertex2.y() * _vertex1.z() - _vertex2.z() * _vertex1.y();
-        x2 = _vertex3.y() * _vertex1.z() - _vertex3.z() * _vertex2.y();
+        x1 = _vertex1.y() * _vertex0.z() - _vertex1.z() * _vertex0.y();
+        x2 = _vertex2.y() * _vertex0.z() - _vertex2.z() * _vertex1.y();
 
         //Do matrix set up here for when a = 1, b = c = 0 formula
-
         _fixedColumn = 1;
 
         _transformation[0] = edge2.z() / normal.x();
@@ -43,8 +40,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
     }
     else if (  fabs( normal.y() ) > fabs( normal.z() )  ) {
 
-        x1 = _vertex2.z() * _vertex1.x() - _vertex2.x() * _vertex1.z();
-        x2 = _vertex3.z() * _vertex1.x() - _vertex3.x() * _vertex1.z();
+        x1 = _vertex1.z() * _vertex0.x() - _vertex1.x() * _vertex0.z();
+        x2 = _vertex2.z() * _vertex0.x() - _vertex2.x() * _vertex0.z();
 
         // b = 1 case
 
@@ -64,8 +61,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
     }
     else if ( fabs( normal.z() ) > 0.0f ) {
 
-        x1 = _vertex2.x() * _vertex1.y() - _vertex2.y() * _vertex1.x();
-        x2 = _vertex3.x() * _vertex1.y() - _vertex3.y() * _vertex1.x();
+        x1 = _vertex1.x() * _vertex0.y() - _vertex1.y() * _vertex0.x();
+        x2 = _vertex2.x() * _vertex0.y() - _vertex2.y() * _vertex0.x();
 
         // c = 1 case
 
