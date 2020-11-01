@@ -26,7 +26,7 @@ AssImpMesh::~AssImpMesh()
 	{
 		for (Texture t : _textures)
 		{
-			std::cout << "AssImpMesh::~AssImpMesh : texture = " << t.id << std::endl;
+			//std::cout << "AssImpMesh::~AssImpMesh : texture = " << t.id << std::endl;
 			glDeleteTextures(1, &t.id);
 		}
 	}
