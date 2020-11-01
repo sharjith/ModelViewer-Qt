@@ -1010,44 +1010,6 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
     return intersects;
 }
 
-bool TriangleMesh::rayIntersectsTriangle(const QVector3D& rayOrigin,
-                                         const QVector3D& rayVector,
-                                         const QVector3D& vertex0,
-                                         const QVector3D& vertex1,
-                                         const QVector3D& vertex2,
-                                         QVector3D& outIntersectionPoint)
-{
-    // Möller–Trumbore intersection algorithm
-    // https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
-    const float EPSILON = 0.0000001f;
-    QVector3D edge1, edge2, h, s, q;
-    float a, f, u, v;
-    edge1 = vertex1 - vertex0;
-    edge2 = vertex2 - vertex0;
-    h = QVector3D::crossProduct(rayVector, edge2);
-    a = QVector3D::dotProduct(edge1, h);
-    if (a > -EPSILON && a < EPSILON)
-        return false;    // This ray is parallel to this triangle.
-    f = 1.0f / a;
-    s = rayOrigin - vertex0;
-    u = f * QVector3D::dotProduct(s, h);
-    if (u < 0.0f || u > 1.0f)
-        return false;
-    q = QVector3D::crossProduct(s, edge1);
-    v = f * QVector3D::dotProduct(rayVector, q);
-    if (v < 0.0f || u + v > 1.0f)
-        return false;
-    // At this stage we can compute t to find out where the intersection point is on the line.
-    float t = f * QVector3D::dotProduct(edge2, q);
-    if (t > EPSILON) // ray intersection
-    {
-        outIntersectionPoint = rayOrigin + rayVector * t;
-        return true;
-    }
-    else // This means that there is a line intersection but not a ray intersection.
-        return false;
-}
-
 bool TriangleMesh::hasAlbedoPBRMap() const
 {
     return _hasAlbedoPBRMap;

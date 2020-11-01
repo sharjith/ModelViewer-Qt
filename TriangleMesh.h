@@ -184,12 +184,6 @@ protected: // methods
 	virtual void deleteBuffers();
 	virtual void setupTransformation();
 	virtual void computeBounds();
-	virtual bool rayIntersectsTriangle(const QVector3D& rayOrigin,
-		const QVector3D& rayVector,
-		const QVector3D& vertex0,
-		const QVector3D& vertex1,
-		const QVector3D& vertex2,
-		QVector3D& outIntersectionPoint);
 
 	virtual void setupTextures();
 	virtual void setupUniforms();
