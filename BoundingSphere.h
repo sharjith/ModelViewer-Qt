@@ -18,6 +18,11 @@ public:
 
 	void addSphere(const BoundingSphere& other);
 
+	bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir);
+
+private:
+	bool solveQuadratic(const float& a, const float& b, const float& c, float& x0, float& x1);
+
 private:
 	QVector3D _center;
 	float _radius;
