@@ -3718,6 +3718,8 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
     return textureID;
 }
 
+#include <chrono> 
+using namespace std::chrono;
 int GLWidget::mouseSelect(const QPoint& pixel)
 {
     int id = -1;
@@ -3747,22 +3749,29 @@ int GLWidget::mouseSelect(const QPoint& pixel)
     QApplication::setOverrideCursor(Qt::WaitCursor);
     
     convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
+    rayDir.normalize();
+
+    // Get starting timepoint 
+    auto start = high_resolution_clock::now();
 
     QMap<int, float> selectedIdsDist;
     for (int i : _displayedObjectsIds)
     {
         TriangleMesh* mesh = _meshStore.at(i);
-        bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint);
-        //qDebug() << intPoint;
-        if (intersects)
+        if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
         {
-            //id = i;
-            selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
-            //_selectRect->setGeometry(_boundingRect);
-            //_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
-            //_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
-            //_selectRect->show();
-            //break;
+            bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint);
+            //qDebug() << intPoint;
+            if (intersects)
+            {
+                //id = i;
+                selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
+                //_selectRect->setGeometry(_boundingRect);
+                //_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
+                //_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
+                //_selectRect->show();
+                //break;
+            }
         }
         //else
         //_selectRect->hide();
@@ -3782,6 +3791,16 @@ int GLWidget::mouseSelect(const QPoint& pixel)
         id = selectedIdsDist.key(lowestDist);
     }
     //qDebug() << "Selected Id: " << id;
+
+    // Get ending timepoint 
+    auto stop = high_resolution_clock::now();
+
+    // Get duration. Substart timepoints to  
+    // get durarion. To cast it to proper unit 
+    // use duration cast method 
+    auto duration = duration_cast<microseconds>(stop - start);
+
+    //cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
 
     QApplication::restoreOverrideCursor();
 
