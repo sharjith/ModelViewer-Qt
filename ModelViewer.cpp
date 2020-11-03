@@ -659,6 +659,7 @@ void ModelViewer::displaySelectedMeshInfo()
 		size_t points = 0, triangles = 0;
 		unsigned long long rawmem = 0;
 		float surfArea = 0, volume = 0;
+        QVector3D centerOfMass;
 		TriangleMesh* mesh = nullptr;
 		BoundingBox bbox;
 		if (selected.size() > 1)
@@ -677,6 +678,7 @@ void ModelViewer::displaySelectedMeshInfo()
 				MeshProperties props(mesh);
 				surfArea += props.surfaceArea();
 				volume += props.volume();
+                centerOfMass += props.centerOfMass();
 				if (meshCount == 0)
 					bbox = props.boundingBox();
 				else
@@ -717,6 +719,8 @@ void ModelViewer::displaySelectedMeshInfo()
 		QString meshProps;
 
 		meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(volume).arg(surfArea);
+
+        meshProps += QString("Mesh Center of Mass: X%1, Y%2, Z%3\n").arg(centerOfMass.x()).arg(centerOfMass.y()).arg(centerOfMass.z());
 
 		meshProps += QString("Bounding Limits:\n\tXMin %1  XMax %2\n\tYMin %3  YMax %4\n\tZMin %5  ZMax %6\n")
 			.arg(bbox.xMin()).arg(bbox.xMax()).arg(bbox.yMin()).arg(bbox.yMax()).arg(bbox.zMin()).arg(bbox.zMax());

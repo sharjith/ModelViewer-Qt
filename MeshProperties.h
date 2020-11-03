@@ -20,18 +20,22 @@ public:
 
 	float volume() const;
 
+    QVector3D centerOfMass() const;
+
 	BoundingBox boundingBox() const;
+
 
 signals:
 
 private:
-	void calculateSurfaceAreaAndVolume();
+    void calculateSurfaceAreaAndVolume();
 
 private:
 	TriangleMesh* _mesh;
 	std::vector<float> _meshPoints;
 	float _surfaceArea;
 	float _volume;
+    QVector3D _centerOfMass;
 	BoundingBox _boundingBox;
 };
 

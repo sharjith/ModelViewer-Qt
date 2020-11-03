@@ -36,6 +36,11 @@ float MeshProperties::volume() const
 	return _volume;
 }
 
+QVector3D MeshProperties::centerOfMass() const
+{
+    return _centerOfMass;
+}
+
 BoundingBox MeshProperties::boundingBox() const
 {
 	return _mesh->getBoundingBox();
@@ -45,6 +50,7 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 {
 	_surfaceArea = 0;
 	_volume = 0;
+    float currentVolume = 0, xCen = 0, yCen = 0, zCen = 0;
 	try {		
 		std::vector<unsigned int> indices = _mesh->getIndices();
 		size_t offset = 3; // each index points to 3 floats
@@ -68,7 +74,10 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
 			i++;
 
-			_volume += QVector3D::dotProduct(p1, (QVector3D::crossProduct(p2, p3))) / 6.0f;
+            _volume += currentVolume = QVector3D::dotProduct(p1, (QVector3D::crossProduct(p2, p3))) / 6.0f;
+            xCen += ((p1.x() + p2.x() + p3.x())/4.0f) * currentVolume;
+            yCen += ((p1.y() + p2.y() + p3.y())/4.0f) * currentVolume;
+            zCen += ((p1.z() + p2.z() + p3.z())/4.0f) * currentVolume;
 
 			_surfaceArea += QVector3D::crossProduct(p2 - p1, p3 - p1).length() * 0.5;
 		}
@@ -78,4 +87,6 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 	}
 
 	_volume = fabs(_volume);
+    _centerOfMass = {xCen/_volume, yCen/_volume, zCen/_volume};
 }
+
