@@ -3810,15 +3810,15 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 {
-    QList<int> ids;
+    _selectedIDs.clear();
 
     if (!_displayedObjectsIds.size())
-        return ids;
+        return _selectedIDs;
 
     QRect rubberRect = _rubberBand->geometry();
     if (rubberRect.width() == 0 || rubberRect.height() == 0)
     {
-        return ids;
+        return _selectedIDs;
     }
 
     QRect viewport = getViewportFromPoint(pixel);
@@ -3830,15 +3830,16 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
         QRect interRect = rubberRect.intersected(objRect);
         // Intersection rectangle of rubberband and object is more than 5% of objRect
         bool intersects = (float(interRect.width() * interRect.height()) >= float(objRect.width() * objRect.height()) * 0.05f);
+       
         if (intersects)
         {
-            ids.push_back(i);
+            _selectedIDs.push_back(i);
         }
     }
     QApplication::restoreOverrideCursor();
 
-    emit sweepSelectionDone(ids);
-    return ids;
+    emit sweepSelectionDone(_selectedIDs);
+    return _selectedIDs;
 }
 
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)

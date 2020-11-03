@@ -362,6 +362,7 @@ private:
 	GLfloat _rubberBandZoomRatio;
 	float _rubberBandRadius;
 	QVector3D _rubberBandCenter;
+	QList<int> _selectedIDs;
 
 	bool _multiViewActive;
 
