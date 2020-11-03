@@ -86,8 +86,8 @@ TriangleBaldwinWeber::TriangleBaldwinWeber(const QVector3D& vertex1, const QVect
     }
 }
 
-constexpr float tFar =  FLT_MAX;
-constexpr float tNear = -FLT_MAX;
+constexpr float tFar =  std::numeric_limits<float>::max();
+constexpr float tNear = std::numeric_limits<float>::min();
 bool TriangleBaldwinWeber::intersectsWithRay(const QVector3D &rayPos, const QVector3D &rayDir, QVector3D &outIntersectionPoint)
 {
     // Get barycentric z components of ray origin and direction for calculation of t value
