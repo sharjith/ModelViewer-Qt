@@ -209,11 +209,14 @@ void ModelViewer::setListRows(QList<int> indices)
 {
 	if (indices.count())
 	{
+		bool oldState = listWidgetModel->blockSignals(true);
 		for (int index : indices)
 		{
 			QListWidgetItem* item = listWidgetModel->item(index);
 			item->setSelected(!item->isSelected());
 		}
+		listWidgetModel->blockSignals(oldState);
+		on_listWidgetModel_itemSelectionChanged();
 	}
 }
 
