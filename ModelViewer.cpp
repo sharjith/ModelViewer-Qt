@@ -170,6 +170,7 @@ ModelViewer::~ModelViewer()
 
 void ModelViewer::setListRow(int index)
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	if (index != -1)
 	{
 		std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
@@ -200,6 +201,8 @@ void ModelViewer::setListRow(int index)
 		}
 		resetTransformationValues();
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemSelectionChanged();
 }
 
 void ModelViewer::setListRows(QList<int> indices)
@@ -441,7 +444,22 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 		if (event->key() == Qt::Key_M)
 			toolButtonMultiView->animateClick();
 		if (event->key() == Qt::Key_A)
-			listWidgetModel->selectAll();
+		{
+			if (listWidgetModel->count())
+			{
+				bool oldState = listWidgetModel->blockSignals(true);
+				for (int i = 0; i < listWidgetModel->count(); i++)
+				{
+					QListWidgetItem* item = listWidgetModel->item(i);
+					if (item->checkState() == Qt::Checked)
+					{
+						item->setSelected(true);
+					}
+				}
+				listWidgetModel->blockSignals(oldState);
+				on_listWidgetModel_itemSelectionChanged();
+			}
+		}
 	}
     if (event->modifiers() == Qt::AltModifier)
     {
