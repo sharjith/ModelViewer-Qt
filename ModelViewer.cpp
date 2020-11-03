@@ -434,12 +434,14 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
             toolButtonLeftView->animateClick();
         if (event->key() == Qt::Key_J)
             toolButtonRightView->animateClick();
-		if (event->key() == Qt::Key_A)
+		if (event->key() == Qt::Key_I)
 			toolButtonIsometricView->animateClick();
 		if (event->key() == Qt::Key_P)
 			toolButtonProjection->animateClick();
 		if (event->key() == Qt::Key_M)
 			toolButtonMultiView->animateClick();
+		if (event->key() == Qt::Key_A)
+			listWidgetModel->selectAll();
 	}
     if (event->modifiers() == Qt::AltModifier)
     {
