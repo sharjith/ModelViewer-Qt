@@ -3477,13 +3477,13 @@ void GLWidget::performKeyboardNav()
         {
             // Zoom
             if (_keys[Qt::Key_Q])
-                _viewRange /= 1.025f;
+                _viewRange /= 1.05f;
             else
-                _viewRange *= 1.025f;
-            if (_viewRange < 0.05)
-                _viewRange = 0.05f;
-            if (_viewRange > 500000.0)
-                _viewRange = 500000.0f;
+                _viewRange *= 1.05f;
+            if (_viewRange < 0.15)
+                _viewRange = 0.15f;
+            if (_viewRange > _boundingSphere.getRadius() * 100.0f)
+                _viewRange = _boundingSphere.getRadius() * 100.0f;
             // Translate to focus on mouse center
             QPoint pos = mapFromGlobal(QCursor::pos());
             QPoint cen = getClientRectFromPoint(pos).center();
