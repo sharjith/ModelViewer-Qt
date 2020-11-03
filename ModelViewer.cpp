@@ -660,6 +660,7 @@ void ModelViewer::displaySelectedMeshInfo()
 		unsigned long long rawmem = 0;
 		float surfArea = 0, volume = 0;
         QVector3D centerOfMass;
+		float weight = 0, density = 0;
 		TriangleMesh* mesh = nullptr;
 		BoundingBox bbox;
 		if (selected.size() > 1)
@@ -678,7 +679,9 @@ void ModelViewer::displaySelectedMeshInfo()
 				MeshProperties props(mesh);
 				surfArea += props.surfaceArea();
 				volume += props.volume();
-                centerOfMass += props.centerOfMass();
+                centerOfMass += props.centerOfMass() * props.weight();
+				weight += props.weight();
+				density = props.density();
 				if (meshCount == 0)
 					bbox = props.boundingBox();
 				else
@@ -690,6 +693,7 @@ void ModelViewer::displaySelectedMeshInfo()
 			}
 			meshCount++;
 		}
+		centerOfMass /= weight;
 
 		QString strpoints = QString("Points: %1\n").arg(points);
 		QString strtriangles = QString("Triangles: %1\n").arg(triangles);
@@ -718,7 +722,8 @@ void ModelViewer::displaySelectedMeshInfo()
 		QString meshSize = QString("Memory: %1 ").arg(mem) + units + "\n";
 		QString meshProps;
 
-		meshProps = QString("Mesh Volume: %1 \nSurface Area: %2\n").arg(volume).arg(surfArea);
+		meshProps = QString("Mesh Volume: %1mm^3\nSurface Area: %2mm^2\nDensity: %3kg/m^3\nWeight: %4kg\n").arg(volume).arg(surfArea)
+			.arg(density).arg(weight);
 
         meshProps += QString("Mesh Center of Mass: X%1, Y%2, Z%3\n").arg(centerOfMass.x()).arg(centerOfMass.y()).arg(centerOfMass.z());
 

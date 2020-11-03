@@ -2,7 +2,7 @@
 #include "TriangleMesh.h"
 #include <iostream>
 
-MeshProperties::MeshProperties(TriangleMesh* mesh, QObject* parent) : QObject(parent), _mesh(mesh)
+MeshProperties::MeshProperties(TriangleMesh* mesh, QObject* parent) : QObject(parent), _mesh(mesh), _density(1000.0f)
 {
 	_meshPoints = _mesh->getTrsfPoints();
 	calculateSurfaceAreaAndVolume();
@@ -34,6 +34,21 @@ float MeshProperties::surfaceArea() const
 float MeshProperties::volume() const
 {
 	return _volume;
+}
+
+float MeshProperties::weight() const
+{
+	return _weight;
+}
+
+void MeshProperties::setDensity(const float& density)
+{
+	_density = density;
+}
+
+float MeshProperties::density() const
+{
+	return _density;
 }
 
 QVector3D MeshProperties::centerOfMass() const
@@ -86,7 +101,8 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 		std::cout << "Exception raised in MeshProperties::calculateSurfaceAreaAndVolume\n" << ex.what() << std::endl;
 	}
 
-	_volume = fabs(_volume);
+	_volume = (float)fabs(_volume);
     _centerOfMass = {xCen/_volume, yCen/_volume, zCen/_volume};
+	_weight = _density * _volume / 1e9;
 }
 

@@ -20,6 +20,11 @@ public:
 
 	float volume() const;
 
+	float weight() const;
+
+	void setDensity(const float& density);
+	float density() const;
+
     QVector3D centerOfMass() const;
 
 	BoundingBox boundingBox() const;
@@ -35,6 +40,8 @@ private:
 	std::vector<float> _meshPoints;
 	float _surfaceArea;
 	float _volume;
+	float _weight;
+	float _density;
     QVector3D _centerOfMass;
 	BoundingBox _boundingBox;
 };
