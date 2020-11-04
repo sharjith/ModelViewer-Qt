@@ -81,7 +81,7 @@ public:
 
 	void addToDisplay(TriangleMesh*);
 	void removeFromDisplay(int index);
-	void centerScreen(int index);
+	void centerScreen(std::vector<int> selectedIDs);
 	void select(int id);
 	void deselect(int id);
 
@@ -465,7 +465,7 @@ private:
 
 	std::vector<TriangleMesh*> _meshStore;
 	std::vector<int> _displayedObjectsIds;
-	int _centerScreenObjectId;
+	std::vector<int> _centerScreenObjectIDs;
 
 	QVBoxLayout* _editorLayout;
 	QFormLayout* _lowerLayout;

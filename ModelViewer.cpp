@@ -474,6 +474,8 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
             toolButtonRotateView->animateClick();
         if (event->key() == Qt::Key_W)
             toolButtonWindowZoom->animateClick();
+		if (event->key() == Qt::Key_C)
+			centerScreen();
     }
 
 	QWidget::keyPressEvent(event);
@@ -527,10 +529,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu myMenu;
 
-		QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-		if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
-			myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
-
+		myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
 		myMenu.addAction("Visualization Settings", this, SLOT(showVisualizationModelPage()));
 		myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
 		myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
@@ -547,9 +546,12 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 
 void ModelViewer::centerScreen()
 {
-	QListWidgetItem* item = listWidgetModel->currentItem();
-	int rowId = listWidgetModel->row(item);
-	_glWidget->centerScreen(rowId);
+	std::vector<int> selectedIDs;
+	for (QListWidgetItem* item : listWidgetModel->selectedItems())
+	{
+		selectedIDs.push_back(listWidgetModel->row(item));
+	}
+	_glWidget->centerScreen(selectedIDs);
 }
 
 void ModelViewer::duplicateSelectedItems()

@@ -775,9 +775,10 @@ void GLWidget::removeFromDisplay(int index)
     delete mesh;
 }
 
-void GLWidget::centerScreen(int index)
+void GLWidget::centerScreen(std::vector<int> selectedIDs)
 {
-    _centerScreenObjectId = index;
+    _centerScreenObjectIDs.clear();
+    _centerScreenObjectIDs = selectedIDs;
     if (!_animateCenterScreenTimer->isActive())
     {
         _keyboardNavTimer->stop();
@@ -3436,7 +3437,7 @@ void GLWidget::performKeyboardNav()
 {
     if (QApplication::keyboardModifiers() == Qt::NoModifier)
     {
-        float factor = _viewBoundingSphereDia * 0.01f;
+        float factor = _viewRange * 0.01f;
         // https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
         if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
         {
@@ -3566,13 +3567,22 @@ void GLWidget::animateCenterScreen()
 {
     if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
         _lowResEnabled = true;
-    TriangleMesh* mesh = _meshStore.at(_centerScreenObjectId);
-    if (mesh)
+    BoundingSphere sph;
+    int count = 0;
+    for (int id : _centerScreenObjectIDs)
     {
-        BoundingSphere sph = mesh->getBoundingSphere();
-        setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
-        resizeGL(width(), height());
+        TriangleMesh* mesh = _meshStore.at(id);
+        if (mesh)
+        {
+            if (count == 0)
+                sph = mesh->getBoundingSphere();
+            else
+                sph.addSphere(mesh->getBoundingSphere());
+        }
+        count++;
     }
+    setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
+    resizeGL(width(), height());
 }
 
 void GLWidget::stopAnimations()
@@ -4236,13 +4246,12 @@ void GLWidget::showContextMenu(const QPoint& pos)
         QListWidget* listWidgetModel = _viewer->getListModel();
         if (listWidgetModel->selectedItems().count() != 0 && _displayedObjectsIds.size() != 0)
         {
+            myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
             QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
             if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
             {
-                myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
-                myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
+                myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));                
             }
-
             myMenu.addAction("Visualization Settings", _viewer, SLOT(showVisualizationModelPage()));
             myMenu.addAction("Transformations", _viewer, SLOT(showTransformationsPage()));
             myMenu.addAction("Hide", _viewer, SLOT(hideSelectedItems()));
