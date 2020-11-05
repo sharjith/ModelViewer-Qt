@@ -546,11 +546,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 
 void ModelViewer::centerScreen()
 {
-	std::vector<int> selectedIDs;
-	for (QListWidgetItem* item : listWidgetModel->selectedItems())
-	{
-		selectedIDs.push_back(listWidgetModel->row(item));
-	}
+    std::vector<int> selectedIDs = getSelectedIDs();
 	_glWidget->centerScreen(selectedIDs);
 }
 
