@@ -199,6 +199,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _zScale = 1.0f;
 
     _displayedObjectsMemSize = 0;
+    _visibleSwapped = false;
 
     _keyboardNavTimer = new QTimer(this);
     _keyboardNavTimer->setTimerType(Qt::PreciseTimer);
@@ -586,6 +587,19 @@ void GLWidget::setZoomingActive(bool active)
 void GLWidget::setDisplayList(const std::vector<int>& ids)
 {
     _displayedObjectsIds = ids;
+
+    std::vector<int> allObjectIDs;
+    for(size_t i = 0; i < _meshStore.size(); i++)
+    {
+        allObjectIDs.push_back(i);
+    }
+    _hiddenObjectsIds.clear();
+    std::set_difference(
+        allObjectIDs.begin(), allObjectIDs.end(),
+        _displayedObjectsIds.begin(), _displayedObjectsIds.end(),
+        std::back_inserter( _hiddenObjectsIds )
+    );
+
     _currentTranslation = _primaryCamera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
 

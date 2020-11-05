@@ -60,5 +60,6 @@
         <file>res/zoomview.png</file>
         <file>res/rotateview.png</file>
         <file>res/clear.png</file>
+        <file>res/swapvisible.png</file>
     </qresource>
 </RCC>

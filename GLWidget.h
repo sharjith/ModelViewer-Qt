@@ -465,7 +465,9 @@ private:
 
 	std::vector<TriangleMesh*> _meshStore;
 	std::vector<int> _displayedObjectsIds;
+    std::vector<int> _hiddenObjectsIds;
 	std::vector<int> _centerScreenObjectIDs;
+    bool _visibleSwapped;
 
 	QVBoxLayout* _editorLayout;
 	QFormLayout* _lowerLayout;
