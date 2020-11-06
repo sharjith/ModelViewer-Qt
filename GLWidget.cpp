@@ -673,7 +673,7 @@ void GLWidget::updateBoundingSphere()
     _boundingSphere.setCenter(0, 0, 0);
     _boundingSphere.setRadius(0.0);
 
-    for (int i : _displayedObjectsIds)
+    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
     {
         try
         {
@@ -856,6 +856,14 @@ void GLWidget::showModelLoadingProgress(int nodeNum, int totalNodes)
     MainWindow::showStatusMessage(QString("Processing node: %1/%2").arg(nodeNum).arg(totalNodes));
     MainWindow::setProgressValue((int)((float)nodeNum/(float)totalNodes*100.0f));
     makeCurrent();
+}
+
+void GLWidget::swapVisible(bool checked)
+{
+    _visibleSwapped = checked;
+    updateBoundingSphere();
+    fitAll();
+    emit visibleSwapped(checked);
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
@@ -2283,12 +2291,18 @@ void GLWidget::resizeGL(int width, int height)
 
 void GLWidget::paintGL()
 {
+    QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
+                                                             1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
+                                                             _bgTopColor.alphaF());
+    QColor botColor = !_visibleSwapped ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
+                                                             1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
+                                                             _bgBotColor.alphaF());
     try
     {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-        gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
-                           _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
+        gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+                           botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
 
         _modelMatrix.setToIdentity();
         if (_multiViewActive)
@@ -2296,8 +2310,8 @@ void GLWidget::paintGL()
             glViewport(0, 0, width(), height());
             if (_shadowsEnabled)
                 renderToShadowBuffer();
-            gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
-                               _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
+            gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+                               botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
             // Render orthographic views with ortho view camera
             // Top View
             _orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
@@ -2345,8 +2359,8 @@ void GLWidget::paintGL()
 
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-            gradientBackground(_bgTopColor.redF(), _bgTopColor.greenF(), _bgTopColor.blueF(), _bgTopColor.alphaF(),
-                               _bgBotColor.redF(), _bgBotColor.greenF(), _bgBotColor.blueF(), _bgBotColor.alphaF());
+            gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+                               botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
             render(_primaryCamera);
             drawCornerAxis();
         }
@@ -2507,7 +2521,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
     // Render
     if (_meshStore.size() != 0)
     {
-        for (int i : _displayedObjectsIds)
+        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
         {
             try
             {
@@ -2656,7 +2670,7 @@ void GLWidget::drawVertexNormals()
 
     if (_meshStore.size() != 0)
     {
-        for (int i : _displayedObjectsIds)
+        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
         {
             if (_showVertexNormals)
             {
@@ -2675,7 +2689,7 @@ void GLWidget::drawFaceNormals()
 
     if (_meshStore.size() != 0)
     {
-        for (int i : _displayedObjectsIds)
+        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
         {
             if (_showFaceNormals)
             {
@@ -3031,7 +3045,7 @@ void GLWidget::renderToShadowBuffer()
     _shadowMappingShader->setUniformValue("model", _modelMatrix);
     if (_meshStore.size() != 0)
     {
-        for (int i : _displayedObjectsIds)
+        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
         {
             try
             {
@@ -3435,7 +3449,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         if(event->modifiers()& Qt::ShiftModifier)
             _viewer->showOnlySelectedItems();
         else
-            _viewer->hideSelectedItems();
+            _visibleSwapped ? _viewer->showSelectedItems() : _viewer->hideSelectedItems();
     }
 
     update();
@@ -3748,7 +3762,8 @@ int GLWidget::mouseSelect(const QPoint& pixel)
 {
     int id = -1;
 
-    if (!_displayedObjectsIds.size())
+    //if (!_displayedObjectsIds.size())
+    if(_visibleSwapped ? !_hiddenObjectsIds.size() : !_displayedObjectsIds.size())
     {
         emit singleSelectionDone(id);
         return id;
@@ -3779,7 +3794,7 @@ int GLWidget::mouseSelect(const QPoint& pixel)
     auto start = high_resolution_clock::now();
 
     QMap<int, float> selectedIdsDist;
-    for (int i : _displayedObjectsIds)
+    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
     {
         TriangleMesh* mesh = _meshStore.at(i);
         if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
@@ -3836,7 +3851,8 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 {
     _selectedIDs.clear();
 
-    if (!_displayedObjectsIds.size())
+    //if (!_displayedObjectsIds.size())
+    if(_visibleSwapped ? !_hiddenObjectsIds.size() : !_displayedObjectsIds.size())
         return _selectedIDs;
 
     QRect rubberRect = _rubberBand->geometry();
@@ -3847,7 +3863,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 
     QRect viewport = getViewportFromPoint(pixel);
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    for (int i : _displayedObjectsIds)
+    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
     {
         TriangleMesh* mesh = _meshStore.at(i);
         QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());
@@ -4212,7 +4228,7 @@ void GLWidget::setXTran(const float& xTran)
 float GLWidget::highestModelZ()
 {
     float highestZ = std::numeric_limits<float>::min();
-    for (int i : _displayedObjectsIds)
+    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
     {
         try
         {
@@ -4233,7 +4249,7 @@ float GLWidget::highestModelZ()
 float GLWidget::lowestModelZ()
 {
     float lowestZ = std::numeric_limits<float>::max();
-    for (int i : _displayedObjectsIds)
+    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
     {
         try
         {
@@ -4283,6 +4299,11 @@ void GLWidget::showContextMenu(const QPoint& pos)
             myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), "Zoom", _viewer, SLOT(on_toolButtonZoomView_clicked()));
             myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), "Pan", _viewer, SLOT(on_toolButtonPanView_clicked()));
             myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), "Rotate", _viewer, SLOT(on_toolButtonRotateView_clicked()));
+            myMenu.addSeparator();
+            action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), "Swap Visible");
+            action->setCheckable(true);
+            action->setChecked(_visibleSwapped);
+            connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
             myMenu.addSeparator();
             myMenu.addAction("Background Color", this, SLOT(setBackgroundColor()));
         }

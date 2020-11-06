@@ -198,6 +198,8 @@ private slots:
 	void on_pushButtonApplyADSTexture_clicked();
 	void on_pushButtonClearADSTextures_clicked();
 
+    void on_toolButtonSwapVisible_clicked(bool checked);
+
 protected:
 	void showEvent(QShowEvent* event);
 	void keyPressEvent(QKeyEvent* event);

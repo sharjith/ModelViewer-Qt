@@ -107,10 +107,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     connect(_glWidget, &GLWidget::windowZoomEnded, this, [this](){
                 if(toolButtonWindowZoom->isChecked())
                     toolButtonWindowZoom->setChecked(false);
-    });
+    });    
 	connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
 	connect(_glWidget, SIGNAL(sweepSelectionDone(QList<int>)), this, SLOT(setListRows(QList<int>)));
 	connect(_glWidget, SIGNAL(floorShown(bool)), checkBoxFloor, SLOT(setChecked(bool)));
+    connect(_glWidget, SIGNAL(visibleSwapped(bool)), toolButtonSwapVisible, SLOT(setChecked(bool)));
 
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
@@ -645,6 +646,7 @@ void ModelViewer::showSelectedItems()
 	for (QListWidgetItem* item : selectedItems)
 	{
 		item->setCheckState(Qt::Checked);
+        item->setSelected(false);
 	}
 }
 
@@ -2801,4 +2803,9 @@ void ModelViewer::on_pushButtonClearADSTextures_clicked()
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
 	}
+}
+
+void ModelViewer::on_toolButtonSwapVisible_clicked(bool checked)
+{
+    _glWidget->swapVisible(checked);
 }
