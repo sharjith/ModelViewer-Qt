@@ -44,7 +44,7 @@ void AssImpModelLoader::loadModel(string path)
     _meshes.clear();
     _loadedTextures.clear();
     // Read file via ASSIMP
-    _importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 90);
+    _importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
     const aiScene* scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices |
                                               aiProcess_Triangulate | aiProcess_GenUVCoords |
                                               aiProcess_SortByPType | aiProcess_JoinIdenticalVertices |
