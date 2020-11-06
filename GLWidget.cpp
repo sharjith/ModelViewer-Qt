@@ -862,7 +862,8 @@ void GLWidget::swapVisible(bool checked)
 {
     _visibleSwapped = checked;
     updateBoundingSphere();
-    fitAll();
+    if(_autoFitViewOnUpdate)
+        fitAll();
     emit visibleSwapped(checked);
 }
 
@@ -3450,6 +3451,11 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
             _viewer->showOnlySelectedItems();
         else
             _visibleSwapped ? _viewer->showSelectedItems() : _viewer->hideSelectedItems();
+    }
+    if(_keys[Qt::Key_S])
+    {
+        if(event->modifiers()& Qt::AltModifier)
+            swapVisible(!_visibleSwapped);
     }
 
     update();
