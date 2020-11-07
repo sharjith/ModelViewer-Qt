@@ -673,16 +673,26 @@ void GLWidget::updateBoundingSphere()
     _boundingSphere.setCenter(0, 0, 0);
     _boundingSphere.setRadius(0.0);
 
-    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+    if ((!_visibleSwapped && _displayedObjectsIds.size() == 0 ) ||
+        (_visibleSwapped && _hiddenObjectsIds.size() == 0))
+    {    
+        _primaryCamera->setPosition(0, 0, 0);
+        _currentTranslation = _primaryCamera->getPosition();
+        _boundingSphere.setRadius(1.0);    
+    }
+    else
     {
-        try
+        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
         {
-            TriangleMesh* mesh = _meshStore.at(i);
-            _boundingSphere.addSphere(mesh->getBoundingSphere());
-        }
-        catch (const std::out_of_range& ex)
-        {
-            std::cout << ex.what() << std::endl;
+            try
+            {
+                TriangleMesh* mesh = _meshStore.at(i);
+                _boundingSphere.addSphere(mesh->getBoundingSphere());
+            }
+            catch (const std::out_of_range& ex)
+            {
+                std::cout << ex.what() << std::endl;
+            }
         }
     }
 
@@ -787,6 +797,13 @@ void GLWidget::removeFromDisplay(int index)
     TriangleMesh* mesh = _meshStore[index];
     _meshStore.erase(_meshStore.begin() + index);
     delete mesh;
+    if (_meshStore.size() == 0)
+    {
+        _displayedObjectsIds.clear();
+        _hiddenObjectsIds.clear();
+        if (_visibleSwapped)
+            _visibleSwapped = false;
+    }
 }
 
 void GLWidget::centerScreen(std::vector<int> selectedIDs)
@@ -2527,7 +2544,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
     // Render
     if (_meshStore.size() != 0)
     {
-        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
         {
             try
             {
@@ -2676,7 +2693,7 @@ void GLWidget::drawVertexNormals()
 
     if (_meshStore.size() != 0)
     {
-        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
         {
             if (_showVertexNormals)
             {
@@ -2695,7 +2712,7 @@ void GLWidget::drawFaceNormals()
 
     if (_meshStore.size() != 0)
     {
-        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
         {
             if (_showFaceNormals)
             {
@@ -3051,7 +3068,7 @@ void GLWidget::renderToShadowBuffer()
     _shadowMappingShader->setUniformValue("model", _modelMatrix);
     if (_meshStore.size() != 0)
     {
-        for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
         {
             try
             {
@@ -3774,10 +3791,21 @@ int GLWidget::clickSelect(const QPoint& pixel)
     int id = -1;
 
     //if (!_displayedObjectsIds.size())
-    if(_visibleSwapped ? !_hiddenObjectsIds.size() : !_displayedObjectsIds.size())
+    if(_visibleSwapped)
     {
-        emit singleSelectionDone(id);
-        return id;
+        if (!_hiddenObjectsIds.size())
+        {
+            emit singleSelectionDone(id);
+            return id;
+        }
+    }
+    else
+    {
+        if (!_displayedObjectsIds.size())
+        {
+            emit singleSelectionDone(id);
+            return id;
+        }
     }
 
     QVector3D rayPos, rayDir;
@@ -3805,7 +3833,7 @@ int GLWidget::clickSelect(const QPoint& pixel)
     auto start = high_resolution_clock::now();
 
     QMap<int, float> selectedIdsDist;
-    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+    for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
     {
         TriangleMesh* mesh = _meshStore.at(i);
         if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
@@ -3862,9 +3890,21 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 {
     _selectedIDs.clear();
 
-    //if (!_displayedObjectsIds.size())
-    if(_visibleSwapped ? !_hiddenObjectsIds.size() : !_displayedObjectsIds.size())
-        return _selectedIDs;
+    //if (!_displayedObjectsIds.size())    
+    if (_visibleSwapped)
+    {
+        if (!_hiddenObjectsIds.size())
+        {
+            return _selectedIDs;
+        }
+    }
+    else
+    {
+        if (!_displayedObjectsIds.size())
+        {
+            return _selectedIDs;
+        }
+    }
 
     QRect rubberRect = _rubberBand->geometry();
     if (rubberRect.width() == 0 || rubberRect.height() == 0)
@@ -3874,7 +3914,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 
     QRect viewport = getViewportFromPoint(pixel);
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+    for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
     {
         TriangleMesh* mesh = _meshStore.at(i);
         QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());
@@ -4244,7 +4284,7 @@ void GLWidget::setXTran(const float& xTran)
 float GLWidget::highestModelZ()
 {
     float highestZ = std::numeric_limits<float>::min();
-    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+    for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
     {
         try
         {
@@ -4265,7 +4305,7 @@ float GLWidget::highestModelZ()
 float GLWidget::lowestModelZ()
 {
     float lowestZ = std::numeric_limits<float>::max();
-    for (int i : _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds)
+    for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
     {
         try
         {
@@ -4313,7 +4353,10 @@ void GLWidget::showContextMenu(const QPoint& pos)
         }
         else
         {
-            myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));
+            if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
+            {
+                myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));
+            }
             QAction* action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), "Zoom Area");
             action->setCheckable(true);
             connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonWindowZoom_clicked(bool)));
@@ -4332,12 +4375,14 @@ void GLWidget::showContextMenu(const QPoint& pos)
                 action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), "Hide All", _viewer, SLOT(hideAllItems()));
                 action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_A));
             }
-
-            action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), "Swap Visible");
-            action->setCheckable(true);
-            action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_S));
-            action->setChecked(_visibleSwapped);
-            connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
+            if (_hiddenObjectsIds.size() != 0)
+            {
+                action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), "Swap Visible");
+                action->setCheckable(true);
+                action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_S));
+                action->setChecked(_visibleSwapped);
+                connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
+            }
             myMenu.addSeparator();
             myMenu.addAction("Background Color", this, SLOT(setBackgroundColor()));
         }

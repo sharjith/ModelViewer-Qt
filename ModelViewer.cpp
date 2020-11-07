@@ -625,6 +625,8 @@ void ModelViewer::hideAllItems()
         QListWidgetItem* item = listWidgetModel->item(i);
         item->setCheckState(Qt::Unchecked);
     }
+    if (_glWidget->isVisibleSwapped())
+        _glWidget->swapVisible(false);
 }
 
 void ModelViewer::hideSelectedItems()
