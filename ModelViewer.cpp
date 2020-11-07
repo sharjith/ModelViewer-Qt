@@ -455,7 +455,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 				for (int i = 0; i < listWidgetModel->count(); i++)
 				{
 					QListWidgetItem* item = listWidgetModel->item(i);
-					if (item->checkState() == _glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked)
+					if (item->checkState() == (_glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked))
 					{
 						item->setSelected(true);
 					}
