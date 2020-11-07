@@ -3264,7 +3264,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
                 && !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
         {
             // Selection
-            mouseSelect(QPoint(e->x(), e->y()));
+            clickSelect(QPoint(e->x(), e->y()));
         }
 
         if (!_rubberBand)
@@ -3764,7 +3764,7 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 
 #include <chrono> 
 using namespace std::chrono;
-int GLWidget::mouseSelect(const QPoint& pixel)
+int GLWidget::clickSelect(const QPoint& pixel)
 {
     int id = -1;
 

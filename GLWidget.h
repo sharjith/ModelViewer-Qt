@@ -313,7 +313,7 @@ private:
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 
 	void convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir);
-	int mouseSelect(const QPoint& pixel);
+	int clickSelect(const QPoint& pixel);
 	QList<int> sweepSelect(const QPoint& pixel);
 
 	float highestModelZ();
