@@ -61,5 +61,7 @@
         <file>res/rotateview.png</file>
         <file>res/clear.png</file>
         <file>res/swapvisible.png</file>
+        <file>res/showall.png</file>
+        <file>res/hideall.png</file>
     </qresource>
 </RCC>

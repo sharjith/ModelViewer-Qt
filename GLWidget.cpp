@@ -825,7 +825,12 @@ void GLWidget::deselect(int id)
 void GLWidget::loadAssImpModel(QString fileName)
 {
     makeCurrent();
-    MainWindow::showStatusMessage("Reading file: " + fileName);
+    QString displayFileName = fileName;
+    if(fileName.length() > 125)
+    {
+        displayFileName = fileName.left(61) + "..." + fileName.right(61);
+    }
+    MainWindow::showStatusMessage("Reading file: " + displayFileName);
     MainWindow::showProgressBar();
     if (_assimpModelLoader)
     {
@@ -4285,7 +4290,8 @@ void GLWidget::showContextMenu(const QPoint& pos)
         // Create menu and insert some actions
         QMenu myMenu;
         QListWidget* listWidgetModel = _viewer->getListModel();
-        if (listWidgetModel->selectedItems().count() != 0 && _displayedObjectsIds.size() != 0)
+        if (listWidgetModel->selectedItems().count() != 0 &&
+                (_visibleSwapped ? _hiddenObjectsIds.size() != 0 : _displayedObjectsIds.size() != 0))
         {
             myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
             QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
@@ -4295,8 +4301,12 @@ void GLWidget::showContextMenu(const QPoint& pos)
             }
             myMenu.addAction("Visualization Settings", _viewer, SLOT(showVisualizationModelPage()));
             myMenu.addAction("Transformations", _viewer, SLOT(showTransformationsPage()));
-            myMenu.addAction("Hide", _viewer, SLOT(hideSelectedItems()));
-            myMenu.addAction("Show Only", _viewer, SLOT(showOnlySelectedItems()));
+            if(_visibleSwapped)
+                myMenu.addAction("Show", _viewer, SLOT(showSelectedItems()));
+            else
+                myMenu.addAction("Hide", _viewer, SLOT(hideSelectedItems()));
+            if(_displayedObjectsIds.size() > 1)
+                myMenu.addAction("Show Only", _viewer, SLOT(showOnlySelectedItems()));
             myMenu.addAction("Duplicate", _viewer, SLOT(duplicateSelectedItems()));
             myMenu.addAction("Delete", _viewer, SLOT(deleteSelectedItems()));
             myMenu.addAction("Mesh Info", _viewer, SLOT(displaySelectedMeshInfo()));
@@ -4310,9 +4320,22 @@ void GLWidget::showContextMenu(const QPoint& pos)
             myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), "Zoom", _viewer, SLOT(on_toolButtonZoomView_clicked()));
             myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), "Pan", _viewer, SLOT(on_toolButtonPanView_clicked()));
             myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), "Rotate", _viewer, SLOT(on_toolButtonRotateView_clicked()));
-            myMenu.addSeparator();
+            myMenu.addSeparator();            
+
+            if(_hiddenObjectsIds.size() != 0)
+            {
+                action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), "Show All", _viewer, SLOT(showAllItems()));
+                action->setShortcut(QKeySequence(Qt::SHIFT + Qt::Key_A));
+            }
+            if(_displayedObjectsIds.size() != 0)
+            {
+                action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), "Hide All", _viewer, SLOT(hideAllItems()));
+                action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_A));
+            }
+
             action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), "Swap Visible");
             action->setCheckable(true);
+            action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_S));
             action->setChecked(_visibleSwapped);
             connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
             myMenu.addSeparator();

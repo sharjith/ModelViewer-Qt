@@ -28,9 +28,11 @@ public:
 
 public slots:
 	void updateDisplayList();
-	void showSelectedItems();
+    void showAllItems();
+    void showSelectedItems();
 	void showOnlySelectedItems();
-	void hideSelectedItems();
+    void hideAllItems();
+    void hideSelectedItems();
 	void duplicateSelectedItems();
 	void deleteSelectedItems();
 	void displaySelectedMeshInfo();
