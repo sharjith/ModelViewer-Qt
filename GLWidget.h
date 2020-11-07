@@ -201,6 +201,8 @@ public:
 
 	std::vector<int> getDisplayedObjectsIds() const;
 
+    bool isVisibleSwapped() const;
+
 	BoundingSphere getBoundingSphere() const;
 
 	QColor getBgTopColor() const;
@@ -220,8 +222,8 @@ public:
 
 	void cleanUpShaders();
 
-signals:	
-	void windowZoomEnded();
+signals:
+    void windowZoomEnded();
 	void rotationsSet();
 	void zoomAndPanSet();
 	void viewSet();
@@ -229,7 +231,7 @@ signals:
 	void singleSelectionDone(int);
 	void sweepSelectionDone(QList<int>);
 	void floorShown(bool);
-    void visibleSwapped(bool);
+    void isVisibleSwapped(bool);
 
 public slots:
 	void animateViewChange();

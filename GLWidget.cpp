@@ -591,7 +591,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     std::vector<int> allObjectIDs;
     for(size_t i = 0; i < _meshStore.size(); i++)
     {
-        allObjectIDs.push_back(i);
+        allObjectIDs.push_back(static_cast<int>(i));
     }
     _hiddenObjectsIds.clear();
     std::set_difference(
@@ -864,7 +864,7 @@ void GLWidget::swapVisible(bool checked)
     updateBoundingSphere();
     if(_autoFitViewOnUpdate)
         fitAll();
-    emit visibleSwapped(checked);
+    emit isVisibleSwapped(checked);
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
@@ -4109,6 +4109,11 @@ BoundingSphere GLWidget::getBoundingSphere() const
 std::vector<int> GLWidget::getDisplayedObjectsIds() const
 {
     return _displayedObjectsIds;
+}
+
+bool GLWidget::isVisibleSwapped() const
+{
+    return _visibleSwapped;
 }
 
 void GLWidget::setShowFaceNormals(bool showFaceNormals)
