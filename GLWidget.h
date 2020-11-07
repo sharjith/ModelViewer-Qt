@@ -231,7 +231,7 @@ signals:
 	void singleSelectionDone(int);
 	void sweepSelectionDone(QList<int>);
 	void floorShown(bool);
-    void isVisibleSwapped(bool);
+    void visibleSwapped(bool);
 
 public slots:
 	void animateViewChange();

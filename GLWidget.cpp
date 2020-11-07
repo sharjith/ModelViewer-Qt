@@ -864,7 +864,7 @@ void GLWidget::swapVisible(bool checked)
     updateBoundingSphere();
     if(_autoFitViewOnUpdate)
         fitAll();
-    emit isVisibleSwapped(checked);
+    emit visibleSwapped(checked);
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
