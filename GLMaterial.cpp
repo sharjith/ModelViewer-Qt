@@ -618,9 +618,16 @@ GLMaterial GLMaterial::BLACK_RUBBER()
 
 GLMaterial GLMaterial::DEFAULT_MAT()
 {
-	GLMaterial mat({ 126 / 256.0f, 124 / 256.0f, 116 / 256.0f },
+	/*GLMaterial mat({ 126 / 256.0f, 124 / 256.0f, 116 / 256.0f },
 		{ 126 / 256.0f, 124 / 256.0f, 116 / 256.0f },
 		{ 140 / 256.0f, 140 / 256.0f, 130 / 256.0f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.05f),
+		false,
+		1.0f);*/
+	GLMaterial mat({ 125 / 255.0f, 125 / 255.0f, 125 / 255.0f },
+		{ 125 / 255.0f, 125 / 255.0f, 125 / 255.0f },
+		{ 125 / 255.0f, 125 / 255.0f, 125 / 255.0f },
 		{ 0.0, 0.0, 0.0 },
 		fabs(128.0 * 0.05f),
 		false,
