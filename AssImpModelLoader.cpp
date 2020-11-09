@@ -45,10 +45,12 @@ void AssImpModelLoader::loadModel(string path)
     _loadedTextures.clear();
     // Read file via ASSIMP
     _importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-    const aiScene* scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace | aiProcess_JoinIdenticalVertices |
-                                              aiProcess_Triangulate | aiProcess_GenUVCoords |
-                                              aiProcess_SortByPType | aiProcess_JoinIdenticalVertices |
-                                              aiProcess_FindInvalidData | aiProcess_GenSmoothNormals | aiProcess_ImproveCacheLocality);
+    const aiScene* scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace | 
+        aiProcess_GenSmoothNormals | 
+        aiProcess_JoinIdenticalVertices | 
+        aiProcess_Triangulate | 
+        aiProcess_GenUVCoords |
+        aiProcess_SortByPType);
 
     // Check for errors
     if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
