@@ -83,7 +83,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     //_bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
     //_bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
     _bgTopColor = QColor::fromRgbF(0.2f, 0.2f, 0.2f, 1.0f);
-    _bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
+    _bgBotColor = QColor::fromRgbF(0.8f, 0.8f, 0.8f, 1.0f);
 
     _quadVAO = 0;
 
@@ -713,7 +713,7 @@ void GLWidget::updateFloorPlane()
     _lightCube->setSize(_boundingSphere.getRadius() * 0.05f);
     _lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
     _lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
-    _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 0.25f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+    _lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 1.5f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
     _floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 4.0f, _floorSize * 4.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
     updateClippingPlane();
 }
