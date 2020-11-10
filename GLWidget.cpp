@@ -602,6 +602,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
         std::back_inserter( _hiddenObjectsIds )
     );
 
+    if(_hiddenObjectsIds.size() == 0 && _visibleSwapped)
+        _visibleSwapped = false;
+
     _currentTranslation = _primaryCamera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
 
