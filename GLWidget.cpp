@@ -82,8 +82,8 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
 
     //_bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
     //_bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
-    _bgTopColor = QColor::fromRgbF(0.2f, 0.2f, 0.2f, 1.0f);
-    _bgBotColor = QColor::fromRgbF(0.8f, 0.8f, 0.8f, 1.0f);
+    _bgTopColor = QColor::fromRgbF(0.1f, 0.1f, 0.1f, 1.0f);
+    _bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
 
     _quadVAO = 0;
 
@@ -1925,7 +1925,7 @@ void GLWidget::createLights()
 
 void GLWidget::createGeometry()
 {
-    _meshStore.push_back(new Cube(_fgShader, 100.0f));
+    /*_meshStore.push_back(new Cube(_fgShader, 100.0f));
     _meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
     _meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
     _meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
@@ -1980,7 +1980,7 @@ void GLWidget::createGeometry()
     SphericalHarmonic* sph = new SphericalHarmonic(_fgShader, 30.0f, 150.0f, 150.0f, 2, 2);
     _meshStore.push_back(sph);
     _sphericalHarmonicsEditor = new SphericalHarmonicsEditor(sph, this);
-    _upperLayout->addWidget(_sphericalHarmonicsEditor);
+    _upperLayout->addWidget(_sphericalHarmonicsEditor);*/
 
     QString fileName;
 #ifdef WIN32
@@ -2397,7 +2397,7 @@ void GLWidget::paintGL()
             _textRenderer->RenderText(_meshStore.at(num)->getName().toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
         }
 
-        if (_meshStore.size() && _displayedObjectsIds.size() != 0)
+        /*if (_meshStore.size() && _displayedObjectsIds.size() != 0)
         {
             int num = _displayedObjectsIds[0];
             // Display Harmonics Editor
@@ -2429,7 +2429,7 @@ void GLWidget::paintGL()
                 _springEditor->show();
             else
                 _springEditor->hide();
-        }
+        }*/
     }
     catch (const std::exception& ex)
     {

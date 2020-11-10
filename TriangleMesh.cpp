@@ -211,6 +211,7 @@ void TriangleMesh::buildTriangles()
     {
         for (Triangle* t : _triangles)
             delete t;
+        _memorySize -= _triangles.size() * sizeof(Triangle);
         _triangles.clear();
     }
     try {
@@ -237,6 +238,8 @@ void TriangleMesh::buildTriangles()
 
             _triangles.push_back(new TriangleMollerTrumbore(v1, v2, v3, this));
         }
+        _memorySize += _triangles.size() * sizeof(Triangle);
+
     }
     catch (const std::exception& ex) {
         std::cout << "Exception raised in TriangleMesh::buildTriangles\n" << ex.what() << std::endl;
@@ -993,6 +996,11 @@ void TriangleMesh::setPBRRoughness(const float& val)
 QOpenGLVertexArrayObject& TriangleMesh::getVAO()
 {
     return _vertexArrayObject;
+}
+
+unsigned long long TriangleMesh::memorySize() const
+{
+    return _memorySize + sizeof(TriangleMesh);
 }
 
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)

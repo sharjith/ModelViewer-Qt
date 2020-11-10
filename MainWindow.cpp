@@ -87,8 +87,8 @@ void MainWindow::showEvent(QShowEvent* event)
 
 	if (_bFirstTime)
 	{
-		std::vector<int> mod = { 5 };
-		_viewers[0]->getGLView()->setDisplayList(mod);
+		//std::vector<int> mod = { 5 };
+		//_viewers[0]->getGLView()->setDisplayList(mod);
 		_viewers[0]->showMaximized();
 		_viewers[0]->updateDisplayList();
 		_bFirstTime = false;

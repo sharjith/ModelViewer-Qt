@@ -173,7 +173,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
     }
 
     // Process materials
-    GLMaterial mat;
+    GLMaterial mat = GLMaterial::DEFAULT_MAT();
     if (mesh->mMaterialIndex != 0)
     {
         aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];

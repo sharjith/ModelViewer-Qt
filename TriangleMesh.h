@@ -39,7 +39,7 @@ public:
 		return _name;
 	}
 
-	virtual unsigned long long memorySize() const { return _memorySize; }
+	virtual unsigned long long memorySize() const;
 
 	QVector3D ambientMaterial() const;
 	void setAmbientMaterial(const QVector3D& ambient);

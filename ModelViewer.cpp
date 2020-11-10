@@ -902,6 +902,13 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
     updateControls();
 }
 
+void ModelViewer::on_pushButtonApplyADSColors_clicked()
+{
+    setMaterialToSelectedItems(_material);
+    _glWidget->updateView();
+    updateControls();
+}
+
 void ModelViewer::on_pushButtonDefaultMatls_clicked()
 {
     if (checkForActiveSelection())
