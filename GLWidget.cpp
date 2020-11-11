@@ -597,10 +597,10 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     }
     _hiddenObjectsIds.clear();
     std::set_difference(
-        allObjectIDs.begin(), allObjectIDs.end(),
-        _displayedObjectsIds.begin(), _displayedObjectsIds.end(),
-        std::back_inserter( _hiddenObjectsIds )
-    );
+                allObjectIDs.begin(), allObjectIDs.end(),
+                _displayedObjectsIds.begin(), _displayedObjectsIds.end(),
+                std::back_inserter( _hiddenObjectsIds )
+                );
 
     if(_hiddenObjectsIds.size() == 0 && _visibleSwapped)
         _visibleSwapped = false;
@@ -648,7 +648,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
         try
         {
             TriangleMesh* mesh = _meshStore.at(i);
-            memSize += mesh->memorySize();            
+            memSize += mesh->memorySize();
         }
         catch (const std::out_of_range& ex)
         {
@@ -695,11 +695,11 @@ void GLWidget::updateBoundingSphere()
     _boundingSphere.setRadius(0.0);
 
     if ((!_visibleSwapped && _displayedObjectsIds.size() == 0 ) ||
-        (_visibleSwapped && _hiddenObjectsIds.size() == 0))
-    {    
+            (_visibleSwapped && _hiddenObjectsIds.size() == 0))
+    {
         _primaryCamera->setPosition(0, 0, 0);
         _currentTranslation = _primaryCamera->getPosition();
-        _boundingSphere.setRadius(1.0);    
+        _boundingSphere.setRadius(1.0);
     }
     else
     {
@@ -824,7 +824,7 @@ void GLWidget::removeFromDisplay(int index)
         _hiddenObjectsIds.clear();
         if (_visibleSwapped)
             _visibleSwapped = false;
-    }    
+    }
 }
 
 void GLWidget::centerScreen(std::vector<int> selectedIDs)
@@ -1737,7 +1737,7 @@ void GLWidget::initializeGL()
     cout << "Shader Version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
          << endl;
 
-/*
+    /*
 #ifdef QT_DEBUG
     int n = 0;
     glGetIntegerv(GL_NUM_EXTENSIONS, &n);
@@ -2336,11 +2336,11 @@ void GLWidget::resizeGL(int width, int height)
 void GLWidget::paintGL()
 {
     QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
-                                                             1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
-                                                             _bgTopColor.alphaF());
+                                                                        1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
+                                                                        _bgTopColor.alphaF());
     QColor botColor = !_visibleSwapped ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
-                                                             1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
-                                                             _bgBotColor.alphaF());
+                                                                        1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
+                                                                        _bgBotColor.alphaF());
     try
     {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -3487,7 +3487,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
     if (_keys[Qt::Key_Home])
         fitAll();
     if (_keys[Qt::Key_Delete])
-        _viewer->deleteSelectedItems();    
+        _viewer->deleteSelectedItems();
     if (_keys[Qt::Key_Space])
     {
         if(event->modifiers()& Qt::ShiftModifier)
@@ -3850,7 +3850,7 @@ int GLWidget::clickSelect(const QPoint& pixel)
     convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
     rayDir.normalize();
 
-    // Get starting timepoint 
+    // Get starting timepoint
     auto start = high_resolution_clock::now();
 
     QMap<int, float> selectedIdsDist;
@@ -3891,12 +3891,12 @@ int GLWidget::clickSelect(const QPoint& pixel)
     }
     //qDebug() << "Selected Id: " << id;
 
-    // Get ending timepoint 
+    // Get ending timepoint
     auto stop = high_resolution_clock::now();
 
-    // Get duration. Substart timepoints to  
-    // get durarion. To cast it to proper unit 
-    // use duration cast method 
+    // Get duration. Substart timepoints to
+    // get durarion. To cast it to proper unit
+    // use duration cast method
     auto duration = duration_cast<microseconds>(stop - start);
 
     //cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
@@ -3911,7 +3911,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 {
     _selectedIDs.clear();
 
-    //if (!_displayedObjectsIds.size())    
+    //if (!_displayedObjectsIds.size())
     if (_visibleSwapped)
     {
         if (!_hiddenObjectsIds.size())
@@ -3942,7 +3942,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
         QRect interRect = rubberRect.intersected(objRect);
         // Intersection rectangle of rubberband and object is more than 5% of objRect
         bool intersects = (float(interRect.width() * interRect.height()) >= float(objRect.width() * objRect.height()) * 0.05f);
-       
+
         if (intersects)
         {
             _selectedIDs.push_back(i);
@@ -4358,7 +4358,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
             QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
             if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
             {
-                myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));                
+                myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
             }
             myMenu.addAction("Visualization Settings", _viewer, SLOT(showVisualizationModelPage()));
             myMenu.addAction("Transformations", _viewer, SLOT(showTransformationsPage()));
@@ -4374,17 +4374,19 @@ void GLWidget::showContextMenu(const QPoint& pos)
         }
         else
         {
+            QAction* action = nullptr;
             if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
             {
                 myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));
+
+                action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), "Zoom Area");
+                action->setCheckable(true);
+                connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonWindowZoom_clicked(bool)));
+                myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), "Zoom", _viewer, SLOT(on_toolButtonZoomView_clicked()));
+                myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), "Pan", _viewer, SLOT(on_toolButtonPanView_clicked()));
+                myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), "Rotate", _viewer, SLOT(on_toolButtonRotateView_clicked()));
             }
-            QAction* action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), "Zoom Area");
-            action->setCheckable(true);
-            connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonWindowZoom_clicked(bool)));
-            myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), "Zoom", _viewer, SLOT(on_toolButtonZoomView_clicked()));
-            myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), "Pan", _viewer, SLOT(on_toolButtonPanView_clicked()));
-            myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), "Rotate", _viewer, SLOT(on_toolButtonRotateView_clicked()));
-            myMenu.addSeparator();            
+            myMenu.addSeparator();
 
             if(_hiddenObjectsIds.size() != 0)
             {

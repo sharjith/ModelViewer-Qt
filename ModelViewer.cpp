@@ -608,7 +608,7 @@ void ModelViewer::deleteSelectedItems()
             }
             if (listWidgetModel->count())
             {
-                listWidgetModel->setCurrentRow(rowId);
+                listWidgetModel->setCurrentRow(rowId, QItemSelectionModel::Clear);
                 QListWidgetItem* item = listWidgetModel->item(rowId);                
                 on_listWidgetModel_itemChanged(item);
             }
