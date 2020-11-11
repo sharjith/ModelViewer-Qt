@@ -243,7 +243,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _lowerLayout->setRowWrapPolicy(QFormLayout::DontWrapRows);
     _lowerLayout->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
 
-    _displayedObjectsIds.push_back(0);
+    //_displayedObjectsIds.push_back(0);
 
     setContextMenuPolicy(Qt::CustomContextMenu);
     connect(this, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
@@ -608,7 +608,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     _currentTranslation = _primaryCamera->getPosition();
     _boundingSphere.setCenter(0, 0, 0);
 
-    if (_meshStore.size() == 0)
+    /*if (_meshStore.size() == 0)
     {
         _boundingSphere.setRadius(1.0);
         _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
@@ -626,7 +626,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
     {
         _boundingSphere.setRadius(0.0);
         unsigned long long memSize = 0;
-        for (int i : _displayedObjectsIds)
+        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
         {
             try
             {
@@ -640,7 +640,23 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
             }
         }
         _displayedObjectsMemSize = memSize;
+    }*/
+
+    unsigned long long memSize = 0;
+    for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+    {
+        try
+        {
+            TriangleMesh* mesh = _meshStore.at(i);
+            memSize += mesh->memorySize();            
+        }
+        catch (const std::out_of_range& ex)
+        {
+            std::cout << ex.what() << std::endl;
+        }
     }
+    _displayedObjectsMemSize = memSize;
+    updateBoundingSphere();
 
     if (_floorPlane)
     {
@@ -808,7 +824,7 @@ void GLWidget::removeFromDisplay(int index)
         _hiddenObjectsIds.clear();
         if (_visibleSwapped)
             _visibleSwapped = false;
-    }
+    }    
 }
 
 void GLWidget::centerScreen(std::vector<int> selectedIDs)

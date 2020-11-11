@@ -609,7 +609,8 @@ void ModelViewer::deleteSelectedItems()
             if (listWidgetModel->count())
             {
                 listWidgetModel->setCurrentRow(rowId);
-                on_listWidgetModel_itemChanged(listWidgetModel->item(rowId));
+                QListWidgetItem* item = listWidgetModel->item(rowId);                
+                on_listWidgetModel_itemChanged(item);
             }
             _glWidget->update();
             _deletionInProgress = false;
@@ -1486,9 +1487,9 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
                 ids.push_back(rowId);
             }
         }
-
-        listWidgetModel->scrollToItem(item);
-
+        
+        listWidgetModel->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+        
         // Update the tristate checkbox
         checkBoxSelectAll->blockSignals(true);
         if (ids.size() == 0)
@@ -1499,7 +1500,7 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
             checkBoxSelectAll->setCheckState(Qt::PartiallyChecked);
         checkBoxSelectAll->blockSignals(false);
 
-        _glWidget->setDisplayList(ids);
+        _glWidget->setDisplayList(ids);        
         float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
         sliderLightPosX->setRange(-range, range);
         sliderLightPosY->setRange(-range, range);
