@@ -3353,6 +3353,19 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
     if (e->button() & Qt::MiddleButton)
     {
+        if (e->modifiers() == Qt::NoModifier)
+        {   
+            if (!_multiViewActive)
+            {
+                QPoint o(width()/2, height()/2);
+                QPoint p = e->pos();
+
+                QVector3D OP = get3dTranslationVectorFromMousePoints(o, p);
+                _primaryCamera->move(OP.x(), OP.y(), OP.z());
+                _currentTranslation = _primaryCamera->getPosition();
+                update();
+            }
+        }
     }
 
     _lowResEnabled = false;
