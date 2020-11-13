@@ -48,6 +48,8 @@ public:
 
     vector<AssImpMesh*> getMeshes() const;    
 
+    QString getErrorMessage() const;
+
 signals:
     void fileReadProcessed(float percent);
     void verticesProcessed(float percent);
@@ -77,4 +79,5 @@ private:
 
     Assimp::Importer _importer;
     AssImpModelProgressHandler* _progHandler;
+    QString _errorMessage;
 };

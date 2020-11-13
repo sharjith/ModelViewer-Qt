@@ -860,8 +860,10 @@ void GLWidget::deselect(int id)
 }
 
 
-void GLWidget::loadAssImpModel(QString fileName)
+bool GLWidget::loadAssImpModel(const QString &fileName, QString &error)
 {
+    bool success = false;
+
     makeCurrent();
     QString displayFileName = fileName;
     if(fileName.length() > 125)
@@ -874,12 +876,23 @@ void GLWidget::loadAssImpModel(QString fileName)
     {
         _assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()));
         std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
-        for (AssImpMesh* mesh : meshes)
-            addToDisplay(mesh);
+        if(meshes.size() == 0)
+        {
+            success = false;
+            error = _assimpModelLoader->getErrorMessage();
+        }
+        else
+        {
+            success = true;
+            for (AssImpMesh* mesh : meshes)
+                addToDisplay(mesh);
+        }
     }
     MainWindow::showStatusMessage("");
     MainWindow::setProgressValue(0);
     MainWindow::hideProgressBar();
+
+    return success;
 }
 
 

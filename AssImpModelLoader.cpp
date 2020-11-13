@@ -55,6 +55,7 @@ void AssImpModelLoader::loadModel(string path)
     // Check for errors
     if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
     {
+        _errorMessage = _importer.GetErrorString();
         cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
         return;
     }
@@ -307,5 +308,10 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, string directo
     glBindTexture(GL_TEXTURE_2D, 0);
 
     return textureID;
+}
+
+QString AssImpModelLoader::getErrorMessage() const
+{
+    return _errorMessage;
 }
 

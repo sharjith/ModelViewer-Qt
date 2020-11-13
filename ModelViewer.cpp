@@ -517,7 +517,8 @@ void ModelViewer::dropEvent(QDropEvent *event)
             QApplication::restoreOverrideCursor();
             return;
         }
-        _glWidget->loadAssImpModel(fileName);
+        QString errMsg;
+        _glWidget->loadAssImpModel(fileName, errMsg);
 
         updateDisplayList();
 
@@ -1569,14 +1570,24 @@ void ModelViewer::on_toolButtonOpen_clicked()
             _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
             QFileInfo fi(fileName);
 
-            _glWidget->loadAssImpModel(fileName);
+            QString errMsg;
+            bool success = _glWidget->loadAssImpModel(fileName, errMsg);
 
-            updateDisplayList();
+            if(success)
+            {
+                updateDisplayList();
 
-            listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-            listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+                listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+                listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
-            updateDisplayList();
+                updateDisplayList();
+            }
+            else
+            {
+                QApplication::restoreOverrideCursor();
+                QMessageBox::critical(this, "Error", QString("Failed to load model %1").arg(fileName) + "\n" + errMsg);
+                QApplication::setOverrideCursor(Qt::WaitCursor);
+            }
         }
         QApplication::restoreOverrideCursor();
         MainWindow::mainWindow()->activateWindow();
