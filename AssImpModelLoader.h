@@ -54,9 +54,11 @@ signals:
     void fileReadProcessed(float percent);
     void verticesProcessed(float percent);
     void nodeProcessed(int nodeNum, int totalNodes);
+    void loadingCancelled();
 
 public slots:
     void processFileReadProgress(float percentage);
+    void cancelLoading();
 
 private:
     QOpenGLShaderProgram* _prog;
@@ -80,4 +82,5 @@ private:
     Assimp::Importer _importer;
     AssImpModelProgressHandler* _progHandler;
     QString _errorMessage;
+    bool _loadingCancelled;
 };

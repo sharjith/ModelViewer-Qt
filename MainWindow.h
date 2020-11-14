@@ -3,6 +3,7 @@
 #include <QMainWindow>
 
 class QProgressBar;
+class QPushButton;
 
 namespace Ui
 {
@@ -18,6 +19,8 @@ class MainWindow : public QMainWindow
 public:
 	static MainWindow* mainWindow();
 	~MainWindow();
+
+	QPushButton* cancelTaskButton();
 
 	static void showStatusMessage(const QString& message);
     static void showProgressBar();
@@ -48,6 +51,7 @@ private slots:
 private:
 	Ui::MainWindow* ui;
     QProgressBar* _progressBar;
+	QPushButton* _cancelTaskButton;
 	QList<ModelViewer*> _viewers;
 
     bool _bFirstTime;

@@ -923,6 +923,12 @@ void GLWidget::swapVisible(bool checked)
     emit visibleSwapped(checked);
 }
 
+void GLWidget::cancelAssImpModelLoading()
+{
+    emit loadingAssImpModelCancelled();
+    QMessageBox::critical(this, "Cancelled", "Model loading cancelled!\nModel may be loaded partially");
+}
+
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
 {
     for (int id : ids)
@@ -1773,6 +1779,8 @@ void GLWidget::initializeGL()
     connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
+    connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
+    connect(MainWindow::mainWindow()->cancelTaskButton(), SIGNAL(clicked()), this, SLOT(cancelAssImpModelLoading()));
 
     // Text rendering
     _textShader->bind();
@@ -3508,6 +3516,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         _windowZoomActive = false;
         setCursor(QCursor(Qt::ArrowCursor));
         MainWindow::showStatusMessage("");
+        cancelAssImpModelLoading();
     }
 
     if (_keys[Qt::Key_Home])

@@ -14,6 +14,7 @@ bool AssImpModelProgressHandler::Update(float percentage)
 AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog)
 {
     initializeOpenGLFunctions();
+    _loadingCancelled = false;
     _progHandler = new AssImpModelProgressHandler();
     _importer.SetProgressHandler(_progHandler);
     connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
@@ -31,6 +32,11 @@ void AssImpModelLoader::processFileReadProgress(float percentage)
     emit fileReadProcessed(percentage);
 }
 
+void AssImpModelLoader::cancelLoading()
+{
+    _loadingCancelled = true;
+}
+
 vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 {
     return _meshes;
@@ -40,6 +46,7 @@ vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path)
 {
+    _loadingCancelled = false;
     _path = std::string(path);
     _meshes.clear();
     _loadedTextures.clear();
@@ -69,6 +76,11 @@ void AssImpModelLoader::loadModel(string path)
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* scene)
 {
+    if (_loadingCancelled)
+    {
+        emit loadingCancelled();
+        return;
+    }
     // Process each mesh located at the current node
     for (unsigned int i = 0; i < node->mNumMeshes; i++)
     {
@@ -82,6 +94,11 @@ void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* sc
     // After we've processed all of the meshes (if any) we then recursively process each of the children nodes
     for (unsigned int i = 0; i < node->mNumChildren; i++)
     {
+        if (_loadingCancelled)
+        {
+            emit loadingCancelled();
+            return;
+        }
         this->processNode(++nodeNum, node->mChildren[i], scene);
         emit nodeProcessed(nodeNum, node->mNumChildren);
     }

@@ -232,6 +232,7 @@ signals:
 	void sweepSelectionDone(QList<int>);
 	void floorShown(bool);
     void visibleSwapped(bool);
+	void loadingAssImpModelCancelled();
 
 public slots:
 	void animateViewChange();
@@ -258,6 +259,7 @@ public slots:
 	void showMeshLoadingProgress(float percent);
     void showModelLoadingProgress(int nodeNum, int totalNodes);
     void swapVisible(bool checked);
+	void cancelAssImpModelLoading();
 
 private slots:
 	void showContextMenu(const QPoint& pos);

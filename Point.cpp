@@ -14,5 +14,5 @@ Point::~Point()
 
 float Point::distance(const Point& other)
 {
-	return sqrt(pow((other._x - _x), 2) + pow((other._y - _y), 2) + pow((other._z - _z), 2));
+	return static_cast<float>(sqrt(pow((other._x - _x), 2) + pow((other._y - _y), 2) + pow((other._z - _z), 2)));
 }

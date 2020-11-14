@@ -4,6 +4,7 @@
 #include "GLWidget.h"
 #include <QtOpenGL>
 #include <QProgressBar>
+#include <QPushButton>
 
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
@@ -20,6 +21,9 @@ MainWindow::MainWindow(QWidget* parent)
 
 	Q_INIT_RESOURCE(ModelViewer);
 
+	_cancelTaskButton = new QPushButton("Cancel", ui->statusBar);
+	ui->statusBar->addPermanentWidget(_cancelTaskButton);
+	_cancelTaskButton->hide();
 
     _progressBar = new QProgressBar(ui->statusBar);
     ui->statusBar->addPermanentWidget(_progressBar);
@@ -38,21 +42,28 @@ MainWindow::~MainWindow()
 	delete ui;
 }
 
+QPushButton* MainWindow::cancelTaskButton()
+{
+	return _cancelTaskButton;
+}
+
 void MainWindow::showStatusMessage(const QString& message)
 {
     _mainWindow->statusBar()->showMessage(message);
     _mainWindow->statusBar()->update();
-	qApp->processEvents(QEventLoop::ExcludeUserInputEvents, 10);
+	qApp->processEvents();
 }
 
 void MainWindow::showProgressBar()
 {
     _mainWindow->_progressBar->show();
+	_mainWindow->_cancelTaskButton->show();
 }
 
 void MainWindow::hideProgressBar()
 {
     _mainWindow->_progressBar->hide();
+	_mainWindow->_cancelTaskButton->hide();
 }
 
 void MainWindow::setProgressValue(const int& value)
@@ -62,7 +73,7 @@ void MainWindow::setProgressValue(const int& value)
     else
         _mainWindow->_progressBar->setValue(value);
     _mainWindow->_progressBar->update();
-	qApp->processEvents(QEventLoop::ExcludeUserInputEvents, 10);
+	qApp->processEvents();
 }
 
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
