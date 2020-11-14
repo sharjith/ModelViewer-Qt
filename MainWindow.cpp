@@ -21,7 +21,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	Q_INIT_RESOURCE(ModelViewer);
 
-	_cancelTaskButton = new QPushButton("Cancel", ui->statusBar);
+    _cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
 	ui->statusBar->addPermanentWidget(_cancelTaskButton);
 	_cancelTaskButton->hide();
 
@@ -57,13 +57,13 @@ void MainWindow::showStatusMessage(const QString& message)
 void MainWindow::showProgressBar()
 {
     _mainWindow->_progressBar->show();
-	_mainWindow->_cancelTaskButton->show();
+    _mainWindow->_cancelTaskButton->show();
 }
 
 void MainWindow::hideProgressBar()
 {
     _mainWindow->_progressBar->hide();
-	_mainWindow->_cancelTaskButton->hide();
+    _mainWindow->_cancelTaskButton->hide();
 }
 
 void MainWindow::setProgressValue(const int& value)

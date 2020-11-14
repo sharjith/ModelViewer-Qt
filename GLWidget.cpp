@@ -874,6 +874,20 @@ bool GLWidget::loadAssImpModel(const QString &fileName, QString &error)
     MainWindow::showProgressBar();
     if (_assimpModelLoader)
     {
+        /*QMessageBox msgBox(this);
+        msgBox.setIcon( QMessageBox::Information);
+        msgBox.setText("Click Abort to stop file loading.");
+        msgBox.setWindowFlag(Qt::FramelessWindowHint,true);
+        msgBox.setModal(false);
+        float ph = geometry().height();
+        float px = geometry().x();
+        float py = geometry().y();
+        float dw = msgBox.width();
+        float dh = msgBox.height();
+        msgBox.setGeometry( px + 20, py+ph-4*dh, dw, dh );
+        QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
+        connect(abortButton, SIGNAL(pressed()), this, SLOT(cancelAssImpModelLoading()));
+        msgBox.show();*/
         _assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()));
         std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
         if(meshes.size() == 0)
@@ -3516,7 +3530,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         _windowZoomActive = false;
         setCursor(QCursor(Qt::ArrowCursor));
         MainWindow::showStatusMessage("");
-        cancelAssImpModelLoading();
+        emit singleSelectionDone(-1);
     }
 
     if (_keys[Qt::Key_Home])
