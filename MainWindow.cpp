@@ -120,9 +120,9 @@ void MainWindow::on_actionNew_triggered()
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
 	viewer->showMaximized();
-	std::vector<int> mod = { 5 };
-	viewer->getGLView()->setDisplayList(mod);
-	viewer->updateDisplayList();
+    //std::vector<int> mod = { 5 };
+    //viewer->getGLView()->setDisplayList(mod);
+    viewer->updateDisplayList();
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()
