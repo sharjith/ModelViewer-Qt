@@ -6,6 +6,11 @@
 #include <QProgressBar>
 #include <QPushButton>
 
+#ifdef _WIN32
+#include <QWinTaskbarProgress>
+#include <QWinTaskbarButton>
+#endif
+
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
 
@@ -57,21 +62,37 @@ void MainWindow::showStatusMessage(const QString& message)
 void MainWindow::showProgressBar()
 {
     _mainWindow->_progressBar->show();
+#ifdef _WIN32
+	_mainWindow->_windowsTaskbarProgress->show();
+#endif // _WIN32
     _mainWindow->_cancelTaskButton->show();
 }
 
 void MainWindow::hideProgressBar()
 {
     _mainWindow->_progressBar->hide();
+#ifdef _WIN32
+	_mainWindow->_windowsTaskbarProgress->hide();
+#endif // _WIN32
     _mainWindow->_cancelTaskButton->hide();
 }
 
 void MainWindow::setProgressValue(const int& value)
 {
-    if(value == 0)
-        _mainWindow->_progressBar->reset();
-    else
-        _mainWindow->_progressBar->setValue(value);
+	if (value == 0)
+	{
+		_mainWindow->_progressBar->reset();
+#ifdef _WIN32
+		_mainWindow->_windowsTaskbarProgress->reset();
+#endif // _WIN32
+	}
+	else
+	{
+		_mainWindow->_progressBar->setValue(value);
+#ifdef _WIN32
+		_mainWindow->_windowsTaskbarProgress->setValue(value);
+#endif // _WIN32
+	}
     _mainWindow->_progressBar->update();
 	qApp->processEvents();
 }
@@ -95,6 +116,12 @@ void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)
 void MainWindow::showEvent(QShowEvent* event)
 {
 	QWidget::showEvent(event);
+
+#ifdef _WIN32
+	QWinTaskbarButton* windowsTaskbarButton = new QWinTaskbarButton(this);    //Create the taskbar button which will show the progress
+	windowsTaskbarButton->setWindow(windowHandle());    //Associate the taskbar button to the progress bar, assuming that the progress bar is its own window
+	_windowsTaskbarProgress = windowsTaskbarButton->progress();		
+#endif
 
 	if (_bFirstTime)
 	{

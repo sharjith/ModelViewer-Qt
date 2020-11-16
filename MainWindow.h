@@ -5,6 +5,11 @@
 class QProgressBar;
 class QPushButton;
 
+#ifdef _WIN32
+class QWinTaskbarProgress;
+#endif // 
+
+
 namespace Ui
 {
 	class MainWindow;
@@ -51,6 +56,9 @@ private slots:
 private:
 	Ui::MainWindow* ui;
     QProgressBar* _progressBar;
+#ifdef _WIN32
+	QWinTaskbarProgress* _windowsTaskbarProgress;
+#endif
 	QPushButton* _cancelTaskButton;
 	QList<ModelViewer*> _viewers;
 

@@ -6,6 +6,8 @@ TEMPLATE = app
 TARGET = ModelViewer
 INCLUDEPATH += .
 
+win32:QT += winextras
+
 unix {
     INCLUDEPATH += /usr/include/freetype2/
     LIBS += -lfreetype -lassimp
