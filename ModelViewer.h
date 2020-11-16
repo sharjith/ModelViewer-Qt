@@ -26,11 +26,14 @@ public:
 
 	void switchToRealisticRendering();
 
+    static QString getLastOpenedDir();
+    static void setLastOpenedDir(const QString &lastOpenedDir);
+
 public slots:
-	void updateDisplayList();
+    void updateDisplayList();
     void showAllItems();
     void showSelectedItems();
-	void showOnlySelectedItems();
+    void showOnlySelectedItems();
     void hideAllItems();
     void hideSelectedItems();
 	void duplicateSelectedItems();
@@ -257,8 +260,8 @@ private:
 	bool _runningFirstTime;
 	bool _deletionInProgress;
 
-	QString _lastOpenedDir;
-	QString _lastSelectedFilter;
+    static QString _lastOpenedDir;
+    static QString _lastSelectedFilter;
 	bool _textureDirOpenedFirstTime;
 
 private:

@@ -36,6 +36,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	setCentralWidget((ui->mdiArea));
 	ModelViewer* viewer = new ModelViewer(ui->mdiArea);
+    viewer->setLastOpenedDir(QApplication::applicationDirPath());
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);

@@ -6,17 +6,24 @@
 #include "TriangleMesh.h"
 #include "MeshProperties.h"
 
+QString ModelViewer::_lastOpenedDir;
+QString ModelViewer::_lastSelectedFilter= "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
+                                          "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
+                                          "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
+                                          "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
+                                          "*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl)";
+
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
     _runningFirstTime = true;
     _deletionInProgress = false;
 
-    _lastOpenedDir = QApplication::applicationDirPath();
-    _lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
+    //_lastOpenedDir = QApplication::applicationDirPath();
+    /*_lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
                           "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
                           "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
                           "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
-                          "*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl)";
+                          "*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl)";*/
     _textureDirOpenedFirstTime = true;
 
     isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
@@ -528,6 +535,16 @@ void ModelViewer::dropEvent(QDropEvent *event)
         updateDisplayList();
     }
     QApplication::restoreOverrideCursor();
+}
+
+QString ModelViewer::getLastOpenedDir()
+{
+    return _lastOpenedDir;
+}
+
+void ModelViewer::setLastOpenedDir(const QString &lastOpenedDir)
+{
+    _lastOpenedDir = lastOpenedDir;
 }
 
 void ModelViewer::showContextMenu(const QPoint& pos)
