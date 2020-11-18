@@ -1763,28 +1763,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 void GLWidget::initializeGL()
 {    
     initializeOpenGLFunctions();
-
-    cout << "Renderer: " << glGetString(GL_RENDERER) << '\n';
-    cout << "Vendor:   " << glGetString(GL_VENDOR) << '\n';
-    cout << "OpenGL Version:  " << glGetString(GL_VERSION) << '\n';
-    cout << "Shader Version:   " << glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
-         << endl;
-
-    /*
-#ifdef QT_DEBUG
-    int n = 0;
-    glGetIntegerv(GL_NUM_EXTENSIONS, &n);
-    for (int i = 0; i < n; i++)
-    {
-        const char* extension =
-                (const char*)glGetStringi(GL_EXTENSIONS, i);
-        printf("GL Extension %d: %s\n", i, extension);
-    }
-    std::cout << std::endl;
-
-#endif // DEBUG
-*/
-
+ 
     makeCurrent();
 
     createShaderPrograms();

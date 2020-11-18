@@ -2,13 +2,14 @@
 
 #include <QMainWindow>
 
+QT_BEGIN_NAMESPACE
 class QProgressBar;
 class QPushButton;
-
+class QMdiSubWindow;
 #ifdef _WIN32
 class QWinTaskbarProgress;
 #endif // 
-
+QT_END_NAMESPACE
 
 namespace Ui
 {
@@ -52,6 +53,12 @@ private slots:
 	void on_actionTile_triggered();
 
 	void on_actionCascade_triggered();
+
+
+	void updateMenus();
+	void updateWindowMenu();
+	ModelViewer* activeMdiChild() const;
+	QMdiSubWindow* findMdiChild(const QString& fileName) const;
 
 private:
 	Ui::MainWindow* ui;
