@@ -5,6 +5,7 @@
 #include <QtOpenGL>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QMdiSubWindow>
 
 #ifdef _WIN32
 #include <QWinTaskbarProgress>
@@ -21,6 +22,30 @@ MainWindow::MainWindow(QWidget* parent)
 	ui->setupUi(this);
 
 	_mainWindow = this;
+
+	connect(ui->mdiArea, &QMdiArea::subWindowActivated,
+		this, &MainWindow::updateMenus);
+	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
+
+	QAction* closeAct = ui->actionClose;
+	closeAct->setStatusTip(tr("Close the active window"));
+	connect(closeAct, &QAction::triggered,
+		ui->mdiArea, &QMdiArea::closeActiveSubWindow);
+
+	QAction* closeAllAct = ui->actionClose_All;
+	closeAllAct->setStatusTip(tr("Close all the windows"));
+	connect(closeAllAct, &QAction::triggered, ui->mdiArea, &QMdiArea::closeAllSubWindows);
+
+	QAction* nextAct = ui->actionNext;
+	nextAct->setShortcuts(QKeySequence::NextChild);
+	nextAct->setStatusTip(tr("Move the focus to the next window"));
+	connect(nextAct, &QAction::triggered, ui->mdiArea, &QMdiArea::activateNextSubWindow);
+
+	QAction* previousAct = ui->actionPrevious;
+	previousAct->setShortcuts(QKeySequence::PreviousChild);
+	previousAct->setStatusTip(tr("Move the focus to the previous "
+		"window"));
+	connect(previousAct, &QAction::triggered, ui->mdiArea, &QMdiArea::activatePreviousSubWindow);
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
@@ -204,4 +229,85 @@ MainWindow* MainWindow::mainWindow()
 	if (_mainWindow == nullptr)
 		_mainWindow = new MainWindow();
 	return _mainWindow;
+}
+
+void MainWindow::updateMenus()
+{
+	bool hasMdiChild = (activeMdiChild() != nullptr);
+	//saveAct->setEnabled(hasMdiChild);
+	//saveAsAct->setEnabled(hasMdiChild);
+#ifndef QT_NO_CLIPBOARD
+	//pasteAct->setEnabled(hasMdiChild);
+#endif
+	ui->actionClose->setEnabled(hasMdiChild);
+	ui->actionClose_All->setEnabled(hasMdiChild);
+	ui->actionTile->setEnabled(hasMdiChild);
+	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
+	ui->actionTile_Vertically->setEnabled(hasMdiChild);
+	ui->actionCascade->setEnabled(hasMdiChild);
+	ui->actionNext->setEnabled(hasMdiChild);
+	ui->actionPrevious->setEnabled(hasMdiChild);	
+
+#ifndef QT_NO_CLIPBOARD
+	//bool hasSelection = (activeMdiChild() && activeMdiChild()->textCursor().hasSelection());
+	//cutAct->setEnabled(hasSelection);
+	//copyAct->setEnabled(hasSelection);
+#endif
+}
+
+void MainWindow::updateWindowMenu()
+{
+	ui->menuWindows->clear();
+	ui->menuWindows->addAction(ui->actionClose);
+	ui->menuWindows->addAction(ui->actionClose_All);
+	ui->menuWindows->addSeparator();
+	ui->menuWindows->addAction(ui->actionCascade);
+	ui->menuWindows->addAction(ui->actionTile);
+	ui->menuWindows->addAction(ui->actionTile_Horizontally);
+	ui->menuWindows->addAction(ui->actionTile_Vertically);
+	ui->menuWindows->addSeparator();
+	ui->menuWindows->addAction(ui->actionNext);
+	ui->menuWindows->addAction(ui->actionPrevious);
+
+	QList<QMdiSubWindow*> windows = ui->mdiArea->subWindowList();
+	if(!windows.isEmpty())
+		ui->menuWindows->addSeparator();
+
+	for (int i = 0; i < windows.size(); ++i) {
+		QMdiSubWindow* mdiSubWindow = windows.at(i);
+		ModelViewer* child = qobject_cast<ModelViewer*>(mdiSubWindow->widget());
+
+		QString text;
+		if (i < 9) {
+			text = child->windowTitle();
+		}
+		else {
+			text = child->windowTitle();
+		}
+		QAction* action = ui->menuWindows->addAction(text, mdiSubWindow, [this, mdiSubWindow]() {
+			ui->mdiArea->setActiveSubWindow(mdiSubWindow);
+			});
+		action->setCheckable(true);
+		action->setChecked(child == activeMdiChild());
+	}
+}
+
+ModelViewer* MainWindow::activeMdiChild() const
+{
+	if (QMdiSubWindow* activeSubWindow = ui->mdiArea->activeSubWindow())
+		return qobject_cast<ModelViewer*>(activeSubWindow->widget());
+	return nullptr;
+}
+
+QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
+{
+	QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
+
+	const QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
+	for (QMdiSubWindow* window : subWindows) {
+		ModelViewer* mdiChild = qobject_cast<ModelViewer*>(window->widget());
+		if (mdiChild->windowTitle() == canonicalFilePath)
+			return window;
+	}
+	return nullptr;
 }

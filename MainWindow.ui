@@ -77,12 +77,19 @@
    </widget>
    <widget class="QMenu" name="menuWindows">
     <property name="title">
-     <string>Windows</string>
+     <string>Window</string>
     </property>
+    <addaction name="actionClose"/>
+    <addaction name="actionClose_All"/>
+    <addaction name="separator"/>
     <addaction name="actionCascade"/>
     <addaction name="actionTile"/>
     <addaction name="actionTile_Horizontally"/>
     <addaction name="actionTile_Vertically"/>
+    <addaction name="separator"/>
+    <addaction name="actionNext"/>
+    <addaction name="actionPrevious"/>
+    <addaction name="separator"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuWindows"/>
@@ -130,6 +137,26 @@
   <action name="actionTile">
    <property name="text">
     <string>Tile</string>
+   </property>
+  </action>
+  <action name="actionClose">
+   <property name="text">
+    <string>Close</string>
+   </property>
+  </action>
+  <action name="actionClose_All">
+   <property name="text">
+    <string>Close All</string>
+   </property>
+  </action>
+  <action name="actionNext">
+   <property name="text">
+    <string>Next</string>
+   </property>
+  </action>
+  <action name="actionPrevious">
+   <property name="text">
+    <string>Previous</string>
    </property>
   </action>
  </widget>
