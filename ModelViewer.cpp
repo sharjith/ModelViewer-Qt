@@ -1282,7 +1282,15 @@ void ModelViewer::on_sliderTransparency_valueChanged(int value)
     if (checkForActiveSelection())
     {
         _material.setOpacity((float)value / 1000.0f);
-        setMaterialToSelectedItems(_material);
+        //setMaterialToSelectedItems(_material);
+        for(int id: getSelectedIDs())
+        {
+            TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
+            if(mesh)
+            {
+                mesh->setOpacity((float)value / 1000.0f);
+            }
+        }
 
         _glWidget->updateView();
     }
