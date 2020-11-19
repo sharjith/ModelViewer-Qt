@@ -58,7 +58,7 @@
      <x>0</x>
      <y>0</y>
      <width>1298</width>
-     <height>21</height>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -111,21 +111,33 @@
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionExit">
+   <property name="icon">
+    <iconset theme="application-exit"/>
+   </property>
    <property name="text">
     <string>Exit</string>
    </property>
   </action>
   <action name="actionAbout">
+   <property name="icon">
+    <iconset theme="help-about"/>
+   </property>
    <property name="text">
     <string>About</string>
    </property>
   </action>
   <action name="actionAbout_Qt">
+   <property name="icon">
+    <iconset theme="help-about-qt"/>
+   </property>
    <property name="text">
     <string>About Qt</string>
    </property>
   </action>
   <action name="actionNew">
+   <property name="icon">
+    <iconset theme="document-new"/>
+   </property>
    <property name="text">
     <string>New</string>
    </property>
@@ -154,26 +166,41 @@
    </property>
   </action>
   <action name="actionClose">
+   <property name="icon">
+    <iconset theme="window-close"/>
+   </property>
    <property name="text">
     <string>Close</string>
    </property>
   </action>
   <action name="actionClose_All">
+   <property name="icon">
+    <iconset theme="window-close-all"/>
+   </property>
    <property name="text">
     <string>Close All</string>
    </property>
   </action>
   <action name="actionNext">
+   <property name="icon">
+    <iconset theme="window-next"/>
+   </property>
    <property name="text">
     <string>Next</string>
    </property>
   </action>
   <action name="actionPrevious">
+   <property name="icon">
+    <iconset theme="window-previous"/>
+   </property>
    <property name="text">
     <string>Previous</string>
    </property>
   </action>
   <action name="actionOpen">
+   <property name="icon">
+    <iconset theme="document-open"/>
+   </property>
    <property name="text">
     <string>Open</string>
    </property>
@@ -182,26 +209,41 @@
    </property>
   </action>
   <action name="actionImport">
+   <property name="icon">
+    <iconset theme="document-import"/>
+   </property>
    <property name="text">
     <string>Import</string>
    </property>
   </action>
   <action name="actionSave">
+   <property name="icon">
+    <iconset theme="document-save"/>
+   </property>
    <property name="text">
     <string>Save</string>
    </property>
   </action>
   <action name="actionSave_As">
+   <property name="icon">
+    <iconset theme="document-save-as"/>
+   </property>
    <property name="text">
     <string>Save As</string>
    </property>
   </action>
   <action name="actionUndo">
+   <property name="icon">
+    <iconset theme="edit-undo"/>
+   </property>
    <property name="text">
     <string>Undo</string>
    </property>
   </action>
   <action name="actionRedo">
+   <property name="icon">
+    <iconset theme="edit-redo"/>
+   </property>
    <property name="text">
     <string>Redo</string>
    </property>
