@@ -23,6 +23,21 @@ MainWindow::MainWindow(QWidget* parent)
 
 	_mainWindow = this;
 
+	QMenu* fileMenu = ui->menuFile;
+	QAction* exitAct = ui->actionExit;
+	recentFileSeparator = fileMenu->insertSeparator(exitAct);
+
+	recentFileSubMenuAct = fileMenu->insertMenu(recentFileSeparator, new QMenu(tr("Recent...")));
+	QMenu* recentMenu = recentFileSubMenuAct->menu();
+	connect(recentMenu, &QMenu::aboutToShow, this, &MainWindow::updateRecentFileActions);	 
+
+	for (int i = 0; i < MaxRecentFiles; ++i) {
+		recentFileActs[i] = recentMenu->addAction(QString(), this, &MainWindow::openRecentFile);
+		recentFileActs[i]->setVisible(false);
+	}
+
+	setRecentFilesVisible(MainWindow::hasRecentFiles());
+
 	connect(ui->mdiArea, &QMdiArea::subWindowActivated,
 		this, &MainWindow::updateMenus);
 	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
@@ -47,9 +62,11 @@ MainWindow::MainWindow(QWidget* parent)
 		"window"));
 	connect(previousAct, &QAction::triggered, ui->mdiArea, &QMdiArea::activatePreviousSubWindow);
 
-	setAttribute(Qt::WA_DeleteOnClose);
+	updateMenus();
 
-	Q_INIT_RESOURCE(ModelViewer);
+	readSettings();
+
+	setAttribute(Qt::WA_DeleteOnClose);	
 
     _cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
 	ui->statusBar->addPermanentWidget(_cancelTaskButton);
@@ -58,14 +75,20 @@ MainWindow::MainWindow(QWidget* parent)
     _progressBar = new QProgressBar(ui->statusBar);
     ui->statusBar->addPermanentWidget(_progressBar);
     _progressBar->hide();
-
+	createMdiChild();
 	setCentralWidget((ui->mdiArea));
+	
+	_bFirstTime = true;
+}
+
+ModelViewer* MainWindow::createMdiChild()
+{
 	ModelViewer* viewer = new ModelViewer(ui->mdiArea);
-    viewer->setLastOpenedDir(QApplication::applicationDirPath());
+	viewer->setLastOpenedDir(QApplication::applicationDirPath());
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
-	_bFirstTime = true;
+	return viewer;
 }
 
 MainWindow::~MainWindow()
@@ -73,14 +96,61 @@ MainWindow::~MainWindow()
 	delete ui;
 }
 
+void MainWindow::readSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
+	if (geometry.isEmpty()) {
+		const QRect availableGeometry = screen()->availableGeometry();
+		resize(availableGeometry.width() / 3, availableGeometry.height() / 2);
+		move((availableGeometry.width() - width()) / 2,
+			(availableGeometry.height() - height()) / 2);
+	}
+	else {
+		restoreGeometry(geometry);
+	}
+}
+
+void MainWindow::writeSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.setValue("geometry", saveGeometry());
+}
+
+static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
+static inline QString fileKey() { return QStringLiteral("file"); }
+
+static QStringList readRecentFiles(QSettings& settings)
+{
+	QStringList result;
+	const int count = settings.beginReadArray(recentFilesKey());
+	for (int i = 0; i < count; ++i) {
+		settings.setArrayIndex(i);
+		result.append(settings.value(fileKey()).toString());
+	}
+	settings.endArray();
+	return result;
+}
+
+static void writeRecentFiles(const QStringList& files, QSettings& settings)
+{
+	const int count = files.size();
+	settings.beginWriteArray(recentFilesKey());
+	for (int i = 0; i < count; ++i) {
+		settings.setArrayIndex(i);
+		settings.setValue(fileKey(), files.at(i));
+	}
+	settings.endArray();
+}
+
 QPushButton* MainWindow::cancelTaskButton()
 {
 	return _cancelTaskButton;
 }
 
-void MainWindow::showStatusMessage(const QString& message)
+void MainWindow::showStatusMessage(const QString& message, int timeout)
 {
-    _mainWindow->statusBar()->showMessage(message);
+    _mainWindow->statusBar()->showMessage(message, timeout);
     _mainWindow->statusBar()->update();
 	qApp->processEvents();
 }
@@ -159,9 +229,18 @@ void MainWindow::showEvent(QShowEvent* event)
 	}
 }
 
-void MainWindow::closeEvent(QCloseEvent* /*event*/)
+void MainWindow::closeEvent(QCloseEvent* event)
 {
 	ui->mdiArea->closeAllSubWindows();
+	if (ui->mdiArea->currentSubWindow()) 
+	{
+		event->ignore();
+	}
+	else 
+	{
+		writeSettings();
+		event->accept();
+	}
 	qApp->exit();
 }
 
@@ -176,6 +255,79 @@ void MainWindow::on_actionNew_triggered()
     //std::vector<int> mod = { 5 };
     //viewer->getGLView()->setDisplayList(mod);
     viewer->updateDisplayList();
+}
+
+void MainWindow::on_actionOpen_triggered()
+{
+	QString supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
+		"*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
+		"*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.dxf *.irrmesh *.xml "
+		"*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
+		"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl);;"
+		"Collada ( *.dae;*.xml );;" "Blender ( *.blend );;" "Biovision BVH ( *.bvh );;"
+		"3D Studio Max 3DS ( *.3ds );;" "3D Studio Max ASE ( *.ase );;" "Wavefront Object ( *.obj );;"
+		"Stanford Polygon Library ( *.ply );;" "AutoCAD DXF ( *.dxf );;"
+		"IFC-STEP, Industry Foundation Classes ( *.ifc );;" "Neutral File Format ( *.nff );;"
+		"Sense8 WorldToolkit ( *.nff );;" "Valve Model ( *.smd,*.vta );;"
+		"Quake I ( *.mdl );;" "Quake II ( *.md2 );;" "Quake III ( *.md3 );;" "Quake 3 BSP ( *.pk3 );;"
+		"RtCW ( *.mdc );;" "Doom 3 ( *.md5mesh;*.md5anim;*.md5camera );;" "DirectX X ( *.x );;" "Quick3D ( *.q3o;q3s );;"
+		"Raw Triangles ( .raw );;" "AC3D ( *.ac );;" "Stereolithography ( *.stl );;" "Autodesk DXF ( *.dxf );;"
+		"Irrlicht Mesh ( *.irrmesh;*.xml );;" "Irrlicht Scene ( *.irr;*.xml );;" "Object File Format ( *.off );;"
+		"Terragen Terrain ( *.ter );;" "3D GameStudio Model ( *.mdl );;" "3D GameStudio Terrain ( *.hmp );;"
+		"Ogre (*.mesh.xml, *.skeleton.xml, *.material);;" "Milkshape 3D ( *.ms3d );;" "LightWave Model ( *.lwo );;"
+		"LightWave Scene ( *.lws );;" "Modo Model ( *.lxo );;" "CharacterStudio Motion ( *.csm );;"
+		"Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
+
+	QFileDialog fileDialog(this, tr("Import Model File"), ModelViewer::getLastOpenedDir(), supportedExtensions);
+	fileDialog.setFileMode(QFileDialog::ExistingFile);
+	fileDialog.selectNameFilter(ModelViewer::getLastSelectedFilter());
+	QString fileName;
+	if (fileDialog.exec())
+	{
+		fileName = fileDialog.selectedFiles()[0];
+		ModelViewer::setLastSelectedFilter(fileDialog.selectedNameFilter());
+	}
+
+	if (!fileName.isEmpty())
+	{
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		openFile(fileName);
+		QApplication::restoreOverrideCursor();
+		MainWindow::mainWindow()->activateWindow();
+		QApplication::alert(MainWindow::mainWindow());
+	}
+}
+
+bool MainWindow::openFile(const QString& fileName)
+{
+	if (QMdiSubWindow* existing = findMdiChild(fileName)) {
+		ui->mdiArea->setActiveSubWindow(existing);
+	}
+	const bool succeeded = loadFile(fileName);
+	if (succeeded)
+		statusBar()->showMessage(tr("File loaded"), 2000);
+	return succeeded;
+}
+
+bool MainWindow::loadFile(const QString& fileName)
+{
+	ModelViewer* child = createMdiChild();
+	child->show();
+	const bool succeeded = child->loadFile(fileName);
+	if (!succeeded)
+		child->close();
+	else
+	{
+		child->setWindowTitle(QFileInfo(fileName).fileName());
+		MainWindow::prependToRecentFiles(fileName);
+	}
+	return succeeded;
+}
+
+void MainWindow::on_actionImport_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->import();
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()
@@ -234,11 +386,12 @@ MainWindow* MainWindow::mainWindow()
 void MainWindow::updateMenus()
 {
 	bool hasMdiChild = (activeMdiChild() != nullptr);
-	//saveAct->setEnabled(hasMdiChild);
-	//saveAsAct->setEnabled(hasMdiChild);
+	ui->actionSave->setEnabled(hasMdiChild);
+	ui->actionSave_As->setEnabled(hasMdiChild);
 #ifndef QT_NO_CLIPBOARD
 	//pasteAct->setEnabled(hasMdiChild);
 #endif
+	ui->actionImport->setEnabled(hasMdiChild);
 	ui->actionClose->setEnabled(hasMdiChild);
 	ui->actionClose_All->setEnabled(hasMdiChild);
 	ui->actionTile->setEnabled(hasMdiChild);
@@ -279,10 +432,10 @@ void MainWindow::updateWindowMenu()
 
 		QString text;
 		if (i < 9) {
-			text = child->windowTitle();
+			text = child->currentFile() == "" ? child->windowTitle() : child->currentFile();
 		}
 		else {
-			text = child->windowTitle();
+			text = child->currentFile() == "" ? child->windowTitle() : child->currentFile();
 		}
 		QAction* action = ui->menuWindows->addAction(text, mdiSubWindow, [this, mdiSubWindow]() {
 			ui->mdiArea->setActiveSubWindow(mdiSubWindow);
@@ -306,8 +459,68 @@ QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 	const QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
 	for (QMdiSubWindow* window : subWindows) {
 		ModelViewer* mdiChild = qobject_cast<ModelViewer*>(window->widget());
-		if (mdiChild->windowTitle() == canonicalFilePath)
+		if (mdiChild->currentFile() == canonicalFilePath)
 			return window;
 	}
 	return nullptr;
 }
+
+bool MainWindow::hasRecentFiles()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const int count = settings.beginReadArray(recentFilesKey());
+	settings.endArray();
+	return count > 0;
+}
+
+void MainWindow::prependToRecentFiles(const QString& fileName)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	const QStringList oldRecentFiles = readRecentFiles(settings);
+	QStringList recentFiles = oldRecentFiles;
+	recentFiles.removeAll(fileName);
+	recentFiles.prepend(fileName);
+	if (oldRecentFiles != recentFiles)
+		writeRecentFiles(recentFiles, settings);
+
+	setRecentFilesVisible(!recentFiles.isEmpty());
+}
+
+void MainWindow::setRecentFilesVisible(bool visible)
+{
+	recentFileSubMenuAct->setVisible(visible);
+	recentFileSeparator->setVisible(visible);
+}
+
+void MainWindow::updateRecentFileActions()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	const QStringList recentFiles = readRecentFiles(settings);
+	const int count = qMin(int(MaxRecentFiles), recentFiles.size());
+	int i = 0;
+	for (; i < count; ++i) 
+	{
+		const QString fileName = QFileInfo(recentFiles.at(i)).fileName();
+		recentFileActs[i]->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
+		recentFileActs[i]->setData(recentFiles.at(i));
+		recentFileActs[i]->setVisible(true);
+	}
+	for (; i < MaxRecentFiles; ++i)
+		recentFileActs[i]->setVisible(false);
+}
+
+void MainWindow::openRecentFile()
+{
+	if (const QAction* action = qobject_cast<const QAction*>(sender()))
+	{
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		openFile(action->data().toString());
+		QApplication::restoreOverrideCursor();
+		MainWindow::mainWindow()->activateWindow();
+		QApplication::alert(MainWindow::mainWindow());		
+	}
+}
+
+

@@ -29,6 +29,14 @@ public:
     static QString getLastOpenedDir();
     static void setLastOpenedDir(const QString &lastOpenedDir);
 
+    static QString getLastSelectedFilter();
+    static void setLastSelectedFilter(const QString &lastSelectedFilter);
+
+    QString currentFile() const;
+
+	bool loadFile(const QString& fileName);
+	void import();
+
 public slots:
     void updateDisplayList();
     void showAllItems();
@@ -113,7 +121,7 @@ private slots:
 	void on_pushButtonRedRubber_clicked();
 	void on_pushButtonWhiteRubber_clicked();
 	void on_pushButtonYellowRubber_clicked();
-	void on_toolButtonOpen_clicked();
+	void on_toolButtonImport_clicked();	
 	void on_toolButtonShowHideAxis_toggled(bool checked);
 	void on_toolButtonVertexNormal_clicked(bool checked);
 	void on_toolButtonFaceNormal_clicked(bool checked);
@@ -260,6 +268,7 @@ private:
 	bool _runningFirstTime;
 	bool _deletionInProgress;
 
+	QString _currentFile;
     static QString _lastOpenedDir;
     static QString _lastSelectedFilter;
 	bool _textureDirOpenedFirstTime;

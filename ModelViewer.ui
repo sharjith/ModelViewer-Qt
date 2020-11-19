@@ -152,7 +152,7 @@
                    </spacer>
                   </item>
                   <item>
-                   <widget class="QToolButton" name="toolButtonOpen">
+                   <widget class="QToolButton" name="toolButtonImport">
                     <property name="maximumSize">
                      <size>
                       <width>42</width>
@@ -4573,7 +4573,7 @@
   <tabstop>checkBoxGammaCorrection</tabstop>
   <tabstop>doubleSpinBoxScreenGamma</tabstop>
   <tabstop>tabWidget</tabstop>
-  <tabstop>toolButtonOpen</tabstop>
+  <tabstop>toolButtonImport</tabstop>
   <tabstop>toolButtonSave</tabstop>
   <tabstop>toolButtonRotateView</tabstop>
   <tabstop>toolButtonPanView</tabstop>
@@ -5372,8 +5372,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>

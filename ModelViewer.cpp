@@ -126,8 +126,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
     connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
 
-    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::Key_O), this);
-    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonOpen_clicked()));
+    shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_I), this);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonImport_clicked()));
 
     connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
     connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
@@ -537,6 +537,16 @@ void ModelViewer::dropEvent(QDropEvent *event)
     QApplication::restoreOverrideCursor();
 }
 
+QString ModelViewer::currentFile() const
+{
+    return _currentFile;
+}
+
+void ModelViewer::import()
+{
+    on_toolButtonImport_clicked();
+}
+
 QString ModelViewer::getLastOpenedDir()
 {
     return _lastOpenedDir;
@@ -545,6 +555,16 @@ QString ModelViewer::getLastOpenedDir()
 void ModelViewer::setLastOpenedDir(const QString &lastOpenedDir)
 {
     _lastOpenedDir = lastOpenedDir;
+}
+
+QString ModelViewer::getLastSelectedFilter()
+{
+    return _lastSelectedFilter;
+}
+
+void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
+{
+    _lastSelectedFilter = lastSelectedFilter;
 }
 
 void ModelViewer::showContextMenu(const QPoint& pos)
@@ -1556,7 +1576,7 @@ void ModelViewer::on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item)
     item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
 }
 
-void ModelViewer::on_toolButtonOpen_clicked()
+void ModelViewer::on_toolButtonImport_clicked()
 {
     QString supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
                                   "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
@@ -1577,7 +1597,7 @@ void ModelViewer::on_toolButtonOpen_clicked()
                                   "LightWave Scene ( *.lws );;" "Modo Model ( *.lxo );;" "CharacterStudio Motion ( *.csm );;"
                                   "Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
 
-    QFileDialog fileDialog(this, tr("Open Model File"), _lastOpenedDir, supportedExtensions);
+    QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir, supportedExtensions);
     fileDialog.setFileMode(QFileDialog::ExistingFiles);
     fileDialog.selectNameFilter(_lastSelectedFilter);
     QStringList fileNames;
@@ -1592,32 +1612,41 @@ void ModelViewer::on_toolButtonOpen_clicked()
         QApplication::setOverrideCursor(Qt::WaitCursor);
         for (QString fileName : fileNames)
         {
-            _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-            QFileInfo fi(fileName);
-
-            QString errMsg;
-            bool success = _glWidget->loadAssImpModel(fileName, errMsg);
-
-            if(success)
-            {
-                updateDisplayList();
-
-                listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-                listWidgetModel->currentItem()->setCheckState(Qt::Checked);
-
-                updateDisplayList();
-            }
-            else
-            {
-                QApplication::restoreOverrideCursor();
-                QMessageBox::critical(this, "Error", QString("Failed to load model %1").arg(fileName) + "\n" + errMsg);
-                QApplication::setOverrideCursor(Qt::WaitCursor);
-            }
-        }
+            loadFile(fileName);
+        }           
         QApplication::restoreOverrideCursor();
         MainWindow::mainWindow()->activateWindow();
         QApplication::alert(MainWindow::mainWindow());
     }
+}
+
+bool ModelViewer::loadFile(const QString& fileName)
+{
+    _currentFile = fileName;
+    _lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
+    QFileInfo fi(fileName);
+
+    QString errMsg;
+    bool success = _glWidget->loadAssImpModel(fileName, errMsg);
+
+    if (success)
+    {
+        updateDisplayList();
+
+        listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
+        listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+
+        updateDisplayList();
+        MainWindow::showStatusMessage(tr("File loaded"), 2000);
+    }
+    else
+    {
+        QApplication::restoreOverrideCursor();
+        QMessageBox::critical(this, "Error", QString("Failed to load model %1").arg(fileName) + "\n" + errMsg);
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+    }
+
+    return success;
 }
 
 void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)
