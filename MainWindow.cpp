@@ -300,10 +300,12 @@ void MainWindow::on_actionOpen_triggered()
 
 bool MainWindow::openFile(const QString& fileName)
 {
-	if (QMdiSubWindow* existing = findMdiChild(fileName)) {
+    if (QMdiSubWindow* existing = findMdiChild(fileName))
+    {
 		ui->mdiArea->setActiveSubWindow(existing);
+        return true;
 	}
-	const bool succeeded = loadFile(fileName);
+    const bool succeeded = loadFile(fileName);
 	if (succeeded)
 		statusBar()->showMessage(tr("File loaded"), 2000);
 	return succeeded;
@@ -431,11 +433,13 @@ void MainWindow::updateWindowMenu()
 		ModelViewer* child = qobject_cast<ModelViewer*>(mdiSubWindow->widget());
 
 		QString text;
-		if (i < 9) {
-			text = child->currentFile() == "" ? child->windowTitle() : child->currentFile();
+        if (i < 9)
+        {
+            text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
 		}
-		else {
-			text = child->currentFile() == "" ? child->windowTitle() : child->currentFile();
+        else
+        {
+            text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
 		}
 		QAction* action = ui->menuWindows->addAction(text, mdiSubWindow, [this, mdiSubWindow]() {
 			ui->mdiArea->setActiveSubWindow(mdiSubWindow);
@@ -454,12 +458,13 @@ ModelViewer* MainWindow::activeMdiChild() const
 
 QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 {
-	QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
-
+    //QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
 	const QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
-	for (QMdiSubWindow* window : subWindows) {
+    for (QMdiSubWindow* window : subWindows)
+    {
 		ModelViewer* mdiChild = qobject_cast<ModelViewer*>(window->widget());
-		if (mdiChild->currentFile() == canonicalFilePath)
+        QString curFile = mdiChild->currentFile();
+        if (curFile == fileName)
 			return window;
 	}
 	return nullptr;
