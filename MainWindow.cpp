@@ -356,7 +356,7 @@ void MainWindow::closeSubWindow()
 void MainWindow::closeAllSubWindows()
 {
 	QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
-	for each (QMdiSubWindow* sub in subWindows)
+    for (QMdiSubWindow* sub : subWindows)
 	{
 		ModelViewer* viewer = dynamic_cast<ModelViewer*>(sub->widget());
 		if (viewer)

@@ -606,41 +606,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
         _visibleSwapped = false;
 
     _currentTranslation = _primaryCamera->getPosition();
-    _boundingSphere.setCenter(0, 0, 0);
-
-    /*if (_meshStore.size() == 0)
-    {
-        _boundingSphere.setRadius(1.0);
-        _viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
-        _viewRange = _viewBoundingSphereDia;
-        _currentViewRange = _viewRange;
-        return;
-    }
-    else if (ids.size() == 0)
-    {
-        _primaryCamera->setPosition(0, 0, 0);
-        _currentTranslation = _primaryCamera->getPosition();
-        _boundingSphere.setRadius(1.0);
-    }
-    else
-    {
-        _boundingSphere.setRadius(0.0);
-        unsigned long long memSize = 0;
-        for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-        {
-            try
-            {
-                TriangleMesh* mesh = _meshStore.at(i);
-                memSize += mesh->memorySize();
-                _boundingSphere.addSphere(mesh->getBoundingSphere());
-            }
-            catch (const std::out_of_range& ex)
-            {
-                std::cout << ex.what() << std::endl;
-            }
-        }
-        _displayedObjectsMemSize = memSize;
-    }*/
+    _boundingSphere.setCenter(0, 0, 0);    
 
     unsigned long long memSize = 0;
     for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
