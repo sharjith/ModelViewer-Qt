@@ -17,6 +17,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
     setAttribute(Qt::WA_DeleteOnClose);
 
+    _documentSaved = false;
     _runningFirstTime = true;
     _deletionInProgress = false;
 
@@ -547,6 +548,37 @@ QString ModelViewer::currentFile() const
 void ModelViewer::import()
 {
     on_toolButtonImport_clicked();
+}
+
+bool ModelViewer::hasUndo()
+{
+    return false;
+}
+
+bool ModelViewer::hasRedo()
+{
+    return false;
+}
+
+bool ModelViewer::documentModified()
+{
+    return false;
+}
+
+bool ModelViewer::save()
+{
+    QMessageBox::critical(this, "Save", "Not Implemented!");
+    if (!_documentSaved)
+        return saveAs();
+    /* Saving code here*/
+    return false;
+}
+
+bool ModelViewer::saveAs()
+{
+    QMessageBox::critical(this, "Save As", "Not Implemented!");
+    _documentSaved = true;
+    return false;
 }
 
 QString ModelViewer::getLastOpenedDir()

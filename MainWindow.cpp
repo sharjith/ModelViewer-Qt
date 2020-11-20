@@ -38,18 +38,22 @@ MainWindow::MainWindow(QWidget* parent)
 
 	setRecentFilesVisible(MainWindow::hasRecentFiles());
 
-	connect(ui->mdiArea, &QMdiArea::subWindowActivated,
-		this, &MainWindow::updateMenus);
+	connect(ui->mdiArea, &QMdiArea::subWindowActivated,	this, &MainWindow::updateMenus);
 	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
 
 	QAction* closeAct = ui->actionClose;
 	closeAct->setStatusTip(tr("Close the active window"));
 	connect(closeAct, &QAction::triggered,
-		ui->mdiArea, &QMdiArea::closeActiveSubWindow);
+		this, &MainWindow::closeSubWindow);
+
+	closeAct = ui->actionFileClose;
+	closeAct->setStatusTip(tr("Close the active document"));
+	connect(closeAct, &QAction::triggered,
+		this, &MainWindow::closeSubWindow);
 
 	QAction* closeAllAct = ui->actionClose_All;
 	closeAllAct->setStatusTip(tr("Close all the windows"));
-	connect(closeAllAct, &QAction::triggered, ui->mdiArea, &QMdiArea::closeAllSubWindows);
+	connect(closeAllAct, &QAction::triggered, this, &MainWindow::closeAllSubWindows);
 
 	QAction* nextAct = ui->actionNext;
 	nextAct->setShortcuts(QKeySequence::NextChild);
@@ -90,6 +94,22 @@ ModelViewer* MainWindow::createMdiChild()
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
 	return viewer;
+}
+
+void MainWindow::checkSaveAndClose(ModelViewer* viewer)
+{
+	QMessageBox::StandardButton button = 
+		QMessageBox::question(this, "Document modified", "Do you want to save?", QMessageBox::StandardButtons(QMessageBox::Yes |
+			QMessageBox::No | QMessageBox::Cancel));
+	if (button == QMessageBox::Yes)
+	{
+		viewer->save();
+		viewer->parentWidget()->close();
+	}
+	else if (button == QMessageBox::No)
+	{
+		viewer->parentWidget()->close();
+	}	
 }
 
 MainWindow::~MainWindow()
@@ -322,6 +342,36 @@ void MainWindow::cancelFileLoading()
 	}
 }
 
+void MainWindow::closeSubWindow()
+{
+	ModelViewer* viewer = activeMdiChild();
+	if (viewer->documentModified())
+	{
+		checkSaveAndClose(viewer);
+	}
+	else
+		viewer->parentWidget()->close();
+}
+
+void MainWindow::closeAllSubWindows()
+{
+	QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
+	for each (QMdiSubWindow* sub in subWindows)
+	{
+		ModelViewer* viewer = dynamic_cast<ModelViewer*>(sub->widget());
+		if (viewer)
+		{
+			if (viewer->documentModified())
+			{
+				checkSaveAndClose(viewer);
+			}
+			else
+				viewer->parentWidget()->close();
+		}
+	}
+}
+
+
 bool MainWindow::loadFile(const QString& fileName)
 {
 	ModelViewer* child = createMdiChild();
@@ -399,26 +449,41 @@ MainWindow* MainWindow::mainWindow()
 void MainWindow::updateMenus()
 {
 	bool hasMdiChild = (activeMdiChild() != nullptr);
-	ui->actionSave->setEnabled(hasMdiChild);
-	ui->actionSave_As->setEnabled(hasMdiChild);
+	ui->actionSave->setVisible(hasMdiChild);
+	ui->actionSave_As->setVisible(hasMdiChild);
+	if (hasMdiChild)
+	{
+		ui->actionSave->setEnabled(activeMdiChild()->documentModified());
+		ui->actionSave_As->setEnabled(activeMdiChild()->documentModified());
+	}
 #ifndef QT_NO_CLIPBOARD
 	//pasteAct->setEnabled(hasMdiChild);
 #endif
-	ui->actionImport->setEnabled(hasMdiChild);
+	ui->actionImport->setVisible(hasMdiChild);
 	ui->actionClose->setEnabled(hasMdiChild);
-	ui->actionClose_All->setEnabled(hasMdiChild);
+	ui->actionFileClose->setVisible(hasMdiChild);
+	ui->actionClose_All->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
+	
+	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
 	ui->actionTile->setEnabled(hasMdiChild);
 	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
 	ui->actionTile_Vertically->setEnabled(hasMdiChild);
 	ui->actionCascade->setEnabled(hasMdiChild);
-	ui->actionNext->setEnabled(hasMdiChild);
-	ui->actionPrevious->setEnabled(hasMdiChild);	
+	ui->actionNext->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
+	ui->actionPrevious->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
 
 #ifndef QT_NO_CLIPBOARD
 	//bool hasSelection = (activeMdiChild() && activeMdiChild()->textCursor().hasSelection());
 	//cutAct->setEnabled(hasSelection);
 	//copyAct->setEnabled(hasSelection);
 #endif
+
+	ui->menuEdit->menuAction()->setVisible(hasMdiChild);
+	if (hasMdiChild)
+	{
+		ui->actionUndo->setEnabled(activeMdiChild()->hasUndo());
+		ui->actionRedo->setEnabled(activeMdiChild()->hasRedo());
+	}
 }
 
 void MainWindow::updateWindowMenu()

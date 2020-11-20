@@ -31,6 +31,8 @@ public:
 
 	ModelViewer* createMdiChild();
 
+	void checkSaveAndClose(ModelViewer* viewer);
+
 	static void showStatusMessage(const QString& message, int timeout = 0);
     static void showProgressBar();
     static void hideProgressBar();
@@ -64,6 +66,9 @@ private slots:
 	QMdiSubWindow* findMdiChild(const QString& fileName) const;
 
 	void cancelFileLoading();
+
+	void closeSubWindow();
+	void closeAllSubWindows();
 
 
 private:

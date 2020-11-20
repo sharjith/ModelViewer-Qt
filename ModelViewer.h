@@ -37,6 +37,13 @@ public:
 	bool loadFile(const QString& fileName);
 	void import();
 
+	bool hasUndo();
+	bool hasRedo();
+	bool documentModified();
+
+	bool save();
+	bool saveAs();
+
 public slots:
     void updateDisplayList();
     void showAllItems();
@@ -272,6 +279,8 @@ private:
     static QString _lastOpenedDir;
     static QString _lastSelectedFilter;
 	bool _textureDirOpenedFirstTime;
+
+	bool _documentSaved;
 
 private:
 	bool checkForActiveSelection();
