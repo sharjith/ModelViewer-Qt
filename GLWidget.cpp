@@ -1773,8 +1773,7 @@ void GLWidget::initializeGL()
     connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
     connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
-    connect(MainWindow::mainWindow()->cancelTaskButton(), SIGNAL(clicked()), this, SLOT(cancelAssImpModelLoading()));
-
+    
     // Text rendering
     _textShader->bind();
     _textRenderer = new TextRenderer(_textShader, width(), height());

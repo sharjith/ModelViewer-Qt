@@ -63,6 +63,8 @@ private slots:
 	ModelViewer* activeMdiChild() const;
 	QMdiSubWindow* findMdiChild(const QString& fileName) const;
 
+	void cancelFileLoading();
+
 
 private:
 	bool openFile(const QString& fileName);

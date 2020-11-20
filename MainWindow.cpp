@@ -70,6 +70,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     _cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
 	ui->statusBar->addPermanentWidget(_cancelTaskButton);
+	connect(_cancelTaskButton, SIGNAL(clicked()), this, SLOT(cancelFileLoading()));
 	_cancelTaskButton->hide();
 
     _progressBar = new QProgressBar(ui->statusBar);
@@ -278,7 +279,7 @@ void MainWindow::on_actionOpen_triggered()
 		"LightWave Scene ( *.lws );;" "Modo Model ( *.lxo );;" "CharacterStudio Motion ( *.csm );;"
 		"Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
 
-	QFileDialog fileDialog(this, tr("Import Model File"), ModelViewer::getLastOpenedDir(), supportedExtensions);
+	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir(), supportedExtensions);
 	fileDialog.setFileMode(QFileDialog::ExistingFile);
 	fileDialog.selectNameFilter(ModelViewer::getLastSelectedFilter());
 	QString fileName;
@@ -311,13 +312,23 @@ bool MainWindow::openFile(const QString& fileName)
 	return succeeded;
 }
 
+void MainWindow::cancelFileLoading()
+{
+	if (activeMdiChild())
+	{
+		GLWidget* view = activeMdiChild()->getGLView();
+		if (view)
+			view->cancelAssImpModelLoading();
+	}
+}
+
 bool MainWindow::loadFile(const QString& fileName)
 {
 	ModelViewer* child = createMdiChild();
 	child->show();
 	const bool succeeded = child->loadFile(fileName);
 	if (!succeeded)
-		child->close();
+		child->parentWidget()->close();
 	else
 	{
 		child->setWindowTitle(QFileInfo(fileName).fileName());

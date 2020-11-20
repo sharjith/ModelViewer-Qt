@@ -15,6 +15,8 @@ QString ModelViewer::_lastSelectedFilter= "All Models(*.dae *.xml *.blend *.bvh 
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
+    setAttribute(Qt::WA_DeleteOnClose);
+
     _runningFirstTime = true;
     _deletionInProgress = false;
 
