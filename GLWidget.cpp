@@ -3402,8 +3402,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
             _viewRange /= 1.05f;
         else
             _viewRange *= 1.05f;
-        if (_viewRange < 0.15)
-            _viewRange = 0.15f;
+        if (_viewRange < _boundingSphere.getRadius() / 100.0f)
+            _viewRange = _boundingSphere.getRadius() / 100.0f;
         if (_viewRange > _boundingSphere.getRadius() * 100.0f)
             _viewRange = _boundingSphere.getRadius() * 100.0f;
         _currentViewRange = _viewRange;
@@ -3442,8 +3442,8 @@ void GLWidget::wheelEvent(QWheelEvent* e)
         _viewRange *= zoomFactor;
     else
         _viewRange /= zoomFactor;
-    if (_viewRange < 0.15f)
-        _viewRange = 0.15f;
+    if (_viewRange < _boundingSphere.getRadius()/100.0f)
+        _viewRange = _boundingSphere.getRadius()/100.0f;
     if (_viewRange > _boundingSphere.getRadius()*100.0f)
         _viewRange = _boundingSphere.getRadius()*100.0f;
     _currentViewRange = _viewRange;
@@ -3551,8 +3551,8 @@ void GLWidget::performKeyboardNav()
                 _viewRange /= 1.05f;
             else
                 _viewRange *= 1.05f;
-            if (_viewRange < 0.15)
-                _viewRange = 0.15f;
+            if (_viewRange < _boundingSphere.getRadius() / 100.0f)
+                _viewRange = _boundingSphere.getRadius() / 100.0f;
             if (_viewRange > _boundingSphere.getRadius() * 100.0f)
                 _viewRange = _boundingSphere.getRadius() * 100.0f;
             // Translate to focus on mouse center
