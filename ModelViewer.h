@@ -44,6 +44,8 @@ public:
 	bool save();
 	bool saveAs();
 
+        void deselectAll();
+        
 public slots:
     void updateDisplayList();
     void showAllItems();

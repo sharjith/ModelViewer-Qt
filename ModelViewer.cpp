@@ -173,6 +173,15 @@ ModelViewer::~ModelViewer()
     }
 }
 
+void ModelViewer::deselectAll()
+{
+    for (QListWidgetItem* item : listWidgetModel->selectedItems())
+    {
+        item->setSelected(false);
+    }
+    resetTransformationValues();
+}
+
 void ModelViewer::setListRow(int index)
 {
     bool oldState = listWidgetModel->blockSignals(true);
@@ -198,14 +207,7 @@ void ModelViewer::setListRow(int index)
                 resetTransformationValues();
         }
     }
-    else
-    {
-        for (QListWidgetItem* item : listWidgetModel->selectedItems())
-        {
-            item->setSelected(false);
-        }
-        resetTransformationValues();
-    }
+
     listWidgetModel->blockSignals(oldState);
     on_listWidgetModel_itemSelectionChanged();
 }

@@ -3474,7 +3474,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
         _windowZoomActive = false;
         setCursor(QCursor(Qt::ArrowCursor));
         MainWindow::showStatusMessage("");
-        emit singleSelectionDone(-1);
+
+        _viewer->deselectAll();
     }
 
     if (_keys[Qt::Key_Home])
