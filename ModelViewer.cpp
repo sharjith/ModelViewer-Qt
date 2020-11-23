@@ -120,6 +120,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
     listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 
+    // For item editing
+    connect(listWidgetModel->itemDelegate(), SIGNAL(closeEditor(QWidget*,QAbstractItemDelegate::EndEditHint)),
+            this, SLOT(itemEdited(QWidget*,QAbstractItemDelegate::EndEditHint)));
+
     QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
     connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
 
@@ -406,7 +410,7 @@ void ModelViewer::updateDisplayList()
     for (TriangleMesh* mesh : store)
     {
         item = new QListWidgetItem(mesh->getName());
-        item->setFlags(item->flags() | Qt::ItemIsUserCheckable); // set checkable flag
+        item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEditable); // set checkable flag
         // AND initialize check state
         if (std::count(ids.begin(), ids.end(), id))
             item->setCheckState(Qt::Checked);
@@ -1604,10 +1608,14 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
     }
 }
 
-void ModelViewer::on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item)
+void ModelViewer::itemEdited(QWidget * widget, QAbstractItemDelegate::EndEditHint /*hint*/)
 {
-    item->setCheckState(item->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+    const QString path = reinterpret_cast<QLineEdit*>(widget)->text();
+    int rowId = listWidgetModel->currentRow();
+    TriangleMesh* mesh = _glWidget->getMeshStore().at(rowId);
+    mesh->setName(path);
 }
+
 
 void ModelViewer::on_toolButtonImport_clicked()
 {

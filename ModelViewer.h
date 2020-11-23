@@ -139,7 +139,7 @@ private slots:
 
 	void on_listWidgetModel_itemChanged(QListWidgetItem*);
 	void on_listWidgetModel_itemSelectionChanged();
-	void on_listWidgetModel_itemDoubleClicked(QListWidgetItem* item);
+    void itemEdited(QWidget*widget, QAbstractItemDelegate::EndEditHint hint);
 
 	void on_checkBoxShadowMapping_toggled(bool checked);
 	void on_checkBoxEnvMapping_toggled(bool checked);
