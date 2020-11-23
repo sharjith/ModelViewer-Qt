@@ -80,7 +80,7 @@ private:
 	void setRecentFilesVisible(bool visible);
 
 private:
-	enum { MaxRecentFiles = 5 };
+	enum { MaxRecentFiles = 15 };
 
 	Ui::MainWindow* ui;
     QProgressBar* _progressBar;
