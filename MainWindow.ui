@@ -58,7 +58,7 @@
      <x>0</x>
      <y>0</y>
      <width>1298</width>
-     <height>23</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -119,6 +119,9 @@
    <property name="text">
     <string>Exit</string>
    </property>
+   <property name="statusTip">
+    <string>Exit the application</string>
+   </property>
   </action>
   <action name="actionAbout">
    <property name="icon">
@@ -127,6 +130,9 @@
    </property>
    <property name="text">
     <string>About</string>
+   </property>
+   <property name="statusTip">
+    <string>About the application</string>
    </property>
   </action>
   <action name="actionAbout_Qt">
@@ -137,6 +143,9 @@
    <property name="text">
     <string>About Qt</string>
    </property>
+   <property name="statusTip">
+    <string>About the Qt Library</string>
+   </property>
   </action>
   <action name="actionNew">
    <property name="icon">
@@ -146,6 +155,9 @@
    <property name="text">
     <string>New</string>
    </property>
+   <property name="statusTip">
+    <string>Create a new document window</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+N</string>
    </property>
@@ -154,20 +166,32 @@
    <property name="text">
     <string>Tile Horizontally</string>
    </property>
+   <property name="statusTip">
+    <string>Tile sub windows horizontally</string>
+   </property>
   </action>
   <action name="actionTile_Vertically">
    <property name="text">
     <string>Tile Vertically</string>
+   </property>
+   <property name="statusTip">
+    <string>Tile sub windows vertically</string>
    </property>
   </action>
   <action name="actionCascade">
    <property name="text">
     <string>Cascade</string>
    </property>
+   <property name="statusTip">
+    <string>Cascade sub windows</string>
+   </property>
   </action>
   <action name="actionTile">
    <property name="text">
     <string>Tile</string>
+   </property>
+   <property name="statusTip">
+    <string>Tile sub windows</string>
    </property>
   </action>
   <action name="actionClose">
@@ -214,6 +238,9 @@
    <property name="text">
     <string>Open</string>
    </property>
+   <property name="statusTip">
+    <string>Open an existing model</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+O</string>
    </property>
@@ -226,6 +253,9 @@
    <property name="text">
     <string>Import</string>
    </property>
+   <property name="statusTip">
+    <string>Import a model into the current document</string>
+   </property>
   </action>
   <action name="actionSave">
    <property name="icon">
@@ -234,6 +264,9 @@
    </property>
    <property name="text">
     <string>Save</string>
+   </property>
+   <property name="statusTip">
+    <string>Save the current document</string>
    </property>
   </action>
   <action name="actionSave_As">
@@ -244,6 +277,9 @@
    <property name="text">
     <string>Save As</string>
    </property>
+   <property name="statusTip">
+    <string>Save the current document as another file name</string>
+   </property>
   </action>
   <action name="actionUndo">
    <property name="icon">
@@ -252,6 +288,9 @@
    </property>
    <property name="text">
     <string>Undo</string>
+   </property>
+   <property name="statusTip">
+    <string>Undo the last action</string>
    </property>
   </action>
   <action name="actionRedo">
@@ -262,13 +301,20 @@
    <property name="text">
     <string>Redo</string>
    </property>
+   <property name="statusTip">
+    <string>Redo the last action</string>
+   </property>
   </action>
   <action name="actionFileClose">
    <property name="icon">
-    <iconset theme="document-close"/>
+    <iconset theme="document-close">
+     <normaloff>.</normaloff>.</iconset>
    </property>
    <property name="text">
     <string>Close</string>
+   </property>
+   <property name="statusTip">
+    <string>Close the current file</string>
    </property>
   </action>
  </widget>
