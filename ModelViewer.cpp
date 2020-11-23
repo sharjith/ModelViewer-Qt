@@ -175,11 +175,14 @@ ModelViewer::~ModelViewer()
 
 void ModelViewer::deselectAll()
 {
+    bool oldState = listWidgetModel->blockSignals(true);
     for (QListWidgetItem* item : listWidgetModel->selectedItems())
     {
         item->setSelected(false);
     }
     resetTransformationValues();
+    listWidgetModel->blockSignals(oldState);
+    on_listWidgetModel_itemSelectionChanged();
 }
 
 void ModelViewer::setListRow(int index)
