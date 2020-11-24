@@ -1612,8 +1612,34 @@ void ModelViewer::itemEdited(QWidget * widget, QAbstractItemDelegate::EndEditHin
 {
     const QString path = reinterpret_cast<QLineEdit*>(widget)->text();
     int rowId = listWidgetModel->currentRow();
-    TriangleMesh* mesh = _glWidget->getMeshStore().at(rowId);
-    mesh->setName(path);
+    std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+    TriangleMesh* mesh = meshes.at(rowId);
+    if(mesh->getName() != path)
+        checkAndRenameModel(mesh, path);
+}
+
+void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
+{
+    bool duplicate = false;
+    QString finalName = name;
+    int dupCnt = 1;
+    std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+    do {
+        for (TriangleMesh* msh : meshes)
+        {
+            if (msh->getName() == finalName)
+            {
+                duplicate = true;
+                finalName = QString("%1_%2").arg(name).arg(dupCnt);
+                dupCnt++;
+                break;
+            }
+            else
+                duplicate = false;
+        }
+    } while (duplicate);
+    mesh->setName(finalName);
+    updateDisplayList();
 }
 
 

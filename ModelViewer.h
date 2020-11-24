@@ -230,6 +230,9 @@ protected:
     void dropEvent(QDropEvent *event);
 
 private:
+	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
+
+private:
 	GLWidget* _glWidget;
 
 	QAction* isometricView;
