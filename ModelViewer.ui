@@ -1094,7 +1094,7 @@
               <item>
                <widget class="ModelObjectList" name="listWidgetModel">
                 <property name="styleSheet">
-                 <string notr="true">selection-background-color: rgb(255, 166, 0);</string>
+                 <string notr="true">selection-background-color: rgb(255, 163, 101);</string>
                 </property>
                 <property name="selectionMode">
                  <enum>QAbstractItemView::ExtendedSelection</enum>
@@ -1161,8 +1161,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>413</width>
-                   <height>764</height>
+                   <width>446</width>
+                   <height>769</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1926,8 +1926,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>142</width>
-                   <height>168</height>
+                   <width>446</width>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2080,8 +2080,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>331</width>
-                   <height>454</height>
+                   <width>446</width>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2769,8 +2769,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>310</width>
-                   <height>475</height>
+                   <width>446</width>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3629,8 +3629,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>436</width>
-                   <height>187</height>
+                   <width>513</width>
+                   <height>756</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3983,8 +3983,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>382</width>
-                   <height>391</height>
+                   <width>446</width>
+                   <height>769</height>
                   </rect>
                  </property>
                  <attribute name="label">

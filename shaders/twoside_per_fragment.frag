@@ -222,13 +222,14 @@ void main()
 
     if(selected)
     {   
-        vec3 objectColor = vec3(1.0f, 0.6392156862745098f, 0.396078431372549f);        
+        //vec3 objectColor = vec3(1.0f, 0.65f, 0.0f);
+        vec3 objectColor = vec3(1.0f, 0.6392156862745098f, 0.396078431372549f);
         // ambient
         float ambientStrength = 1.0;
         vec3 ambient = ambientStrength * vec3(0.50f, 0.50f, 0.50f);
   	
         // diffuse 
-        vec3 norm = normalize(g_normal);
+        vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
         vec3 lightDir = normalize(lightSource.position - g_position);
         float diff = max(dot(norm, lightDir), 0.0);
         vec3 diffuse = diff * vec3(0.750f, 0.750f, 0.750f);
