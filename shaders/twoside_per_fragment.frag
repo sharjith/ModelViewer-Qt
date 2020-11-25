@@ -222,15 +222,25 @@ void main()
 
     if(selected)
     {   
-        vec3 ambient = vec3(0.50f, 0.50f, 0.50f);
+        vec3 objectColor = vec3(1.0f, 0.6392156862745098f, 0.396078431372549f);        
+        // ambient
+        float ambientStrength = 1.0;
+        vec3 ambient = ambientStrength * vec3(0.50f, 0.50f, 0.50f);
   	
         // diffuse 
         vec3 norm = normalize(g_normal);
         vec3 lightDir = normalize(lightSource.position - g_position);
         float diff = max(dot(norm, lightDir), 0.0);
-        vec3 diffuse = diff * vec3(0.55f, 0.55f, 0.55f);
-            
-        vec3 result = (ambient + diffuse) * vec3(1.0f, .65f, 0.0f);
+        vec3 diffuse = diff * vec3(0.750f, 0.750f, 0.750f);
+    
+        // specular
+        float specularStrength = 0.5;
+        vec3 viewDir = normalize(cameraPos - g_position);
+        vec3 reflectDir = reflect(-lightDir, norm);  
+        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
+        vec3 specular = specularStrength * spec * vec3(0.20f, 0.20f, 0.20f);
+        
+        vec3 result = (ambient + diffuse + specular) * objectColor;
         fragColor = vec4(result, 1.0);
 
         //fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
