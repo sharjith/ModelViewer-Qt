@@ -2740,7 +2740,7 @@ void GLWidget::drawAxis()
     zAxis = zAxis.project(_modelViewMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
     _axisTextRenderer->RenderText("Z", zAxis.x(), height() - zAxis.y(), 1, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
-    // Axes
+    // Axes Lines
     if (!_axisVAO.isCreated())
     {
         _axisVAO.create();
@@ -2794,10 +2794,42 @@ void GLWidget::drawAxis()
     _axisShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
     _axisShader->setUniformValue("projectionMatrix", _projectionMatrix);
 
+    _axisShader->setUniformValue("renderCone", false);
+
     _axisVAO.bind();
     glLineWidth(2.5);
     glDrawArrays(GL_LINES, 0, 6);
     glLineWidth(1);
+
+    // Axes Cones
+    // X Axis
+    _axisShader->setUniformValue("renderCone", true);
+    Cone coneX(_axisShader, _viewRange / size/15, _viewRange / size/5, 10.0f, 2.0f, 2);
+    QMatrix4x4 model; 
+    model.translate(_viewRange / size, 0, 0); 
+    model.rotate(90, QVector3D(0, 1.0f, 0));
+    _axisShader->setUniformValue("coneColor", QVector3D(1.0f, 0.0, 0.0));
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix * model);
+    coneX.render();
+
+    // Y Axis    
+    Cone coneY(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 10.0f, 2.0f, 2);    
+    model.setToIdentity();
+    model.translate(0, _viewRange / size, 0);
+    model.rotate(90, QVector3D(-1.0f, 0, 0));
+    _axisShader->bind();
+    _axisShader->setUniformValue("coneColor", QVector3D(0.0, 1.0f, 0.0));
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix * model);
+    coneY.render();
+
+    // Z Axis
+    Cone coneZ(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 10.0f, 2.0f, 2);
+    model.setToIdentity();
+    model.translate(0, 0, _viewRange / size);    
+    _axisShader->bind();
+    _axisShader->setUniformValue("coneColor", QVector3D(0.0, 0.0, 1.0f));
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix * model);
+    coneZ.render();
 
     _axisVAO.release();
     _axisShader->release();
@@ -2878,10 +2910,40 @@ void GLWidget::drawCornerAxis()
     _axisShader->setUniformValue("modelViewMatrix", mat);
     _axisShader->setUniformValue("projectionMatrix", _projectionMatrix);
 
+    _axisShader->setUniformValue("renderCone", false);
+
     _axisVAO.bind();
     glLineWidth(2.0);
     glDrawArrays(GL_LINES, 0, 6);
     glLineWidth(1);
+
+    // Axes Cones
+    // X Axis
+    _axisShader->setUniformValue("renderCone", true);
+    Cone coneX(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 10.0f, 2.0f, 2);
+    QMatrix4x4 model;
+    model.translate(_viewRange / size, 0, 0);
+    model.rotate(90, QVector3D(0, 1.0f, 0));
+    _axisShader->setUniformValue("coneColor", QVector3D(1.0f, 1.0f, 1.0f));
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix * model);
+    coneX.render();
+
+    // Y Axis    
+    Cone coneY(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 10.0f, 2.0f, 2);
+    model.setToIdentity();
+    model.translate(0, _viewRange / size, 0);
+    model.rotate(90, QVector3D(-1.0f, 0, 0));
+    _axisShader->bind();    
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix * model);
+    coneY.render();
+
+    // Z Axis
+    Cone coneZ(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 10.0f, 2.0f, 2);
+    model.setToIdentity();
+    model.translate(0, 0, _viewRange / size);
+    _axisShader->bind();    
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix * model);
+    coneZ.render();
 
     _axisVAO.release();
     _axisShader->release();
