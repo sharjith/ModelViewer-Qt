@@ -227,7 +227,7 @@ void ModelViewer::setListRows(QList<int> indices)
         for (int index : indices)
         {
             QListWidgetItem* item = listWidgetModel->item(index);
-            item->setSelected(!item->isSelected());
+            item->setSelected(true);
         }
         listWidgetModel->blockSignals(oldState);
         on_listWidgetModel_itemSelectionChanged();
