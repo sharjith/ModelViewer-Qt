@@ -221,8 +221,19 @@ void main()
     applyEnvironmentMapping(alpha);
 
     if(selected)
-    {
-        fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
+    {   
+        vec3 ambient = vec3(0.50f, 0.50f, 0.50f);
+  	
+        // diffuse 
+        vec3 norm = normalize(g_normal);
+        vec3 lightDir = normalize(lightSource.position - g_position);
+        float diff = max(dot(norm, lightDir), 0.0);
+        vec3 diffuse = diff * vec3(0.55f, 0.55f, 0.55f);
+            
+        vec3 result = (ambient + diffuse) * vec3(1.0f, .65f, 0.0f);
+        fragColor = vec4(result, 1.0);
+
+        //fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
     }
 }
 
