@@ -1339,7 +1339,6 @@ void ModelViewer::on_sliderTransparency_valueChanged(int value)
     if (checkForActiveSelection())
     {
         _material.setOpacity((float)value / 1000.0f);
-        //setMaterialToSelectedItems(_material);
         for(int id: getSelectedIDs())
         {
             TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
@@ -1358,7 +1357,14 @@ void ModelViewer::on_sliderShine_valueChanged(int value)
     if (checkForActiveSelection())
     {
         _material.setShininess(value);
-        setMaterialToSelectedItems(_material);
+        for(int id: getSelectedIDs())
+        {
+            TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
+            if(mesh)
+            {
+                mesh->setShininess(value);
+            }
+        }
 
         _glWidget->updateView();
     }
