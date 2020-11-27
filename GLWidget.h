@@ -24,6 +24,7 @@ class GraysKleinEditor;
 class AssImpModelLoader;
 class Plane;
 class Cube;
+class Cone;
 
 class AssImpModelLoader;
 
@@ -512,6 +513,9 @@ private:
 	bool  _gammaCorrection;
 	float _screenGamma;
 	bool  _hdrToneMapping;
+
+
+	Cone* _axisCone;
 
 	Cube* _lightCube;
 	bool _showLights;
