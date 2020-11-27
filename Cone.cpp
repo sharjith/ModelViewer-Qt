@@ -11,6 +11,13 @@ Cone::Cone(QOpenGLShaderProgram* prog, float radius, float height, unsigned int 
 _radius(radius),
 _height(height)
 {
+	setParameters(radius, height, nSlices, nStacks, sMax, tMax);
+}
+
+void Cone::setParameters(float radius, float height, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax)
+{
+	_radius = radius;
+	_height = height;
 	_sMax = sMax;
 	_tMax = tMax;
 	int nVerts = ((nSlices + 1) * (nStacks + 1)) + nSlices + 2;
