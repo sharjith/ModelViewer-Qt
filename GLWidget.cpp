@@ -108,7 +108,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _currentViewRange = _viewRange;
 
     _slerpStep = 0.0f;
-    _slerpFrac = 0.02f;
+    _slerpFrac = 0.05f;
 
     _modelNum = 6;
 
