@@ -71,9 +71,9 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
     _clippingPlaneXY(nullptr),
     _clippingPlaneYZ(nullptr),
     _clippingPlaneZX(nullptr),
-    _floorPlane(nullptr),
-    _axisCone(nullptr),
+    _floorPlane(nullptr),    
     _skyBox(nullptr),
+    _axisCone(nullptr),
     _lightCube(nullptr),
     _assimpModelLoader(nullptr)
 {
