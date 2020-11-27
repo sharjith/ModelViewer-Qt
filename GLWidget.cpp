@@ -2806,7 +2806,6 @@ void GLWidget::drawAxis()
     glLineWidth(2.5);
     glDrawArrays(GL_LINES, 0, 6);
     glLineWidth(1);
-
     
     // Axes Cones
     // X Axis
@@ -2932,7 +2931,6 @@ void GLWidget::drawCornerAxis()
     // X Axis
     _axisCone->setParameters(_viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
     _axisShader->setUniformValue("renderCone", true);
-    //Cone cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);    
     mat.translate(_viewRange / size, 0, 0);
     mat.rotate(90, QVector3D(0, 1.0f, 0));
     _axisShader->bind();
