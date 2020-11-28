@@ -172,6 +172,7 @@ void main()
             v_color = v_color_back;
     }
 
+    float mixVal; // overlay line
     if(displayMode == 0 || displayMode == 3) // shaded
     {
         if(texEnabled == true)
@@ -188,8 +189,7 @@ void main()
         // Find the smallest distance
         float d = min(g_edgeDistance.x, g_edgeDistance.y );
         d = min( d, g_edgeDistance.z );
-
-        float mixVal;
+        
         if( d < Line.Width - 1.0f )
         {
             mixVal = 1.0f;
@@ -243,6 +243,9 @@ void main()
         
         vec3 result = (ambient + diffuse + specular) * objectColor;
         fragColor = vec4(result, 1.0);
+
+        if(displayMode == 2)
+            fragColor = mix(fragColor, Line.Color, mixVal);
 
         //fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
         //fragColor = mix(fragColor, vec4(result, 1.0f), 0.5f);
