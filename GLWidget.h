@@ -51,7 +51,7 @@ public:
 	void setMultiView(bool active) { _multiViewActive = active; }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
-	void setZoomingActive(bool active);	
+	void setZoomingActive(bool active);
 
 	void beginWindowZoom();
 	void performWindowZoom();
@@ -86,7 +86,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-    bool loadAssImpModel(const QString& fileName, QString& error);
+	bool loadAssImpModel(const QString& fileName, QString& error);
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
@@ -202,7 +202,7 @@ public:
 
 	std::vector<int> getDisplayedObjectsIds() const;
 
-    bool isVisibleSwapped() const;
+	bool isVisibleSwapped() const;
 
 	BoundingSphere getBoundingSphere() const;
 
@@ -224,7 +224,7 @@ public:
 	void cleanUpShaders();
 
 signals:
-    void windowZoomEnded();
+	void windowZoomEnded();
 	void rotationsSet();
 	void zoomAndPanSet();
 	void viewSet();
@@ -232,7 +232,7 @@ signals:
 	void singleSelectionDone(int);
 	void sweepSelectionDone(QList<int>);
 	void floorShown(bool);
-    void visibleSwapped(bool);
+	void visibleSwapped(bool);
 	void loadingAssImpModelCancelled();
 
 public slots:
@@ -255,16 +255,16 @@ public slots:
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
 	void setScreenGamma(double screenGamma);
-    void showLights(bool showLights);
+	void showLights(bool showLights);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
-    void showModelLoadingProgress(int nodeNum, int totalNodes);
-    void swapVisible(bool checked);
+	void showModelLoadingProgress(int nodeNum, int totalNodes);
+	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
 
 private slots:
 	void showContextMenu(const QPoint& pos);
-	void centerDisplayList();	
+	void centerDisplayList();
 	void setBackgroundColor();
 
 protected:
@@ -472,9 +472,9 @@ private:
 
 	std::vector<TriangleMesh*> _meshStore;
 	std::vector<int> _displayedObjectsIds;
-    std::vector<int> _hiddenObjectsIds;
+	std::vector<int> _hiddenObjectsIds;
 	std::vector<int> _centerScreenObjectIDs;
-    bool _visibleSwapped;
+	bool _visibleSwapped;
 
 	QVBoxLayout* _editorLayout;
 	QFormLayout* _lowerLayout;
@@ -514,7 +514,6 @@ private:
 	float _screenGamma;
 	bool  _hdrToneMapping;
 
-
 	Cone* _axisCone;
 
 	Cube* _lightCube;
@@ -529,7 +528,7 @@ private:
 
 	unsigned long long _displayedObjectsMemSize;
 
-    AssImpModelLoader* _assimpModelLoader;
+	AssImpModelLoader* _assimpModelLoader;
 };
 
 #endif

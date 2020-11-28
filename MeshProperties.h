@@ -25,15 +25,14 @@ public:
 	void setDensity(const float& density);
 	float density() const;
 
-    QVector3D centerOfMass() const;
+	QVector3D centerOfMass() const;
 
 	BoundingBox boundingBox() const;
-
 
 signals:
 
 private:
-    void calculateSurfaceAreaAndVolume();
+	void calculateSurfaceAreaAndVolume();
 
 private:
 	TriangleMesh* _mesh;
@@ -42,7 +41,7 @@ private:
 	float _volume;
 	float _weight;
 	float _density;
-    QVector3D _centerOfMass;
+	QVector3D _centerOfMass;
 	BoundingBox _boundingBox;
 };
 

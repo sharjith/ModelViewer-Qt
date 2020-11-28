@@ -18,5 +18,5 @@ protected:
 	float		_ySize;
 	int			_xDivs;
 	int			_yDivs;
-	float		_zLevel;	
+	float		_zLevel;
 };

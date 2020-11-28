@@ -29,7 +29,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	recentFileSubMenuAct = fileMenu->insertMenu(recentFileSeparator, new QMenu(tr("Recent...")));
 	QMenu* recentMenu = recentFileSubMenuAct->menu();
-	connect(recentMenu, &QMenu::aboutToShow, this, &MainWindow::updateRecentFileActions);	 
+	connect(recentMenu, &QMenu::aboutToShow, this, &MainWindow::updateRecentFileActions);
 
 	for (int i = 0; i < MaxRecentFiles; ++i) {
 		recentFileActs[i] = recentMenu->addAction(QString(), this, &MainWindow::openRecentFile);
@@ -38,7 +38,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	setRecentFilesVisible(MainWindow::hasRecentFiles());
 
-	connect(ui->mdiArea, &QMdiArea::subWindowActivated,	this, &MainWindow::updateMenus);
+	connect(ui->mdiArea, &QMdiArea::subWindowActivated, this, &MainWindow::updateMenus);
 	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
 
 	QAction* closeAct = ui->actionClose;
@@ -70,19 +70,19 @@ MainWindow::MainWindow(QWidget* parent)
 
 	readSettings();
 
-	setAttribute(Qt::WA_DeleteOnClose);	
+	setAttribute(Qt::WA_DeleteOnClose);
 
-    _cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
+	_cancelTaskButton = new QPushButton("Cancel Loading", ui->statusBar);
 	ui->statusBar->addPermanentWidget(_cancelTaskButton);
 	connect(_cancelTaskButton, SIGNAL(clicked()), this, SLOT(cancelFileLoading()));
 	_cancelTaskButton->hide();
 
-    _progressBar = new QProgressBar(ui->statusBar);
-    ui->statusBar->addPermanentWidget(_progressBar);
-    _progressBar->hide();
+	_progressBar = new QProgressBar(ui->statusBar);
+	ui->statusBar->addPermanentWidget(_progressBar);
+	_progressBar->hide();
 	createMdiChild();
 	setCentralWidget((ui->mdiArea));
-	
+
 	_bFirstTime = true;
 }
 
@@ -98,7 +98,7 @@ ModelViewer* MainWindow::createMdiChild()
 
 void MainWindow::checkSaveAndClose(ModelViewer* viewer)
 {
-	QMessageBox::StandardButton button = 
+	QMessageBox::StandardButton button =
 		QMessageBox::question(this, "Document modified", "Do you want to save?", QMessageBox::StandardButtons(QMessageBox::Yes |
 			QMessageBox::No | QMessageBox::Cancel));
 	if (button == QMessageBox::Yes)
@@ -109,7 +109,7 @@ void MainWindow::checkSaveAndClose(ModelViewer* viewer)
 	else if (button == QMessageBox::No)
 	{
 		viewer->parentWidget()->close();
-	}	
+	}
 }
 
 MainWindow::~MainWindow()
@@ -171,27 +171,27 @@ QPushButton* MainWindow::cancelTaskButton()
 
 void MainWindow::showStatusMessage(const QString& message, int timeout)
 {
-    _mainWindow->statusBar()->showMessage(message, timeout);
-    _mainWindow->statusBar()->update();
+	_mainWindow->statusBar()->showMessage(message, timeout);
+	_mainWindow->statusBar()->update();
 	qApp->processEvents();
 }
 
 void MainWindow::showProgressBar()
 {
-    _mainWindow->_progressBar->show();
+	_mainWindow->_progressBar->show();
 #ifdef _WIN32
 	_mainWindow->_windowsTaskbarProgress->show();
 #endif // _WIN32
-    _mainWindow->_cancelTaskButton->show();
+	_mainWindow->_cancelTaskButton->show();
 }
 
 void MainWindow::hideProgressBar()
 {
-    _mainWindow->_progressBar->hide();
+	_mainWindow->_progressBar->hide();
 #ifdef _WIN32
 	_mainWindow->_windowsTaskbarProgress->hide();
 #endif // _WIN32
-    _mainWindow->_cancelTaskButton->hide();
+	_mainWindow->_cancelTaskButton->hide();
 }
 
 void MainWindow::setProgressValue(const int& value)
@@ -210,7 +210,7 @@ void MainWindow::setProgressValue(const int& value)
 		_mainWindow->_windowsTaskbarProgress->setValue(value);
 #endif // _WIN32
 	}
-    _mainWindow->_progressBar->update();
+	_mainWindow->_progressBar->update();
 	qApp->processEvents();
 }
 
@@ -237,7 +237,7 @@ void MainWindow::showEvent(QShowEvent* event)
 #ifdef _WIN32
 	QWinTaskbarButton* windowsTaskbarButton = new QWinTaskbarButton(this);    //Create the taskbar button which will show the progress
 	windowsTaskbarButton->setWindow(windowHandle());    //Associate the taskbar button to the progress bar, assuming that the progress bar is its own window
-	_windowsTaskbarProgress = windowsTaskbarButton->progress();		
+	_windowsTaskbarProgress = windowsTaskbarButton->progress();
 #endif
 
 	if (_bFirstTime)
@@ -253,11 +253,11 @@ void MainWindow::showEvent(QShowEvent* event)
 void MainWindow::closeEvent(QCloseEvent* event)
 {
 	ui->mdiArea->closeAllSubWindows();
-	if (ui->mdiArea->currentSubWindow()) 
+	if (ui->mdiArea->currentSubWindow())
 	{
 		event->ignore();
 	}
-	else 
+	else
 	{
 		writeSettings();
 		event->accept();
@@ -273,9 +273,9 @@ void MainWindow::on_actionNew_triggered()
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
 	viewer->showMaximized();
-    //std::vector<int> mod = { 5 };
-    //viewer->getGLView()->setDisplayList(mod);
-    viewer->updateDisplayList();
+	//std::vector<int> mod = { 5 };
+	//viewer->getGLView()->setDisplayList(mod);
+	viewer->updateDisplayList();
 }
 
 void MainWindow::on_actionOpen_triggered()
@@ -321,12 +321,12 @@ void MainWindow::on_actionOpen_triggered()
 
 bool MainWindow::openFile(const QString& fileName)
 {
-    if (QMdiSubWindow* existing = findMdiChild(fileName))
-    {
+	if (QMdiSubWindow* existing = findMdiChild(fileName))
+	{
 		ui->mdiArea->setActiveSubWindow(existing);
-        return true;
+		return true;
 	}
-    const bool succeeded = loadFile(fileName);
+	const bool succeeded = loadFile(fileName);
 	if (succeeded)
 		statusBar()->showMessage(tr("File loaded"), 2000);
 	return succeeded;
@@ -356,7 +356,7 @@ void MainWindow::closeSubWindow()
 void MainWindow::closeAllSubWindows()
 {
 	QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
-    for (QMdiSubWindow* sub : subWindows)
+	for (QMdiSubWindow* sub : subWindows)
 	{
 		ModelViewer* viewer = dynamic_cast<ModelViewer*>(sub->widget());
 		if (viewer)
@@ -370,7 +370,6 @@ void MainWindow::closeAllSubWindows()
 		}
 	}
 }
-
 
 bool MainWindow::loadFile(const QString& fileName)
 {
@@ -395,7 +394,7 @@ void MainWindow::on_actionImport_triggered()
 
 void MainWindow::on_actionTile_Horizontally_triggered()
 {
-    ui->mdiArea->tileSubWindows();
+	ui->mdiArea->tileSubWindows();
 	QMdiArea* mdiArea = ui->mdiArea;
 	if (mdiArea->subWindowList().isEmpty())
 		return;
@@ -413,7 +412,7 @@ void MainWindow::on_actionTile_Horizontally_triggered()
 
 void MainWindow::on_actionTile_Vertically_triggered()
 {
-    ui->mdiArea->tileSubWindows();
+	ui->mdiArea->tileSubWindows();
 	QMdiArea* mdiArea = ui->mdiArea;
 	if (mdiArea->subWindowList().isEmpty())
 		return;
@@ -463,7 +462,7 @@ void MainWindow::updateMenus()
 	ui->actionClose->setEnabled(hasMdiChild);
 	ui->actionFileClose->setVisible(hasMdiChild);
 	ui->actionClose_All->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
-	
+
 	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
 	ui->actionTile->setEnabled(hasMdiChild);
 	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
@@ -501,7 +500,7 @@ void MainWindow::updateWindowMenu()
 	ui->menuWindows->addAction(ui->actionPrevious);
 
 	QList<QMdiSubWindow*> windows = ui->mdiArea->subWindowList();
-	if(!windows.isEmpty())
+	if (!windows.isEmpty())
 		ui->menuWindows->addSeparator();
 
 	for (int i = 0; i < windows.size(); ++i) {
@@ -509,13 +508,13 @@ void MainWindow::updateWindowMenu()
 		ModelViewer* child = qobject_cast<ModelViewer*>(mdiSubWindow->widget());
 
 		QString text;
-        if (i < 9)
-        {
-            text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
+		if (i < 9)
+		{
+			text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
 		}
-        else
-        {
-            text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
+		else
+		{
+			text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
 		}
 		QAction* action = ui->menuWindows->addAction(text, mdiSubWindow, [this, mdiSubWindow]() {
 			ui->mdiArea->setActiveSubWindow(mdiSubWindow);
@@ -534,13 +533,13 @@ ModelViewer* MainWindow::activeMdiChild() const
 
 QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 {
-    //QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
+	//QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
 	const QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
-    for (QMdiSubWindow* window : subWindows)
-    {
+	for (QMdiSubWindow* window : subWindows)
+	{
 		ModelViewer* mdiChild = qobject_cast<ModelViewer*>(window->widget());
-        QString curFile = mdiChild->currentFile();
-        if (curFile == fileName)
+		QString curFile = mdiChild->currentFile();
+		if (curFile == fileName)
 			return window;
 	}
 	return nullptr;
@@ -581,7 +580,7 @@ void MainWindow::updateRecentFileActions()
 	const QStringList recentFiles = readRecentFiles(settings);
 	const int count = qMin(int(MaxRecentFiles), recentFiles.size());
 	int i = 0;
-	for (; i < count; ++i) 
+	for (; i < count; ++i)
 	{
 		const QString fileName = QFileInfo(recentFiles.at(i)).fileName();
 		recentFileActs[i]->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
@@ -600,8 +599,6 @@ void MainWindow::openRecentFile()
 		openFile(action->data().toString());
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();
-		QApplication::alert(MainWindow::mainWindow());		
+		QApplication::alert(MainWindow::mainWindow());
 	}
 }
-
-

@@ -9,7 +9,7 @@ class QMdiSubWindow;
 class QAction;
 #ifdef _WIN32
 class QWinTaskbarProgress;
-#endif // 
+#endif //
 QT_END_NAMESPACE
 
 namespace Ui
@@ -34,9 +34,9 @@ public:
 	void checkSaveAndClose(ModelViewer* viewer);
 
 	static void showStatusMessage(const QString& message, int timeout = 0);
-    static void showProgressBar();
-    static void hideProgressBar();
-    static void setProgressValue(const int& value);
+	static void showProgressBar();
+	static void hideProgressBar();
+	static void setProgressValue(const int& value);
 
 protected:
 	MainWindow(QWidget* parent = Q_NULLPTR);
@@ -51,7 +51,7 @@ protected slots:
 private slots:
 	void on_actionNew_triggered();
 	void on_actionOpen_triggered();
-    void on_actionImport_triggered();
+	void on_actionImport_triggered();
 	void on_actionTile_Horizontally_triggered();
 	void on_actionTile_Vertically_triggered();
 	void on_actionTile_triggered();
@@ -70,11 +70,10 @@ private slots:
 	void closeSubWindow();
 	void closeAllSubWindows();
 
-
 private:
 	bool openFile(const QString& fileName);
 	void readSettings();
-	void writeSettings();	
+	void writeSettings();
 	static bool hasRecentFiles();
 	void prependToRecentFiles(const QString& fileName);
 	void setRecentFilesVisible(bool visible);
@@ -83,7 +82,7 @@ private:
 	enum { MaxRecentFiles = 15 };
 
 	Ui::MainWindow* ui;
-    QProgressBar* _progressBar;
+	QProgressBar* _progressBar;
 #ifdef _WIN32
 	QWinTaskbarProgress* _windowsTaskbarProgress;
 #endif
@@ -94,7 +93,7 @@ private:
 	QAction* recentFileSeparator;
 	QAction* recentFileSubMenuAct;
 
-    bool _bFirstTime;
+	bool _bFirstTime;
 
 	static int _viewerCount;
 	static MainWindow* _mainWindow;

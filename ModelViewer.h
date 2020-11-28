@@ -26,13 +26,13 @@ public:
 
 	void switchToRealisticRendering();
 
-    static QString getLastOpenedDir();
-    static void setLastOpenedDir(const QString &lastOpenedDir);
+	static QString getLastOpenedDir();
+	static void setLastOpenedDir(const QString& lastOpenedDir);
 
-    static QString getLastSelectedFilter();
-    static void setLastSelectedFilter(const QString &lastSelectedFilter);
+	static QString getLastSelectedFilter();
+	static void setLastSelectedFilter(const QString& lastSelectedFilter);
 
-    QString currentFile() const;
+	QString currentFile() const;
 
 	bool loadFile(const QString& fileName);
 	void import();
@@ -44,15 +44,15 @@ public:
 	bool save();
 	bool saveAs();
 
-        void deselectAll();
-        
+	void deselectAll();
+
 public slots:
-    void updateDisplayList();
-    void showAllItems();
-    void showSelectedItems();
-    void showOnlySelectedItems();
-    void hideAllItems();
-    void hideSelectedItems();
+	void updateDisplayList();
+	void showAllItems();
+	void showSelectedItems();
+	void showOnlySelectedItems();
+	void hideAllItems();
+	void hideSelectedItems();
 	void duplicateSelectedItems();
 	void deleteSelectedItems();
 	void displaySelectedMeshInfo();
@@ -130,7 +130,7 @@ private slots:
 	void on_pushButtonRedRubber_clicked();
 	void on_pushButtonWhiteRubber_clicked();
 	void on_pushButtonYellowRubber_clicked();
-	void on_toolButtonImport_clicked();	
+	void on_toolButtonImport_clicked();
 	void on_toolButtonShowHideAxis_toggled(bool checked);
 	void on_toolButtonVertexNormal_clicked(bool checked);
 	void on_toolButtonFaceNormal_clicked(bool checked);
@@ -139,7 +139,7 @@ private slots:
 
 	void on_listWidgetModel_itemChanged(QListWidgetItem*);
 	void on_listWidgetModel_itemSelectionChanged();
-    void itemEdited(QWidget*widget, QAbstractItemDelegate::EndEditHint hint);
+	void itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint hint);
 
 	void on_checkBoxShadowMapping_toggled(bool checked);
 	void on_checkBoxEnvMapping_toggled(bool checked);
@@ -221,13 +221,13 @@ private slots:
 	void on_pushButtonApplyADSTexture_clicked();
 	void on_pushButtonClearADSTextures_clicked();
 
-    void on_toolButtonSwapVisible_clicked(bool checked);
+	void on_toolButtonSwapVisible_clicked(bool checked);
 
 protected:
 	void showEvent(QShowEvent* event);
 	void keyPressEvent(QKeyEvent* event);
-    void dragEnterEvent(QDragEnterEvent *event);
-    void dropEvent(QDropEvent *event);
+	void dragEnterEvent(QDragEnterEvent* event);
+	void dropEvent(QDropEvent* event);
 
 private:
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
@@ -281,8 +281,8 @@ private:
 	bool _deletionInProgress;
 
 	QString _currentFile;
-    static QString _lastOpenedDir;
-    static QString _lastSelectedFilter;
+	static QString _lastOpenedDir;
+	static QString _lastSelectedFilter;
 	bool _textureDirOpenedFirstTime;
 
 	bool _documentSaved;

@@ -1,7 +1,7 @@
 #include <QApplication>
 #include <QStyleFactory>
 #include <QDebug>
-#include <QOpenGLFunctions> 
+#include <QOpenGLFunctions>
 
 #include "MainWindow.h"
 #include <iostream>

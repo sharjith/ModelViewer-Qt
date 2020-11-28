@@ -1,4 +1,3 @@
-
 #include "Drawable.h"
 
 unsigned int Drawable::_count = 0;

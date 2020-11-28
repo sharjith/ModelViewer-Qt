@@ -18,7 +18,7 @@ TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsig
 	else
 		projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(_width) * ratio, static_cast<float>(_height)));
 	_prog->setUniformValue("projection", projection);
-    _prog->setUniformValue("text", 30);
+	_prog->setUniformValue("text", 30);
 	// Configure VAO/VBO for texture quads
 	//glGenVertexArrays(1, &this->VAO);
 	_charVAO.create();
@@ -38,7 +38,7 @@ TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsig
 	//glBindBuffer(GL_ARRAY_BUFFER, 0);
 	_charVBO.release();
 	//glBindVertexArray(0);
-    _charVAO.release();
+	_charVAO.release();
 }
 
 TextRenderer::~TextRenderer()
@@ -72,7 +72,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 	// Set size to load glyphs as
 	FT_Set_Pixel_Sizes(face, 0, _fontSize);
 	// Disable byte-alignment restriction
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);	
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	// clear existing textures if any
 	deleteTextures();
 	// Then for the first 128 ASCII characters, pre-load/compile their characters and store them
@@ -87,7 +87,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 		// Generate texture
 		unsigned int texture;
 		glGenTextures(1, &texture);
-        //std::cout << "TextRenderer::Load : _texture = " << texture << std::endl;
+		//std::cout << "TextRenderer::Load : _texture = " << texture << std::endl;
 		glBindTexture(GL_TEXTURE_2D, texture);
 		glTexImage2D(
 			GL_TEXTURE_2D,
@@ -127,7 +127,7 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
 	// Activate corresponding updateMatrix state
 	_prog->bind();
 	_prog->setUniformValue("textColor", QVector3D(color.x, color.y, color.z));
-    glActiveTexture(GL_TEXTURE30);
+	glActiveTexture(GL_TEXTURE30);
 	//glBindVertexArray(this->VAO);
 	_charVAO.bind();
 

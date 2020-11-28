@@ -5,7 +5,7 @@
 
 #include <glm/gtc/constants.hpp>
 
-Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int slices, unsigned int stacks, unsigned int sMax, unsigned int tMax) : GridMesh(prog, "Sphere", slices, stacks), 
+Sphere::Sphere(QOpenGLShaderProgram* prog, float radius, unsigned int slices, unsigned int stacks, unsigned int sMax, unsigned int tMax) : GridMesh(prog, "Sphere", slices, stacks),
 _radius(radius)
 {
 	_sMax = sMax;
