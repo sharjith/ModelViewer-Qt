@@ -1611,6 +1611,9 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 				_glWidget->deselect(rowId);
 		}
 		_glWidget->update();
+        int selected = listWidgetModel->selectedItems().count();
+        if(selected)
+            MainWindow::showStatusMessage(QString("Selected %1 objects").arg(selected));
 	}
 }
 
