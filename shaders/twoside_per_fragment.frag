@@ -230,13 +230,13 @@ void main()
   	
         // diffuse 
         vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
-        vec3 lightDir = normalize(lightSource.position - g_position);
+        vec3 lightDir = normalize(lightSource.position);
         float diff = max(dot(norm, lightDir), 0.0);
         vec3 diffuse = diff * vec3(0.750f, 0.750f, 0.750f);
     
         // specular
         float specularStrength = 0.5;
-        vec3 viewDir = normalize(cameraPos - g_position);
+        vec3 viewDir = normalize(cameraPos);
         vec3 reflectDir = reflect(-lightDir, norm);  
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
         vec3 specular = specularStrength * spec * vec3(0.20f, 0.20f, 0.20f);
