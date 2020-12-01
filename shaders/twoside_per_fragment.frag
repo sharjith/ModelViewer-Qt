@@ -242,13 +242,10 @@ void main()
         vec3 specular = specularStrength * spec * vec3(0.20f, 0.20f, 0.20f);
 
         vec3 result = (ambient + diffuse + specular) * objectColor;
-        fragColor = vec4(result, 1.0);
+        fragColor = vec4(result, opacity);
 
         if(displayMode == 2)
             fragColor = mix(fragColor, Line.Color, mixVal);
-
-        //fragColor = mix(fragColor, vec4(1.0f, .65f, 0.0f, 1.0f), 0.5f);
-        //fragColor = mix(fragColor, vec4(result, 1.0f), 0.5f);
     }
 }
 

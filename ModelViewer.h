@@ -44,6 +44,7 @@ public:
 	bool save();
 	bool saveAs();
 
+	void selectAll();
 	void deselectAll();
 
 public slots:
@@ -65,6 +66,7 @@ public slots:
 private slots:
 	void setListRow(int index);
 	void setListRows(QList<int> indices);
+	void updateSelectionStatusMessage();
 	void showContextMenu(const QPoint& pos);
 	void centerScreen();
 	void lightingType_toggled(int id, bool checked);
@@ -225,7 +227,7 @@ private slots:
 
 protected:
 	void showEvent(QShowEvent* event);
-	void keyPressEvent(QKeyEvent* event);
+	void keyPressEvent(QKeyEvent* event);	
 	void dragEnterEvent(QDragEnterEvent* event);
 	void dropEvent(QDropEvent* event);
 

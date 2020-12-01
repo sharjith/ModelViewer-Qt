@@ -177,6 +177,25 @@ ModelViewer::~ModelViewer()
 	}
 }
 
+void ModelViewer::selectAll()
+{
+	if (listWidgetModel->count())
+	{
+		bool oldState = listWidgetModel->blockSignals(true);
+		for (int i = 0; i < listWidgetModel->count(); i++)
+		{
+			QListWidgetItem* item = listWidgetModel->item(i);
+			if (item->checkState() == (_glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked))
+			{
+				item->setSelected(true);
+			}
+		}
+		listWidgetModel->blockSignals(oldState);
+		on_listWidgetModel_itemSelectionChanged();
+		updateSelectionStatusMessage();
+	}
+}
+
 void ModelViewer::deselectAll()
 {
 	bool oldState = listWidgetModel->blockSignals(true);
@@ -199,12 +218,11 @@ void ModelViewer::setListRow(int index)
 		QListWidgetItem* item = listWidgetModel->item(index);
 		if (mesh->isSelected())
 		{
-			item->setSelected(false);
+			listWidgetModel->setCurrentItem(item, QItemSelectionModel::Deselect);
 		}
 		else
 		{
-			item->setSelected(true);
-			listWidgetModel->setCurrentItem(item);
+			listWidgetModel->setCurrentItem(item, QItemSelectionModel::Select);
 		}
 		if (toolBox->currentIndex() == 4)
 		{
@@ -213,6 +231,7 @@ void ModelViewer::setListRow(int index)
 			else
 				resetTransformationValues();
 		}
+		updateSelectionStatusMessage();
 	}
 
 	listWidgetModel->blockSignals(oldState);
@@ -231,7 +250,20 @@ void ModelViewer::setListRows(QList<int> indices)
 		}
 		listWidgetModel->blockSignals(oldState);
 		on_listWidgetModel_itemSelectionChanged();
+		updateSelectionStatusMessage();
 	}
+}
+
+void ModelViewer::updateSelectionStatusMessage()
+{
+	int count = listWidgetModel->selectedItems().count();
+	if (count)
+	{
+		QString noun = count > 1 ? "objects" : "object";
+		MainWindow::showStatusMessage(QString("Selected %1 %2").arg(count).arg(noun));
+	}
+	else
+		MainWindow::showStatusMessage("No selection", 2000);
 }
 
 void ModelViewer::setTransformation()
@@ -462,20 +494,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 			toolButtonMultiView->animateClick();
 		if (event->key() == Qt::Key_A)
 		{
-			if (listWidgetModel->count())
-			{
-				bool oldState = listWidgetModel->blockSignals(true);
-				for (int i = 0; i < listWidgetModel->count(); i++)
-				{
-					QListWidgetItem* item = listWidgetModel->item(i);
-					if (item->checkState() == (_glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked))
-					{
-						item->setSelected(true);
-					}
-				}
-				listWidgetModel->blockSignals(oldState);
-				on_listWidgetModel_itemSelectionChanged();
-			}
+			selectAll();
 		}
 	}
 	if (event->modifiers() == Qt::AltModifier)
@@ -669,13 +688,12 @@ void ModelViewer::deleteSelectedItems()
 			{
 				item->setCheckState(Qt::Unchecked);
 			}
+			MainWindow::showStatusMessage("No selection", 2000);
 			for (QListWidgetItem* item : selectedItems)
 			{
 				rowId = listWidgetModel->row(item);
-
 				// Remove the displayed object
 				_glWidget->removeFromDisplay(rowId);
-
 				// Get curent item on selected row
 				QListWidgetItem* curItem = listWidgetModel->takeItem(rowId);
 				// And remove it
@@ -696,23 +714,36 @@ void ModelViewer::deleteSelectedItems()
 
 void ModelViewer::hideAllItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	for (int i = 0; i < listWidgetModel->count(); i++)
 	{
 		QListWidgetItem* item = listWidgetModel->item(i);
 		item->setCheckState(Qt::Unchecked);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
 
 void ModelViewer::hideSelectedItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 	for (QListWidgetItem* item : selectedItems)
 	{
 		item->setCheckState(Qt::Unchecked);
 		item->setSelected(false);
+
+		int rowId = listWidgetModel->row(item);
+		if (item->isSelected())
+			_glWidget->select(rowId);
+		else
+			_glWidget->deselect(rowId);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr); 
+	updateSelectionStatusMessage();
 }
 
 void ModelViewer::showOnlySelectedItems()
@@ -730,6 +761,7 @@ void ModelViewer::showOnlySelectedItems()
 			item->setCheckState(Qt::Unchecked);
 		}
 	}
+	deselectAll();
 	listWidgetModel->blockSignals(oldState);
 	on_listWidgetModel_itemChanged(nullptr);
 
@@ -739,23 +771,29 @@ void ModelViewer::showOnlySelectedItems()
 
 void ModelViewer::showAllItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	for (int i = 0; i < listWidgetModel->count(); i++)
 	{
 		QListWidgetItem* item = listWidgetModel->item(i);
 		item->setCheckState(Qt::Checked);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
 
 void ModelViewer::showSelectedItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 	for (QListWidgetItem* item : selectedItems)
 	{
 		item->setCheckState(Qt::Checked);
 		item->setSelected(false);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
@@ -1589,7 +1627,8 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 			checkBoxSelectAll->setCheckState(Qt::PartiallyChecked);
 		checkBoxSelectAll->blockSignals(false);
 
-		_glWidget->setDisplayList(ids);
+		_glWidget->setDisplayList(ids);		
+
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		sliderLightPosX->setRange(-range, range);
 		sliderLightPosY->setRange(-range, range);
@@ -1611,9 +1650,7 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 				_glWidget->deselect(rowId);
 		}
 		_glWidget->update();
-        int selected = listWidgetModel->selectedItems().count();
-        if(selected)
-            MainWindow::showStatusMessage(QString("Selected %1 objects").arg(selected));
+		updateSelectionStatusMessage();
 	}
 }
 
