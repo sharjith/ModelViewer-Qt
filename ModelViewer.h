@@ -44,6 +44,7 @@ public:
 	bool save();
 	bool saveAs();
 
+	void selectAll();
 	void deselectAll();
 
 public slots:
@@ -225,8 +226,7 @@ private slots:
 
 protected:
 	void showEvent(QShowEvent* event);
-	void keyPressEvent(QKeyEvent* event);
-	void selectAll();
+	void keyPressEvent(QKeyEvent* event);	
 	void dragEnterEvent(QDragEnterEvent* event);
 	void dropEvent(QDropEvent* event);
 
