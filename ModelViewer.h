@@ -49,6 +49,7 @@ public:
 
 public slots:
 	void updateDisplayList();
+	void updateSelectionStatusMessage();
 	void showAllItems();
 	void showSelectedItems();
 	void showOnlySelectedItems();
@@ -279,8 +280,7 @@ private:
 	float   _heightPBRTexScale;
 
 	bool _runningFirstTime;
-	bool _deletionInProgress;
-
+	
 	QString _currentFile;
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;

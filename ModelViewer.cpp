@@ -19,8 +19,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_documentSaved = false;
 	_runningFirstTime = true;
-	_deletionInProgress = false;
-
+	
 	_textureDirOpenedFirstTime = true;
 
 	isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
@@ -428,6 +427,18 @@ void ModelViewer::updateDisplayList()
 	QApplication::restoreOverrideCursor();
 }
 
+void ModelViewer::updateSelectionStatusMessage()
+{
+	int count = listWidgetModel->selectedItems().count();
+	if (count)
+	{
+		QString noun = count > 1 ? "objects" : "object";
+		MainWindow::showStatusMessage(QString("Selected %1 %2").arg(count).arg(noun));
+	}
+	else
+		MainWindow::showStatusMessage("No selection", 2000);
+}
+
 void ModelViewer::showEvent(QShowEvent*)
 {
 	//showMaximized();
@@ -667,13 +678,9 @@ void ModelViewer::deleteSelectedItems()
 		if (QMessageBox::question(this, "Confirmation", "Delete selection?") == QMessageBox::Yes)
 		{
 			QApplication::setOverrideCursor(Qt::WaitCursor);
-			_deletionInProgress = true;
+			hideSelectedItems();
+			bool oldState = listWidgetModel->blockSignals(true);
 			int rowId = 0;
-			// If multiple selection is on, we need to erase all selected items
-			for (QListWidgetItem* item : selectedItems)
-			{
-				item->setCheckState(Qt::Unchecked);
-			}
 			for (QListWidgetItem* item : selectedItems)
 			{
 				rowId = listWidgetModel->row(item);
@@ -686,6 +693,7 @@ void ModelViewer::deleteSelectedItems()
 				// And remove it
 				delete curItem;
 			}
+			listWidgetModel->blockSignals(oldState);
 			if (listWidgetModel->count())
 			{
 				listWidgetModel->setCurrentRow(rowId, QItemSelectionModel::Clear);
@@ -693,7 +701,6 @@ void ModelViewer::deleteSelectedItems()
 				on_listWidgetModel_itemChanged(item);
 			}
 			_glWidget->update();
-			_deletionInProgress = false;
 			QApplication::restoreOverrideCursor();
 		}
 	}
@@ -712,12 +719,16 @@ void ModelViewer::hideAllItems()
 
 void ModelViewer::hideSelectedItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 	for (QListWidgetItem* item : selectedItems)
 	{
 		item->setCheckState(Qt::Unchecked);
 		item->setSelected(false);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
+	deselectAll();
 }
 
 void ModelViewer::showOnlySelectedItems()
@@ -755,6 +766,7 @@ void ModelViewer::showAllItems()
 
 void ModelViewer::showSelectedItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 	for (QListWidgetItem* item : selectedItems)
 	{
@@ -763,6 +775,9 @@ void ModelViewer::showSelectedItems()
 	}
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
+	deselectAll();
 }
 
 bool ModelViewer::checkForActiveSelection()
@@ -1604,19 +1619,17 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 
 void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 {
-	if (!_deletionInProgress) // check to avoid unnecessary selection triggering in view
+	for (int i = 0; i < listWidgetModel->count(); i++)
 	{
-		for (int i = 0; i < listWidgetModel->count(); i++)
-		{
-			QListWidgetItem* item = listWidgetModel->item(i);
-			int rowId = listWidgetModel->row(item);
-			if (item->isSelected())
-				_glWidget->select(rowId);
-			else
-				_glWidget->deselect(rowId);
-		}
-		_glWidget->update();
+		QListWidgetItem* item = listWidgetModel->item(i);
+		int rowId = listWidgetModel->row(item);
+		if (item->isSelected())
+			_glWidget->select(rowId);
+		else
+			_glWidget->deselect(rowId);
 	}
+	_glWidget->update();
+	updateSelectionStatusMessage();
 }
 
 void ModelViewer::itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint /*hint*/)
