@@ -14,4 +14,4 @@ void main()
     worldPos = vertexPosition;
     vec4 pos = projectionMatrix * viewMatrix * vec4(vertexPosition, 1.0);
     gl_Position = pos.xyww;
-}  
+}

@@ -70,7 +70,7 @@ void main()
     gs_out_shadow.TexCoords = vec2(0);
     gs_out_shadow.FragPosLightSpace = vec4(0);
     gs_out_shadow.cameraPos = vec3(0);
-    gs_out_shadow.lightPos = vec3(0);    
+    gs_out_shadow.lightPos = vec3(0);
     g_reflectionPosition = vec3(0);
     g_reflectionNormal = vec3(0);
     g_tangentLightPos = vec3(0);
@@ -191,4 +191,4 @@ void main()
         }
         EndPrimitive();
     }
-}  
+}

@@ -189,7 +189,7 @@ void main()
         // Find the smallest distance
         float d = min(g_edgeDistance.x, g_edgeDistance.y );
         d = min( d, g_edgeDistance.z );
-        
+
         if( d < Line.Width - 1.0f )
         {
             mixVal = 1.0f;
@@ -221,26 +221,26 @@ void main()
     applyEnvironmentMapping(alpha);
 
     if(selected)
-    {   
+    {
         //vec3 objectColor = vec3(1.0f, 0.65f, 0.0f);
         vec3 objectColor = vec3(1.0f, 0.6392156862745098f, 0.396078431372549f);
         // ambient
         float ambientStrength = 1.0;
         vec3 ambient = ambientStrength * vec3(0.50f, 0.50f, 0.50f);
-  	
-        // diffuse 
+
+        // diffuse
         vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
         vec3 lightDir = normalize(lightSource.position);
         float diff = max(dot(norm, lightDir), 0.0);
         vec3 diffuse = diff * vec3(0.750f, 0.750f, 0.750f);
-    
+
         // specular
         float specularStrength = 0.5;
         vec3 viewDir = normalize(cameraPos);
-        vec3 reflectDir = reflect(-lightDir, norm);  
+        vec3 reflectDir = reflect(-lightDir, norm);
         float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);
         vec3 specular = specularStrength * spec * vec3(0.20f, 0.20f, 0.20f);
-        
+
         vec3 result = (ambient + diffuse + specular) * objectColor;
         fragColor = vec4(result, 1.0);
 
@@ -254,7 +254,7 @@ void main()
 
 // ----------------------------------------------------------------------------
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
-{    
+{
     vec2 texCoords = g_texCoord2d;
     vec2 clippedTexCoord = texCoords;
     vec3 lightDir;
@@ -287,7 +287,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
         if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
               discard;
         // obtain normal from normal map
-        normal = texture(texture_normal, clippedTexCoord).rgb;   
+        normal = texture(texture_normal, clippedTexCoord).rgb;
         if(lockLightAndCamera)
             lightDir = normalize(g_tangentLightPos);
         else
@@ -308,16 +308,16 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
             lightDir = normalize(g_tangentLightPos + g_tangentFragPos);
         normal = calcBumpedNormal(texture_normal, clippedTexCoord);
     }
-        
-    vec3 halfVector = normalize(lightDir + viewDir); // light half vector     
+
+    vec3 halfVector = normalize(lightDir + viewDir); // light half vector
     float nDotVP    = dot(normal, normalize(lightDir + viewDir));                 // normal . light direction
     float nDotHV    = max(0.f, dot(normal,  halfVector));                      // normal . light half vector
     float pf        = mix(0.f, pow(nDotHV, mat.shininess), step(0.f, nDotVP)); // power factor
 
-    vec3 ambient    = source.ambient;        
-    vec3 diffuse    = source.diffuse * nDotVP;    
-    vec3 specular   = source.specular * pf;    
-   
+    vec3 ambient    = source.ambient;
+    vec3 diffuse    = source.diffuse * nDotVP;
+    vec3 specular   = source.specular * pf;
+
     vec3 matAmbient = mat.ambient;
     if(hasDiffuseTexture)
     {
@@ -445,12 +445,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         ambientOcclusion = pbrLighting.ambientOcclusion;
     }
     else
-    {    
+    {
         if(hasNormalMap)
             N = calcBumpedNormal(normalMap, g_texCoord2d) * side;
         else
             N = normalize(normal);
-        
+
         /*if(hasHeightMap)
         {
             // offset texture coordinates with Parallax Mapping
@@ -473,7 +473,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             else
                 viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
             float height = texture(heightMap, g_texCoord2d).r;
-            height = height * heightScale + (-0.01f);//scale + bias;            
+            height = height * heightScale + (-0.01f);//scale + bias;
             texCoords = g_texCoord2d + (height * viewDir.xy);
             clippedTexCoord = vec2(texCoords.x - floor(texCoords.x),texCoords.y - floor(texCoords.y));
             if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 || clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
@@ -488,7 +488,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
                 L = normalize(g_tangentLightPos + g_tangentFragPos);
                 V = normalize(g_tangentLightPos + g_tangentFragPos);
             }
-            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;            
+            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
         }
 
         // material properties
@@ -512,7 +512,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         else
             ambientOcclusion = pbrLighting.ambientOcclusion;
     }
-    
+
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
     // of 0.04 and if it's a metal, use the albedo color as F0 (metallic workflow)
     vec3 F0 = vec3(0.04);
@@ -521,7 +521,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     // reflectance equation
     vec3 Lo = vec3(0.0);
 
-    // calculate light radiance    
+    // calculate light radiance
     vec3 H = normalize(V + L);
     float distance = length(lightSource.position - vec3(0));
     float attenuation = 1.0 / (distance * distance);
@@ -573,7 +573,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 diffuse      = irradiance * albedo;
 
     if(displayMode == 3)
-    {        
+    {
         if(envMapEnabled)
         {
             vec3 F = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
@@ -581,10 +581,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             kS = F;
             kD = 1.0 - kS;
             kD *= 1.0 - metallic;
-                        
+
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
-            
+
             // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
             const float MAX_REFLECTION_LOD = 4.0;
             vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
@@ -594,15 +594,15 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             ambient = (kD * diffuse + specular) * ambientOcclusion;
         }
         else
-        {            
+        {
             kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
             kD = 1.0 - kS;
             kD *= 1.0 - metallic;
             ambient = (kD * diffuse) * ambientOcclusion;
-        }        
+        }
     }
     else
-    {        
+    {
         ambient = ((lightSource.ambient * diffuse)  + specular) * ambientOcclusion;
     }
 

@@ -98,4 +98,3 @@ void main()
     gl_ClipDistance[3] = clipDist;
     */
 }
-

@@ -7,7 +7,6 @@ in VS_OUT {
     vec3 normal;
 } gs_in[];
 
-
 const float MAGNITUDE = 0.05;
 
 out vec3 g_normal;
@@ -23,7 +22,6 @@ out float g_clipDistX;
 out float g_clipDistY;
 out float g_clipDistZ;
 out float g_clipDist;
-
 
 void main()
 {

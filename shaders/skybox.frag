@@ -10,7 +10,7 @@ uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
 
 void main()
-{    
+{
     fragColor = texture(skybox, texCoords);
 
     // HDR tonemapping
