@@ -252,7 +252,7 @@ void MainWindow::showEvent(QShowEvent* event)
 
 void MainWindow::closeEvent(QCloseEvent* event)
 {
-	ui->mdiArea->closeAllSubWindows();
+	closeAllSubWindows();
 	if (ui->mdiArea->currentSubWindow())
 	{
 		event->ignore();
