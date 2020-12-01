@@ -462,20 +462,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 			toolButtonMultiView->animateClick();
 		if (event->key() == Qt::Key_A)
 		{
-			if (listWidgetModel->count())
-			{
-				bool oldState = listWidgetModel->blockSignals(true);
-				for (int i = 0; i < listWidgetModel->count(); i++)
-				{
-					QListWidgetItem* item = listWidgetModel->item(i);
-					if (item->checkState() == (_glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked))
-					{
-						item->setSelected(true);
-					}
-				}
-				listWidgetModel->blockSignals(oldState);
-				on_listWidgetModel_itemSelectionChanged();
-			}
+			selectAll();
 		}
 	}
 	if (event->modifiers() == Qt::AltModifier)
@@ -500,6 +487,24 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 	}
 
 	QWidget::keyPressEvent(event);
+}
+
+void ModelViewer::selectAll()
+{
+	if (listWidgetModel->count())
+	{
+		bool oldState = listWidgetModel->blockSignals(true);
+		for (int i = 0; i < listWidgetModel->count(); i++)
+		{
+			QListWidgetItem* item = listWidgetModel->item(i);
+			if (item->checkState() == (_glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked))
+			{
+				item->setSelected(true);
+			}
+		}
+		listWidgetModel->blockSignals(oldState);
+		on_listWidgetModel_itemSelectionChanged();
+	}
 }
 
 void ModelViewer::dragEnterEvent(QDragEnterEvent* event)
