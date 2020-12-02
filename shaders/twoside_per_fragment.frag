@@ -182,7 +182,7 @@ void main()
     }
     else if(displayMode == 1) // wireframe
     {
-        fragColor = vec4(1.0f, 1.0f, 1.0f, 0.75f);
+        fragColor = vec4(v_color.rgb, 0.75f);
     }
     else // wireshaded
     {
@@ -204,9 +204,13 @@ void main()
         }
 
         if(texEnabled == true)
-            fragColor = mix(v_color * texture2D(texUnit, g_texCoord2d), Line.Color, mixVal);
-        else
-            fragColor = mix(v_color, Line.Color, mixVal);
+            v_color *= texture2D(texUnit, g_texCoord2d);
+
+        float avg = (v_color.r + v_color.g + v_color.b + v_color.a)/4.0f; // grayscale
+        float lightness = 0.2126*v_color.r + 0.7152*v_color.g + 0.0722*v_color.b;
+        vec4 linecolor = lightness > 0.05f ? Line.Color : vec4(1.0f) - avg;
+        fragColor = mix(v_color, linecolor, mixVal);
+
     }
 
     // Get alpha from maps if available
