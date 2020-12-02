@@ -326,9 +326,8 @@ bool MainWindow::openFile(const QString& fileName)
 		ui->mdiArea->setActiveSubWindow(existing);
 		return true;
 	}
-	const bool succeeded = loadFile(fileName);
-	if (succeeded)
-		statusBar()->showMessage(tr("File loaded"), 2000);
+	const bool succeeded = loadFile(fileName);	
+		
 	return succeeded;
 }
 

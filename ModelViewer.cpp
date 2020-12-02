@@ -406,6 +406,7 @@ void ModelViewer::updateDisplayList()
 	std::vector<int> ids = _glWidget->getDisplayedObjectsIds();
 	int id = 0;
 	QListWidgetItem* item = nullptr;
+	bool oldState = listWidgetModel->blockSignals(true);
 	for (TriangleMesh* mesh : store)
 	{
 		item = new QListWidgetItem(mesh->getName());
@@ -419,12 +420,15 @@ void ModelViewer::updateDisplayList()
 		id++;
 	}
 	_glWidget->fitAll();
-	on_listWidgetModel_itemChanged(item);
+		
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);
 	sliderLightPosY->setRange(-range, range);
 	sliderLightPosZ->setRange(-range, range);
 	QApplication::restoreOverrideCursor();
+
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(item);
 }
 
 void ModelViewer::updateSelectionStatusMessage()
@@ -708,11 +712,14 @@ void ModelViewer::deleteSelectedItems()
 
 void ModelViewer::hideAllItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	for (int i = 0; i < listWidgetModel->count(); i++)
 	{
 		QListWidgetItem* item = listWidgetModel->item(i);
 		item->setCheckState(Qt::Unchecked);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
@@ -755,11 +762,14 @@ void ModelViewer::showOnlySelectedItems()
 
 void ModelViewer::showAllItems()
 {
+	bool oldState = listWidgetModel->blockSignals(true);
 	for (int i = 0; i < listWidgetModel->count(); i++)
 	{
 		QListWidgetItem* item = listWidgetModel->item(i);
 		item->setCheckState(Qt::Checked);
 	}
+	listWidgetModel->blockSignals(oldState);
+	on_listWidgetModel_itemChanged(nullptr);
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
@@ -1726,7 +1736,8 @@ bool ModelViewer::loadFile(const QString& fileName)
 		listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
 		listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
-		updateDisplayList();
+		updateDisplayList();		
+
 		MainWindow::showStatusMessage(tr("File loaded"), 2000);
 	}
 	else
