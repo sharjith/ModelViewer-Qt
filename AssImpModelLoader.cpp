@@ -201,13 +201,14 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		// Specular: texture_specularN
 		// Normal: texture_normalN
 
+		// ADS Maps
 		// 1. diffuse maps
 		vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
 		textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
 		// 2. specular maps
 		vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
 		textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
-		// 2. emissive maps
+		// 3. emissive maps
 		vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emissive");
 		textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
 		// 4. normal maps
@@ -216,9 +217,29 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		// 5. height maps
 		std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
 		textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
-		// 5. opacity maps
+		// 6. opacity maps
 		std::vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
 		textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
+
+		// PBR Maps
+		// 1. albedo maps
+		vector<Texture> albedoPBRMaps = loadMaterialTextures(material, aiTextureType_BASE_COLOR, "albedoMap");
+		textures.insert(textures.end(), albedoPBRMaps.begin(), albedoPBRMaps.end());
+		// 2. specular maps
+		vector<Texture> metalicPBRMaps = loadMaterialTextures(material, aiTextureType_METALNESS, "metallicMap");
+		textures.insert(textures.end(), metalicPBRMaps.begin(), metalicPBRMaps.end());
+		// 3. roughness maps
+		vector<Texture> roughnessPBRMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE_ROUGHNESS, "roughnessMap");
+		textures.insert(textures.end(), roughnessPBRMaps.begin(), roughnessPBRMaps.end());
+		// 4. emissive maps
+		vector<Texture> emissivePBRMaps = loadMaterialTextures(material, aiTextureType_EMISSION_COLOR, "emissiveMap");
+		textures.insert(textures.end(), emissivePBRMaps.begin(), emissivePBRMaps.end());
+		// 5. normal maps
+		std::vector<Texture> normalPBRMaps = loadMaterialTextures(material, aiTextureType_NORMAL_CAMERA, "normalMap");
+		textures.insert(textures.end(), normalPBRMaps.begin(), normalPBRMaps.end());
+		// 6. AO maps
+		std::vector<Texture> aoPBRMaps = loadMaterialTextures(material, aiTextureType_AMBIENT_OCCLUSION, "aoMap");
+		textures.insert(textures.end(), aoPBRMaps.begin(), aoPBRMaps.end());
 
 		aiColor3D color(0.f, 0.f, 0.f);
 		float opacity = 1.0f;
@@ -230,10 +251,19 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
 		{
 			mat.setDiffuse(QVector3D(color.r, color.g, color.b));
+			mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
 		}
 		if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
 		{
 			mat.setSpecular(QVector3D(color.r, color.g, color.b));
+			bool grayScale = (color.r == color.g && color.g == color.b && color.r == color.b);
+			float intensity = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+			if (grayScale)	
+				mat.setMetalness(intensity > 0.04f ? 0.04f : intensity); // limit to 4% for dielectrics
+			else
+				mat.setMetalness(intensity);
+			mat.setRoughness(1.0f - intensity);
+			
 		}
 		if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
 		{

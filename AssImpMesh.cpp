@@ -52,10 +52,18 @@ void AssImpMesh::render()
 	unsigned int normalNr = 1;
 	unsigned int heightNr = 1;
 	unsigned int opacityNr = 1;
-
+	// PBR
+	unsigned int albedoNr = 1;
+	unsigned int metallicNr = 1;
+	unsigned int roughnessNr = 1;
+	unsigned int normalPBRNr = 1;
+	unsigned int aoNr = 1;
+	
+	bool hasTexture = false;
+	// ADS
 	for (unsigned int i = 0; i < _textures.size(); i++)
-	{
-		glActiveTexture(GL_TEXTURE10 + i); // Active proper texture unit before binding
+	{		
+		hasTexture = false;
 		// Retrieve texture number (the N in diffuse_textureN)
 		stringstream ss;
 		string number;
@@ -65,33 +73,134 @@ void AssImpMesh::render()
 		if (name == "texture_diffuse")
 		{
 			ss << diffuseNr++;
+			hasTexture = true;
 		}
-		else if (name == "texture_specular")
+		if (name == "texture_specular")
 		{
 			ss << specularNr++;
+			hasTexture = true;
 		}
-		else if (name == "texture_emissive")
+		if (name == "texture_emissive")
 		{
 			ss << emissiveNr++;
+			hasTexture = true;
 		}
-		else if (name == "texture_normal")
+		if (name == "texture_normal")
 		{
 			ss << normalNr++;
+			hasTexture = true;
 		}
-		else if (name == "texture_height")
+		if (name == "texture_height")
 		{
 			ss << heightNr++;
+			hasTexture = true;
 		}
-		else if (name == "texture_opacity")
+		if (name == "texture_opacity")
 		{
 			ss << opacityNr++;
+			hasTexture = true;
+		}		
+		number = ss.str();
+
+		if (hasTexture)
+		{
+			glActiveTexture(GL_TEXTURE10 + i); // Active proper texture unit before binding
+			// Now set the sampler to the correct texture unit
+			_prog->bind();
+			_prog->setUniformValue((name + number).c_str(), i);
+			// And finally bind the texture
+			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
+		}
+	}
+	// PBR from ADS
+	for (unsigned int i = 0; i < _textures.size(); i++)
+	{
+		hasTexture = false;
+		// Retrieve texture number (the N in diffuse_textureN)
+		stringstream ss;
+		string number;
+		string name = _textures[i].type;
+		// Transfer unsigned int to stream
+		if (name == "texture_diffuse")
+		{
+			ss << diffuseNr++;
+			hasTexture = true;
+		}
+		if (name == "texture_specular")
+		{
+			ss << specularNr++;
+			hasTexture = true;
+		}		
+		if (name == "texture_normal")
+		{
+			ss << normalNr++;
+			hasTexture = true;
+		}
+		if (name == "texture_height")
+		{
+			ss << heightNr++;
+			hasTexture = true;
+		}
+		if (name == "texture_opacity")
+		{
+			ss << opacityNr++;
+			hasTexture = true;
 		}
 		number = ss.str();
-		// Now set the sampler to the correct texture unit
-		_prog->bind();
-		_prog->setUniformValue((name + number).c_str(), i);
-		// And finally bind the texture
-		glBindTexture(GL_TEXTURE_2D, _textures[i].id);
+		if (hasTexture)
+		{
+			glActiveTexture(GL_TEXTURE20 + i); // Active proper texture unit before binding
+			// Now set the sampler to the correct texture unit
+			_prog->bind();
+			_prog->setUniformValue((name + number).c_str(), i);
+			// And finally bind the texture
+			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
+		}
+	}
+	// PBR from model
+	for (unsigned int i = 0; i < _textures.size(); i++)
+	{
+		hasTexture = false;
+		// Retrieve texture number (the N in diffuse_textureN)
+		stringstream ss;
+		string number;
+		string name = _textures[i].type;
+		// Transfer unsigned int to stream
+		if (name == "albedoMap")
+		{
+			ss << albedoNr++;
+			hasTexture = true;
+		}
+		if (name == "metallicMap")
+		{
+			ss << metallicNr++;
+			hasTexture = true;
+		}
+		if (name == "roughnessMap")
+		{
+			ss << roughnessNr++;
+			hasTexture = true;
+		}
+		if (name == "normalMap")
+		{
+			ss << normalPBRNr++;
+			hasTexture = true;
+		}		
+		if (name == "aoMap")
+		{
+			ss << aoNr++;
+			hasTexture = true;
+		}
+		number = ss.str();
+		if (hasTexture)
+		{
+			glActiveTexture(GL_TEXTURE20 + i); // Active proper texture unit before binding
+			// Now set the sampler to the correct texture unit
+			_prog->bind();
+			_prog->setUniformValue((name + number).c_str(), i);
+			// And finally bind the texture
+			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
+		}
 	}
 
 	if (_material.opacity() < 1.0f || _hasOpacityADSMap || _hasOpacityPBRMap)
@@ -172,26 +281,53 @@ void AssImpMesh::setupMesh()
 		if (name == "texture_diffuse")
 		{
 			_hasDiffuseADSMap = true;
+			_hasAlbedoPBRMap = true;
 		}
-		else if (name == "texture_specular")
+		if (name == "texture_specular")
 		{
 			_hasSpecularADSMap = true;
+			_hasMetallicPBRMap = true;
 		}
-		else if (name == "texture_emissive")
+		if (name == "texture_emissive")
 		{
 			_hasEmissiveADSMap = true;
 		}
-		else if (name == "texture_normal")
+		if (name == "texture_normal")
 		{
 			_hasNormalADSMap = true;
+			_hasNormalPBRMap = true;
 		}
-		else if (name == "texture_height")
+		if (name == "texture_height")
 		{
 			_hasHeightADSMap = true;
+			_hasHeightPBRMap = true;
 		}
-		else if (name == "texture_opacity")
+		if (name == "texture_opacity")
 		{
 			_hasOpacityADSMap = true;
+			_hasOpacityPBRMap = true;
+		}	
+
+		// PBR from model
+		if (name == "albedoMap")
+		{			
+			_hasAlbedoPBRMap = true;
+		}
+		if (name == "metallicMap")
+		{
+			_hasMetallicPBRMap = true;
+		}
+		if (name == "roughnessMap")
+		{
+			_hasRoughnessPBRMap = true;
+		}
+		if (name == "normalMap")
+		{
+			_hasNormalPBRMap = true;
+		}
+		if (name == "aoMap")
+		{
+			_hasAOPBRMap = true;
 		}
 	}
 
