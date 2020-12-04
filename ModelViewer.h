@@ -32,6 +32,9 @@ public:
 	static QString getLastSelectedFilter();
 	static void setLastSelectedFilter(const QString& lastSelectedFilter);
 
+    static QString getSupportedExtensions();
+    static void setSupportedExtensions(const QString &supportedExtensions);
+
 	QString currentFile() const;
 
 	bool loadFile(const QString& fileName);
@@ -45,13 +48,13 @@ public:
 	bool saveAs();
 
 	void selectAll();
-	void deselectAll();
+	void deselectAll();    
 
 public slots:
-	void updateDisplayList();
-	void updateSelectionStatusMessage();
-	void showAllItems();
-	void showSelectedItems();
+    void updateDisplayList();
+    void updateSelectionStatusMessage();
+    void showAllItems();
+    void showSelectedItems();
 	void showOnlySelectedItems();
 	void hideAllItems();
 	void hideSelectedItems();
@@ -281,12 +284,13 @@ private:
 
 	bool _runningFirstTime;
 	
-	QString _currentFile;
+	QString _currentFile;	
+	bool _textureDirOpenedFirstTime;
+	bool _documentSaved;
+
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;
-	bool _textureDirOpenedFirstTime;
-
-	bool _documentSaved;
+	static QString _supportedExtensions;
 
 private:
 	bool checkForActiveSelection();
