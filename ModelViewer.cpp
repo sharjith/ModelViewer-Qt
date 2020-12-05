@@ -208,10 +208,10 @@ void ModelViewer::deselectAll()
 }
 
 void ModelViewer::setListRow(int index)
-{
-	bool oldState = listWidgetModel->blockSignals(true);
+{	
 	if (index != -1)
 	{
+		bool oldState = listWidgetModel->blockSignals(true);
 		std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
 		TriangleMesh* mesh = meshes.at(index);
 		QListWidgetItem* item = listWidgetModel->item(index);
@@ -231,10 +231,9 @@ void ModelViewer::setListRow(int index)
 			else
 				resetTransformationValues();
 		}
+		listWidgetModel->blockSignals(oldState);
+		on_listWidgetModel_itemSelectionChanged();
 	}
-
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemSelectionChanged();
 }
 
 void ModelViewer::setListRows(QList<int> indices)
