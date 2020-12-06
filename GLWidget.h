@@ -305,6 +305,7 @@ private:
 
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();
+	int processSelection(const QPoint& pixel);
 	void renderQuad();
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
@@ -318,6 +319,8 @@ private:
 	void convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir);
 	int clickSelect(const QPoint& pixel);
 	QList<int> sweepSelect(const QPoint& pixel);
+	unsigned int colorToIndex(const QColor& color);
+	QColor indexToColor(const unsigned int& index);
 
 	float highestModelZ();
 	float lowestModelZ();
@@ -370,6 +373,8 @@ private:
 	float _rubberBandRadius;
 	QVector3D _rubberBandCenter;
 	QList<int> _selectedIDs;
+	unsigned int _selectionFBO;
+	unsigned int _selectionRBO;
 
 	bool _multiViewActive;
 
@@ -446,6 +451,7 @@ private:
 	QOpenGLShaderProgram* _lightCubeShader;
 	QOpenGLShaderProgram* _clippingPlaneShader;
 	QOpenGLShaderProgram* _clippedMeshShader;
+	QOpenGLShaderProgram* _selectionShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;

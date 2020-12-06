@@ -325,6 +325,7 @@ void GLWidget::cleanUpShaders()
 	if (_textShader) delete _textShader;
 	if (_bgShader) delete _bgShader;
 	if (_bgSplitShader) delete _bgSplitShader;
+	if (_selectionShader) delete _selectionShader;
 	if (_debugShader) delete _debugShader;
 }
 
@@ -1759,6 +1760,15 @@ void GLWidget::initializeGL()
 	// Shadow mapping
 	loadFloor();
 
+	glGenFramebuffers(1, &_selectionFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+	glGenRenderbuffers(1, &_selectionRBO);	
+	glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, width(), height());
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
+	GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, DrawBuffers);
+
 	createGeometry();
 
 	// Set lighting information
@@ -1900,6 +1910,9 @@ void GLWidget::createShaderPrograms()
 	// Clipped Mesh shader program
 	_clippedMeshShader = new QOpenGLShaderProgram(this); _clippedMeshShader->setObjectName("_clippedMeshShader");
 	loadCompileAndLinkShaderFromFile(_clippedMeshShader, "shaders/clipped_mesh.vert", "shaders/clipped_mesh.frag");
+	// Selection shader program
+	_selectionShader = new QOpenGLShaderProgram(this); _selectionShader->setObjectName("_selectionShader");
+	loadCompileAndLinkShaderFromFile(_selectionShader, "shaders/selection.vert", "shaders/selection.frag");	
 
 	// Shadow Depth quad shader program - for debugging
 	_debugShader = new QOpenGLShaderProgram(this); _debugShader->setObjectName("_debugShader");
@@ -3169,6 +3182,63 @@ void GLWidget::renderToShadowBuffer()
 	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
 
+int GLWidget::processSelection(const QPoint& pixel)
+{
+	int id = -1;
+	makeCurrent();
+	// save current viewport
+	int viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
+	
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glViewport(0, 0, width(), height());
+	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	glClear(GL_COLOR_BUFFER_BIT);
+	_selectionShader->bind();
+	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+	if (_selectedIDs.size() != 0)
+	{
+		for (int i : _selectedIDs)
+		{
+			try
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				if (mesh)
+				{
+					QColor pickColor = indexToColor(i + 1);
+					qDebug() << "Pick Color" << pickColor;
+					_selectionShader->bind();
+					qreal r, g, b, a;
+					pickColor.getRgbF(&r, &g, &b, &a);
+					_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
+					mesh->setProg(_selectionShader);
+					mesh->render();
+				}
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
+			}
+		}
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		unsigned char res[4];
+		glReadPixels(pixel.x(), viewport[3] - pixel.y(), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &res);
+		QColor col = QColor::fromRgb(res[0], res[1], res[2], res[3]);
+		qDebug() << "ReadPixel Color" << col;
+		unsigned int colId = colorToIndex(col);
+		
+		id = static_cast<int>(colId - 1);
+	}	
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());	
+	// restore viewport
+	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+
+	return id;
+}
+
 void GLWidget::renderQuad()
 {
 	if (_quadVAO == 0)
@@ -3881,6 +3951,7 @@ using namespace std::chrono;
 int GLWidget::clickSelect(const QPoint& pixel)
 {
 	int id = -1;
+	_selectedIDs.clear();
 
 	//if (!_displayedObjectsIds.size())
 	if (_visibleSwapped)
@@ -3936,6 +4007,7 @@ int GLWidget::clickSelect(const QPoint& pixel)
 			{
 				//id = i;
 				selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
+				_selectedIDs.push_back(i);
 				//_selectRect->setGeometry(_boundingRect);
 				//_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
 				//_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
@@ -3960,7 +4032,11 @@ int GLWidget::clickSelect(const QPoint& pixel)
 		}
 		id = selectedIdsDist.key(lowestDist);
 	}
-	//qDebug() << "Selected Id: " << id;
+	qDebug() << "Selected Id: " << id;
+
+	int colId = processSelection(pixel);
+
+	qDebug() << "Color Id: " << colId;	
 
 	// Get ending timepoint
 	auto stop = high_resolution_clock::now();
@@ -4023,6 +4099,25 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 
 	emit sweepSelectionDone(_selectedIDs);
 	return _selectedIDs;
+}
+
+unsigned int GLWidget::colorToIndex(const QColor& color)
+{
+	int alpha = color.alpha();
+	int red = color.red();
+	int green = color.green();
+	int blue = color.blue();
+	unsigned int index =  ((alpha << 24) | (red << 16) | (green << 8) | (blue));
+	return index;
+}
+
+QColor GLWidget::indexToColor(const unsigned int& index)
+{
+	int red = ((index >> 16) & 0xFF);
+	int green = ((index >> 8) & 0xFF);
+	int blue = (index & 0xFF);
+	int alpha = ((index >> 24) & 0xFF);
+	return QColor(red, green, blue, alpha);
 }
 
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)

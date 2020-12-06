@@ -155,7 +155,7 @@ SOURCES += AppleSurface.cpp \
     Cube.cpp \
     Cylinder.cpp \
     DoubleCone.cpp \
-	Drawable.cpp \
+    Drawable.cpp \
     Figure8KleinBottle.cpp \
     Folium.cpp \
     GLCamera.cpp \
@@ -216,10 +216,12 @@ DISTFILES += \
     shaders/background.vert \
     shaders/clipping_plane.frag \
     shaders/clipping_plane.vert \
-	shaders/clipped_mesh.frag \
+    shaders/clipped_mesh.frag \
     shaders/clipped_mesh.vert \
     shaders/debug_quad.vert \
     shaders/debug_quad_depth.frag \
+    shaders/selection.frag \
+    shaders/selection.vert \
     shaders/splitScreen.frag \
     shaders/splitScreen.vert \
     shaders/text.vert \
