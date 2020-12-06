@@ -3190,12 +3190,12 @@ int GLWidget::processSelection(const QPoint& pixel)
 	int viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
 	
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);	
 	glViewport(0, 0, width(), height());
-	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);		
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);		
 	_selectionShader->bind();
 	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
 	_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
@@ -3209,7 +3209,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 				if (mesh)
 				{
 					QColor pickColor = indexToColor(i + 1);
-					qDebug() << "Pick Color" << pickColor;
+					qDebug() << "Id " << i << "Pick Color" << pickColor;
 					_selectionShader->bind();
 					qreal r, g, b, a;
 					pickColor.getRgbF(&r, &g, &b, &a);
@@ -3223,14 +3223,23 @@ int GLWidget::processSelection(const QPoint& pixel)
 				std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
 			}
 		}
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		unsigned char res[4];
-		glReadPixels(pixel.x(), viewport[3] - pixel.y(), 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &res);
-		QColor col = QColor::fromRgb(res[0], res[1], res[2], res[3]);
-		qDebug() << "ReadPixel Color" << col;
-		unsigned int colId = colorToIndex(col);
 		
-		id = static_cast<int>(colId - 1);
+		glReadBuffer(GL_COLOR_ATTACHMENT0);
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		int pixelWinSize = 6;
+		std::vector<float> res(pixelWinSize * pixelWinSize * 4);
+		glReadPixels(pixel.x()- pixelWinSize/2, viewport[3] - pixel.y()- pixelWinSize/2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
+		std::map<int, int> voteCount;
+		for (int i = 0; i < res.size(); i += 4)
+		{
+			QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
+			//qDebug() << "ReadPixel Color" << col;
+			unsigned int colId = colorToIndex(col);
+			if (colId != 0)
+				voteCount[colId - 1]++;
+		}
+		if (!voteCount.empty())
+			id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
 	}	
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());	
 	// restore viewport
@@ -4037,6 +4046,9 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	int colId = processSelection(pixel);
 
 	qDebug() << "Color Id: " << colId;	
+
+	//if (colId < _meshStore.size())
+		//id = colId;
 
 	// Get ending timepoint
 	auto stop = high_resolution_clock::now();
