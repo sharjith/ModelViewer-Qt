@@ -2715,7 +2715,9 @@ void GLWidget::drawVertexNormals()
 			{
 				TriangleMesh* mesh = _meshStore.at(i);
 				mesh->setProg(_vertexNormalShader);
-				mesh->render();
+				mesh->getVAO().bind();
+				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+				mesh->getVAO().release();
 			}
 		}
 	}
@@ -2733,8 +2735,10 @@ void GLWidget::drawFaceNormals()
 			if (_showFaceNormals)
 			{
 				TriangleMesh* mesh = _meshStore.at(i);
-				mesh->setProg(_faceNormalShader);
-				mesh->render();
+				mesh->setProg(_faceNormalShader);				
+				mesh->getVAO().bind();
+				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+				mesh->getVAO().release();
 			}
 		}
 	}
@@ -3166,7 +3170,9 @@ void GLWidget::renderToShadowBuffer()
 				if (mesh)
 				{
 					mesh->setProg(_shadowMappingShader);
-					mesh->render();
+					mesh->getVAO().bind();
+					glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+					mesh->getVAO().release();
 				}
 			}
 			catch (const std::exception& ex)
@@ -3185,65 +3191,77 @@ void GLWidget::renderToShadowBuffer()
 int GLWidget::processSelection(const QPoint& pixel)
 {
 	int id = -1;
-	makeCurrent();
-	// save current viewport
-	int viewport[4];
-	glGetIntegerv(GL_VIEWPORT, viewport);
-	
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);	
-	glViewport(0, 0, width(), height());
-	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);		
-	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);		
-	_selectionShader->bind();
-	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	if (_selectedIDs.size() != 0)
 	{
-		for (int i : _selectedIDs)
+		if (_selectedIDs.size() == 1)
 		{
-			try
+			id = _selectedIDs.at(0);
+		}
+		else
+		{
+			makeCurrent();
+			// save current viewport
+			int viewport[4];
+			glGetIntegerv(GL_VIEWPORT, viewport);
+
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glViewport(0, 0, width(), height());
+			glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+			glDrawBuffer(GL_COLOR_ATTACHMENT0);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glEnable(GL_DEPTH_TEST);
+			glDisable(GL_BLEND);
+			_selectionShader->bind();
+			_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
+			_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+
+			for (int i : _selectedIDs)
 			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
+				try
 				{
-					QColor pickColor = indexToColor(i + 1);
-					qDebug() << "Id " << i << "Pick Color" << pickColor;
-					_selectionShader->bind();
-					qreal r, g, b, a;
-					pickColor.getRgbF(&r, &g, &b, &a);
-					_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
-					mesh->setProg(_selectionShader);
-					mesh->render();
+					TriangleMesh* mesh = _meshStore.at(i);
+					if (mesh)
+					{
+						QColor pickColor = indexToColor(i + 1);
+						qDebug() << "Id " << i << "Pick Color" << pickColor;
+						_selectionShader->bind();
+						qreal r, g, b, a;
+						pickColor.getRgbF(&r, &g, &b, &a);
+						_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
+						mesh->setProg(_selectionShader);
+						mesh->getVAO().bind();
+						glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+						mesh->getVAO().release();
+					}
+				}
+				catch (const std::exception& ex)
+				{
+					std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
 				}
 			}
-			catch (const std::exception& ex)
+
+			glReadBuffer(GL_COLOR_ATTACHMENT0);
+			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+			int pixelWinSize = 6;
+			std::vector<float> res(pixelWinSize * pixelWinSize * 4);
+			glReadPixels(pixel.x() - pixelWinSize / 2, viewport[3] - pixel.y() - pixelWinSize / 2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
+			std::map<int, int> voteCount;
+			for (int i = 0; i < res.size(); i += 4)
 			{
-				std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
+				QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
+				//qDebug() << "ReadPixel Color" << col;
+				unsigned int colId = colorToIndex(col);
+				if (colId != 0)
+					voteCount[colId - 1]++;
 			}
+			if (!voteCount.empty())
+				id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
+
+			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+			// restore viewport
+			glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 		}
-		
-		glReadBuffer(GL_COLOR_ATTACHMENT0);
-		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-		int pixelWinSize = 6;
-		std::vector<float> res(pixelWinSize * pixelWinSize * 4);
-		glReadPixels(pixel.x()- pixelWinSize/2, viewport[3] - pixel.y()- pixelWinSize/2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
-		std::map<int, int> voteCount;
-		for (int i = 0; i < res.size(); i += 4)
-		{
-			QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-			//qDebug() << "ReadPixel Color" << col;
-			unsigned int colId = colorToIndex(col);
-			if (colId != 0)
-				voteCount[colId - 1]++;
-		}
-		if (!voteCount.empty())
-			id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
-	}	
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());	
-	// restore viewport
-	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+	}
 
 	return id;
 }
