@@ -375,6 +375,7 @@ private:
 	QList<int> _selectedIDs;
 	unsigned int _selectionFBO;
 	unsigned int _selectionRBO;
+	unsigned int _selectionDBO;
 
 	bool _multiViewActive;
 

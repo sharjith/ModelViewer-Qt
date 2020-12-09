@@ -181,6 +181,10 @@ _assimpModelLoader(nullptr)
 	_prefilterMap = 0;
 	_brdfLUTTexture = 0;
 
+	_selectionFBO = 0;
+	_selectionRBO = 0;
+	_selectionDBO = 0;
+
 	_clipXCoeff = 0.0f;
 	_clipYCoeff = 0.0f;
 	_clipZCoeff = 0.0f;
@@ -1760,15 +1764,6 @@ void GLWidget::initializeGL()
 	// Shadow mapping
 	loadFloor();
 
-	glGenFramebuffers(1, &_selectionFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
-	glGenRenderbuffers(1, &_selectionRBO);	
-	glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, width(), height());
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
-	GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(1, DrawBuffers);
-
 	createGeometry();
 
 	// Set lighting information
@@ -3200,6 +3195,26 @@ int GLWidget::processSelection(const QPoint& pixel)
 		else
 		{
 			makeCurrent();
+			if(_selectionFBO == 0)
+				glGenFramebuffers(1, &_selectionFBO);
+			glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+			glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_SAMPLES, 0);
+			if(_selectionRBO == 0)
+				glGenRenderbuffers(1, &_selectionRBO);
+			glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, width(), height());
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
+			GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+			glDrawBuffers(1, DrawBuffers);
+			if(_selectionDBO == 0)
+				glGenRenderbuffers(1, &_selectionDBO);
+			glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)_selectionDBO);
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());	
+			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _selectionDBO);
+			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (status != GL_FRAMEBUFFER_COMPLETE)
+				std::cout << "Failed to create selection framebuffer" << std::endl;
+
 			// save current viewport
 			int viewport[4];
 			glGetIntegerv(GL_VIEWPORT, viewport);
@@ -3210,7 +3225,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			glDrawBuffer(GL_COLOR_ATTACHMENT0);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glEnable(GL_DEPTH_TEST);
-			glDisable(GL_BLEND);
+			glDisable(GL_BLEND);			
 			_selectionShader->bind();
 			_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
@@ -3232,21 +3247,22 @@ int GLWidget::processSelection(const QPoint& pixel)
 						mesh->getVAO().bind();
 						glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
 						mesh->getVAO().release();
+						glFlush();
+						glFinish();
 					}
 				}
 				catch (const std::exception& ex)
 				{
 					std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
 				}
-			}
-
+			}			
 			glReadBuffer(GL_COLOR_ATTACHMENT0);
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 			int pixelWinSize = 6;
-			std::vector<float> res(pixelWinSize * pixelWinSize * 4);
-			glReadPixels(pixel.x() - pixelWinSize / 2, viewport[3] - pixel.y() - pixelWinSize / 2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
+			std::vector<float> res(static_cast<size_t>(pixelWinSize) * pixelWinSize * 4);
+			glReadPixels(pixel.x() - pixelWinSize / 2, viewport[3] - pixel.y() + pixelWinSize / 2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
 			std::map<int, int> voteCount;
-			for (int i = 0; i < res.size(); i += 4)
+			for (size_t i = 0; i < res.size(); i += 4)
 			{
 				QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
 				//qDebug() << "ReadPixel Color" << col;
@@ -3256,6 +3272,13 @@ int GLWidget::processSelection(const QPoint& pixel)
 			}
 			if (!voteCount.empty())
 				id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
+
+			/*size_t NbBytes = static_cast<size_t>(width()) * height() * 4;
+			uchar * pPixelData = new uchar[NbBytes];
+			glReadPixels(0, 0, width(), height(), GL_RGBA, GL_UNSIGNED_BYTE, pPixelData);
+			QImage image(pPixelData, width(), height(), NbBytes / height(), QImage::Format_RGBA8888);
+			image = image.mirrored();
+			image.save("d:/ss.bmp");*/
 
 			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 			// restore viewport
@@ -4065,8 +4088,8 @@ int GLWidget::clickSelect(const QPoint& pixel)
 
 	qDebug() << "Color Id: " << colId;	
 
-	//if (colId < _meshStore.size())
-		//id = colId;
+	if (colId > 0)
+		id = colId;
 
 	// Get ending timepoint
 	auto stop = high_resolution_clock::now();
