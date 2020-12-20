@@ -4088,8 +4088,8 @@ int GLWidget::clickSelect(const QPoint& pixel)
 
 	qDebug() << "Color Id: " << colId;	
 
-	if (colId > 0)
-		id = colId;
+    //if (colId > 0)
+        //id = colId;
 
 	// Get ending timepoint
 	auto stop = high_resolution_clock::now();
