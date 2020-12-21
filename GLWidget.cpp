@@ -3759,7 +3759,7 @@ void GLWidget::performKeyboardNav()
 			float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
 				(pos.x() < cen.x() && pos.y() > cen.y())) && _keys[Qt::Key_Q] ? 1.0f : -1.0f;
 			QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
-			OP *= sign * 0.02f;
+            OP *= sign * 0.05f;
 			_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		}
 
