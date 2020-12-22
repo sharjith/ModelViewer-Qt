@@ -279,12 +279,13 @@ void MainWindow::dropEvent(QDropEvent* event)
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
-		QString fileName = url.toLocalFile();		
+		QString fileName = url.toLocalFile();	
+		ModelViewer::setLastOpenedDir(QFileInfo(fileName).path()); // store path for next time
 		QFileInfo fi(fileName);
-		QString extn = fi.completeSuffix();
+		QString extn = fi.suffix();
 		if (!supportedExtensions.contains(extn))
 		{
-			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format");
+			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format: " + extn);
 		}
 		else
 		{

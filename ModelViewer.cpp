@@ -557,10 +557,10 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		QString fileName = url.toLocalFile();
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		QFileInfo fi(fileName);
-		QString extn = fi.completeSuffix();
+		QString extn = fi.suffix();
 		if (!supportedExtensions.contains(extn))
 		{
-			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format");
+			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format: " + extn);
 		}
 		else
 		{
