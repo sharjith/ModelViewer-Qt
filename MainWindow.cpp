@@ -265,6 +265,34 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	qApp->exit();
 }
 
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+	if (event->mimeData()->hasUrls())
+	{
+		event->acceptProposedAction();
+	}
+}
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+	QString supportedExtensions = ModelViewer::getSupportedExtensions();
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	foreach(const QUrl & url, event->mimeData()->urls())
+	{
+		QString fileName = url.toLocalFile();		
+		QFileInfo fi(fileName);
+		QString extn = fi.completeSuffix();
+		if (!supportedExtensions.contains(extn))
+		{
+			QMessageBox::critical(this, "Error", "Unsupported file format");
+			QApplication::restoreOverrideCursor();
+			return;
+		}
+		openFile(fileName);
+	}
+	QApplication::restoreOverrideCursor();
+}
+
 void MainWindow::on_actionNew_triggered()
 {
 	ModelViewer* viewer = new ModelViewer(nullptr);

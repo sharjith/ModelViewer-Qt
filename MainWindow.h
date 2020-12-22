@@ -42,6 +42,8 @@ protected:
 	MainWindow(QWidget* parent = Q_NULLPTR);
 	void showEvent(QShowEvent* event);
 	void closeEvent(QCloseEvent* event);
+	void dragEnterEvent(QDragEnterEvent* event);
+	void dropEvent(QDropEvent* event);
 
 protected slots:
 	void on_actionExit_triggered(bool checked = false);

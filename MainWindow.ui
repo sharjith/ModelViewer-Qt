@@ -10,6 +10,9 @@
     <height>778</height>
    </rect>
   </property>
+  <property name="acceptDrops">
+   <bool>true</bool>
+  </property>
   <property name="windowTitle">
    <string>3D Model Viewer</string>
   </property>
@@ -58,7 +61,7 @@
      <x>0</x>
      <y>0</y>
      <width>1298</width>
-     <height>21</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
