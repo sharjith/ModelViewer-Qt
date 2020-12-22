@@ -284,11 +284,12 @@ void MainWindow::dropEvent(QDropEvent* event)
 		QString extn = fi.completeSuffix();
 		if (!supportedExtensions.contains(extn))
 		{
-			QMessageBox::critical(this, "Error", "Unsupported file format");
-			QApplication::restoreOverrideCursor();
-			return;
+			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format");
 		}
-		openFile(fileName);
+		else
+		{
+			openFile(fileName);
+		}
 	}
 	QApplication::restoreOverrideCursor();
 }
