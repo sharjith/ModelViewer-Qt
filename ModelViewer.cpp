@@ -550,11 +550,7 @@ void ModelViewer::dragEnterEvent(QDragEnterEvent* event)
 
 void ModelViewer::dropEvent(QDropEvent* event)
 {
-	QString supportedExtensions = "dae xml blend bvh 3ds ase obj ply dxf ifc "
-		"nff smd vta mdl md2 md3 pk3 mdc md5mesh md5anim "
-		"md5camera x q3o q3s raw ac stl dxf irrmesh xml "
-		"irr off. ter mdl hmp mesh.xml skeleton.xml material "
-		"ms3d lwo lws lxo csm ply cob scn xgl zgl";
+	QString supportedExtensions = ModelViewer::getSupportedExtensions();
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
