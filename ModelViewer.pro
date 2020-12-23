@@ -6,6 +6,7 @@ TEMPLATE = app
 TARGET = ModelViewer
 INCLUDEPATH += .
 
+QT += core gui widgets opengl
 win32:QT += winextras
 
 unix {
@@ -38,9 +39,6 @@ CONFIG(release, debug|release) {
 CONFIG(debug, debug|release) {
     CONFIG += console
 }
-
-
-QT += core gui widgets opengl
 
 win32:RC_ICONS += res\ModelViewer.ico
 
