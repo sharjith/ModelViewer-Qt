@@ -486,9 +486,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 		if (event->key() == Qt::Key_L)
 			toolButtonLeftView->animateClick();
 		if (event->key() == Qt::Key_J)
-			toolButtonRightView->animateClick();
-		if (event->key() == Qt::Key_I)
-			toolButtonIsometricView->animateClick();
+			toolButtonRightView->animateClick();		
 		if (event->key() == Qt::Key_P)
 			toolButtonProjection->animateClick();
 		if (event->key() == Qt::Key_M)
@@ -498,7 +496,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 			selectAll();
 		}
 	}
-	if (event->modifiers() == Qt::AltModifier)
+	else if (event->modifiers() == Qt::AltModifier)
 	{
 		if (event->key() == Qt::Key_A)
 			hideAllItems();
@@ -513,10 +511,15 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 		if (event->key() == Qt::Key_C)
 			centerScreen();
 	}
-	if (event->modifiers() == Qt::ShiftModifier)
+	else if (event->modifiers() == Qt::ShiftModifier)
 	{
 		if (event->key() == Qt::Key_A)
 			showAllItems();
+	}
+	else
+	{
+		if (event->key() == Qt::Key_Home)
+			toolButtonIsometricView->animateClick();
 	}
 
 	QWidget::keyPressEvent(event);
