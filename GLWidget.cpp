@@ -3675,7 +3675,7 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		_viewer->deselectAll();
 	}
 
-	if (_keys[Qt::Key_Home])
+	if (_keys[Qt::Key_F])
 		fitAll();
 	if (_keys[Qt::Key_Delete])
 		_viewer->deleteSelectedItems();
