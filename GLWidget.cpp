@@ -3781,7 +3781,7 @@ void GLWidget::animateViewChange()
 	}
 	if (_viewMode == ViewMode::BOTTOM)
 	{
-		setRotations(0.0f, -180.0f, 0.0f);
+		setRotations(0.0f, 180.0f, 0.0f);
 	}
 	if (_viewMode == ViewMode::LEFT)
 	{
