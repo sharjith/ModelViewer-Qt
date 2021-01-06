@@ -854,8 +854,9 @@ void ModelViewer::displaySelectedMeshInfo()
 		float weight = 0, density = 0;
 		TriangleMesh* mesh = nullptr;
 		BoundingBox bbox;
-		if (selected.size() > 1)
-			name = "Multiple Meshes\n";
+		size_t selectionCount = selected.size();
+		if (selectionCount > 1)
+			name = QString("%1 Meshes\n").arg(selectionCount);
 		else
 			name = meshes.at(selected[0])->getName() + "\n";
 		int meshCount = 0;
