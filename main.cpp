@@ -5,6 +5,8 @@
 
 #include "MainWindow.h"
 #include <iostream>
+#include <string>
+#include <sstream>
 
 int main(int argc, char** argv)
 {
@@ -31,6 +33,13 @@ int main(int argc, char** argv)
 	std::cout << "OpenGL Version:  " << glFuncs.glGetString(GL_VERSION) << '\n';
 	std::cout << "Shader Version:   " << glFuncs.glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
 		<< std::endl;
+
+	std::stringstream ss;
+	ss << "Renderer: " << glFuncs.glGetString(GL_RENDERER) << '\n';
+	ss << "Vendor:   " << glFuncs.glGetString(GL_VENDOR) << '\n';
+	ss << "OpenGL Version:  " << glFuncs.glGetString(GL_VERSION) << '\n';
+	ss << "Shader Version:   " << glFuncs.glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n";
+	mw->setGraphicsInfo(ss.str().c_str());
 
 	/*
 #ifdef QT_DEBUG

@@ -222,7 +222,10 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
-	QMessageBox::about(this, "About 3D Model Viewer", "Application to visualize variour 3D Models like OBJ and StereoLithography models");
+	QMessageBox::about(this, 
+		"About 3D Model Viewer", 
+		"Application to visualize variour 3D Models like OBJ and StereoLithography models\n\n" 
+		+ graphicsInfo());
 }
 
 void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)

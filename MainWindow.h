@@ -33,6 +33,16 @@ public:
 
 	void checkSaveAndClose(ModelViewer* viewer);
 
+	void setGraphicsInfo(const QString& info)
+	{
+		_graphicsInfo = info;
+	}
+
+	QString graphicsInfo() const
+	{
+		return _graphicsInfo;
+	}
+
 	static void showStatusMessage(const QString& message, int timeout = 0);
 	static void showProgressBar();
 	static void hideProgressBar();
@@ -96,6 +106,8 @@ private:
 	QAction* recentFileSubMenuAct;
 
 	bool _bFirstTime;
+
+	QString _graphicsInfo;
 
 	static int _viewerCount;
 	static MainWindow* _mainWindow;
