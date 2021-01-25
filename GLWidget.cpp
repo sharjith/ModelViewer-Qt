@@ -382,7 +382,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 	{
 		if (!_skyBoxTextureHDRI)
 		{
-			for (QString extn : supportedFormats)
+			for (const QString &extn : supportedFormats)
 			{
 				QString fileName = _skyBoxFaces.at(i) + "." + extn;
 				data = static_cast<unsigned char*>(stbi_load(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0));
@@ -426,7 +426,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 			else
 			{
 				QString formats;
-				for (QString extn : supportedFormats)
+                for (const QString& extn : supportedFormats)
 				{
 					formats += extn + " ";
 				}
@@ -3230,7 +3230,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 
-			for (int i : _selectedIDs)
+			for (int i : qAsConst(_selectedIDs))
 			{
 				try
 				{
@@ -4043,7 +4043,7 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	rayDir.normalize();
 
 	// Get starting timepoint
-	auto start = high_resolution_clock::now();
+    //auto start = high_resolution_clock::now();
 
 	QMap<int, float> selectedIdsDist;
 	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
@@ -4092,12 +4092,12 @@ int GLWidget::clickSelect(const QPoint& pixel)
         //id = colId;
 
 	// Get ending timepoint
-	auto stop = high_resolution_clock::now();
+    //auto stop = high_resolution_clock::now();
 
 	// Get duration. Substart timepoints to
 	// get durarion. To cast it to proper unit
 	// use duration cast method
-	auto duration = duration_cast<microseconds>(stop - start);
+    //auto duration = duration_cast<microseconds>(stop - start);
 
 	//cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
 

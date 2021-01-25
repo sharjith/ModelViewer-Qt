@@ -403,13 +403,13 @@ QString ModelViewer::getSupportedQtImagesFilter()
 	QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
 	QList<QString> filters;
 	QString filter("All Supported Images (");
-	for (QByteArray ba : supportedFormats)
+	for (const QByteArray &ba : supportedFormats)
 	{
 		filter += QString("*.%1 ").arg(QString(ba));
 		filters.push_back(QString("*.%1").arg(QString(ba)));
 	}
 	filter += ")";
-	for (QString fil : filters)
+	for (const QString &fil : filters)
 	{
 		filter += ";;" + fil;
 	}
@@ -1720,7 +1720,7 @@ void ModelViewer::on_toolButtonImport_clicked()
 	if (fileNames.count())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (QString fileName : fileNames)
+		for (const QString &fileName : qAsConst(fileNames))
 		{
 			loadFile(fileName);
 		}

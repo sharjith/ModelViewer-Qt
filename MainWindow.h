@@ -74,8 +74,6 @@ private slots:
 	void updateRecentFileActions();
 	void openRecentFile();
 	void updateWindowMenu();
-	ModelViewer* activeMdiChild() const;
-	QMdiSubWindow* findMdiChild(const QString& fileName) const;
 
 	void cancelFileLoading();
 
@@ -89,6 +87,8 @@ private:
 	static bool hasRecentFiles();
 	void prependToRecentFiles(const QString& fileName);
 	void setRecentFilesVisible(bool visible);
+    ModelViewer* activeMdiChild() const;
+    QMdiSubWindow* findMdiChild(const QString& fileName) const;
 
 private:
 	enum { MaxRecentFiles = 15 };
