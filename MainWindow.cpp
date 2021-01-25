@@ -319,7 +319,7 @@ void MainWindow::on_actionOpen_triggered()
 	QString fileName;
 	if (fileDialog.exec())
 	{
-		fileName = fileDialog.selectedFiles()[0];
+        fileName = fileDialog.selectedFiles().at(0);
 		ModelViewer::setLastSelectedFilter(fileDialog.selectedNameFilter());
 	}
 

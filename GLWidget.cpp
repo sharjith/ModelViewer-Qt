@@ -357,7 +357,7 @@ void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
 void GLWidget::setSkyBoxTextureFolder(QString folder)
 {
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-	QImage texBuffer, texImage;
+
 	_skyBoxFaces =
 	{
 		QString(folder + "/posx"),
@@ -1742,7 +1742,7 @@ void GLWidget::initializeGL()
 	_assimpModelLoader = new AssImpModelLoader(_fgShader);
 	connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
 	connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
-	connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
+    connect(_assimpModelLoader, SIGNAL(nodeProcessed(int,int)), this, SLOT(showModelLoadingProgress(int,int)));
 	connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
 
 	// Text rendering
@@ -1931,7 +1931,7 @@ void GLWidget::createLights()
 
 void GLWidget::createGeometry()
 {
-	/*_meshStore.push_back(new Cube(_fgShader, 100.0f));
+    /*_meshStore.push_back(new Cube(_fgShader, 100.0f));
 	_meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
 	_meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
 	_meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
@@ -1986,7 +1986,7 @@ void GLWidget::createGeometry()
 	SphericalHarmonic* sph = new SphericalHarmonic(_fgShader, 30.0f, 150.0f, 150.0f, 2, 2);
 	_meshStore.push_back(sph);
 	_sphericalHarmonicsEditor = new SphericalHarmonicsEditor(sph, this);
-	_upperLayout->addWidget(_sphericalHarmonicsEditor);*/
+    _upperLayout->addWidget(_sphericalHarmonicsEditor);*/
 
 	QString fileName;
 #ifdef WIN32
@@ -2406,7 +2406,7 @@ void GLWidget::paintGL()
 			_textRenderer->RenderText(_meshStore.at(num)->getName().toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
 		}
 
-		/*if (_meshStore.size() && _displayedObjectsIds.size() != 0)
+        /*if (_meshStore.size() && _displayedObjectsIds.size() != 0)
 		{
 			int num = _displayedObjectsIds[0];
 			// Display Harmonics Editor
@@ -2438,7 +2438,7 @@ void GLWidget::paintGL()
 				_springEditor->show();
 			else
 				_springEditor->hide();
-		}*/
+        }*/
 	}
 	catch (const std::exception& ex)
 	{

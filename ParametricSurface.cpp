@@ -76,7 +76,7 @@ void ParametricSurface::buildMesh()
 	std::vector<unsigned int> el(elements);
 
 	// Generate positions and normals
-	float u = firstUParameter(), v = firstVParameter();
+    float u = firstUParameter(), v;
 	float uFac = abs(lastUParameter() - firstUParameter()) / _slices;
 	float vFac = abs(lastVParameter() - firstVParameter()) / _stacks;
 	float s, t;

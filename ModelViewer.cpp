@@ -139,8 +139,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 
 	// For item editing
-	connect(listWidgetModel->itemDelegate(), SIGNAL(closeEditor(QWidget*, QAbstractItemDelegate::EndEditHint)),
-		this, SLOT(itemEdited(QWidget*, QAbstractItemDelegate::EndEditHint)));
+    connect(listWidgetModel->itemDelegate(), SIGNAL(closeEditor(QWidget*,QAbstractItemDelegate::EndEditHint)),
+        this, SLOT(itemEdited(QWidget*,QAbstractItemDelegate::EndEditHint)));
 
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
@@ -160,7 +160,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxGammaCorrection, SIGNAL(toggled(bool)), _glWidget, SLOT(enableGammaCorrection(bool)));
 	connect(doubleSpinBoxScreenGamma, SIGNAL(valueChanged(double)), _glWidget, SLOT(setScreenGamma(double)));
 
-	connect(buttonGroupLighting, SIGNAL(buttonToggled(int, bool)), this, SLOT(lightingType_toggled(int, bool)));
+    connect(buttonGroupLighting, SIGNAL(buttonToggled(int,bool)), this, SLOT(lightingType_toggled(int,bool)));
 	toolBox->setItemEnabled(0, true);
 	toolBox->setItemEnabled(1, false);
 	toolBox->setItemEnabled(2, false);
@@ -198,8 +198,9 @@ ModelViewer::~ModelViewer()
 void ModelViewer::deselectAll()
 {
 	bool oldState = listWidgetModel->blockSignals(true);
-	for (QListWidgetItem* item : listWidgetModel->selectedItems())
-	{
+    QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+    for (QListWidgetItem* item : items)
+    {
 		item->setSelected(false);
 	}
 	resetTransformationValues();
@@ -347,17 +348,17 @@ void ModelViewer::updateControls()
 	QString qss;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
 	col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-	qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 	pushButtonLightAmbient->setStyleSheet(qss);
 
 	QVector4D diffuseLight = _glWidget->getDiffuseLight();
 	col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-	qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 	pushButtonLightDiffuse->setStyleSheet(qss);
 
 	QVector4D specularLight = _glWidget->getSpecularLight();
 	col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-	qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+    qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 	pushButtonLightSpecular->setStyleSheet(qss);
 	// ADS Lighting
 	if (radioButtonADSL->isChecked())
@@ -366,26 +367,26 @@ void ModelViewer::updateControls()
 		sliderTransparency->setValue((int)(1000 * _material.opacity()));
 
 		col.setRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialAmbient->setStyleSheet(qss);
 
 		col.setRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialDiffuse->setStyleSheet(qss);
 
 		col.setRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialSpecular->setStyleSheet(qss);
 
 		col.setRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialEmissive->setStyleSheet(qss);
 	}
 	// PBR Direct Lighting
 	if (radioButtonDLPBR->isChecked())
 	{
 		col.setRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name()).arg(col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonAlbedoColor->setStyleSheet(qss);
 		sliderMetallic->setValue((int)(_material.metalness() * 1000));
 		sliderRoughness->setValue((int)(_material.roughness() * 1000));
@@ -1070,7 +1071,8 @@ void ModelViewer::on_pushButtonResetTransformations_clicked()
 void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 {
 	buttonGroupViews->setExclusive(false);
-	for (auto b : buttonGroupViews->buttons())
+    QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
+    for (auto b : buttons)
 	{
 		b->setChecked(false);
 	}
@@ -1086,7 +1088,8 @@ void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
 {
 	buttonGroupViews->setExclusive(false);
-	for (auto b : buttonGroupViews->buttons())
+    QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
+    for (auto b : buttons)
 	{
 		b->setChecked(false);
 	}
@@ -1101,7 +1104,8 @@ void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
 void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
 {
 	buttonGroupViews->setExclusive(false);
-	for (auto b : buttonGroupViews->buttons())
+    QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
+    for (auto b : buttons)
 	{
 		b->setChecked(false);
 	}
@@ -1734,7 +1738,6 @@ bool ModelViewer::loadFile(const QString& fileName)
 {
 	_currentFile = fileName;
 	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-	QFileInfo fi(fileName);
 
 	QString errMsg;
 	bool success = _glWidget->loadAssImpModel(fileName, errMsg);
@@ -1954,7 +1957,6 @@ void ModelViewer::on_pushButtonAlbedoColor_clicked()
 			QApplication::setOverrideCursor(Qt::WaitCursor);
 			_material.setAlbedoColor(QVector3D(c.red() / 255.0f, c.green() / 255.0f, c.blue() / 255.0f));
 
-			QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
 			std::vector<int> ids = getSelectedIDs();
 			_glWidget->setMaterialToObjects(ids, _material);
 			_glWidget->updateView();

@@ -154,14 +154,14 @@ void GLCamera::updateProjectionMatrix(void)
 			, w / h, 1.0f, _viewRange * 1000.0f);
 		// https://www.edmundoptics.com/knowledge-center/application-notes/imaging/understanding-focal-length-and-field-of-view
 		// Adjust camera translation according to FOV
-		float radAngle = _FOV * PI / 180.0;
-		float radHFOV = 2.0f * atanf(tanf(radAngle / 2.0f) * w / h);
-		float HFOV = radHFOV * 180.0 / PI;
+        //float radAngle = _FOV * PI / 180.0;
+        //float radHFOV = 2.0f * atanf(tanf(radAngle / 2.0f) * w / h);
+        //float HFOV = radHFOV * 180.0 / PI;
 		//float HFOV = h / w;// (w <= h) ? h / w : w / h;
-		float AFOV = _FOV * PIdiv180;
-		float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
+        //float AFOV = _FOV * PIdiv180;
+        //float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
 		//qDebug() << "WD: " << wd;
-		wd = wd + wd * 0.2f;
+        //wd = wd + wd * 0.2f;
 		float shift = -_viewRange * 4;
 		_projectionMatrix.translate(0.0, 0.0, shift);
 	}

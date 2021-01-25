@@ -92,8 +92,7 @@ void Cone::setParameters(float radius, float height, unsigned int nSlices, unsig
 	// bottom face
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
-		theta = i * thetaFac;
-		s = (float)i / nSlices;
+		theta = i * thetaFac;		
 		nx = cosf(theta);
 		ny = sinf(theta);
 		nz = 0;
@@ -126,10 +125,10 @@ void Cone::setParameters(float radius, float height, unsigned int nSlices, unsig
 	bt[idx + 0] = 0.0f;
 	bt[idx + 1] = 1.0f;
 	bt[idx + 2] = -height / 2.0f;
-	idx += 3;
+
 	tex[tIdx] = 0.5;
 	tex[tIdx + 1] = 0.5;
-	tIdx += 2;
+
 
 	// Generate the element list
 	idx = 0;

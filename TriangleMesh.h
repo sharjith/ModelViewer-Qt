@@ -180,11 +180,10 @@ protected: // methods
 	);
 
 	void buildTriangles();
+    void computeBounds();
+    void deleteBuffers();
 
-	virtual void deleteBuffers();
-	virtual void setupTransformation();
-	virtual void computeBounds();
-
+    virtual void setupTransformation();
 	virtual void setupTextures();
 	virtual void setupUniforms();
 

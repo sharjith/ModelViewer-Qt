@@ -75,8 +75,7 @@ _height(height)
 	// bottom face
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
-		theta = i * thetaFac;
-		s = (float)i / nSlices;
+		theta = i * thetaFac;		
 		nx = cosf(theta);
 		ny = sinf(theta);
 		nz = 0;
@@ -125,8 +124,7 @@ _height(height)
 	// top face
 	for (unsigned int i = 0; i <= nSlices; i++)
 	{
-		theta = i * thetaFac;
-		s = (float)i / nSlices;
+		theta = i * thetaFac;		
 		nx = cosf(theta);
 		ny = sinf(theta);
 		nz = height;
@@ -167,10 +165,9 @@ _height(height)
 	bt[idx + 0] = 0.0f;
 	bt[idx + 1] = 1.0f;
 	bt[idx + 2] = height / 2.0f;
-	idx += 3;
+
 	tex[tIdx + 0] = 0.5;
 	tex[tIdx + 1] = 0.5;
-	tIdx += 2;
 
 	// Generate the element list
 	// Body
