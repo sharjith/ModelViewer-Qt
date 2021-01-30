@@ -625,13 +625,20 @@ GLMaterial GLMaterial::DEFAULT_MAT()
 		fabs(128.0 * 0.05f),
 		false,
 		1.0f);*/
-	GLMaterial mat({ 25 / 255.0f, 25 / 255.0f, 25 / 255.0f },
+    /*GLMaterial mat({ 25 / 255.0f, 25 / 255.0f, 25 / 255.0f },
 		{ 230 / 255.0f, 230 / 255.0f, 230 / 255.0f },
 		{ 128 / 255.0f, 128 / 255.0f, 128 / 255.0f },
 		{ 0.0, 0.0, 0.0 },
 		fabs(128.0 * 0.05f),
 		false,
-		1.0f);
+        1.0f);*/
+    GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
+        { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
+        { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
+        { 0.0, 0.0, 0.0 },
+        fabs(128.0 * 0.05f),
+        false,
+        1.0f);
 	mat.setAlbedoColor(mat.ambient() + mat.diffuse());
 	mat.setMetalness(1.0f);
 	mat.setRoughness(0.7f);

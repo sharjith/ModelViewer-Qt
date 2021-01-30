@@ -83,8 +83,9 @@ _assimpModelLoader(nullptr)
 
 	//_bgTopColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
 	//_bgBotColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
-	_bgTopColor = QColor::fromRgbF(0.1f, 0.1f, 0.1f, 1.0f);
-	_bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
+    //_bgTopColor = QColor::fromRgbF(0.1f, 0.1f, 0.1f, 1.0f);
+    _bgTopColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
+    _bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
 
 	_quadVAO = 0;
 
