@@ -27,6 +27,8 @@ GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular,
 	_shininess = shininess;
 	_metallic = metallic;
 	_opacity = opacity;
+	_metalness = metallic ? 1.0f : 0.0f;
+	_roughness = 0.5f;
 }
 
 GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity)
@@ -38,6 +40,8 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	_metalness = metalness;
 	_roughness = roughness;
 	_opacity = opacity;
+	_metallic = _metalness > 0.5f ? true : false;
+	_shininess = 125 * _metalness;
 }
 
 QVector3D GLMaterial::ambient() const
