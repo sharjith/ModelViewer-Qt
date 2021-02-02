@@ -94,8 +94,7 @@ void BackgroundColor::on_pushButtonBottom_clicked()
 
 void BackgroundColor::on_pushButtonDefaultColor_clicked()
 {
-	_topColor = QColor::fromRgbF(0.3f, 0.3f, 0.3f, 1.0f);
-	_bottomColor = QColor::fromRgbF(0.925f, 0.913f, 0.847f, 1.0f);
-	//_bottomColor = QColor::fromRgbF(0.925f, 0.925f, 0.925f, 1.0f);
-	setPreviewColor();
+    _topColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
+    _bottomColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
+    setPreviewColor();
 }
