@@ -80,7 +80,7 @@ MainWindow::MainWindow(QWidget* parent)
 	_progressBar = new QProgressBar(ui->statusBar);
 	ui->statusBar->addPermanentWidget(_progressBar);
 	_progressBar->hide();
-	createMdiChild();
+	//createMdiChild();
 	setCentralWidget((ui->mdiArea));
 
 	_bFirstTime = true;

@@ -2,8 +2,10 @@
 #include <QStyleFactory>
 #include <QDebug>
 #include <QOpenGLFunctions>
+#include <QFileInfo>
 
 #include "MainWindow.h"
+#include "ModelViewer.h"
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -24,8 +26,19 @@ int main(int argc, char** argv)
 	//app.setStyle(QStyleFactory::create("windows"));
 #endif
 
-	MainWindow* mw = MainWindow::mainWindow();
+	MainWindow* mw = MainWindow::mainWindow();	
+	ModelViewer* viewer = mw->createMdiChild();
 	mw->showMaximized();
+	if (argc > 1)
+	{		
+		QString fileName(argv[1]);
+		QFileInfo fi(fileName);
+		if (fi.exists())
+		{
+			mw->openFile(fileName);
+			viewer->parentWidget()->close(); // close the first blank document
+		}
+	}
 
 	QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
 	std::cout << "Renderer: " << glFuncs.glGetString(GL_RENDERER) << '\n';

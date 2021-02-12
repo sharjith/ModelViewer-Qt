@@ -43,6 +43,8 @@ public:
 		return _graphicsInfo;
 	}
 
+	bool openFile(const QString& fileName);
+
 	static void showStatusMessage(const QString& message, int timeout = 0);
 	static void showProgressBar();
 	static void hideProgressBar();
@@ -80,8 +82,7 @@ private slots:
 	void closeSubWindow();
 	void closeAllSubWindows();
 
-private:
-	bool openFile(const QString& fileName);
+private:	
 	void readSettings();
 	void writeSettings();
 	static bool hasRecentFiles();
