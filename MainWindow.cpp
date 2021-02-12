@@ -224,7 +224,8 @@ void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
 	QMessageBox::about(this, 
 		"About 3D Model Viewer", 
-		"Application to visualize variour 3D Models like OBJ and StereoLithography models\n\n" 
+		"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library\n\n"		
+		"Copyright 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n"
 		+ graphicsInfo());
 }
 
