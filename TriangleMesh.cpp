@@ -63,7 +63,8 @@ _opacityPBRMapInverted(false)
 
 	_vertexArrayObject.create();
 
-	if (!_texBuffer.load("textures/opengllogo.png"))
+    QString path = QApplication::applicationDirPath() + "/";
+    if (!_texBuffer.load(path + "textures/opengllogo.png"))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, static_cast<QImage::Format>(5));
