@@ -1743,12 +1743,13 @@ void GLWidget::initializeGL()
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int,int)), this, SLOT(showModelLoadingProgress(int,int)));
 	connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
 
+    QString path = QApplication::applicationDirPath() + "/";
 	// Text rendering
 	_textShader->bind();
 	_textRenderer = new TextRenderer(_textShader, width(), height());
-	_textRenderer->Load("fonts/arial.ttf", 20);
+    _textRenderer->Load(path.toStdString() + "fonts/arial.ttf", 20);
 	_axisTextRenderer = new TextRenderer(_textShader, width(), height());
-	_axisTextRenderer->Load("fonts/arialbd.ttf", 16);
+    _axisTextRenderer->Load(path.toStdString() + "fonts/arialbd.ttf", 16);
 	_textShader->release();
 
 	createCappingPlanes();
@@ -1853,71 +1854,73 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 
 void GLWidget::createShaderPrograms()
 {
+    QString path = QApplication::applicationDirPath() + "/";
 	// Foreground objects shader program
 	// Per fragment lighting
 	_fgShader = new QOpenGLShaderProgram(this); _fgShader->setObjectName("_fgShader");
-	loadCompileAndLinkShaderFromFile(_fgShader, "shaders/twoside_per_fragment.vert",
-		"shaders/twoside_per_fragment.frag", "shaders/twoside_per_fragment.geom");
+    loadCompileAndLinkShaderFromFile(_fgShader, path + "shaders/twoside_per_fragment.vert",
+        path + "shaders/twoside_per_fragment.frag", path + "shaders/twoside_per_fragment.geom");
 	// Axis
 	_axisShader = new QOpenGLShaderProgram(this); _axisShader->setObjectName("_axisShader");
-	loadCompileAndLinkShaderFromFile(_axisShader, "shaders/axis.vert", "shaders/axis.frag");
+    loadCompileAndLinkShaderFromFile(_axisShader, path + "shaders/axis.vert", path + "shaders/axis.frag");
 	// Vertex Normal
 	_vertexNormalShader = new QOpenGLShaderProgram(this); _vertexNormalShader->setObjectName("_vertexNormalShader");
-	loadCompileAndLinkShaderFromFile(_vertexNormalShader, "shaders/vertex_normal.vert",
-		"shaders/vertex_normal.frag", "shaders/vertex_normal.geom");
+    loadCompileAndLinkShaderFromFile(_vertexNormalShader, path + "shaders/vertex_normal.vert",
+        path + "shaders/vertex_normal.frag", path + "shaders/vertex_normal.geom");
 	// Face Normal
 	_faceNormalShader = new QOpenGLShaderProgram(this); _faceNormalShader->setObjectName("_faceNormalShader");
-	loadCompileAndLinkShaderFromFile(_faceNormalShader, "shaders/face_normal.vert",
-		"shaders/face_normal.frag", "shaders/face_normal.geom");
+    loadCompileAndLinkShaderFromFile(_faceNormalShader, path + "shaders/face_normal.vert",
+        path + "shaders/face_normal.frag", path + "shaders/face_normal.geom");
 	// Shadow mapping
 	_shadowMappingShader = new QOpenGLShaderProgram(this); _shadowMappingShader->setObjectName("_shadowMappingShader");
-	loadCompileAndLinkShaderFromFile(_shadowMappingShader, "shaders/shadow_mapping_depth.vert",
-		"shaders/shadow_mapping_depth.frag");
+    loadCompileAndLinkShaderFromFile(_shadowMappingShader, path + "shaders/shadow_mapping_depth.vert",
+        path + "shaders/shadow_mapping_depth.frag");
 	// Sky Box
 	_skyBoxShader = new QOpenGLShaderProgram(this); _skyBoxShader->setObjectName("_skyBoxShader");
-	loadCompileAndLinkShaderFromFile(_skyBoxShader, "shaders/skybox.vert", "shaders/skybox.frag");
+    loadCompileAndLinkShaderFromFile(_skyBoxShader, path + "shaders/skybox.vert", path + "shaders/skybox.frag");
 	// Irradiance Map
 	_irradianceShader = new QOpenGLShaderProgram(this); _irradianceShader->setObjectName("_irradianceShader");
-	loadCompileAndLinkShaderFromFile(_irradianceShader, "shaders/skybox.vert", "shaders/irradiance_convolution.frag");
+    loadCompileAndLinkShaderFromFile(_irradianceShader, path + "shaders/skybox.vert", path + "shaders/irradiance_convolution.frag");
 	// Prefilter Map
 	_prefilterShader = new QOpenGLShaderProgram(this); _prefilterShader->setObjectName("_prefilterShader");
-	loadCompileAndLinkShaderFromFile(_prefilterShader, "shaders/skybox.vert", "shaders/prefilter.frag");
+    loadCompileAndLinkShaderFromFile(_prefilterShader, path + "shaders/skybox.vert", path + "shaders/prefilter.frag");
 	// BRDF LUT Map
 	_brdfShader = new QOpenGLShaderProgram(this); _brdfShader->setObjectName("_brdfShader");
-	loadCompileAndLinkShaderFromFile(_brdfShader, "shaders/brdf.vert", "shaders/brdf.frag");
+    loadCompileAndLinkShaderFromFile(_brdfShader, path + "shaders/brdf.vert", path + "shaders/brdf.frag");
 	// Text shader program
 	_textShader = new QOpenGLShaderProgram(this); _textShader->setObjectName("_textShader");
-	loadCompileAndLinkShaderFromFile(_textShader, "shaders/text.vert", "shaders/text.frag");
+    loadCompileAndLinkShaderFromFile(_textShader, path + "shaders/text.vert", path + "shaders/text.frag");
 	// Background gradient shader program
 	_bgShader = new QOpenGLShaderProgram(this); _bgShader->setObjectName("_bgShader");
-	loadCompileAndLinkShaderFromFile(_bgShader, "shaders/background.vert", "shaders/background.frag");
+    loadCompileAndLinkShaderFromFile(_bgShader, path + "shaders/background.vert", path + "shaders/background.frag");
 	// Background split shader program
 	_bgSplitShader = new QOpenGLShaderProgram(this); _bgSplitShader->setObjectName("_bgSplitShader");
-	loadCompileAndLinkShaderFromFile(_bgSplitShader, "shaders/splitScreen.vert", "shaders/splitScreen.frag");
+    loadCompileAndLinkShaderFromFile(_bgSplitShader, path + "shaders/splitScreen.vert", path + "shaders/splitScreen.frag");
 	// Light Cube shader program
 	_lightCubeShader = new QOpenGLShaderProgram(this); _lightCubeShader->setObjectName("_lightCubeShader");
-	loadCompileAndLinkShaderFromFile(_lightCubeShader, "shaders/light_cube.vert", "shaders/light_cube.frag");
+    loadCompileAndLinkShaderFromFile(_lightCubeShader, path + "shaders/light_cube.vert", path + "shaders/light_cube.frag");
 	// Clipping Plane shader program
 	_clippingPlaneShader = new QOpenGLShaderProgram(this); _clippingPlaneShader->setObjectName("_clippingPlaneShader");
-	loadCompileAndLinkShaderFromFile(_clippingPlaneShader, "shaders/clipping_plane.vert", "shaders/clipping_plane.frag");
+    loadCompileAndLinkShaderFromFile(_clippingPlaneShader, path + "shaders/clipping_plane.vert", path + "shaders/clipping_plane.frag");
 	// Clipped Mesh shader program
 	_clippedMeshShader = new QOpenGLShaderProgram(this); _clippedMeshShader->setObjectName("_clippedMeshShader");
-	loadCompileAndLinkShaderFromFile(_clippedMeshShader, "shaders/clipped_mesh.vert", "shaders/clipped_mesh.frag");
+    loadCompileAndLinkShaderFromFile(_clippedMeshShader, path + "shaders/clipped_mesh.vert", path + "shaders/clipped_mesh.frag");
 	// Selection shader program
 	_selectionShader = new QOpenGLShaderProgram(this); _selectionShader->setObjectName("_selectionShader");
-	loadCompileAndLinkShaderFromFile(_selectionShader, "shaders/selection.vert", "shaders/selection.frag");	
+    loadCompileAndLinkShaderFromFile(_selectionShader, path + "shaders/selection.vert", path + "shaders/selection.frag");
 
 	// Shadow Depth quad shader program - for debugging
 	_debugShader = new QOpenGLShaderProgram(this); _debugShader->setObjectName("_debugShader");
-	loadCompileAndLinkShaderFromFile(_debugShader, "shaders/debug_quad.vert", "shaders/debug_quad_depth.frag");
+    loadCompileAndLinkShaderFromFile(_debugShader, path + "shaders/debug_quad.vert", path + "shaders/debug_quad_depth.frag");
 }
 
 void GLWidget::createCappingPlanes()
 {
+    QString path = QApplication::applicationDirPath() + "/";
 	_clippingPlaneXY = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_cappingTexture = loadTextureFromFile("textures/patterns/hatch_02.png");
+    _cappingTexture = loadTextureFromFile(QString(path + "textures/patterns/hatch_02.png").toStdString().c_str());
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 }
@@ -2031,7 +2034,8 @@ void GLWidget::loadFloor()
 	}
 
 	// Floor texture
-	if (!_texBuffer.load(QString("textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
+    QString path = QApplication::applicationDirPath() + "/";
+    if (!_texBuffer.load(QString(path + "textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, static_cast<QImage::Format>(5));
@@ -2058,15 +2062,16 @@ void GLWidget::loadFloor()
 
 void GLWidget::loadEnvMap()
 {
+    QString path = QApplication::applicationDirPath() + "/";
 	// Env Map
 	_skyBoxFaces =
 	{
-		QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
-		QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
-		QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
-		QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
-		QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
-		QString("textures/envmap/skyboxes/stormydays/negy.jpg")
+        path + QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
+        path + QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
+        path + QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
+        path + QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
+        path + QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
+        path + QString("textures/envmap/skyboxes/stormydays/negy.jpg")
 	};
 
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
