@@ -6,6 +6,7 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QMdiSubWindow>
+#include <assimp/version.h>
 
 #ifdef _WIN32
 #include <QWinTaskbarProgress>
@@ -222,11 +223,15 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
+    unsigned int assimpMajor = aiGetVersionMajor();
+    unsigned int assimpMinor = aiGetVersionMinor();
 	QMessageBox::about(this, 
 		"About 3D Model Viewer", 
-		QString::fromWCharArray(L"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library\n\n"
-		"Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n")
+        QString::fromWCharArray(L"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library - "
+        "Version %1.%2\n\n"
+        "Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n").arg(assimpMajor).arg(assimpMinor)
 		+ graphicsInfo());
+
 }
 
 void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)
