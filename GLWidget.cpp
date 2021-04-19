@@ -2509,7 +2509,7 @@ void GLWidget::drawFloor()
 		glStencilMask(0x00);
 		glDisable(GL_STENCIL_TEST);
 
-		_floorPlane->setOpacity(0.80f);
+		_floorPlane->setOpacity(0.50f);
 	}
 
 	glEnable(GL_DEPTH_TEST);
