@@ -55,7 +55,6 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 # Input
 HEADERS += AABB.h \
-    AppleSurface.h \
     AssImpMesh.h \
     AssImpModelLoader.h \
     BackgroundColor.h \
@@ -137,7 +136,7 @@ FORMS += \
     SuperToroidEditor.ui \
     SuperEllipsoidEditor.ui \
     SpringEditor.ui
-SOURCES += AppleSurface.cpp \
+SOURCES += \
     AssImpMesh.cpp \
     AssImpModelLoader.cpp \
     BackgroundColor.cpp \
