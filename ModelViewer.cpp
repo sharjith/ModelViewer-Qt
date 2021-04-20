@@ -2,7 +2,6 @@
 #include <MainWindow.h>
 #include "ModelViewer.h"
 #include "GLWidget.h"
-#include "SphericalHarmonicsEditor.h"
 #include "TriangleMesh.h"
 #include "MeshProperties.h"
 

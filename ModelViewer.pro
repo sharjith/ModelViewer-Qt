@@ -58,111 +58,58 @@ HEADERS += AABB.h \
     AssImpMesh.h \
     AssImpModelLoader.h \
     BackgroundColor.h \
-    BentHorns.h \
     BoundingBox.h \
     BoundingSphere.h \
-    BowTie.h \
-    BoySurface.h \
-    BreatherSurface.h \
     Cone.h \
-    ConeShell.h \
-    Crescent.h \
     Cube.h \
     Cylinder.h \
-    DoubleCone.h \
     Drawable.h \
-    Figure8KleinBottle.h \
-    Folium.h \
     GLCamera.h \
     GLMaterial.h \
     GLWidget.h \
-    GraysKlein.h \
     GridMesh.h \
-    Horn.h \
     IDrawable.h \
     IParametricSurface.h \
-    KleinBottle.h \
-    LimpetTorus.h \
     MainWindow.h \
     MeshProperties.h \
     ModelObjectList.h \
     ModelViewer.h \
     ParametricSurface.h \
-    Periwinkle.h \
     Plane.h \
     Point.h \
     Resource.h \
-    SaddleTorus.h \
     Sphere.h \
-    SphericalHarmonic.h \
-    SpindleShell.h \
-    SteinerSurface.h \
-    SuperToroid.h \
-    SuperEllipsoid.h \
-    Spring.h \
     Teapot.h \
     TeapotData.h \
     TextRenderer.h \
     ToolPanel.h \
-    TopShell.h \
     Torus.h \
     Triangle.h \
     TriangleBaldwinWeber.h \
     TriangleMesh.h \
     TriangleMollerTrumbore.h \
-    TriaxialHexatorus.h \
-    TriaxialTritorus.h \
-    TwistedPseudoSphere.h \
-    TwistedTriaxial.h \
-    TurretShell.h \
-    VerrillMinimal.h \
-    WrinkledPeriwinkle.h \
     ParametricSurface.h \
-    SphericalHarmonicsEditor.h \
     ClippingPlanesEditor.h \
-    GraysKleinEditor.h \
-    SuperToroidEditor.h \
-    SuperEllipsoidEditor.h \
-    SpringEditor.h \
-    mikktspace.h \
     stb_image.h
 FORMS += \
     BackgroundColor.ui \
     MainWindow.ui \
     ModelViewer.ui \
-    SphericalHarmonicsEditor.ui \
-    ClippingPlanesEditor.ui \
-    GraysKleinEditor.ui \
-    SuperToroidEditor.ui \
-    SuperEllipsoidEditor.ui \
-    SpringEditor.ui
+    ClippingPlanesEditor.ui
 SOURCES += \
     AssImpMesh.cpp \
     AssImpModelLoader.cpp \
     BackgroundColor.cpp \
-    BentHorns.cpp \
     BoundingBox.cpp \
     BoundingSphere.cpp \
-    BowTie.cpp \
-    BoySurface.cpp \
-    BreatherSurface.cpp \
     Cone.cpp \
-    ConeShell.cpp \
-    Crescent.cpp \
     Cube.cpp \
     Cylinder.cpp \
-    DoubleCone.cpp \
     Drawable.cpp \
-    Figure8KleinBottle.cpp \
-    Folium.cpp \
     GLCamera.cpp \
     GLMaterial.cpp \
     GLWidget.cpp \
-    GraysKlein.cpp \
     GridMesh.cpp \
-    Horn.cpp \
-    KleinBottle.cpp \
-    LimpetTorus.cpp \
     MeshProperties.cpp \
     ModelObjectList.cpp \
     ModelViewer.cpp \
@@ -173,36 +120,14 @@ SOURCES += \
     main.cpp \
     MainWindow.cpp \
     ParametricSurface.cpp \
-    Periwinkle.cpp \
     Plane.cpp \
     Point.cpp \
-    SaddleTorus.cpp \
     Sphere.cpp \
-    SphericalHarmonic.cpp \
-    SpindleShell.cpp \
-    SteinerSurface.cpp \
-    SuperToroid.cpp \
-    SuperEllipsoid.cpp \
-    Spring.cpp \
     Teapot.cpp \
     TextRenderer.cpp \
-    TopShell.cpp \
     Torus.cpp \
     TriangleMesh.cpp \
-    TriaxialHexatorus.cpp \
-    TriaxialTritorus.cpp \
-    TwistedPseudoSphere.cpp \
-    TwistedTriaxial.cpp \
-    TurretShell.cpp \
-    VerrillMinimal.cpp \
-    WrinkledPeriwinkle.cpp \
-    SphericalHarmonicsEditor.cpp \
     ClippingPlanesEditor.cpp \
-    GraysKleinEditor.cpp \
-    SuperToroidEditor.cpp \
-    SuperEllipsoidEditor.cpp \
-    SpringEditor.cpp \
-    mikktspace.c \
     stb_image.cpp
 
 RESOURCES += \
