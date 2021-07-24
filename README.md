@@ -33,7 +33,8 @@ Multiple Projection Views
 
 Building the code:
 
-Linux: Open the .pro file in Qt Creator abd build
+Linux: Open the .pro file in Qt Creator and build
+
 Windows: Open the .pro file in Qt Creator or in Visual Studio using the Qt Tools Extension and build
 
 Dependencies: Qt5.12 or above Assimp-5.0.1, GLM, freetype-2.10.1
