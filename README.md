@@ -28,4 +28,14 @@ Capped Section View
 Capped Multiple Section View
 ![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide7.PNG)
 
+Multiple Projection Views
+![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Screenshot%202021-07-24%20223138.jpg)
+
+Building the code:
+
+Linux: Open the .pro file in Qt Creator abd build
+Windows: Open the .pro file in Qt Creator or in Visual Studio using the Qt Tools Extension and build
+
+Dependencies: Qt5.12 or above Assimp-5.0.1, GLM, freetype-2.10.1
+
 
