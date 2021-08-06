@@ -16,6 +16,9 @@ Advanced Rendering Modes
 OBJ File Rendering with Textures and Colors
 ![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide3.PNG)
 
+Transparency and Reflections
+![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Screenshot%202021-08-06%20150032.jpg)
+
 Material Rendering with Texture Based PBR
 ![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide4.PNG)
 
