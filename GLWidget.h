@@ -512,6 +512,7 @@ private:
 	QTimer* _animateCenterScreenTimer;
 
 	BoundingSphere _boundingSphere;
+	BoundingSphere _selectionBoundingSphere;
 	Plane* _floorPlane;
 	Cube* _skyBox;
 	vector<QString> _skyBoxFaces;
