@@ -536,7 +536,7 @@ private:
 
 	unsigned long long _displayedObjectsMemSize;
 
-	AssImpModelLoader* _assimpModelLoader;
+    AssImpModelLoader* _assimpModelLoader;
 };
 
 #endif
