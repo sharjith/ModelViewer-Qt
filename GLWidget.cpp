@@ -802,6 +802,23 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 {
 	_centerScreenObjectIDs.clear();
 	_centerScreenObjectIDs = selectedIDs;
+	_selectionBoundingSphere.setCenter(0, 0, 0);
+	_selectionBoundingSphere.setRadius(0.0);
+	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+		_lowResEnabled = true;
+	int count = 0;
+	for (int id : _centerScreenObjectIDs)
+	{
+		TriangleMesh* mesh = _meshStore.at(id);
+		if (mesh)
+		{
+			if (count == 0)
+				_selectionBoundingSphere = mesh->getBoundingSphere();
+			else
+				_selectionBoundingSphere.addSphere(mesh->getBoundingSphere());
+		}
+		count++;
+	}
 	if (!_animateCenterScreenTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
@@ -3836,23 +3853,7 @@ void GLWidget::animateWindowZoom()
 
 void GLWidget::animateCenterScreen()
 {
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
-		_lowResEnabled = true;
-	BoundingSphere sph;
-	int count = 0;
-	for (int id : _centerScreenObjectIDs)
-	{
-		TriangleMesh* mesh = _meshStore.at(id);
-		if (mesh)
-		{
-			if (count == 0)
-				sph = mesh->getBoundingSphere();
-			else
-				sph.addSphere(mesh->getBoundingSphere());
-		}
-		count++;
-	}
-	setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
+	setZoomAndPan(_selectionBoundingSphere.getRadius() * 2, -_currentTranslation + _selectionBoundingSphere.getCenter());
 	resizeGL(width(), height());
 }
 
