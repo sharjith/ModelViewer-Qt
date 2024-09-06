@@ -40,8 +40,6 @@
 #include "SpindleShell.h"
 #include "TurretShell.h"
 #include "TwistedPseudoSphere.h"
-#include "BreatherSurface.h"
-#include "SphericalHarmonic.h"
 #include "SphericalHarmonicsEditor.h"
 #include "ClippingPlanesEditor.h"
 
@@ -77,9 +75,9 @@ _axisCone(nullptr),
 _lightCube(nullptr),
 _assimpModelLoader(nullptr)
 {
-	setFocusPolicy(Qt::StrongFocus);
+    setFocusPolicy(Qt::StrongFocus);
 
-	_viewer = static_cast<ModelViewer*>(parent);
+    _viewer = static_cast<ModelViewer*>(parent);
 
     _bgTopColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
     _bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
@@ -802,6 +800,23 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 {
 	_centerScreenObjectIDs.clear();
 	_centerScreenObjectIDs = selectedIDs;
+	_selectionBoundingSphere.setCenter(0, 0, 0);
+	_selectionBoundingSphere.setRadius(0.0);
+	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+		_lowResEnabled = true;
+	int count = 0;
+	for (int id : _centerScreenObjectIDs)
+	{
+		TriangleMesh* mesh = _meshStore.at(id);
+		if (mesh)
+		{
+			if (count == 0)
+				_selectionBoundingSphere = mesh->getBoundingSphere();
+			else
+				_selectionBoundingSphere.addSphere(mesh->getBoundingSphere());
+		}
+		count++;
+	}
 	if (!_animateCenterScreenTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
@@ -2292,7 +2307,7 @@ void GLWidget::loadIrradianceMap()
 void GLWidget::resizeGL(int width, int height)
 {
 	float w = (float)width;
-	float h = (float)height;
+    float h = (float)height;
 
 	glViewport(0, 0, w, h);
 	_viewportMatrix = QMatrix4x4(w / 2, 0.0f, 0.0f, 0.0f,
@@ -2344,7 +2359,7 @@ void GLWidget::paintGL()
 		_modelMatrix.setToIdentity();
 		if (_multiViewActive)
 		{
-			glViewport(0, 0, width(), height());
+            glViewport(0, 0, width(), height());
 			if (_shadowsEnabled)
 				renderToShadowBuffer();
 			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
@@ -3836,23 +3851,7 @@ void GLWidget::animateWindowZoom()
 
 void GLWidget::animateCenterScreen()
 {
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
-		_lowResEnabled = true;
-	BoundingSphere sph;
-	int count = 0;
-	for (int id : _centerScreenObjectIDs)
-	{
-		TriangleMesh* mesh = _meshStore.at(id);
-		if (mesh)
-		{
-			if (count == 0)
-				sph = mesh->getBoundingSphere();
-			else
-				sph.addSphere(mesh->getBoundingSphere());
-		}
-		count++;
-	}
-	setZoomAndPan(sph.getRadius() * 2, -_currentTranslation + sph.getCenter());
+	setZoomAndPan(_selectionBoundingSphere.getRadius() * 2, -_currentTranslation + _selectionBoundingSphere.getCenter());
 	resizeGL(width(), height());
 }
 

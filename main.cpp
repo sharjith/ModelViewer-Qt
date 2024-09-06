@@ -15,11 +15,12 @@ int main(int argc, char** argv)
 	Q_INIT_RESOURCE(ModelViewer);
 
 	QApplication::setDesktopSettingsAware(true);
-
-	QApplication app(argc, argv);
 	QCoreApplication::setApplicationName("ModelViewer");
 	QCoreApplication::setOrganizationName("Sharjith N");
-	QCoreApplication::setApplicationVersion(QT_VERSION_STR);
+    QCoreApplication::setApplicationVersion(QT_VERSION_STR);
+    QApplication::setAttribute(Qt::AA_DisableHighDpiScaling);
+
+    QApplication app(argc, argv);
 
 #ifdef WIN32
 	// qDebug() << QStyleFactory::keys();
