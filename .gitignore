@@ -9,3 +9,4 @@ ModelViewer.vcxproj.filters
 debug/
 release/
 /ModelViewer_resource.rc
+build/
