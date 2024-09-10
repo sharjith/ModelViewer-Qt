@@ -126,7 +126,7 @@
                <enum>QTabWidget::Rounded</enum>
               </property>
               <property name="currentIndex">
-               <number>1</number>
+               <number>0</number>
               </property>
               <property name="tabBarAutoHide">
                <bool>false</bool>
@@ -167,7 +167,7 @@
                     </property>
                     <property name="icon">
                      <iconset resource="ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/fileopen.png</normaloff>:/new/prefix1/res/fileopen.png</iconset>
+                      <normaloff>:/new/prefix1/res/import.png</normaloff>:/new/prefix1/res/import.png</iconset>
                     </property>
                     <property name="iconSize">
                      <size>
@@ -187,6 +187,23 @@
                    <widget class="Line" name="line_6">
                     <property name="orientation">
                      <enum>Qt::Vertical</enum>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QToolButton" name="toolButtonExport">
+                    <property name="text">
+                     <string>...</string>
+                    </property>
+                    <property name="icon">
+                     <iconset resource="ModelViewer.qrc">
+                      <normaloff>:/new/prefix1/res/export.png</normaloff>:/new/prefix1/res/export.png</iconset>
+                    </property>
+                    <property name="iconSize">
+                     <size>
+                      <width>40</width>
+                      <height>40</height>
+                     </size>
                     </property>
                    </widget>
                   </item>
@@ -1161,8 +1178,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>446</width>
-                   <height>769</height>
+                   <width>417</width>
+                   <height>750</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1926,8 +1943,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>446</width>
-                   <height>769</height>
+                   <width>417</width>
+                   <height>750</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2080,8 +2097,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>446</width>
-                   <height>769</height>
+                   <width>417</width>
+                   <height>750</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2769,8 +2786,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>446</width>
-                   <height>769</height>
+                   <width>417</width>
+                   <height>750</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3629,8 +3646,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>513</width>
-                   <height>756</height>
+                   <width>466</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3983,8 +4000,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>446</width>
-                   <height>769</height>
+                   <width>417</width>
+                   <height>750</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5372,8 +5389,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
+  <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>

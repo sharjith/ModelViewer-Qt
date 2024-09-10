@@ -148,6 +148,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_I), this);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonImport_clicked()));
 
+	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_E), this);
+	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonExport_clicked()));
+
 	connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
 	connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
 	connect(doubleSpinBoxRepeatT, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatT(double)));
@@ -587,9 +590,14 @@ QString ModelViewer::currentFile() const
 	return _currentFile;
 }
 
-void ModelViewer::import()
+void ModelViewer::importModel()
 {
 	on_toolButtonImport_clicked();
+}
+
+void ModelViewer::exportModel()
+{
+	on_toolButtonExport_clicked();
 }
 
 bool ModelViewer::hasUndo()
@@ -1732,6 +1740,11 @@ void ModelViewer::on_toolButtonImport_clicked()
 		MainWindow::mainWindow()->activateWindow();
 		QApplication::alert(MainWindow::mainWindow());
 	}
+}
+
+void ModelViewer::on_toolButtonExport_clicked()
+{
+	QMessageBox::information(this, "Information", "Exported", "Ok");
 }
 
 bool ModelViewer::loadFile(const QString& fileName)

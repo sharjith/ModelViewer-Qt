@@ -15,11 +15,11 @@ unix {
 }
 
 win32-msvc*{
-    INCLUDEPATH += D:\software\libs\glm
-    INCLUDEPATH += D:\software\libs\freetype-2.5.5-vc14-64\include
-    INCLUDEPATH += D:\Software\libs\assimp-5.0.1\include
-    LIBS += -L"D:\software\libs\freetype-2.5.5-vc14-64\lib" -lfreetype
-    LIBS += -L"D:\Software\libs\assimp-5.0.1\build\code\Release"  -lassimp-vc142-mt
+    INCLUDEPATH += D:\Sharjith\software\libs\glm
+    INCLUDEPATH += D:\Sharjith\software\libs\3rdparty-vc14-64\freetype-2.5.5-vc14-64\include
+    INCLUDEPATH += D:\Sharjith\software\libs\Assimp\include
+    LIBS += -L"D:\Sharjith\software\libs\3rdparty-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
+    LIBS += -L"D:\Sharjith\software\libs\Assimp\lib\x64"  -lassimp-vc143-mt
 }
 
 win32-g++{
