@@ -66,6 +66,7 @@ private slots:
 	void on_actionNew_triggered();
 	void on_actionOpen_triggered();
 	void on_actionImport_triggered();
+	void on_actionExport_triggered();
 	void on_actionTile_Horizontally_triggered();
 	void on_actionTile_Vertically_triggered();
 	void on_actionTile_triggered();

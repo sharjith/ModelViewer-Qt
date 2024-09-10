@@ -408,7 +408,13 @@ bool MainWindow::loadFile(const QString& fileName)
 void MainWindow::on_actionImport_triggered()
 {
 	if (activeMdiChild())
-		activeMdiChild()->import();
+		activeMdiChild()->importModel();
+}
+
+void MainWindow::on_actionExport_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->exportModel();
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()

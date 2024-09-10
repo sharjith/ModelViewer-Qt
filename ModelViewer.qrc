@@ -1,5 +1,7 @@
 <RCC>
     <qresource prefix="/new/prefix1">
+        <file>res/export.png</file>
+        <file>res/import.png</file>
         <file>res/pancursor.png</file>
         <file>res/rotatecursor.png</file>
         <file>res/zoomcursor.png</file>

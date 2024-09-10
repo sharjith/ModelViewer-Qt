@@ -38,7 +38,9 @@ public:
 	QString currentFile() const;
 
 	bool loadFile(const QString& fileName);
-	void import();
+
+	void importModel();
+	void exportModel();
 
 	bool hasUndo();
 	bool hasRedo();
@@ -136,6 +138,7 @@ private slots:
 	void on_pushButtonWhiteRubber_clicked();
 	void on_pushButtonYellowRubber_clicked();
 	void on_toolButtonImport_clicked();
+	void on_toolButtonExport_clicked();
 	void on_toolButtonShowHideAxis_toggled(bool checked);
 	void on_toolButtonVertexNormal_clicked(bool checked);
 	void on_toolButtonFaceNormal_clicked(bool checked);
