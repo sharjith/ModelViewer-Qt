@@ -65,7 +65,5 @@
         <file>res/swapvisible.png</file>
         <file>res/showall.png</file>
         <file>res/hideall.png</file>
-        <file>res/exportIcon.png</file>
-        <file>res/importIcon.png</file>
     </qresource>
 </RCC>
