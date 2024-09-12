@@ -11,3 +11,6 @@ release/
 /ModelViewer_resource.rc
 build/
 /ModelViewer.qtvscr
+/Makefile
+/Makefile.Debug
+/Makefile.Release
