@@ -334,3 +334,20 @@ void AssImpMesh::setupMesh()
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 	computeBounds();
 }
+
+
+vector<Vertex> AssImpMesh::vertices() const
+{
+    return _vertices;
+}
+
+vector<unsigned int> AssImpMesh::indices() const
+{
+    return _indices;
+}
+
+vector<Texture> AssImpMesh::textures() const
+{
+    return _textures;
+}
+

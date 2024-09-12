@@ -48,6 +48,12 @@ public:
 	virtual TriangleMesh* clone();
 	void render();
 
+    vector<Vertex> vertices() const;
+
+    vector<unsigned int> indices() const;
+
+    vector<Texture> textures() const;
+
 private:
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
