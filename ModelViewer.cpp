@@ -1742,9 +1742,26 @@ void ModelViewer::on_toolButtonImport_clicked()
 	}
 }
 
+#include "AssImpMeshExporter.h"
+#include <AssImpMesh.h>
 void ModelViewer::on_toolButtonExport_clicked()
 {
-	QMessageBox::information(this, "Information", "Exported", "Ok");
+    QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, _supportedExtensions);
+    if(!fileName.isEmpty())
+    {
+        AssImpMeshExporter exporter;
+        vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
+        vector<AssImpMesh*> assImpMeshes;
+        for(TriangleMesh* triMesh : triMeshes)
+        {
+            assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
+        }
+        aiReturn res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
+        if(res == aiReturn_SUCCESS)
+            QMessageBox::information(this, "Information", "Exported", "Ok");
+        else
+            QMessageBox::critical(this, "Information", "Export failed!", "Ok");
+    }
 }
 
 bool ModelViewer::loadFile(const QString& fileName)
