@@ -12,6 +12,8 @@ win32:QT += winextras
 unix {
     INCLUDEPATH += /usr/include/freetype2/
     LIBS += -lfreetype -lassimp
+    QMAKE_CXXFLAGS += -fopenmp
+    QMAKE_LFLAGS += -fopenmp
 }
 
 win32-msvc*{
@@ -20,6 +22,7 @@ win32-msvc*{
     INCLUDEPATH += D:\Sharjith\software\libs\Assimp\include
     LIBS += -L"D:\Sharjith\software\libs\3rdparty-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
     LIBS += -L"D:\Sharjith\software\libs\Assimp\lib\x64"  -lassimp-vc143-mt
+    QMAKE_CXXFLAGS += /openmp
 }
 
 win32-g++{
