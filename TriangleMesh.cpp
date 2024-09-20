@@ -1003,6 +1003,7 @@ unsigned long long TriangleMesh::memorySize() const
 	return _memorySize + sizeof(TriangleMesh);
 }
 
+/*
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
 	bool intersects = false;
@@ -1017,6 +1018,40 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 	}
 	return intersects;
 }
+*/
+
+#include <atomic>
+#include <QVector3D>
+#include <omp.h>  // OpenMP header
+
+bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
+{
+    std::atomic<bool> intersectionFound(false); // Atomic flag for thread safety
+    QVector3D localIntersectionPoint;
+
+    if (_triangles.size())
+    {
+        #pragma omp parallel for shared(intersectionFound, outIntersectionPoint) private(localIntersectionPoint)
+        for (int i = 0; i < _triangles.size(); ++i)
+        {
+            if (!intersectionFound.load()) // Check if another thread already found an intersection
+            {
+                if (_triangles[i]->intersectsWithRay(rayPos, rayDir, localIntersectionPoint))
+                {
+                    intersectionFound.store(true); // Set the flag to true if an intersection is found
+
+                    #pragma omp critical
+                    {
+                        outIntersectionPoint = localIntersectionPoint; // Update the output intersection point
+                    }
+                }
+            }
+        }
+    }
+
+    return intersectionFound.load(); // Return whether an intersection was found
+}
+
 
 bool TriangleMesh::hasAlbedoPBRMap() const
 {
