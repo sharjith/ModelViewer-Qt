@@ -22,6 +22,7 @@ win32-msvc*{
     INCLUDEPATH += D:\Sharjith\software\libs\Assimp\include
     LIBS += -L"D:\Sharjith\software\libs\3rdparty-vc14-64\freetype-2.5.5-vc14-64\lib" -lfreetype
     LIBS += -L"D:\Sharjith\software\libs\Assimp\lib\x64"  -lassimp-vc143-mt
+	QMAKE_CXXFLAGS += /openmp
 }
 
 win32-g++{
