@@ -3819,15 +3819,15 @@ void GLWidget::animateViewChange()
 	}
 	if (_viewMode == ViewMode::ISOMETRIC)
 	{
-		setRotations(-45.0f, -54.7356f, 0.0f);
+        setRotations(-45.0f, -54.7356f, 0.0f);
 	}
 	if (_viewMode == ViewMode::DIMETRIC)
 	{
-		setRotations(-14.1883f, -73.9639f, -0.148236f);
+        setRotations(-20.7048f, -70.5288f, 0.0f);
 	}
 	if (_viewMode == ViewMode::TRIMETRIC)
 	{
-		setRotations(-32.5829f, -61.4997f, -0.877613f);
+        setRotations(-30.0f, -55.0f, 0.0f);
 	}
 
 	resizeGL(width(), height());
