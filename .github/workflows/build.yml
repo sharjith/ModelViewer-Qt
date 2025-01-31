@@ -20,7 +20,7 @@ jobs:
       - name: Set up Qt
         uses: jurplel/install-qt-action@v3
         with:
-          version: '5.15.0'
+          version: '5.15.2'
           cache: true
           modules: 'qtbase'
 
