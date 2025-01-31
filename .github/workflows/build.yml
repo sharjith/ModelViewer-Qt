@@ -28,13 +28,13 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglm-dev libassimp-dev
+          sudo apt-get install -y libglm-dev libassimp-dev libfreetype6-dev
 
       - name: Install macOS dependencies
-        if: runner.os == 'macOS'
+        if: runner.os == 'macos'
         run: |
           brew update
-          brew install glm assimp
+          brew install glm assimp freetype
 
       - name: Install Windows dependencies via vcpkg
         if: runner.os == 'Windows'
@@ -42,23 +42,24 @@ jobs:
           git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
           cd C:\vcpkg
           bootstrap-vcpkg.bat
-          .\vcpkg.exe install assimp glm
+          .\vcpkg.exe install assimp glm freetype
           .\vcpkg.exe integrate install
 
       - name: Set up MSVC Build Tools (Windows)
         if: runner.os == 'Windows'
+        shell: cmd
         run: |
           choco install visualstudio2019-workload-vctools --yes
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
 
-      - name: Configure project (macOS)
-        if: runner.os == 'macOS'
+      - name: Configure project on macOS
+        if: runner.os == 'macos'
         run: |
           export CPATH="/usr/local/include:/opt/homebrew/include:$CPATH"
           qmake -r ModelViewer.pro
 
       - name: Configure project (non-macOS)
-        if: runner.os != 'macOS'
+        if: runner.os != 'macos'
         run: qmake -r ModelViewer.pro
 
       - name: Build on Linux/macOS
@@ -67,6 +68,7 @@ jobs:
 
       - name: Build on Windows
         if: runner.os == 'Windows'
+        shell: cmd
         run: |
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
           nmake
