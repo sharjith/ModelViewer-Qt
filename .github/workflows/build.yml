@@ -1,4 +1,4 @@
-name: Build Project
+name: Build Qt Project
 
 on:
   push:
@@ -10,6 +10,7 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
 
@@ -23,25 +24,33 @@ jobs:
           version: '5.15.2'
           cache: true
 
+      - name: Install dependencies on Linux
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglm-dev
+
+      - name: Install dependencies on macOS
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install glm
+
       - name: Set up MSVC Build Tools (Windows)
         if: runner.os == 'Windows'
         run: |
-          # Install MSVC build tools
-          choco install visualstudio2019-workload-vctools
-          # Set up environment variables for MSVC
-          echo "Setting up Visual Studio environment..."
-          C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat
+          choco install visualstudio2019-workload-vctools --yes
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
 
       - name: Configure project
         run: qmake -r ModelViewer.pro
 
-      - name: Build (Linux/macOS)
+      - name: Build on Linux/macOS
         if: runner.os != 'Windows'
         run: make -j$(nproc)
 
-      - name: Build (Windows)
+      - name: Build on Windows
         if: runner.os == 'Windows'
         run: |
-          # Ensure MSVC is used for building
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
-          nmake  # If using MSVC
+          nmake
