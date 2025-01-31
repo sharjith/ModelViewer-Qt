@@ -17,11 +17,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up Qt
+      - name: Set up Qt 5.15
         uses: jurplel/install-qt-action@v3
         with:
           version: '5.15.2'
           cache: true
+
+      - name: Set up MSVC Build Tools (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          # Install MSVC build tools
+          choco install visualstudio2019-workload-vctools
+          # Set up environment variables for MSVC
+          echo "Setting up Visual Studio environment..."
+          C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat
 
       - name: Configure project
         run: qmake -r ModelViewer.pro
@@ -33,4 +42,6 @@ jobs:
       - name: Build (Windows)
         if: runner.os == 'Windows'
         run: |
-          nmake
+          # Ensure MSVC is used for building
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
+          nmake  # If using MSVC
