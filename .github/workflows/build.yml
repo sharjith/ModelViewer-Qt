@@ -22,7 +22,6 @@ jobs:
         with:
           version: '5.15.2'
           cache: true
-          modules: 'qtbase'
 
       - name: Configure project
         run: qmake -r my_project.pro
