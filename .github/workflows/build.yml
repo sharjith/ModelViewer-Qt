@@ -24,7 +24,7 @@ jobs:
           cache: true
 
       - name: Configure project
-        run: qmake -r my_project.pro
+        run: qmake -r ModelViewer.pro
 
       - name: Build (Linux/macOS)
         if: runner.os != 'Windows'
