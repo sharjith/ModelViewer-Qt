@@ -1,4 +1,4 @@
-name: Build Qt Project
+name: Build Project
 
 on:
   push:
@@ -24,17 +24,26 @@ jobs:
           version: '5.15.2'
           cache: true
 
-      - name: Install dependencies on Linux
+      - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libglm-dev
+          sudo apt-get install -y libglm-dev libassimp-dev
 
-      - name: Install dependencies on macOS
+      - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
           brew update
-          brew install glm
+          brew install glm assimp
+
+      - name: Install Windows dependencies via vcpkg
+        if: runner.os == 'Windows'
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          cd C:\vcpkg
+          bootstrap-vcpkg.bat
+          .\vcpkg.exe install assimp glm
+          .\vcpkg.exe integrate install
 
       - name: Set up MSVC Build Tools (Windows)
         if: runner.os == 'Windows'
@@ -42,7 +51,14 @@ jobs:
           choco install visualstudio2019-workload-vctools --yes
           call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
 
-      - name: Configure project
+      - name: Configure project (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          export CPATH="/usr/local/include:/opt/homebrew/include:$CPATH"
+          qmake -r ModelViewer.pro
+
+      - name: Configure project (non-macOS)
+        if: runner.os != 'macOS'
         run: qmake -r ModelViewer.pro
 
       - name: Build on Linux/macOS
