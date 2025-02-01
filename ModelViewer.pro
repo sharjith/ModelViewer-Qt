@@ -12,6 +12,9 @@ win32:QT += winextras
 unix {
     INCLUDEPATH += /usr/include/freetype2/
     LIBS += -lfreetype -lassimp
+}
+
+unix:!macx {
     QMAKE_CXXFLAGS += -fopenmp
     QMAKE_LFLAGS += -fopenmp
 }
