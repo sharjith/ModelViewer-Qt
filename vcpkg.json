@@ -4,6 +4,7 @@
   "dependencies": [
     "assimp",
     "glm",
-    "qt5-base"
+    "qt5-base",
+    "qt5-winextras"
   ]
 }

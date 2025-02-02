@@ -7,6 +7,10 @@ find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(Qt5 REQUIRED COMPONENTS Gui OpenGL)
 
+if(WIN32)
+    find_package(Qt5 REQUIRED COMPONENTS WinExtras) 
+endif()
+
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -39,5 +43,12 @@ target_link_libraries(ModelViewer
         Qt5::Gui
         Qt5::OpenGL
 )
+
+if(WIN32)
+    target_link_libraries(ModelViewer
+    PRIVATE
+        Qt5::WinExtras
+)
+endif()
 
 set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
