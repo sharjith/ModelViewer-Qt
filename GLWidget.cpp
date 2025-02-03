@@ -52,6 +52,9 @@
 
 #include "AssImpModelLoader.h"
 
+#include "config.h"
+
+
 using glm::mat4;
 using glm::vec3;
 
@@ -1758,13 +1761,13 @@ void GLWidget::initializeGL()
     connect(_assimpModelLoader, SIGNAL(nodeProcessed(int,int)), this, SLOT(showModelLoadingProgress(int,int)));
 	connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
 
-    QString path = QApplication::applicationDirPath() + "/";
+    const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
 	// Text rendering
 	_textShader->bind();
 	_textRenderer = new TextRenderer(_textShader, width(), height());
-    _textRenderer->Load(path.toStdString() + "fonts/arial.ttf", 20);
+    _textRenderer->Load(path + "fonts/arial.ttf", 20);
 	_axisTextRenderer = new TextRenderer(_textShader, width(), height());
-    _axisTextRenderer->Load(path.toStdString() + "fonts/arialbd.ttf", 16);
+    _axisTextRenderer->Load(path + "fonts/arialbd.ttf", 16);
 	_textShader->release();
 
 	createCappingPlanes();
@@ -2748,7 +2751,7 @@ void GLWidget::drawFaceNormals()
 			if (_showFaceNormals)
 			{
 				TriangleMesh* mesh = _meshStore.at(i);
-				mesh->setProg(_faceNormalShader);				
+				mesh->setProg(_faceNormalShader);
 				mesh->getVAO().bind();
 				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
 				mesh->getVAO().release();
@@ -3227,7 +3230,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			if(_selectionDBO == 0)
 				glGenRenderbuffers(1, &_selectionDBO);
 			glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)_selectionDBO);
-			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());	
+			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());
 			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _selectionDBO);
 			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 			if (status != GL_FRAMEBUFFER_COMPLETE)
@@ -3243,7 +3246,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			glDrawBuffer(GL_COLOR_ATTACHMENT0);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glEnable(GL_DEPTH_TEST);
-			glDisable(GL_BLEND);			
+			glDisable(GL_BLEND);
 			_selectionShader->bind();
 			_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
@@ -3273,7 +3276,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 				{
 					std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
 				}
-			}			
+			}
 			glReadBuffer(GL_COLOR_ATTACHMENT0);
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 			int pixelWinSize = 6;
@@ -4088,7 +4091,7 @@ int GLWidget::clickSelect(const QPoint& pixel)
 
 	int colId = processSelection(pixel);
 
-	qDebug() << "Color Id: " << colId;	
+	qDebug() << "Color Id: " << colId;
 
     //if (colId > 0)
         //id = colId;
