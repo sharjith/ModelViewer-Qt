@@ -1872,7 +1872,7 @@ bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, cons
 
 void GLWidget::createShaderPrograms()
 {
-    QString path = QApplication::applicationDirPath() + "/";
+    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
 	// Foreground objects shader program
 	// Per fragment lighting
 	_fgShader = new QOpenGLShaderProgram(this); _fgShader->setObjectName("_fgShader");
