@@ -4,10 +4,7 @@
   "dependencies": [
     "assimp",
     "glm",
-    "qt5-base",
-    {
-      "name": "qt5-winextras",
-      "platform": "windows"
-    }
+    "qtbase",
+    "qttools"
   ]
 }

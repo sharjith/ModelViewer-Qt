@@ -5,11 +5,7 @@ project(ModelViewer)
 
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(Qt5 REQUIRED COMPONENTS Gui OpenGL)
-
-if(WIN32)
-    find_package(Qt5 REQUIRED COMPONENTS WinExtras)
-endif()
+find_package(Qt6 REQUIRED COMPONENTS Gui OpenGL Widgets)
 
 include(GNUInstallDirs)
 
@@ -28,8 +24,8 @@ configure_file(
 file(GLOB sources *.cpp *.h)
 file(GLOB ui_sources *.ui)
 
-qt5_wrap_ui(ui_wrapped ${ui_sources})
-qt5_add_resources(resources ModelViewer.qrc)
+qt_wrap_ui(ui_wrapped ${ui_sources})
+qt_add_resources(resources ModelViewer.qrc)
 
 target_sources(ModelViewer
     PRIVATE
@@ -48,19 +44,14 @@ target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
         Freetype::Freetype
-        Qt::Gui
         Qt::OpenGL
+        Qt::Widgets
 )
 
 if(WIN32)
     target_sources(ModelViewer
         PRIVATE
             ModelViewer.rc
-    )
-
-    target_link_libraries(ModelViewer
-        PRIVATE
-            Qt::WinExtras
     )
 endif()
 
