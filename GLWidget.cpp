@@ -1,3 +1,8 @@
+
+#include <QMenu>
+#include <QMessageBox>
+#include <QStyleFactory>
+
 #include "GLWidget.h"
 
 #include "TextRenderer.h"
@@ -344,7 +349,7 @@ void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setTexureImage(QGLWidget::convertToGLFormat(texImage));
+			mesh->setTexureImage(texImage.convertToFormat(QImage::Format_RGBA8888).mirrored());
 		}
 		catch (const std::exception& ex)
 		{
@@ -769,7 +774,7 @@ void GLWidget::showFloor(bool show)
 
 void GLWidget::setFloorTexture(QImage img)
 {
-	_floorTexImage = QGLWidget::convertToGLFormat(img); // flipped 32bit RGBA
+	_floorTexImage = img.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
 	_floorPlane->setTexureImage(_floorTexImage);
 }
 
@@ -2062,7 +2067,7 @@ void GLWidget::loadFloor()
 	}
 	else
 	{
-		_floorTexImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
+		_floorTexImage = _texBuffer.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
 	}
 
 	_floorSize = _boundingSphere.getRadius();
@@ -2123,7 +2128,7 @@ void GLWidget::loadEnvMap()
 			QImage dummy(128, 128, static_cast<QImage::Format>(5));
 			dummy.fill(Qt::white);
 			_texImage = dummy;
-			_texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
+			_texImage = _texBuffer.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
 		}
 	}
@@ -3266,7 +3271,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 						QColor pickColor = indexToColor(i + 1);
 						qDebug() << "Id " << i << "Pick Color" << pickColor;
 						_selectionShader->bind();
-						qreal r, g, b, a;
+						float r, g, b, a;
 						pickColor.getRgbF(&r, &g, &b, &a);
 						_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
 						mesh->setProg(_selectionShader);
@@ -4619,18 +4624,18 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			if (_hiddenObjectsIds.size() != 0)
 			{
 				action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), "Show All", _viewer, SLOT(showAllItems()));
-				action->setShortcut(QKeySequence(Qt::SHIFT + Qt::Key_A));
+				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
 			}
 			if (_displayedObjectsIds.size() != 0)
 			{
 				action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), "Hide All", _viewer, SLOT(hideAllItems()));
-				action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_A));
+				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
 			}
 			if (_hiddenObjectsIds.size() != 0)
 			{
 				action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), "Swap Visible");
 				action->setCheckable(true);
-				action->setShortcut(QKeySequence(Qt::ALT + Qt::Key_S));
+				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
 				action->setChecked(_visibleSwapped);
 				connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
 			}

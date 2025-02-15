@@ -5,7 +5,7 @@ project(ModelViewer)
 
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Gui OpenGL Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Gui OpenGLWidgets Widgets)
 
 include(GNUInstallDirs)
 
@@ -44,7 +44,7 @@ target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
         Freetype::Freetype
-        Qt::OpenGL
+        Qt::OpenGLWidgets
         Qt::Widgets
 )
 

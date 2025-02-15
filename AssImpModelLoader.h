@@ -16,18 +16,25 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/ProgressHandler.hpp>
-using namespace Assimp;
 
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
 
-using namespace std;
 
-class AssImpModelProgressHandler : public QObject, public ProgressHandler
+class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
 {
 	Q_OBJECT
 public:
 	virtual bool Update(float percentage);
+
+	// Required by Qt system. TODO: Make sure it is fine
+	inline void* operator new(size_t, void* ptr) noexcept
+    {
+        return ptr;
+    }
+
+    using Assimp::ProgressHandler::operator new;
+
 signals:
 	void fileReadProcessed(float percent);
 };

@@ -1,3 +1,6 @@
+
+#include <QApplication>
+
 #include "TriangleMesh.h"
 #include "TriangleMollerTrumbore.h"
 #include "TriangleBaldwinWeber.h"
@@ -71,7 +74,7 @@ _opacityPBRMapInverted(false)
 		dummy.fill(Qt::white);
 		_texBuffer = dummy;
 	}
-	_texImage = QGLWidget::convertToGLFormat(_texBuffer); // flipped 32bit RGBA
+	_texImage = _texBuffer.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
 
 	glGenTextures(1, &_texture);
 	//std::cout << "TriangleMesh::TriangleMesh : _texture = " << _texture << std::endl;

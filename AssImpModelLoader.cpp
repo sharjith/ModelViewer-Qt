@@ -338,7 +338,7 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, string directo
 	}
 	else
 	{
-		texImage = QGLWidget::convertToGLFormat(texImage); // flipped 32bit RGBA
+		texImage = texImage.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
 	}
 
 	// Assign texture to ID

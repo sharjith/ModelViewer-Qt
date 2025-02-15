@@ -1,7 +1,6 @@
 #ifndef MODELOBJECTLIST_H
 #define MODELOBJECTLIST_H
 
-#include <QGLWidget>
 #include <QListWidget>
 
 class ModelObjectList : public QListWidget

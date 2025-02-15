@@ -1,3 +1,7 @@
+
+#include <QMessageBox>
+#include <QFileDialog>
+
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
@@ -225,8 +229,8 @@ void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
     unsigned int assimpMajor = aiGetVersionMajor();
     unsigned int assimpMinor = aiGetVersionMinor();
-	QMessageBox::about(this, 
-		"About 3D Model Viewer", 
+	QMessageBox::about(this,
+		"About 3D Model Viewer",
         QString::fromWCharArray(L"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library - "
         "Version %1.%2\n\n"
         "Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n").arg(assimpMajor).arg(assimpMinor)
@@ -288,7 +292,7 @@ void MainWindow::dropEvent(QDropEvent* event)
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
-		QString fileName = url.toLocalFile();	
+		QString fileName = url.toLocalFile();
 		ModelViewer::setLastOpenedDir(QFileInfo(fileName).path()); // store path for next time
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
@@ -346,8 +350,8 @@ bool MainWindow::openFile(const QString& fileName)
 		ui->mdiArea->setActiveSubWindow(existing);
 		return true;
 	}
-	const bool succeeded = loadFile(fileName);	
-		
+	const bool succeeded = loadFile(fileName);
+
 	return succeeded;
 }
 

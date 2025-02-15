@@ -1,11 +1,12 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
-#include <QtGui>
-#include <QtOpenGL>
+#include <QOpenGLWidget>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QImage>
 #include <QColor>
+#include <QFormLayout>
+#include <QRubberBand>
 
 #include <math.h>
 #include "GLCamera.h"
