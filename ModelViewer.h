@@ -50,7 +50,7 @@ public:
 	bool saveAs();
 
 	void selectAll();
-	void deselectAll();    
+	void deselectAll();
 
 public slots:
     void updateDisplayList();
@@ -74,7 +74,7 @@ private slots:
 	void setListRows(QList<int> indices);
 	void showContextMenu(const QPoint& pos);
 	void centerScreen();
-	void lightingType_toggled(int id, bool checked);
+	void lightingType_toggled();
 
 	void on_checkTexture_toggled(bool checked);
 	void on_pushButtonTexture_clicked();
@@ -233,7 +233,7 @@ private slots:
 
 protected:
 	void showEvent(QShowEvent* event);
-	void keyPressEvent(QKeyEvent* event);	
+	void keyPressEvent(QKeyEvent* event);
 	void dragEnterEvent(QDragEnterEvent* event);
 	void dropEvent(QDropEvent* event);
 
@@ -286,8 +286,8 @@ private:
 	float   _heightPBRTexScale;
 
 	bool _runningFirstTime;
-	
-	QString _currentFile;	
+
+	QString _currentFile;
 	bool _textureDirOpenedFirstTime;
 	bool _documentSaved;
 
