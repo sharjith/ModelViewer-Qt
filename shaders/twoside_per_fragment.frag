@@ -1,4 +1,5 @@
 #version 450 core
+#extension GL_OES_standard_derivatives : enable
 
 // Adpated from https://learnopengl.com/
 

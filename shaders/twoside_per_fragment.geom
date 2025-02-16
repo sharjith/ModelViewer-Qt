@@ -1,4 +1,6 @@
 #version 450 core
+#extension GL_EXT_geometry_shader : enable
+#extension GL_OES_geometry_shader : enable
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices=6) out;
