@@ -53,6 +53,11 @@ target_link_libraries(ModelViewer
 )
 
 if(WIN32)
+    target_sources(ModelViewer
+        PRIVATE
+            ModelViewer.rc
+    )
+
     target_link_libraries(ModelViewer
         PRIVATE
             Qt::WinExtras
