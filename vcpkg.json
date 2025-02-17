@@ -5,6 +5,9 @@
     "assimp",
     "glm",
     "qt5-base",
-    "qt5-winextras"
+    {
+      "name": "qt5-winextras",
+      "platform": "windows"
+    }
   ]
 }
