@@ -20,6 +20,13 @@ jobs:
         with:
             submodules: true
 
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew update
+          brew install              \
+            ninja
+
       - name: Run vcpkg
         uses: lukka/run-vcpkg@v11.5
         with:
