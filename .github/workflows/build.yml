@@ -18,7 +18,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-            submodules: true
+          submodules: true
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt install          \
+          ninja-build               \
+          libltdl-dev               \
+          '^libxcb.*-dev'           \
+          libx11-xcb-dev            \
+          libgl1-mesa-dev           \
+          libxrender-dev            \
+          libxi-dev                 \
+          libxkbcommon-dev          \
+          libxkbcommon-x11-dev
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
