@@ -1022,7 +1022,6 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 
 #include <atomic>
 #include <QVector3D>
-#include <omp.h>  // OpenMP header
 
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
