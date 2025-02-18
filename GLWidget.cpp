@@ -3219,7 +3219,12 @@ int GLWidget::processSelection(const QPoint& pixel)
 			if(_selectionFBO == 0)
 				glGenFramebuffers(1, &_selectionFBO);
 			glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+#ifdef GL_FRAMEBUFFER_DEFAULT_SAMPLES
 			glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_SAMPLES, 0);
+#else // MacOS
+			glFramebufferParameteri(GL_FRAMEBUFFER, 0, 0);
+#endif
+
 			if(_selectionRBO == 0)
 				glGenRenderbuffers(1, &_selectionRBO);
 			glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
