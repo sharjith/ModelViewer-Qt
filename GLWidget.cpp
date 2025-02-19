@@ -1934,7 +1934,7 @@ void GLWidget::createShaderPrograms()
 
 void GLWidget::createCappingPlanes()
 {
-    QString path = QApplication::applicationDirPath() + "/";
+    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
 	_clippingPlaneXY = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader, QVector3D(0, 0, 0), 1000, 1000, 1, 1);

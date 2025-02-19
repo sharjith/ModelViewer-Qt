@@ -68,6 +68,6 @@ set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
 
 
 install(TARGETS ModelViewer)
-install(DIRECTORY fonts shaders
+install(DIRECTORY fonts shaders textures
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
