@@ -516,7 +516,7 @@ private:
 	BoundingSphere _selectionBoundingSphere;
 	Plane* _floorPlane;
 	Cube* _skyBox;
-	vector<QString> _skyBoxFaces;
+	std::vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;
 	bool  _gammaCorrection;

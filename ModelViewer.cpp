@@ -1757,8 +1757,8 @@ void ModelViewer::on_toolButtonExport_clicked()
     if(!fileName.isEmpty())
     {
         AssImpMeshExporter exporter;
-        vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
-        vector<AssImpMesh*> assImpMeshes;
+        std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
+        std::vector<AssImpMesh*> assImpMeshes;
         for(TriangleMesh* triMesh : triMeshes)
         {
             assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
