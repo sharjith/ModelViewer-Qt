@@ -3,7 +3,7 @@ name: Build Project
 on:
   push:
     branches:
-      - main
+      - master
   pull_request:
 
 jobs:
@@ -16,59 +16,38 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Qt 5.15
-        uses: jurplel/install-qt-action@v3
+        uses: actions/checkout@v4
         with:
-          version: '5.15.2'
-          cache: true
+          submodules: true
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libglm-dev libassimp-dev libfreetype6-dev
+          sudo apt install          \
+          ninja-build               \
+          libltdl-dev               \
+          '^libxcb.*-dev'           \
+          libx11-xcb-dev            \
+          libgl1-mesa-dev           \
+          libxrender-dev            \
+          libxi-dev                 \
+          libxkbcommon-dev          \
+          libxkbcommon-x11-dev
 
       - name: Install macOS dependencies
-        if: runner.os == 'macos'
+        if: runner.os == 'macOS'
         run: |
           brew update
-          brew install glm assimp freetype
+          brew install              \
+            ninja
 
-      - name: Install Windows dependencies via vcpkg
-        if: runner.os == 'Windows'
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-          cd C:\vcpkg
-          bootstrap-vcpkg.bat
-          .\vcpkg.exe install assimp glm freetype
-          .\vcpkg.exe integrate install
+      - name: Run vcpkg
+        uses: lukka/run-vcpkg@v11.5
+        with:
+            vcpkgJsonGlob: vcpkg.json
 
-      - name: Set up MSVC Build Tools (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          choco install visualstudio2019-workload-vctools --yes
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
-
-      - name: Configure project on macOS
-        if: runner.os == 'macos'
-        run: |
-          export CPATH="/usr/local/include:/opt/homebrew/include:$CPATH"
-          qmake -r ModelViewer.pro
-
-      - name: Configure project (non-macOS)
-        if: runner.os != 'macos'
-        run: qmake -r ModelViewer.pro
-
-      - name: Build on Linux/macOS
-        if: runner.os != 'Windows'
-        run: make -j$(nproc)
-
-      - name: Build on Windows
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\Common7\Tools\VsDevCmd.bat"
-          nmake
+      - name: Build
+        uses: lukka/run-cmake@v10
+        with:
+            configurePreset: "ninja_release_vcpkg"
+            buildPreset: "Ninja Release"

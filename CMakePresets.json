@@ -1,0 +1,43 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    { "name": "base",  "hidden": true, "binaryDir": "${sourceDir}/out/build/${presetName}", "installDir": "${sourceDir}/out/install/${presetName}" },
+    { "name": "vcpkg", "hidden": true, "toolchainFile": "${sourceDir}/vcpkg/scripts/buildsystems/vcpkg.cmake" },
+    { "name": "ninja", "hidden": true, "generator": "Ninja" },
+    { "name": "release", "hidden": true, "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" } },
+    { "name": "debug",   "hidden": true, "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" } },
+    {
+      "name": "ninja_debug_vcpkg",
+      "inherits": ["base", "vcpkg", "ninja", "debug"],
+      "displayName": "Ninja Debug Config",
+      "description": "Configure with vcpkg toolchain"
+    },
+    {
+      "name": "ninja_release_vcpkg",
+      "inherits": ["base", "vcpkg", "ninja", "release"],
+      "displayName": "Ninja Release Config",
+      "description": "Configure with vcpkg toolchain"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "Ninja Debug",
+      "configurePreset": "ninja_debug_vcpkg",
+      "displayName": "Build Debug",
+      "description": "Build Debug with Ninja",
+      "configuration": "Debug"
+    },
+    {
+      "name": "Ninja Release",
+      "configurePreset": "ninja_release_vcpkg",
+      "displayName": "Build Release",
+      "description": "Build Release with Ninja",
+      "configuration": "Release"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "modelviewer",
+  "version-string": "1.0.0",
+  "dependencies": [
+    "assimp",
+    "glm",
+    "qt5-base",
+    {
+      "name": "qt5-winextras",
+      "platform": "windows"
+    }
+  ]
+}
