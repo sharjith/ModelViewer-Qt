@@ -1,0 +1,17 @@
+{
+    "name": "qttools",
+    "version": "6.4.0",
+    "port-version": 0,
+    "default-features": [
+        "linguist",
+        "qml"
+    ],
+    "features": {
+        "linguist": {
+            "description": "linguist"
+        },
+        "qml": {
+            "description": "qml"
+        }
+    }
+}

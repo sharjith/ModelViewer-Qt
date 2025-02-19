@@ -6,6 +6,9 @@ on:
       - master
   pull_request:
 
+env:
+  VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/.github/vcpkg_overlays/qt
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -24,15 +27,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt install          \
-          ninja-build               \
-          libltdl-dev               \
-          '^libxcb.*-dev'           \
-          libx11-xcb-dev            \
-          libgl1-mesa-dev           \
-          libxrender-dev            \
-          libxi-dev                 \
-          libxkbcommon-dev          \
-          libxkbcommon-x11-dev
+          ninja-build
+
 
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
@@ -40,6 +36,12 @@ jobs:
           brew update
           brew install              \
             ninja
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.2'
+          cache: 'true'
 
       - name: Run vcpkg
         uses: lukka/run-vcpkg@v11.5
