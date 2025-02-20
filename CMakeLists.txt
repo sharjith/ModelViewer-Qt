@@ -57,8 +57,30 @@ endif()
 
 set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
 
-
 install(TARGETS ModelViewer)
 install(DIRECTORY fonts shaders textures
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
+
+if(WIN32)
+   install(TARGETS ModelViewer
+        RUNTIME_DEPENDENCIES 
+            PRE_EXCLUDE_REGEXES
+		        [[hvsifiletrust.*]]
+		        [[pdmutilities.*]]
+		        [[api-ms-win-.*]]
+		        [[ext-ms-.*]]
+                [[qt6.*\\.dll]]                                                         # qt_generate_deploy_app_script will take care about Qt's libs
+            POST_EXCLUDE_REGEXES
+                [[.*system32.*.dll]]
+    )
+
+    qt_generate_deploy_app_script(
+        TARGET ModelViewer
+        OUTPUT_SCRIPT deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+        NO_COMPILER_RUNTIME
+    )
+
+    install(SCRIPT ${deploy_script})
+endif()
