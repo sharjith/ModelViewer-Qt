@@ -16,6 +16,13 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+        qt:
+            - major: "Qt6"
+              version: '6.8.2'
+              vcpkg: 'vcpkg.json'
+            - major: "Qt5"
+              version: '5.15'
+              vcpkg: 'vcpkg-qt5.json'
 
     steps:
       - name: Checkout code
@@ -40,13 +47,13 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          version: '6.8.2'
+          version: ${{ matrix.qt.version }}
           cache: 'true'
 
       - name: Run vcpkg
         uses: lukka/run-vcpkg@v11.5
         with:
-            vcpkgJsonGlob: vcpkg.json
+            vcpkgJsonGlob: ${{ matrix.qt.vcpkg }}
 
       - name: Build
         uses: lukka/run-cmake@v10

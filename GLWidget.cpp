@@ -3271,8 +3271,12 @@ int GLWidget::processSelection(const QPoint& pixel)
 						QColor pickColor = indexToColor(i + 1);
 						qDebug() << "Id " << i << "Pick Color" << pickColor;
 						_selectionShader->bind();
-						float r, g, b, a;
-						pickColor.getRgbF(&r, &g, &b, &a);
+
+						const float r = pickColor.redF();
+						const float g = pickColor.greenF();
+						const float b = pickColor.blueF();
+						const float a = pickColor.alphaF();
+
 						_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
 						mesh->setProg(_selectionShader);
 						mesh->getVAO().bind();

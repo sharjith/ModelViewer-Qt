@@ -170,7 +170,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxGammaCorrection, SIGNAL(toggled(bool)), _glWidget, SLOT(enableGammaCorrection(bool)));
 	connect(doubleSpinBoxScreenGamma, SIGNAL(valueChanged(double)), _glWidget, SLOT(setScreenGamma(double)));
 
-    connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
+	connect(buttonGroupLighting, SIGNAL(buttonToggled(QAbstractButton*, bool)), this, SLOT(lightingType_toggled(QAbstractButton*, bool)));
 	toolBox->setItemEnabled(0, true);
 	toolBox->setItemEnabled(1, false);
 	toolBox->setItemEnabled(2, false);
@@ -1952,7 +1952,7 @@ void ModelViewer::switchToRealisticRendering()
 	}
 }
 
-void ModelViewer::lightingType_toggled()
+void ModelViewer::lightingType_toggled(QAbstractButton *, bool)
 {
 	if (radioButtonADSL->isChecked())
 	{
