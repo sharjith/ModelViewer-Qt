@@ -83,7 +83,7 @@ private slots:
 	void closeSubWindow();
 	void closeAllSubWindows();
 
-private:
+private:	
 	void readSettings();
 	void writeSettings();
 	static bool hasRecentFiles();
@@ -97,6 +97,9 @@ private:
 
 	Ui::MainWindow* ui;
 	QProgressBar* _progressBar;
+#ifdef _WIN32
+	QWinTaskbarProgress* _windowsTaskbarProgress;
+#endif
 	QPushButton* _cancelTaskButton;
 	QList<ModelViewer*> _viewers;
 

@@ -11,6 +11,11 @@ if(Qt6_FOUND)
     set(QT_VERSION_MAJOR 6)
 else()
     find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui OpenGL Widgets)
+
+    if(WIN32)
+        find_package(Qt5 REQUIRED COMPONENTS WinExtras)
+    endif()
+
     set(QT_VERSION_MAJOR 5)
 endif()
 
@@ -65,6 +70,14 @@ if(WIN32)
         PRIVATE
             ModelViewer.rc
     )
+
+    if(QT_VERSION_MAJOR EQUAL 5)
+        target_link_libraries(ModelViewer
+            PRIVATE
+                Qt::WinExtras
+        )
+    endif()
+
 endif()
 
 set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
