@@ -24,6 +24,11 @@ jobs:
               version: '5.15'
               vcpkg: 'vcpkg-qt5.json'
 
+        exclude:
+            - os: macos-latest
+              qt:
+                major: "Qt5"
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
