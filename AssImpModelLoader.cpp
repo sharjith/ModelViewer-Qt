@@ -1,4 +1,5 @@
 #include "AssImpModelLoader.h"
+#include "Utils.h"
 
 using namespace std;
 
@@ -338,7 +339,7 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, std::string di
 	}
 	else
 	{
-		texImage = texImage.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
+		texImage = convertToGLFormat(texImage);
 	}
 
 	// Assign texture to ID

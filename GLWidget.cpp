@@ -51,6 +51,7 @@
 #include "Plane.h"
 #include "ModelViewer.h"
 #include "MainWindow.h"
+#include "Utils.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include "stb_image.h"
@@ -774,7 +775,7 @@ void GLWidget::showFloor(bool show)
 
 void GLWidget::setFloorTexture(QImage img)
 {
-	_floorTexImage = img.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
+	_floorTexImage = convertToGLFormat(img);
 	_floorPlane->setTexureImage(_floorTexImage);
 }
 
@@ -2067,7 +2068,7 @@ void GLWidget::loadFloor()
 	}
 	else
 	{
-		_floorTexImage = _texBuffer.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
+		_floorTexImage = convertToGLFormat(_texBuffer);
 	}
 
 	_floorSize = _boundingSphere.getRadius();
@@ -2128,7 +2129,7 @@ void GLWidget::loadEnvMap()
 			QImage dummy(128, 128, static_cast<QImage::Format>(5));
 			dummy.fill(Qt::white);
 			_texImage = dummy;
-			_texImage = _texBuffer.convertToFormat(QImage::Format_RGBA8888).mirrored(); // flipped 32bit RGBA
+			_texImage = convertToGLFormat(_texBuffer);
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
 		}
 	}
