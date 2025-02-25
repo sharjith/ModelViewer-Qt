@@ -16,18 +16,25 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include <assimp/ProgressHandler.hpp>
-using namespace Assimp;
 
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
 
-using namespace std;
 
-class AssImpModelProgressHandler : public QObject, public ProgressHandler
+class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
 {
 	Q_OBJECT
 public:
 	virtual bool Update(float percentage);
+
+	// Required by Qt system. TODO: Make sure it is fine
+	inline void* operator new(size_t, void* ptr) noexcept
+    {
+        return ptr;
+    }
+
+    using Assimp::ProgressHandler::operator new;
+
 signals:
 	void fileReadProcessed(float percent);
 };
@@ -44,9 +51,9 @@ public:
 
 	/*  Functions   */
 	// Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
-	void loadModel(string path);
+	void loadModel(std::string path);
 
-	vector<AssImpMesh*> getMeshes() const;
+	std::vector<AssImpMesh*> getMeshes() const;
 
 	QString getErrorMessage() const;
 
@@ -64,9 +71,9 @@ private:
 	QOpenGLShaderProgram* _prog;
 	std::string _path;
 	/*  Model Data  */
-	vector<AssImpMesh*> _meshes;
-	string directory;
-	vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
+	std::vector<AssImpMesh*> _meshes;
+	std::string directory;
+	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
@@ -75,9 +82,9 @@ private:
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
 	// The required info is returned as a Texture struct.
-	vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName);
+	std::vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName);
 
-	unsigned int textureFromFile(const char* path, string directory);
+	unsigned int textureFromFile(const char* path, std::string directory);
 
 	Assimp::Importer _importer;
 	AssImpModelProgressHandler* _progHandler;

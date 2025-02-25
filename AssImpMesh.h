@@ -14,7 +14,6 @@
 #include "TriangleMesh.h"
 #include "GLMaterial.h"
 
-using namespace std;
 
 struct Vertex
 {
@@ -33,7 +32,7 @@ struct Vertex
 struct Texture
 {
 	unsigned int id;
-	string type;
+	std::string type;
 	aiString path;
 };
 
@@ -43,16 +42,16 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material);
+	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures, GLMaterial material);
 	~AssImpMesh();
 	virtual TriangleMesh* clone();
 	void render();
 
-    vector<Vertex> vertices() const;
+    std::vector<Vertex> vertices() const;
 
-    vector<unsigned int> indices() const;
+    std::vector<unsigned int> indices() const;
 
-    vector<Texture> textures() const;
+    std::vector<Texture> textures() const;
 
 private:
 	/*  Functions    */
@@ -61,7 +60,7 @@ private:
 
 private:
 	/*  Mesh Data  */
-	vector<Vertex> _vertices;
-	vector<unsigned int> _indices;
-	vector<Texture> _textures;
+	std::vector<Vertex> _vertices;
+	std::vector<unsigned int> _indices;
+	std::vector<Texture> _textures;
 };

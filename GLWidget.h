@@ -1,11 +1,12 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
-#include <QtGui>
-#include <QtOpenGL>
+#include <QOpenGLWidget>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QImage>
 #include <QColor>
+#include <QFormLayout>
+#include <QRubberBand>
 
 #include <math.h>
 #include "GLCamera.h"
@@ -515,7 +516,7 @@ private:
 	BoundingSphere _selectionBoundingSphere;
 	Plane* _floorPlane;
 	Cube* _skyBox;
-	vector<QString> _skyBoxFaces;
+	std::vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;
 	bool  _gammaCorrection;

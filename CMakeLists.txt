@@ -5,11 +5,21 @@ project(ModelViewer)
 
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
-find_package(Qt5 REQUIRED COMPONENTS Gui OpenGL)
 
-if(WIN32)
-    find_package(Qt5 REQUIRED COMPONENTS WinExtras)
+find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets)
+if(Qt6_FOUND)
+    set(QT_VERSION_MAJOR 6)
+else()
+    find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui OpenGL Widgets)
+
+    if(WIN32)
+        find_package(Qt5 REQUIRED COMPONENTS WinExtras)
+    endif()
+
+    set(QT_VERSION_MAJOR 5)
 endif()
+
+message("Using Qt${QT_VERSION_MAJOR}")
 
 include(GNUInstallDirs)
 
@@ -28,8 +38,8 @@ configure_file(
 file(GLOB sources *.cpp *.h)
 file(GLOB ui_sources *.ui)
 
-qt5_wrap_ui(ui_wrapped ${ui_sources})
-qt5_add_resources(resources ModelViewer.qrc)
+qt_wrap_ui(ui_wrapped ${ui_sources})
+qt_add_resources(resources ModelViewer.qrc)
 
 target_sources(ModelViewer
     PRIVATE
@@ -48,8 +58,11 @@ target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
         Freetype::Freetype
+        Qt::Core
         Qt::Gui
-        Qt::OpenGL
+        $<$<EQUAL:${QT_VERSION_MAJOR},6>:Qt::OpenGLWidgets>
+        $<$<EQUAL:${QT_VERSION_MAJOR},5>:Qt::OpenGL>
+        Qt::Widgets
 )
 
 if(WIN32)
@@ -58,16 +71,43 @@ if(WIN32)
             ModelViewer.rc
     )
 
-    target_link_libraries(ModelViewer
-        PRIVATE
-            Qt::WinExtras
-    )
+    if(QT_VERSION_MAJOR EQUAL 5)
+        target_link_libraries(ModelViewer
+            PRIVATE
+                Qt::WinExtras
+        )
+    endif()
+
 endif()
 
 set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
-
 
 install(TARGETS ModelViewer)
 install(DIRECTORY fonts shaders textures
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
+
+if(WIN32)
+   install(TARGETS ModelViewer
+        RUNTIME_DEPENDENCIES
+            PRE_EXCLUDE_REGEXES
+		        [[hvsifiletrust.*]]
+		        [[pdmutilities.*]]
+		        [[api-ms-win-.*]]
+		        [[ext-ms-.*]]
+                [[qt6.*\\.dll]]                                                         # qt_generate_deploy_app_script will take care about Qt's libs
+            POST_EXCLUDE_REGEXES
+                [[.*system32.*.dll]]
+    )
+
+    if(QT_VERSION_MAJOR EQUAL 6)
+        qt_generate_deploy_app_script(
+            TARGET ModelViewer
+            OUTPUT_SCRIPT deploy_script
+            NO_UNSUPPORTED_PLATFORM_ERROR
+            NO_COMPILER_RUNTIME
+        )
+
+        install(SCRIPT ${deploy_script})
+    endif()
+endif()

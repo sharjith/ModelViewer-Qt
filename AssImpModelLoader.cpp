@@ -1,4 +1,5 @@
 #include "AssImpModelLoader.h"
+#include "Utils.h"
 
 using namespace std;
 
@@ -258,12 +259,12 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 			mat.setSpecular(QVector3D(color.r, color.g, color.b));
 			bool grayScale = (color.r == color.g && color.g == color.b && color.r == color.b);
 			float intensity = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
-			if (grayScale)	
+			if (grayScale)
 				mat.setMetalness(intensity > 0.04f ? 0.04f : intensity); // limit to 4% for dielectrics
 			else
 				mat.setMetalness(intensity);
 			mat.setRoughness(1.0f - intensity);
-			
+
 		}
 		if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
 		{
@@ -319,7 +320,7 @@ vector<Texture> AssImpModelLoader::loadMaterialTextures(aiMaterial* mat, aiTextu
 	return textures;
 }
 
-unsigned int AssImpModelLoader::textureFromFile(const char* path, string directory)
+unsigned int AssImpModelLoader::textureFromFile(const char* path, std::string directory)
 {
 	//Generate texture ID and load texture data
 	string filename = string(path);
@@ -338,7 +339,7 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, string directo
 	}
 	else
 	{
-		texImage = QGLWidget::convertToGLFormat(texImage); // flipped 32bit RGBA
+		texImage = convertToGLFormat(texImage);
 	}
 
 	// Assign texture to ID

@@ -5,7 +5,10 @@
     "assimp",
     "freetype",
     "glm",
-    "qtbase",
-    "qttools"
+    "qt5-base",
+    {
+      "name": "qt5-winextras",
+      "platform": "windows"
+    }
   ]
 }

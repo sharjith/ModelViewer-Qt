@@ -1,3 +1,7 @@
+
+#include <QMessageBox>
+#include <QFileDialog>
+
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
@@ -8,7 +12,7 @@
 #include <QMdiSubWindow>
 #include <assimp/version.h>
 
-#ifdef _WIN32
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
 #include <QWinTaskbarButton>
 #endif
@@ -180,18 +184,18 @@ void MainWindow::showStatusMessage(const QString& message, int timeout)
 void MainWindow::showProgressBar()
 {
 	_mainWindow->_progressBar->show();
-#ifdef _WIN32
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
 	_mainWindow->_windowsTaskbarProgress->show();
-#endif // _WIN32
+#endif 
 	_mainWindow->_cancelTaskButton->show();
 }
 
 void MainWindow::hideProgressBar()
 {
 	_mainWindow->_progressBar->hide();
-#ifdef _WIN32
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
 	_mainWindow->_windowsTaskbarProgress->hide();
-#endif // _WIN32
+#endif 
 	_mainWindow->_cancelTaskButton->hide();
 }
 
@@ -200,16 +204,16 @@ void MainWindow::setProgressValue(const int& value)
 	if (value == 0)
 	{
 		_mainWindow->_progressBar->reset();
-#ifdef _WIN32
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
 		_mainWindow->_windowsTaskbarProgress->reset();
-#endif // _WIN32
+#endif 
 	}
 	else
 	{
 		_mainWindow->_progressBar->setValue(value);
-#ifdef _WIN32
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
 		_mainWindow->_windowsTaskbarProgress->setValue(value);
-#endif // _WIN32
+#endif 
 	}
 	_mainWindow->_progressBar->update();
 	qApp->processEvents();
@@ -225,8 +229,8 @@ void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
     unsigned int assimpMajor = aiGetVersionMajor();
     unsigned int assimpMinor = aiGetVersionMinor();
-	QMessageBox::about(this, 
-		"About 3D Model Viewer", 
+	QMessageBox::about(this,
+		"About 3D Model Viewer",
         QString::fromWCharArray(L"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library - "
         "Version %1.%2\n\n"
         "Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n").arg(assimpMajor).arg(assimpMinor)
@@ -243,7 +247,7 @@ void MainWindow::showEvent(QShowEvent* event)
 {
 	QWidget::showEvent(event);
 
-#ifdef _WIN32
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
 	QWinTaskbarButton* windowsTaskbarButton = new QWinTaskbarButton(this);    //Create the taskbar button which will show the progress
 	windowsTaskbarButton->setWindow(windowHandle());    //Associate the taskbar button to the progress bar, assuming that the progress bar is its own window
 	_windowsTaskbarProgress = windowsTaskbarButton->progress();
@@ -288,7 +292,7 @@ void MainWindow::dropEvent(QDropEvent* event)
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
-		QString fileName = url.toLocalFile();	
+		QString fileName = url.toLocalFile();
 		ModelViewer::setLastOpenedDir(QFileInfo(fileName).path()); // store path for next time
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
@@ -346,8 +350,8 @@ bool MainWindow::openFile(const QString& fileName)
 		ui->mdiArea->setActiveSubWindow(existing);
 		return true;
 	}
-	const bool succeeded = loadFile(fileName);	
-		
+	const bool succeeded = loadFile(fileName);
+
 	return succeeded;
 }
 

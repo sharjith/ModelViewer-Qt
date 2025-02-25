@@ -41,7 +41,7 @@
 #include <QQuaternion>
 
 #include <iostream>
-using namespace std;
+
 
 #ifndef PI
 #define PI 3.1415926535897932384626433832795

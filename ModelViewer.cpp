@@ -1,5 +1,12 @@
 #include <QApplication>
-#include <MainWindow.h>
+#include <QColorDialog>
+#include <QFileDialog>
+#include <QLineEdit>
+#include <QMenu>
+#include <QMessageBox>
+#include <QToolTip>
+
+#include "MainWindow.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
 #include "SphericalHarmonicsEditor.h"
@@ -38,36 +45,36 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_documentSaved = false;
 	_runningFirstTime = true;
-	
+
 	_textureDirOpenedFirstTime = true;
 
 	isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
 	isometricView->setObjectName(QString::fromUtf8("isometricView"));
-	isometricView->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_1));
+	isometricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
 
 	dimetricView = new QAction(QIcon(":/new/prefix1/res/dimetric.png"), "Dimetric", this);
 	dimetricView->setObjectName(QString::fromUtf8("dimetricView"));
-	dimetricView->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_2));
+	dimetricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
 
 	trimetricView = new QAction(QIcon(":/new/prefix1/res/trimetric.png"), "Trimetric", this);
 	trimetricView->setObjectName(QString::fromUtf8("trimetricView"));
-	trimetricView->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_3));
+	trimetricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
 
 	displayShaded = new QAction(QIcon(":/new/prefix1/res/shaded.png"), "Shaded", this);
 	displayShaded->setObjectName(QString::fromUtf8("displayShaded"));
-	displayShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_S));
+	displayShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
 
 	displayWireframe = new QAction(QIcon(":/new/prefix1/res/wireframe.png"), "Wireframe", this);
 	displayWireframe->setObjectName(QString::fromUtf8("displayWireframe"));
-	displayWireframe->setShortcut(QKeySequence(Qt::CTRL + Qt::ALT + Qt::Key_W));
+	displayWireframe->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W));
 
 	displayWireShaded = new QAction(QIcon(":/new/prefix1/res/wireshaded.png"), "Wire Shaded", this);
 	displayWireShaded->setObjectName(QString::fromUtf8("displayWireShaded"));
-	displayWireShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_W));
+	displayWireShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
 
 	displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), "Realistic", this);
 	displayRealShaded->setObjectName(QString::fromUtf8("displayRealShaded"));
-	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_R));
+	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
 
 	setupUi(this);
 
@@ -145,10 +152,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
 
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_I), this);
+	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonImport_clicked()));
 
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL + Qt::SHIFT + Qt::Key_E), this);
+	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonExport_clicked()));
 
 	connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
@@ -163,7 +170,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxGammaCorrection, SIGNAL(toggled(bool)), _glWidget, SLOT(enableGammaCorrection(bool)));
 	connect(doubleSpinBoxScreenGamma, SIGNAL(valueChanged(double)), _glWidget, SLOT(setScreenGamma(double)));
 
-    connect(buttonGroupLighting, SIGNAL(buttonToggled(int,bool)), this, SLOT(lightingType_toggled(int,bool)));
+	connect(buttonGroupLighting, SIGNAL(buttonToggled(QAbstractButton*, bool)), this, SLOT(lightingType_toggled(QAbstractButton*, bool)));
 	toolBox->setItemEnabled(0, true);
 	toolBox->setItemEnabled(1, false);
 	toolBox->setItemEnabled(2, false);
@@ -212,7 +219,7 @@ void ModelViewer::deselectAll()
 }
 
 void ModelViewer::setListRow(int index)
-{	
+{
 	if (index != -1)
 	{
 		bool oldState = listWidgetModel->blockSignals(true);
@@ -442,7 +449,7 @@ void ModelViewer::updateDisplayList()
 		id++;
 	}
 	_glWidget->fitAll();
-		
+
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);
 	sliderLightPosY->setRange(-range, range);
@@ -490,7 +497,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 		if (event->key() == Qt::Key_L)
 			toolButtonLeftView->animateClick();
 		if (event->key() == Qt::Key_J)
-			toolButtonRightView->animateClick();		
+			toolButtonRightView->animateClick();
 		if (event->key() == Qt::Key_P)
 			toolButtonProjection->animateClick();
 		if (event->key() == Qt::Key_M)
@@ -973,7 +980,7 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::clickMultiViewButton()
 {
-	toolButtonMultiView->animateClick(0);
+	toolButtonMultiView->animateClick();
 }
 
 void ModelViewer::on_checkTexture_toggled(bool checked)
@@ -1251,7 +1258,7 @@ void ModelViewer::on_toolButtonShowHideAxis_toggled(bool checked)
 void ModelViewer::on_toolButtonMultiView_toggled(bool checked)
 {
 	_glWidget->setMultiView(checked);
-	toolButtonIsometricView->animateClick(0);
+	toolButtonIsometricView->animateClick();
 	_glWidget->resizeView(glframe->width(), glframe->height());
 	_glWidget->updateView();
 }
@@ -1750,8 +1757,8 @@ void ModelViewer::on_toolButtonExport_clicked()
     if(!fileName.isEmpty())
     {
         AssImpMeshExporter exporter;
-        vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
-        vector<AssImpMesh*> assImpMeshes;
+        std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
+        std::vector<AssImpMesh*> assImpMeshes;
         for(TriangleMesh* triMesh : triMeshes)
         {
             assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
@@ -1779,7 +1786,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 		listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
 		listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
-		updateDisplayList();		
+		updateDisplayList();
 
 		MainWindow::showStatusMessage(tr("File loaded"), 2000);
 	}
@@ -1945,7 +1952,7 @@ void ModelViewer::switchToRealisticRendering()
 	}
 }
 
-void ModelViewer::lightingType_toggled(int, bool)
+void ModelViewer::lightingType_toggled(QAbstractButton *, bool)
 {
 	if (radioButtonADSL->isChecked())
 	{
