@@ -1,6 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=MatlEditor_OpenGL
-Exec=MatlEditor_OpenGL-4.0
-StartupNotify=true
-Icon=res/MatlEditor.ico
