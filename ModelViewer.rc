@@ -30,7 +30,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-A                       ICON    DISCARDABLE     "res/MatlEditor.ico"
+A                       ICON    DISCARDABLE     "res/ModelViewer.ico"
 
 #ifndef _MAC
 /////////////////////////////////////////////////////////////////////////////
@@ -57,14 +57,14 @@ BEGIN
         BEGIN
             VALUE "Comments", "\0"
             VALUE "CompanyName", "N. Sharjith\0"
-            VALUE "FileDescription", "OpenGL Material Editor\0"
+            VALUE "FileDescription", "Assimp OpenGL Model Viewer\0"
             VALUE "FileVersion", "1.0\0"
-            VALUE "InternalName", "MatlEditor\0"
+            VALUE "InternalName", "ModelViewer\0"
             VALUE "LegalCopyright", "N. Sharjith\0"
             VALUE "LegalTrademarks", "N. Sharjith\0"
-            VALUE "OriginalFilename", "MatlEditor.exe\0"
+            VALUE "OriginalFilename", "ModelViewer.exe\0"
             VALUE "PrivateBuild", "\0"
-            VALUE "ProductName", "MatlEditor\0"
+            VALUE "ProductName", "ModelViewer\0"
             VALUE "ProductVersion", "1.0\0"
             VALUE "SpecialBuild", "\0"
         END
