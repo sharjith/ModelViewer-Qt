@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=ModelViewer
+Exec=ModelViewer
+StartupNotify=true
+Icon=res/ModelViewer.ico
