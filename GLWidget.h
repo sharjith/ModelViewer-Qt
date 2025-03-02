@@ -367,7 +367,7 @@ private:
 	QPoint _rightButtonPoint;
 	QPoint _middleButtonPoint;
 
-	QRubberBand* _rubberBand;
+	QRubberBand _rubberBand;
 	QRubberBand* _selectRect;
 	QVector3D _rubberBandPan;
 	GLfloat _rubberBandZoomRatio;
