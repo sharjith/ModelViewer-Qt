@@ -134,7 +134,9 @@ _assimpModelLoader(nullptr)
 	_showAxis = true;
 
 	_windowZoomActive = false;
-	_rubberBand = nullptr;
+
+    _rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
+    _rubberBand->setStyle(QStyleFactory::create("Fusion"));
 
 	_viewZooming = false;
 	_viewPanning = false;
@@ -3522,11 +3524,6 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 			clickSelect(QPoint(e->x(), e->y()));
 		}
 
-		if (!_rubberBand)
-		{
-			_rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
-			_rubberBand->setStyle(QStyleFactory::create("Fusion"));
-		}
 		_rubberBand->setGeometry(QRect(_leftButtonPoint, QSize()));
 		_rubberBand->show();
 	}
