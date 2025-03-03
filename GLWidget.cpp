@@ -69,6 +69,7 @@ constexpr auto TWO_HUNDRED_MB = 209715200; // bytes
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
 _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
+_rubberBand(QRubberBand::Rectangle),
 _sphericalHarmonicsEditor(nullptr),
 _superToroidEditor(nullptr),
 _superEllipsoidEditor(nullptr),
@@ -134,7 +135,7 @@ _assimpModelLoader(nullptr)
 	_showAxis = true;
 
 	_windowZoomActive = false;
-	_rubberBand = nullptr;
+	_rubberBand.setStyle(QStyleFactory::create("Fusion"));
 
 	_viewZooming = false;
 	_viewPanning = false;
@@ -531,31 +532,30 @@ void GLWidget::beginWindowZoom()
 void GLWidget::performWindowZoom()
 {
 	_windowZoomActive = false;
-	if (_rubberBand)
+
+	QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
+	Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand.geometry().center()));
+
+	QRect clientRect = getClientRectFromPoint(_rubberBand.geometry().center());
+	QPoint clientWinCen = clientRect.center();
+	QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
+	QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand.geometry().center()));
+
+	QRect zoomRect = _rubberBand.geometry();
+	if (zoomRect.width() == 0 || zoomRect.height() == 0)
 	{
-		QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-		QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
-		QPoint clientWinCen = clientRect.center();
-		QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
-		QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-		QRect zoomRect = _rubberBand->geometry();
-		if (zoomRect.width() == 0 || zoomRect.height() == 0)
-		{
-			emit windowZoomEnded();
-			return;
-		}
-		QPoint zoomWinCen = zoomRect.center();
-		QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
-		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-		double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
-		double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
-		_rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
-		_rubberBandPan = P - O;
+		emit windowZoomEnded();
+		return;
 	}
+	QPoint zoomWinCen = zoomRect.center();
+	QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
+	QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand.geometry().center()));
+
+	double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
+	double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
+	_rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
+	_rubberBandPan = P - O;
+
 	if (!_animateWindowZoomTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
@@ -3522,13 +3522,8 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 			clickSelect(QPoint(e->x(), e->y()));
 		}
 
-		if (!_rubberBand)
-		{
-			_rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
-			_rubberBand->setStyle(QStyleFactory::create("Fusion"));
-		}
-		_rubberBand->setGeometry(QRect(_leftButtonPoint, QSize()));
-		_rubberBand->show();
+		_rubberBand.setGeometry(QRect(_leftButtonPoint, QSize()));
+		_rubberBand.show();
 	}
 
 	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewPanning))
@@ -3548,7 +3543,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 {
 	if (e->button() & Qt::LeftButton)
 	{
-		_rubberBand->hide();
+		_rubberBand.hide();
 		if (_windowZoomActive)
 		{
 			performWindowZoom();
@@ -3595,7 +3590,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
-			_rubberBand->setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
+			_rubberBand.setGeometry(QRect(_leftButtonPoint, e->pos()).normalized());
 		}
 		if (_windowZoomActive)
 		{
@@ -4147,7 +4142,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 		}
 	}
 
-	QRect rubberRect = _rubberBand->geometry();
+	QRect rubberRect = _rubberBand.geometry();
 	if (rubberRect.width() == 0 || rubberRect.height() == 0)
 	{
 		return _selectedIDs;
