@@ -71,7 +71,7 @@ _opacityPBRMapInverted(false)
     if (!_texBuffer.load(path + "textures/opengllogo.png"))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
-		QImage dummy(128, 128, static_cast<QImage::Format>(5));
+		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		_texBuffer = dummy;
 	}

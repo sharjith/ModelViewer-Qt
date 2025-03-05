@@ -2063,7 +2063,7 @@ void GLWidget::loadFloor()
     if (!_texBuffer.load(QString(path + "textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
-		QImage dummy(128, 128, static_cast<QImage::Format>(5));
+		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		_floorTexImage = dummy;
 	}
@@ -2127,7 +2127,7 @@ void GLWidget::loadEnvMap()
 		else
 		{
 			qWarning("Could not read image file, using single-color instead.");
-			QImage dummy(128, 128, static_cast<QImage::Format>(5));
+			QImage dummy(128, 128, QImage::Format_ARGB32);
 			dummy.fill(Qt::white);
 			_texImage = dummy;
 			_texImage = convertToGLFormat(_texBuffer);
