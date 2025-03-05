@@ -6,6 +6,7 @@
 #include "TriangleBaldwinWeber.h"
 #include "Point.h"
 #include "Utils.h"
+#include "config.h"
 
 #include <algorithm>
 #include <iostream>
@@ -67,7 +68,7 @@ _opacityPBRMapInverted(false)
 
 	_vertexArrayObject.create();
 
-    QString path = QApplication::applicationDirPath() + "/";
+    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
     if (!_texBuffer.load(path + "textures/opengllogo.png"))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
