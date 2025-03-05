@@ -217,8 +217,7 @@ _assimpModelLoader(nullptr)
 	_visibleSwapped = false;
 
 	_keyboardNavTimer = new QTimer(this);
-	_keyboardNavTimer->setTimerType(Qt::PreciseTimer);
-	connect(_keyboardNavTimer, SIGNAL(timeout()), this, SLOT(performKeyboardNav()));
+	connect(_keyboardNavTimer, &QTimer::timeout, this, &GLWidget::performKeyboardNav);
 	_keyboardNavTimer->start(15);
 
 	_animateViewTimer = new QTimer(this);
@@ -3694,10 +3693,11 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 void GLWidget::keyPressEvent(QKeyEvent* event)
 {
-	_keys[event->key()] = true;
 	QWidget::keyPressEvent(event);
 
-	if (_keys[Qt::Key_Escape])
+	const auto key = event->key();
+
+	if (key == Qt::Key_Escape)
 	{
 		_viewRotating = false;
 		_viewPanning = false;
@@ -3708,78 +3708,78 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 
 		_viewer->deselectAll();
 	}
-
-	if (_keys[Qt::Key_F])
+	else if (key == Qt::Key_F)
 		fitAll();
-	if (_keys[Qt::Key_Delete])
+	else if (key == Qt::Key_Delete)
 		_viewer->deleteSelectedItems();
-	if (_keys[Qt::Key_Space])
+	else if (key == Qt::Key_Space)
 	{
 		if (event->modifiers() & Qt::ShiftModifier)
 			_viewer->showOnlySelectedItems();
 		else
 			_visibleSwapped ? _viewer->showSelectedItems() : _viewer->hideSelectedItems();
 	}
-	if (_keys[Qt::Key_S])
+	else if (key == Qt::Key_S && (event->modifiers() & Qt::AltModifier))
 	{
-		if (event->modifiers() & Qt::AltModifier)
-			swapVisible(!_visibleSwapped);
+		swapVisible(!_visibleSwapped);
 	}
+	else
+		_keys.insert(key);
 
 	update();
 }
 
 void GLWidget::keyReleaseEvent(QKeyEvent* event)
 {
-	_keys[event->key()] = false;
+	_keys.remove(event->key());
 	QWidget::keyReleaseEvent(event);
 }
 
 void GLWidget::performKeyboardNav()
 {
-	if (QApplication::keyboardModifiers() == Qt::NoModifier)
+	if (_keys.empty() == false && QApplication::keyboardModifiers() == Qt::NoModifier)
 	{
 		float factor = _viewRange * 0.01f;
 		// https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
 		if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
 		{
-			if (_keys[Qt::Key_A])
+			if (_keys.contains(Qt::Key_A))
 				_primaryCamera->moveAcross(factor);
-			if (_keys[Qt::Key_D])
+			if (_keys.contains(Qt::Key_D))
 				_primaryCamera->moveAcross(-factor);
-			if (_keys[Qt::Key_W])
+			if (_keys.contains(Qt::Key_W))
 				_primaryCamera->moveForward(-factor);
-			if (_keys[Qt::Key_S])
+			if (_keys.contains(Qt::Key_S))
 				_primaryCamera->moveForward(factor);
 		}
 		else
 		{
-			if (_keys[Qt::Key_A])
+			if (_keys.contains(Qt::Key_A))
 				_primaryCamera->moveAcross(factor);
-			if (_keys[Qt::Key_D])
+			if (_keys.contains(Qt::Key_D))
 				_primaryCamera->moveAcross(-factor);
-			if (_keys[Qt::Key_W])
+			if (_keys.contains(Qt::Key_W))
 				_primaryCamera->moveUpward(-factor);
-			if (_keys[Qt::Key_S])
+			if (_keys.contains(Qt::Key_S))
 				_primaryCamera->moveUpward(factor);
 		}
 
-		if (_keys[Qt::Key_J])
+		if (_keys.contains(Qt::Key_J))
 			_primaryCamera->rotateY(2.0f);
-		if (_keys[Qt::Key_L])
+		if (_keys.contains(Qt::Key_L))
 			_primaryCamera->rotateY(-2.0f);
-		if (_keys[Qt::Key_I])
+		if (_keys.contains(Qt::Key_I))
 			_primaryCamera->rotateX(2.0f);
-		if (_keys[Qt::Key_K])
+		if (_keys.contains(Qt::Key_K))
 			_primaryCamera->rotateX(-2.0f);
-		if (_keys[Qt::Key_M])
+		if (_keys.contains(Qt::Key_M))
 			_primaryCamera->rotateZ(2.0f);
-		if (_keys[Qt::Key_N])
+		if (_keys.contains(Qt::Key_N))
 			_primaryCamera->rotateZ(-2.0f);
-		if (_keys[Qt::Key_Q] || _keys[Qt::Key_Z])
+		if (_keys.contains(Qt::Key_Q) || _keys.contains(Qt::Key_Z))
 		{
 			// Zoom
-			if (_keys[Qt::Key_Q])
+			if (_keys.contains(Qt::Key_Q))
 				_viewRange /= 1.05f;
 			else
 				_viewRange *= 1.05f;
@@ -3791,7 +3791,7 @@ void GLWidget::performKeyboardNav()
 			QPoint pos = mapFromGlobal(QCursor::pos());
 			QPoint cen = getClientRectFromPoint(pos).center();
 			float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
-				(pos.x() < cen.x() && pos.y() > cen.y())) && _keys[Qt::Key_Q] ? 1.0f : -1.0f;
+				(pos.x() < cen.x() && pos.y() > cen.y())) && _keys.contains(Qt::Key_Q) ? 1.0f : -1.0f;
 			QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
             OP *= sign * 0.05f;
 			_primaryCamera->move(OP.x(), OP.y(), OP.z());
