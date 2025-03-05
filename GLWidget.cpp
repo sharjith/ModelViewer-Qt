@@ -3263,7 +3263,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 
-			for (int i : qAsConst(_selectedIDs))
+			for (int i : std::as_const(_selectedIDs))
 			{
 				try
 				{
@@ -3442,13 +3442,13 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	}
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
-	prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix * (QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
+	prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
 		(_clipXFlipped ? 1 : -1) * (pos.x() - _clipXCoeff)));
-	prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix * (QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
+	prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
 		(_clipYFlipped ? 1 : -1) * (pos.y() - _clipYCoeff)));
-	prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix * (QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
+	prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
 		(_clipZFlipped ? 1 : -1) * (pos.z() - _clipZCoeff)));
-	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix * (QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
 
@@ -3513,14 +3513,14 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	checkAndStopTimers();
 	if (e->button() & Qt::LeftButton)
 	{
-		_leftButtonPoint.setX(e->x());
-		_leftButtonPoint.setY(e->y());
+		_leftButtonPoint.setX(e->position().x());
+		_leftButtonPoint.setY(e->position().y());
 
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
-			clickSelect(QPoint(e->x(), e->y()));
+			clickSelect(QPoint(e->position().x(), e->position().y()));
 		}
 
 
@@ -3530,14 +3530,14 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
 	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewPanning))
 	{
-		_rightButtonPoint.setX(e->x());
-		_rightButtonPoint.setY(e->y());
+		_rightButtonPoint.setX(e->position().x());
+		_rightButtonPoint.setY(e->position().y());
 	}
 
 	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewRotating))
 	{
-		_middleButtonPoint.setX(e->x());
-		_middleButtonPoint.setY(e->y());
+		_middleButtonPoint.setX(e->position().x());
+		_middleButtonPoint.setY(e->position().y());
 	}
 }
 
@@ -3587,7 +3587,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
-	QPoint downPoint(e->x(), e->y());
+	QPoint downPoint(e->position().x(), e->position().y());
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
 		if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)

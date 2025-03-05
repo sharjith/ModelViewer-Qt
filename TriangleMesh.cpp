@@ -862,7 +862,7 @@ void TriangleMesh::setupTransformation()
 	for (size_t i = 0; i < _points.size(); i += 3)
 	{
 		QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
-		QVector3D tp = _transformation * p;
+		QVector3D tp = _transformation.map(p);
 		_trsfpoints.push_back(tp.x());
 		_trsfpoints.push_back(tp.y());
 		_trsfpoints.push_back(tp.z());
@@ -879,7 +879,7 @@ void TriangleMesh::setupTransformation()
 		QMatrix4x4 rotMat = _transformation;
 		// use only the rotations
 		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-		QVector3D tn = rotMat * n;
+		QVector3D tn = rotMat.map(n);
 		_trsfnormals.push_back(tn.x());
 		_trsfnormals.push_back(tn.y());
 		_trsfnormals.push_back(tn.z());
