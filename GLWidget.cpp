@@ -2059,7 +2059,7 @@ void GLWidget::loadFloor()
 	}
 
 	// Floor texture
-    QString path = QApplication::applicationDirPath() + "/";
+    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
     if (!_texBuffer.load(QString(path + "textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
 	{ // Load first image from file
 		qWarning("Could not read image file, using single-color instead.");
@@ -2087,7 +2087,7 @@ void GLWidget::loadFloor()
 
 void GLWidget::loadEnvMap()
 {
-    QString path = QApplication::applicationDirPath() + "/";
+    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
 	// Env Map
 	_skyBoxFaces =
 	{
