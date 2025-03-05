@@ -5,9 +5,9 @@
 
 #include <QKeyEvent>
 
-ClippingPlanesEditor::ClippingPlanesEditor(QWidget* parent) :
+ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
 	QWidget(parent),
-	_glView(dynamic_cast<GLWidget*>(parent))
+	_glView(parent)
 {
 	setupUi(this);
 }

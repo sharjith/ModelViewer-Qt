@@ -10,7 +10,7 @@ class ClippingPlanesEditor : public QWidget, Ui::ClippingPlanesEditor
 	Q_OBJECT
 
 public:
-	explicit ClippingPlanesEditor(QWidget* parent = nullptr);
+	explicit ClippingPlanesEditor(GLWidget* parent = nullptr);
 	~ClippingPlanesEditor();
 
 protected slots:
