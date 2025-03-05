@@ -333,7 +333,7 @@ private:
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 
 private:
-	QMap<int, bool> _keys;
+	QSet<int> _keys;
 	DisplayMode _displayMode;
 	RenderingMode _renderingMode;
 	QColor      _bgTopColor;
