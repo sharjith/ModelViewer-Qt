@@ -3611,6 +3611,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
 			_viewMode = ViewMode::NONE;
 		}
+
+		update();
 	}
 	else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning))
 	{
@@ -3622,6 +3624,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		_rightButtonPoint = downPoint;
 		setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
+
+		update();
 	}
 	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming))
 	{
@@ -3650,12 +3654,13 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		_middleButtonPoint = downPoint;
 		setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
+
+		update();
 	}
 	else
 	{
 		_lowResEnabled = false;
 	}
-	update();
 }
 
 void GLWidget::wheelEvent(QWheelEvent* e)
