@@ -1739,7 +1739,7 @@ void ModelViewer::on_toolButtonImport_clicked()
 	if (fileNames.count())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (const QString &fileName : qAsConst(fileNames))
+		for (const QString &fileName : std::as_const(fileNames))
 		{
 			loadFile(fileName);
 		}
