@@ -22,6 +22,9 @@ int main(int argc, char** argv)
 
     QApplication app(argc, argv);
 
+	// Disable allocation limit for images
+	QImageReader::setAllocationLimit(0);
+
 #ifdef WIN32
 	// qDebug() << QStyleFactory::keys();
 	// app.setStyle(QStyleFactory::create("windows"));
