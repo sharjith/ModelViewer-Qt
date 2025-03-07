@@ -22,8 +22,10 @@ int main(int argc, char** argv)
 
     QApplication app(argc, argv);
 
+#if QT_VERSION_MAJOR == 6
 	// Disable allocation limit for images
 	QImageReader::setAllocationLimit(0);
+#endif
 
 #ifdef WIN32
 	// qDebug() << QStyleFactory::keys();
