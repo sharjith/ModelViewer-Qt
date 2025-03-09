@@ -1026,7 +1026,7 @@ void ModelViewer::on_pushButtonTexture_clicked()
 		{
 			if (!buf.load(fileName))
 			{ // Load first image from file
-				qWarning("Could not read image file, using single-color instead.");
+				qWarning("ModelViewer::on_pushButtonTexture_clicked - Could not read image file, using single-color instead.");
 				QImage dummy(128, 128, QImage::Format_ARGB32);
 				dummy.fill(1);
 				buf = dummy;
@@ -1894,7 +1894,7 @@ void ModelViewer::on_pushButtonFloorTexture_clicked()
 	{
 		if (!buf.load(fileName))
 		{ // Load first image from file
-			qWarning("Could not read image file, using single-color instead.");
+			qWarning("ModelViewer::on_pushButtonFloorTexture_clicked - Could not read image file, using single-color instead.");
 			QImage dummy(128, 128, QImage::Format_ARGB32);
 			dummy.fill(1);
 			buf = dummy;

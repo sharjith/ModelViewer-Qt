@@ -71,7 +71,7 @@ _opacityPBRMapInverted(false)
     const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
     if (!_texBuffer.load(path + "textures/opengllogo.png"))
 	{ // Load first image from file
-		qWarning("Could not read image file, using single-color instead.");
+		qWarning("TriangleMesh::TriangleMesh - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		_texBuffer = dummy;
