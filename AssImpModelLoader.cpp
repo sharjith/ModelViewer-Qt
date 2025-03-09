@@ -332,7 +332,7 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, std::string di
 
 	if (!texImage.load(QString(filename.c_str())))
 	{ // Load first image from file
-		qWarning("Could not read image file, using single-color instead.");
+		qWarning("AssImpModelLoader::textureFromFile - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		texImage = dummy;
