@@ -67,6 +67,23 @@ using glm::vec3;
 constexpr auto TWO_HUNDRED_MB = 209715200; // bytes
 
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
+_bgShader(nullptr),
+_bgSplitShader(nullptr),
+_fgShader(nullptr),
+_axisShader(nullptr),
+_vertexNormalShader(nullptr),
+_faceNormalShader(nullptr),
+_shadowMappingShader(nullptr),
+_skyBoxShader(nullptr),
+_irradianceShader(nullptr),
+_prefilterShader(nullptr),
+_brdfShader(nullptr),
+_lightCubeShader(nullptr),
+_clippingPlaneShader(nullptr),
+_clippedMeshShader(nullptr),
+_selectionShader(nullptr),
+_debugShader(nullptr),
+_textShader(nullptr),
 _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
 _sphericalHarmonicsEditor(nullptr),
@@ -157,6 +174,7 @@ _assimpModelLoader(nullptr)
 	_clippingPlaneZX = nullptr;
 
 	_cappingEnabled = false;
+	_cappingTexture = 0;
 
 	_showVertexNormals = false;
 	_showFaceNormals = false;
@@ -164,6 +182,7 @@ _assimpModelLoader(nullptr)
 	_envMapEnabled = false;
 	_shadowsEnabled = false;
 	_reflectionsEnabled = false;
+	_floorSize = 10.0f;
 	_floorDisplayed = false;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
@@ -192,6 +211,13 @@ _assimpModelLoader(nullptr)
 	_selectionFBO = 0;
 	_selectionRBO = 0;
 	_selectionDBO = 0;
+
+	_quadVBO = 0;
+
+	_rubberBandRadius = 1.0f;
+	_rubberBandZoomRatio = 0.5f;
+
+	_scaleFrac = 1.0f;
 
 	_clipXCoeff = 0.0f;
 	_clipYCoeff = 0.0f;
@@ -2062,7 +2088,7 @@ void GLWidget::loadFloor()
     const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
     if (!_texBuffer.load(QString(path + "textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
 	{ // Load first image from file
-		qWarning("Could not read image file, using single-color instead.");
+		qWarning("GLWidget::loadFloor - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		_floorTexImage = dummy;
@@ -2126,7 +2152,7 @@ void GLWidget::loadEnvMap()
 		}
 		else
 		{
-			qWarning("Could not read image file, using single-color instead.");
+			qWarning("GLWidget::loadEnvMap - Could not read image file, using single-color instead.");
 			QImage dummy(128, 128, QImage::Format_ARGB32);
 			dummy.fill(Qt::white);
 			_texImage = dummy;
