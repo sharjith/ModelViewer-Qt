@@ -1,7 +1,7 @@
 # ModelViewer
 OpenGL Model Viewer
 
-A 3D Viewer that reads and displays most common 3D file formats that are supported by the Assimp library.
+A 3D Viewer that reads and displays most common 3D file formats that are supported by the Assimp library and STEP and IGES files using the Open Cascade library.
 
 ![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Screenshot%202021-07-24%20172616.jpg)
 
@@ -36,8 +36,8 @@ Multiple Projection Views
 
 Building the code:
 
-Linux: Open the .pro file in Qt Creator, change the library paths to point to your local paths and build
+Linux: Use the CMake build system.
 
-Windows: Open the .pro file in Qt Creator, change the library paths to point to your local paths or in Visual Studio using the Qt Tools Extension and build
+Windows: Use the CMake build system using Visual Studio. Clone the vcpkg git submodule along with cloning the repo.
 
 Dependencies: Qt6.8 or above Assimp-5.0.1, GLM, freetype-2.10.1, OpenCascade 7.9
