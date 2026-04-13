@@ -2311,6 +2311,7 @@ void GLWidget::setFloorTexture(QImage img)
 {
 	_floorTexImage = convertToGLFormat(img);
 	_floorPlane->setTexureImage(_floorTexImage);
+	_floorPlane->markTexturesDirty();
 }
 
 void GLWidget::showFloorTexture(bool show)
