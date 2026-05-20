@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <QFileInfo>
+#include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QStyleFactory>
 #include <sstream>
@@ -17,6 +18,7 @@ int main(int argc, char** argv)
 {
 	Q_INIT_RESOURCE(ModelViewer);
 
+	ModelViewerApplication::configureOpenGLFormat();
 	ModelViewerApplication app(argc, argv);
 
 #if QT_VERSION_MAJOR == 6
@@ -76,28 +78,37 @@ int main(int argc, char** argv)
 		}
 	}
 
-	QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
-	auto logOpenGLInfo = [&glFuncs](auto& outputStream) {
-		std::map<std::string, GLenum> infoMap = {
-			{"Renderer", GL_RENDERER},
-			{"Vendor", GL_VENDOR},
-			{"OpenGL Version", GL_VERSION},
-			{"Shader Version", GL_SHADING_LANGUAGE_VERSION}
-		};
+	if (QOpenGLContext::currentContext())
+	{
+		QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
+		auto logOpenGLInfo = [&glFuncs](auto& outputStream) {
+			std::map<std::string, GLenum> infoMap = {
+				{"Renderer", GL_RENDERER},
+				{"Vendor", GL_VENDOR},
+				{"OpenGL Version", GL_VERSION},
+				{"Shader Version", GL_SHADING_LANGUAGE_VERSION}
+			};
 
-		for (const auto& [label, value] : infoMap) {
-			const char* info = reinterpret_cast<const char*>(glFuncs.glGetString(value));
-			outputStream << label << ": " << info << '\n';
-		}
-		};
+			for (const auto& [label, value] : infoMap) {
+				const char* info = reinterpret_cast<const char*>(glFuncs.glGetString(value));
+				outputStream << label << ": " << info << '\n';
+			}
+			};
 
-	// Log information to std::cout
-	logOpenGLInfo(std::cout);
+		// Log information to std::cout
+		logOpenGLInfo(std::cout);
 
-	// Collect information into std::stringstream and set it to mw
-	std::stringstream ss;
-	logOpenGLInfo(ss);
-	mw->setGraphicsInfo(ss.str().c_str());
+		// Collect information into std::stringstream and set it to mw
+		std::stringstream ss;
+		logOpenGLInfo(ss);
+		mw->setGraphicsInfo(ss.str().c_str());
+	}
+	else
+	{
+		qWarning() << "OpenGL context is not current during startup graphics-info collection";
+		mw->setGraphicsInfo("OpenGL context information is unavailable until the viewer is initialized.");
+	}
+
 
 	/*
 #ifdef QT_DEBUG

@@ -1,6 +1,7 @@
 #include "ModelViewerApplication.h"
 #include <QOpenGLFunctions>
 #include <QSettings>
+#include <QSurfaceFormat>
 #include <QTranslator>
 #include <QLocale>
 #include <assimp/Importer.hpp>
@@ -10,16 +11,12 @@ QStringList ModelViewerApplication::_supportedExtensions;
 int ModelViewerApplication::_supportedMSAASamples = 4; // Default MSAA samples
 int ModelViewerApplication::_supportedAnisotropicFilteringLevel = 16; // Default anisotropic filtering level
 
-ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
-    : QApplication(argc, argv)
+void ModelViewerApplication::configureOpenGLFormat()
 {
-	setDesktopSettingsAware(true);
-	setApplicationName("ModelViewer");
-	setOrganizationName("Sharjith N");
-
-	QString version = QString(APP_VERSION_STRING);
-	setApplicationVersion(version);
-
+	QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
+	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+	QCoreApplication::setApplicationName("ModelViewer");
+	QCoreApplication::setOrganizationName("Sharjith N");
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int values[] = {0, 2, 4, 8, 16, 32};
@@ -36,7 +33,17 @@ ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
 	format.setSamples(samples); // Set MSAA samples
 
 	QSurfaceFormat::setDefaultFormat(format);
+}
 
+ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
+    : QApplication(argc, argv)
+{
+	setDesktopSettingsAware(true);
+	setApplicationName("ModelViewer");
+	setOrganizationName("Sharjith N");
+
+	QString version = QString(APP_VERSION_STRING);
+	setApplicationVersion(version);
 }
 
 QStringList ModelViewerApplication::supportedImportExtensions()

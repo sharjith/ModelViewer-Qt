@@ -72,19 +72,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	setAttribute(Qt::WA_DeleteOnClose);
 		
-	int values[] = { 0, 2, 4, 8, 16, 32 };
-	int samples = values[settings.value("msaaComboBox", 4).toInt()];
-
-	QSurfaceFormat format;
-	format.setVersion(4, 5); // OpenGL version 4.5
-	format.setProfile(QSurfaceFormat::CoreProfile);
-	format.setDepthBufferSize(24);
-	format.setStencilBufferSize(8);
+	QSurfaceFormat format = QSurfaceFormat::defaultFormat();
 	format.setSwapInterval(0);
-	format.setStereo(true);
-	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-	format.setRenderableType(QSurfaceFormat::OpenGL);
-	format.setSamples(samples); // Set MSAA samples
 	_glWidget = new GLWidget(this, "glwidget");
 	_glWidget->setAttribute(Qt::WA_DeleteOnClose);
 	_glWidget->setFormat(format);
@@ -2772,4 +2761,3 @@ void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 	// This will update _displayedObjectsIds and _hiddenObjectsIds
 	on_listWidgetModel_itemChanged(nullptr);
 }
-

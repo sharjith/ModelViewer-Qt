@@ -8,6 +8,8 @@ class ModelViewerApplication : public QApplication {
 public:
     ModelViewerApplication(int& argc, char** argv);
 
+    static void configureOpenGLFormat();
+
     // Static utility method for supported extensions
     static QStringList supportedImportExtensions();
 	

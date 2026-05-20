@@ -811,6 +811,7 @@ private:
 
 	HDRToneMapMode _toneMappingMode;
 
+	bool _openGLInitialized = false;
 	float _anisotropicFilteringLevel = 16.0f;
 
 	Cone* _axisCone;

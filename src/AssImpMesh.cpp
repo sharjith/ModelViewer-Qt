@@ -86,8 +86,8 @@ void AssImpMesh::render()
 
 	// Set render state efficiently
 	setRenderStateOptimized();
-	
-	// Transparent draws must NOT write depth, but should still depth-test.	
+
+	// Transparent draws must NOT write depth, but should still depth-test.
 	GLboolean prevDepthMask = GL_TRUE;
 	glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask);
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
@@ -112,7 +112,7 @@ void AssImpMesh::render()
 
 	// Draw the mesh
 	glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
-	
+
 	// Reset point size
 	if (_primitiveMode == GL_POINTS)
 	{
@@ -124,7 +124,7 @@ void AssImpMesh::render()
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 
 	_prog->release();
-	
+
 }
 
 void AssImpMesh::optimizeMesh()
@@ -206,13 +206,13 @@ void AssImpMesh::setupMesh()
 		normals.push_back(v.Normal.x);
 		normals.push_back(v.Normal.y);
 		normals.push_back(v.Normal.z);
-				
+
 		colors.reserve(_vertices.size() * 4);
 		colors.push_back(v.Color.r);
 		colors.push_back(v.Color.g);
 		colors.push_back(v.Color.b);
 		colors.push_back(v.Color.a);
-		
+
 		// Extract all 4 texCoord sets
 		for (int i = 0; i < 4; i++)
 		{
@@ -534,7 +534,7 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE26);
 			specularColorNr++;
-		}		
+		}
 		else if (texture.type == "diffuseMap") // === KHR_materials_pbrSpecularGlossiness ===
 		{
 			addBinding("diffuseMap" /*+ std::to_string(diffuseSpecGlossNr)*/, GL_TEXTURE10);
@@ -864,7 +864,7 @@ void AssImpMesh::serialize(QDataStream& out) const
 		QString qtype = QString::fromUtf8(t.type.c_str());
 		QString qpath = QString::fromUtf8(t.path);
 		out << qtype;
-		out << qpath;		
+		out << qpath;
 	}
 
 
@@ -925,13 +925,13 @@ void AssImpMesh::deserialize(QDataStream& in)
 		t.type = typeQ.toStdString();
 		t.path = pathQ.toStdString();
 		t.id = 0; // must be reloaded via TextureManager later
-		_textures.push_back(t);				
+		_textures.push_back(t);
 	}
-	
+
 	// Read material
 	_material.deserialize(in);
 
-	// --- Ensure deserialized texture paths get actual GL texture IDs and keep material in sync ---	
+	// --- Ensure deserialized texture paths get actual GL texture IDs and keep material in sync ---
 	// Helper lambda: convert our Texture.type -> update GLMaterial
 	auto updateMaterialFromTexture = [this](const GLMaterial::Texture& tex) {
 		QString qpath = QString::fromUtf8(tex.path).trimmed();
@@ -1031,7 +1031,7 @@ void AssImpMesh::deserialize(QDataStream& in)
 			{
 				t.id = static_cast<unsigned int>(newId);
 				t.hasAlpha = hasAlpha;
-				
+
 				// register/replace in the mesh's internal bindings list
 				replaceOrAppendTexture(t.type, newId, hasAlpha);
 
@@ -1360,7 +1360,7 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	if (material.hasOpacityMap())
 	{
 		_hasOpacityPBRMap = true;
-		setOpacityPBRMap(material.opacityTextureId());		
+		setOpacityPBRMap(material.opacityTextureId());
 	}
 	if (material.hasTransmissionMap())
 	{
@@ -1434,7 +1434,7 @@ void AssImpMesh::releaseCurrentShader()
 		QOpenGLContext* ctx = QOpenGLContext::currentContext();
 		if (ctx && ctx->isValid() && ctx->thread() == QThread::currentThread())
 		{
-			_currentBoundShader->release();			
+			_currentBoundShader->release();
 		}
 	}
 	_currentBoundShader = nullptr;
