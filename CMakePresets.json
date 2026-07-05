@@ -37,6 +37,25 @@
       }
     },
     {
+      "name": "linux",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "VCPKG_TARGET_TRIPLET": "x64-linux",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/vcpkg/triplets"
+      },
+      "vendor": {
+        "microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
+          "sourceDir": "/mnt/d/work/progs/Qt6/vcpkg/ModelViewer-Qt",
+          "copySources": false
+        }
+      }
+    },
+    {
       "name": "ninja_debug_vcpkg",
       "inherits": [
         "base",
@@ -46,6 +65,30 @@
       ],
       "displayName": "ninja debug config with vcpkg",
       "description": "Configure with vcpkg toolchain"
+    },
+    {
+      "name": "wsl_debug_vcpkg",
+      "inherits": [
+        "base",
+        "vcpkg",
+        "ninja",
+        "debug",
+        "linux"
+      ],
+      "displayName": "WSL/Linux debug config with vcpkg",
+      "description": "Configure with vcpkg toolchain, x64-linux triplet (static linkage, matching CI)"
+    },
+    {
+      "name": "wsl_release_vcpkg",
+      "inherits": [
+        "base",
+        "vcpkg",
+        "ninja",
+        "release",
+        "linux"
+      ],
+      "displayName": "WSL/Linux release config with vcpkg",
+      "description": "Configure with vcpkg toolchain, x64-linux triplet (static linkage, matching CI)"
     },
     {
       "name": "ninja_release_vcpkg",
@@ -118,6 +161,20 @@
       "configurePreset": "ninja_release",
       "displayName": "Build Release",
       "description": "Build Release with Ninja",
+      "configuration": "Release"
+    },
+    {
+      "name": "wsl_debug_vcpkg_build",
+      "configurePreset": "wsl_debug_vcpkg",
+      "displayName": "Build WSL/Linux Debug with vcpkg",
+      "description": "Build Debug with Ninja and vcpkg on WSL/Linux",
+      "configuration": "Debug"
+    },
+    {
+      "name": "wsl_release_vcpkg_build",
+      "configurePreset": "wsl_release_vcpkg",
+      "displayName": "Build WSL/Linux Release with vcpkg",
+      "description": "Build Release with Ninja and vcpkg on WSL/Linux",
       "configuration": "Release"
     }
   ],
