@@ -12,6 +12,7 @@
 #include "GltfCameraData.h"
 #include "ViewportWidget.h"
 #include "PickingHelper.h"
+#include "RtSceneBuilder.h"
 #include <QtMath>
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
@@ -114,6 +115,46 @@ _floorPlane(nullptr),
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
+
+	// Alt-Tabbing to another application doesn't hide/show this widget at all
+	// (that's a Qt-internal visibility concept - an external app stealing
+	// foreground focus never touches it), so hideEvent()/showEvent() alone
+	// don't catch that case. QGuiApplication::applicationStateChanged() does:
+	// it fires ApplicationActive when this app regains OS focus, regardless
+	// of which top-level/MDI-child window the event originated from.
+	//
+	// Deliberately does NOT also stop anything on ApplicationInactive: the
+	// background tracer thread and (invisible) presenter don't cost anything
+	// while genuinely not being painted, and having two independent triggers
+	// both calling stop()/invalidate() (this one and hideEvent()'s, which can
+	// fire in either order relative to this signal around a focus change) was
+	// producing exactly the "never re-engages" bug this is meant to fix -
+	// only ever forcing a *restart* here removes that race entirely.
+	//
+	// Calls startPathTracedSession() directly rather than
+	// resetPathTracedIdleTimer() (which only re-arms the idle QTimer's
+	// countdown): Qt's QTimer can be significantly throttled/coalesced by
+	// Windows while the app isn't the foreground window, so a timer that was
+	// already counting down when focus was lost may still report
+	// isActive()==true (just delayed, not actually about to fire) once focus
+	// returns - waiting on it produces exactly the "sometimes comes back,
+	// sometimes doesn't" flakiness this was meant to fix. Starting a session
+	// immediately sidesteps any timer-throttling question entirely.
+	connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+		if (state == Qt::ApplicationActive && _pathTracedArmed && isVisible())
+		{
+			_keys.clear();
+			QTimer::singleShot(0, this, [this]() {
+				if (_pathTracedArmed && isVisible() &&
+				    !_pathTracedIdleTimer->isActive() &&
+				    !_rtSession.isRunning() &&
+				    !_rtPresenter.hasFrame())
+				{
+					startPathTracedSession();
+				}
+			});
+		}
+	});
 
     _viewer = static_cast<ModelViewer*>(parent);
 	_explodedViewCtrl.setExplodedViewManager(new ExplodedViewManager());
@@ -457,6 +498,21 @@ _floorPlane(nullptr),
 	_inertiaTimer->setInterval(16); // ~60 FPS
 	connect(_inertiaTimer, &QTimer::timeout, this, &ViewportWidget::onInertiaTimer);
 
+	// Path-traced mode: idle timer is single-shot, reset on every camera-
+	// affecting event (see resetPathTracedIdleTimer()); firing means the
+	// camera has been still for the timeout, so start a fresh trace.
+	_pathTracedIdleTimer = new QTimer(this);
+	_pathTracedIdleTimer->setSingleShot(true);
+	_pathTracedIdleTimer->setInterval(450);
+	connect(_pathTracedIdleTimer, &QTimer::timeout, this, &ViewportWidget::onPathTracedIdleTimeout);
+
+	// Repaints the viewport periodically while a trace is running so newly
+	// published progressive-refinement frames actually get shown - paintGL()
+	// isn't otherwise re-triggered on its own while nothing else changes.
+	_pathTracedRefreshTimer = new QTimer(this);
+	_pathTracedRefreshTimer->setInterval(100);
+	connect(_pathTracedRefreshTimer, &QTimer::timeout, this, &ViewportWidget::onPathTracedRefreshTimer);
+
 	_animCtrl.setAnimationTimer(new QTimer(this));
 	_animCtrl.animationTimer()->setInterval(16);
 	connect(_animCtrl.animationTimer(), &QTimer::timeout, this, &ViewportWidget::onAnimationTick);
@@ -510,6 +566,11 @@ _floorPlane(nullptr),
 
 ViewportWidget::~ViewportWidget()
 {
+	// Cancel/join the path-tracing worker before anything else is torn down -
+	// it holds a shared_ptr to its own RtSceneSnapshot, not to any of this
+	// widget's scene state, so no ordering dependency on the teardown below.
+	_rtSession.stop();
+
 	if (_animCtrl.animationTimer())
 	{
 		_animCtrl.animationTimer()->stop();
@@ -551,6 +612,7 @@ ViewportWidget::~ViewportWidget()
 		cleanUpShaders();
 
 		_renderCtrl.cleanupGLResources();
+		_rtPresenter.cleanup();
 		if (_selectionManager)
 			_selectionManager->cleanupFBOResources();
 
@@ -1020,6 +1082,10 @@ void ViewportWidget::resizeGL(int width, int height)
 	resizeTransmissionBuffer(width, height);
 	resizeSSSBuffer(width, height);
 
+	_rtSession.setResolution(width, height);
+	if (_pathTracedArmed)
+		resetPathTracedIdleTimer(); // old accumulation no longer matches the new resolution
+
 	update();
 }
 
@@ -1062,6 +1128,28 @@ void ViewportWidget::paintGL()
 		{
 			renderSingleView(topColor, botColor);
 		}
+
+		// Self-healing watchdog: armed, but neither counting down to a settle
+		// nor actually tracing nor showing a result - something (a visibility
+		// transition whose exact platform event didn't fire/arrive as
+		// expected - alt-tab, window-manager quirks, etc.) left the mode
+		// stuck idle. paintGL() keeps running regardless of *why* that
+		// happened, so checking here catches it unconditionally instead of
+		// depending on correctly predicting every platform-specific
+		// visibility/focus event that should have restarted it.
+		if (_pathTracedArmed && !_pathTracedIdleTimer->isActive() &&
+		    !_rtSession.isRunning() && !_rtPresenter.hasFrame())
+		{
+			startPathTracedSession(); // bypass the idle countdown entirely - see applicationStateChanged handler for why
+		}
+
+		// Path-traced overlay: only once the camera has actually settled
+		// (idle timer no longer counting down - see resetPathTracedIdleTimer())
+		// and a converged/converging frame has actually been published. Drawn
+		// over the just-rendered raster frame, before the viewcube/text
+		// overlay so those still read on top of the path-traced image too.
+		if (_pathTracedArmed && !_pathTracedIdleTimer->isActive() && _rtPresenter.hasFrame())
+			_rtPresenter.draw();
 
 		drawViewCube();
 
@@ -1163,6 +1251,7 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 				loadIrradianceMap();
 				update();
 				QApplication::restoreOverrideCursor();
+				notifyPathTracedSceneMutated();
 				return;
 			}
 			else
@@ -1244,6 +1333,7 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 	loadIrradianceMap();
 	update();
 	QApplication::restoreOverrideCursor();
+	notifyPathTracedSceneMutated();
 }
 
 bool ViewportWidget::loadCubemapFromSingleHDR(const QString& filePath)
@@ -3314,6 +3404,7 @@ void ViewportWidget::showEnvironment(bool show)
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("envMapEnabled", _renderCtrl.envMapEnabled());
 	update();
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::showSkyBox(bool show)
@@ -3322,6 +3413,13 @@ void ViewportWidget::showSkyBox(bool show)
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("skyBoxEnabled", _renderCtrl.skyBoxEnabled());
 	update();
+
+	// Toggling this doesn't go through the undo stack (it's a display/
+	// visualization setting, not a document edit), so onUndoStackChanged()'s
+	// notifyPathTracedSceneMutated() hook never sees it - without this, an
+	// already-converged path-traced frame captured with the old
+	// showBackground state would just keep being displayed unchanged.
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::showReflections(bool show)
@@ -3946,6 +4044,7 @@ void ViewportWidget::createShaderPrograms()
 {
 	const QString path = PathUtils::getDataDirectory() + "/";
 	_renderCtrl.initShaders(path);
+	_rtPresenter.initialize(path);
 }
 
 void ViewportWidget::createCappingPlanes()
@@ -10485,10 +10584,52 @@ void ViewportWidget::resizeEvent(QResizeEvent* event)
 	}
 }
 
+void ViewportWidget::showEvent(QShowEvent* event)
+{
+	QOpenGLWidget::showEvent(event);
+
+	// This app is MDI (MainWindow.cpp's QMdiArea) - switching between
+	// maximized document sub-windows genuinely hides/shows each one's
+	// ViewportWidget (unlike being covered by an unrelated top-level app
+	// window, which doesn't touch Qt's visibility state at all). hideEvent()
+	// below pauses the path-traced session while hidden; this is the
+	// restart side - force a clean settle-countdown restart so a fresh,
+	// correctly-sized session starts rather than leaving things in whatever
+	// state they were paused in.
+	if (_pathTracedArmed)
+		resetPathTracedIdleTimer();
+}
+
+void ViewportWidget::hideEvent(QHideEvent* event)
+{
+	// Reported bug: after switching to another MDI document and back,
+	// path-traced mode "never shows up again, always PBR". Root cause: the
+	// background tracer thread and refresh timer kept running/publishing
+	// frames for a now-hidden widget with nothing paying attention, and
+	// resuming visibility never got a fresh, well-defined restart - so
+	// whatever state paintGL()'s `!_pathTracedIdleTimer->isActive() &&
+	// _rtPresenter.hasFrame()` gate was left in (see paintGL()) could stay
+	// permanently unsatisfied. Mirrors disarmPathTracedRenderingMode()'s
+	// cleanup but deliberately leaves _pathTracedArmed set so showEvent()
+	// above knows to restart it.
+	if (_pathTracedArmed)
+	{
+		if (_pathTracedIdleTimer)
+			_pathTracedIdleTimer->stop();
+		if (_pathTracedRefreshTimer)
+			_pathTracedRefreshTimer->stop();
+		_rtSession.stop();
+		_rtPresenter.invalidate();
+	}
+
+	QOpenGLWidget::hideEvent(event);
+}
+
 void ViewportWidget::mousePressEvent(QMouseEvent* e)
 {
 	setFocus();
 	checkAndStopTimers();
+	resetPathTracedIdleTimer();
 
 	// Reset inertia on new mouse press
 	_viewCtrl.clearInertiaState();
@@ -10682,6 +10823,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	QPoint downPoint(e->position().x(), e->position().y());
 	if (_viewCtrl.transformGizmoTranslating() && (e->buttons() & Qt::LeftButton))
 	{
+		resetPathTracedIdleTimer();
 		updateTransformGizmoTranslationDrag(e->pos());
 		_viewCtrl.setLastMousePos(currentPos);
 		_viewCtrl.setLastMouseTime(currentTime);
@@ -10689,6 +10831,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	if (_viewCtrl.transformGizmoScaling() && (e->buttons() & Qt::LeftButton))
 	{
+		resetPathTracedIdleTimer();
 		updateTransformGizmoScaleDrag(e->pos());
 		_viewCtrl.setLastMousePos(currentPos);
 		_viewCtrl.setLastMouseTime(currentTime);
@@ -10696,6 +10839,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	if (_viewCtrl.transformGizmoRotating() && (e->buttons() & Qt::LeftButton))
 	{
+		resetPathTracedIdleTimer();
 		updateTransformGizmoRotationDrag(e->pos());
 		_viewCtrl.setLastMousePos(currentPos);
 		_viewCtrl.setLastMouseTime(currentTime);
@@ -10714,6 +10858,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl.viewRotating()) && !isGltfCameraActive())
 		{
+			resetPathTracedIdleTimer();
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_renderCtrl.setLowResEnabled(true);
 			setSectionCapsInteractionSuppressed(true);
@@ -10759,6 +10904,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		 _primaryCamera->getMode() == Camera::CameraMode::FirstPerson) &&
 		!isGltfCameraActive())
 	{
+		resetPathTracedIdleTimer();
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
 		QPoint look = _viewCtrl.rightButtonPoint() - downPoint;
 		_primaryCamera->getYaw()   += look.x() * 0.2f * _mouseSensitivity;
@@ -10785,6 +10931,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl.viewPanning())) && !isGltfCameraActive())
 	{
+		resetPathTracedIdleTimer();
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
@@ -10809,6 +10956,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl.viewZooming())) && !isGltfCameraActive())
 	{
+		resetPathTracedIdleTimer();
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
@@ -10973,6 +11121,8 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 void ViewportWidget::wheelEvent(QWheelEvent* e)
 {
+	resetPathTracedIdleTimer();
+
 	// Stop any ongoing inertia when wheel zooming
 	_viewCtrl.clearInertiaState();
 	if (_inertiaTimer && _inertiaTimer->isActive())
@@ -11063,6 +11213,14 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	QWidget::keyPressEvent(event);
 
 	const auto key = event->key();
+	const bool modifierOnlyKey =
+		key == Qt::Key_Control ||
+		key == Qt::Key_Shift ||
+		key == Qt::Key_Alt ||
+		key == Qt::Key_Meta;
+
+	if (!modifierOnlyKey)
+		resetPathTracedIdleTimer();
 
 	if (key == Qt::Key_Escape)
 	{
@@ -11096,7 +11254,7 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	{
 		swapVisible(!_sceneRuntime.visibleSwapped());
 	}
-	else
+	else if (!modifierOnlyKey)
 		_keys.insert(key);
 
 	// Camera mode switching
@@ -11342,6 +11500,11 @@ void ViewportWidget::onInertiaTimer()
 	// Inertia effects are suppressed when a glTF camera is active (read-only view).
 	if (isGltfCameraActive())
 		return;
+
+	// Inertia keeps moving the camera after mouse-up - keep deferring the
+	// settle countdown for as long as this timer keeps firing (it stops
+	// itself once the decaying velocity drops below its own threshold below).
+	resetPathTracedIdleTimer();
 
 	bool active = false;
 
@@ -12289,6 +12452,140 @@ void ViewportWidget::setRenderingMode(const RenderingMode& renderingMode)
 	emit renderingModeChanged(static_cast<int>(_renderCtrl.renderingMode()));
 }
 
+// ---------------------------------------------------------------------------
+// Path-traced rendering mode
+// ---------------------------------------------------------------------------
+
+void ViewportWidget::armPathTracedRenderingMode()
+{
+	if (_pathTracedArmed)
+		return;
+	_pathTracedArmed = true;
+	resetPathTracedIdleTimer();
+}
+
+void ViewportWidget::disarmPathTracedRenderingMode()
+{
+	if (!_pathTracedArmed)
+		return;
+	_pathTracedArmed = false;
+
+	if (_pathTracedIdleTimer)
+		_pathTracedIdleTimer->stop();
+	if (_pathTracedRefreshTimer)
+		_pathTracedRefreshTimer->stop();
+
+	_rtSession.stop();
+	_rtPresenter.invalidate();
+	update(); // drop back to pure raster immediately
+}
+
+void ViewportWidget::resetPathTracedIdleTimer()
+{
+	if (!_pathTracedArmed)
+		return;
+
+	// Any camera-affecting event cancels an in-flight/converged trace so the
+	// live PBR raster feed shows immediately (RtPathTracingSession::stop()
+	// returns within about one scanline's tracing time - see CpuPathTracer's
+	// cancelFlag - so this is not a UI stall).
+	_rtSession.stop();
+	_rtPresenter.invalidate();
+	if (_pathTracedRefreshTimer)
+		_pathTracedRefreshTimer->stop();
+	update();
+
+	_pathTracedIdleTimer->start(); // (re)start the single-shot countdown to the next settle
+}
+
+void ViewportWidget::onPathTracedIdleTimeout()
+{
+	if (_pathTracedArmed)
+		startPathTracedSession();
+}
+
+void ViewportWidget::startPathTracedSession()
+{
+	if (!_renderCtrl.isOpenGLInitialized() || !_primaryCamera)
+		return;
+
+	// Re-derive the current device-pixel size fresh rather than trusting
+	// whatever resizeGL() last recorded - minimizing/restoring the window (or
+	// switching focus away and back) can leave a stale/degenerate size cached
+	// if Qt fires resizeGL() with a transient 0x0 during that sequence with no
+	// further resize once the window is genuinely back to its real size. This
+	// makes every new session self-healing instead of permanently stuck.
+	const qreal dpr = devicePixelRatioF();
+	const int fbWidth  = static_cast<int>(width()  * dpr);
+	const int fbHeight = static_cast<int>(height() * dpr);
+	if (fbWidth <= 0 || fbHeight <= 0)
+		return; // genuinely not visible right now (e.g. still minimized) - nothing to render into
+
+	const std::vector<GPULight>& lights = _renderCtrl.punctualLights()->getLights();
+
+	// captureEnvironmentCubemapCPU() does a synchronous GPU readback
+	// (glGetTexImage) - needs this widget's context current, which isn't
+	// guaranteed here since this function can run off the idle QTimer rather
+	// than from within paintGL().
+	makeCurrent();
+	RtEnvironment environment;
+	_renderCtrl.captureEnvironmentCubemapCPU(environment.faces, environment.faceSize);
+
+	environment.showBackground = _renderCtrl.skyBoxEnabled();
+	environment.cameraUpAxisZUp = _viewCtrl.cameraUpAxisZUp();
+	environment.skyBoxZRotationDegrees = _renderCtrl.skyBoxZRotation();
+	const QColor topColor = _renderCtrl.bgTopColor();
+	const QColor botColor = _renderCtrl.bgBotColor();
+
+	// QColor::redF()/greenF()/blueF() are sRGB-encoded (display/UI space),
+	// but path_traced_present.frag runs the tracer's whole output through an
+	// ACES tonemap + gamma-encode pass intended for linear HDR radiance -
+	// feeding it an already gamma-encoded value double-brightens it (washes
+	// a mid-gray toward white). Approximate sRGB->linear with pow(x, 2.2)
+	// (close enough for a flat UI color; not worth the exact piecewise sRGB
+	// curve here) so it survives that pipeline looking like what raster
+	// actually shows.
+	auto srgbToLinearApprox = [](float c) { return std::pow(std::max(c, 0.0f), 2.2f); };
+	environment.fallbackTopColor = glm::vec3(
+		srgbToLinearApprox(static_cast<float>(topColor.redF())),
+		srgbToLinearApprox(static_cast<float>(topColor.greenF())),
+		srgbToLinearApprox(static_cast<float>(topColor.blueF())));
+	environment.fallbackBottomColor = glm::vec3(
+		srgbToLinearApprox(static_cast<float>(botColor.redF())),
+		srgbToLinearApprox(static_cast<float>(botColor.greenF())),
+		srgbToLinearApprox(static_cast<float>(botColor.blueF())));
+	environment.fallbackGradientStyle = _renderCtrl.gradientStyle();
+
+	auto snapshot = RtSceneBuilder::build(
+		_sceneRuntime, *_primaryCamera, _primaryCamera->getAspectRatio(),
+		lights, _pathTracedNextRevision++, &environment);
+
+	_rtSession.setResolution(fbWidth, fbHeight);
+	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
+	_rtSession.start(snapshot);
+
+	if (_pathTracedRefreshTimer)
+		_pathTracedRefreshTimer->start();
+}
+
+void ViewportWidget::onPathTracedRefreshTimer()
+{
+	if (!_pathTracedArmed)
+	{
+		_pathTracedRefreshTimer->stop();
+		return;
+	}
+
+	int frameWidth = 0, frameHeight = 0;
+	uint32_t sampleCount = 0;
+	std::vector<float> alpha;
+	std::vector<glm::vec3> frame = _rtSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);
+	if (!frame.empty())
+		_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
+
+	update();
+}
+
 void ViewportWidget::setFloorTexRepeatT(double floorTexRepeatT)
 {
 	_renderCtrl.setFloorTexRepeatT(static_cast<float>(floorTexRepeatT));
@@ -12326,6 +12623,7 @@ void ViewportWidget::setSkyBoxZRotation(int index)
 	_renderCtrl.setSkyBoxZRotation(angles[index % 4]);
 	updateEnvMapRotationMatrix();
 	update();
+	notifyPathTracedSceneMutated(); // background rotation changed - see showSkyBox()
 }
 
 void ViewportWidget::updateEnvMapRotationMatrix()

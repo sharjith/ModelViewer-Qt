@@ -9,7 +9,12 @@
 // can include them without creating a circular dependency.
 // ---------------------------------------------------------------------------
 
-enum class RenderingMode          { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
+// PATH_TRACED is a UI-level/session concept, not a raw value fed to the
+// raster shader's "renderingMode" uniform - the raster pass is always kept on
+// PHYSICALLY_BASED_RENDERING while path-traced mode is armed (see
+// ViewportWidget::armPathTracedRenderingMode() and the design note above
+// ModelViewer::onRenderingModeSelected()).
+enum class RenderingMode          { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING, PATH_TRACED };
 enum class ShadingNormalMode      { SMOOTH, FLAT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern           { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };

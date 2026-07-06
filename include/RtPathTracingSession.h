@@ -1,0 +1,107 @@
+#pragma once
+
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <vector>
+
+#include <glm/glm.hpp>
+
+#include "RtSceneSnapshot.h"
+#include "RtEmbreeScene.h"
+#include "CpuPathTracer.h"
+#include "RtFrameAccumulator.h"
+#include "RtDenoiser.h"
+
+// ---------------------------------------------------------------------------
+// RtPathTracingSession
+//
+// Owns the background progressive-rendering loop: repeatedly calls
+// CpuPathTracer::renderPass() and accumulates into RtFrameAccumulator,
+// publishing the latest resolved (averaged) frame to a double-buffered slot
+// the GL/UI thread can read via latestFrame() without blocking the worker.
+//
+// The outer worker thread here does not itself do CPU-heavy path-tracing
+// math - each call to CpuPathTracer::renderPass() already parallelizes one
+// full-frame pass across its own worker threads (see CpuPathTracer.cpp).
+// This thread just orchestrates: run a pass, accumulate, publish, repeat.
+//
+// Revision/cancellation model (mirrors SceneRuntime's existing
+// _cancelRequested/_loadCancelled pattern - see SceneRuntime.h):
+//   - start(snapshot): rebuilds the Embree BVH and restarts accumulation
+//     from scratch. Call whenever geometry/material/visibility changes.
+//   - notifyCameraChanged(snapshot): resets accumulation but does NOT
+//     rebuild the Embree BVH - cheaper path for camera-only changes.
+//   - stop(): cancels any in-flight pass and joins the worker thread. Call
+//     when interaction resumes (falls back to raster) or the mode is exited.
+// ---------------------------------------------------------------------------
+class RtPathTracingSession
+{
+public:
+	RtPathTracingSession();
+	~RtPathTracingSession();
+
+	RtPathTracingSession(const RtPathTracingSession&)            = delete;
+	RtPathTracingSession& operator=(const RtPathTracingSession&) = delete;
+
+	// Records the target render resolution. Takes effect on the next
+	// start()/notifyCameraChanged() call - does not affect an already-running
+	// session by itself.
+	void setResolution(int width, int height);
+
+	// Rebuilds the Embree scene from snapshot and (re)starts progressive
+	// accumulation from scratch. Cancels/joins any previously running pass
+	// first, so this is also the right call to "restart with a fresh scene".
+	void start(std::shared_ptr<const RtSceneSnapshot> snapshot);
+
+	// Updates the live snapshot (new camera, same geometry/instances) and
+	// resets accumulation without rebuilding the Embree BVH. Cancels/joins
+	// any previously running pass first.
+	void notifyCameraChanged(std::shared_ptr<const RtSceneSnapshot> snapshotWithNewCamera);
+
+	// Cancels any in-flight pass and joins the worker thread. Safe to call
+	// even if not currently running.
+	void stop();
+
+	bool isRunning() const { return _running.load(std::memory_order_acquire); }
+
+	// Latest denoised frame available for display (see RtDenoiser - denoised
+	// every pass so a handful of samples already looks presentable instead of
+	// raw Monte Carlo noise; throttling that cadence by cost/sample count is
+	// deferred to the large-assembly tuning pass), plus how many raw samples/
+	// pixel it represents. Safe to call from any thread (e.g. the GL
+	// paintGL() thread) while the worker keeps running; returns an empty
+	// vector if no pass has completed yet.
+	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
+		std::vector<float>* outAlpha = nullptr) const;
+
+private:
+	void workerLoop(uint64_t myRevision);
+	void publishLatest();
+	void resetForNewPass(std::shared_ptr<const RtSceneSnapshot> snapshot, bool rebuildEmbreeScene);
+
+	RtEmbreeScene      _embreeScene;
+	CpuPathTracer      _tracer;
+	RtFrameAccumulator _accumulator;
+	RtDenoiser         _denoiser;
+
+	int _width  = 0;
+	int _height = 0;
+
+	mutable std::mutex _snapshotMutex;
+	std::shared_ptr<const RtSceneSnapshot> _snapshot;
+
+	std::thread _worker;
+	std::atomic<uint64_t> _activeRevision{ 0 };
+	std::atomic<bool>     _cancelRequested{ false };
+	std::atomic<bool>     _running{ false };
+
+	mutable std::mutex     _publishMutex;
+	std::vector<glm::vec3> _publishedFrame;
+	std::vector<float>     _publishedAlpha;
+	int      _publishedWidth       = 0;
+	int      _publishedHeight      = 0;
+	uint32_t _publishedSampleCount = 0;
+};

@@ -88,6 +88,7 @@
         <file>res/show_bounding_box.png</file>
         <file>res/hide_bounding_box.png</file>
         <file>res/smooth_shaded.png</file>
+        <file>res/path_tracing_mode.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

@@ -280,6 +280,13 @@ public:
 	}
 	bool hasNegativeScale() const { return _instanceState.hasNegativeScale(); }
 
+	// Whether this mesh actually has a COLOR_0-style vertex color attribute
+	// (feeds the "hasVertexColors" raster shader uniform - see
+	// RenderableMesh.cpp:513/538/785). _colors/Vertex::Color otherwise holds
+	// unspecified/garbage data, not an implicit white, so callers must gate
+	// on this rather than assuming an absent attribute reads as (1,1,1,1).
+	bool hasVertexColors() const { return _hasVertexColors; }
+
 	// Returns a sort key based on primary texture IDs to minimise GPU texture
 	// state changes when opaque meshes are sorted before drawing.
 	uint64_t getTextureSortKey() const

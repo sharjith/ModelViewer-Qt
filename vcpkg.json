@@ -28,6 +28,8 @@
     "freetype",
     "glm",
     "opencascade",
-    "meshoptimizer"
+    "meshoptimizer",
+    "embree3",
+    "openimagedenoise"
   ]
 }

@@ -37,6 +37,8 @@
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
+#include "RtPathTracingSession.h"
+#include "RtPresenter.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -320,6 +322,29 @@ public:
 	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
 	void setRenderingMode(const RenderingMode& renderingMode);
 
+	// ---- Path-traced rendering mode ----------------------------------------
+	// Arms the "Path Traced" mode: forces the raster shader to PBR (path
+	// tracing never feeds RenderingMode::PATH_TRACED into the shader uniform
+	// itself - see RenderEnums.h and the design note above onRenderingMode-
+	// Selected() in ModelViewer.cpp) and starts the idle-detection timer.
+	// While armed, any camera interaction cancels an in-flight/converged
+	// trace and falls back to the live PBR raster feed immediately; once the
+	// camera settles again, a fresh RtPathTracingSession starts.
+	void armPathTracedRenderingMode();
+	void disarmPathTracedRenderingMode();
+	bool isPathTracedRenderingModeArmed() const { return _pathTracedArmed; }
+
+	// Call when geometry/material/light/visibility changes for a reason other
+	// than direct viewport interaction (undo/redo, a material/light panel
+	// edit, transform typed into a field, etc.) - anything that isn't already
+	// covered by mousePressEvent()/wheelEvent()/keyPressEvent()/inertia. Has
+	// the same effect as a camera-affecting event (falls back to the live
+	// raster feed immediately, restarts the settle countdown); the next
+	// startPathTracedSession() call already rebuilds the RtSceneSnapshot from
+	// current scene state unconditionally, so no separate "rebuild" signal is
+	// needed here.
+	void notifyPathTracedSceneMutated() { resetPathTracedIdleTimer(); }
+
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
 	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
 
@@ -585,6 +610,8 @@ protected:
 	void refreshNavigationOverlayStyle();
 
 	void resizeEvent(QResizeEvent* event);
+	void showEvent(QShowEvent* event);
+	void hideEvent(QHideEvent* event);
 	void mousePressEvent(QMouseEvent*);
 	void mouseReleaseEvent(QMouseEvent*);
 	void mouseMoveEvent(QMouseEvent*);
@@ -892,6 +919,22 @@ private:
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
 	QTimer* _inertiaTimer        = nullptr;
+
+	// ---- Path-traced rendering mode -----------------------------------------
+	// _rtSession/_rtPresenter own the actual background tracing/presentation;
+	// this widget only arms/disarms them and feeds them a fresh RtSceneSnapshot
+	// on settle - see armPathTracedRenderingMode()/onPathTracedIdleTimeout().
+	RtPathTracingSession _rtSession;
+	RtPresenter          _rtPresenter;
+	bool     _pathTracedArmed        = false; // user selected "Path Traced" mode
+	QTimer*  _pathTracedIdleTimer    = nullptr; // reset on every camera-affecting event
+	QTimer*  _pathTracedRefreshTimer = nullptr; // periodically repaints while a trace is running
+	uint64_t _pathTracedNextRevision = 1;
+
+	void resetPathTracedIdleTimer();
+	void onPathTracedIdleTimeout();
+	void onPathTracedRefreshTimer();
+	void startPathTracedSession();
 
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;

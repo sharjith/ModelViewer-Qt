@@ -180,6 +180,36 @@ void SceneRenderController::createEnvironmentMapTexture()
     glGenTextures(1, &_environmentMap);
 }
 
+bool SceneRenderController::captureEnvironmentCubemapCPU(std::vector<float> outFaces[6], int& outFaceSize)
+{
+    if (_environmentMap == 0)
+        return false;
+
+    GLint prevBinding = 0;
+    glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, &prevBinding);
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+    GLint w = 0, h = 0;
+    glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &w);
+    glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_HEIGHT, &h);
+    if (w <= 0 || h <= 0)
+    {
+        glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(prevBinding));
+        return false;
+    }
+
+    outFaceSize = w; // cubemap faces are always square
+    for (int i = 0; i < 6; ++i)
+    {
+        outFaces[i].resize(static_cast<size_t>(w) * static_cast<size_t>(h) * 3);
+        glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, GL_FLOAT, outFaces[i].data());
+    }
+
+    glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(prevBinding));
+    return true;
+}
+
 // ---------------------------------------------------------------------------
 // Shaders
 // ---------------------------------------------------------------------------

@@ -1823,6 +1823,13 @@ void ModelViewer::onUndoStackChanged()
 	if (!_undoStack || !_viewportWidget)
 		return;
 
+	// Any undo/redo/push (material edits, transforms, visibility, light
+	// edits, delete/paste, ...) can change what path-traced mode should be
+	// showing - unlike raw camera interaction, none of this already flows
+	// through mousePressEvent()/wheelEvent()/etc., so it needs its own nudge
+	// back to the live raster feed + settle countdown.
+	_viewportWidget->notifyPathTracedSceneMutated();
+
 	const int currentIndex = _undoStack->index();
 	int currentCount = _undoStack->count();
 
@@ -5280,15 +5287,29 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 {
 	if (mode == "ADS")
 	{
+		_viewportWidget->disarmPathTracedRenderingMode();
 		_viewportWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
 		visualizationEnvironmentPanel->setPBRLightingMode(false);
 	}
 	else if (mode == "PBR")
 	{
+		_viewportWidget->disarmPathTracedRenderingMode();
 		_viewportWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_viewportWidget->setSkyBoxTextureHDRI(true);
 		switchToRealisticRendering();
+	}
+	else if (mode == "PathTraced")
+	{
+		// Path-traced mode shows the same PBR raster feed while interacting
+		// (identical setup to selecting PBR outright) and layers in a
+		// progressively-converging path-traced image once the camera settles
+		// - see ViewportWidget::armPathTracedRenderingMode().
+		_viewportWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
+		visualizationEnvironmentPanel->setPBRLightingMode(true);
+		_viewportWidget->setSkyBoxTextureHDRI(true);
+		switchToRealisticRendering();
+		_viewportWidget->armPathTracedRenderingMode();
 	}
 	// Update toolbar button to reflect the new rendering mode
 	_viewportWidget->getViewToolbar()->updateRenderingModeButton(mode);

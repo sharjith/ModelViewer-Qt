@@ -152,7 +152,13 @@ private:
 
 	// sync texture path entries into _textures from the material's stored map (if _textures empty)
 	void syncTexturesFromMaterialIfNeeded();
-	GLuint createGLTextureFromFile(const QString& path, bool& outHasAlpha);
+	// outImage receives the original, unflipped-as-loaded QImage (NOT the
+	// vertically-mirrored copy used internally for the GL upload) so callers
+	// can store it into Material::Texture::imageData in the same convention
+	// the main import path (MaterialProcessor.cpp) uses - CPU-side consumers
+	// (e.g. the path tracer) rely on that convention being consistent
+	// regardless of which code path loaded a given texture.
+	GLuint createGLTextureFromFile(const QString& path, bool& outHasAlpha, QImage& outImage);
 
 protected:
 	// ---- Import provenance + animation state (moved from RenderableMesh) --------

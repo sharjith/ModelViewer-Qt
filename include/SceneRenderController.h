@@ -14,6 +14,7 @@
 #include <QVector3D>
 
 #include <array>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -131,6 +132,21 @@ public:
     // ---- IBL / environment maps --------------------------------------------
     GLuint environmentMap()           const { return _environmentMap; }
     void   setEnvironmentMap(GLuint t)      { _environmentMap = t; }
+
+    // Reads back all 6 faces of the currently-bound scene environment cubemap
+    // (_environmentMap - the one the raster skybox/reflections actually
+    // sample) into CPU memory, via glGetTexImage. This works regardless of
+    // how the cubemap was populated (single equirectangular HDR, 6 separate
+    // face images, a strip format, ...) since it always reads the exact same
+    // GPU texture the raster path shows - unlike an earlier approach that
+    // cached the equirect HDR source at load time (broken for the common
+    // case where the active skybox is a 6-face-image folder, which has no
+    // equirect source to cache at all). outFaces[i] is faceSize*faceSize*3
+    // RGB floats in GL_TEXTURE_CUBE_MAP_POSITIVE_X+i order. Returns false
+    // (leaving outFaces/outFaceSize untouched) if no environment cubemap is
+    // currently bound. Synchronous GPU readback - only call this when
+    // starting a new path-traced session (camera-settled), not per frame.
+    bool captureEnvironmentCubemapCPU(std::vector<float> outFaces[6], int& outFaceSize);
 
     GLuint irradianceMap()            const { return _irradianceMap; }
     void   setIrradianceMap(GLuint t)       { _irradianceMap = t; }

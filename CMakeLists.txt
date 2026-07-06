@@ -8,6 +8,8 @@ find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)
 find_package(meshoptimizer REQUIRED)
 find_package(basisu CONFIG REQUIRED)
+find_package(embree 3 CONFIG REQUIRED)
+find_package(OpenImageDenoise CONFIG REQUIRED)
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -264,6 +266,8 @@ target_link_libraries(ModelViewer
         Qt6::OpenGLWidgets        
         Qt6::Widgets        
         basisu::basisu_encoder
+        embree
+        OpenImageDenoise
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
@@ -348,6 +352,47 @@ if(WIN32)
 else()
     # Linux / macOS: Qt finds plugins and libraries through standard paths
     message(STATUS "Non-Windows platform detected - skipping WebP DLL deployment (not needed)")
+endif()
+
+# ============================================================================
+# Deploy Embree/TBB/OpenImageDenoise runtime DLLs (dev-convenience copy next
+# to the exe; install(TARGETS ... RUNTIME_DEPENDENCIES) below also picks
+# these up for packaged installs) - Windows only
+# ============================================================================
+if(WIN32)
+    if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        if(CMAKE_BUILD_TYPE MATCHES "Debug")
+            set(RT_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
+        else()
+            set(RT_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+        endif()
+
+        set(RAYTRACING_RUNTIME_DLLS
+            "embree3.dll"
+            "tbb12.dll"
+            "tbbbind.dll"
+            "tbbbind_2_0.dll"
+            "tbbbind_2_5.dll"
+            "OpenImageDenoise.dll"
+            "OpenImageDenoise_core.dll"
+            "OpenImageDenoise_device_cpu.dll"
+        )
+
+        foreach(RT_DLL ${RAYTRACING_RUNTIME_DLLS})
+            set(RT_DLL_SOURCE "${RT_BIN_DIR}/${RT_DLL}")
+            if(EXISTS "${RT_DLL_SOURCE}")
+                add_custom_command(TARGET ModelViewer POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${RT_DLL_SOURCE}"
+                        "$<TARGET_FILE_DIR:ModelViewer>/${RT_DLL}"
+                    VERBATIM
+                )
+                message(STATUS "Will deploy: ${RT_DLL}")
+            else()
+                message(WARNING "Ray-tracing runtime DLL not found (optional): ${RT_DLL_SOURCE}")
+            endif()
+        endforeach()
+    endif()
 endif()
 
 
@@ -516,6 +561,27 @@ if(WIN32)
             POST_EXCLUDE_REGEXES
                 [[.*system32.*.dll]]
     )
+
+    # install(TARGETS ... RUNTIME_DEPENDENCIES) only resolves direct PE import
+    # dependencies via binary scanning - OpenImageDenoise_device_cpu.dll (OIDN's
+    # CPU compute backend, loaded via LoadLibrary as a plugin, not a linker
+    # import of OpenImageDenoise.dll/_core.dll) and the tbbbind*.dll NUMA-
+    # topology plugins TBB loads the same way are invisible to it, so a
+    # packaged install silently ends up without them while the dev build
+    # output (which gets them from the POST_BUILD copy above) works fine.
+    # That mismatch was the actual cause of OIDN reporting "unsupported
+    # device type: CPU" only in installed/packaged builds - the DLL exists,
+    # it just was never deployed there. Install them explicitly here too.
+    if(DEFINED RT_BIN_DIR)
+        install(FILES
+            "${RT_BIN_DIR}/OpenImageDenoise_device_cpu.dll"
+            "${RT_BIN_DIR}/tbbbind.dll"
+            "${RT_BIN_DIR}/tbbbind_2_0.dll"
+            "${RT_BIN_DIR}/tbbbind_2_5.dll"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}"
+            OPTIONAL
+        )
+    endif()
 endif()
 
 # qt_generate_deploy_app_script is Qt6's own cross-platform deployment

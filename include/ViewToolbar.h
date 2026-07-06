@@ -14,7 +14,7 @@ enum class NavigationActions { ROTATE, PAN, ZOOM };
 enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
 enum class DisplayModeActions { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES };
-enum class RenderingModeActions { ADS, PBR };
+enum class RenderingModeActions { ADS, PBR, PATH_TRACED };
 enum class ShadingNormalModeActions { SMOOTH, FLAT };
 enum class DebugOverlayActions { BOUNDING_BOX, VERTEX_NORMALS, FACE_NORMALS };
 
@@ -128,6 +128,7 @@ private:
     // Rendering mode actions
     QAction* _adsAction;
     QAction* _pbrAction;
+    QAction* _pathTracedAction;
 
     // Axonometric actions
     QAction* _isoAction;

@@ -1352,9 +1352,12 @@ void SceneMesh::syncTexturesFromMaterialIfNeeded()
 
 		// Optionally detect alpha channel (light-weight check)
 		bool hasAlpha = false;
-		GLuint id = createGLTextureFromFile(path, hasAlpha);
+		QImage image;
+		GLuint id = createGLTextureFromFile(path, hasAlpha, image);
 		t.id = id;
 		t.hasAlpha = hasAlpha;
+		t.imageData = image; // so CPU-side consumers (e.g. the path tracer) can read
+		                     // pixel data for user-applied textures too, not just imported ones
 
 		_textures.push_back(t);
 		};
@@ -1409,9 +1412,10 @@ void SceneMesh::syncTexturesFromMaterialIfNeeded()
 }
 
 
-GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasAlpha)
+GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasAlpha, QImage& outImage)
 {
 	outHasAlpha = false;
+	outImage = QImage();
 	if (fullPath.isEmpty()) return 0;
 	if (!QFileInfo::exists(fullPath))
 	{
@@ -1428,6 +1432,10 @@ GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasA
 
 	// Detect alpha before any conversion
 	outHasAlpha = img.hasAlphaChannel();
+
+	// Original, unflipped image (matching MaterialProcessor.cpp's convention -
+	// see convertToGLFormat() in Utils.h) for CPU-side consumers.
+	outImage = img.convertToFormat(QImage::Format_RGBA8888);
 
 	// Convert to a known format and flip vertically to match GL origin (bottom-left)
 	QImage glimg = img.convertToFormat(QImage::Format_ARGB32);
