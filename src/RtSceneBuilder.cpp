@@ -25,6 +25,7 @@ namespace
 		// layout glm::mat4 expects - a direct element copy is correct.
 		return glm::make_mat4(m.constData());
 	}
+
 }
 
 RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
@@ -186,6 +187,9 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.emissiveStrength = material.emissiveStrength();
 	rt.opacity          = material.opacity();
 	rt.occlusionStrength = material.occlusionStrength();
+	rt.ior                  = material.ior();
+	rt.specularFactor       = material.specularFactor();
+	rt.specularColorFactor  = toGlm(material.specularColorFactor());
 
 	rt.baseColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Albedo), "albedoMap", material.albedoMapPath(), nullptr);
 	rt.metallicTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Metallic), "metallicMap", material.metallicMapPath(), "metallic");
@@ -193,6 +197,89 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.normalTexture    = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Normal), "normalMap", material.normalMapPath(), nullptr);
 	rt.emissiveTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Emissive), "emissiveMap", material.emissiveMapPath(), nullptr);
 	rt.aoTexture        = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::AmbientOcclusion), "aoMap", material.aoMapPath(), "ao");
+
+	// KHR_materials_specular's per-pixel maps - specularFactorMap's alpha
+	// channel scales specularFactor (glTF-declared packing, not user-
+	// configurable via Material::packingFor() like metallic/roughness/ao,
+	// so the packing metadata is set directly below rather than via a
+	// packingKey lookup), specularColorMap's RGB (sRGB) tints
+	// specularColorFactor.
+	rt.specularTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularFactor), "specularFactorMap", material.specularFactorMap(), nullptr);
+	if (rt.specularTexture)
+	{
+		rt.specularTexture->packingChannel = 3; // A
+		rt.specularTexture->packingInvert  = false;
+		rt.specularTexture->packingScale   = 1.0f;
+		rt.specularTexture->packingBias    = 0.0f;
+	}
+	rt.specularColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularColor), "specularColorMap", material.specularColorMap(), nullptr);
+
+	// KHR_materials_clearcoat. Channel packing is glTF-fixed (not user-
+	// configurable via Material::packingFor() like metallic/roughness/ao),
+	// so it's set directly below rather than via a packingKey lookup -
+	// mirrors main_scene.frag's hardcoded ".r"/".g" reads.
+	rt.clearcoat          = material.clearcoat();
+	rt.clearcoatRoughness = std::clamp(material.clearcoatRoughness(), 0.0001f, 1.0f);
+	rt.clearcoatTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatColor), "clearcoatColorMap", material.clearcoatColorMapPath(), nullptr);
+	if (rt.clearcoatTexture)
+	{
+		rt.clearcoatTexture->packingChannel = 0; // R
+		rt.clearcoatTexture->packingInvert  = false;
+		rt.clearcoatTexture->packingScale   = 1.0f;
+		rt.clearcoatTexture->packingBias    = 0.0f;
+	}
+	rt.clearcoatRoughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatRoughness), "clearcoatRoughnessMap", material.clearcoatRoughnessMapPath(), nullptr);
+	if (rt.clearcoatRoughnessTexture)
+	{
+		rt.clearcoatRoughnessTexture->packingChannel = 1; // G
+		rt.clearcoatRoughnessTexture->packingInvert  = false;
+		rt.clearcoatRoughnessTexture->packingScale   = 1.0f;
+		rt.clearcoatRoughnessTexture->packingBias    = 0.0f;
+	}
+	rt.clearcoatNormalTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatNormal), "clearcoatNormalMap", material.clearcoatNormalMapPath(), nullptr);
+
+	// KHR_materials_sheen. Channel packing is glTF-fixed (sheenRoughnessMap's
+	// alpha channel), so set directly rather than via a packingKey lookup.
+	rt.sheenColor     = toGlm(material.sheenColor());
+	rt.sheenRoughness = std::clamp(material.sheenRoughness(), 0.0001f, 1.0f);
+	rt.sheenColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SheenColor), "sheenColorMap", material.sheenColorMapPath(), nullptr);
+	rt.sheenRoughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SheenRoughness), "sheenRoughnessMap", material.sheenRoughnessMapPath(), nullptr);
+	if (rt.sheenRoughnessTexture)
+	{
+		rt.sheenRoughnessTexture->packingChannel = 3; // A
+		rt.sheenRoughnessTexture->packingInvert  = false;
+		rt.sheenRoughnessTexture->packingScale   = 1.0f;
+		rt.sheenRoughnessTexture->packingBias    = 0.0f;
+	}
+
+	// KHR_materials_anisotropy
+	rt.anisotropyStrength = material.anisotropyStrength();
+	rt.anisotropyRotation = material.anisotropyRotation();
+	rt.anisotropyTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Anisotropy), "anisotropyMap", material.anisotropyMap(), nullptr);
+
+	// KHR_materials_iridescence
+	rt.iridescenceFactor       = material.iridescenceFactor();
+	rt.iridescenceIor          = material.iridescenceIor();
+	rt.iridescenceThicknessMin = material.iridescenceThicknessMin();
+	rt.iridescenceThicknessMax = material.iridescenceThicknessMax();
+	rt.iridescenceTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Iridescence), "iridescenceMap", material.iridescenceMap(), nullptr);
+	if (rt.iridescenceTexture)
+	{
+		rt.iridescenceTexture->packingChannel = 0; // R
+		rt.iridescenceTexture->packingInvert  = false;
+		rt.iridescenceTexture->packingScale   = 1.0f;
+		rt.iridescenceTexture->packingBias    = 0.0f;
+	}
+	rt.iridescenceThicknessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::IridescenceThickness), "iridescenceThicknessMap", material.iridescenceThicknessMap(), nullptr);
+	if (rt.iridescenceThicknessTexture)
+	{
+		// mix(min, max, texG) == texG*(max-min) + min - exactly the linear
+		// form applyChannelPacking() computes (packingScale*v + packingBias).
+		rt.iridescenceThicknessTexture->packingChannel = 1; // G
+		rt.iridescenceThicknessTexture->packingInvert  = false;
+		rt.iridescenceThicknessTexture->packingScale   = rt.iridescenceThicknessMax - rt.iridescenceThicknessMin;
+		rt.iridescenceThicknessTexture->packingBias    = rt.iridescenceThicknessMin;
+	}
 
 	return rt;
 }

@@ -62,15 +62,19 @@ namespace
 	}
 
 	// GGX Visible Normal Distribution Function (VNDF) importance sampling -
-	// Heitz 2018, "Sampling the GGX Distribution of Visible Normals" (JCGT),
-	// isotropic case. Ve is the view direction in local tangent space (N=+Z),
-	// must have Ve.z > 0. Returns the sampled half-vector, also in local
-	// tangent space. Lower variance than plain GGX half-vector sampling
-	// because it accounts for microfacet visibility (RayTrophiStudio's
-	// closesthit.rchit uses the same method for its metallic GGX lobe).
-	glm::vec3 sampleGGXVNDF(const glm::vec3& Ve, float alpha, float u1, float u2)
+	// Heitz 2018, "Sampling the GGX Distribution of Visible Normals" (JCGT).
+	// Ve is the view direction in local tangent space (N=+Z), must have
+	// Ve.z > 0. Returns the sampled half-vector, also in local tangent space.
+	// Lower variance than plain GGX half-vector sampling because it accounts
+	// for microfacet visibility (RayTrophiStudio's closesthit.rchit uses the
+	// same method for its metallic GGX lobe). The algorithm as published is
+	// already anisotropic-capable (separate x/y roughness scaling) - alphaX
+	// and alphaY are only ever equal for isotropic materials, letting
+	// KHR_materials_anisotropy's stretched lobe reuse this same sampler
+	// rather than needing its own.
+	glm::vec3 sampleGGXVNDF(const glm::vec3& Ve, float alphaX, float alphaY, float u1, float u2)
 	{
-		const glm::vec3 Vh = glm::normalize(glm::vec3(alpha * Ve.x, alpha * Ve.y, Ve.z));
+		const glm::vec3 Vh = glm::normalize(glm::vec3(alphaX * Ve.x, alphaY * Ve.y, Ve.z));
 
 		const float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
 		const glm::vec3 T1 = lensq > 0.0f
@@ -87,7 +91,7 @@ namespace
 
 		const glm::vec3 Nh = t1 * T1 + t2 * T2 + std::sqrt(std::max(0.0f, 1.0f - t1 * t1 - t2 * t2)) * Vh;
 
-		return glm::normalize(glm::vec3(alpha * Nh.x, alpha * Nh.y, std::max(0.0f, Nh.z)));
+		return glm::normalize(glm::vec3(alphaX * Nh.x, alphaY * Nh.y, std::max(0.0f, Nh.z)));
 	}
 
 	// Height-correlated Smith masking-shadowing (Heitz 2014), the pair that
@@ -108,6 +112,29 @@ namespace
 	float smithG1GGX(float NdotX, float alpha)
 	{
 		return 1.0f / (1.0f + smithLambdaGGX(NdotX, alpha));
+	}
+
+	// Anisotropic generalization of smithLambdaGGX() - Xlocal is the
+	// direction expressed in the (anisotropicT, anisotropicB, N) local frame
+	// (dot(X,T), dot(X,B), dot(X,N)); reduces to smithLambdaGGX(Xlocal.z,
+	// alpha) exactly when alphaX == alphaY (isotropic case), consistent with
+	// how sampleGGXVNDF() above unifies the two cases.
+	float smithLambdaGGXAniso(const glm::vec3& Xlocal, float alphaX, float alphaY)
+	{
+		const float NdotX2 = Xlocal.z * Xlocal.z;
+		const float ax2 = alphaX * alphaX, ay2 = alphaY * alphaY;
+		const float tan2Num = ax2 * Xlocal.x * Xlocal.x + ay2 * Xlocal.y * Xlocal.y;
+		return 0.5f * (-1.0f + std::sqrt(1.0f + tan2Num / std::max(NdotX2, 1e-7f)));
+	}
+
+	float smithG1GGXAniso(const glm::vec3& Xlocal, float alphaX, float alphaY)
+	{
+		return 1.0f / (1.0f + smithLambdaGGXAniso(Xlocal, alphaX, alphaY));
+	}
+
+	float smithG2HeightCorrelatedGGXAniso(const glm::vec3& Vlocal, const glm::vec3& Llocal, float alphaX, float alphaY)
+	{
+		return 1.0f / (1.0f + smithLambdaGGXAniso(Vlocal, alphaX, alphaY) + smithLambdaGGXAniso(Llocal, alphaX, alphaY));
 	}
 
 	float smithG2HeightCorrelatedGGX(float NdotV, float NdotL, float alpha)
@@ -155,6 +182,78 @@ namespace
 	glm::vec3 fresnelSchlick(float cosTheta, const glm::vec3& F0)
 	{
 		return F0 + (glm::vec3(1.0f) - F0) * std::pow(std::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+	}
+
+	// 3-arg variant ported from main_scene.frag's own fresnelSchlick(cosTheta,
+	// F0, F90) overload - lets grazing-angle reflectance (F90) differ from 1.0,
+	// which KHR_materials_specular's specularFactor uses to scale dielectric
+	// reflectance down uniformly (see computeF0F90() below).
+	glm::vec3 fresnelSchlick(float cosTheta, const glm::vec3& F0, const glm::vec3& F90)
+	{
+		return F0 + (F90 - F0) * std::pow(std::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+	}
+
+	// Ported from computeDielectricF0()/computeF90() in main_scene.frag:
+	// KHR_materials_ior replaces the fixed 0.04 dielectric F0 with a value
+	// derived from the material's actual index of refraction, and
+	// KHR_materials_specular further scales/tints it (with no effect on
+	// metals - specular only affects the dielectric term before the
+	// metal/dielectric F0 mix). Takes the already-textured baseColor/
+	// metalness (SurfaceParams, post texture sampling) rather than the raw
+	// RtMaterial factors, matching how main_scene.frag uses params.baseColor/
+	// params.metallic (post-texture) for this same mix, not the flat factors.
+	// texturedSpecularFactor/texturedSpecularColorFactor are the material
+	// factors already multiplied by specularFactorMap's alpha / specularColorMap's
+	// (sRGB-decoded) RGB where present (see evaluateSurface()) - mirrors
+	// main_scene.frag's params.specularFactor/params.specularColor, which are
+	// likewise texture-modulated before this same F0/F90 computation.
+	void computeF0F90(const RtMaterial& mat, const glm::vec3& texturedBaseColor, float texturedMetalness,
+		float texturedSpecularFactor, const glm::vec3& texturedSpecularColorFactor,
+		glm::vec3& outF0, glm::vec3& outF90, glm::vec3& outDirectF0, glm::vec3& outDielectricF0, glm::vec3& outDielectricDirectF0)
+	{
+		const float f0FromIor = std::pow((mat.ior - 1.0f) / (mat.ior + 1.0f), 2.0f);
+		glm::vec3 dielectricF0(f0FromIor);
+		if (texturedSpecularFactor > 0.0f)
+			dielectricF0 *= texturedSpecularColorFactor;
+		dielectricF0 = glm::clamp(dielectricF0, glm::vec3(0.0f), glm::vec3(1.0f));
+		outDielectricF0 = dielectricF0; // pre-metal-mix, WITHOUT the extra specularFactor multiply below - main_scene.frag's params.dielectricF0, consumed standalone by KHR_materials_iridescence's evalIridescence() calls and clearcoat's clearcoatF0Scalar-adjacent logic.
+
+		outF0 = glm::mix(dielectricF0, texturedBaseColor, texturedMetalness);
+		outF90 = glm::mix(glm::vec3(texturedSpecularFactor), glm::vec3(1.0f), texturedMetalness);
+
+		// Direct-lighting (punctual light) F0 additionally scales the
+		// dielectric term by specularFactor a second time - see
+		// main_scene.frag's "dielectricDirectF0 = params.dielectricF0 *
+		// params.specularFactor" at its direct-light BRDF call site, distinct
+		// from the general F0 above (used for IBL/indirect bounces).
+		// outDielectricDirectF0 is that quantity BEFORE the metal/dielectric
+		// mix - main_scene.frag's KHR_materials_iridescence direct-lighting
+		// branch (evaluateBaseDirect()) needs the pure dielectric term
+		// standalone, separately from the already-metal-mixed outDirectF0.
+		outDielectricDirectF0 = dielectricF0 * texturedSpecularFactor;
+		outDirectF0 = glm::mix(outDielectricDirectF0, texturedBaseColor, texturedMetalness);
+	}
+
+	// Ported from decodeAnisotropyTexture() in main_scene.frag. Without a
+	// texture this is a no-op (returns the raw uniform factors unchanged) -
+	// see evaluateSurface(), which only bothers calling this when a texture
+	// is actually present. With a texture, the RG channels ([0,1] -> [-1,1])
+	// give a base direction that the uniform rotation then rotates further,
+	// reduced here to a single final angle (outRotation) since that's all
+	// buildAnisotropyBasis()-equivalent code needs downstream.
+	void decodeAnisotropyTexture(const glm::vec3& texelRGB, float uniformStrength, float uniformRotation,
+		float& outStrength, float& outRotation)
+	{
+		glm::vec2 direction = glm::vec2(texelRGB.x, texelRGB.y) * 2.0f - 1.0f;
+		const float directionLength = glm::length(direction);
+		direction = (directionLength < 0.0001f) ? glm::vec2(1.0f, 0.0f) : (direction / directionLength);
+
+		outStrength = std::clamp(texelRGB.z * uniformStrength, 0.0f, 1.0f);
+
+		const float c = std::cos(uniformRotation);
+		const float s = std::sin(uniformRotation);
+		const glm::vec2 rotated(c * direction.x - s * direction.y, s * direction.x + c * direction.y);
+		outRotation = std::atan2(rotated.y, rotated.x);
 	}
 
 	// Applies the texture's actual declared wrap mode instead of assuming
@@ -273,6 +372,50 @@ namespace
 		// specularIBLOut/envColor, never to direct-light terms), not general
 		// surface darkening. See where this is consumed in tracePixel().
 		float ao = 1.0f;
+
+		// Fresnel reflectance at normal incidence (F0) and at grazing angle
+		// (F90) - see computeF0F90(). Computed once here (using the already-
+		// textured baseColor/metalness above) rather than recomputed with a
+		// hardcoded 0.04 dielectric constant at every Fresnel call site.
+		glm::vec3 F0  = glm::vec3(0.04f);
+		glm::vec3 F90 = glm::vec3(1.0f);
+
+		// Direct-lighting (punctual light) variant of F0 - see computeF0F90().
+		glm::vec3 directF0 = glm::vec3(0.04f);
+
+		// Pre-metal-mix, general and direct-light-specific dielectric F0 -
+		// see computeF0F90()'s outDielectricF0/outDielectricDirectF0
+		// comments. Only consumed by the KHR_materials_iridescence branches.
+		glm::vec3 dielectricF0       = glm::vec3(0.04f);
+		glm::vec3 dielectricDirectF0 = glm::vec3(0.04f);
+
+		// Textured specularFactor scalar (KHR_materials_specular), stored
+		// standalone because the iridescence direct-lighting branch needs it
+		// raw (as F90 for its own dielectric_fresnel), separate from surf.F90
+		// (which is already mixed with metalness).
+		float specularFactor = 1.0f;
+
+		// KHR_materials_clearcoat - see evaluateClearcoatDirect()/tracePixel()'s
+		// clearcoat-lobe handling for how these are consumed.
+		float clearcoat          = 0.0f;
+		float clearcoatRoughness = 0.0001f;
+
+		// KHR_materials_sheen - see calculateSheen(). (0,0,0) means no sheen.
+		glm::vec3 sheenColor     = glm::vec3(0.0f);
+		float     sheenRoughness = 0.0001f;
+
+		// KHR_materials_anisotropy - anisotropyRotation is already the final
+		// combined angle (texture direction rotated by the uniform rotation,
+		// or just the uniform rotation when untextured) - see
+		// decodeAnisotropyTexture().
+		float anisotropyStrength = 0.0f;
+		float anisotropyRotation = 0.0f;
+
+		// KHR_materials_iridescence - see evalIridescence(). iridescenceFactor
+		// <= 0.001 means "no iridescence", matching main_scene.frag's own gate.
+		float iridescenceFactor    = 0.0f;
+		float iridescenceIor       = 1.3f;
+		float iridescenceThickness = 400.0f;
 	};
 
 	// vertexColor is the interpolated COLOR_0 attribute (or the (1,1,1,1)
@@ -313,6 +456,58 @@ namespace
 			s.ao = std::clamp(glm::mix(1.0f, texAO, mat.occlusionStrength), 0.0001f, 1.0f);
 		}
 
+		float texturedSpecularFactor = mat.specularFactor;
+		if (mat.specularTexture)
+			texturedSpecularFactor *= applyChannelPacking(sampleTexture(*mat.specularTexture, texCoords), *mat.specularTexture);
+
+		glm::vec3 texturedSpecularColorFactor = mat.specularColorFactor;
+		if (mat.specularColorTexture)
+			texturedSpecularColorFactor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.specularColorTexture, texCoords)));
+
+		computeF0F90(mat, s.baseColor, s.metalness, texturedSpecularFactor, texturedSpecularColorFactor, s.F0, s.F90, s.directF0, s.dielectricF0, s.dielectricDirectF0);
+		s.specularFactor = texturedSpecularFactor;
+
+		s.clearcoat = mat.clearcoat;
+		if (mat.clearcoatTexture)
+			s.clearcoat *= applyChannelPacking(sampleTexture(*mat.clearcoatTexture, texCoords), *mat.clearcoatTexture);
+		s.clearcoat = std::clamp(s.clearcoat, 0.0f, 1.0f);
+
+		s.clearcoatRoughness = mat.clearcoatRoughness;
+		if (mat.clearcoatRoughnessTexture)
+			s.clearcoatRoughness *= applyChannelPacking(sampleTexture(*mat.clearcoatRoughnessTexture, texCoords), *mat.clearcoatRoughnessTexture);
+		s.clearcoatRoughness = std::clamp(s.clearcoatRoughness, 0.0001f, 1.0f);
+
+		s.sheenColor = mat.sheenColor;
+		if (mat.sheenColorTexture)
+			s.sheenColor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.sheenColorTexture, texCoords)));
+		s.sheenColor = glm::clamp(s.sheenColor, glm::vec3(0.0f), glm::vec3(1.0f));
+
+		s.sheenRoughness = mat.sheenRoughness;
+		if (mat.sheenRoughnessTexture)
+			s.sheenRoughness *= applyChannelPacking(sampleTexture(*mat.sheenRoughnessTexture, texCoords), *mat.sheenRoughnessTexture);
+		s.sheenRoughness = std::clamp(s.sheenRoughness, 0.0001f, 1.0f);
+
+		s.anisotropyStrength = mat.anisotropyStrength;
+		s.anisotropyRotation = mat.anisotropyRotation;
+		if (mat.anisotropyTexture)
+		{
+			const glm::vec3 texel(sampleTexture(*mat.anisotropyTexture, texCoords));
+			decodeAnisotropyTexture(texel, mat.anisotropyStrength, mat.anisotropyRotation, s.anisotropyStrength, s.anisotropyRotation);
+		}
+
+		s.iridescenceFactor = mat.iridescenceFactor;
+		if (mat.iridescenceTexture)
+			s.iridescenceFactor *= applyChannelPacking(sampleTexture(*mat.iridescenceTexture, texCoords), *mat.iridescenceTexture);
+
+		s.iridescenceIor = mat.iridescenceIor;
+
+		// Ported from main_scene.frag: defaults to iridescenceThicknessMax
+		// (not min!) when untextured, matching its own params.
+		// iridescenceThickness = pbrLighting.iridescenceThicknessMax default.
+		s.iridescenceThickness = mat.iridescenceThicknessMax;
+		if (mat.iridescenceThicknessTexture)
+			s.iridescenceThickness = applyChannelPacking(sampleTexture(*mat.iridescenceThicknessTexture, texCoords), *mat.iridescenceThicknessTexture);
+
 		return s;
 	}
 
@@ -321,22 +516,38 @@ namespace
 	// path tracer) - when the mesh has no tangent data, this just returns N
 	// unchanged rather than attempting a derivative-based tangent frame.
 	glm::vec3 applyNormalMap(const glm::vec3& N, const glm::vec3& rawTangent, const glm::vec3& rawBitangent,
-		const RtMaterial& mat, const glm::vec2 (&texCoords)[4])
+		const RtTextureSample* normalTex, const glm::vec2 (&texCoords)[4])
 	{
-		if (!mat.normalTexture)
+		if (!normalTex)
 			return N;
 		if (glm::length(rawTangent) <= 0.01f)
 			return N; // no tangent data (matches the shader's own hasTangents check)
 
-		glm::vec3 T = glm::normalize(rawTangent - glm::dot(rawTangent, N) * N);
-		glm::vec3 B = glm::normalize(rawBitangent - glm::dot(rawBitangent, N) * N);
+		const glm::vec3 T = glm::normalize(rawTangent - glm::dot(rawTangent, N) * N);
 
-		// Ensure T, B, N form a right-handed basis; if not, flip B.
-		const float handedness = glm::dot(glm::cross(T, B), N);
-		if (handedness < 0.0f)
-			B = -B;
+		// Matches main_scene.frag's buildSurfaceFrame() exactly: the final
+		// bitangent is NOT the imported rawBitangent's own (orthogonalized)
+		// direction - it's reconstructed as a strictly perpendicular
+		// cross(N, T), with the imported bitangent used only for its SIGN
+		// (a handedness flip). Using the imported bitangent's actual
+		// direction instead (an earlier version of this code did) can be
+		// subtly non-orthogonal to cross(N,T) on curved/smoothed surfaces
+		// (the vertex tangent/bitangent attributes aren't guaranteed exactly
+		// orthogonal to a smoothed shading normal), skewing the TBN basis -
+		// invisible on rough materials, but visibly warping normal-mapped
+		// detail on a near-mirror surface (e.g. an embossed logo decal on a
+		// highly reflective/iridescent sphere looking distorted/gapped).
+		float handedness = 1.0f;
+		if (glm::length(rawBitangent) > 0.01f)
+		{
+			const glm::vec3 importedBitangent = glm::normalize(rawBitangent - glm::dot(rawBitangent, N) * N);
+			handedness = glm::sign(glm::dot(glm::cross(N, T), importedBitangent));
+			if (handedness == 0.0f)
+				handedness = 1.0f;
+		}
+		const glm::vec3 B = glm::normalize(glm::cross(N, T)) * handedness;
 
-		const glm::vec4 sampled = sampleTexture(*mat.normalTexture, texCoords);
+		const glm::vec4 sampled = sampleTexture(*normalTex, texCoords);
 		const glm::vec3 tangentNormal = glm::vec3(sampled) * 2.0f - 1.0f;
 
 		const glm::mat3 TBN(T, B, N);
@@ -542,8 +753,171 @@ namespace
 	}
 
 	// Cook-Torrance direct-lighting contribution for one light sample.
+	// KHR_materials_anisotropy, ported verbatim from D_GGX_anisotropic()/
+	// V_GGX_anisotropic() in main_scene.frag. V_GGX_anisotropic already bakes
+	// in the 1/(4*NdotV*NdotL) visibility term (Khronos spec's "V" function),
+	// unlike the isotropic geometrySmith()/distributionGGX() pair which needs
+	// that division applied separately at the call site.
+	float distributionGGXAnisotropic(float NdotH, float TdotH, float BdotH, float at, float ab)
+	{
+		const float a2 = at * ab;
+		const glm::vec3 f(ab * TdotH, at * BdotH, a2 * NdotH);
+		const float w2 = a2 / glm::dot(f, f);
+		return a2 * w2 * w2 / kPi;
+	}
+
+	float visibilityGGXAnisotropic(float NdotL, float NdotV, float BdotV, float TdotV, float TdotL, float BdotL, float at, float ab)
+	{
+		const float GGXV = NdotL * glm::length(glm::vec3(at * TdotV, ab * BdotV, NdotV));
+		const float GGXL = NdotV * glm::length(glm::vec3(at * TdotL, ab * BdotL, NdotL));
+		return std::clamp(0.5f / (GGXV + GGXL), 0.0f, 1.0f);
+	}
+
+	// ---- KHR_materials_iridescence, ported verbatim from main_scene.frag --
+
+	inline float sqf(float a) { return a * a; }
+	inline glm::vec3 sqf(const glm::vec3& a) { return a * a; }
+
+	glm::vec3 fresnel0ToIor(const glm::vec3& fresnel0)
+	{
+		const glm::vec3 sqrtF0 = glm::sqrt(fresnel0);
+		return (glm::vec3(1.0f) + sqrtF0) / (glm::vec3(1.0f) - sqrtF0);
+	}
+
+	glm::vec3 iorToFresnel0(const glm::vec3& transmittedIor, float incidentIor)
+	{
+		return sqf((transmittedIor - glm::vec3(incidentIor)) / (transmittedIor + glm::vec3(incidentIor)));
+	}
+
+	float iorToFresnel0(float transmittedIor, float incidentIor)
+	{
+		return sqf((transmittedIor - incidentIor) / (transmittedIor + incidentIor));
+	}
+
+	float fSchlickIridescence(float f0, float cosTheta, float f90 = 1.0f)
+	{
+		return f0 + (f90 - f0) * std::pow(std::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+	}
+
+	glm::vec3 fSchlickIridescence(const glm::vec3& f0, float cosTheta, const glm::vec3& f90)
+	{
+		return f0 + (f90 - f0) * std::pow(std::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+	}
+
+	// XYZ color-matching-function sensitivity curves -> linear sRGB, giving
+	// thin-film interference its vibrant, angle-dependent hue shift.
+	glm::vec3 evalSensitivity(float OPD, const glm::vec3& shift)
+	{
+		const float phase = 2.0f * kPi * OPD * 1.0e-9f;
+		const glm::vec3 val(5.4856e-13f, 4.4201e-13f, 5.2481e-13f);
+		const glm::vec3 pos(1.6810e+06f, 1.7953e+06f, 2.2084e+06f);
+		const glm::vec3 var(4.3278e+09f, 9.3046e+09f, 6.6121e+09f);
+
+		glm::vec3 xyz;
+		for (int i = 0; i < 3; ++i)
+			xyz[i] = val[i] * std::sqrt(2.0f * kPi * var[i]) * std::cos(pos[i] * phase + shift[i]) * std::exp(-sqf(phase) * var[i]);
+		xyz.x += 9.7470e-14f * std::sqrt(2.0f * kPi * 4.5282e+09f) * std::cos(2.2399e+06f * phase + shift[0]) * std::exp(-4.5282e+09f * sqf(phase));
+		xyz /= 1.0685e-7f;
+
+		// Matches main_scene.frag's XYZ_TO_REC709 mat3 literal exactly (GLSL's
+		// mat3(...) 9-scalar constructor and glm::mat3's are both column-major,
+		// so the same 9 values in the same order reproduce the same matrix).
+		static const glm::mat3 kXyzToRec709(
+			3.2404542f, -0.9692660f, 0.0556434f,
+			-1.5371385f, 1.8760108f, -0.2040259f,
+			-0.4985314f, 0.0415560f, 1.0572252f);
+		return kXyzToRec709 * xyz;
+	}
+
+	// baseF90 defaults to 1.0 to match main_scene.frag's single-arg overload.
+	glm::vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness,
+		const glm::vec3& baseF0, const glm::vec3& baseF90 = glm::vec3(1.0f))
+	{
+		const float iridescenceIor = glm::mix(outsideIOR, eta2, glm::smoothstep(0.0f, 0.03f, thinFilmThickness));
+		const float sinTheta2Sq = sqf(outsideIOR / iridescenceIor) * (1.0f - sqf(cosTheta1));
+		const float cosTheta2Sq = 1.0f - sinTheta2Sq;
+		if (cosTheta2Sq < 0.0f)
+			return glm::vec3(1.0f);
+		const float cosTheta2 = std::sqrt(cosTheta2Sq);
+
+		// First interface (air to iridescent film) - F90 at the air-film
+		// interface is always 1.0.
+		const float R0 = iorToFresnel0(iridescenceIor, outsideIOR);
+		const float R12 = fSchlickIridescence(R0, cosTheta1, 1.0f);
+		const float T121 = 1.0f - R12;
+		float phi12 = 0.0f;
+		if (iridescenceIor < outsideIOR) phi12 = kPi;
+		const float phi21 = kPi - phi12;
+
+		// Second interface (iridescent film to base material) - F90 here
+		// uses the base material's own baseF90.
+		const glm::vec3 baseIOR = fresnel0ToIor(glm::clamp(baseF0, glm::vec3(0.0f), glm::vec3(0.9999f)));
+		const glm::vec3 R1 = iorToFresnel0(baseIOR, iridescenceIor);
+		const glm::vec3 R23 = fSchlickIridescence(R1, cosTheta2, baseF90);
+		glm::vec3 phi23(0.0f);
+		if (baseIOR.x < iridescenceIor) phi23.x = kPi;
+		if (baseIOR.y < iridescenceIor) phi23.y = kPi;
+		if (baseIOR.z < iridescenceIor) phi23.z = kPi;
+
+		const float OPD = 2.0f * iridescenceIor * thinFilmThickness * cosTheta2;
+		const glm::vec3 phi = glm::vec3(phi21) + phi23;
+
+		const glm::vec3 R123 = glm::clamp(glm::vec3(R12) * R23, glm::vec3(1e-5f), glm::vec3(0.9999f));
+		const glm::vec3 r123 = glm::sqrt(R123);
+		const glm::vec3 Rs = sqf(glm::vec3(T121)) * R23 / (glm::vec3(1.0f) - R123);
+
+		glm::vec3 I = glm::vec3(R12) + Rs; // DC term
+
+		glm::vec3 Cm = Rs - glm::vec3(T121);
+		for (int m = 1; m <= 2; ++m)
+		{
+			Cm *= r123;
+			const glm::vec3 Sm = 2.0f * evalSensitivity(static_cast<float>(m) * OPD, static_cast<float>(m) * phi);
+			I += Cm * Sm;
+		}
+		return glm::max(I, glm::vec3(0.0f));
+	}
+
+	// Ported from rgb_mix() in main_scene.frag - an energy-conserving mix for
+	// iridescent dielectric surfaces. A per-channel-varying Fresnel (e.g.
+	// R=0.9, G=0.1, B=0.8) would let a plain per-channel mix() leave
+	// low-Fresnel channels holding onto most of "base", inflating overall
+	// brightness; this reduces base by the MAX channel's Fresnel uniformly
+	// instead, so no channel keeps more base than the most-reflective
+	// channel allows, while per-channel specular coloring is preserved.
+	glm::vec3 rgbMix(const glm::vec3& base, const glm::vec3& layer, const glm::vec3& rgbAlpha)
+	{
+		const float rgbAlphaMax = std::max({ rgbAlpha.r, rgbAlpha.g, rgbAlpha.b });
+		return (1.0f - rgbAlphaMax) * base + rgbAlpha * layer;
+	}
+
+	// Indirect/bounce-sampling side of KHR_materials_iridescence - unlike
+	// direct lighting (evaluateDirectBRDF(), which replicates main_scene.
+	// frag's evaluateBaseDirect() iridescence branch exactly), there's no
+	// analytic prefiltered-IBL lookup here to replicate raster's
+	// evaluateBaseIBL() iridescence branch against, so this instead blends
+	// the ordinary Fresnel term toward evalIridescence()'s angle/thickness-
+	// dependent color by iridescenceFactor - the same general-purpose
+	// pattern main_scene.frag's own (declared but never called in that
+	// shader) computeIridescentFresnel() helper describes. A single unified
+	// F0 (surf.F0, already dielectric/metal-mixed) is used rather than
+	// reconstructing separate dielectric/metal branches, consistent with how
+	// sampleBSDFBounce() already treats F0 as one unified term elsewhere.
+	glm::vec3 applyIridescenceToFresnel(const glm::vec3& baseFresnel, float cosTheta, const glm::vec3& F0, const SurfaceParams& surf)
+	{
+		if (surf.iridescenceFactor <= 0.001f || surf.iridescenceThickness <= 0.0f)
+			return baseFresnel;
+		const glm::vec3 iridescent = evalIridescence(1.0f, surf.iridescenceIor, std::clamp(cosTheta, 0.0f, 1.0f),
+			surf.iridescenceThickness, glm::clamp(F0, glm::vec3(0.0f), glm::vec3(0.9999f)));
+		return glm::mix(baseFresnel, iridescent, surf.iridescenceFactor);
+	}
+
+	// hasAniso/anisoT/anisoB/at/ab mirror sampleBSDFBounce()'s anisotropic
+	// parameters (see tracePixel()'s per-hit computation) - when hasAniso is
+	// false this reduces to the plain isotropic Cook-Torrance path exactly
+	// as before.
 	glm::vec3 evaluateDirectBRDF(const glm::vec3& N, const glm::vec3& V, const glm::vec3& L,
-		const SurfaceParams& surf)
+		const SurfaceParams& surf, bool hasAniso, const glm::vec3& anisoT, const glm::vec3& anisoB, float at, float ab)
 	{
 		const float NdotL = std::max(glm::dot(N, L), 0.0f);
 		const float NdotV = std::max(glm::dot(N, V), 0.0f);
@@ -554,18 +928,219 @@ namespace
 		const float NdotH = std::max(glm::dot(N, H), 0.0f);
 		const float VdotH = std::clamp(glm::dot(H, V), 0.0f, 1.0f);
 
-		const glm::vec3 dielectricF0(0.04f);
-		const glm::vec3 F0 = glm::mix(dielectricF0, surf.baseColor, surf.metalness);
+		const glm::vec3 F = fresnelSchlick(VdotH, surf.directF0, surf.F90);
 
-		const float D = distributionGGX(NdotH, surf.roughness);
-		const float G = geometrySmith(NdotV, NdotL, surf.roughness);
-		const glm::vec3 F = fresnelSchlick(VdotH, F0);
+		glm::vec3 specularNoF;
+		if (hasAniso)
+		{
+			const float D_aniso = distributionGGXAnisotropic(NdotH, glm::dot(anisoT, H), glm::dot(anisoB, H), at, ab);
+			const float V_aniso = visibilityGGXAnisotropic(NdotL, NdotV,
+				glm::dot(anisoB, V), glm::dot(anisoT, V), glm::dot(anisoT, L), glm::dot(anisoB, L), at, ab);
+			specularNoF = glm::vec3(D_aniso * V_aniso);
+		}
+		else
+		{
+			const float D = distributionGGX(NdotH, surf.roughness);
+			const float G = geometrySmith(NdotV, NdotL, surf.roughness);
+			specularNoF = glm::vec3((D * G) / std::max(4.0f * NdotV * NdotL, 0.001f));
+		}
+		const glm::vec3 specular = specularNoF * F;
 
-		const glm::vec3 specular = (D * G * F) / std::max(4.0f * NdotV * NdotL, 0.001f);
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - surf.metalness);
 		const glm::vec3 diffuse = kD * surf.baseColor / kPi;
 
+		// KHR_materials_iridescence - ported from evaluateBaseDirect()'s
+		// iridescence branch in main_scene.frag, which entirely replaces the
+		// diffuse+specular combination above with its own dielectric/metal
+		// reconstruction (folding everything into what that function calls
+		// specularOut, with diffuseOut zeroed) rather than adding a term on
+		// top - so this branch returns instead of falling through.
+		if (surf.iridescenceFactor > 0.001f && surf.iridescenceThickness > 0.0f)
+		{
+			const glm::vec3 l_diffuse = diffuse * NdotL;
+			const glm::vec3 l_specular = specularNoF * NdotL;
+
+			const glm::vec3 dielectricFresnel = fresnelSchlick(VdotH, surf.dielectricDirectF0, glm::vec3(surf.specularFactor));
+			const glm::vec3 metalFresnel = fresnelSchlick(VdotH, surf.baseColor, glm::vec3(1.0f));
+			glm::vec3 dielectricBrdf = glm::mix(l_diffuse, l_specular, dielectricFresnel);
+			glm::vec3 metalBrdf = metalFresnel * l_specular;
+
+			const glm::vec3 iridescenceFresnelDielectric = evalIridescence(1.0f, surf.iridescenceIor, NdotV, surf.iridescenceThickness, surf.dielectricF0);
+			const glm::vec3 iridescenceFresnelMetallic = evalIridescence(1.0f, surf.iridescenceIor, NdotV, surf.iridescenceThickness, surf.baseColor);
+			metalBrdf = glm::mix(metalBrdf, l_specular * iridescenceFresnelMetallic, surf.iridescenceFactor);
+			dielectricBrdf = glm::mix(dielectricBrdf, rgbMix(l_diffuse, l_specular, iridescenceFresnelDielectric), surf.iridescenceFactor);
+
+			return glm::mix(dielectricBrdf, metalBrdf, surf.metalness);
+		}
+
 		return (diffuse + specular) * NdotL;
+	}
+
+	// Ported from evaluateClearcoatDirect() in main_scene.frag. Note this
+	// intentionally reuses distributionGGX()/geometrySmith() (which each
+	// re-square their "roughness" argument internally) by passing them
+	// clearcoatRoughness^2 (alpha) rather than clearcoatRoughness directly -
+	// that double-squaring is exactly what the shader's own clearcoat call
+	// site does, so replicating it here keeps the two lobes matched instead
+	// of "fixing" it into a more standard single-squared GGX. Also note the
+	// shader's clearcoat BRDF has no NdotL factor at all (divides by NdotV
+	// only) - also kept verbatim for the same reason.
+	glm::vec3 evaluateClearcoatDirect(const glm::vec3& Ncoat, const glm::vec3& V, const glm::vec3& L,
+		float clearcoat, float clearcoatRoughness)
+	{
+		if (clearcoat <= 0.0f)
+			return glm::vec3(0.0f);
+
+		const glm::vec3 H = glm::normalize(V + L);
+		const float NdotL = std::max(glm::dot(Ncoat, L), 0.0f);
+		const float NdotV = std::max(glm::dot(Ncoat, V), 0.0f);
+		const float NdotH = std::max(glm::dot(Ncoat, H), 0.0f);
+		if (NdotL <= 0.0f || NdotV <= 0.0f)
+			return glm::vec3(0.0f);
+
+		const float alpha = clearcoatRoughness * clearcoatRoughness;
+		const float D = distributionGGX(NdotH, alpha);
+		const float G = geometrySmith(NdotV, NdotL, alpha);
+		const float clearcoatBRDF = (D * G) / std::max(4.0f * NdotV, 0.001f);
+		return glm::vec3(clearcoatBRDF * clearcoat);
+	}
+
+	// clamp(mat.ior, 1.0, inf)-derived dielectric F0, used as the clearcoat
+	// layer's fixed Fresnel reflectance (main_scene.frag's clearcoatF0Scalar/
+	// clearcoatFresnel) - unlike the base layer, the coat never tints via
+	// specularColorFactor or mixes toward metalness.
+	glm::vec3 computeClearcoatFresnel(float ior, const glm::vec3& Ncoat, const glm::vec3& V)
+	{
+		const float clearcoatIor = std::max(ior, 1.0f);
+		const float f0Scalar = std::pow((clearcoatIor - 1.0f) / (clearcoatIor + 1.0f), 2.0f);
+		const float NdotV = std::clamp(glm::dot(Ncoat, V), 0.0f, 1.0f);
+		return fresnelSchlick(NdotV, glm::vec3(f0Scalar), glm::vec3(1.0f));
+	}
+
+	// ---- KHR_materials_sheen, ported verbatim from main_scene.frag --------
+
+	float distributionCharlie(float NdotH, float roughness)
+	{
+		const float alpha = std::max(roughness * roughness, 0.000001f);
+		const float invAlpha = 1.0f / alpha;
+		const float sin2h = std::max(1.0f - NdotH * NdotH, 0.0078125f); // 2^(-7)
+		return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * kPi);
+	}
+
+	float lambdaSheenNumericHelper(float x, float alphaG)
+	{
+		const float oneMinusAlphaSq = (1.0f - alphaG) * (1.0f - alphaG);
+		const float a = glm::mix(21.5473f, 25.3245f, oneMinusAlphaSq);
+		const float b = glm::mix(3.82987f, 3.32435f, oneMinusAlphaSq);
+		const float c = glm::mix(0.19823f, 0.16801f, oneMinusAlphaSq);
+		const float d = glm::mix(-1.97760f, -1.27393f, oneMinusAlphaSq);
+		const float e = glm::mix(-4.32054f, -4.85967f, oneMinusAlphaSq);
+		return a / (1.0f + b * std::pow(x, c)) + d * x + e;
+	}
+
+	float lambdaSheen(float cosTheta, float alphaG)
+	{
+		if (std::abs(cosTheta) < 0.5f)
+			return std::exp(lambdaSheenNumericHelper(cosTheta, alphaG));
+		return std::exp(2.0f * lambdaSheenNumericHelper(0.5f, alphaG) -
+			lambdaSheenNumericHelper(1.0f - cosTheta, alphaG));
+	}
+
+	float visibilitySheen(float NdotL, float NdotV, float sheenRoughness)
+	{
+		sheenRoughness = std::max(sheenRoughness, 0.000001f);
+		const float alphaG = sheenRoughness * sheenRoughness;
+		return std::clamp(1.0f / ((1.0f + lambdaSheen(NdotV, alphaG) + lambdaSheen(NdotL, alphaG)) * (4.0f * NdotV * NdotL)), 0.0f, 1.0f);
+	}
+
+	// Ported from calculateSheen() in main_scene.frag. Additive (not blended
+	// like clearcoat) - the shader also dampens the base layer's direct
+	// diffuse/specular by an energy-conservation factor derived from a baked
+	// LUT (sheenELUT) when sheen is present, which this port still skips
+	// (see the sheenColor/sheenRoughness comment in RtSceneSnapshot.h) - this
+	// may read a little too bright next to raster on strongly-sheened
+	// materials, but the sheen glow itself matches. Indirect/environment
+	// sheen (main_scene.frag's evaluateSheenIBL()) turned out to be the
+	// visually dominant contribution on IBL-only test scenes - direct sheen
+	// alone looked "missing" next to raster. A first attempt added it as a
+	// stochastic bounce lobe (like clearcoat's IBL), but unlike clearcoat -
+	// whose IBL raster itself only approximates via a prefiltered mip - the
+	// shader's sheen IBL is a single deterministic environment lookup with
+	// zero noise; picking it up only a small, probability-weighted fraction
+	// of the time made it read as noisy/near-invisible at ordinary sample
+	// budgets rather than the smooth, always-present tint raster shows. See
+	// sheenAlbedoLUT()/tracePixel()'s deterministic evaluation instead, which
+	// - like the background/environment-miss lookup already elsewhere in
+	// this file - is a direct analytic sample computed on every hit, not
+	// something that needs to accumulate over many samples to be visible.
+	glm::vec3 calculateSheen(const glm::vec3& N, const glm::vec3& V, const glm::vec3& L, const glm::vec3& sheenColor, float sheenRoughness)
+	{
+		const glm::vec3 H = glm::normalize(V + L);
+		const float NdotL = std::clamp(glm::dot(N, L), 0.0f, 1.0f);
+		const float NdotV = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
+		const float NdotH = std::clamp(glm::dot(N, H), 0.0f, 1.0f);
+		if (NdotL <= 0.0f || NdotV <= 0.0f)
+			return glm::vec3(0.0f);
+
+		const float sheenRoughFinal = std::clamp(sheenRoughness, 0.000001f, 1.0f);
+		const float D = distributionCharlie(NdotH, sheenRoughFinal);
+		const float V_sheen = visibilitySheen(NdotL, NdotV, sheenRoughFinal);
+
+		return sheenColor * D * V_sheen * NdotL;
+	}
+
+	// Replaces main_scene.frag's baked sheenELUT/charlieLUT textures - a
+	// small hemispherical-directional-albedo table for the Charlie BRDF,
+	// E(NdotV, roughness) = integral over the hemisphere of D_charlie*
+	// V_sheen*NdotL dw, computed once via cosine-weighted-sample Monte Carlo
+	// (the NdotL cancels analytically against the cosine pdf exactly as in
+	// calculateSheen()'s call sites elsewhere in this file, so each bake
+	// sample is just D*V_sheen*pi - no near-zero-NdotL division needed).
+	// Built lazily on first use and cached for the process's lifetime - a
+	// C++11 function-local static's initialization is already thread-safe,
+	// and 32x32 texels x 256 samples (~262k evaluations of two closed-form
+	// trig functions) takes well under a millisecond, so there's no need for
+	// the fancier once-at-startup wiring a large asset-loading LUT would need.
+	constexpr int kSheenLUTSize = 32;
+	constexpr int kSheenLUTBakeSamples = 256;
+
+	const std::vector<float>& sheenAlbedoLUT()
+	{
+		static const std::vector<float> lut = []()
+		{
+			std::vector<float> table(static_cast<size_t>(kSheenLUTSize) * kSheenLUTSize);
+			Rng rng(0x5EEE17u); // fixed seed - deterministic bake, not tied to any pixel/frame RNG stream
+			for (int ri = 0; ri < kSheenLUTSize; ++ri)
+			{
+				const float roughness = (ri + 0.5f) / kSheenLUTSize;
+				for (int vi = 0; vi < kSheenLUTSize; ++vi)
+				{
+					const float NdotV = std::max((vi + 0.5f) / kSheenLUTSize, 1e-4f);
+					const glm::vec3 V(std::sqrt(std::max(0.0f, 1.0f - NdotV * NdotV)), 0.0f, NdotV); // local frame, N = +Z
+
+					float sum = 0.0f;
+					for (int s = 0; s < kSheenLUTBakeSamples; ++s)
+					{
+						const glm::vec3 L = cosineSampleHemisphere(rng.next01(), rng.next01()); // local frame
+						const float NdotL = std::max(L.z, 1e-4f);
+						const glm::vec3 H = glm::normalize(V + L);
+						const float NdotH = std::clamp(H.z, 0.0f, 1.0f);
+						sum += distributionCharlie(NdotH, roughness) * visibilitySheen(NdotL, NdotV, roughness) * kPi;
+					}
+					table[static_cast<size_t>(ri) * kSheenLUTSize + vi] = sum / kSheenLUTBakeSamples;
+				}
+			}
+			return table;
+		}();
+		return lut;
+	}
+
+	float sampleSheenAlbedoLUT(float NdotV, float roughness)
+	{
+		const std::vector<float>& lut = sheenAlbedoLUT();
+		const int vi = std::clamp(static_cast<int>(NdotV * kSheenLUTSize), 0, kSheenLUTSize - 1);
+		const int ri = std::clamp(static_cast<int>(roughness * kSheenLUTSize), 0, kSheenLUTSize - 1);
+		return lut[static_cast<size_t>(ri) * kSheenLUTSize + vi];
 	}
 
 	// Stochastically samples one bounce direction from the BSDF (cosine-
@@ -574,14 +1149,19 @@ namespace
 	// probability (standard single-sample stochastic-lobe MC estimator - see
 	// CpuPathTracer.h for why full MIS between NEE and BSDF sampling is not
 	// implemented in v1).
-	bool sampleBSDFBounce(const glm::vec3& N, const glm::vec3& V, const SurfaceParams& surf,
-		Rng& rng, glm::vec3& outDir, glm::vec3& outThroughput)
+	// hasAniso/anisoT/anisoB/alphaT/alphaB describe the anisotropic tangent
+	// frame and stretched roughness (see tracePixel()'s per-hit computation,
+	// mirroring main_scene.frag's buildAnisotropyBasis()/at,ab) - when
+	// hasAniso is false the base specular lobe below samples isotropically
+	// exactly as before (alphaT/alphaB are unused in that case).
+	bool sampleBSDFBounce(const glm::vec3& N, const glm::vec3& Ncoat, const glm::vec3& V, const SurfaceParams& surf,
+		const glm::vec3& clearcoatBlend, bool hasAniso, const glm::vec3& anisoT, const glm::vec3& anisoB,
+		float alphaT, float alphaB, Rng& rng, glm::vec3& outDir, glm::vec3& outThroughput)
 	{
 		glm::vec3 T, B;
 		buildOrthonormalBasis(N, T, B);
 
-		const glm::vec3 dielectricF0(0.04f);
-		const glm::vec3 F0 = glm::mix(dielectricF0, surf.baseColor, surf.metalness);
+		const glm::vec3& F0 = surf.F0;
 		// F0/metalness alone chronically under-samples glossy dielectrics: a
 		// low-roughness floor/varnish/plastic (F0 ~ 0.04, metalness 0) still
 		// clamps to the 5% floor here regardless of how narrow (and therefore
@@ -595,30 +1175,88 @@ namespace
 		const float smoothness = 1.0f - surf.roughness;
 		const float specProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness + 0.5f * smoothness * smoothness, 0.05f, 0.95f);
 
+		// KHR_materials_clearcoat, indirect side: unlike the direct-light
+		// path (which replicates main_scene.frag's analytic mix() exactly),
+		// there's no analytic prefiltered-IBL lookup available here for the
+		// coat, so it's instead added as a third stochastically-selected
+		// lobe alongside diffuse/specular - the standard way a layered BSDF
+		// is handled in a Monte-Carlo path tracer, selected with probability
+		// proportional to the same clearcoat*Fresnel weight the direct path
+		// uses to blend the two layers.
+		const float coatProb = surf.clearcoat > 0.0f
+			? std::clamp((clearcoatBlend.r + clearcoatBlend.g + clearcoatBlend.b) / 3.0f, 0.05f, 0.9f)
+			: 0.0f;
+
 		const float lobeXi = rng.next01();
 		const float u1 = rng.next01();
 		const float u2 = rng.next01();
 
-		if (lobeXi < specProb)
+		if (lobeXi < coatProb)
 		{
-			// GGX specular lobe via VNDF importance sampling (Heitz 2018 - see
-			// sampleGGXVNDF). Ve must be expressed in the local tangent frame
-			// (N = +Z) for the algorithm as published.
-			const float alpha = surf.roughness * surf.roughness;
-			const float NdotV0 = std::max(glm::dot(N, V), 1e-4f);
-			const glm::vec3 Ve(glm::dot(V, T), glm::dot(V, B), NdotV0);
+			// GGX specular lobe over the coat's own normal/roughness/fixed
+			// dielectric F0 (see computeClearcoatFresnel()) - same VNDF
+			// importance-sampling machinery as the base specular lobe below.
+			glm::vec3 Tc, Bc;
+			buildOrthonormalBasis(Ncoat, Tc, Bc);
 
-			const glm::vec3 hLocal = sampleGGXVNDF(Ve, alpha, u1, u2);
-			const glm::vec3 H = localToWorld(hLocal, N, T, B);
+			const float alpha = surf.clearcoatRoughness * surf.clearcoatRoughness;
+			const float NdotV0 = std::max(glm::dot(Ncoat, V), 1e-4f);
+			const glm::vec3 Ve(glm::dot(V, Tc), glm::dot(V, Bc), NdotV0);
+
+			const glm::vec3 hLocal = sampleGGXVNDF(Ve, alpha, alpha, u1, u2);
+			const glm::vec3 H = localToWorld(hLocal, Ncoat, Tc, Bc);
 			const glm::vec3 L = glm::reflect(-V, H);
 
-			const float NdotL = glm::dot(N, L);
-			const float NdotV = glm::dot(N, V);
+			const float NdotL = glm::dot(Ncoat, L);
+			const float NdotV = glm::dot(Ncoat, V);
 			if (NdotL <= 0.0f || NdotV <= 0.0f)
 				return false;
 
 			const float VdotH = std::clamp(glm::dot(H, V), 0.0f, 1.0f);
-			const glm::vec3 F = fresnelSchlick(VdotH, F0);
+			const glm::vec3 coatF0 = clearcoatBlend / std::max(surf.clearcoat, 1e-4f); // undo the *clearcoat factor - see computeClearcoatFresnel()
+			const glm::vec3 F = fresnelSchlick(VdotH, coatF0, glm::vec3(1.0f));
+
+			const float G1v = smithG1GGX(NdotV, alpha);
+			const float G2  = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
+
+			outThroughput = F * (G2 / std::max(G1v, 1e-6f)) / coatProb;
+			outDir = L;
+			return true;
+		}
+
+		const float remainingProb = 1.0f - coatProb;
+		const float specProbScaled = specProb * remainingProb;
+
+		if (lobeXi < coatProb + specProbScaled)
+		{
+			// GGX specular lobe via VNDF importance sampling (Heitz 2018 - see
+			// sampleGGXVNDF). Ve must be expressed in the local tangent frame
+			// (N = +Z) for the algorithm as published. When the material has
+			// KHR_materials_anisotropy active, this samples in the rotated
+			// anisotropic tangent frame with separate alphaT/alphaB instead
+			// of the isotropic (T, B, alpha) basis - sampleGGXVNDF()/the
+			// anisotropic Smith functions unify both cases already.
+			const glm::vec3& basisN = N; // shading normal is unchanged; only the tangent frame/roughness differ
+			const glm::vec3& Tb = hasAniso ? anisoT : T;
+			const glm::vec3& Bb = hasAniso ? anisoB : B;
+			const float alpha  = surf.roughness * surf.roughness;
+			const float aT = hasAniso ? alphaT : alpha;
+			const float aB = hasAniso ? alphaB : alpha;
+
+			const float NdotV0 = std::max(glm::dot(basisN, V), 1e-4f);
+			const glm::vec3 Ve(glm::dot(V, Tb), glm::dot(V, Bb), NdotV0);
+
+			const glm::vec3 hLocal = sampleGGXVNDF(Ve, aT, aB, u1, u2);
+			const glm::vec3 H = localToWorld(hLocal, basisN, Tb, Bb);
+			const glm::vec3 L = glm::reflect(-V, H);
+
+			const float NdotL = glm::dot(basisN, L);
+			const float NdotV = glm::dot(basisN, V);
+			if (NdotL <= 0.0f || NdotV <= 0.0f)
+				return false;
+
+			const float VdotH = std::clamp(glm::dot(H, V), 0.0f, 1.0f);
+			const glm::vec3 F = applyIridescenceToFresnel(fresnelSchlick(VdotH, F0, surf.F90), VdotH, F0, surf);
 
 			// VNDF sampling's throughput (BRDF(L)*NdotL/pdf(L)) simplifies to
 			// F * G2/G1 - the standard result that makes VNDF sampling not
@@ -628,10 +1266,21 @@ namespace
 			// form). G1/G2 here must be the pair the VNDF pdf was derived
 			// from - NOT geometrySmith() above, which is the raster-matched
 			// direct-lighting remapping used for NEE's BRDF value instead.
-			const float G1v = smithG1GGX(NdotV, alpha);
-			const float G2  = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
+			float G1v, G2;
+			if (hasAniso)
+			{
+				const glm::vec3 Vlocal(glm::dot(V, Tb), glm::dot(V, Bb), NdotV);
+				const glm::vec3 Llocal(glm::dot(L, Tb), glm::dot(L, Bb), NdotL);
+				G1v = smithG1GGXAniso(Vlocal, aT, aB);
+				G2  = smithG2HeightCorrelatedGGXAniso(Vlocal, Llocal, aT, aB);
+			}
+			else
+			{
+				G1v = smithG1GGX(NdotV, alpha);
+				G2  = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
+			}
 
-			outThroughput = F * (G2 / std::max(G1v, 1e-6f)) / specProb;
+			outThroughput = F * (G2 / std::max(G1v, 1e-6f)) / specProbScaled;
 			outDir = L;
 			return true;
 		}
@@ -642,10 +1291,11 @@ namespace
 			outDir = localToWorld(local, N, T, B);
 
 			const float NdotV = std::max(glm::dot(N, V), 0.0f);
-			const glm::vec3 F = fresnelSchlick(NdotV, F0);
+			const glm::vec3 F = applyIridescenceToFresnel(fresnelSchlick(NdotV, F0, surf.F90), NdotV, F0, surf);
 			const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - surf.metalness);
 
-			outThroughput = (kD * surf.baseColor) / (1.0f - specProb);
+			const float diffuseProb = remainingProb - specProbScaled;
+			outThroughput = (kD * surf.baseColor) / std::max(diffuseProb, 1e-4f);
 			return true;
 		}
 	}
@@ -726,14 +1376,25 @@ namespace
 			const SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor);
 			lastHitAO = surf.ao;
 
-			radiance += throughput * surf.emissive;
-
 			glm::vec3 N = hit.normal;
 			const glm::vec3 V = -ray.direction;
 			if (glm::dot(N, V) < 0.0f)
 				N = -N; // shade the side the ray actually hit (thin/backfacing geometry)
 
-			N = applyNormalMap(N, hit.tangent, hit.bitangent, mat, hit.texCoords);
+			// Smoothly-interpolated shading normal before any normal map is
+			// applied - this is the analog of main_scene.frag's frame.Ng
+			// (buildSurfaceFrame()'s getUnsignedWorldGeometryNormal(), which
+			// is smoothly interpolated across the surface, NOT flat per-
+			// triangle) - kept separately so the clearcoat normal below can
+			// fall back to it instead of to hit.geometricNormal (the FLAT,
+			// per-triangle normal this file uses only for ray-offset epsilon
+			// - a different concept that happens to share the "Ng" name).
+			// Using the flat normal there made untextured-clearcoat spheres
+			// render visibly faceted, since nothing was left to smooth the
+			// per-triangle discontinuity the way the base normal map (N) or a
+			// clearcoat normal map otherwise would.
+			const glm::vec3 Nsmooth = N;
+			N = applyNormalMap(N, hit.tangent, hit.bitangent, mat.normalTexture.get(), hit.texCoords);
 
 			// Geometric (flat, per-triangle) normal, consistently oriented with
 			// N/V - used only for ray-offsetting (numerically robust regardless
@@ -749,6 +1410,95 @@ namespace
 			glm::vec3 Ng = hit.geometricNormal;
 			if (glm::dot(Ng, V) < 0.0f)
 				Ng = -Ng;
+
+			// KHR_materials_clearcoat - the coat has its own normal (falls
+			// back to the smooth pre-normal-map shading normal Nsmooth, NOT
+			// the base-normal-mapped N - see main_scene.frag's
+			// buildSurfaceFrame(): "frame.Ncoat = frame.Ng" before optionally
+			// applying its own normal map) and a fixed ior-derived Fresnel
+			// weight used to blend the coat over the base layer (see
+			// composeLayeredPBR()). clearcoatBlend is 0 whenever clearcoat is
+			// 0, so this is a no-op for the (common) non-clearcoat case below.
+			const glm::vec3 Ncoat = applyNormalMap(Nsmooth, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords);
+			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
+
+			radiance += throughput * surf.emissive * (glm::vec3(1.0f) - clearcoatBlend);
+
+			// KHR_materials_sheen, indirect/environment side - a genuine
+			// stochastic integration of the actual live environment (a small
+			// fixed count of RNG-jittered samples in a roughness-sized cone
+			// around the mirror-reflect direction, taken every hit/every
+			// pass - not gated behind a rare lobe-selection probability),
+			// rather than trying to replicate raster's evaluateSheenIBL()
+			// (a single lookup into a precomputed, roughness-mip-quantized
+			// prefiltered cubemap). This is a genuinely more accurate result
+			// than raster's baked approximation - real reflected environment
+			// detail shows through (correctly blurred by the cone, not
+			// flattened to one color), and RNG jitter (not a fixed offset
+			// pattern - two earlier attempts at a fixed pattern produced a
+			// Moire dot grid) means it accumulates into a clean blur across
+			// passes rather than aliasing.
+			if (surf.sheenColor != glm::vec3(0.0f))
+			{
+				const glm::vec3 R = glm::reflect(-V, N);
+				glm::vec3 Tc, Bc;
+				buildOrthonormalBasis(R, Tc, Bc);
+
+				const float sheenRoughFinal = std::clamp(surf.sheenRoughness, 0.0001f, 1.0f);
+				const float coneAngle = sheenRoughFinal * (kPi * 0.5f); // up to a full hemisphere spread at roughness 1
+
+				constexpr int kSheenEnvSamples = 8;
+				glm::vec3 envSum(0.0f);
+				for (int s = 0; s < kSheenEnvSamples; ++s)
+				{
+					const float u1 = rng.next01();
+					const float u2 = rng.next01();
+					const float phi = 2.0f * kPi * u1;
+					const float cosTheta = 1.0f - u2 * (1.0f - std::cos(coneAngle)); // uniform within the cone
+					const float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cosTheta * cosTheta));
+					const glm::vec3 localDir(sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta);
+					envSum += sampleEnvironmentMiss(snapshot.environment, localToWorld(localDir, R, Tc, Bc));
+				}
+				envSum /= static_cast<float>(kSheenEnvSamples);
+
+				const float NdotV_sheen = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
+				const float E_sheen = sampleSheenAlbedoLUT(NdotV_sheen, sheenRoughFinal);
+				radiance += throughput * surf.ao * surf.sheenColor * envSum * E_sheen;
+			}
+
+			// KHR_materials_anisotropy - stretches the specular lobe along a
+			// tangent-space direction (see distributionGGXAnisotropic()/
+			// visibilityGGXAnisotropic()/sampleBSDFBounce()'s anisotropic
+			// branch). Ported from main_scene.frag's buildAnisotropyBasis(),
+			// using Nsmooth as the analog of frame.Ng (see the comment on
+			// Nsmooth above for why - NOT the flat hit.geometricNormal).
+			// Requires real tangent data to build a meaningful basis, unlike
+			// raster which has a screen-space-derivative fallback with no
+			// per-ray equivalent here - untextured/tangentless meshes simply
+			// render isotropically (hasAniso false), same scoping already
+			// accepted for normal mapping in this file.
+			const bool hasAniso = surf.anisotropyStrength > 0.0f && glm::length(hit.tangent) > 0.01f;
+			glm::vec3 anisoT(1.0f, 0.0f, 0.0f), anisoB(0.0f, 1.0f, 0.0f);
+			float anisoAlphaT = surf.roughness * surf.roughness, anisoAlphaB = anisoAlphaT;
+			if (hasAniso)
+			{
+				glm::vec3 Tb = glm::normalize(hit.tangent - glm::dot(hit.tangent, Nsmooth) * Nsmooth);
+				glm::vec3 Bb = glm::normalize(hit.bitangent - glm::dot(hit.bitangent, Nsmooth) * Nsmooth);
+				if (glm::dot(glm::cross(Tb, Bb), Nsmooth) < 0.0f)
+					Bb = -Bb;
+
+				const glm::vec2 dir(std::cos(surf.anisotropyRotation), std::sin(surf.anisotropyRotation));
+				anisoT = glm::normalize(dir.x * Tb + dir.y * Bb);
+				anisoB = glm::normalize(glm::cross(Nsmooth, anisoT));
+				if (glm::length(anisoB) < 0.0001f)
+					anisoB = glm::normalize(glm::cross(Nsmooth, Tb));
+				if (glm::dot(glm::cross(anisoT, anisoB), Nsmooth) < 0.0f)
+					anisoB = -anisoB;
+
+				const float alphaRoughness = std::max(surf.roughness * surf.roughness, 0.001f);
+				anisoAlphaT = glm::mix(alphaRoughness, 1.0f, surf.anisotropyStrength * surf.anisotropyStrength);
+				anisoAlphaB = std::clamp(alphaRoughness, 0.001f, 1.0f);
+			}
 
 			// Scale-relative, not a fixed constant - see selfIntersectionEpsilon().
 			const float eps = selfIntersectionEpsilon(hit.position);
@@ -775,7 +1525,27 @@ namespace
 				if (scene.occluded(shadowRay))
 					continue;
 
-				radiance += throughput * evaluateDirectBRDF(N, V, lightDir, surf) * lightIntensity;
+				const glm::vec3 baseDirect = evaluateDirectBRDF(N, V, lightDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB) * lightIntensity;
+
+				// Blend base vs. clearcoat exactly like composeLayeredPBR()'s
+				// mix(baseColor, clearcoatLayer, clearcoat*clearcoatFresnel) -
+				// clearcoatBlend is 0 for non-clearcoat materials, reducing to
+				// baseDirect unchanged.
+				if (surf.clearcoat > 0.0f)
+				{
+					const glm::vec3 coatDirect = evaluateClearcoatDirect(Ncoat, V, lightDir, surf.clearcoat, surf.clearcoatRoughness) * lightIntensity;
+					radiance += throughput * glm::mix(baseDirect, coatDirect, clearcoatBlend);
+				}
+				else
+				{
+					radiance += throughput * baseDirect;
+				}
+
+				// KHR_materials_sheen - additive, not blended (see
+				// calculateSheen()'s doc comment for the v1 scope decision on
+				// the base-layer energy-compensation dampening this skips).
+				if (surf.sheenColor != glm::vec3(0.0f))
+					radiance += throughput * calculateSheen(N, V, lightDir, surf.sheenColor, surf.sheenRoughness) * lightIntensity;
 			}
 
 			// Russian roulette termination.
@@ -788,7 +1558,7 @@ namespace
 			}
 
 			glm::vec3 bounceDir, bounceThroughput;
-			if (!sampleBSDFBounce(N, V, surf, rng, bounceDir, bounceThroughput))
+			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput))
 				break;
 
 			throughput *= bounceThroughput;

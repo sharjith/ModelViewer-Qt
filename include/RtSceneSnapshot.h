@@ -96,8 +96,12 @@ struct RtTextureSample
 
 // v1 shading vocabulary: diffuse + metallic-roughness + emissive + basic
 // dielectric Fresnel, matching the raster PBR mode's core parameters.
-// Transmission/IOR/clearcoat/sheen (which Material already tracks) are
-// deferred to a fast-follow rather than chasing full material parity in v1.
+// Transmission/clearcoat/sheen (which Material already tracks) are deferred
+// to a fast-follow rather than chasing full material parity in v1.
+// KHR_materials_ior/KHR_materials_specular (ior/specularFactor/
+// specularColorFactor) were added once the floor's reflection work made it
+// clear the hardcoded 0.04 dielectric F0 was itself a v1 simplification
+// worth removing - see CpuPathTracer.cpp's evaluateSurface()/computeF0F90().
 struct RtMaterial
 {
 	glm::vec3 baseColor        = glm::vec3(0.8f);
@@ -113,6 +117,15 @@ struct RtMaterial
 	// 0.0001, 1.0)" exactly.
 	float occlusionStrength = 1.0f;
 
+	// KHR_materials_ior - replaces the fixed 1.5/0.04 dielectric assumption.
+	float ior = 1.5f;
+
+	// KHR_materials_specular - scales dielectric reflectance strength/tint;
+	// has no effect on metals (see computeF0F90() in CpuPathTracer.cpp,
+	// ported from computeDielectricF0()/computeF90() in main_scene.frag).
+	float     specularFactor      = 1.0f;
+	glm::vec3 specularColorFactor = glm::vec3(1.0f);
+
 	// Null when the material has no map for that slot.
 	std::shared_ptr<RtTextureSample> baseColorTexture;
 	std::shared_ptr<RtTextureSample> metallicTexture;
@@ -120,6 +133,71 @@ struct RtMaterial
 	std::shared_ptr<RtTextureSample> normalTexture;
 	std::shared_ptr<RtTextureSample> emissiveTexture;
 	std::shared_ptr<RtTextureSample> aoTexture;
+
+	// KHR_materials_specular's per-pixel maps - specularTexture's alpha
+	// channel scales specularFactor, specularColorTexture's RGB (sRGB-
+	// encoded) tints specularColorFactor (main_scene.frag: "params.
+	// specularFactor *= texture(specularFactorMap,...).a" / "params.
+	// specularColor *= sRGBToLinear(texture(specularColorMap,...).rgb)").
+	// Without these, materials that author their specular strength/tint
+	// mostly through a texture (flat factors left at their 1.0 defaults)
+	// rendered as a uniformly mirror-bright surface instead of the mostly-
+	// matte-with-a-patterned-highlight look raster shows.
+	std::shared_ptr<RtTextureSample> specularTexture;
+	std::shared_ptr<RtTextureSample> specularColorTexture;
+
+	// KHR_materials_clearcoat - a second, independent GGX lobe layered on
+	// top of the base material (its own normal, its own roughness, always
+	// dielectric F0 derived from ior - see main_scene.frag's
+	// evaluateClearcoatDirect()/evaluateClearcoatIBL() and the final
+	// baseColor/clearcoat mix in composeLighting()/similar).
+	float clearcoat          = 0.0f;
+	float clearcoatRoughness = 0.0001f; // matches main_scene.frag's clamp(..., 0.0001, 1.0) floor
+	std::shared_ptr<RtTextureSample> clearcoatTexture;          // R channel scales clearcoat
+	std::shared_ptr<RtTextureSample> clearcoatRoughnessTexture; // G channel scales clearcoatRoughness
+	std::shared_ptr<RtTextureSample> clearcoatNormalTexture;
+
+	// KHR_materials_sheen - an additive fabric/velvet-like grazing-angle
+	// retroreflection lobe (Charlie NDF), on top of the base layer. sheenColor
+	// (0,0,0) means "no sheen" per spec - see evaluateSurface()'s
+	// length(sheenColor)<=0 early-out, ported from main_scene.frag's
+	// calculateSheen()/evaluateSheenDirect(). v1 only covers direct (punctual)
+	// lighting - unlike clearcoat, sheen's IBL/energy-conservation terms in
+	// main_scene.frag depend on baked LUT textures (sheenELUT/charlieLUT/
+	// sheenPrefilterMap) that have no CPU-side equivalent in this tracer, so
+	// indirect/environment sheen and the base-layer energy-compensation
+	// dampening are both deliberately skipped rather than approximated.
+	glm::vec3 sheenColor     = glm::vec3(0.0f);
+	float     sheenRoughness = 0.0001f;
+	std::shared_ptr<RtTextureSample> sheenColorTexture;
+	std::shared_ptr<RtTextureSample> sheenRoughnessTexture; // A channel scales sheenRoughness
+
+	// KHR_materials_anisotropy - stretches the specular lobe along a tangent-
+	// space direction (brushed metal, hair, records...). anisotropyTexture's
+	// RG channels encode a [-1,1] direction (decoded in CpuPathTracer's
+	// decodeAnisotropyTexture(), ported from main_scene.frag), B channel
+	// scales anisotropyStrength - not a simple single-channel pack like
+	// metallic/roughness/ao, so no packingChannel is set on it (consumed as
+	// raw RGB, like a normal map).
+	float anisotropyStrength = 0.0f;
+	float anisotropyRotation = 0.0f; // radians
+	std::shared_ptr<RtTextureSample> anisotropyTexture;
+
+	// KHR_materials_iridescence - thin-film interference (evalIridescence()
+	// in CpuPathTracer.cpp, ported from main_scene.frag). iridescenceTexture
+	// is a simple R-channel factor scale (packingChannel=0, like clearcoat's
+	// factor map); iridescenceThicknessTexture's G channel is remapped
+	// min..max via packingScale=(max-min)/packingBias=min - see
+	// RtSceneBuilder::convertMaterial() - since that's exactly the linear
+	// form applyChannelPacking() already computes, reproducing main_scene.
+	// frag's "mix(thicknessMin, thicknessMax, texG)" without needing a
+	// separate non-channel-packing code path.
+	float iridescenceFactor       = 0.0f;
+	float iridescenceIor          = 1.3f;
+	float iridescenceThicknessMin = 100.0f;
+	float iridescenceThicknessMax = 400.0f;
+	std::shared_ptr<RtTextureSample> iridescenceTexture;
+	std::shared_ptr<RtTextureSample> iridescenceThicknessTexture;
 };
 
 // One placed copy of a mesh in the scene. meshIndex/materialIndex index into

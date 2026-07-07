@@ -12570,7 +12570,46 @@ void ViewportWidget::startPathTracedSession()
 	if (fbWidth <= 0 || fbHeight <= 0)
 		return; // genuinely not visible right now (e.g. still minimized) - nothing to render into
 
-	const std::vector<GPULight>& lights = _renderCtrl.punctualLights()->getLights();
+	std::vector<GPULight> lights = _renderCtrl.punctualLights()->getLights();
+	if (lights.empty())
+	{
+		// Raster always lights its floor via the user-adjustable main/key
+		// light (lightSource.position uniform, set unconditionally in
+		// paintGL() from effectiveWorldLightPosition()) regardless of
+		// whether shouldUseFallbackLightForVisibleScene() gates a
+		// synthetic light OUT of punctualLights() itself - that gate only
+		// exists to avoid an unwanted fake-headlamp highlight on real
+		// glTF/glb assets meant to be lit purely by IBL (see
+		// updateFloorGeometry()). The path tracer has no equivalent
+		// always-on key light, so for exactly those gated-out scenes it
+		// previously saw zero lights and fell back to noisy indirect
+		// environment-bounce sampling alone for all shading - which
+		// converges far too slowly to show a visible contact shadow at
+		// the default sample budget (see conversation: CompareSpecular.glb
+		// scene showed no floor shadow in PT despite raster clearly
+		// showing one from this same light). Synthesizing it here - without
+		// mutating _renderCtrl.punctualLights()'s actual stored/uploaded
+		// list, so raster's own PBR-mode hasPunctualLights uniform/shading
+		// for these scenes is untouched - gives the tracer the same
+		// always-present key light raster's floor rendering already
+		// implicitly relies on.
+		const QVector3D fallbackLightPos = effectiveWorldLightPosition();
+		constexpr float kTargetSurfaceIntensity = 2.0f; // matches the calibration in updateFloorGeometry()
+		const float lightDistance = static_cast<float>((fallbackLightPos - _floorCenter).length());
+		const float calibratedIntensity = kTargetSurfaceIntensity * std::max(lightDistance * lightDistance, 1.0f);
+
+		GPULight keyLight{};
+		keyLight.type = static_cast<int>(LightType::Point);
+		keyLight.position = glm::vec3(fallbackLightPos.x(), fallbackLightPos.y(), fallbackLightPos.z());
+		keyLight.color = glm::vec3(1.0f);
+		keyLight.intensity = calibratedIntensity;
+		keyLight.range = 0.0f; // infinite range
+		keyLight.direction = glm::vec3(0.0f, 0.0f, -1.0f);
+		keyLight.innerConeCos = 1.0f;
+		keyLight.outerConeCos = 0.70710678f; // cos(45 deg) - unused anyway, type is Point not Spot
+		keyLight.padding = glm::vec2(0.0f);
+		lights.push_back(keyLight);
+	}
 
 	// captureEnvironmentCubemapCPU() does a synchronous GPU readback
 	// (glGetTexImage) - needs this widget's context current, which isn't
