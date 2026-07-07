@@ -13,7 +13,7 @@
 // ---------------------------------------------------------------------------
 // RtPresenter
 //
-// Presents the path tracer's latest denoised frame (RtPathTracingSession::
+// Presents the path tracer's latest frame (RtPathTracingSession::
 // latestFrame()) into the existing OpenGL viewport: uploads the linear HDR
 // RGB buffer plus primary-hit alpha into a GL_RGBA32F texture (same upload pattern as
 // SceneRenderController's transmission buffer) and draws it as a fullscreen

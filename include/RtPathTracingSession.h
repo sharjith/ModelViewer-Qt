@@ -51,6 +51,10 @@ public:
 	// session by itself.
 	void setResolution(int width, int height);
 
+	// Hard-coded v1 convergence cap. Later this can be surfaced in Settings.
+	void setMaxSamples(uint32_t maxSamples) { _maxSamples = maxSamples > 0 ? maxSamples : 1; }
+	uint32_t maxSamples() const { return _maxSamples; }
+
 	// Rebuilds the Embree scene from snapshot and (re)starts progressive
 	// accumulation from scratch. Cancels/joins any previously running pass
 	// first, so this is also the right call to "restart with a fresh scene".
@@ -67,19 +71,18 @@ public:
 
 	bool isRunning() const { return _running.load(std::memory_order_acquire); }
 
-	// Latest denoised frame available for display (see RtDenoiser - denoised
-	// every pass so a handful of samples already looks presentable instead of
-	// raw Monte Carlo noise; throttling that cadence by cost/sample count is
-	// deferred to the large-assembly tuning pass), plus how many raw samples/
-	// pixel it represents. Safe to call from any thread (e.g. the GL
-	// paintGL() thread) while the worker keeps running; returns an empty
-	// vector if no pass has completed yet.
+	// Latest frame available for display: raw resolved accumulation while
+	// samples are still progressing, then one final OIDN-denoised frame when
+	// maxSamples() is reached. Also returns how many raw samples/pixel it
+	// represents. Safe to call from any thread (e.g. the GL paintGL() thread)
+	// while the worker keeps running; returns an empty vector if no pass has
+	// completed yet.
 	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
 		std::vector<float>* outAlpha = nullptr) const;
 
 private:
 	void workerLoop(uint64_t myRevision);
-	void publishLatest();
+	void publishLatest(bool finalDenoise);
 	void resetForNewPass(std::shared_ptr<const RtSceneSnapshot> snapshot, bool rebuildEmbreeScene);
 
 	RtEmbreeScene      _embreeScene;
@@ -89,6 +92,7 @@ private:
 
 	int _width  = 0;
 	int _height = 0;
+	uint32_t _maxSamples = 128;
 
 	mutable std::mutex _snapshotMutex;
 	std::shared_ptr<const RtSceneSnapshot> _snapshot;

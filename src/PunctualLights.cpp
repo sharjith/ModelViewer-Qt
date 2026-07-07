@@ -31,7 +31,7 @@ void PunctualLights::setLights(const std::vector<GPULight>& lightsData)
     qDebug() << "PunctualLights::setLights: Set" << lightCount << "lights with transforms applied";
 }
 
-void PunctualLights::createFallbackLight(const glm::vec3& position)
+void PunctualLights::createFallbackLight(const glm::vec3& position, float intensity)
 {
     lights.clear();
     lightCount = 0;
@@ -40,7 +40,7 @@ void PunctualLights::createFallbackLight(const glm::vec3& position)
     fallback.type = static_cast<int>(LightType::Point);
     fallback.position = position;
     fallback.color = glm::vec3(1.0f);
-    fallback.intensity = 1.0f;
+    fallback.intensity = intensity;
     fallback.range = 0.0f;  // Infinite range
     fallback.direction = glm::vec3(0.0f, 0.0f, -1.0f);
     fallback.innerConeCos = std::cos(0.0f);
@@ -53,7 +53,7 @@ void PunctualLights::createFallbackLight(const glm::vec3& position)
     uploadData();
 
     qDebug() << "PunctualLights::createFallbackLight: Created fallback point light at"
-        << position.x << "," << position.y << "," << position.z;
+        << position.x << "," << position.y << "," << position.z << "intensity=" << intensity;
 }
 
 void PunctualLights::bind(GLuint shaderProgram, const char* blockName)

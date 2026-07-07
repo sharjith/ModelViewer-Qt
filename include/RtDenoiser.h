@@ -42,12 +42,12 @@ public:
 	// OIDN's CPU device fails to initialize.
 	//
 	// sampleCount (RtFrameAccumulator::sampleCount() - how many passes are
-	// already averaged into input) tapers the fallback filter's strength: the
-	// raw accumulated average is noisiest right after a reset and gets
-	// progressively cleaner on its own as more samples land, so unconditional
-	// full-strength smoothing on every pass regressed to a permanently smudgy
-	// image once convergence had already done most of the work itself, and
-	// wasted CPU time smoothing an image that barely needed it anymore. Only
+	// already averaged into input) mildly tapers the fallback filter's
+	// strength: more accumulated samples mean less residual Monte Carlo noise
+	// to clean up, so a well-converged image needs a lighter touch than a
+	// noisy one - but never zero, since RtPathTracingSession only calls this
+	// once, on the final pass (see its maxSamples()), not every intermediate
+	// pass, so this is the only denoise opportunity that pass gets. Only
 	// affects the fallback path - ignored when OIDN itself is used.
 	bool denoise(const std::vector<glm::vec3>& input, int width, int height,
 		std::vector<glm::vec3>& output, uint32_t sampleCount = 1);

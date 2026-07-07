@@ -582,7 +582,18 @@ namespace
 
 		const glm::vec3 dielectricF0(0.04f);
 		const glm::vec3 F0 = glm::mix(dielectricF0, surf.baseColor, surf.metalness);
-		const float specProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness, 0.05f, 0.95f);
+		// F0/metalness alone chronically under-samples glossy dielectrics: a
+		// low-roughness floor/varnish/plastic (F0 ~ 0.04, metalness 0) still
+		// clamps to the 5% floor here regardless of how narrow (and therefore
+		// hard to resolve via the diffuse lobe alone) its specular lobe is -
+		// e.g. a roughness-0.12 floor next to a bright reflective object
+		// showed essentially no visible reflection even after the full
+		// maxSamples budget, because only ~3 of 64 samples/pixel ever
+		// explored the specular lobe at all. Blending in (1-roughness)^2
+		// pushes smooth dielectrics toward much more specular sample
+		// weight - rough materials (where this term is ~0) are unaffected.
+		const float smoothness = 1.0f - surf.roughness;
+		const float specProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness + 0.5f * smoothness * smoothness, 0.05f, 0.95f);
 
 		const float lobeXi = rng.next01();
 		const float u1 = rng.next01();

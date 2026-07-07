@@ -2424,11 +2424,33 @@ void ViewportWidget::updateFloorPlane()
 		if (shouldUseFallbackLightForVisibleScene())
 		{
 			const QVector3D fallbackLightPos = effectiveWorldLightPosition();
+
+			// This light is deliberately placed far from the scene (see
+			// updateMainLightPosition()) for a nice raking shadow direction
+			// and a clean shadow-map frustum fit - but a flat, distance-
+			// independent intensity leaves it contributing almost nothing
+			// wherever real inverse-square falloff is actually applied (the
+			// path tracer's NEE, and raster's own regular-mesh direct
+			// lighting - only the floor's separate legacy shading term
+			// happens to ignore this light's true attenuated magnitude,
+			// which is what let this go unnoticed). Scaling intensity by
+			// distance^2 from the scene center calibrates it to still
+			// contribute a reasonable, physically-consistent amount at that
+			// distance, regardless of scene scale or where this light
+			// happens to be placed. Empirically tuned, not derived from a
+			// physical unit system - 0.5 left the shadow too weak to notice;
+			// reflection visibility is handled separately via the floor
+			// material's roughness (see RtSceneBuilder::convertFloorMaterial())
+			// rather than by fighting this value down.
+			constexpr float kTargetSurfaceIntensity = 2.0f;
+			const float lightDistance = static_cast<float>((fallbackLightPos - _floorCenter).length());
+			const float calibratedIntensity = kTargetSurfaceIntensity * std::max(lightDistance * lightDistance, 1.0f);
+
 			_renderCtrl.punctualLights()->createFallbackLight(glm::vec3(
 				static_cast<float>(fallbackLightPos.x()),
 				static_cast<float>(fallbackLightPos.y()),
 				static_cast<float>(fallbackLightPos.z())
-			));
+			), calibratedIntensity);
 			syncPunctualLightUniforms(1, true);
 		}
 		else
@@ -3428,6 +3450,13 @@ void ViewportWidget::showReflections(bool show)
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("reflectionsEnabled", _renderCtrl.reflectionsEnabled());
 	update();
+
+	// Same as showSkyBox() - this doesn't go through the undo stack, so
+	// onUndoStackChanged()'s notifyPathTracedSceneMutated() hook never sees
+	// it; without this, an already-converged path-traced frame captured
+	// with the old floor-roughness override would just keep being displayed
+	// unchanged.
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::setGroundMode(GroundMode mode)
@@ -8339,21 +8368,41 @@ void ViewportWidget::render(Camera* camera)
 		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
 	{
+		// While the path-traced overlay is actually being composited over
+		// this frame (see paintGL()'s matching _pathTracedArmed/idle-timer/
+		// hasFrame() gate), it draws its own, deliberately much smaller
+		// floor instance (RtSceneBuilder::addFloorInstance() - sized from
+		// the scene bounding box, not the raster floor's large aesthetic
+		// fade-out extent) with alpha=1 where the primary ray hit it.
+		// Elsewhere (alpha=0) the raster frame underneath still shows
+		// through by design (see RtPresenter's alpha blending, added to fix
+		// skybox/gradient background sync) - but that same mechanism was
+		// letting *this* raster floor's much larger extent bleed through
+		// around the edges of the smaller path-traced one. Skipping this
+		// raster floor draw specifically when the overlay is about to cover
+		// the primary view avoids drawing a floor that would only be
+		// visible in the gap between the two extents.
+		const bool pathTracedOverlayShowing =
+			camera == _primaryCamera && _pathTracedArmed && !_pathTracedIdleTimer->isActive() && _rtPresenter.hasFrame();
+
 		if (_renderCtrl.groundMode() == GroundMode::Floor)
 		{
-			glActiveTexture(GL_TEXTURE0 + 32);
-			glBindTexture(GL_TEXTURE_2D,
-				(camera == _primaryCamera && _renderCtrl.transmissionColorTexture() != 0) ? _renderCtrl.transmissionColorTexture() : _renderCtrl.whiteTexture());
-			glActiveTexture(GL_TEXTURE0 + 33);
-			glBindTexture(GL_TEXTURE_2D,
-				(camera == _primaryCamera && _renderCtrl.transmissionDepthTexture() != 0) ? _renderCtrl.transmissionDepthTexture() : _renderCtrl.whiteTexture());
-			glActiveTexture(GL_TEXTURE0);
-			QElapsedTimer floorTimer;
-			if (profileRendering)
-				floorTimer.start();
-			drawFloor();
-			if (profileRendering)
-				RenderableMesh::recordFloorPassCpuMs(static_cast<double>(floorTimer.nsecsElapsed()) / 1000000.0);
+			if (!pathTracedOverlayShowing)
+			{
+				glActiveTexture(GL_TEXTURE0 + 32);
+				glBindTexture(GL_TEXTURE_2D,
+					(camera == _primaryCamera && _renderCtrl.transmissionColorTexture() != 0) ? _renderCtrl.transmissionColorTexture() : _renderCtrl.whiteTexture());
+				glActiveTexture(GL_TEXTURE0 + 33);
+				glBindTexture(GL_TEXTURE_2D,
+					(camera == _primaryCamera && _renderCtrl.transmissionDepthTexture() != 0) ? _renderCtrl.transmissionDepthTexture() : _renderCtrl.whiteTexture());
+				glActiveTexture(GL_TEXTURE0);
+				QElapsedTimer floorTimer;
+				if (profileRendering)
+					floorTimer.start();
+				drawFloor();
+				if (profileRendering)
+					RenderableMesh::recordFloorPassCpuMs(static_cast<double>(floorTimer.nsecsElapsed()) / 1000000.0);
+			}
 		}
 		else if (_renderCtrl.groundMode() == GroundMode::Grid)
 		{
@@ -12556,9 +12605,21 @@ void ViewportWidget::startPathTracedSession()
 		srgbToLinearApprox(static_cast<float>(botColor.blueF())));
 	environment.fallbackGradientStyle = _renderCtrl.gradientStyle();
 
+	RtFloorParams floorParams;
+	floorParams.floorMesh        = _floorPlane;
+	floorParams.groundMode       = _renderCtrl.groundMode();
+	floorParams.sceneBoundingBox = _viewCtrl.boundingBox();
+	floorParams.center           = _floorCenter;
+	floorParams.planeLevel       = _floorPlaneZ;
+	floorParams.cameraUpAxisZUp  = _viewCtrl.cameraUpAxisZUp();
+	floorParams.rasterFloorExtent = CoordinateSystemHelper::groundPlaneExtent(_floorSize, _floorSizeFactor, _renderCtrl.groundMode());
+	floorParams.texRepeatS       = _renderCtrl.floorTexRepeatS();
+	floorParams.texRepeatT       = _renderCtrl.floorTexRepeatT();
+	floorParams.reflectionsEnabled = _renderCtrl.reflectionsEnabled();
+
 	auto snapshot = RtSceneBuilder::build(
 		_sceneRuntime, *_primaryCamera, _primaryCamera->getAspectRatio(),
-		lights, _pathTracedNextRevision++, &environment);
+		lights, _pathTracedNextRevision++, &environment, &floorParams);
 
 	_rtSession.setResolution(fbWidth, fbHeight);
 	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes

@@ -69,31 +69,24 @@ namespace
 		}
 	}
 
-	// Strength tapers off as sampleCount grows: the accumulated average
-	// (RtFrameAccumulator::resolve()) is noisiest right after a reset and
-	// gets cleaner on its own as more passes land, so smoothing at constant
-	// full strength on every single pass regardless of how converged the
-	// image already is overshoots badly - it was leaving the final,
-	// well-converged image permanently smudgy instead of sharp, and wasting
-	// CPU smoothing a signal that barely needed it anymore. radius == 0
-	// means "don't filter at all" (the raw accumulation is already clean
-	// enough on its own), which also means later passes get cheaper, not
-	// more expensive, as convergence proceeds.
+	// RtPathTracingSession::workerLoop() only calls denoise() once now - on
+	// the final pass, once RtPathTracingSession::maxSamples() is reached, not
+	// on every intermediate pass (see RtPathTracingSession.cpp's finalDenoise
+	// flag) - so this always needs to do *some* real smoothing work; unlike
+	// an earlier per-pass design, it's never valid to taper down to "skip
+	// entirely" here, since this is the only denoise opportunity the final
+	// displayed image gets. Still scales mildly with sampleCount, since more
+	// accumulated samples genuinely do mean less residual Monte Carlo noise
+	// to clean up (real path-tracing noise falls off roughly as 1/sqrt(N)) -
+	// but the floor is a light pass, not zero.
 	void bilateralFallbackDenoise(const std::vector<glm::vec3>& input, int width, int height,
 		std::vector<glm::vec3>& output, uint32_t sampleCount)
 	{
 		int radius;
 		float spatialSigma, rangeSigma;
-		if (sampleCount <= 2)       { radius = 2; spatialSigma = 1.5f; rangeSigma = 0.2f; }
-		else if (sampleCount <= 6)  { radius = 1; spatialSigma = 1.0f; rangeSigma = 0.15f; }
-		else if (sampleCount <= 16) { radius = 1; spatialSigma = 0.7f; rangeSigma = 0.1f; }
-		else                        { radius = 0; spatialSigma = 0.0f; rangeSigma = 0.0f; }
-
-		if (radius == 0)
-		{
-			output = input;
-			return;
-		}
+		if (sampleCount <= 8)       { radius = 2; spatialSigma = 1.5f; rangeSigma = 0.2f; }
+		else if (sampleCount <= 32) { radius = 1; spatialSigma = 1.0f; rangeSigma = 0.15f; }
+		else                        { radius = 1; spatialSigma = 0.8f; rangeSigma = 0.1f; }
 
 		bilateralPass(input, width, height, radius, spatialSigma, rangeSigma, output);
 	}

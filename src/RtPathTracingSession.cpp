@@ -81,7 +81,8 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 
 	uint32_t sampleSeed = 0;
 	while (!_cancelRequested.load(std::memory_order_acquire) &&
-	       _activeRevision.load(std::memory_order_acquire) == myRevision)
+	       _activeRevision.load(std::memory_order_acquire) == myRevision &&
+	       _accumulator.sampleCount() < _maxSamples)
 	{
 		std::vector<glm::vec3> passResult;
 		std::vector<uint8_t> hitMask;
@@ -95,25 +96,22 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 			break;
 
 		_accumulator.accumulate(passResult, &hitMask);
-		publishLatest();
+		publishLatest(_accumulator.sampleCount() >= _maxSamples);
 	}
 
 	_running.store(false, std::memory_order_release);
 }
 
-void RtPathTracingSession::publishLatest()
+void RtPathTracingSession::publishLatest(bool finalDenoise)
 {
 	std::vector<glm::vec3> resolved = _accumulator.resolve();
 	const int width  = _accumulator.width();
 	const int height = _accumulator.height();
 	const uint32_t sampleCount = _accumulator.sampleCount();
 
-	// denoise() falls back to copying resolved straight into denoised if OIDN
-	// is unavailable/errors - never blocks publishing on denoiser health.
-	// sampleCount lets the (OIDN-unavailable) fallback path taper its own
-	// strength off as convergence improves - see RtDenoiser::denoise().
-	std::vector<glm::vec3> denoised;
-	_denoiser.denoise(resolved, width, height, denoised, sampleCount);
+	std::vector<glm::vec3> presented = resolved;
+	if (finalDenoise)
+		_denoiser.denoise(resolved, width, height, presented, sampleCount);
 
 	// OIDN's beauty-only filter (no albedo/normal guide buffers - see
 	// RtDenoiser) has no way to tell a sharp environment-map background apart
@@ -124,13 +122,13 @@ void RtPathTracingSession::publishLatest()
 	// so the raw accumulated average is already clean. Restore it wherever a
 	// pixel's primary ray has never once hit geometry.
 	const std::vector<uint32_t>& hitCounts = _accumulator.hitCounts();
-	std::vector<float> alpha(denoised.size(), 1.0f);
-	if (hitCounts.size() == denoised.size())
+	std::vector<float> alpha(presented.size(), 1.0f);
+	if (hitCounts.size() == presented.size())
 	{
-		for (size_t i = 0; i < denoised.size(); ++i)
+		for (size_t i = 0; i < presented.size(); ++i)
 		{
 			if (hitCounts[i] == 0)
-				denoised[i] = resolved[i];
+				presented[i] = resolved[i];
 			alpha[i] = sampleCount > 0
 				? std::clamp(static_cast<float>(hitCounts[i]) / static_cast<float>(sampleCount), 0.0f, 1.0f)
 				: 0.0f;
@@ -138,7 +136,7 @@ void RtPathTracingSession::publishLatest()
 	}
 
 	std::lock_guard<std::mutex> lock(_publishMutex);
-	_publishedFrame       = std::move(denoised);
+	_publishedFrame       = std::move(presented);
 	_publishedAlpha       = std::move(alpha);
 	_publishedWidth       = width;
 	_publishedHeight      = height;

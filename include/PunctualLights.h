@@ -45,8 +45,15 @@ public:
     // Set lights from parsed glTF (with transforms already applied)
     void setLights(const std::vector<GPULight>& lights);
 
-    // Create a single fallback light (for models without KHR_lights_punctual)
-    void createFallbackLight(const glm::vec3& position);
+    // Create a single fallback light (for models without KHR_lights_punctual).
+    // intensity should already be calibrated for this light's actual distance
+    // from the scene (see ViewportWidget's call site) - a flat, distance-
+    // independent constant here would give this light a near-zero real
+    // contribution wherever true inverse-square falloff is applied (as both
+    // regular-mesh raster shading and the path tracer's NEE do), since this
+    // light is deliberately placed far away for a nice raking shadow
+    // direction/clean shadow-map frustum fit.
+    void createFallbackLight(const glm::vec3& position, float intensity = 1.0f);
 
     // Bind the light UBO to a shader program
     void bind(GLuint shaderProgram, const char* blockName = "LightBlock");

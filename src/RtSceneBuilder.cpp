@@ -2,6 +2,7 @@
 
 #include "SceneRuntime.h"
 #include "SceneMesh.h"
+#include "RenderableMesh.h"
 #include "Material.h"
 #include "Camera.h"
 #include "PunctualLights.h"
@@ -10,6 +11,7 @@
 
 #include <QImage>
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -195,13 +197,145 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	return rt;
 }
 
+RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled)
+{
+	RtMaterial rt;
+	rt.baseColor         = toGlm(material.albedoColor());
+	rt.metalness         = material.metalness();
+	if (reflectionsEnabled)
+	{
+		// See the declaration comment in RtSceneBuilder.h: raster's floor
+		// reflection never reads Material::roughness at all (it's a separate
+		// fake planar-mirror pass), so reusing the raster value verbatim (0.45
+		// by default - fairly diffuse-dominant) leaves a real BRDF path tracer's
+		// floor looking duller than what raster shows. This is the one
+		// physically-grounded lever available to make it actually reflective.
+		// Clamped lower than the first attempt (0.12) - once the fallback
+		// light's calibrated intensity made the floor's direct-lit diffuse
+		// response strong enough for a visible shadow, that same brightness
+		// compressed the previous, still-fairly-soft reflection into near-
+		// invisibility through the ACES tonemap. A sharper (lower-roughness)
+		// GGX lobe concentrates the same reflected energy into a smaller,
+		// higher-contrast highlight instead of spreading it thin, so it reads
+		// as a real reflection rather than a faint smear even next to a bright
+		// diffuse floor.
+		rt.roughness = (std::min)(material.roughness(), 0.04f);
+	}
+	else
+	{
+		// "Reflections" toggled off (Visualization panel, mirrors raster's
+		// own fake-reflection-pass gate) - use the floor's actual material
+		// roughness unmodified, same as any other surface, so no visible
+		// specular reflection shows.
+		rt.roughness = material.roughness();
+	}
+	rt.emissive          = toGlm(material.emissive());
+	rt.emissiveStrength  = material.emissiveStrength();
+	rt.opacity           = material.opacity();
+	rt.occlusionStrength = material.occlusionStrength();
+
+	// mesh=nullptr, meshTextureTypeKey=nullptr: skips extractTextureSample()'s
+	// tier-1 (SceneMesh::textures()) lookup entirely without ever
+	// dereferencing mesh - the floor has no SceneMesh behind it. Tier 2
+	// (material.texture(Albedo)) already carries imageData directly (see
+	// ViewportWidget::syncFloorPlaneAlbedoTexture()'s "generated://floor-
+	// albedo" texture), so no texCache/tier-3 lookup is needed either.
+	rt.baseColorTexture = extractTextureSample(nullptr, runtime, material, static_cast<int>(Material::TextureType::Albedo), nullptr, material.albedoMapPath(), nullptr);
+
+	return rt;
+}
+
+void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor)
+{
+	if (!floor.floorMesh)
+		return; // floor not created yet (e.g. before the viewport's first layout pass)
+
+	// Half-extent from the live scene bounding box, not the raster floor's
+	// own (much larger, aesthetic fade-out) geometry - see the declaration
+	// comments in RtSceneBuilder.h/RtFloorParams for why. A flat 30% margin
+	// keeps the floor extending a bit past the model on every side (so
+	// contact shadows/reflections aren't clipped right at the silhouette)
+	// without paying for the raster extent's far larger area. Square, not
+	// matching the bounding box's actual aspect ratio: using the larger of
+	// the two footprint axes for both keeps the floor from looking cut off
+	// along whichever axis happens to be shorter (e.g. a long, narrow model).
+	constexpr float kMarginFactor = 1.3f;
+	const BoundingBox& bbox = floor.sceneBoundingBox;
+	// U is always the X extent (both up-axis conventions keep X as the first
+	// floor axis - see Plane.cpp's XZ_YNormal vs XY_ZNormal); V is whichever
+	// axis is the *other* floor axis for the current up-axis convention.
+	const float extentU = static_cast<float>(bbox.getXSize());
+	const float extentV = floor.cameraUpAxisZUp ? static_cast<float>(bbox.getYSize()) : static_cast<float>(bbox.getZSize());
+	const float halfExtent = (std::max)(extentU, extentV) * 0.5f * kMarginFactor;
+	// Degenerate/zero-size bounding box (e.g. nothing loaded yet) - fall back
+	// to a small nominal floor rather than a zero-area (invisible) quad.
+	const float safeHalfU = halfExtent > 1e-4f ? halfExtent : 1.0f;
+	const float safeHalfV = safeHalfU;
+
+	const float cx = floor.center.x();
+	const float cu2 = floor.cameraUpAxisZUp ? floor.center.y() : floor.center.z();
+
+	// Scale repeat counts so each tile comes out the same physical
+	// world-space size as raster's, rather than reusing raster's repeat
+	// count verbatim (which would stretch each tile to cover this quad's
+	// smaller side length, making them look larger/fewer) or using a flat
+	// 0..1 UV (no tiling at all).
+	const float ptSideLength = 2.0f * safeHalfU; // square floor - same for U and V
+	const float sizeRatio = floor.rasterFloorExtent > 1e-4f ? (ptSideLength / floor.rasterFloorExtent) : 1.0f;
+	const float effectiveRepeatS = floor.texRepeatS * sizeRatio;
+	const float effectiveRepeatT = floor.texRepeatT * sizeRatio;
+
+	RtMeshGeometry geom;
+	geom.vertices.resize(4);
+	// Plane's own convention (see Plane.cpp buildMesh()): XZ_YNormal (Y-up)
+	// uses (x, zlevel, z); XY_ZNormal (Z-up) uses (x, y, zlevel). Normal sign
+	// is irrelevant either way - tracePixel() already flips the shading
+	// normal to face whichever side a ray actually hits.
+	for (int corner = 0; corner < 4; ++corner)
+	{
+		// Corner order: (-U,-V), (+U,-V), (+U,+V), (-U,+V) - a simple
+		// quad fan, winding doesn't matter since Embree/our BVH don't cull.
+		const float su = (corner == 1 || corner == 2) ? 1.0f : -1.0f;
+		const float sv = (corner == 2 || corner == 3) ? 1.0f : -1.0f;
+		const float u = cx + su * safeHalfU;
+		const float v = cu2 + sv * safeHalfV;
+
+		RtVertex& vert = geom.vertices[static_cast<size_t>(corner)];
+		if (floor.cameraUpAxisZUp)
+		{
+			vert.position = glm::vec3(u, v, floor.planeLevel);
+			vert.normal   = glm::vec3(0.0f, 0.0f, -1.0f);
+		}
+		else
+		{
+			vert.position = glm::vec3(u, floor.planeLevel, v);
+			vert.normal   = glm::vec3(0.0f, -1.0f, 0.0f);
+		}
+		const glm::vec2 uv((su + 1.0f) * 0.5f * effectiveRepeatS, (sv + 1.0f) * 0.5f * effectiveRepeatT);
+		for (int uvSet = 0; uvSet < 4; ++uvSet)
+			vert.texCoords[uvSet] = uv;
+	}
+	geom.indices = { 0, 1, 2, 0, 2, 3 };
+
+	const uint32_t index = static_cast<uint32_t>(snapshot.meshes.size());
+	snapshot.meshes.push_back(std::move(geom));
+	snapshot.materials.push_back(convertFloorMaterial(runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled));
+
+	RtInstance instance;
+	instance.meshIndex     = index;
+	instance.materialIndex = index;
+	instance.localToWorld  = glm::mat4(1.0f); // vertices already built in absolute world space above
+	snapshot.instances.push_back(instance);
+}
+
 std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	const SceneRuntime& runtime,
 	const Camera& camera,
 	float aspectRatio,
 	const std::vector<GPULight>& lights,
 	uint64_t revisionId,
-	const RtEnvironment* environment)
+	const RtEnvironment* environment,
+	const RtFloorParams* floor)
 {
 	auto snapshot = std::make_shared<RtSceneSnapshot>();
 	snapshot->revisionId = revisionId;
@@ -242,6 +376,9 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 		instance.localToWorld  = toGlm(mesh->combinedRenderTransform());
 		snapshot->instances.push_back(instance);
 	}
+
+	if (floor && floor->groundMode == GroundMode::Floor)
+		addFloorInstance(*snapshot, runtime, *floor);
 
 	snapshot->lights.reserve(lights.size());
 	for (const GPULight& light : lights)
