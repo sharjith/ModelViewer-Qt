@@ -85,6 +85,14 @@ bool RtEmbreeScene::build(std::shared_ptr<const RtSceneSnapshot> snapshot)
 		rtcSetGeometryTimeStepCount(instGeom, 1);
 		rtcSetGeometryTransform(instGeom, 0, RTC_FORMAT_FLOAT4X4_COLUMN_MAJOR,
 			glm::value_ptr(instance.localToWorld));
+		// One bit per instance index (mod 32, wrapping for scenes with more
+		// than 32 instances - a shadow ray excluding bit N may then also
+		// incidentally exclude other instances sharing that bit, a rare and
+		// minor inaccuracy for large scenes, not a correctness requirement)
+		// - lets a shadow ray clear just its own shading instance's bit to
+		// implement "Self Shadows off" (RtRay::mask's doc comment) without
+		// a real any-hit filter callback.
+		rtcSetGeometryMask(instGeom, 1u << (static_cast<unsigned int>(i) % 32u));
 		rtcCommitGeometry(instGeom);
 
 		const unsigned int geomID = rtcAttachGeometry(_topScene, instGeom);
@@ -200,7 +208,7 @@ bool RtEmbreeScene::occluded(const RtRay& ray) const
 	r.dir_z = ray.direction.z;
 	r.tnear = ray.tNear;
 	r.tfar  = ray.tFar;
-	r.mask  = static_cast<unsigned int>(-1);
+	r.mask  = ray.mask; // see RtRay::mask's doc comment - "Self Shadows off" clears the shading instance's own bit
 	r.flags = 0;
 	r.time  = 0.0f;
 

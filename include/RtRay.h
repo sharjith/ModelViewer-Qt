@@ -20,6 +20,16 @@ struct RtRay
 	glm::vec3 direction{ 0.0f, 0.0f, -1.0f };
 	float     tNear = 1e-4f; // small epsilon, avoids self-intersection at the origin
 	float     tFar  = std::numeric_limits<float>::max();
+
+	// Embree ray mask (bitwise-ANDed against each instance's geometry mask -
+	// see RtEmbreeScene::build()'s rtcSetGeometryMask(), one bit per
+	// instance index mod 32) - all bits set (every instance intersectable)
+	// by default. Used to implement the Visualization panel's "Self
+	// Shadows" toggle: a shadow ray can clear the CURRENT shading
+	// instance's own bit to test occlusion against every OTHER instance
+	// while ignoring self-occlusion, without needing a real any-hit filter
+	// callback - see CpuPathTracer.cpp's NEE shadow-ray construction.
+	uint32_t  mask  = 0xFFFFFFFFu;
 };
 
 struct RtHit

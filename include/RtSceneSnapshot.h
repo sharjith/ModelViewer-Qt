@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -111,6 +112,45 @@ struct RtMaterial
 	float     emissiveStrength = 0.0f;
 	float     opacity          = 1.0f;
 
+	// KHR_materials_unlit - see CpuPathTracer.cpp's tracePixel() for the
+	// short-circuit this triggers (baseColor+emissive only, no lighting of
+	// any kind evaluated, matching main_scene.frag's unlit branch).
+	bool      unlit            = false;
+
+	// Base glTF alphaMode (OPAQUE/MASK/BLEND) - previously unimplemented in
+	// this tracer entirely (opacity/alpha was never referenced anywhere in
+	// CpuPathTracer.cpp), a pre-existing gap rather than something removed
+	// during the KHR extension work. blendMode mirrors Material::BlendMode's
+	// ordinal values verbatim (0=Opaque, 1=Masked, 2=Alpha/glTF BLEND - the
+	// remaining Additive/Multiply values aren't part of glTF's alphaMode and
+	// aren't handled here). alphaThreshold is glTF's alphaCutoff (MASK only).
+	// opacityTexture uses the same user-configurable channel-packing as
+	// metallic/roughness/ao (Material::packingFor("opacity")), mirroring
+	// main_scene.frag's sampleOpacityMap(); when absent, evaluateSurface()
+	// falls back to the base color texture's own alpha channel (matching
+	// main_scene.frag's sampleFallbackOpacity() PBR-mode branch), then to
+	// the flat opacity factor above if there's no texture at all.
+	int       blendMode      = 0;
+	float     alphaThreshold = 0.5f;
+	std::shared_ptr<RtTextureSample> opacityTexture;
+
+	// KHR_materials_pbrSpecularGlossiness - legacy alternate workflow to
+	// metallic-roughness (glTF's ORIGINAL v1 material model, kept as an
+	// archived extension for backward-compat content). When active, this
+	// completely REPLACES baseColor/metalness/roughness/F0's normal
+	// meaning - see CpuPathTracer.cpp's evaluateSurface() for the override
+	// logic and evaluateDirectBRDF() for the mix()-based (not additive)
+	// direct-lighting formula main_scene.frag uses for this workflow.
+	// specularGlossinessTexture is packed RGB=specular color (sRGB),
+	// A=glossiness (linear) - matching main_scene.frag's
+	// specularGlossinessMap sampling.
+	bool      useSpecGloss     = false;
+	glm::vec3 diffuseColor     = glm::vec3(1.0f); // spec-gloss's baseColor equivalent
+	glm::vec3 specGlossSpecularColor = glm::vec3(0.0f); // spec-gloss's F0 equivalent - a direct RGB color, not IOR-derived
+	float     glossinessFactor = 1.0f; // inverse of roughness: roughness = 1 - glossinessFactor*(texture.a if present)
+	std::shared_ptr<RtTextureSample> diffuseTexture;
+	std::shared_ptr<RtTextureSample> specularGlossinessTexture;
+
 	// glTF occlusionTexture.strength - lerps between "no AO" (1.0) and the
 	// sampled AO texture value; see evaluateSurface()'s ao computation, which
 	// mirrors main_scene.frag's "clamp(mix(1.0, texAO, occlusionStrength),
@@ -198,6 +238,67 @@ struct RtMaterial
 	float iridescenceThicknessMax = 400.0f;
 	std::shared_ptr<RtTextureSample> iridescenceTexture;
 	std::shared_ptr<RtTextureSample> iridescenceThicknessTexture;
+
+	// KHR_materials_transmission + KHR_materials_volume - unlike raster
+	// (which can only approximate a refracted view via a screen-space
+	// "transmission framebuffer" sample plus an authored thicknessFactor
+	// standing in for the object's true internal depth, since it has no
+	// real scene geometry to trace through), this path tracer actually
+	// refracts a continuing ray through the real mesh and measures the true
+	// entry-to-exit distance for Beer-Lambert absorption - see
+	// CpuPathTracer.cpp's transmission handling in tracePixel(). That means
+	// thicknessFactor's VALUE (KHR_materials_volume's approximation input)
+	// is deliberately not used for absorption depth - the real traced
+	// distance replaces what it exists to estimate. Its mere presence
+	// (thicknessFactor > 0, i.e. hasVolume below) IS still read, though: per
+	// spec, KHR_materials_transmission without KHR_materials_volume means
+	// the surface is implicitly "thin-walled" (thicknessFactor's own default
+	// is 0) - light should pass straight through undeviated, with no
+	// refraction bend and no interior to absorb through, not behave like a
+	// real solid dielectric.
+	float transmission = 0.0f;
+	std::shared_ptr<RtTextureSample> transmissionTexture; // R channel scales transmission
+	bool      hasVolume           = false; // KHR_materials_volume present (thicknessFactor > 0) - see above
+	glm::vec3 attenuationColor    = glm::vec3(1.0f);
+	float     attenuationDistance = std::numeric_limits<float>::infinity();
+
+	// The actual authored thicknessFactor VALUE - unlike the specular
+	// transmission path above (which deliberately ignores it in favor of
+	// real traced entry-to-exit distance), KHR_materials_diffuse_
+	// transmission's NEE contribution has no traced path to measure (it's
+	// a single-point analytic term, not a continuing ray) - see
+	// tracePixel()'s diffuse-transmission NEE handling, which uses this as
+	// the Beer-Lambert distance the same way main_scene.frag's
+	// computeVolumeThickness()/diffuseTransmissionThickness does. No
+	// texture support (thicknessTexture) for this narrow use - main
+	// transmission's real-traced-distance approach makes that unnecessary
+	// there, and this is only a fallback for the one term that has no
+	// alternative.
+	float thicknessFactor = 0.0f;
+
+	// KHR_materials_dispersion - per-channel IOR spread on transmission
+	// (chromatic aberration/prism effect). No per-material texture in the
+	// glTF spec, just a flat factor. See CpuPathTracer.cpp's transmission
+	// handling for the hero-channel stochastic-selection approach used to
+	// avoid tracing 3x rays per dispersive sample.
+	float dispersion = 0.0f;
+
+	// KHR_materials_diffuse_transmission - a translucent DIFFUSE material
+	// (leaves, paper, thin curtains), distinct from KHR_materials_
+	// transmission's specular/refractive glass model: light landing on the
+	// front diffusely scatters through to the back (and vice versa) rather
+	// than bending through a dielectric interface, so no ior/Fresnel/TIR
+	// machinery is involved - see CpuPathTracer.cpp's NEE and diffuse-lobe
+	// handling for how this splits the existing Lambertian response between
+	// the front and back hemispheres instead of adding a new refraction
+	// path. diffuseTransmissionFactor's texture uses the ALPHA channel
+	// (glTF spec), diffuseTransmissionColorTexture uses RGB (sRGB) -
+	// matching main_scene.frag's diffuseTransmissionMap/
+	// diffuseTransmissionColorMap sampling.
+	float     diffuseTransmissionFactor = 0.0f;
+	glm::vec3 diffuseTransmissionColor  = glm::vec3(1.0f);
+	std::shared_ptr<RtTextureSample> diffuseTransmissionTexture;      // A channel scales diffuseTransmissionFactor
+	std::shared_ptr<RtTextureSample> diffuseTransmissionColorTexture; // RGB (sRGB) tints diffuseTransmissionColor
 };
 
 // One placed copy of a mesh in the scene. meshIndex/materialIndex index into
@@ -309,6 +410,20 @@ struct RtSceneSnapshot
 	std::vector<RtLight>        lights;
 	RtCamera                    camera;
 	RtEnvironment                environment;
+
+	// Visualization panel's "Shadows"/"Self Shadows" checkboxes - mirrors
+	// SceneRenderController::shadowsEnabled()/selfShadowsEnabled(), which
+	// raster's shadow-map pass already respects (main_scene.frag:
+	// "shadowsEnabled && (selfShadowsEnabled || floorRendering || ...)").
+	// shadowsEnabled=false skips NEE shadow-ray occlusion testing entirely
+	// (every light always visible, matching raster's shadow map being
+	// fully disabled). selfShadowsEnabled=false still tests occlusion
+	// against every OTHER instance but excludes the CURRENT shading
+	// instance's own geometry from that specific shadow ray (via RtRay::
+	// mask) - matching raster's distinction between "an object shadows
+	// itself" vs. "an object casts/receives shadows from other objects".
+	bool shadowsEnabled     = true;
+	bool selfShadowsEnabled = true;
 
 	// Bumped every time a new snapshot is built. Lets the path tracer /
 	// accumulator detect that geometry/material/visibility actually changed

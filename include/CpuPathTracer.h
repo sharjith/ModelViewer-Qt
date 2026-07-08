@@ -45,16 +45,44 @@ public:
 		int maxBounces                = 6;
 		int russianRouletteStartDepth = 3;
 
-		// Diagnostic: when true, the first hit's UV0 is output directly as
-		// color (R=U, G=V, B=0), bypassing all texture sampling/shading/
-		// lighting entirely. Makes any flip/rotation/axis-swap in the UV
-		// pipeline immediately and unambiguously visible - a smooth diagonal
-		// gradient (red increasing right, green increasing... whichever
-		// direction is correct for the mesh) confirms UV extraction/
-		// interpolation itself is right, independent of texture sampling,
-		// wrap modes, sRGB decode, or lighting. Not wired to any UI - flip
-		// manually for debugging, then set back to false.
-		bool debugVisualizeUV = false;
+		// A separate, much larger budget for consecutive KHR_materials_
+		// transmission reflect/refract/TIR events specifically (tracked
+		// independently of maxBounces - see tracePixel()'s transmissionDepth
+		// counter). High-IOR ("diamond-like", ior significantly above ~2)
+		// dielectrics have a narrow total-internal-reflection escape cone
+		// (critical angle = asin(1/ior), e.g. only ~24 degrees at ior=2.42
+		// vs ~42 degrees for ordinary ior=1.5 glass), so a light path can
+		// need many internal bounces before it finds an exit angle inside
+		// that cone - a low shared maxBounces budget (6 by default, sized
+		// for ordinary opaque diffuse/specular scenes) was causing these
+		// paths to terminate before ever escaping, showing as implausibly
+		// dim/undistorted transmission instead of the sphere's true
+		// (strongly bent) refracted view. Each transmission bounce is cheap
+		// (a Fresnel check + refract, no NEE/BRDF evaluation), so a
+		// generous cap here doesn't meaningfully slow down scenes that
+		// don't have high-IOR transmissive materials at all.
+		int maxTransmissionBounces = 32;
+
+		// Firefly/outlier suppression - caps a single sample's maximum
+		// radiance channel before it's returned for accumulation, scaling
+		// the whole RGB down proportionally (not clamping per-channel) so
+		// hue isn't shifted. Standard technique for suppressing rare
+		// extreme-value samples (compounding low-probability Fresnel/TIR
+		// events can produce them) that would otherwise show as isolated
+		// bright/colorful noise blotches - DS's own UI exposes an
+		// equivalent "Clamp Threshold" (seen set to 3.0 in their default
+		// setup), which this value matches for a direct comparison.
+		float fireflyClampThreshold = 3.0f;
+
+		// Debug-visualization toggles used to live here as Settings fields,
+		// but flipping a bool in a widely-included header like this one
+		// forced a full rebuild of every translation unit that includes
+		// CpuPathTracer.h (~34 files) just to change a diagnostic-only
+		// value nothing outside CpuPathTracer.cpp ever reads or sets. They
+		// are now file-local constants at the top of CpuPathTracer.cpp
+		// instead (kDebugVisualizeUV/kDebugVisualizeTransmission/
+		// kDebugVisualizeTransmissionBounceCount) - flip those, only
+		// CpuPathTracer.cpp rebuilds.
 	};
 
 	void setSettings(const Settings& s) { _settings = s; }

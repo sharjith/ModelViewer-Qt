@@ -186,7 +186,31 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.emissive         = toGlm(material.emissive());
 	rt.emissiveStrength = material.emissiveStrength();
 	rt.opacity          = material.opacity();
+	rt.blendMode        = static_cast<int>(material.blendMode());
+	rt.alphaThreshold   = material.alphaThreshold();
+	rt.opacityTexture   = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Opacity), "opacityMap", material.opacityMapPath(), "opacity");
+	rt.unlit             = material.isUnlit();
 	rt.occlusionStrength = material.occlusionStrength();
+
+	// KHR_materials_pbrSpecularGlossiness - see RtSceneSnapshot.h's comment
+	// on why this completely overrides baseColor/metalness/roughness/F0
+	// rather than being an additive modifier like the other extensions.
+	rt.useSpecGloss = material.getUseSpecularGlossiness();
+	rt.diffuseColor = toGlm(material.diffuseColor());
+	rt.specGlossSpecularColor = toGlm(material.specularColor());
+	rt.glossinessFactor = material.glossinessFactor();
+	rt.diffuseTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Diffuse), "diffuseMap", material.diffuseMapPath(), nullptr);
+	// Packed RGB=specular color (sRGB, sampled directly as .rgb in
+	// evaluateSurface() - NOT via applyChannelPacking, which is only for
+	// single-channel factors) / A=glossiness (linear, packed channel below).
+	rt.specularGlossinessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularGlossiness), "specularGlossinessMap", material.specularGlossinessMap(), nullptr);
+	if (rt.specularGlossinessTexture)
+	{
+		rt.specularGlossinessTexture->packingChannel = 3; // A
+		rt.specularGlossinessTexture->packingInvert  = false;
+		rt.specularGlossinessTexture->packingScale   = 1.0f;
+		rt.specularGlossinessTexture->packingBias    = 0.0f;
+	}
 	rt.ior                  = material.ior();
 	rt.specularFactor       = material.specularFactor();
 	rt.specularColorFactor  = toGlm(material.specularColorFactor());
@@ -280,6 +304,39 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 		rt.iridescenceThicknessTexture->packingScale   = rt.iridescenceThicknessMax - rt.iridescenceThicknessMin;
 		rt.iridescenceThicknessTexture->packingBias    = rt.iridescenceThicknessMin;
 	}
+
+	// KHR_materials_transmission + KHR_materials_volume - see
+	// RtSceneSnapshot.h's comment on why thicknessFactor's VALUE is
+	// deliberately not read here (only its presence, as hasVolume).
+	rt.transmission = material.transmission();
+	rt.transmissionTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Transmission), "transmissionMap", material.transmissionMapPath(), nullptr);
+	if (rt.transmissionTexture)
+	{
+		rt.transmissionTexture->packingChannel = 0; // R
+		rt.transmissionTexture->packingInvert  = false;
+		rt.transmissionTexture->packingScale   = 1.0f;
+		rt.transmissionTexture->packingBias    = 0.0f;
+	}
+	rt.hasVolume           = material.thicknessFactor() > 0.0f;
+	rt.attenuationColor    = toGlm(material.attenuationColor());
+	rt.attenuationDistance = material.attenuationDistance();
+	rt.dispersion          = material.dispersion();
+	rt.thicknessFactor     = material.thicknessFactor();
+
+	// KHR_materials_diffuse_transmission - see RtSceneSnapshot.h's comment
+	// on why this is handled as a front/back-hemisphere split of the
+	// existing Lambertian lobe rather than a refraction path.
+	rt.diffuseTransmissionFactor = material.diffuseTransmissionFactor();
+	rt.diffuseTransmissionColor  = toGlm(material.diffuseTransmissionColorFactor());
+	rt.diffuseTransmissionTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::DiffuseTransmission), "diffuseTransmissionMap", material.diffuseTransmissionMap(), nullptr);
+	if (rt.diffuseTransmissionTexture)
+	{
+		rt.diffuseTransmissionTexture->packingChannel = 3; // A
+		rt.diffuseTransmissionTexture->packingInvert  = false;
+		rt.diffuseTransmissionTexture->packingScale   = 1.0f;
+		rt.diffuseTransmissionTexture->packingBias    = 0.0f;
+	}
+	rt.diffuseTransmissionColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::DiffuseTransmissionColor), "diffuseTransmissionColorMap", material.diffuseTransmissionColorMap(), nullptr);
 
 	return rt;
 }
@@ -422,10 +479,14 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	const std::vector<GPULight>& lights,
 	uint64_t revisionId,
 	const RtEnvironment* environment,
-	const RtFloorParams* floor)
+	const RtFloorParams* floor,
+	bool shadowsEnabled,
+	bool selfShadowsEnabled)
 {
 	auto snapshot = std::make_shared<RtSceneSnapshot>();
 	snapshot->revisionId = revisionId;
+	snapshot->shadowsEnabled = shadowsEnabled;
+	snapshot->selfShadowsEnabled = selfShadowsEnabled;
 
 	// Only currently-shown meshes (matches _sceneRuntime.currentVisibleObjectIds()
 	// used by the raster render loop) - deliberately NOT the per-frame frustum/

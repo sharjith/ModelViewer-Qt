@@ -97,6 +97,10 @@ public:
 	// floor may be nullptr (no floor instance added) or floor->floorMesh may
 	// be nullptr (material unavailable, e.g. before the viewport's first
 	// layout pass has created it) - both are silently skipped.
+	// shadowsEnabled/selfShadowsEnabled mirror the Visualization panel's
+	// "Shadows"/"Self Shadows" checkboxes (SceneRenderController::
+	// shadowsEnabled()/selfShadowsEnabled()) - see RtSceneSnapshot.h's
+	// fields of the same name for what they control.
 	static std::shared_ptr<RtSceneSnapshot> build(
 		const SceneRuntime& runtime,
 		const Camera& camera,
@@ -104,7 +108,9 @@ public:
 		const std::vector<GPULight>& lights,
 		uint64_t revisionId,
 		const RtEnvironment* environment = nullptr,
-		const RtFloorParams* floor = nullptr);
+		const RtFloorParams* floor = nullptr,
+		bool shadowsEnabled = true,
+		bool selfShadowsEnabled = true);
 
 private:
 	static RtMeshGeometry convertGeometry(const SceneMesh* mesh);

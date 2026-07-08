@@ -1083,6 +1083,11 @@ void ViewportWidget::resizeGL(int width, int height)
 	resizeSSSBuffer(width, height);
 
 	_rtSession.setResolution(width, height);
+	// A resize (including a maximized MDI subwindow being reactivated - only
+	// the active one is truly full-size, so switching genuinely resizes the
+	// newly-focused widget) invalidates the accumulation buffer's dimensions,
+	// so this restart is a real correctness requirement, not a spurious
+	// trigger - see showEvent() for the one that WAS spurious and got removed.
 	if (_pathTracedArmed)
 		resetPathTracedIdleTimer(); // old accumulation no longer matches the new resolution
 
@@ -3409,14 +3414,25 @@ void ViewportWidget::showShadows(bool show)
 	_renderCtrl.setShadowsEnabled(show);
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("shadowsEnabled", _renderCtrl.shadowsEnabled());
+	// Path-traced mode reads shadowsEnabled fresh into every new scene
+	// snapshot it builds (see the RtSceneBuilder::build() call site) - a
+	// snapshot only gets rebuilt when the idle-settle countdown fires, not
+	// on every raster-state change, so this needs an explicit re-arm to
+	// pick the new value up rather than continuing to show whatever was
+	// already converged under the old setting.
+	if (_pathTracedArmed)
+		resetPathTracedIdleTimer();
 	update();
 }
 
 void ViewportWidget::showSelfShadows(bool show)
 {
-	_renderCtrl.setSelfShadowsEnabled(show);		
+	_renderCtrl.setSelfShadowsEnabled(show);
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("selfShadowsEnabled", _renderCtrl.selfShadowsEnabled());
+	// See showShadows() above for why this needs an explicit re-arm too.
+	if (_pathTracedArmed)
+		resetPathTracedIdleTimer();
 	update();
 }
 
@@ -10641,12 +10657,16 @@ void ViewportWidget::showEvent(QShowEvent* event)
 	// maximized document sub-windows genuinely hides/shows each one's
 	// ViewportWidget (unlike being covered by an unrelated top-level app
 	// window, which doesn't touch Qt's visibility state at all). hideEvent()
-	// below pauses the path-traced session while hidden; this is the
-	// restart side - force a clean settle-countdown restart so a fresh,
-	// correctly-sized session starts rather than leaving things in whatever
-	// state they were paused in.
-	if (_pathTracedArmed)
-		resetPathTracedIdleTimer();
+	// below still pauses the path-traced session while hidden (a resource-
+	// management stop, not something that should itself count as a
+	// "trigger"). This used to also force a restart here on the way back in,
+	// but the only thing that should re-arm/restart path tracing is actual
+	// camera movement - MDI visibility changes shouldn't. paintGL()'s own
+	// self-healing watchdog (see paintGL()'s "!_pathTracedIdleTimer->
+	// isActive() && !_rtSession.isRunning() && !_rtPresenter.hasFrame()"
+	// check) already restarts a stuck session the moment this widget is
+	// next painted, which happens naturally as soon as Qt shows it again -
+	// so no dedicated restart is needed here.
 }
 
 void ViewportWidget::hideEvent(QHideEvent* event)
@@ -10654,13 +10674,14 @@ void ViewportWidget::hideEvent(QHideEvent* event)
 	// Reported bug: after switching to another MDI document and back,
 	// path-traced mode "never shows up again, always PBR". Root cause: the
 	// background tracer thread and refresh timer kept running/publishing
-	// frames for a now-hidden widget with nothing paying attention, and
-	// resuming visibility never got a fresh, well-defined restart - so
-	// whatever state paintGL()'s `!_pathTracedIdleTimer->isActive() &&
-	// _rtPresenter.hasFrame()` gate was left in (see paintGL()) could stay
-	// permanently unsatisfied. Mirrors disarmPathTracedRenderingMode()'s
-	// cleanup but deliberately leaves _pathTracedArmed set so showEvent()
-	// above knows to restart it.
+	// frames for a now-hidden widget with nothing paying attention. Stopping
+	// them here (a plain resource-management pause, not itself a "trigger")
+	// is enough - paintGL()'s self-healing watchdog restarts the session on
+	// its own the moment this widget is next painted (see showEvent()),
+	// without needing a dedicated restart call here or there. Mirrors
+	// disarmPathTracedRenderingMode()'s cleanup but deliberately leaves
+	// _pathTracedArmed set so that watchdog knows path tracing is still
+	// meant to be active once repainting resumes.
 	if (_pathTracedArmed)
 	{
 		if (_pathTracedIdleTimer)
@@ -12658,7 +12679,8 @@ void ViewportWidget::startPathTracedSession()
 
 	auto snapshot = RtSceneBuilder::build(
 		_sceneRuntime, *_primaryCamera, _primaryCamera->getAspectRatio(),
-		lights, _pathTracedNextRevision++, &environment, &floorParams);
+		lights, _pathTracedNextRevision++, &environment, &floorParams,
+		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
 
 	_rtSession.setResolution(fbWidth, fbHeight);
 	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes

@@ -13,6 +13,16 @@ namespace
 {
 	constexpr float kPi = 3.14159265358979323846f;
 
+	// Debug-visualization toggles - moved here from CpuPathTracer::Settings
+	// (see that struct's comment) specifically so flipping one only
+	// rebuilds this file, not every translation unit that includes
+	// CpuPathTracer.h. Flip manually for debugging, then set back to
+	// false before committing - see each flag's original doc comment
+	// (now attached to its use site in tracePixel()) for what it does.
+	constexpr bool kDebugVisualizeUV = false;
+	constexpr bool kDebugVisualizeTransmission = false;
+	constexpr bool kDebugVisualizeTransmissionBounceCount = false;
+
 	// xorshift32 - fast, small, good enough for Monte Carlo path tracing noise
 	// (not for cryptography). Seeded per-pixel-per-pass so successive
 	// renderPass() calls with different sampleSeed values are decorrelated.
@@ -367,6 +377,13 @@ namespace
 		float     roughness;
 		glm::vec3 emissive;
 
+		// KHR_materials_pbrSpecularGlossiness - see evaluateSurface() for
+		// where baseColor/metalness/roughness/F0/F90 above get overridden
+		// to this workflow's meaning, and evaluateDirectBRDF() for the
+		// mix()-based (not additive) direct-lighting formula this flag
+		// switches to, matching main_scene.frag's useSpecGloss branch.
+		bool useSpecGloss = false;
+
 		// Ambient occlusion - only ever multiplied into indirect/environment
 		// contributions (see main_scene.frag: applied to diffuseIBLOut/
 		// specularIBLOut/envColor, never to direct-light terms), not general
@@ -416,6 +433,22 @@ namespace
 		float iridescenceFactor    = 0.0f;
 		float iridescenceIor       = 1.3f;
 		float iridescenceThickness = 400.0f;
+
+		// KHR_materials_transmission + KHR_materials_volume - see tracePixel()'s
+		// transmission handling and RtSceneSnapshot.h's comment on why the
+		// authored thicknessFactor approximation is skipped in favor of a
+		// real traced entry-to-exit distance (hasVolume's mere PRESENCE is
+		// still used, as a thin-walled-vs-solid gate).
+		float     transmission        = 0.0f;
+		bool      hasVolume           = false;
+		glm::vec3 attenuationColor    = glm::vec3(1.0f);
+		float     attenuationDistance = std::numeric_limits<float>::infinity();
+		float     dispersion          = 0.0f;
+
+		// KHR_materials_diffuse_transmission - see tracePixel()'s NEE and
+		// diffuse-lobe handling.
+		float     diffuseTransmissionFactor = 0.0f;
+		glm::vec3 diffuseTransmissionColor  = glm::vec3(1.0f);
 	};
 
 	// vertexColor is the interpolated COLOR_0 attribute (or the (1,1,1,1)
@@ -467,6 +500,48 @@ namespace
 		computeF0F90(mat, s.baseColor, s.metalness, texturedSpecularFactor, texturedSpecularColorFactor, s.F0, s.F90, s.directF0, s.dielectricF0, s.dielectricDirectF0);
 		s.specularFactor = texturedSpecularFactor;
 
+		// KHR_materials_pbrSpecularGlossiness - legacy alternate workflow;
+		// completely REPLACES the metallic-roughness values just computed
+		// above (matching main_scene.frag's gatherMaterialParams(), which
+		// does the equivalent override in its own useSpecGloss branch).
+		// baseColor becomes diffuseColor, F0 becomes the specular color
+		// directly (an authored RGB reflectance, not IOR-derived), F90 is
+		// forced to 1.0, metalness is forced to 0 (spec-gloss has no
+		// metalness concept), and roughness is derived from glossiness's
+		// inverse. dielectricF0/dielectricDirectF0 are also overridden so
+		// KHR_materials_iridescence (if combined with spec-gloss) still
+		// gets a sensible base reflectance to work from.
+		s.useSpecGloss = mat.useSpecGloss;
+		if (mat.useSpecGloss)
+		{
+			s.baseColor = mat.diffuseColor;
+			if (mat.diffuseTexture)
+			{
+				const glm::vec4 t = sampleTexture(*mat.diffuseTexture, texCoords);
+				s.baseColor *= sRGBToLinear(glm::vec3(t));
+			}
+			s.baseColor *= glm::vec3(vertexColor);
+
+			glm::vec3 specGlossColor = mat.specGlossSpecularColor;
+			float glossiness = mat.glossinessFactor;
+			if (mat.specularGlossinessTexture)
+			{
+				const glm::vec4 packed = sampleTexture(*mat.specularGlossinessTexture, texCoords);
+				specGlossColor *= sRGBToLinear(glm::vec3(packed));
+				glossiness *= packed.a;
+			}
+			specGlossColor = glm::clamp(specGlossColor, glm::vec3(0.0f), glm::vec3(1.0f));
+
+			s.roughness = std::clamp(1.0f - glossiness, 0.03f, 1.0f);
+			s.metalness = 0.0f;
+			s.F0 = specGlossColor;
+			s.F90 = glm::vec3(1.0f);
+			s.directF0 = specGlossColor;
+			s.dielectricF0 = specGlossColor;
+			s.dielectricDirectF0 = specGlossColor;
+			s.specularFactor = 1.0f;
+		}
+
 		s.clearcoat = mat.clearcoat;
 		if (mat.clearcoatTexture)
 			s.clearcoat *= applyChannelPacking(sampleTexture(*mat.clearcoatTexture, texCoords), *mat.clearcoatTexture);
@@ -507,6 +582,21 @@ namespace
 		s.iridescenceThickness = mat.iridescenceThicknessMax;
 		if (mat.iridescenceThicknessTexture)
 			s.iridescenceThickness = applyChannelPacking(sampleTexture(*mat.iridescenceThicknessTexture, texCoords), *mat.iridescenceThicknessTexture);
+
+		s.transmission = mat.transmission;
+		if (mat.transmissionTexture)
+			s.transmission *= applyChannelPacking(sampleTexture(*mat.transmissionTexture, texCoords), *mat.transmissionTexture);
+		s.hasVolume           = mat.hasVolume;
+		s.attenuationColor    = mat.attenuationColor;
+		s.attenuationDistance = mat.attenuationDistance;
+		s.dispersion          = mat.dispersion;
+
+		s.diffuseTransmissionFactor = mat.diffuseTransmissionFactor;
+		if (mat.diffuseTransmissionTexture)
+			s.diffuseTransmissionFactor *= applyChannelPacking(sampleTexture(*mat.diffuseTransmissionTexture, texCoords), *mat.diffuseTransmissionTexture);
+		s.diffuseTransmissionColor = mat.diffuseTransmissionColor;
+		if (mat.diffuseTransmissionColorTexture)
+			s.diffuseTransmissionColor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.diffuseTransmissionColorTexture, texCoords)));
 
 		return s;
 	}
@@ -585,6 +675,8 @@ namespace
 		v = (tc / ma + 1.0f) * 0.5f;
 	}
 
+	glm::vec3 undoSkyboxRotation(const glm::vec3& direction, bool cameraUpAxisZUp, float skyBoxZRotationDegrees);
+
 	glm::vec3 sampleCubemapFaces(const std::vector<float> faces[6], int size, const glm::vec3& direction)
 	{
 		int face;
@@ -638,7 +730,20 @@ namespace
 	{
 		if (environment.faceSize <= 0)
 			return flatGradientMiss(direction);
-		return sampleCubemapFaces(environment.faces, environment.faceSize, direction);
+		// See undoSkyboxRotation()'s derivation below (used identically by
+		// sampleEnvironmentBackground() for the directly-visible backdrop) -
+		// the captured cubemap is stored in the skybox's rotated local space,
+		// not world space, so ANY sample of it - direct or, as here, via a
+		// reflection/refraction bounce - needs this same correction. Missing
+		// it here (an earlier version of this code sampled with the raw,
+		// un-rotated world direction) meant every reflected/refracted ray's
+		// escape to the environment landed on the wrong part of the cubemap
+		// - e.g. a transmissive surface's upward-facing regions incorrectly
+		// showing the horizon/ground portion of the map instead of the sky
+		// above, since the two are swapped by the skybox's un-undone
+		// rotation.
+		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
+		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir);
 	}
 
 	// Primary-ray miss (bounce == 0, i.e. what the camera directly sees as
@@ -912,6 +1017,23 @@ namespace
 		return glm::mix(baseFresnel, iridescent, surf.iridescenceFactor);
 	}
 
+	// KHR_materials_volume's Beer-Lambert absorption, ported from
+	// calculateVolumeAttenuation() in main_scene.frag - but fed the REAL
+	// distance a refracted ray traveled inside the medium (see tracePixel()'s
+	// transmission handling) rather than raster's authored thicknessFactor
+	// approximation. attenuationDistance <= 0 is main_scene.frag's own
+	// sentinel for "unset, no attenuation" (matching a texture/import
+	// pipeline that never writes it, distinct from the spec's actual default
+	// of +infinity, which this formula already handles correctly on its own -
+	// pow(color, distance/infinity) == pow(color, 0) == 1, no special case
+	// needed for that end).
+	glm::vec3 calculateVolumeAttenuation(const glm::vec3& attenuationColor, float attenuationDistance, float distance)
+	{
+		if (attenuationDistance <= 0.0f)
+			return glm::vec3(1.0f);
+		return glm::pow(attenuationColor, glm::vec3(distance / attenuationDistance));
+	}
+
 	// hasAniso/anisoT/anisoB/at/ab mirror sampleBSDFBounce()'s anisotropic
 	// parameters (see tracePixel()'s per-hit computation) - when hasAniso is
 	// false this reduces to the plain isotropic Cook-Torrance path exactly
@@ -946,8 +1068,36 @@ namespace
 		}
 		const glm::vec3 specular = specularNoF * F;
 
+		// KHR_materials_pbrSpecularGlossiness - matches main_scene.frag's
+		// useSpecGloss direct-lighting branch exactly: diffuse and specular
+		// are MIXED by the dielectric Fresnel term (a legacy formulation
+		// from the original spec-gloss reference shader), not added the
+		// way the metallic-roughness workflow's diffuse+specular below is.
+		// surf.directF0 already equals the spec-gloss specular color (see
+		// evaluateSurface()'s override), so F here already IS that mix
+		// weight - no separate Fresnel evaluation needed.
+		if (surf.useSpecGloss)
+		{
+			const glm::vec3 l_diffuse = surf.baseColor / kPi;
+			return glm::mix(l_diffuse, specular, F) * NdotL;
+		}
+
 		const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - surf.metalness);
-		const glm::vec3 diffuse = kD * surf.baseColor / kPi;
+		// KHR_materials_transmission - matches main_scene.frag's
+		// "diffuseOut = mix(diffuseOut, transmittedLight, transmission)":
+		// at transmission=1, the diffuse response vanishes entirely (a
+		// truly transparent point has no diffuse scattering left to show),
+		// replaced instead by the refracted continuation ray handled in
+		// tracePixel() - unlike a stochastic gate, this is a plain
+		// deterministic scale-down, so it adds no variance/fireflies to
+		// this direct-lighting term.
+		// KHR_materials_diffuse_transmission - matches main_scene.frag's
+		// "diffuseOut *= (1.0 - params.diffuseTransmissionFactor)": part of
+		// the front-facing diffuse albedo is redirected to transmit through
+		// to the back instead of reflecting (see tracePixel()'s NEE
+		// back-hemisphere handling and the diffuse-lobe front/back split
+		// below for where that redirected portion actually goes).
+		const glm::vec3 diffuse = kD * surf.baseColor / kPi * (1.0f - surf.transmission) * (1.0f - surf.diffuseTransmissionFactor);
 
 		// KHR_materials_iridescence - ported from evaluateBaseDirect()'s
 		// iridescence branch in main_scene.frag, which entirely replaces the
@@ -958,7 +1108,10 @@ namespace
 		if (surf.iridescenceFactor > 0.001f && surf.iridescenceThickness > 0.0f)
 		{
 			const glm::vec3 l_diffuse = diffuse * NdotL;
-			const glm::vec3 l_specular = specularNoF * NdotL;
+			// KHR_materials_transmission - see the non-iridescence return
+			// below for why the specular term is also scaled down here, not
+			// just diffuse.
+			const glm::vec3 l_specular = specularNoF * NdotL * (1.0f - surf.transmission);
 
 			const glm::vec3 dielectricFresnel = fresnelSchlick(VdotH, surf.dielectricDirectF0, glm::vec3(surf.specularFactor));
 			const glm::vec3 metalFresnel = fresnelSchlick(VdotH, surf.baseColor, glm::vec3(1.0f));
@@ -973,7 +1126,19 @@ namespace
 			return glm::mix(dielectricBrdf, metalBrdf, surf.metalness);
 		}
 
-		return (diffuse + specular) * NdotL;
+		// KHR_materials_transmission - both DS's and RayTrophi's reference
+		// implementations explicitly avoid evaluating a direct-light
+		// specular BRDF against smooth/near-delta transmissive materials
+		// (RayTrophi: "always mark transmission bounces as specular to
+		// skip NEE... to avoid bright specular NEE fireflies through
+		// glass"; DS's E_DELTA flagging skips NEE the same way). This
+		// tracer doesn't yet support rough/glossy transmission (every
+		// transmissive material is currently treated as a smooth mirror
+		// regardless of authored roughness - a deferred v1 scope cut), so
+		// for now every transmissive material's NEE specular response is
+		// scaled down the same way diffuse already is, rather than only
+		// gating it once real rough-transmission BSDF sampling exists.
+		return (diffuse + specular * (1.0f - surf.transmission)) * NdotL;
 	}
 
 	// Ported from evaluateClearcoatDirect() in main_scene.frag. Note this
@@ -1054,13 +1219,16 @@ namespace
 	}
 
 	// Ported from calculateSheen() in main_scene.frag. Additive (not blended
-	// like clearcoat) - the shader also dampens the base layer's direct
-	// diffuse/specular by an energy-conservation factor derived from a baked
-	// LUT (sheenELUT) when sheen is present, which this port still skips
-	// (see the sheenColor/sheenRoughness comment in RtSceneSnapshot.h) - this
-	// may read a little too bright next to raster on strongly-sheened
-	// materials, but the sheen glow itself matches. Indirect/environment
-	// sheen (main_scene.frag's evaluateSheenIBL()) turned out to be the
+	// like clearcoat) - the shader also dampens the base layer's direct AND
+	// indirect diffuse/specular by an energy-conservation factor derived
+	// from a baked LUT (sheenELUT) when sheen is present; this is applied at
+	// both NEE call sites (tracePixel()'s "albedoSheenScaling"/
+	// "sheenIndirectDampening") using sampleSheenAlbedoLUT() as a stand-in
+	// for that LUT - per a reference cross-check against the Dassault
+	// Enterprise PBR spec, this dampening isn't optional polish, it's the
+	// actual mechanism keeping the combined base+sheen material energy-
+	// conserving, so it's applied rather than left as a known gap. Indirect/
+	// environment sheen (main_scene.frag's evaluateSheenIBL()) turned out to be the
 	// visually dominant contribution on IBL-only test scenes - direct sheen
 	// alone looked "missing" next to raster. A first attempt added it as a
 	// stochastic bounce lobe (like clearcoat's IBL), but unlike clearcoat -
@@ -1287,15 +1455,36 @@ namespace
 		else
 		{
 			// Cosine-weighted diffuse lobe: BRDF(L)*NdotL/pdf(L) = kD*baseColor.
+			//
+			// KHR_materials_diffuse_transmission - stochastically pick
+			// between this front-hemisphere reflection lobe (around N) and
+			// a back-hemisphere transmission lobe (around -N), weighted by
+			// diffuseTransmissionFactor (0 reduces to the original
+			// front-only behavior exactly). Sampling -N with the SAME
+			// (T,B) basis is valid since -N shares the same tangent plane
+			// as N, just flipped. The stochastic pick weight cancels out
+			// of the final throughput algebraically - E[outcome] = true
+			// BRDF response either way - so both branches divide by the
+			// same diffuseProb rather than diffuseProb*(1±dtf); see the
+			// direct-light NEE handling above for the same result derived
+			// for the analytic (non-stochastic) case.
+			const bool transmitDiffuse = surf.diffuseTransmissionFactor > 0.0f && rng.next01() < surf.diffuseTransmissionFactor;
+			const glm::vec3 lobeNormal = transmitDiffuse ? -N : N;
 			const glm::vec3 local = cosineSampleHemisphere(u1, u2);
-			outDir = localToWorld(local, N, T, B);
+			outDir = localToWorld(local, lobeNormal, T, B);
 
-			const float NdotV = std::max(glm::dot(N, V), 0.0f);
-			const glm::vec3 F = applyIridescenceToFresnel(fresnelSchlick(NdotV, F0, surf.F90), NdotV, F0, surf);
-			const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - surf.metalness);
-
-			const float diffuseProb = remainingProb - specProbScaled;
-			outThroughput = (kD * surf.baseColor) / std::max(diffuseProb, 1e-4f);
+			const float diffuseProb = std::max(remainingProb - specProbScaled, 1e-4f);
+			if (transmitDiffuse)
+			{
+				outThroughput = surf.diffuseTransmissionColor / diffuseProb;
+			}
+			else
+			{
+				const float NdotV = std::max(glm::dot(N, V), 0.0f);
+				const glm::vec3 F = applyIridescenceToFresnel(fresnelSchlick(NdotV, F0, surf.F90), NdotV, F0, surf);
+				const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - surf.metalness);
+				outThroughput = (kD * surf.baseColor) / diffuseProb;
+			}
 			return true;
 		}
 	}
@@ -1344,12 +1533,43 @@ namespace
 		// ray originated from (1.0 for the primary ray, before any surface).
 		float lastHitAO = 1.0f;
 
-		for (int bounce = 0; bounce <= settings.maxBounces; ++bounce)
+		// prevHitPos lets the next hit measure the real distance traveled
+		// since the last one, for Beer-Lambert absorption (see hitBackface
+		// below - this tracer no longer carries "am I inside a medium"
+		// state across bounce-loop iterations; see that comment for why).
+		glm::vec3 prevHitPos = ray.origin;
+
+		// Tracks whether the ray has resolved to its first REAL (non-alpha-
+		// passed-through) hit yet - a base glTF alphaMode MASK/BLEND
+		// fragment that the ray sees straight through doesn't count as
+		// "hitting" anything for this purpose (see the alphaMode handling
+		// below), so this can no longer just be "bounce == 0": several
+		// alpha pass-throughs may occur before the ray reaches real geometry
+		// or the background. Once resolved, it stays resolved - later
+		// indirect bounces/refractions naturally use the env-miss (not
+		// background-compositing) path regardless of how many pass-throughs
+		// preceded the real hit.
+		bool primaryHitResolved = false;
+
+		// bounce tracks ordinary (opaque diffuse/specular/clearcoat/alpha-
+		// pass-through) depth against settings.maxBounces, same as before.
+		// transmissionDepth tracks KHR_materials_transmission reflect/
+		// refract/TIR events SEPARATELY, against the much larger
+		// settings.maxTransmissionBounces - see that setting's doc comment
+		// for why a high-IOR dielectric's narrow total-internal-reflection
+		// escape cone needs far more bounces than an ordinary opaque scene
+		// budget allows, without inflating the cost of every other material.
+		int bounce = 0;
+		int transmissionDepth = 0;
+		while (true)
 		{
+			if (bounce > settings.maxBounces)
+				break; // matches the original "for (bounce=0; bounce<=maxBounces;...)" loop's exact termination point
+
 			const RtHit hit = scene.intersect(ray);
 			if (!hit.hit)
 			{
-				if (bounce == 0)
+				if (!primaryHitResolved)
 				{
 					if (outPrimaryHit)
 						*outPrimaryHit = false;
@@ -1364,17 +1584,65 @@ namespace
 				}
 				break;
 			}
-			if (bounce == 0 && outPrimaryHit)
-				*outPrimaryHit = true;
 
-			if (settings.debugVisualizeUV)
+			if (kDebugVisualizeUV)
 				return glm::vec3(hit.texCoords[0].x, hit.texCoords[0].y, 0.0f);
 
 			if (hit.materialIndex >= snapshot.materials.size())
 				break;
+
 			const RtMaterial& mat = snapshot.materials[hit.materialIndex];
-			const SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor);
+			SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor);
 			lastHitAO = surf.ao;
+
+			// Path regularization (Muller et al. 2018), per the RayTrophi
+			// study: floor the effective roughness used for GGX specular/
+			// clearcoat evaluation on any hit past the primary camera-
+			// visible one. A perfectly (or near-) smooth specular lobe's
+			// NEE evaluation against a point light, or its indirect BSDF-
+			// sampled bounce direction, becomes increasingly narrow/
+			// sensitive the more bounces deep it's evaluated at - exactly
+			// the kind of chaotic, hard-to-converge noise seen as swirly
+			// artifacts in concave transmissive cavities (confirmed via the
+			// bounce-count heatmap diagnostic: nearby paths diverge more
+			// the deeper they go). Flooring roughness only on secondary+
+			// hits keeps the primary-ray-visible surface's own sharpness
+			// untouched while taming this growth in variance/sensitivity.
+			if (surf.transmission <= 0.001f && bounce + transmissionDepth > 0)
+			{
+				surf.roughness = std::max(surf.roughness, 0.1f);
+				surf.clearcoatRoughness = std::max(surf.clearcoatRoughness, 0.1f);
+			}
+
+			// Stateless "am I currently inside this medium" test, per the
+			// DS/RayTrophi reference-implementation study: both derive this
+			// fresh at EVERY hit, purely from whether the ray struck the
+			// front or back face of the CURRENT hit's own geometry
+			// (dot(ray.direction, geometricNormal) > 0 means the ray is
+			// travelling the same way as the outward normal, i.e. it hit
+			// the surface from the inside/back) - never trusting state
+			// carried forward from an earlier hit. This tracer previously
+			// carried a persistent "insideMedium" bool across the whole
+			// bounce loop instead, toggled once per crossing - a design
+			// that has no way to self-correct if it ever drifts out of
+			// sync with the true local geometry (e.g. across many rapid
+			// internal bounces in a tight concave cavity, which is exactly
+			// where this tracer was showing convoluted/swirly artifacts);
+			// a stateless per-hit test can't drift by construction, since
+			// it never depends on anything but the current hit.
+			const bool hitBackface = glm::dot(ray.direction, hit.geometricNormal) > 0.0f;
+
+			// Beer-Lambert absorption over the real distance traveled since
+			// the previous hit - only applies on a back-face hit of a
+			// material that actually has a volume (a thin-walled surface
+			// has no interior to absorb through). Uses the CURRENT hit's
+			// own material's attenuation properties, which assumes
+			// non-nested transmissive volumes - matching both reference
+			// implementations, neither of which tracks a nested-medium
+			// stack either (see the transmission handling below).
+			if (hitBackface && surf.hasVolume)
+				throughput *= calculateVolumeAttenuation(surf.attenuationColor, surf.attenuationDistance, glm::length(hit.position - prevHitPos));
+			prevHitPos = hit.position;
 
 			glm::vec3 N = hit.normal;
 			const glm::vec3 V = -ray.direction;
@@ -1411,6 +1679,89 @@ namespace
 			if (glm::dot(Ng, V) < 0.0f)
 				Ng = -Ng;
 
+			// Scale-relative, not a fixed constant - see selfIntersectionEpsilon().
+			// Computed here (rather than just before the NEE loop, where it
+			// used to live) since the KHR_materials_transmission handling
+			// below - which can end the iteration early via `continue` -
+			// needs it too, for the refracted ray's origin offset.
+			const float eps = selfIntersectionEpsilon(hit.position);
+
+			// Visualization panel's "Self Shadows" checkbox (see
+			// RtSceneSnapshot.h's selfShadowsEnabled doc comment) - when
+			// off, every NEE shadow ray cast from this hit clears its own
+			// instance's Embree geometry mask bit, so it still tests
+			// occlusion against every OTHER instance but can't shadow
+			// itself. When on (the default), the mask is all-bits-set - no
+			// behavior change from before this was wired up.
+			const uint32_t shadowRayMask = snapshot.selfShadowsEnabled
+				? 0xFFFFFFFFu
+				: ~(1u << (hit.instanceIndex % 32u));
+
+			// Base glTF alphaMode (OPAQUE/MASK/BLEND) - previously
+			// unimplemented in this tracer at all (a pre-existing gap, not
+			// something the KHR extension work removed). A masked-out or
+			// stochastically-rejected-BLEND fragment is treated as if the
+			// surface weren't there for this sample at all: the ray
+			// continues straight through undeviated with throughput
+			// unchanged (no multiply/divide needed - unlike transmission's
+			// Fresnel-weighted energy SPLIT, this is a binary "was the
+			// surface here or not" existence pick, so whichever branch is
+			// taken already carries its full, correct weight - the same
+			// approach RayTrophi's OptiX/Vulkan any-hit and scatter-kernel
+			// stochastic opacity handling uses), skipping this hit's
+			// emissive/NEE/sheen/clearcoat/bounce shading entirely. MASK
+			// uses a deterministic threshold test (matching main_scene.
+			// frag's hard `discard`); BLEND stochastically picks per sample.
+			if (mat.blendMode != 0) // not Opaque
+			{
+				float alphaTest = mat.opacity;
+				if (mat.opacityTexture)
+					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
+				else if (mat.baseColorTexture)
+					alphaTest *= sampleTexture(*mat.baseColorTexture, hit.texCoords).a; // main_scene.frag's PBR-mode sampleFallbackOpacity()
+				alphaTest = std::clamp(alphaTest, 0.0f, 1.0f);
+
+				const bool passThrough = (mat.blendMode == 1) // Masked
+					? (alphaTest < mat.alphaThreshold)
+					: (rng.next01() >= alphaTest); // Alpha (glTF BLEND)
+
+				if (passThrough)
+				{
+					ray.origin = hit.position - Ng * eps;
+					++bounce; // counts against the ordinary budget, same as before this loop was restructured
+					continue;
+				}
+			}
+
+			// This is the first REAL hit the ray has resolved to (opaque, or
+			// an alphaMode surface that survived the test above) - see
+			// primaryHitResolved's declaration for why this can no longer
+			// just be "bounce == 0".
+			if (!primaryHitResolved)
+			{
+				if (outPrimaryHit)
+					*outPrimaryHit = true;
+				primaryHitResolved = true;
+			}
+
+			// KHR_materials_unlit - per spec, "do not apply lighting" means
+			// exactly that: no NEE, no BSDF bounce sampling, no clearcoat/
+			// sheen/transmission, none of it - just the material's own
+			// baseColor + emissive, output directly and the path
+			// terminates there (matching main_scene.frag's unlit branch,
+			// which returns baseColor+emissive immediately before any
+			// lighting is evaluated at all - see main_scene.frag:3904-3909).
+			// Tonemap/gamma are NOT applied here (unlike that raster
+			// branch) since this tracer's return value is linear HDR,
+			// consistent with every other radiance contribution in this
+			// function - the accumulator/presenter tonemaps once at
+			// display time, not per-sample.
+			if (mat.unlit)
+			{
+				radiance += throughput * (surf.baseColor + surf.emissive);
+				break;
+			}
+
 			// KHR_materials_clearcoat - the coat has its own normal (falls
 			// back to the smooth pre-normal-map shading normal Nsmooth, NOT
 			// the base-normal-mapped N - see main_scene.frag's
@@ -1423,6 +1774,14 @@ namespace
 			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
 
 			radiance += throughput * surf.emissive * (glm::vec3(1.0f) - clearcoatBlend);
+
+			// KHR_materials_sheen's base-layer INDIRECT energy-compensation
+			// dampening (main_scene.frag's "iblSheenScaling") - computed
+			// alongside the sheen env term below when sheen is present,
+			// applied to the continuing bounce's throughput near this
+			// function's final sampleBSDFBounce() call. 1.0 (no-op) for the
+			// common non-sheen case.
+			float sheenIndirectDampening = 1.0f;
 
 			// KHR_materials_sheen, indirect/environment side - a genuine
 			// stochastic integration of the actual live environment (a small
@@ -1440,6 +1799,7 @@ namespace
 			// passes rather than aliasing.
 			if (surf.sheenColor != glm::vec3(0.0f))
 			{
+				const float sheenStrengthForIBL = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
 				const glm::vec3 R = glm::reflect(-V, N);
 				glm::vec3 Tc, Bc;
 				buildOrthonormalBasis(R, Tc, Bc);
@@ -1464,6 +1824,17 @@ namespace
 				const float NdotV_sheen = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
 				const float E_sheen = sampleSheenAlbedoLUT(NdotV_sheen, sheenRoughFinal);
 				radiance += throughput * surf.ao * surf.sheenColor * envSum * E_sheen;
+
+				// main_scene.frag's "iblSheenScaling" - dampens the base
+				// layer's INDIRECT diffuse/specular the same way
+				// l_albedoSheenScaling dampens the direct terms above (see
+				// that comment for why this matters). Applied to the
+				// continuing bounce's throughput below, right before the
+				// final sampleBSDFBounce() call, since that continuing path
+				// IS this hit's indirect diffuse+specular contribution in
+				// this tracer's architecture (not a separate precomputed
+				// term the way raster's baseDiffuseIBL/baseSpecularIBL are).
+				sheenIndirectDampening = 1.0f - sheenStrengthForIBL * E_sheen;
 			}
 
 			// KHR_materials_anisotropy - stretches the specular lobe along a
@@ -1500,9 +1871,6 @@ namespace
 				anisoAlphaB = std::clamp(alphaRoughness, 0.001f, 1.0f);
 			}
 
-			// Scale-relative, not a fixed constant - see selfIntersectionEpsilon().
-			const float eps = selfIntersectionEpsilon(hit.position);
-
 			// Next-event estimation: sample every light directly (small light
 			// counts in this app - PunctualLights::MAX_LIGHTS is 16 - so a
 			// full loop is cheap and avoids extra light-selection-pdf variance).
@@ -1516,16 +1884,82 @@ namespace
 
 				const float NdotL = glm::dot(N, lightDir);
 				if (NdotL <= 0.0f)
+				{
+					// KHR_materials_diffuse_transmission - a light on the
+					// BACK side of the surface (relative to N) still
+					// contributes if the material lets light diffusely
+					// scatter through from behind (e.g. a leaf or curtain
+					// lit from the far side) - a plain Lambertian term
+					// using |NdotL| and tinted by diffuseTransmissionColor,
+					// evaluated separately from evaluateDirectBRDF() (which
+					// only handles the FRONT-hemisphere response) since this
+					// is a distinct light-transport path, not a variant of
+					// the same BRDF lobe. The shadow ray originates from the
+					// back side (-Ng) since that's the side actually facing
+					// this light.
+					if (surf.diffuseTransmissionFactor > 0.0f)
+					{
+						RtRay backShadowRay;
+						backShadowRay.origin = hit.position - Ng * eps;
+						backShadowRay.direction = lightDir;
+						backShadowRay.tFar = lightDistance - 2.0f * eps;
+						backShadowRay.mask = shadowRayMask;
+						if (!snapshot.shadowsEnabled || !scene.occluded(backShadowRay))
+						{
+							glm::vec3 diffuseBTDF = surf.diffuseTransmissionColor / kPi * std::abs(NdotL) * surf.diffuseTransmissionFactor;
+							// KHR_materials_volume's attenuation, applied
+							// using the AUTHORED thicknessFactor as the
+							// absorption distance (matching main_scene.
+							// frag's diffuseTransmissionThickness/
+							// computeVolumeThickness) - unlike regular
+							// KHR_materials_transmission elsewhere in this
+							// function, this NEE term has no traced ray
+							// path to measure a real distance from (it's a
+							// single-point analytic contribution), so the
+							// authored approximation is the only option
+							// here, not a deliberately-skipped one.
+							if (mat.hasVolume)
+								diffuseBTDF *= calculateVolumeAttenuation(surf.attenuationColor, surf.attenuationDistance, mat.thicknessFactor);
+							radiance += throughput * diffuseBTDF * lightIntensity;
+						}
+					}
 					continue;
+				}
 
 				RtRay shadowRay;
 				shadowRay.origin = hit.position + Ng * eps;
 				shadowRay.direction = lightDir;
 				shadowRay.tFar = lightDistance - 2.0f * eps;
-				if (scene.occluded(shadowRay))
+				shadowRay.mask = shadowRayMask;
+				if (snapshot.shadowsEnabled && scene.occluded(shadowRay))
 					continue;
 
-				const glm::vec3 baseDirect = evaluateDirectBRDF(N, V, lightDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB) * lightIntensity;
+				glm::vec3 baseDirect = evaluateDirectBRDF(N, V, lightDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB) * lightIntensity;
+
+				// KHR_materials_sheen's base-layer energy-compensation
+				// dampening, ported from main_scene.frag's own direct-light
+				// sheen handling ("l_albedoSheenScaling"). This isn't an
+				// optional add-on - per the Dassault Enterprise PBR spec,
+				// it's the actual mechanism that keeps base+sheen combined
+				// energy-conserving; without it a sheened surface's base
+				// diffuse/specular respond as if the sheen fuzz weren't
+				// there at all, reading as extra brightness on top of the
+				// sheen glow instead of the fuzz partially replacing the
+				// base response. sampleSheenAlbedoLUT() (already built for
+				// the indirect sheen term) stands in for main_scene.frag's
+				// separate sheenELUT here too - both represent the same
+				// underlying Charlie-BRDF directional-albedo integral, so a
+				// single combined LUT is a reasonable simplification rather
+				// than baking a second, near-duplicate one.
+				if (surf.sheenColor != glm::vec3(0.0f))
+				{
+					const float sheenStrength = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
+					const float NdotVSheen = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
+					const float albedoSheenScaling = std::min(
+						1.0f - sheenStrength * sampleSheenAlbedoLUT(NdotVSheen, surf.sheenRoughness),
+						1.0f - sheenStrength * sampleSheenAlbedoLUT(std::clamp(NdotL, 0.0f, 1.0f), surf.sheenRoughness));
+					baseDirect *= albedoSheenScaling;
+				}
 
 				// Blend base vs. clearcoat exactly like composeLayeredPBR()'s
 				// mix(baseColor, clearcoatLayer, clearcoat*clearcoatFresnel) -
@@ -1541,15 +1975,19 @@ namespace
 					radiance += throughput * baseDirect;
 				}
 
-				// KHR_materials_sheen - additive, not blended (see
-				// calculateSheen()'s doc comment for the v1 scope decision on
-				// the base-layer energy-compensation dampening this skips).
+				// KHR_materials_sheen - additive, not blended.
 				if (surf.sheenColor != glm::vec3(0.0f))
 					radiance += throughput * calculateSheen(N, V, lightDir, surf.sheenColor, surf.sheenRoughness) * lightIntensity;
 			}
 
-			// Russian roulette termination.
-			if (bounce >= settings.russianRouletteStartDepth)
+			// Russian roulette termination. Uses bounce+transmissionDepth
+			// combined (transmissionDepth is 0 for non-transmissive
+			// materials, so this is unchanged from before for ordinary
+			// scenes) so a long TIR chain with genuinely low throughput
+			// (e.g. from attenuationColor absorption) still gets a chance to
+			// terminate early, rather than only ever stopping via the much
+			// higher maxTransmissionBounces cap below.
+			if (bounce + transmissionDepth >= settings.russianRouletteStartDepth)
 			{
 				const float p = std::clamp(std::max({ throughput.r, throughput.g, throughput.b }), 0.05f, 1.0f);
 				if (rng.next01() > p)
@@ -1558,16 +1996,371 @@ namespace
 			}
 
 			glm::vec3 bounceDir, bounceThroughput;
+
+			// KHR_materials_transmission - see RtSceneSnapshot.h's comment on
+			// why the real traced distance replaces the authored
+			// thicknessFactor approximation. Bypasses the general multi-lobe
+			// sampleBSDFBounce() entirely for transmissive materials: a
+			// single Fresnel-weighted reflect-or-refract choice, computed
+			// exactly once. An earlier version of this code instead wrapped
+			// a SEPARATE transmit/opaque gate AROUND a full call into the
+			// general lobe scheme - since that scheme already internally
+			// weights its own rare specular lobe by 1/specProb, stacking a
+			// second, independent rare-branch inverse-probability on top of
+			// it multiplied the two together, producing extreme-variance
+			// "firefly" outliers that the denoiser then smeared into a flat
+			// white haze instead of the correct clear/refracted look (the
+			// diffuse response is instead scaled down deterministically in
+			// evaluateDirectBRDF(), not via a probability gate, since a
+			// direct analytic term has no variance to manage). Rough/glossy
+			// transmission and interaction with clearcoat/sheen/anisotropy
+			// are out of scope for this v1 - transmissive materials are
+			// treated as smooth dielectrics.
+			if (surf.transmission > 0.001f)
+			{
+				// See settings.maxTransmissionBounces's doc comment - this
+				// budget is tracked separately from (and is much larger
+				// than) the ordinary bounce cap above, specifically so a
+				// high-IOR dielectric's narrow TIR escape cone gets enough
+				// attempts to actually find an exit. Exhausting it is a
+				// rare edge case (an extremely narrow escape cone, or a
+				// pathological geometry) - contributing nothing further here
+				// is preferable to looping indefinitely.
+				if (transmissionDepth >= settings.maxTransmissionBounces)
+					break;
+				++transmissionDepth;
+
+				const float NdotVTransmission = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
+
+				// KHR_materials_transmission rough/glossy support (Walter et
+				// al. 2007, "Microfacet Models for Refraction through Rough
+				// Surfaces") - reuses the same GGX VNDF importance-sampling
+				// machinery sampleBSDFBounce() already uses for the opaque
+				// specular lobe. An earlier attempt at this used surf.roughness
+				// directly and was bitten by the path-regularization floor
+				// above forcing every transmissive material's SECOND (exit)
+				// crossing to roughness>=0.1 regardless of how polished the
+				// material actually was - see this file's git history/commit
+				// messages for that regression. That's now fixed at the
+				// source (the regularization block above is gated on
+				// surf.transmission<=0.001, so it never touches a
+				// transmissive material's roughness at all), so surf.roughness
+				// is safe to use here directly. At the roughness floor
+				// (~0.03) this collapses to Hm≈N, matching plain smooth-
+				// dielectric behavior almost exactly. Deliberately NOT
+				// applied to the thin-walled branch further down (glTF's
+				// thin-walled model is an idealized infinitely-thin film,
+				// not a rough microfacet surface). Known, deliberate
+				// simplification: no eta^2 adjoint-radiance correction
+				// factor (cancels out over any complete entry+exit pair, so
+				// it can't break energy conservation for the common
+				// closed-surface case - see Codex's review for the fuller
+				// critique that this is a bounded VNDF approximation, not a
+				// from-scratch derivation of the full Walter/DS Jacobian).
+				glm::vec3 Ht, Bt;
+				buildOrthonormalBasis(N, Ht, Bt);
+				const float transmissionAlpha = surf.roughness * surf.roughness;
+				const float NdotV0 = std::max(NdotVTransmission, 1e-4f);
+				const glm::vec3 Ve(glm::dot(V, Ht), glm::dot(V, Bt), NdotV0);
+				const glm::vec3 hLocal = sampleGGXVNDF(Ve, transmissionAlpha, transmissionAlpha, rng.next01(), rng.next01());
+				const glm::vec3 Hm = localToWorld(hLocal, N, Ht, Bt);
+				const float VdotHm = std::clamp(glm::dot(V, Hm), 0.0f, 1.0f);
+
+				// KHR_materials_iridescence applies to the Fresnel reflectance
+				// at ANY dielectric interface, not just an opaque one - a
+				// transmissive material (soap bubble, iridescent glass) still
+				// shows the same thin-film color shift on its reflected
+				// portion. This was previously computed with a plain
+				// fresnelSchlick() here, bypassing applyIridescenceToFresnel()
+				// entirely, so transmissive+iridescent materials showed no
+				// iridescence at all - a real gap, not a deliberate v1 cut.
+				// Evaluated at the microfacet normal (VdotHm), matching
+				// Walter et al.'s treatment, not the macro NdotV.
+				const glm::vec3 transmissionFresnel = applyIridescenceToFresnel(
+					fresnelSchlick(VdotHm, surf.dielectricF0, glm::vec3(1.0f)), VdotHm, surf.dielectricF0, surf);
+				const float reflectProb = std::clamp((transmissionFresnel.r + transmissionFresnel.g + transmissionFresnel.b) / 3.0f, 0.05f, 0.95f);
+
+				// kDebugVisualizeTransmission - false-colors this hit's
+				// reflect/refract/TIR decision and bypasses the rest of the
+				// loop entirely, so the boundary can be inspected directly
+				// against the real (converged) image instead of inferred
+				// from it. Colors: red = chose reflect; green = chose
+				// refract and genuinely crossed the boundary (entering or
+				// exiting the medium, or a thin-walled pass-through);
+				// yellow = chose refract but hit true geometric TIR;
+				// non-transmissive surfaces and env misses render black.
+				// Flip the constant at the top of this file to enable.
+				if (kDebugVisualizeTransmission && transmissionDepth == 1)
+				{
+					// TEMPORARY: both branches now sample REAL content
+					// (reflected-direction environment for reflect, the
+					// unchanged ray direction for thin-walled pass-through)
+					// instead of a flat placeholder color for reflect - an
+					// earlier version returned solid (1,0,0) for reflect,
+					// which at any non-trivial reflectProb biases the
+					// per-pixel AVERAGE toward red proportional to local
+					// Fresnel reflectance (worse at oblique angles), making
+					// the accumulated debug image misleading rather than a
+					// clean isolation of "is the environment sample
+					// correct." This version should show genuine composite
+					// content directly comparable to the real render.
+					if (rng.next01() < reflectProb)
+						return sampleEnvironmentMiss(snapshot.environment, glm::reflect(ray.direction, N));
+					if (!surf.hasVolume)
+						return sampleEnvironmentMiss(snapshot.environment, ray.direction);
+					const float etaDbg = hitBackface ? mat.ior : (1.0f / mat.ior);
+					const glm::vec3 refractDirDbg = glm::refract(ray.direction, Hm, etaDbg);
+					if (refractDirDbg == glm::vec3(0.0f))
+						return glm::vec3(1.0f, 1.0f, 0.0f); // TIR
+					// Genuine exit crossing - encode the actual computed exit
+					// direction as RGB (dir*0.5+0.5) instead of a flat green,
+					// so a sign/orientation bug in the exit refraction shows
+					// up as a visibly wrong or discontinuous direction field
+					// rather than being hidden behind a uniform "it crossed"
+					// color. A correct exit direction field should vary
+					// smoothly and divergently outward from the sphere,
+					// mirroring the entry ray's approach direction.
+					return refractDirDbg * 0.5f + glm::vec3(0.5f);
+				}
+
+				if (rng.next01() < reflectProb)
+				{
+					bounceDir = glm::reflect(ray.direction, Hm);
+					const float NdotL = glm::dot(N, bounceDir);
+					if (NdotL <= 0.0f)
+						break; // sampled a microfacet below the macro surface - rare at low roughness
+					const float G1v = smithG1GGX(NdotV0, transmissionAlpha);
+					const float G2  = smithG2HeightCorrelatedGGX(NdotV0, NdotL, transmissionAlpha);
+					bounceThroughput = transmissionFresnel * (G2 / std::max(G1v, 1e-6f)) / reflectProb;
+					ray.origin = hit.position + Ng * eps;
+				}
+				else if (!surf.hasVolume)
+				{
+					// KHR_materials_transmission WITHOUT KHR_materials_volume
+					// (thicknessFactor's own spec default is 0) means the
+					// surface is implicitly thin-walled - glTF's intent is a
+					// "hole"/idealized infinitely-thin film (a soap bubble,
+					// not a solid lens), so the transmitted ray passes
+					// straight through completely undeviated: no Snell bend,
+					// no interior medium to be "inside" or absorb through.
+					// Offsetting through Ng (not reflecting off it) still
+					// avoids immediately re-hitting the same surface.
+					//
+					// Tinted by surf.baseColor, matching glTF spec intent - a
+					// thin-walled transparent material's baseColor (including
+					// any pattern/text baked into a baseColorTexture, e.g. a
+					// printed paper lampshade) is meant to filter the light
+					// passing through it, exactly like the volumetric branch
+					// below. An earlier version of this code removed the tint
+					// entirely, diagnosed against a test material whose
+					// baseColorFactor happened to default to pure white -
+					// tinting-by-white is a no-op, so that test could never
+					// have shown whether removing the tint was actually
+					// correct; it wasn't, and a patterned/colored thin-walled
+					// material (like a printed shade around a bulb) lost its
+					// entire pattern as a result. On concave, many-crossing
+					// thin-walled geometry a non-white baseColor CAN compound
+					// (baseColor^N for N crossings) - a real but narrower
+					// limitation than initially thought, and matches both
+					// DS's and RayTrophi's reference behavior (neither
+					// special-cases this), so correctness for the common,
+					// spec-intended case (a single- or few-crossing colored/
+					// patterned film) takes priority over that rarer edge case.
+					bounceDir = ray.direction;
+					bounceThroughput = surf.baseColor * (glm::vec3(1.0f) - transmissionFresnel) / (1.0f - reflectProb);
+					ray.origin = hit.position - Ng * eps;
+				}
+				else
+				{
+					// KHR_materials_dispersion - per-channel IOR spread on
+					// refraction (prism/chromatic-aberration effect),
+					// following the same halfSpread formula main_scene.frag
+					// uses (getIBLVolumeRefractionPerChannel's iors =
+					// ior-halfSpread/ior/ior+halfSpread for R/G/B). Rather
+					// than tracing 3 separate rays per sample (tripling the
+					// cost of every dispersive transmission bounce), this
+					// stochastically picks ONE hero channel per sample with
+					// equal 1/3 probability, refracts using ONLY that
+					// channel's IOR, and masks+triples the resulting
+					// throughput to that single channel - the standard
+					// hero-wavelength unbiased-estimator trick (over many
+					// accumulated samples, each channel gets its own
+					// correctly-dispersed result 1/3 of the time, averaging
+					// to the full per-channel spread). No dispersion (the
+					// common case) skips all of this - dispersedIor equals
+					// mat.ior exactly and channelMask is (1,1,1)/no-op.
+					float dispersedIor = mat.ior;
+					glm::vec3 channelMask(1.0f);
+					if (surf.dispersion > 0.0f)
+					{
+						const float halfSpread = (mat.ior - 1.0f) * 0.025f * surf.dispersion;
+						const float channelXi = rng.next01();
+						if (channelXi < 1.0f / 3.0f)
+						{
+							dispersedIor = mat.ior - halfSpread;
+							channelMask = glm::vec3(3.0f, 0.0f, 0.0f);
+						}
+						else if (channelXi < 2.0f / 3.0f)
+						{
+							channelMask = glm::vec3(0.0f, 3.0f, 0.0f);
+						}
+						else
+						{
+							dispersedIor = mat.ior + halfSpread;
+							channelMask = glm::vec3(0.0f, 0.0f, 3.0f);
+						}
+					}
+
+					const float eta = hitBackface ? dispersedIor : (1.0f / dispersedIor);
+					glm::vec3 refractDir = glm::refract(ray.direction, Hm, eta);
+					if (refractDir == glm::vec3(0.0f))
+					{
+						// Total internal reflection - stays in the same medium. This
+						// is a genuine mirror bounce (100% reflectance, geometrically
+						// forced by Snell's law), not a partial/tinted transmission
+						// event - even though it's reached via the "attempt transmit"
+						// branch of the stochastic Fresnel pick above. Deliberately
+						// NOT tinted by surf.baseColor (glTF's transmitted-light tint
+						// only applies to light that actually crosses the boundary);
+						// an earlier version of this code fell through to the shared
+						// baseColor-tinted throughput below, incorrectly coloring TIR
+						// bounces as if they were successful transmission.
+						refractDir = glm::reflect(ray.direction, Hm);
+						const float NdotL = glm::dot(N, refractDir);
+						if (NdotL <= 0.0f)
+							break; // sampled a microfacet below the macro surface
+						ray.origin = hit.position + Ng * eps;
+						bounceDir = refractDir;
+						const float G1v = smithG1GGX(NdotV0, transmissionAlpha);
+						const float G2  = smithG2HeightCorrelatedGGX(NdotV0, NdotL, transmissionAlpha);
+						// TIR is dispersion-neutral (a pure mirror bounce,
+						// not a color-selective refraction event) - no
+						// channelMask applied here, only for genuine
+						// (dispersed) crossings below.
+						bounceThroughput = glm::vec3(G2 / std::max(G1v, 1e-6f));
+					}
+					else
+					{
+						// No medium-state bookkeeping needed here anymore -
+						// hitBackface (and Beer-Lambert absorption) are
+						// re-derived fresh from each hit's own geometry, not
+						// carried forward from this crossing.
+						ray.origin = hit.position - Ng * eps; // crossing to the other side of the surface
+						bounceDir = refractDir;
+
+						// Pragmatic multi-scatter approximation for high-
+						// roughness "frosted diffuser" materials (paper
+						// lampshades, frosted glass) - a real frosted
+						// material's strong opacity comes from many internal
+						// scattering events, not a single microfacet bounce;
+						// a single-bounce rough BTDF (the Hm-based refractDir
+						// above) is a fundamentally weaker effect that reads
+						// as "clear with some blur" rather than properly
+						// diffuse/opaque, no matter how roughness/Fresnel are
+						// tuned - confirmed by comparing a rough-roughness
+						// lampshade against the Khronos Sample Viewer
+						// reference. As a stand-in for real subsurface
+						// scattering (deferred - see task list), blend the
+						// transmitted direction toward a true Lambertian
+						// cosine-weighted hemisphere (oriented on the far
+						// side of the surface, -N) with probability =
+						// roughness - at roughness 0 this never fires
+						// (unchanged smooth/rough-specular behavior), at
+						// roughness 1 it's effectively fully diffuse. This is
+						// a stochastic MIX between two direction-sampling
+						// strategies for the SAME already-decided "successful
+						// transmission" outcome, so - by the same MC
+						// cancellation argument used for
+						// KHR_materials_diffuse_transmission's front/back
+						// lobe mix - bounceThroughput below is unaffected by
+						// which one was chosen. Uses sqrt(roughness) rather
+						// than roughness directly - real frosted materials
+						// (paper, frosted glass) read as strongly opaque/
+						// diffuse well before roughness=1 in PBR terms
+						// (their apparent opacity comes from real multi-
+						// scattering, which this is only approximating), so
+						// a linear mapping under-diffused moderate-roughness
+						// materials in practice (e.g. a lampshade's holder
+						// still visibly showing through) - sqrt(roughness)
+						// biases the blend toward "diffuse" more aggressively
+						// at moderate roughness while still reducing to 0 at
+						// roughness 0 and 1 at roughness 1.
+						const float diffuseBlendProb = std::sqrt(std::clamp(surf.roughness, 0.0f, 1.0f));
+						if (diffuseBlendProb > 0.0f && rng.next01() < diffuseBlendProb)
+						{
+							glm::vec3 Td, Bd;
+							buildOrthonormalBasis(-N, Td, Bd);
+							const glm::vec3 diffuseLocal = cosineSampleHemisphere(rng.next01(), rng.next01());
+							bounceDir = localToWorld(diffuseLocal, -N, Td, Bd);
+						}
+
+						// Smith masking-shadowing ratio for the transmitted
+						// direction - NdotL is naturally negative here (L is
+						// on the opposite side of N from V), so the
+						// visibility term uses |NdotL|, the standard
+						// treatment for a transmission lobe (masking/
+						// shadowing is symmetric about which side of the
+						// macro surface the direction is on).
+						const float NdotL = std::abs(glm::dot(N, bounceDir));
+						const float G1v = smithG1GGX(NdotV0, transmissionAlpha);
+						const float G2  = smithG2HeightCorrelatedGGX(NdotV0, NdotL, transmissionAlpha);
+						// channelMask is (1,1,1) (no-op) when dispersion==0;
+						// otherwise masks+triples to the single hero channel
+						// this crossing's eta was actually computed for -
+						// see the dispersion setup above.
+						bounceThroughput = channelMask * surf.baseColor * (glm::vec3(1.0f) - transmissionFresnel) * (G2 / std::max(G1v, 1e-6f)) / (1.0f - reflectProb); // glTF tints transmitted light by baseColor
+					}
+				}
+
+				throughput *= bounceThroughput;
+				if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
+					break;
+				ray.direction = bounceDir;
+				continue;
+			}
+
 			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput))
 				break;
 
-			throughput *= bounceThroughput;
+			throughput *= bounceThroughput * sheenIndirectDampening;
 			if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
 				break;
 
-			ray.origin = hit.position + Ng * eps;
+			// Offset toward whichever side bounceDir actually continues on -
+			// ordinarily always the front (+Ng), but KHR_materials_
+			// diffuse_transmission's back-hemisphere lobe (see
+			// sampleBSDFBounce()) can return a direction on the far side of
+			// the surface, which needs the opposite offset to avoid
+			// immediately self-intersecting the same triangle.
+			ray.origin = hit.position + Ng * (glm::dot(bounceDir, Ng) >= 0.0f ? eps : -eps);
 			ray.direction = bounceDir;
+			++bounce; // ordinary (non-transmission) bounce - counts against the loop's original budget
 		}
+
+		// kDebugVisualizeTransmissionBounceCount - a simple black->blue->
+		// green->yellow->red->white heat ramp over
+		// transmissionDepth's final value, normalized against
+		// maxTransmissionBounces.
+		if (kDebugVisualizeTransmissionBounceCount && transmissionDepth > 0)
+		{
+			const float t = std::clamp(static_cast<float>(transmissionDepth) /
+				static_cast<float>(std::max(1, settings.maxTransmissionBounces)), 0.0f, 1.0f);
+			if (t < 0.25f)
+				return glm::mix(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), t / 0.25f);
+			if (t < 0.5f)
+				return glm::mix(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f), (t - 0.25f) / 0.25f);
+			if (t < 0.75f)
+				return glm::mix(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f), (t - 0.5f) / 0.25f);
+			return glm::mix(glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), (t - 0.75f) / 0.25f);
+		}
+
+		// Firefly/outlier suppression - see Settings::fireflyClampThreshold's
+		// doc comment. Scales the whole sample down proportionally (rather
+		// than clamping each channel independently) so an extreme-value
+		// sample is dimmed without shifting its hue.
+		const float maxChannel = std::max({ radiance.r, radiance.g, radiance.b });
+		if (maxChannel > settings.fireflyClampThreshold && maxChannel > 0.0f)
+			radiance *= (settings.fireflyClampThreshold / maxChannel);
 
 		return radiance;
 	}
