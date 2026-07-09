@@ -729,7 +729,7 @@ namespace
 	glm::vec3 sampleEnvironmentMiss(const RtEnvironment& environment, const glm::vec3& direction)
 	{
 		if (environment.faceSize <= 0)
-			return flatGradientMiss(direction);
+			return flatGradientMiss(direction) * environment.iblExposure;
 		// See undoSkyboxRotation()'s derivation below (used identically by
 		// sampleEnvironmentBackground() for the directly-visible backdrop) -
 		// the captured cubemap is stored in the skybox's rotated local space,
@@ -743,7 +743,11 @@ namespace
 		// above, since the two are swapped by the skybox's un-undone
 		// rotation.
 		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
-		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir);
+		// See RtEnvironment::iblExposure's doc comment - matches skybox.frag's
+		// `color *= iblExposure` so a ray that reaches the environment after
+		// resolving a real primary hit (e.g. through glass) isn't systematically
+		// dimmer than what raster would show at the same spot.
+		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir) * environment.iblExposure;
 	}
 
 	// Primary-ray miss (bounce == 0, i.e. what the camera directly sees as
@@ -799,9 +803,14 @@ namespace
 
 		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
 
-		return environment.faceSize > 0
+		// See RtEnvironment::iblExposure's doc comment. Mostly inconsequential
+		// here in practice (a pure-miss pixel's alpha is 0, so raster's own,
+		// already-exposed background composites over this value anyway - see
+		// RtPathTracingSession::publishLatest()), but kept consistent with
+		// sampleEnvironmentMiss() for partially-covered silhouette-edge pixels.
+		return (environment.faceSize > 0
 			? sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir)
-			: flatGradientMiss(direction);
+			: flatGradientMiss(direction)) * environment.iblExposure;
 	}
 
 	// Ported verbatim from evaluatePunctualLight() in main_scene.frag so

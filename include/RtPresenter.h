@@ -48,7 +48,20 @@ public:
 	// Draws the uploaded frame as a fullscreen triangle over the current
 	// viewport/FBO (tonemap + gamma applied in the shader). No-op if nothing
 	// has been uploaded yet or initialize() failed.
-	void draw();
+	//
+	// toneMapMode mirrors RenderEnums.h's HDRToneMapMode ordinal
+	// (0=KhronosPbrNeutral, 1=ACES_Narkowicz, ...) - callers pass
+	// static_cast<int>(SceneRenderController::toneMappingMode()). The other
+	// four parameters mirror that same controller's hdrToneMapping()/
+	// gammaCorrection()/screenGamma()/iblExposure(). Passing the LIVE
+	// values (rather than the shader's own hardcoded ACES-Narkowicz
+	// defaults, which this used to always use regardless of what raster
+	// was configured to show) keeps a path-traced-vs-raster comparison an
+	// apples-to-apples exposure/contrast comparison - a real, previously-
+	// deferred mismatch (see this file's git history) that visibly showed
+	// as PT looking "washed out" relative to raster whenever the user had
+	// a non-ACES tonemap mode selected (e.g. the default KhronosPbrNeutral).
+	void draw(bool hdrToneMapping, bool gammaCorrection, float screenGamma, float iblExposure, int toneMapMode);
 
 	bool hasFrame() const { return _hasFrame; }
 

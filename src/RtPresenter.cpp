@@ -84,7 +84,7 @@ void RtPresenter::upload(const std::vector<glm::vec3>& rgb, int width, int heigh
 	_hasFrame = true;
 }
 
-void RtPresenter::draw()
+void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGamma, float iblExposure, int toneMapMode)
 {
 	if (!_hasFrame || !_shader || _vao == 0)
 		return;
@@ -97,6 +97,11 @@ void RtPresenter::draw()
 	_shader->bind();
 	_shader->setUniformValue("resolution", QVector2D(static_cast<float>(_texWidth), static_cast<float>(_texHeight)));
 	_shader->setUniformValue("pathTracedTexture", 0);
+	_shader->setUniformValue("hdrToneMapping", hdrToneMapping);
+	_shader->setUniformValue("gammaCorrection", gammaCorrection);
+	_shader->setUniformValue("screenGamma", screenGamma);
+	_shader->setUniformValue("iblExposure", iblExposure);
+	_shader->setUniformValue("toneMapMode", toneMapMode);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _texture);

@@ -1154,7 +1154,8 @@ void ViewportWidget::paintGL()
 		// over the just-rendered raster frame, before the viewcube/text
 		// overlay so those still read on top of the path-traced image too.
 		if (_pathTracedArmed && !_pathTracedIdleTimer->isActive() && _rtPresenter.hasFrame())
-			_rtPresenter.draw();
+			_rtPresenter.draw(_renderCtrl.hdrToneMapping(), _renderCtrl.gammaCorrection(),
+				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()));
 
 		drawViewCube();
 
@@ -12643,6 +12644,7 @@ void ViewportWidget::startPathTracedSession()
 	environment.showBackground = _renderCtrl.skyBoxEnabled();
 	environment.cameraUpAxisZUp = _viewCtrl.cameraUpAxisZUp();
 	environment.skyBoxZRotationDegrees = _renderCtrl.skyBoxZRotation();
+	environment.iblExposure = _renderCtrl.iblExposure();
 	const QColor topColor = _renderCtrl.bgTopColor();
 	const QColor botColor = _renderCtrl.bgBotColor();
 
