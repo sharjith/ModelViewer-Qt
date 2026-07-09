@@ -1498,6 +1498,114 @@ namespace
 		}
 	}
 
+	// NEE shadow-ray occlusion, alpha/transmission-aware. RtEmbreeScene::
+	// occluded() alone is a plain any-hit test - ANY geometric intersection
+	// blocks the ray, even a MASK cutout's transparent hole or a fully-
+	// transmissive material (glass) - which made every light behind such a
+	// surface read as fully shadowed instead of correctly lit/tinted. Walks
+	// the closest-hit chain instead (bounded, since intersect() is more
+	// expensive than the any-hit query it replaces), applying the SAME
+	// stochastic existence tests tracePixel()'s primary-ray path already uses
+	// for alpha (MASK deterministic threshold, BLEND stochastic pick) so a
+	// hit that "isn't really there" for this sample doesn't block the light
+	// either.
+	//
+	// Returns the light's remaining transmittance (0 = fully blocked, 1 =
+	// fully visible), NOT a bool - a transmissive hit still reflects some
+	// light per Fresnel (real glass is never 100% transmissive at every
+	// angle: at grazing incidence it's almost a mirror), so treating
+	// mat.transmission alone as a pass-through probability made every
+	// ordinary (transmission~1.0) glass material cast literally no shadow at
+	// all. reflectProb below mirrors tracePixel()'s own transmission-bounce
+	// Fresnel/clamp(0.05,0.95) logic so a shadow ray blocks with roughly the
+	// same probability a camera ray would reflect instead of transmit at
+	// that hit - producing a dim, angle-dependent shadow rather than a
+	// binary present/absent one. Transmitted light is also tinted by the
+	// material's baseColor (and, for KHR_materials_volume surfaces, a rough
+	// Beer-Lambert estimate using the authored thicknessFactor, the same
+	// analytic approximation already used for diffuse-transmission NEE)
+	// rather than passing through as pure white, so colored/stained glass
+	// still casts a colored shadow. Thin-walled transmission is assumed
+	// undeviated here too (same spec-mandated simplification as the primary
+	// path's no-volume case), so the shadow ray continues in a straight line
+	// through transmissive hits rather than refracting - an approximation
+	// for volumetric surfaces that real reference renderers (DS included,
+	// per this app's own research) also don't fully solve for shadow rays.
+	glm::vec3 traceShadowRay(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot, RtRay ray, Rng& rng)
+	{
+		glm::vec3 transmittance(1.0f);
+		constexpr int kMaxShadowRayHits = 8;
+		for (int i = 0; i < kMaxShadowRayHits; ++i)
+		{
+			const RtHit hit = scene.intersect(ray);
+			if (!hit.hit)
+				return transmittance; // reached the light with nothing further in the way
+
+			if (hit.materialIndex >= snapshot.materials.size())
+				return glm::vec3(0.0f); // no material data to test - conservative full occlusion
+
+			const RtMaterial& mat = snapshot.materials[hit.materialIndex];
+
+			bool passThrough = false;
+			if (mat.blendMode != 0) // not Opaque - see tracePixel()'s identical alphaTest block
+			{
+				float alphaTest = mat.opacity;
+				if (mat.opacityTexture)
+					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
+				else if (mat.baseColorTexture)
+					alphaTest *= sampleTexture(*mat.baseColorTexture, hit.texCoords).a;
+				alphaTest = std::clamp(alphaTest, 0.0f, 1.0f);
+
+				passThrough = (mat.blendMode == 1) // Masked
+					? (alphaTest < mat.alphaThreshold)
+					: (rng.next01() >= alphaTest); // Alpha (glTF BLEND)
+			}
+
+			if (!passThrough && mat.transmission > 0.001f)
+			{
+				float transmissionFactor = mat.transmission;
+				if (mat.transmissionTexture)
+					transmissionFactor *= applyChannelPacking(sampleTexture(*mat.transmissionTexture, hit.texCoords), *mat.transmissionTexture);
+				transmissionFactor = std::clamp(transmissionFactor, 0.0f, 1.0f);
+
+				// Approximate dielectric Fresnel reflectance at this hit's
+				// angle - see computeF0F90()'s f0FromIor derivation, simplified
+				// to a flat-factor (non-textured) specular term since a shadow
+				// ray doesn't need microfacet-accurate half-vector sampling,
+				// just a representative reflect-vs-transmit split.
+				const float f0FromIor = std::pow((mat.ior - 1.0f) / (mat.ior + 1.0f), 2.0f);
+				const glm::vec3 dielectricF0 = glm::clamp(
+					glm::vec3(f0FromIor) * mat.specularColorFactor * mat.specularFactor, glm::vec3(0.0f), glm::vec3(1.0f));
+				const float NdotV = std::clamp(glm::dot(hit.geometricNormal, -ray.direction), 0.0f, 1.0f);
+				const glm::vec3 fresnel = fresnelSchlick(NdotV, dielectricF0);
+				const float reflectProb = std::clamp((fresnel.r + fresnel.g + fresnel.b) / 3.0f, 0.05f, 0.95f);
+
+				passThrough = rng.next01() >= reflectProb;
+				if (passThrough)
+				{
+					glm::vec3 tint = mat.baseColor;
+					if (mat.baseColorTexture)
+						tint *= glm::vec3(sampleTexture(*mat.baseColorTexture, hit.texCoords));
+					if (mat.hasVolume)
+						tint *= calculateVolumeAttenuation(mat.attenuationColor, mat.attenuationDistance, mat.thicknessFactor);
+					transmittance *= tint * transmissionFactor;
+				}
+			}
+
+			if (!passThrough)
+				return glm::vec3(0.0f); // genuinely blocked here
+
+			// Continue straight through from just past this hit, shrinking the
+			// remaining distance budget by how far we've already travelled.
+			const float eps = selfIntersectionEpsilon(hit.position);
+			ray.origin = hit.position + ray.direction * eps;
+			ray.tFar -= (hit.distance + eps);
+			if (ray.tFar <= 0.0f)
+				return transmittance;
+		}
+		return glm::vec3(0.0f); // exceeded the hit budget - conservatively treat as blocked
+	}
+
 	glm::vec3 tracePixel(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
 		const CpuPathTracer::Settings& settings, int px, int py, int width, int height, uint32_t rngSeed,
 		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
@@ -1933,7 +2041,10 @@ namespace
 						backShadowRay.direction = lightDir;
 						backShadowRay.tFar = lightDistance - 2.0f * eps;
 						backShadowRay.mask = shadowRayMask;
-						if (!snapshot.shadowsEnabled || !scene.occluded(backShadowRay))
+						const glm::vec3 backTransmittance = snapshot.shadowsEnabled
+							? traceShadowRay(scene, snapshot, backShadowRay, rng)
+							: glm::vec3(1.0f);
+						if (backTransmittance != glm::vec3(0.0f))
 						{
 							glm::vec3 diffuseBTDF = surf.diffuseTransmissionColor / kPi * std::abs(NdotL) * surf.diffuseTransmissionFactor;
 							// KHR_materials_volume's attenuation, applied
@@ -1949,7 +2060,7 @@ namespace
 							// here, not a deliberately-skipped one.
 							if (mat.hasVolume)
 								diffuseBTDF *= calculateVolumeAttenuation(surf.attenuationColor, surf.attenuationDistance, mat.thicknessFactor);
-							radiance += throughput * diffuseBTDF * lightIntensity;
+							radiance += throughput * diffuseBTDF * lightIntensity * backTransmittance;
 						}
 					}
 					continue;
@@ -1960,8 +2071,12 @@ namespace
 				shadowRay.direction = lightDir;
 				shadowRay.tFar = lightDistance - 2.0f * eps;
 				shadowRay.mask = shadowRayMask;
-				if (snapshot.shadowsEnabled && scene.occluded(shadowRay))
+				const glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
+					? traceShadowRay(scene, snapshot, shadowRay, rng)
+					: glm::vec3(1.0f);
+				if (shadowTransmittance == glm::vec3(0.0f))
 					continue;
+				lightIntensity *= shadowTransmittance;
 
 				glm::vec3 baseDirect = evaluateDirectBRDF(N, V, lightDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB) * lightIntensity;
 
