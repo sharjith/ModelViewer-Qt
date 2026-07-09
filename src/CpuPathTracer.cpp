@@ -1500,7 +1500,7 @@ namespace
 
 	glm::vec3 tracePixel(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
 		const CpuPathTracer::Settings& settings, int px, int py, int width, int height, uint32_t rngSeed,
-		bool* outPrimaryHit = nullptr)
+		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
 	{
 		Rng rng(hashCombine(hashCombine(static_cast<uint32_t>(px), static_cast<uint32_t>(py) * 9781u), rngSeed));
 
@@ -1750,6 +1750,26 @@ namespace
 			{
 				if (outPrimaryHit)
 					*outPrimaryHit = true;
+
+				// OIDN denoiser guide buffers (albedo/normal) - see
+				// RtDenoiser::denoise()'s doc comment. Per OIDN's own
+				// documented guidance and RayTrophi's reference
+				// implementation (both independently confirmed via research):
+				// a transmissive primary surface's OWN base color/normal are
+				// actively harmful as guide values - they anchor the
+				// denoiser to the glass's flat tint instead of letting it
+				// treat the pixel as pass-through, smearing away whatever
+				// sharp detail is actually visible through the glass
+				// (background, floor, sky). RayTrophi's fix (ray_color.cuh):
+				// write neutral/zero guide values for a transmissive primary
+				// hit instead of its own material properties. Non-
+				// transmissive hits get their real baseColor/shading normal,
+				// same as any ordinary denoiser guide-buffer setup.
+				if (outPrimaryAlbedo)
+					*outPrimaryAlbedo = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : surf.baseColor;
+				if (outPrimaryNormal)
+					*outPrimaryNormal = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : N;
+
 				primaryHitResolved = true;
 			}
 
@@ -2382,18 +2402,26 @@ void CpuPathTracer::renderPass(
 	uint32_t sampleSeed,
 	std::vector<glm::vec3>& outRadiance,
 	const std::atomic<bool>* cancelFlag,
-	std::vector<uint8_t>* outPrimaryHitMask) const
+	std::vector<uint8_t>* outPrimaryHitMask,
+	std::vector<glm::vec3>* outPrimaryAlbedo,
+	std::vector<glm::vec3>* outPrimaryNormal) const
 {
 	if (width <= 0 || height <= 0)
 	{
 		outRadiance.clear();
 		if (outPrimaryHitMask) outPrimaryHitMask->clear();
+		if (outPrimaryAlbedo) outPrimaryAlbedo->clear();
+		if (outPrimaryNormal) outPrimaryNormal->clear();
 		return;
 	}
 
 	outRadiance.assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
 	if (outPrimaryHitMask)
 		outPrimaryHitMask->assign(static_cast<size_t>(width) * height, 0);
+	if (outPrimaryAlbedo)
+		outPrimaryAlbedo->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
+	if (outPrimaryNormal)
+		outPrimaryNormal->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
 
 	// Simple row-partitioned parallel-for: worker threads are spawned per
 	// call and joined at the end. A persistent thread pool with a job queue
@@ -2416,11 +2444,18 @@ void CpuPathTracer::renderPass(
 			for (int x = 0; x < width; ++x)
 			{
 				bool primaryHit = false;
+				glm::vec3 primaryAlbedo(0.0f), primaryNormal(0.0f);
 				outRadiance[static_cast<size_t>(y) * width + x] =
 					tracePixel(scene, snapshot, _settings, x, y, width, height, sampleSeed,
-						outPrimaryHitMask ? &primaryHit : nullptr);
+						outPrimaryHitMask ? &primaryHit : nullptr,
+						outPrimaryAlbedo ? &primaryAlbedo : nullptr,
+						outPrimaryNormal ? &primaryNormal : nullptr);
 				if (outPrimaryHitMask)
 					(*outPrimaryHitMask)[static_cast<size_t>(y) * width + x] = primaryHit ? 1 : 0;
+				if (outPrimaryAlbedo)
+					(*outPrimaryAlbedo)[static_cast<size_t>(y) * width + x] = primaryAlbedo;
+				if (outPrimaryNormal)
+					(*outPrimaryNormal)[static_cast<size_t>(y) * width + x] = primaryNormal;
 			}
 		}
 	};

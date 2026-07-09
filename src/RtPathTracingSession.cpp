@@ -86,7 +86,9 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 	{
 		std::vector<glm::vec3> passResult;
 		std::vector<uint8_t> hitMask;
-		_tracer.renderPass(_embreeScene, *snapshot, _width, _height, sampleSeed++, passResult, &_cancelRequested, &hitMask);
+		std::vector<glm::vec3> albedoResult, normalResult;
+		_tracer.renderPass(_embreeScene, *snapshot, _width, _height, sampleSeed++, passResult,
+			&_cancelRequested, &hitMask, &albedoResult, &normalResult);
 
 		// Don't accumulate/publish a pass that was cancelled or superseded
 		// while it was running - the result may not even match the current
@@ -95,7 +97,7 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 		    _activeRevision.load(std::memory_order_acquire) != myRevision)
 			break;
 
-		_accumulator.accumulate(passResult, &hitMask);
+		_accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult);
 		publishLatest(_accumulator.sampleCount() >= _maxSamples);
 	}
 
@@ -111,16 +113,27 @@ void RtPathTracingSession::publishLatest(bool finalDenoise)
 
 	std::vector<glm::vec3> presented = resolved;
 	if (finalDenoise)
-		_denoiser.denoise(resolved, width, height, presented, sampleCount);
+	{
+		// See RtDenoiser::denoise()'s doc comment and CpuPathTracer's
+		// outPrimaryAlbedo/outPrimaryNormal - feeding OIDN these guide
+		// buffers (rather than running beauty-only) is what lets it
+		// distinguish real detail seen through/behind a transmissive
+		// surface from noise, instead of over-smoothing it toward the
+		// glass's own flat tint.
+		const std::vector<glm::vec3> albedo = _accumulator.resolveAlbedo();
+		const std::vector<glm::vec3> normal = _accumulator.resolveNormal();
+		_denoiser.denoise(resolved, width, height, presented, sampleCount, &albedo, &normal);
+	}
 
-	// OIDN's beauty-only filter (no albedo/normal guide buffers - see
-	// RtDenoiser) has no way to tell a sharp environment-map background apart
-	// from noise, and over-smooths it into something that looks like a
-	// blurred irradiance/prefilter map. Background pixels don't need
-	// denoising anyway - sampleEnvironmentMiss() is a deterministic texture
-	// lookup that only varies (very slightly, from AA jitter) across passes,
-	// so the raw accumulated average is already clean. Restore it wherever a
-	// pixel's primary ray has never once hit geometry.
+	// OIDN's guide buffers (albedo/normal - see above) still can't tell a
+	// sharp environment-map background apart from noise when the primary ray
+	// never hit any geometry at all (there's no material to derive a guide
+	// value from), and over-smooths it into something that looks like a
+	// blurred irradiance/prefilter map in that case. Background pixels don't
+	// need denoising anyway - sampleEnvironmentMiss() is a deterministic
+	// texture lookup that only varies (very slightly, from AA jitter) across
+	// passes, so the raw accumulated average is already clean. Restore it
+	// wherever a pixel's primary ray has never once hit geometry.
 	const std::vector<uint32_t>& hitCounts = _accumulator.hitCounts();
 	std::vector<float> alpha(presented.size(), 1.0f);
 	if (hitCounts.size() == presented.size())

@@ -108,6 +108,15 @@ public:
 	// beauty-only denoise pass has no guide buffers to tell it a smooth
 	// environment texture isn't noise, and over-blurs it - background pixels
 	// are composited from the raw, undenoised accumulation instead).
+	//
+	// outPrimaryAlbedo/outPrimaryNormal, if non-null, are resized to
+	// width*height and filled with the primary hit's base color / shading
+	// normal - OIDN denoiser guide buffers (see RtDenoiser::denoise()).
+	// Per OIDN's own documented guidance and RayTrophi's reference
+	// implementation, a transmissive primary hit writes (0,0,0) into both
+	// instead of its own material properties - see tracePixel()'s use site
+	// for why (the glass's own tint/normal actively hurts denoising quality
+	// for what's seen through it, versus treating the pixel as pass-through).
 	void renderPass(
 		const RtEmbreeScene& scene,
 		const RtSceneSnapshot& snapshot,
@@ -115,7 +124,9 @@ public:
 		uint32_t sampleSeed,
 		std::vector<glm::vec3>& outRadiance,
 		const std::atomic<bool>* cancelFlag = nullptr,
-		std::vector<uint8_t>* outPrimaryHitMask = nullptr) const;
+		std::vector<uint8_t>* outPrimaryHitMask = nullptr,
+		std::vector<glm::vec3>* outPrimaryAlbedo = nullptr,
+		std::vector<glm::vec3>* outPrimaryNormal = nullptr) const;
 
 private:
 	Settings _settings;

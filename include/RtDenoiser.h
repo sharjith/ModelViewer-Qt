@@ -49,8 +49,23 @@ public:
 	// once, on the final pass (see its maxSamples()), not every intermediate
 	// pass, so this is the only denoise opportunity that pass gets. Only
 	// affects the fallback path - ignored when OIDN itself is used.
+	//
+	// albedo/normal, if both non-null, are OIDN guide (auxiliary feature)
+	// buffers - RtFrameAccumulator::resolveAlbedo()/resolveNormal(), which
+	// come from CpuPathTracer's primary-hit base color/shading normal (see
+	// its outPrimaryAlbedo/outPrimaryNormal doc comment). Per OIDN's own
+	// documentation, running "beauty-only" (neither buffer supplied, this
+	// class's previous default) "does not provide any benefits for
+	// reflections and objects visible through transparent surfaces" - a
+	// transmissive material's own base color/normal are deliberately zeroed
+	// out at the source (CpuPathTracer) rather than fed in, matching OIDN's
+	// documented guidance to treat such pixels as pass-through rather than
+	// anchoring the denoiser to the glass's own flat tint. Ignored by the
+	// bilateral fallback path (only OIDN itself uses guide buffers).
 	bool denoise(const std::vector<glm::vec3>& input, int width, int height,
-		std::vector<glm::vec3>& output, uint32_t sampleCount = 1);
+		std::vector<glm::vec3>& output, uint32_t sampleCount = 1,
+		const std::vector<glm::vec3>* albedo = nullptr,
+		const std::vector<glm::vec3>* normal = nullptr);
 
 private:
 	struct Impl;

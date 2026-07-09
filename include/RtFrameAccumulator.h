@@ -30,13 +30,26 @@ public:
 	// match size - per-pixel hit counts are tracked alongside the radiance sum
 	// so callers can tell "this pixel's primary ray has never hit geometry"
 	// (pure background) apart from "this pixel is on a silhouette edge and
-	// flips between hit/miss across AA-jittered samples).
+	// flips between hit/miss across AA-jittered samples). primaryAlbedo/
+	// primaryNormal, if provided, are accumulated the same way (running sum,
+	// divided by sampleCount at resolve time) - see
+	// CpuPathTracer::renderPass()'s outPrimaryAlbedo/outPrimaryNormal for
+	// what these represent (OIDN denoiser guide buffers, RtDenoiser::
+	// denoise()).
 	void accumulate(const std::vector<glm::vec3>& sampleRadiance,
-		const std::vector<uint8_t>* primaryHitMask = nullptr);
+		const std::vector<uint8_t>* primaryHitMask = nullptr,
+		const std::vector<glm::vec3>* primaryAlbedo = nullptr,
+		const std::vector<glm::vec3>* primaryNormal = nullptr);
 
 	// Current running average (sum / sampleCount), or an all-zero buffer if
 	// no samples have been accumulated yet.
 	std::vector<glm::vec3> resolve() const;
+
+	// Running average of the accumulated primary-hit albedo/normal guide
+	// buffers (see accumulate()'s primaryAlbedo/primaryNormal), or an
+	// all-zero buffer if accumulate() was never called with them.
+	std::vector<glm::vec3> resolveAlbedo() const;
+	std::vector<glm::vec3> resolveNormal() const;
 
 	// Per-pixel count of accumulated samples whose primary ray hit geometry
 	// (see accumulate()'s primaryHitMask). Empty if accumulate() was never
@@ -51,6 +64,8 @@ private:
 	int _width  = 0;
 	int _height = 0;
 	std::vector<glm::vec3> _sum;
+	std::vector<glm::vec3> _albedoSum;
+	std::vector<glm::vec3> _normalSum;
 	std::vector<uint32_t> _hitCounts;
 	uint32_t _sampleCount = 0;
 };

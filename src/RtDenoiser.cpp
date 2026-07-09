@@ -121,7 +121,8 @@ RtDenoiser::RtDenoiser() : _impl(std::make_unique<Impl>())
 RtDenoiser::~RtDenoiser() = default;
 
 bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int height,
-	std::vector<glm::vec3>& output, uint32_t sampleCount)
+	std::vector<glm::vec3>& output, uint32_t sampleCount,
+	const std::vector<glm::vec3>* albedo, const std::vector<glm::vec3>* normal)
 {
 	if (width <= 0 || height <= 0 ||
 	    input.size() != static_cast<size_t>(width) * static_cast<size_t>(height))
@@ -138,11 +139,23 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 
 	output.resize(input.size());
 
+	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+	const bool haveGuides = albedo && normal &&
+		albedo->size() == pixelCount && normal->size() == pixelCount;
+
 	// const_cast is safe here: OIDN's "shared image" overload only reads from
-	// the "color" input during execute(), it never writes back into it.
+	// the "color"/"albedo"/"normal" inputs during execute(), it never writes
+	// back into them.
 	oidn::FilterRef filter = _impl->device.newFilter("RT");
 	filter.setImage("color", const_cast<glm::vec3*>(input.data()), oidn::Format::Float3,
 		static_cast<size_t>(width), static_cast<size_t>(height));
+	if (haveGuides)
+	{
+		filter.setImage("albedo", const_cast<glm::vec3*>(albedo->data()), oidn::Format::Float3,
+			static_cast<size_t>(width), static_cast<size_t>(height));
+		filter.setImage("normal", const_cast<glm::vec3*>(normal->data()), oidn::Format::Float3,
+			static_cast<size_t>(width), static_cast<size_t>(height));
+	}
 	filter.setImage("output", output.data(), oidn::Format::Float3,
 		static_cast<size_t>(width), static_cast<size_t>(height));
 	filter.set("hdr", true); // renderPass() output is linear HDR, un-tonemapped
