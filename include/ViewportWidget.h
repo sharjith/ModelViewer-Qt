@@ -839,7 +839,8 @@ private:
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
 	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);
-	GLuint uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers);
+	GLuint uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers,
+		QImage* outDecodedImage = nullptr);
 	GLuint uploadDecodedTexture(Material::Texture& texture, const QImage& image);
 	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, Material::Texture& texture);
 	UVMethod promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod);

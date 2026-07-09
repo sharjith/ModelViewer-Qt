@@ -9913,7 +9913,8 @@ GLuint ViewportWidget::uploadDecodedTextureImage(const QImage& image, const Text
 	return createGPUTextureFromImage(image, samplers);
 }
 
-GLuint ViewportWidget::uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers)
+GLuint ViewportWidget::uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers,
+	QImage* outDecodedImage)
 {
 	if (path.isEmpty())
 	{
@@ -9942,6 +9943,32 @@ GLuint ViewportWidget::uploadKtx2TextureImage(const QString& path, const std::st
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, samplers.wrapS);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, samplers.wrapT);
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// KTX2/Basis Universal textures used to only ever produce a GPU-resident
+	// texture handle here, with no CPU-side decoded pixels anywhere - fine
+	// for raster (which only ever needs the GL handle), but RtSceneBuilder::
+	// extractTextureSample() needs real CPU pixels for the software path
+	// tracer, and its cache-lookup fallback (SceneRuntime::texCache()'s
+	// per-path CachedTextureEntry::image) was always finding a null QImage
+	// for KTX2 textures - extractTextureSample() then silently treated the
+	// texture as absent, falling back to the material's flat factor (often
+	// white), which is why KTX2-textured materials rendered flat/blown-out
+	// in PT while looking correct in raster. Only handled for the default
+	// uncompressed transcode target (cTFRGBA32) - that's already tightly-
+	// packed RGBA8 data, directly wrappable as a QImage. BC7/ASTC-compressed
+	// transcode targets (an explicit user compression-mode choice, not the
+	// default) still have no CPU-side representation; decoding those back to
+	// raw pixels for PT is a separate, narrower follow-up if it matters.
+	if (outDecodedImage && !transcodedTexture.isCompressed &&
+		transcodedTexture.format == basist::transcoder_texture_format::cTFRGBA32 &&
+		transcodedTexture.width > 0 && transcodedTexture.height > 0 &&
+		transcodedTexture.data.size() >= static_cast<size_t>(transcodedTexture.width) * transcodedTexture.height * 4)
+	{
+		const QImage view(transcodedTexture.data.data(),
+			static_cast<int>(transcodedTexture.width), static_cast<int>(transcodedTexture.height),
+			static_cast<int>(transcodedTexture.width) * 4, QImage::Format_RGBA8888);
+		*outDecodedImage = view.copy(); // deep copy - transcodedTexture.data is about to go out of scope
+	}
 
 	return textureId;
 }
@@ -10031,7 +10058,12 @@ unsigned int ViewportWidget::getOrLoadKtx2TextureCached(
 		}
 	}
 
-	GLuint texID = uploadKtx2TextureImage(path, mapType, samplers);
+	// See uploadKtx2TextureImage()'s doc comment - decodedImage is the CPU-
+	// side pixel data (uncompressed-transcode case only) that RtSceneBuilder::
+	// extractTextureSample() needs for the software path tracer; this cache
+	// entry's .image field is exactly what that lookup reads.
+	QImage decodedImage;
+	GLuint texID = uploadKtx2TextureImage(path, mapType, samplers, &decodedImage);
 	if (texID == 0)
 	{
 		return 0;
@@ -10040,6 +10072,19 @@ unsigned int ViewportWidget::getOrLoadKtx2TextureCached(
 	CachedTextureEntry& entry = _sceneRuntime.texCache()[cacheKey];
 	entry.lastGPUTexture = texID;
 	entry.lastSamplerSettings = samplers;
+	entry.image = decodedImage;
+	entry.imageWidth = decodedImage.width();
+	entry.imageHeight = decodedImage.height();
+
+	// RtSceneBuilder::extractTextureSample()'s Tier 3 fallback looks the
+	// decoded image up by the material's plain glTF-declared map path (it
+	// has no notion of this cache's "ktx2://<path>::<mapType>" dedup key
+	// convention, and doesn't know mapType at all) - mirror the same
+	// CachedTextureEntry under the plain path too, so that lookup finds it.
+	// A second copy of the QImage (implicitly shared, so cheap) rather than
+	// teaching RtSceneBuilder about this cache's internal key format.
+	if (!decodedImage.isNull())
+		_sceneRuntime.texCache()[path] = entry;
 	_sceneRuntime.texRefCount()[texID] = 1;
 	return texID;
 }
