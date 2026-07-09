@@ -1,5 +1,8 @@
 #include "RtPathTracingSession.h"
 
+#include <QDebug>
+#include <QElapsedTimer>
+
 #include <algorithm>
 
 RtPathTracingSession::RtPathTracingSession() = default;
@@ -98,6 +101,8 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 			break;
 
 		_accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult);
+		qInfo().noquote() << QString("[PathTracer] sample %1/%2 complete")
+			.arg(_accumulator.sampleCount()).arg(_maxSamples);
 		publishLatest(_accumulator.sampleCount() >= _maxSamples);
 	}
 
@@ -122,7 +127,15 @@ void RtPathTracingSession::publishLatest(bool finalDenoise)
 		// glass's own flat tint.
 		const std::vector<glm::vec3> albedo = _accumulator.resolveAlbedo();
 		const std::vector<glm::vec3> normal = _accumulator.resolveNormal();
+
+		qInfo().noquote() << QString("[PathTracer] denoising start (%1 samples, %2x%3)")
+			.arg(sampleCount).arg(width).arg(height);
+		QElapsedTimer denoiseTimer;
+		denoiseTimer.start();
+
 		_denoiser.denoise(resolved, width, height, presented, sampleCount, &albedo, &normal);
+
+		qInfo().noquote() << QString("[PathTracer] denoising end (%1 ms)").arg(denoiseTimer.elapsed());
 	}
 
 	// OIDN's guide buffers (albedo/normal - see above) still can't tell a
