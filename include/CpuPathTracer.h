@@ -80,6 +80,14 @@ public:
 		// setup), which this value matches for a direct comparison.
 		float fireflyClampThreshold = 3.0f;
 
+		// Environment-map next-event-estimation/MIS (RtEnvironmentSampler,
+		// see CpuPathTracer.h's class comment) - a comparison/debug toggle
+		// more than a quality knob most users will tune: turning it off
+		// falls back to pre-MIS behavior (environment light only found via
+		// BSDF-sampled bounces stumbling into it), useful for verifying how
+		// much the feature is actually helping on a given scene.
+		bool enableEnvironmentImportanceSampling = true;
+
 		// Debug-visualization toggles used to live here as Settings fields,
 		// but flipping a bool in a widely-included header like this one
 		// forced a full rebuild of every translation unit that includes

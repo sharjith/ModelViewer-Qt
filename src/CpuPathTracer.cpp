@@ -1857,7 +1857,8 @@ namespace
 					// deterministic pick) - envSampler.pdf() in the
 					// denominator then also naturally has no NEE
 					// counterpart to divide against for those.
-					const float envPdfAtRay = envSampler.isValid() ? envSampler.pdf(ray.direction) : 0.0f;
+					const float envPdfAtRay = (settings.enableEnvironmentImportanceSampling && envSampler.isValid())
+						? envSampler.pdf(ray.direction) : 0.0f;
 					const float misWeight = (lastBsdfSamplePdf > 0.0f && envPdfAtRay > 0.0f)
 						? (lastBsdfSamplePdf / (lastBsdfSamplePdf + envPdfAtRay))
 						: 1.0f;
@@ -2353,7 +2354,7 @@ namespace
 			// own dedicated deterministic reflect/refract handling below,
 			// entirely bypassing the diffuse/specular/coat mixture this
 			// pdf models - see evaluateBsdfPdf()'s doc comment).
-			if (envSampler.isValid() && surf.transmission <= 0.001f)
+			if (settings.enableEnvironmentImportanceSampling && envSampler.isValid() && surf.transmission <= 0.001f)
 			{
 				glm::vec3 envDir;
 				float envPdf;

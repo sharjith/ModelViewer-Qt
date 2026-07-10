@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
@@ -344,6 +345,66 @@ public:
 	// current scene state unconditionally, so no separate "rebuild" signal is
 	// needed here.
 	void notifyPathTracedSceneMutated() { resetPathTracedIdleTimer(); }
+
+	// User-adjustable PT quality settings (PathTracingDialog) - stored here
+	// rather than pushed straight into _rtSession/CpuPathTracer::Settings so
+	// they survive across arm/disarm and apply to the NEXT
+	// startPathTracedSession() call, same lifecycle as every other snapshot
+	// input it already reads fresh from _renderCtrl/_viewCtrl each call.
+	void setPathTracingMaxSamples(uint32_t maxSamples) { _ptMaxSamples = maxSamples > 0 ? maxSamples : 1; }
+	void setPathTracingMaxBounces(int maxBounces) { _ptMaxBounces = std::max(1, maxBounces); }
+	uint32_t pathTracingMaxSamples() const { return _ptMaxSamples; }
+	int pathTracingMaxBounces() const { return _ptMaxBounces; }
+
+	// Advanced settings - see CpuPathTracer::Settings/RtPathTracingSession
+	// for what each one actually controls.
+	void setPathTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
+	void setPathTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
+	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
+	void setPathTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
+	void setPathTracingRussianRouletteStartDepth(int depth) { _ptRussianRouletteStartDepth = std::max(1, depth); }
+	bool pathTracingDenoiserEnabled() const { return _ptDenoiserEnabled; }
+	bool pathTracingEnvImportanceSamplingEnabled() const { return _ptEnvImportanceSamplingEnabled; }
+	float pathTracingFireflyClampThreshold() const { return _ptFireflyClampThreshold; }
+	int pathTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
+	int pathTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
+
+	// Progress snapshot for PathTracingDialog's poll timer - current/target
+	// sample counts and whether the worker is still running. Cheap (no frame
+	// copy) - see RtPathTracingSession::currentSampleCount().
+	void pathTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
+	{
+		outCurrentSamples = _rtSession.currentSampleCount();
+		outTargetSamples  = _rtSession.maxSamples();
+		outRunning        = _rtSession.isRunning();
+	}
+
+	// Arms Path Traced mode AND starts tracing immediately, rather than
+	// waiting for the idle-settle countdown armPathTracedRenderingMode()
+	// alone leaves running - PathTracingDialog's "Render" button wants the
+	// press to visibly start work right away, not after a camera-idle delay
+	// that may never arrive if the user isn't touching the viewport at all.
+	void requestPathTracedRenderNow()
+	{
+		armPathTracedRenderingMode();
+		startPathTracedSession();
+	}
+
+	// Renders and returns the current frame with the axis triad/view cube/
+	// mesh-count HUD overlays suppressed - for PathTracingDialog's Export,
+	// which wants exactly the composited raster+path-traced pixels, not a
+	// viewport screenshot. Triggers a real synchronous re-paint (via
+	// QOpenGLWidget::grabFramebuffer(), which paintGL() then sees
+	// _capturingCleanFrame set for) rather than reading back whatever was
+	// last on screen, then restores normal HUD-visible display afterward.
+	QImage captureCleanPathTracedImage()
+	{
+		_capturingCleanFrame = true;
+		QImage img = grabFramebuffer();
+		_capturingCleanFrame = false;
+		update(); // restore the normal HUD-visible view
+		return img;
+	}
 
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
 	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
@@ -931,6 +992,26 @@ private:
 	QTimer*  _pathTracedIdleTimer    = nullptr; // reset on every camera-affecting event
 	QTimer*  _pathTracedRefreshTimer = nullptr; // periodically repaints while a trace is running
 	uint64_t _pathTracedNextRevision = 1;
+
+	// User-adjustable PT quality settings - see setPathTracingMaxSamples()/
+	// setPathTracingMaxBounces()'s doc comments. Defaults match
+	// RtPathTracingSession/CpuPathTracer::Settings's own previous hardcoded
+	// values exactly, so behavior is unchanged until a user actually opens
+	// PathTracingDialog and changes them.
+	uint32_t _ptMaxSamples = 128;
+	int      _ptMaxBounces = 6;
+	bool     _ptDenoiserEnabled = true;
+	bool     _ptEnvImportanceSamplingEnabled = true;
+	float    _ptFireflyClampThreshold = 3.0f;
+	int      _ptMaxTransmissionBounces = 32;
+	int      _ptRussianRouletteStartDepth = 3;
+
+	// Set for the duration of a captureCleanPathTracedImage() call -
+	// paintGL() checks this to suppress the axis triad/view cube/mesh-count
+	// HUD overlays (see their call sites) so an exported render contains
+	// only the composited raster+path-traced scene, matching what a render-
+	// to-file export should look like rather than a viewport screenshot.
+	bool _capturingCleanFrame = false;
 
 	void resetPathTracedIdleTimer();
 	void onPathTracedIdleTimeout();

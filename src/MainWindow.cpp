@@ -23,6 +23,7 @@
 #include <assimp/version.h>
 
 #include "PathUtils.h"
+#include "PathTracingDialog.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -125,6 +126,23 @@ MainWindow::MainWindow(QWidget* parent)
 	connect(ui->actionTextureDebugger, &QAction::triggered, this, [this]() {
 		if (activeMdiChild())
 			activeMdiChild()->showTextureDebugPanel();
+		});
+
+	// Tools → Path Tracing - non-modal, one instance per invocation (mirrors
+	// SettingsDialog's WA_DeleteOnClose pattern) rather than a single
+	// persistent instance, since it's cheap to reopen and simpler than
+	// tracking/reusing one across different active documents.
+	connect(ui->actionPathTracing, &QAction::triggered, this, [this]() {
+		if (!activeMdiChild())
+			return;
+		// Opening the dialog does NOT switch rendering mode by itself - it
+		// stays whatever it currently is (ADS/PBR/already-PathTraced) until
+		// the user actually presses Render inside the dialog (see
+		// PathTracingDialog::onRenderClicked()), which is the single place
+		// that switches to Path Traced mode.
+		PathTracingDialog* dialog = new PathTracingDialog(activeMdiChild(), this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->show();
 		});
 
 	// Update menus when undo stack changes
@@ -862,7 +880,7 @@ void MainWindow::on_actionSettings_triggered()
 	connect(settingsDialog, &SettingsDialog::textureDebugPanelVisibilityChanged,
 	        this, [this](bool enabled) {
 		const bool hasMdiChild = (activeMdiChild() != nullptr);
-		ui->menuTools->menuAction()->setVisible(enabled && hasMdiChild);
+		ui->actionToolsSeparator->setVisible(enabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(enabled && hasMdiChild);
 	});
 
@@ -956,12 +974,14 @@ void MainWindow::updateMenus()
 	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
 	ui->actionTile->setEnabled(hasMdiChild);
 
-	// Tools menu — visible only when the Texture Debugger is enabled in Settings
-	// and there is an active document to debug.
+	// Tools menu is always visible now that Path Tracing gives it a
+	// permanent, non-debug entry - only the Texture Debugger action (and
+	// its separator) stay gated behind the Settings debug flag.
+	ui->actionPathTracing->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();
-		ui->menuTools->menuAction()->setVisible(debugEnabled && hasMdiChild);
+		ui->actionToolsSeparator->setVisible(debugEnabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(debugEnabled && hasMdiChild);
 	}
 	ui->actionTile_Horizontally->setEnabled(hasMdiChild);

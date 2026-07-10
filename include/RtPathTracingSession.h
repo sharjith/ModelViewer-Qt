@@ -56,6 +56,31 @@ public:
 	void setMaxSamples(uint32_t maxSamples) { _maxSamples = maxSamples > 0 ? maxSamples : 1; }
 	uint32_t maxSamples() const { return _maxSamples; }
 
+	// Forwarded to the owned CpuPathTracer - takes effect on the next
+	// start()/notifyCameraChanged() call, same as setMaxSamples() above (the
+	// worker thread reads _tracer's settings once per renderPass() call, not
+	// mid-pass, so there's no torn-state risk in setting this while a
+	// previous session's worker is still winding down).
+	void setTracerSettings(const CpuPathTracer::Settings& settings) { _tracer.setSettings(settings); }
+	const CpuPathTracer::Settings& tracerSettings() const { return _tracer.settings(); }
+
+	// Current raw (pre-final-denoise) accumulated sample count - cheap
+	// progress-polling accessor that doesn't copy the frame buffer, unlike
+	// latestFrame(). RtFrameAccumulator::_sampleCount is a plain (non-
+	// atomic) uint32_t the worker thread increments once per completed
+	// pass - reading it from the UI thread here is a benign data race for
+	// progress-bar purposes (worst case one stale/torn-adjacent read gets
+	// silently corrected on the next poll), not worth a real atomic for.
+	uint32_t currentSampleCount() const { return _accumulator.sampleCount(); }
+
+	// When false, publishLatest() never runs the final OIDN pass even once
+	// maxSamples() is reached - the raw progressive accumulation itself is
+	// published as-is instead. Lets a user compare the noisy-but-unfiltered
+	// result against the denoised one, or skip denoising entirely for a
+	// faster export at the cost of visible noise.
+	void setDenoiserEnabled(bool enabled) { _denoiserEnabled = enabled; }
+	bool denoiserEnabled() const { return _denoiserEnabled; }
+
 	// Rebuilds the Embree scene from snapshot and (re)starts progressive
 	// accumulation from scratch. Cancels/joins any previously running pass
 	// first, so this is also the right call to "restart with a fresh scene".
@@ -95,6 +120,7 @@ private:
 	int _width  = 0;
 	int _height = 0;
 	uint32_t _maxSamples = 128;
+	bool _denoiserEnabled = true;
 
 	mutable std::mutex _snapshotMutex;
 	std::shared_ptr<const RtSceneSnapshot> _snapshot;

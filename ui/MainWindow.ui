@@ -123,6 +123,8 @@
     <property name="title">
      <string>Tools</string>
     </property>
+    <addaction name="actionPathTracing"/>
+    <addaction name="actionToolsSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
    <addaction name="menuFile"/>
@@ -380,6 +382,19 @@
    </property>
    <property name="statusTip">
     <string>Open the texture debug panel for the selected mesh</string>
+   </property>
+  </action>
+  <action name="actionPathTracing">
+   <property name="text">
+    <string>Path Tracing...</string>
+   </property>
+   <property name="statusTip">
+    <string>Open path tracing settings and start a render</string>
+   </property>
+  </action>
+  <action name="actionToolsSeparator">
+   <property name="separator">
+    <bool>true</bool>
    </property>
   </action>
   <action name="actionQuick_Help">

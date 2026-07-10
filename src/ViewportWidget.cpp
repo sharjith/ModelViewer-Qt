@@ -1157,14 +1157,17 @@ void ViewportWidget::paintGL()
 			_rtPresenter.draw(_renderCtrl.hdrToneMapping(), _renderCtrl.gammaCorrection(),
 				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()));
 
-		drawViewCube();
-
-		// Text rendering
-		if (_sceneRuntime.meshStore().size() != 0)
+		if (!_capturingCleanFrame)
 		{
-			const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
-			if (objectIds.size() > 0)
-				_textRenderer->RenderText(_labelNumMeshes.arg(objectIds.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
+			drawViewCube();
+
+			// Text rendering
+			if (_sceneRuntime.meshStore().size() != 0)
+			{
+				const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
+				if (objectIds.size() > 0)
+					_textRenderer->RenderText(_labelNumMeshes.arg(objectIds.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
+			}
 		}
 	}
 	catch (const std::exception& ex)
@@ -8453,7 +8456,7 @@ void ViewportWidget::render(Camera* camera)
 
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
-	if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride()) drawAxis(camera);
+	if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame) drawAxis(camera);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -12730,6 +12733,17 @@ void ViewportWidget::startPathTracedSession()
 		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
 
 	_rtSession.setResolution(fbWidth, fbHeight);
+	_rtSession.setMaxSamples(_ptMaxSamples);
+	_rtSession.setDenoiserEnabled(_ptDenoiserEnabled);
+	{
+		CpuPathTracer::Settings settings = _rtSession.tracerSettings();
+		settings.maxBounces                        = _ptMaxBounces;
+		settings.fireflyClampThreshold              = _ptFireflyClampThreshold;
+		settings.maxTransmissionBounces             = _ptMaxTransmissionBounces;
+		settings.russianRouletteStartDepth          = _ptRussianRouletteStartDepth;
+		settings.enableEnvironmentImportanceSampling = _ptEnvImportanceSamplingEnabled;
+		_rtSession.setTracerSettings(settings);
+	}
 	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
 	_rtSession.start(snapshot);
 
