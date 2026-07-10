@@ -31,7 +31,15 @@ void RtPathTracingSession::resetForNewPass(std::shared_ptr<const RtSceneSnapshot
 		return;
 
 	if (rebuildEmbreeScene)
+	{
 		_embreeScene.build(snapshot);
+		// Environment content only ever changes alongside a full scene
+		// rebuild (skybox/HDRI load, not camera movement) - tied to the same
+		// condition as the Embree BVH rebuild above rather than rebuilt
+		// every pass, since building the importance-sampling CDF walks
+		// every texel of every cubemap face.
+		_envSampler.build(snapshot->environment);
+	}
 
 	_accumulator.resize(_width, _height);
 	_accumulator.reset();
@@ -90,7 +98,7 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 		std::vector<glm::vec3> passResult;
 		std::vector<uint8_t> hitMask;
 		std::vector<glm::vec3> albedoResult, normalResult;
-		_tracer.renderPass(_embreeScene, *snapshot, _width, _height, sampleSeed++, passResult,
+		_tracer.renderPass(_embreeScene, *snapshot, _envSampler, _width, _height, sampleSeed++, passResult,
 			&_cancelRequested, &hitMask, &albedoResult, &normalResult);
 
 		// Don't accumulate/publish a pass that was cancelled or superseded

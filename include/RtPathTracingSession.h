@@ -14,6 +14,7 @@
 #include "CpuPathTracer.h"
 #include "RtFrameAccumulator.h"
 #include "RtDenoiser.h"
+#include "RtEnvironmentSampler.h"
 
 // ---------------------------------------------------------------------------
 // RtPathTracingSession
@@ -85,10 +86,11 @@ private:
 	void publishLatest(bool finalDenoise);
 	void resetForNewPass(std::shared_ptr<const RtSceneSnapshot> snapshot, bool rebuildEmbreeScene);
 
-	RtEmbreeScene      _embreeScene;
-	CpuPathTracer      _tracer;
-	RtFrameAccumulator _accumulator;
-	RtDenoiser         _denoiser;
+	RtEmbreeScene         _embreeScene;
+	CpuPathTracer         _tracer;
+	RtFrameAccumulator    _accumulator;
+	RtDenoiser            _denoiser;
+	RtEnvironmentSampler  _envSampler; // rebuilt alongside _embreeScene - see resetForNewPass()
 
 	int _width  = 0;
 	int _height = 0;

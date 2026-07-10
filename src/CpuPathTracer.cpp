@@ -1320,12 +1320,164 @@ namespace
 		return lut[static_cast<size_t>(ri) * kSheenLUTSize + vi];
 	}
 
+	// F0/metalness alone chronically under-samples glossy dielectrics: a
+	// low-roughness floor/varnish/plastic (F0 ~ 0.04, metalness 0) still
+	// clamps to the 5% floor here regardless of how narrow (and therefore
+	// hard to resolve via the diffuse lobe alone) its specular lobe is -
+	// e.g. a roughness-0.12 floor next to a bright reflective object
+	// showed essentially no visible reflection even after the full
+	// maxSamples budget, because only ~3 of 64 samples/pixel ever
+	// explored the specular lobe at all. Blending in (1-roughness)^2
+	// pushes smooth dielectrics toward much more specular sample weight -
+	// rough materials (where this term is ~0) are unaffected.
+	//
+	// Factored out of sampleBSDFBounce() so evaluateBsdfPdf() (used for
+	// environment-NEE's MIS weighting - see tracePixel()'s environment-NEE
+	// block) computes lobe-choice probabilities from the exact same formula
+	// sampleBSDFBounce() actually samples from, rather than risking the two
+	// silently drifting apart.
+	void computeLobeProbabilities(const SurfaceParams& surf, const glm::vec3& clearcoatBlend, float& outSpecProb, float& outCoatProb)
+	{
+		const glm::vec3& F0 = surf.F0;
+		const float smoothness = 1.0f - surf.roughness;
+		outSpecProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness + 0.5f * smoothness * smoothness, 0.05f, 0.95f);
+
+		// Same under-sampling problem as the base specular lobe above, for
+		// the same reason: clearcoatBlend alone is small at near-normal
+		// viewing angles (dielectric Fresnel is weak there, ~0.04-0.05 at
+		// F0), clamping coatProb to its 5% floor across most of a curved
+		// surface's visible area regardless of how narrow (and therefore
+		// hard to resolve via the base lobes alone) a SMOOTH coat's
+		// reflection is. At 128 samples/pixel that floor means only ~6
+		// samples ever explore the coat lobe at those angles - nowhere near
+		// enough to resolve a detailed, non-uniformly-bright reflection
+		// (e.g. a background building) there, even though the coat's own
+		// pdf/MIS math (see evaluateBsdfPdf()) is otherwise correct.
+		// Blending in (1-clearcoatRoughness)^2, scaled by clearcoat's own
+		// strength, pushes smooth coats toward more sample weight
+		// independent of the current view angle's Fresnel term - rough
+		// coats (where this term is ~0) are unaffected.
+		const float coatSmoothness = 1.0f - surf.clearcoatRoughness;
+		outCoatProb = surf.clearcoat > 0.0f
+			? std::clamp((clearcoatBlend.r + clearcoatBlend.g + clearcoatBlend.b) / 3.0f
+				+ 0.5f * surf.clearcoat * coatSmoothness * coatSmoothness, 0.05f, 0.9f)
+			: 0.0f;
+	}
+
+	// Heitz 2018 VNDF importance-sampling pdf (isotropic case) - the pdf
+	// that sampleBSDFBounce()'s specular/coat lobes actually sample from,
+	// evaluated here for an ARBITRARY given L rather than a freshly-sampled
+	// one (needed for environment-NEE's MIS weighting, which must know "how
+	// likely was the BSDF to have sampled this exact direction on its own").
+	float ggxVndfPdfIsotropic(const glm::vec3& N, const glm::vec3& V, const glm::vec3& L, float roughness)
+	{
+		const float NdotV = std::max(glm::dot(N, V), 0.0f);
+		const float NdotL = std::max(glm::dot(N, L), 0.0f);
+		if (NdotV <= 0.0f || NdotL <= 0.0f)
+			return 0.0f;
+
+		const glm::vec3 H = glm::normalize(V + L);
+		const float NdotH = std::max(glm::dot(N, H), 0.0f);
+		const float VdotH = std::max(glm::dot(V, H), 0.0f);
+		if (NdotH <= 0.0f || VdotH <= 0.0f)
+			return 0.0f;
+
+		const float alpha = roughness * roughness;
+
+		// NOT distributionGGX() - that helper is direct-light-BRDF-tuned and
+		// deliberately floors its denominator at 0.001 to bound the response
+		// against an exactly-aligned punctual light (a real, common hazard
+		// for smooth materials evaluated against a delta light). For pdf
+		// purposes that floor is actively wrong: it under-estimates D right
+		// where the VNDF-sampled H lands (NdotH close to 1 for a smooth/
+		// mirror-like material, exactly where a genuinely large pdf is
+		// correct, not a clamped small one). Using the clamped version here
+		// made evaluateBsdfPdf() return an artificially tiny pdf for smooth
+		// metals/mirrors, which then made the MIS balance heuristic
+		// incorrectly hand most of the weight to environment-NEE instead of
+		// the BSDF-sampled escape - visibly darkening/losing mirror
+		// reflections of the environment. This local, unclamped copy is
+		// otherwise identical to distributionGGX()'s formula.
+		const float a2 = alpha * alpha;
+		const float denomTerm = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+		const float D = a2 / std::max(kPi * denomTerm * denomTerm, 1e-12f);
+
+		const float G1v = smithG1GGX(NdotV, alpha);
+		// pdf(H) = G1(V)*D(H)*max(VdotH,0)/NdotV; pdf(L) = pdf(H)/(4*VdotH) -
+		// the reflection-operator Jacobian.
+		return (G1v * D * VdotH) / std::max(NdotV, 1e-6f) / std::max(4.0f * VdotH, 1e-6f);
+	}
+
+	// Combined sampling pdf of sampleBSDFBounce() for an arbitrary given
+	// direction L - used only for environment-NEE's MIS weighting (see
+	// traceShadowRay()'s sibling, the environment-NEE block in
+	// tracePixel()). The coat lobe gets its OWN VNDF pdf term over Ncoat/
+	// clearcoatRoughness, matching sampleBSDFBounce()'s coat branch exactly
+	// - an earlier version of this function folded the coat lobe into the
+	// base specular term (same N/roughness) as a simplification, which
+	// under-estimated the pdf badly whenever clearcoatNormalTexture tilts
+	// Ncoat away from N (any bump/weave-textured clearcoat): the MIS weight
+	// then wrongly favored environment-NEE over the coat's own sharp BSDF-
+	// sampled reflection, visibly dulling the clearcoat highlight/normal-
+	// map detail that raster shows clearly. Reported by the user comparing
+	// a clearcoat-normal-mapped wicker sphere and a clear-coated red paint
+	// sphere against raster.
+	float evaluateBsdfPdf(const glm::vec3& N, const glm::vec3& Ncoat, const glm::vec3& V, const glm::vec3& L, const SurfaceParams& surf,
+		bool hasAniso, const glm::vec3& anisoT, const glm::vec3& anisoB, float alphaT, float alphaB,
+		float specProb, float coatProb)
+	{
+		const float NdotL = glm::dot(N, L);
+		if (NdotL <= 0.0f)
+			return 0.0f;
+
+		// Must match sampleBSDFBounce()'s actual three-way split exactly:
+		// coat is picked first with probability coatProb, and ONLY the
+		// remainder (1-coatProb) is then further split between spec/diffuse
+		// - so the base specular lobe's true probability is
+		// specProb*(1-coatProb), not specProb alone. An earlier version of
+		// this function used raw specProb/(1-specProb-coatProb), which
+		// doesn't match sampleBSDFBounce() (and doesn't even sum to 1) for
+		// any material with both clearcoat and a strong base specular
+		// response, skewing the MIS weighting for both lobes together.
+		const float specProbScaled = specProb * (1.0f - coatProb);
+		const float diffuseProb = std::max(1.0f - coatProb - specProbScaled, 0.0f);
+
+		const float coatPdf = coatProb > 0.0f ? ggxVndfPdfIsotropic(Ncoat, V, L, surf.clearcoatRoughness) : 0.0f;
+
+		float specPdf;
+		if (hasAniso)
+		{
+			const float NdotV = std::max(glm::dot(N, V), 0.0f);
+			const glm::vec3 H = glm::normalize(V + L);
+			const float NdotH = std::max(glm::dot(N, H), 0.0f);
+			const float VdotH = std::max(glm::dot(V, H), 0.0f);
+			if (NdotV <= 0.0f || NdotH <= 0.0f || VdotH <= 0.0f)
+				specPdf = 0.0f;
+			else
+			{
+				const float TdotH = glm::dot(anisoT, H), BdotH = glm::dot(anisoB, H);
+				const float D = distributionGGXAnisotropic(NdotH, TdotH, BdotH, alphaT, alphaB);
+				const glm::vec3 Vlocal(glm::dot(V, anisoT), glm::dot(V, anisoB), NdotV);
+				const float G1v = smithG1GGXAniso(Vlocal, alphaT, alphaB);
+				specPdf = (G1v * D * VdotH) / std::max(NdotV, 1e-6f) / std::max(4.0f * VdotH, 1e-6f);
+			}
+		}
+		else
+		{
+			specPdf = ggxVndfPdfIsotropic(N, V, L, surf.roughness);
+		}
+
+		const float cosinePdf = NdotL / kPi;
+		return coatProb * coatPdf + specProbScaled * specPdf + diffuseProb * cosinePdf;
+	}
+
 	// Stochastically samples one bounce direction from the BSDF (cosine-
 	// weighted diffuse lobe or GGX specular lobe), returning the throughput
 	// multiplier already divided by the sampling pdf and lobe-choice
-	// probability (standard single-sample stochastic-lobe MC estimator - see
-	// CpuPathTracer.h for why full MIS between NEE and BSDF sampling is not
-	// implemented in v1).
+	// probability (standard single-sample stochastic-lobe MC estimator).
+	// Environment escapes from this sampled direction are MIS-weighted
+	// against RtEnvironmentSampler's pdf using evaluateBsdfPdf() above - see
+	// tracePixel()'s use site.
 	// hasAniso/anisoT/anisoB/alphaT/alphaB describe the anisotropic tangent
 	// frame and stretched roughness (see tracePixel()'s per-hit computation,
 	// mirroring main_scene.frag's buildAnisotropyBasis()/at,ab) - when
@@ -1339,18 +1491,8 @@ namespace
 		buildOrthonormalBasis(N, T, B);
 
 		const glm::vec3& F0 = surf.F0;
-		// F0/metalness alone chronically under-samples glossy dielectrics: a
-		// low-roughness floor/varnish/plastic (F0 ~ 0.04, metalness 0) still
-		// clamps to the 5% floor here regardless of how narrow (and therefore
-		// hard to resolve via the diffuse lobe alone) its specular lobe is -
-		// e.g. a roughness-0.12 floor next to a bright reflective object
-		// showed essentially no visible reflection even after the full
-		// maxSamples budget, because only ~3 of 64 samples/pixel ever
-		// explored the specular lobe at all. Blending in (1-roughness)^2
-		// pushes smooth dielectrics toward much more specular sample
-		// weight - rough materials (where this term is ~0) are unaffected.
-		const float smoothness = 1.0f - surf.roughness;
-		const float specProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness + 0.5f * smoothness * smoothness, 0.05f, 0.95f);
+		float specProb, coatProb;
+		computeLobeProbabilities(surf, clearcoatBlend, specProb, coatProb);
 
 		// KHR_materials_clearcoat, indirect side: unlike the direct-light
 		// path (which replicates main_scene.frag's analytic mix() exactly),
@@ -1360,10 +1502,6 @@ namespace
 		// is handled in a Monte-Carlo path tracer, selected with probability
 		// proportional to the same clearcoat*Fresnel weight the direct path
 		// uses to blend the two layers.
-		const float coatProb = surf.clearcoat > 0.0f
-			? std::clamp((clearcoatBlend.r + clearcoatBlend.g + clearcoatBlend.b) / 3.0f, 0.05f, 0.9f)
-			: 0.0f;
-
 		const float lobeXi = rng.next01();
 		const float u1 = rng.next01();
 		const float u2 = rng.next01();
@@ -1607,6 +1745,7 @@ namespace
 	}
 
 	glm::vec3 tracePixel(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
+		const RtEnvironmentSampler& envSampler,
 		const CpuPathTracer::Settings& settings, int px, int py, int width, int height, uint32_t rngSeed,
 		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
 	{
@@ -1676,6 +1815,18 @@ namespace
 		// for why a high-IOR dielectric's narrow total-internal-reflection
 		// escape cone needs far more bounces than an ordinary opaque scene
 		// budget allows, without inflating the cost of every other material.
+		// MIS bookkeeping for environment-NEE (see the environment-NEE block
+		// further down and RtEnvironmentSampler) - lastBsdfSamplePdf is the
+		// combined BSDF sampling pdf (evaluateBsdfPdf()) at the direction
+		// sampleBSDFBounce() just picked, valid ONLY for the immediately
+		// following loop iteration. Reset to 0 (meaning "not BSDF-lobe-
+		// sampled, don't MIS-weight") whenever the continuing ray instead
+		// came from an alpha pass-through or the separate deterministic
+		// transmission reflect/refract pick - neither of those directions
+		// was drawn from the diffuse/specular/coat mixture this pdf models,
+		// so weighting them against it would incorrectly discount light.
+		float lastBsdfSamplePdf = 0.0f;
+
 		int bounce = 0;
 		int transmissionDepth = 0;
 		while (true)
@@ -1697,7 +1848,20 @@ namespace
 				}
 				else
 				{
-					radiance += throughput * lastHitAO * sampleEnvironmentMiss(snapshot.environment, ray.direction);
+					// MIS balance heuristic against environment-NEE's own
+					// sampling pdf at this same direction - see the
+					// environment-NEE block below for the symmetric half of
+					// this weighting. lastBsdfSamplePdf is 0 (full weight,
+					// unweighted) for escapes that weren't actually BSDF-
+					// lobe-sampled (alpha pass-through, transmission's own
+					// deterministic pick) - envSampler.pdf() in the
+					// denominator then also naturally has no NEE
+					// counterpart to divide against for those.
+					const float envPdfAtRay = envSampler.isValid() ? envSampler.pdf(ray.direction) : 0.0f;
+					const float misWeight = (lastBsdfSamplePdf > 0.0f && envPdfAtRay > 0.0f)
+						? (lastBsdfSamplePdf / (lastBsdfSamplePdf + envPdfAtRay))
+						: 1.0f;
+					radiance += throughput * lastHitAO * sampleEnvironmentMiss(snapshot.environment, ray.direction) * misWeight;
 				}
 				break;
 			}
@@ -1845,10 +2009,25 @@ namespace
 				if (passThrough)
 				{
 					ray.origin = hit.position - Ng * eps;
+					lastBsdfSamplePdf = 0.0f; // not a BSDF-lobe-sampled direction - see its declaration
 					++bounce; // counts against the ordinary budget, same as before this loop was restructured
 					continue;
 				}
 			}
+
+			// KHR_materials_clearcoat - the coat has its own normal (falls
+			// back to the smooth pre-normal-map shading normal Nsmooth, NOT
+			// the base-normal-mapped N - see main_scene.frag's
+			// buildSurfaceFrame(): "frame.Ncoat = frame.Ng" before optionally
+			// applying its own normal map) and a fixed ior-derived Fresnel
+			// weight used to blend the coat over the base layer (see
+			// composeLayeredPBR()). clearcoatBlend is 0 whenever clearcoat is
+			// 0, so this is a no-op for the (common) non-clearcoat case below.
+			// Computed here (rather than after the primary-hit guide-buffer
+			// block below, where it used to live) since that block now needs
+			// Ncoat too.
+			const glm::vec3 Ncoat = applyNormalMap(Nsmooth, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords);
+			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
 
 			// This is the first REAL hit the ray has resolved to (opaque, or
 			// an alphaMode surface that survived the test above) - see
@@ -1872,11 +2051,56 @@ namespace
 				// write neutral/zero guide values for a transmissive primary
 				// hit instead of its own material properties. Non-
 				// transmissive hits get their real baseColor/shading normal,
-				// same as any ordinary denoiser guide-buffer setup.
+				// same as any ordinary denoiser guide-buffer setup - EXCEPT
+				// two clearcoat-specific adjustments, both needed even after
+				// the MIS pdf fix above made the coat's sharp reflection
+				// converge correctly pre-denoise:
+				//  - guide NORMAL blended toward Ncoat, but ONLY when the
+				//    material actually has its own clearcoatNormalTexture
+				//    (mat.clearcoatNormalTexture present) - that's the ONLY
+				//    case where Ncoat carries genuinely different, useful
+				//    detail (the ClearcoatWicker case: bump/weave folds
+				//    visible in the highlight, smoothed away by guiding with
+				//    the flat base normal instead). An earlier version of
+				//    this blended by raw surf.clearcoat strength alone,
+				//    unconditionally - for a material with clearcoat~1 but
+				//    NO coat normal map, Ncoat is just the plain smooth
+				//    Nsmooth (LESS detail than N, which carries the base
+				//    normal/bump map's real per-texel detail), so that
+				//    blend replaced a detailed guide with a flat one across
+				//    the WHOLE surface - reported by the user as a glittery/
+				//    flecked clearcoat material losing its fine sparkle
+				//    pattern broadly (not just at grazing angles) once
+				//    denoised, though it converged correctly pre-denoise.
+				//  - guide ALBEDO blended toward neutral white by
+				//    clearcoatBlend (the same Fresnel-weighted "how much of
+				//    what's visible is coat vs base" factor already used to
+				//    composite the coat everywhere else in this function):
+				//    a dielectric clearcoat's own reflectance is close to
+				//    colorless, unrelated to the (possibly very different)
+				//    base color underneath it - anchoring OIDN to e.g. a
+				//    flat red base albedo while a bright, near-white
+				//    environment reflection sits on top (strongest exactly
+				//    where Fresnel ramps up toward grazing angles) made it
+				//    read that reflection as an outlier and smooth it away,
+				//    even with NO clearcoat normal map involved (the plain
+				//    red-paint clearcoat sphere case, which the normal-blend
+				//    fix above alone didn't help since Ncoat==N there). This
+				//    one stays angle-dependent (not gated on a texture being
+				//    present) since it's already naturally near-zero at
+				//    normal incidence and only grows toward grazing angles,
+				//    where the coat genuinely does dominate what's visible.
 				if (outPrimaryAlbedo)
-					*outPrimaryAlbedo = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : surf.baseColor;
+					*outPrimaryAlbedo = (surf.transmission > 0.001f)
+						? glm::vec3(0.0f)
+						: glm::mix(surf.baseColor, glm::vec3(1.0f), glm::clamp(clearcoatBlend, glm::vec3(0.0f), glm::vec3(1.0f)));
 				if (outPrimaryNormal)
-					*outPrimaryNormal = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : N;
+				{
+					const glm::vec3 guideNormal = mat.clearcoatNormalTexture
+						? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat))
+						: N;
+					*outPrimaryNormal = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : guideNormal;
+				}
 
 				primaryHitResolved = true;
 			}
@@ -1898,17 +2122,6 @@ namespace
 				radiance += throughput * (surf.baseColor + surf.emissive);
 				break;
 			}
-
-			// KHR_materials_clearcoat - the coat has its own normal (falls
-			// back to the smooth pre-normal-map shading normal Nsmooth, NOT
-			// the base-normal-mapped N - see main_scene.frag's
-			// buildSurfaceFrame(): "frame.Ncoat = frame.Ng" before optionally
-			// applying its own normal map) and a fixed ior-derived Fresnel
-			// weight used to blend the coat over the base layer (see
-			// composeLayeredPBR()). clearcoatBlend is 0 whenever clearcoat is
-			// 0, so this is a no-op for the (common) non-clearcoat case below.
-			const glm::vec3 Ncoat = applyNormalMap(Nsmooth, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords);
-			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
 
 			radiance += throughput * surf.emissive * (glm::vec3(1.0f) - clearcoatBlend);
 
@@ -2124,6 +2337,85 @@ namespace
 					radiance += throughput * calculateSheen(N, V, lightDir, surf.sheenColor, surf.sheenRoughness) * lightIntensity;
 			}
 
+			// Environment NEE - next-event estimation directly against the
+			// loaded HDRI, treated as an area light "at infinity" (see
+			// RtEnvironmentSampler and CpuPathTracer.h). Without this, a
+			// bright but small/sharp environment feature (a sun disk, a
+			// window) only ever gets lit by BSDF-sampled bounces stumbling
+			// into it by chance, which converges extremely slowly. MIS-
+			// combined via the balance heuristic with the symmetric
+			// weighting applied where a BSDF-sampled bounce escapes to the
+			// environment (see the miss branch above using
+			// lastBsdfSamplePdf) - each direction's total weight is exactly
+			// 1 regardless of which technique(s) could have produced it, so
+			// this never double-counts the environment's contribution.
+			// Skipped for transmissive materials (surf.transmission has its
+			// own dedicated deterministic reflect/refract handling below,
+			// entirely bypassing the diffuse/specular/coat mixture this
+			// pdf models - see evaluateBsdfPdf()'s doc comment).
+			if (envSampler.isValid() && surf.transmission <= 0.001f)
+			{
+				glm::vec3 envDir;
+				float envPdf;
+				envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
+
+				const float NdotLEnv = glm::dot(N, envDir);
+				if (envPdf > 0.0f && NdotLEnv > 0.0f)
+				{
+					RtRay envShadowRay;
+					envShadowRay.origin = hit.position + Ng * eps;
+					envShadowRay.direction = envDir;
+					envShadowRay.tFar = 1e6f; // environment is "at infinity" - no light-distance limit
+					envShadowRay.mask = shadowRayMask;
+					const glm::vec3 envTransmittance = snapshot.shadowsEnabled
+						? traceShadowRay(scene, snapshot, envShadowRay, rng)
+						: glm::vec3(1.0f);
+
+					if (envTransmittance != glm::vec3(0.0f))
+					{
+						float specProb, coatProb;
+						computeLobeProbabilities(surf, clearcoatBlend, specProb, coatProb);
+						const float bsdfPdf = evaluateBsdfPdf(N, Ncoat, V, envDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, specProb, coatProb);
+						const float misWeight = envPdf / (envPdf + bsdfPdf);
+
+						const glm::vec3 envRadiance = sampleEnvironmentMiss(snapshot.environment, envDir) * envTransmittance;
+						glm::vec3 envDirect = evaluateDirectBRDF(N, V, envDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB) * envRadiance;
+
+						if (surf.sheenColor != glm::vec3(0.0f))
+						{
+							const float sheenStrength = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
+							const float NdotVSheen = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
+							const float albedoSheenScaling = std::min(
+								1.0f - sheenStrength * sampleSheenAlbedoLUT(NdotVSheen, surf.sheenRoughness),
+								1.0f - sheenStrength * sampleSheenAlbedoLUT(std::clamp(NdotLEnv, 0.0f, 1.0f), surf.sheenRoughness));
+							envDirect *= albedoSheenScaling;
+						}
+
+						// surf.ao - AO only ever darkens indirect/ambient
+						// contributions in this tracer (see lastHitAO's doc
+						// comment and the sheen-env term above, which already
+						// applies it the same way): env-NEE IS this hit's
+						// ambient/IBL contribution, just resolved via direct
+						// importance sampling instead of a BSDF-escape miss,
+						// so it needs the same AO scaling those get - an
+						// earlier version of this block omitted it entirely.
+						const glm::vec3 weightedEnv = throughput * surf.ao * (misWeight / envPdf);
+						if (surf.clearcoat > 0.0f)
+						{
+							const glm::vec3 coatDirect = evaluateClearcoatDirect(Ncoat, V, envDir, surf.clearcoat, surf.clearcoatRoughness) * envRadiance;
+							radiance += weightedEnv * glm::mix(envDirect, coatDirect, clearcoatBlend);
+						}
+						else
+						{
+							radiance += weightedEnv * envDirect;
+						}
+
+						if (surf.sheenColor != glm::vec3(0.0f))
+							radiance += weightedEnv * calculateSheen(N, V, envDir, surf.sheenColor, surf.sheenRoughness) * envRadiance;
+					}
+				}
+			}
+
 			// Russian roulette termination. Uses bounce+transmissionDepth
 			// combined (transmissionDepth is 0 for non-transmissive
 			// materials, so this is unchanged from before for ordinary
@@ -2162,6 +2454,11 @@ namespace
 			// treated as smooth dielectrics.
 			if (surf.transmission > 0.001f)
 			{
+				// This branch's continuing ray is a deterministic Fresnel
+				// reflect/refract pick, not a diffuse/specular/coat mixture
+				// sample - see lastBsdfSamplePdf's declaration.
+				lastBsdfSamplePdf = 0.0f;
+
 				// See settings.maxTransmissionBounces's doc comment - this
 				// budget is tracked separately from (and is much larger
 				// than) the ordinary bounce cap above, specifically so a
@@ -2466,6 +2763,17 @@ namespace
 			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput))
 				break;
 
+			// Stash this bounce's combined sampling pdf for the miss branch
+			// at the top of the next iteration (see lastBsdfSamplePdf's
+			// declaration) - MIS-weights this direction against
+			// environment-NEE if it turns out to escape straight to the
+			// environment.
+			{
+				float specProbForPdf, coatProbForPdf;
+				computeLobeProbabilities(surf, clearcoatBlend, specProbForPdf, coatProbForPdf);
+				lastBsdfSamplePdf = evaluateBsdfPdf(N, Ncoat, V, bounceDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, specProbForPdf, coatProbForPdf);
+			}
+
 			throughput *= bounceThroughput * sheenIndirectDampening;
 			if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
 				break;
@@ -2513,6 +2821,7 @@ namespace
 void CpuPathTracer::renderPass(
 	const RtEmbreeScene& scene,
 	const RtSceneSnapshot& snapshot,
+	const RtEnvironmentSampler& envSampler,
 	int width, int height,
 	uint32_t sampleSeed,
 	std::vector<glm::vec3>& outRadiance,
@@ -2561,7 +2870,7 @@ void CpuPathTracer::renderPass(
 				bool primaryHit = false;
 				glm::vec3 primaryAlbedo(0.0f), primaryNormal(0.0f);
 				outRadiance[static_cast<size_t>(y) * width + x] =
-					tracePixel(scene, snapshot, _settings, x, y, width, height, sampleSeed,
+					tracePixel(scene, snapshot, envSampler, _settings, x, y, width, height, sampleSeed,
 						outPrimaryHitMask ? &primaryHit : nullptr,
 						outPrimaryAlbedo ? &primaryAlbedo : nullptr,
 						outPrimaryNormal ? &primaryNormal : nullptr);

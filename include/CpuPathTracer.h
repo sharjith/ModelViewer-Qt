@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 
 #include "RtSceneSnapshot.h"
+#include "RtEnvironmentSampler.h"
 
 class RtEmbreeScene;
 
@@ -32,10 +33,15 @@ class RtEmbreeScene;
 // reflections themselves sample (SceneRenderController::
 // captureEnvironmentCubemapCPU() - see RtSceneSnapshot.h's RtEnvironment),
 // via the standard OpenGL cubemap direction->face+uv convention. Falls back
-// to a flat two-tone gradient when no environment map is loaded. Importance
-// sampling the environment for faster diffuse-under-IBL convergence (rather
-// than uniform BSDF-driven sampling alone) is flagged follow-up work, not
-// done here.
+// to a flat two-tone gradient when no environment map is loaded.
+//
+// Environment next-event-estimation: RtEnvironmentSampler importance-samples
+// the environment cubemap directly (luminance-weighted), MIS-combined via
+// the balance heuristic with the existing BSDF-sampled bounces that escape
+// to the environment - see tracePixel()'s environment-NEE block and the
+// symmetric weighting applied at the escape-to-environment miss site. Lets
+// small/bright HDRI features (a sun disk, a window) converge in far fewer
+// samples than relying on BSDF bounces alone to stumble into them.
 // ---------------------------------------------------------------------------
 class CpuPathTracer
 {
@@ -120,6 +126,7 @@ public:
 	void renderPass(
 		const RtEmbreeScene& scene,
 		const RtSceneSnapshot& snapshot,
+		const RtEnvironmentSampler& envSampler,
 		int width, int height,
 		uint32_t sampleSeed,
 		std::vector<glm::vec3>& outRadiance,
