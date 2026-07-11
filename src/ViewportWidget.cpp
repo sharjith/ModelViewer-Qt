@@ -12691,7 +12691,6 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 	environment.showBackground = _renderCtrl.skyBoxEnabled();
 	environment.cameraUpAxisZUp = _viewCtrl.cameraUpAxisZUp();
 	environment.skyBoxZRotationDegrees = _renderCtrl.skyBoxZRotation();
-	environment.iblExposure = _renderCtrl.iblExposure();
 	const QColor topColor = _renderCtrl.bgTopColor();
 	const QColor botColor = _renderCtrl.bgBotColor();
 
@@ -12845,9 +12844,10 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 		std::vector<glm::vec3> passResult;
 		std::vector<uint8_t> hitMask;
 		std::vector<glm::vec3> albedoResult, normalResult;
+		std::vector<uint8_t> clearTransmissionMask;
 		tracer.renderPass(embreeScene, *snapshot, envSampler, width, height, sample, passResult,
-			nullptr, &hitMask, &albedoResult, &normalResult);
-		accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult);
+			nullptr, &hitMask, &albedoResult, &normalResult, &clearTransmissionMask);
+		accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult, &clearTransmissionMask);
 
 		if (onProgress)
 			onProgress(sample + 1, _ptMaxSamples);
@@ -12875,6 +12875,20 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 		{
 			for (size_t i = 0; i < denoised.size(); ++i)
 				if (hitCounts[i] == 0)
+					denoised[i] = resolved[i];
+		}
+
+		// Same rationale, for "clear transmission" primary hits (plain glass
+		// etc - see CpuPathTracer's kClearTransmission* thresholds) - matches
+		// RtPathTracingSession::publishLatest()'s dominance-gated restore so
+		// an offline export doesn't look softer through glass than the live
+		// preview it was matched against.
+		constexpr float kClearTransmissionDominanceRatio = 0.5f;
+		const std::vector<uint32_t>& clearTransmissionCounts = accumulator.clearTransmissionCounts();
+		if (clearTransmissionCounts.size() == denoised.size() && _ptMaxSamples > 0)
+		{
+			for (size_t i = 0; i < denoised.size(); ++i)
+				if (static_cast<float>(clearTransmissionCounts[i]) > static_cast<float>(_ptMaxSamples) * kClearTransmissionDominanceRatio)
 					denoised[i] = resolved[i];
 		}
 		outLinearRgb = std::move(denoised);

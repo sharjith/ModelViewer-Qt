@@ -36,10 +36,14 @@ public:
 	// CpuPathTracer::renderPass()'s outPrimaryAlbedo/outPrimaryNormal for
 	// what these represent (OIDN denoiser guide buffers, RtDenoiser::
 	// denoise()).
+	// clearTransmissionMask, if provided, is counted the same way as
+	// primaryHitMask - see CpuPathTracer::renderPass()'s
+	// outClearTransmissionMask and clearTransmissionCounts() below.
 	void accumulate(const std::vector<glm::vec3>& sampleRadiance,
 		const std::vector<uint8_t>* primaryHitMask = nullptr,
 		const std::vector<glm::vec3>* primaryAlbedo = nullptr,
-		const std::vector<glm::vec3>* primaryNormal = nullptr);
+		const std::vector<glm::vec3>* primaryNormal = nullptr,
+		const std::vector<uint8_t>* clearTransmissionMask = nullptr);
 
 	// Current running average (sum / sampleCount), or an all-zero buffer if
 	// no samples have been accumulated yet.
@@ -56,6 +60,12 @@ public:
 	// called with a mask.
 	const std::vector<uint32_t>& hitCounts() const { return _hitCounts; }
 
+	// Per-pixel count of accumulated samples whose primary hit was a "clear
+	// transmission" surface (see CpuPathTracer::renderPass()'s
+	// outClearTransmissionMask doc comment). Empty if accumulate() was never
+	// called with a mask.
+	const std::vector<uint32_t>& clearTransmissionCounts() const { return _clearTransmissionCounts; }
+
 	int width() const { return _width; }
 	int height() const { return _height; }
 	uint32_t sampleCount() const { return _sampleCount; }
@@ -67,5 +77,6 @@ private:
 	std::vector<glm::vec3> _albedoSum;
 	std::vector<glm::vec3> _normalSum;
 	std::vector<uint32_t> _hitCounts;
+	std::vector<uint32_t> _clearTransmissionCounts;
 	uint32_t _sampleCount = 0;
 };

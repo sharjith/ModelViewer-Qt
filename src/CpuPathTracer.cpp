@@ -729,7 +729,7 @@ namespace
 	glm::vec3 sampleEnvironmentMiss(const RtEnvironment& environment, const glm::vec3& direction)
 	{
 		if (environment.faceSize <= 0)
-			return flatGradientMiss(direction) * environment.iblExposure;
+			return flatGradientMiss(direction);
 		// See undoSkyboxRotation()'s derivation below (used identically by
 		// sampleEnvironmentBackground() for the directly-visible backdrop) -
 		// the captured cubemap is stored in the skybox's rotated local space,
@@ -743,11 +743,14 @@ namespace
 		// above, since the two are swapped by the skybox's un-undone
 		// rotation.
 		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
-		// See RtEnvironment::iblExposure's doc comment - matches skybox.frag's
-		// `color *= iblExposure` so a ray that reaches the environment after
-		// resolving a real primary hit (e.g. through glass) isn't systematically
-		// dimmer than what raster would show at the same spot.
-		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir) * environment.iblExposure;
+		// iblExposure is deliberately NOT applied here - it's applied exactly
+		// once, uniformly, to the whole accumulated frame by the final
+		// present/tonemap stage (path_traced_present.frag's applyToneMapping(),
+		// RtTonemap::apply() for offline export). An earlier version of this
+		// code applied it here too, which double-exposed env-sourced radiance
+		// relative to purely punctual-lit surfaces, since the present stage
+		// already re-applies it to everything.
+		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir);
 	}
 
 	// Primary-ray miss (bounce == 0, i.e. what the camera directly sees as
@@ -803,14 +806,13 @@ namespace
 
 		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
 
-		// See RtEnvironment::iblExposure's doc comment. Mostly inconsequential
-		// here in practice (a pure-miss pixel's alpha is 0, so raster's own,
-		// already-exposed background composites over this value anyway - see
-		// RtPathTracingSession::publishLatest()), but kept consistent with
-		// sampleEnvironmentMiss() for partially-covered silhouette-edge pixels.
-		return (environment.faceSize > 0
+		// iblExposure is NOT applied here - see sampleEnvironmentMiss()'s
+		// comment; the final present/tonemap stage applies it once to the
+		// whole frame, so pre-multiplying it here would double it up for
+		// every background/env-visible pixel.
+		return environment.faceSize > 0
 			? sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir)
-			: flatGradientMiss(direction)) * environment.iblExposure;
+			: flatGradientMiss(direction);
 	}
 
 	// Ported verbatim from evaluatePunctualLight() in main_scene.frag so
@@ -1744,10 +1746,28 @@ namespace
 		return glm::vec3(0.0f); // exceeded the hit budget - conservatively treat as blocked
 	}
 
+	// Thresholds for "clear transmission" - a primary hit dominated by
+	// undeviated/near-mirror transmission (plain window glass, a clear
+	// panel) rather than by a noisy BSDF lobe. See its use site below and
+	// RtPathTracingSession::publishLatest() for why this category gets the
+	// same raw-bypass treatment as a pure background miss: OIDN's guide
+	// buffers are zeroed for ANY transmissive primary hit (see below), which
+	// starves it of guidance and over-smooths the sharp detail seen through
+	// the glass - but only THIS category is clean enough per-sample (no
+	// microfacet noise, no volumetric TIR/absorption variance, no competing
+	// noisy specular lobe) for bypassing OIDN outright to be safe rather
+	// than trading blur for visible grain.
+	constexpr float kClearTransmissionMinTransmission = 0.5f;
+	constexpr float kClearTransmissionMaxRoughness    = 0.15f;
+	constexpr float kClearTransmissionMaxClearcoat    = 0.05f;
+	constexpr float kClearTransmissionMaxSheen        = 0.05f;
+	constexpr float kClearTransmissionMaxIridescence  = 0.05f;
+
 	glm::vec3 tracePixel(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
 		const RtEnvironmentSampler& envSampler,
 		const CpuPathTracer::Settings& settings, int px, int py, int width, int height, uint32_t rngSeed,
-		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
+		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr,
+		bool* outClearTransmission = nullptr)
 	{
 		Rng rng(hashCombine(hashCombine(static_cast<uint32_t>(px), static_cast<uint32_t>(py) * 9781u), rngSeed));
 
@@ -1841,6 +1861,8 @@ namespace
 				{
 					if (outPrimaryHit)
 						*outPrimaryHit = false;
+					if (outClearTransmission)
+						*outClearTransmission = false;
 					const glm::vec2 screenUv(
 						(static_cast<float>(px) + 0.5f) / static_cast<float>(width),
 						1.0f - (static_cast<float>(py) + 0.5f) / static_cast<float>(height));
@@ -2101,6 +2123,18 @@ namespace
 						? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat))
 						: N;
 					*outPrimaryNormal = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : guideNormal;
+				}
+
+				if (outClearTransmission)
+				{
+					const float sheenStrength = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
+					*outClearTransmission =
+						surf.transmission > kClearTransmissionMinTransmission &&
+						surf.roughness    <= kClearTransmissionMaxRoughness &&
+						!surf.hasVolume &&
+						surf.clearcoat          < kClearTransmissionMaxClearcoat &&
+						sheenStrength           < kClearTransmissionMaxSheen &&
+						surf.iridescenceFactor  < kClearTransmissionMaxIridescence;
 				}
 
 				primaryHitResolved = true;
@@ -2829,7 +2863,8 @@ void CpuPathTracer::renderPass(
 	const std::atomic<bool>* cancelFlag,
 	std::vector<uint8_t>* outPrimaryHitMask,
 	std::vector<glm::vec3>* outPrimaryAlbedo,
-	std::vector<glm::vec3>* outPrimaryNormal) const
+	std::vector<glm::vec3>* outPrimaryNormal,
+	std::vector<uint8_t>* outClearTransmissionMask) const
 {
 	if (width <= 0 || height <= 0)
 	{
@@ -2837,6 +2872,7 @@ void CpuPathTracer::renderPass(
 		if (outPrimaryHitMask) outPrimaryHitMask->clear();
 		if (outPrimaryAlbedo) outPrimaryAlbedo->clear();
 		if (outPrimaryNormal) outPrimaryNormal->clear();
+		if (outClearTransmissionMask) outClearTransmissionMask->clear();
 		return;
 	}
 
@@ -2847,6 +2883,8 @@ void CpuPathTracer::renderPass(
 		outPrimaryAlbedo->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
 	if (outPrimaryNormal)
 		outPrimaryNormal->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
+	if (outClearTransmissionMask)
+		outClearTransmissionMask->assign(static_cast<size_t>(width) * height, 0);
 
 	// Simple row-partitioned parallel-for: worker threads are spawned per
 	// call and joined at the end. A persistent thread pool with a job queue
@@ -2869,18 +2907,22 @@ void CpuPathTracer::renderPass(
 			for (int x = 0; x < width; ++x)
 			{
 				bool primaryHit = false;
+				bool clearTransmission = false;
 				glm::vec3 primaryAlbedo(0.0f), primaryNormal(0.0f);
 				outRadiance[static_cast<size_t>(y) * width + x] =
 					tracePixel(scene, snapshot, envSampler, _settings, x, y, width, height, sampleSeed,
 						outPrimaryHitMask ? &primaryHit : nullptr,
 						outPrimaryAlbedo ? &primaryAlbedo : nullptr,
-						outPrimaryNormal ? &primaryNormal : nullptr);
+						outPrimaryNormal ? &primaryNormal : nullptr,
+						outClearTransmissionMask ? &clearTransmission : nullptr);
 				if (outPrimaryHitMask)
 					(*outPrimaryHitMask)[static_cast<size_t>(y) * width + x] = primaryHit ? 1 : 0;
 				if (outPrimaryAlbedo)
 					(*outPrimaryAlbedo)[static_cast<size_t>(y) * width + x] = primaryAlbedo;
 				if (outPrimaryNormal)
 					(*outPrimaryNormal)[static_cast<size_t>(y) * width + x] = primaryNormal;
+				if (outClearTransmissionMask)
+					(*outClearTransmissionMask)[static_cast<size_t>(y) * width + x] = clearTransmission ? 1 : 0;
 			}
 		}
 	};

@@ -400,20 +400,6 @@ struct RtEnvironment
 	// inverse rotation using these two values before the lookup.
 	bool  cameraUpAxisZUp          = false;
 	float skyBoxZRotationDegrees   = 0.0f;
-
-	// skybox.frag applies `color *= iblExposure` to every visible-background/
-	// reflection sample before tonemapping (SceneRenderController::
-	// iblExposure(), Visualization panel's exposure control) - this tracer's
-	// own environment sampling (sampleEnvironmentMiss/sampleEnvironmentBackground
-	// in CpuPathTracer.cpp) previously never applied it at all, since the
-	// captured cubemap is read raw via glGetTexImage. That's invisible for a
-	// primary-ray miss (alpha=0 lets raster's own, correctly-exposed
-	// background composite through instead) but NOT for a ray that reaches
-	// the environment only after resolving a real primary hit first (e.g.
-	// through a KHR_materials_transmission surface) - PT owns that pixel
-	// outright, so it needs to replicate the same exposure raster would have
-	// applied, not just the raw HDRI texel value.
-	float iblExposure = 1.0f;
 };
 
 struct RtSceneSnapshot
