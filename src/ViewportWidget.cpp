@@ -12691,6 +12691,7 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 	environment.showBackground = _renderCtrl.skyBoxEnabled();
 	environment.cameraUpAxisZUp = _viewCtrl.cameraUpAxisZUp();
 	environment.skyBoxZRotationDegrees = _renderCtrl.skyBoxZRotation();
+	environment.envMapExposure = _renderCtrl.envMapExposure();
 	const QColor topColor = _renderCtrl.bgTopColor();
 	const QColor botColor = _renderCtrl.bgBotColor();
 

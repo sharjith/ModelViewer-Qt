@@ -400,6 +400,19 @@ struct RtEnvironment
 	// inverse rotation using these two values before the lookup.
 	bool  cameraUpAxisZUp          = false;
 	float skyBoxZRotationDegrees   = 0.0f;
+
+	// SceneRenderController::envMapExposure() / Visualization panel's
+	// "Env Map Exposure" control - main_scene.frag applies this at every
+	// surface-side IBL sampling site (specular prefilter, diffuse
+	// irradiance, transmission/clearcoat/sheen IBL - see envMapExposure's
+	// uses there), separately from the whole-frame iblExposure the skybox/
+	// present shaders apply. Only affects environment light REACHING a
+	// surface, not the directly-visible background - see
+	// CpuPathTracer's sampleEnvironmentMiss() (bounce > 0, i.e. every
+	// surface-side environment contribution) vs sampleEnvironmentBackground()
+	// (bounce == 0, the visible backdrop, which mirrors skybox.frag and does
+	// NOT use this).
+	float envMapExposure = 1.0f;
 };
 
 struct RtSceneSnapshot

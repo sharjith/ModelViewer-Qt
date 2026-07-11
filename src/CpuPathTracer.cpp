@@ -728,8 +728,16 @@ namespace
 	// loaded (environment.faceSize == 0).
 	glm::vec3 sampleEnvironmentMiss(const RtEnvironment& environment, const glm::vec3& direction)
 	{
+		// envMapExposure scales environment light reaching a surface (bounce
+		// > 0 - reflection/refraction escapes, NEE toward the environment,
+		// sheen ambient sums - every call site of this function), matching
+		// main_scene.frag's identical per-IBL-sample use of the same
+		// uniform. Deliberately NOT applied in sampleEnvironmentBackground()
+		// (the directly-visible bounce == 0 backdrop), which mirrors
+		// skybox.frag - that shader only applies iblExposure, never
+		// envMapExposure, to the background itself.
 		if (environment.faceSize <= 0)
-			return flatGradientMiss(direction);
+			return flatGradientMiss(direction) * environment.envMapExposure;
 		// See undoSkyboxRotation()'s derivation below (used identically by
 		// sampleEnvironmentBackground() for the directly-visible backdrop) -
 		// the captured cubemap is stored in the skybox's rotated local space,
@@ -750,7 +758,7 @@ namespace
 		// code applied it here too, which double-exposed env-sourced radiance
 		// relative to purely punctual-lit surfaces, since the present stage
 		// already re-applies it to everything.
-		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir);
+		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir) * environment.envMapExposure;
 	}
 
 	// Primary-ray miss (bounce == 0, i.e. what the camera directly sees as
