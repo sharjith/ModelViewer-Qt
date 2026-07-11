@@ -343,7 +343,7 @@ if(MODELVIEWER_HAVE_OPTIX)
     # ptx2cpp.cmake) runs bin2c on it and writes a generated .cpp exposing
     # the PTX as a `const char*` string constant - added to the executable's
     # sources like any other .cpp, with zero runtime file dependency.
-    function(add_optix_kernel KERNEL_NAME CU_FILE VARIABLE_NAME)
+    function(add_optix_kernel KERNEL_NAME CU_FILE VARIABLE_NAME PARAMS_HEADER)
         set(ptx_file "${CMAKE_CURRENT_BINARY_DIR}/${KERNEL_NAME}.ptx")
         set(embedded_cpp "${CMAKE_CURRENT_BINARY_DIR}/${KERNEL_NAME}_ptx.cpp")
 
@@ -355,7 +355,7 @@ if(MODELVIEWER_HAVE_OPTIX)
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
                 -o "${ptx_file}"
-            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/RtOptixTriangleParams.h"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/${PARAMS_HEADER}"
             COMMENT "Compiling ${CU_FILE} to PTX"
             VERBATIM
         )
@@ -376,7 +376,8 @@ if(MODELVIEWER_HAVE_OPTIX)
         target_sources(ModelViewer PRIVATE "${embedded_cpp}")
     endfunction()
 
-    add_optix_kernel(RtOptixTriangle src/cuda/RtOptixTriangle.cu g_rtOptixTrianglePtx)
+    add_optix_kernel(RtOptixTriangle src/cuda/RtOptixTriangle.cu g_rtOptixTrianglePtx RtOptixTriangleParams.h)
+    add_optix_kernel(RtOptixScene src/cuda/RtOptixScene.cu g_rtOptixScenePtx RtOptixSceneParams.h)
 endif()
 
 

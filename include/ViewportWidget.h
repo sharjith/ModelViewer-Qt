@@ -40,6 +40,7 @@
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
+#include "RtOptixSceneTracer.h"
 #include "RtOptixTracer.h"
 #include "RtPathTracingSession.h"
 #include "RtPresenter.h"
@@ -1095,7 +1096,8 @@ private:
 	int      _ptRussianRouletteStartDepth = 3;
 	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
 	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::CPU;
-	std::unique_ptr<RtOptixTracer> _ptOptixTracer; // lazily created - see startOptixTestPathTracedSession()
+	std::unique_ptr<RtOptixSceneTracer> _ptOptixSceneTracer; // lazily created - see startOptixTestPathTracedSession()
+	uint64_t _ptOptixSceneBuiltRevision = 0; // buildScene() only re-runs when the snapshot's revisionId changed
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 
 	// Set for the duration of a captureCleanPathTracedImage() call -
@@ -1110,13 +1112,16 @@ private:
 	void onPathTracedRefreshTimer();
 	void startPathTracedSession();
 
-	// Phase 1b GPU-engine placeholder path - see RtPathTracingEnginePreference's
-	// doc comment. Renders the fixed OptiX test triangle (not the real scene -
-	// no GPU scene/material pipeline exists yet) at the current framebuffer
-	// size and uploads it through the same _rtPresenter the CPU path uses, so
-	// switching the Render Engine dropdown is visibly comparable against the
-	// CPU renderer even at this early stage. Called from startPathTracedSession()
-	// instead of the real _rtSession setup when the GPU engine is selected.
+	// Phase 2a GPU-engine path - see RtOptixSceneParams.h's doc comment for
+	// exactly what this does and doesn't render yet (real geometry/
+	// instancing/camera, flat-normal-as-color shading, no materials/lights/
+	// bounces). Rebuilds the GPU acceleration structure from the current
+	// snapshot (see buildPathTracedSnapshot()) and renders it through the
+	// real camera at the current framebuffer size, uploading the result
+	// through the same _rtPresenter the CPU path uses, so switching the
+	// Render Engine dropdown is directly comparable in the same viewport.
+	// Called from startPathTracedSession() instead of the real _rtSession
+	// setup when the GPU engine is selected.
 	void startOptixTestPathTracedSession(int fbWidth, int fbHeight);
 
 	// Builds a fresh RtSceneSnapshot for the given OUTPUT resolution -

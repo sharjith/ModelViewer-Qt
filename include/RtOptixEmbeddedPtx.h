@@ -6,3 +6,4 @@
 // Only declared/used when MODELVIEWER_HAVE_OPTIX is defined (the generated
 // .cpp defining these symbols is only added to the build in that case too).
 extern const char* const g_rtOptixTrianglePtx;
+extern const char* const g_rtOptixScenePtx;

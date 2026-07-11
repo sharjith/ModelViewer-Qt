@@ -12863,35 +12863,58 @@ void ViewportWidget::startPathTracedSession()
 
 void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 {
-	if (!_ptOptixTracer)
-		_ptOptixTracer = std::make_unique<RtOptixTracer>();
+	if (!_ptOptixSceneTracer)
+		_ptOptixSceneTracer = std::make_unique<RtOptixSceneTracer>();
 
 	_rtPresenter.invalidate();
 
-	if (!_ptOptixTracer->isAvailable())
+	if (!_ptOptixSceneTracer->isAvailable())
 	{
 		qWarning() << "startOptixTestPathTracedSession: OptiX unavailable on this machine "
-			"(see the RtOptixContext/RtOptixTracer log above) - nothing to display.";
+			"(see the RtOptixContext/RtOptixSceneTracer log above) - nothing to display.";
 		update();
 		return;
 	}
 
-	std::vector<uint8_t> pixelsRgba8;
-	if (!_ptOptixTracer->renderTestTriangle(fbWidth, fbHeight, pixelsRgba8))
+	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
+	if (!snapshot)
 	{
-		qWarning() << "startOptixTestPathTracedSession: renderTestTriangle() failed.";
+		update();
+		return;
+	}
+
+	// Only rebuild the GPU acceleration structure when the scene actually
+	// changed (geometry/material/visibility - see RtSceneSnapshot::
+	// revisionId's doc comment) - camera-only movement reuses the existing
+	// GAS/IAS and just re-renders through the new camera, matching
+	// RtEmbreeScene's own rebuild-on-revision-change contract.
+	if (snapshot->revisionId != _ptOptixSceneBuiltRevision)
+	{
+		if (!_ptOptixSceneTracer->buildScene(*snapshot))
+		{
+			qWarning() << "startOptixTestPathTracedSession: buildScene() failed.";
+			update();
+			return;
+		}
+		_ptOptixSceneBuiltRevision = snapshot->revisionId;
+	}
+
+	std::vector<uint8_t> pixelsRgba8;
+	if (!_ptOptixSceneTracer->renderScene(snapshot->camera, fbWidth, fbHeight, pixelsRgba8))
+	{
+		qWarning() << "startOptixTestPathTracedSession: renderScene() failed.";
 		update();
 		return;
 	}
 
 	// RtPresenter::upload() expects linear HDR RGB (it applies the same
 	// tonemap+gamma shader pass the CPU renderer's output goes through) -
-	// our test kernel's output is already display-ready 0-255 bytes, so
-	// this double-applies tonemap/gamma and won't color-match the raw PNG
-	// this same kernel produces via the main.cpp smoke test. Acceptable for
-	// this Phase 1b placeholder (proving the engine switch itself works),
-	// not worth a separate "already tonemapped" upload path for a test
-	// triangle that doesn't represent real rendered content.
+	// this Phase 2a kernel's normal-as-color output is already display-ready
+	// 0-255 bytes, so this double-applies tonemap/gamma and won't be a
+	// perfectly neutral display of the raw normals. Acceptable for this
+	// checkpoint (proving real geometry/instancing/camera work), not worth
+	// a separate "already tonemapped" upload path for a debug visualization
+	// that isn't real shading yet.
 	const size_t pixelCount = static_cast<size_t>(fbWidth) * static_cast<size_t>(fbHeight);
 	std::vector<glm::vec3> rgb(pixelCount);
 	std::vector<float> alpha(pixelCount, 1.0f);
