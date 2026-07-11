@@ -219,6 +219,7 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.metallicTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Metallic), "metallicMap", material.metallicMapPath(), "metallic");
 	rt.roughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Roughness), "roughnessMap", material.roughnessMapPath(), "roughness");
 	rt.normalTexture    = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Normal), "normalMap", material.normalMapPath(), nullptr);
+	rt.normalScale      = material.normalScale();
 	rt.emissiveTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Emissive), "emissiveMap", material.emissiveMapPath(), nullptr);
 	rt.aoTexture        = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::AmbientOcclusion), "aoMap", material.aoMapPath(), "ao");
 
@@ -261,6 +262,7 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 		rt.clearcoatRoughnessTexture->packingBias    = 0.0f;
 	}
 	rt.clearcoatNormalTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatNormal), "clearcoatNormalMap", material.clearcoatNormalMapPath(), nullptr);
+	rt.clearcoatNormalScale   = material.clearcoatNormalScale();
 
 	// KHR_materials_sheen. Channel packing is glTF-fixed (sheenRoughnessMap's
 	// alpha channel), so set directly rather than via a packingKey lookup.

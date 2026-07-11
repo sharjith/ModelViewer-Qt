@@ -3,6 +3,7 @@
 #include <OpenImageDenoise/oidn.hpp>
 
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QString>
 
 #include <algorithm>
@@ -262,9 +263,16 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 
 	if (!_impl->deviceValid)
 	{
+		QElapsedTimer timer;
+		timer.start();
 		bilateralFallbackDenoise(input, width, height, output, sampleCount);
+		qInfo() << "RtDenoiser: bilateral fallback denoise of" << width << "x" << height
+			<< "took" << timer.elapsed() << "ms (no OIDN device available)";
 		return false;
 	}
+
+	QElapsedTimer timer;
+	timer.start();
 
 	output.resize(input.size());
 
@@ -354,6 +362,10 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 
 	if (!_impl->isSharedMemoryDevice)
 		outputBuffer.read(0, byteSize, output.data());
+
+	qInfo() << "RtDenoiser: OIDN" << activeDeviceName() << "denoise of" << width << "x" << height
+		<< "(sampleCount" << sampleCount << ", guides" << (haveGuides ? "yes" : "no") << ") took"
+		<< timer.elapsed() << "ms";
 
 	return true;
 }

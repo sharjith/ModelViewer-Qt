@@ -125,24 +125,14 @@ public:
 	//
 	// outPrimaryAlbedo/outPrimaryNormal, if non-null, are resized to
 	// width*height and filled with the primary hit's base color / shading
-	// normal - OIDN denoiser guide buffers (see RtDenoiser::denoise()).
-	// Per OIDN's own documented guidance and RayTrophi's reference
-	// implementation, a transmissive primary hit writes (0,0,0) into both
-	// instead of its own material properties - see tracePixel()'s use site
-	// for why (the glass's own tint/normal actively hurts denoising quality
-	// for what's seen through it, versus treating the pixel as pass-through).
-	//
-	// outClearTransmissionMask, if non-null, is resized to width*height and
-	// filled with 1 where the primary hit is a "clear transmission" surface
-	// (see tracePixel()'s kClearTransmission* thresholds: strongly
-	// transmissive, low roughness, no volume/clearcoat/sheen/iridescence) -
-	// this is a narrower category than "any transmissive primary hit" above.
-	// Zeroing the OIDN guide buffers for ANY transmissive hit (above) starves
-	// OIDN of guidance there, so it over-smooths what should be sharp detail
-	// seen through the glass - but only THIS narrower category is clean
-	// enough per-sample (no microfacet/volumetric/competing-lobe noise) that
-	// RtPathTracingSession can safely bypass OIDN entirely for it, the same
-	// way it already does for a pure background miss.
+	// normal - OIDN denoiser guide buffers (see RtDenoiser::denoise()). A
+	// transmissive primary hit (e.g. glass) can't use its own material
+	// properties as a guide - a window's own flat tint/normal is unrelated to
+	// what's actually visible through it - so instead it peeks through the
+	// transmissive surface (an undeviated straight-through ray, the same
+	// thin-wall approximation already used elsewhere in this tracer) to find
+	// the real surface behind it and uses THAT surface's guide values -
+	// see tracePixel()'s findGuideSurfaceThroughTransmission() use site.
 	void renderPass(
 		const RtEmbreeScene& scene,
 		const RtSceneSnapshot& snapshot,
@@ -153,8 +143,7 @@ public:
 		const std::atomic<bool>* cancelFlag = nullptr,
 		std::vector<uint8_t>* outPrimaryHitMask = nullptr,
 		std::vector<glm::vec3>* outPrimaryAlbedo = nullptr,
-		std::vector<glm::vec3>* outPrimaryNormal = nullptr,
-		std::vector<uint8_t>* outClearTransmissionMask = nullptr) const;
+		std::vector<glm::vec3>* outPrimaryNormal = nullptr) const;
 
 private:
 	Settings _settings;

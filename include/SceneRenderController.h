@@ -148,6 +148,28 @@ public:
     // starting a new path-traced session (camera-settled), not per frame.
     bool captureEnvironmentCubemapCPU(std::vector<float> outFaces[6], int& outFaceSize);
 
+    // Same idea as captureEnvironmentCubemapCPU() above, but reading
+    // irradianceMap() (the fully diffuse-convolved cubemap) instead of the
+    // raw environment map. Returns false (leaving outFaces/outFaceSize
+    // untouched) if no irradiance map is currently bound.
+    bool captureIrradianceCubemapCPU(std::vector<float> outFaces[6], int& outFaceSize);
+
+    // One captured mip level of prefilterMap() - see capturePrefilterCubemapCPU().
+    struct PrefilterMipCPU
+    {
+        std::vector<float> faces[6];
+        int faceSize = 0;
+    };
+
+    // Reads every mip level (0..prefilterMipLevels()-1) of prefilterMap()
+    // into CPU memory, appending one PrefilterMipCPU per level to outMips
+    // (mip 0 = sharpest/largest, matching GL's own mip ordering). Returns
+    // false (leaving outMips untouched) if no prefilter map is currently
+    // bound. Same synchronous-GPU-readback caveat as
+    // captureEnvironmentCubemapCPU() - only call when starting a new
+    // path-traced session, not per frame.
+    bool capturePrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips);
+
     GLuint irradianceMap()            const { return _irradianceMap; }
     void   setIrradianceMap(GLuint t)       { _irradianceMap = t; }
 

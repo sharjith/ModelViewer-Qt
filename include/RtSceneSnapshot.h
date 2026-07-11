@@ -171,6 +171,25 @@ struct RtMaterial
 	std::shared_ptr<RtTextureSample> metallicTexture;
 	std::shared_ptr<RtTextureSample> roughnessTexture;
 	std::shared_ptr<RtTextureSample> normalTexture;
+
+	// glTF normalTexture.scale - dampens the tangent-space X/Y perturbation
+	// before renormalizing (main_scene.frag's sampleMappedNormal(): "
+	// tangentNormal.xy *= normalScale" - the Z/"how flat" component is never
+	// scaled, only spec). Defaults to 1.0 (full-strength, glTF's own
+	// default) when the material doesn't author one. CpuPathTracer's
+	// applyNormalMap() previously never applied this at all - a real,
+	// previously-unnoticed gap: a material authoring a deliberately gentle
+	// bump (e.g. a fine, densely-tiled texture meant to read as a subtle
+	// surface finish, scale well under 1.0) instead got the texture's full,
+	// undamped tilt, perturbing the shading normal far more aggressively
+	// than intended - which cascades into every angle-dependent
+	// calculation that reads it (Fresnel, reflection direction, anything
+	// KHR_materials_iridescence-driven), and reads as excess per-pixel
+	// noise/graininess that no amount of sampling or environment-side
+	// fixes can resolve, since the underlying normal itself is the thing
+	// varying far more than authored.
+	float normalScale = 1.0f;
+
 	std::shared_ptr<RtTextureSample> emissiveTexture;
 	std::shared_ptr<RtTextureSample> aoTexture;
 
@@ -196,6 +215,7 @@ struct RtMaterial
 	std::shared_ptr<RtTextureSample> clearcoatTexture;          // R channel scales clearcoat
 	std::shared_ptr<RtTextureSample> clearcoatRoughnessTexture; // G channel scales clearcoatRoughness
 	std::shared_ptr<RtTextureSample> clearcoatNormalTexture;
+	float clearcoatNormalScale = 1.0f; // same role as RtMaterial::normalScale above, for the coat's own normal map
 
 	// KHR_materials_sheen - an additive fabric/velvet-like grazing-angle
 	// retroreflection lobe (Charlie NDF), on top of the base layer. sheenColor
@@ -413,6 +433,45 @@ struct RtEnvironment
 	// (bounce == 0, the visible backdrop, which mirrors skybox.frag and does
 	// NOT use this).
 	float envMapExposure = 1.0f;
+
+	// Fully diffuse-convolved cubemap (SceneRenderController::irradianceMap()
+	// - the same one raster's own diffuse IBL term samples directly, no LOD),
+	// captured alongside the raw map. Used for indirect bounces whose most
+	// recent surface interaction was a diffuse (cosine-weighted) lobe -
+	// stochastically sampling many random directions into the SHARP raw
+	// cubemap would eventually average to the same value (that's literally
+	// what irradiance convolution precomputes), but converges far slower,
+	// since a full-detail HDRI has much more high-frequency content to
+	// average out than a simple noise source - see CpuPathTracer.cpp's
+	// sampleEnvironmentDiffuse()/sampleEnvironmentSpecular() for where this
+	// actually gets consumed, and their doc comments for the fuller
+	// rationale (diagnosed against a moderately rough, swirl-iridescent car
+	// paint material whose reflections looked persistently grainy/washed
+	// out even at very high sample counts - a genuine but very slowly
+	// converging Monte Carlo noise source, not a bug in the BSDF/texture
+	// math itself, all of which checked out correct in isolation).
+	// faceSize == 0 means not captured (no environment map loaded).
+	std::vector<float> irradianceFaces[6];
+	int irradianceFaceSize = 0;
+
+	// GGX-prefiltered mip chain (SceneRenderController::prefilterMap()/
+	// prefilterMipLevels()) - each level is a progressively blurred version
+	// of the raw cubemap, roughness-matched exactly the way raster's own
+	// specular IBL term selects a mip via textureLod(prefilterMap, R,
+	// roughness * (prefilterMipLevels-1)) (see main_scene.frag). Used for
+	// indirect bounces whose most recent surface interaction was the
+	// specular/coat lobe, selecting (and linearly blending between) the two
+	// nearest mip levels for a given roughness - the same variance-reduction
+	// raster gets "for free" from a single prefiltered texture lookup,
+	// applied to PT's stochastic bounce sampling instead of always hitting
+	// the raw, unblurred map regardless of how rough the reflecting surface
+	// is. Empty means not captured.
+	struct PrefilterMip
+	{
+		std::vector<float> faces[6];
+		int faceSize = 0;
+	};
+	std::vector<PrefilterMip> prefilterMips;
 };
 
 struct RtSceneSnapshot

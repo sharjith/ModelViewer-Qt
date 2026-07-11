@@ -95,9 +95,8 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 		std::vector<glm::vec3> passResult;
 		std::vector<uint8_t> hitMask;
 		std::vector<glm::vec3> albedoResult, normalResult;
-		std::vector<uint8_t> clearTransmissionMask;
 		_tracer.renderPass(_embreeScene, *snapshot, _envSampler, _width, _height, sampleSeed++, passResult,
-			&_cancelRequested, &hitMask, &albedoResult, &normalResult, &clearTransmissionMask);
+			&_cancelRequested, &hitMask, &albedoResult, &normalResult);
 
 		// Don't accumulate/publish a pass that was cancelled or superseded
 		// while it was running - the result may not even match the current
@@ -106,7 +105,7 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 		    _activeRevision.load(std::memory_order_acquire) != myRevision)
 			break;
 
-		_accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult, &clearTransmissionMask);
+		_accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult);
 		publishLatest(_denoiserEnabled && _accumulator.sampleCount() >= _maxSamples);
 	}
 
@@ -127,8 +126,9 @@ void RtPathTracingSession::publishLatest(bool finalDenoise)
 		// outPrimaryAlbedo/outPrimaryNormal - feeding OIDN these guide
 		// buffers (rather than running beauty-only) is what lets it
 		// distinguish real detail seen through/behind a transmissive
-		// surface from noise, instead of over-smoothing it toward the
-		// glass's own flat tint.
+		// surface from noise. A transmissive hit's guide values come from
+		// findGuideSurfaceThroughTransmission() peeking through to the real
+		// surface behind the glass, not the glass's own flat tint.
 		const std::vector<glm::vec3> albedo = _accumulator.resolveAlbedo();
 		const std::vector<glm::vec3> normal = _accumulator.resolveNormal();
 		_denoiser.denoise(resolved, width, height, presented, sampleCount, &albedo, &normal);
@@ -154,29 +154,6 @@ void RtPathTracingSession::publishLatest(bool finalDenoise)
 			alpha[i] = sampleCount > 0
 				? std::clamp(static_cast<float>(hitCounts[i]) / static_cast<float>(sampleCount), 0.0f, 1.0f)
 				: 0.0f;
-		}
-	}
-
-	// Same rationale as above, for a narrower category: a primary hit on a
-	// "clear transmission" surface (see CpuPathTracer's kClearTransmission*
-	// thresholds - strongly transmissive, low roughness, no volume/
-	// clearcoat/sheen/iridescence, e.g. plain window glass) also zeroes
-	// OIDN's guide buffers (there's no meaningful albedo/normal to give it
-	// for what's actually visible - the scene behind the glass), so it's
-	// just as prone to over-smoothing the sharp detail seen through it.
-	// Unlike a pure background miss, these pixels aren't perfectly noise-free
-	// (the Fresnel-weighted reflect/transmit pick still varies per sample),
-	// so this only restores raw when clear-transmission samples clearly
-	// dominate the pixel's history - not merely nonzero - to avoid flickery
-	// behavior on silhouette/AA-edge pixels that mix hit categories.
-	constexpr float kClearTransmissionDominanceRatio = 0.5f;
-	const std::vector<uint32_t>& clearTransmissionCounts = _accumulator.clearTransmissionCounts();
-	if (clearTransmissionCounts.size() == presented.size() && sampleCount > 0)
-	{
-		for (size_t i = 0; i < presented.size(); ++i)
-		{
-			if (static_cast<float>(clearTransmissionCounts[i]) > static_cast<float>(sampleCount) * kClearTransmissionDominanceRatio)
-				presented[i] = resolved[i];
 		}
 	}
 

@@ -13,7 +13,6 @@ void RtFrameAccumulator::resize(int width, int height)
 	_albedoSum.assign(_sum.size(), glm::vec3(0.0f));
 	_normalSum.assign(_sum.size(), glm::vec3(0.0f));
 	_hitCounts.assign(_sum.size(), 0u);
-	_clearTransmissionCounts.assign(_sum.size(), 0u);
 	_sampleCount = 0;
 }
 
@@ -23,15 +22,13 @@ void RtFrameAccumulator::reset()
 	std::fill(_albedoSum.begin(), _albedoSum.end(), glm::vec3(0.0f));
 	std::fill(_normalSum.begin(), _normalSum.end(), glm::vec3(0.0f));
 	std::fill(_hitCounts.begin(), _hitCounts.end(), 0u);
-	std::fill(_clearTransmissionCounts.begin(), _clearTransmissionCounts.end(), 0u);
 	_sampleCount = 0;
 }
 
 void RtFrameAccumulator::accumulate(const std::vector<glm::vec3>& sampleRadiance,
 	const std::vector<uint8_t>* primaryHitMask,
 	const std::vector<glm::vec3>* primaryAlbedo,
-	const std::vector<glm::vec3>* primaryNormal,
-	const std::vector<uint8_t>* clearTransmissionMask)
+	const std::vector<glm::vec3>* primaryNormal)
 {
 	if (sampleRadiance.size() != _sum.size())
 		return; // resolution mismatch (e.g. a stale pass from before a resize) - drop it
@@ -55,12 +52,6 @@ void RtFrameAccumulator::accumulate(const std::vector<glm::vec3>& sampleRadiance
 	{
 		for (size_t i = 0; i < _normalSum.size(); ++i)
 			_normalSum[i] += (*primaryNormal)[i];
-	}
-
-	if (clearTransmissionMask && clearTransmissionMask->size() == _clearTransmissionCounts.size())
-	{
-		for (size_t i = 0; i < _clearTransmissionCounts.size(); ++i)
-			_clearTransmissionCounts[i] += (*clearTransmissionMask)[i];
 	}
 
 	++_sampleCount;

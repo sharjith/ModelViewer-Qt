@@ -575,20 +575,16 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Set default tab to Material Settings
 	tabWidgetVizAttribs->setCurrentIndex(0);
 
-	// Shortcut to toggle rendering mode (ADS <-> PBR)
+	// Direct-activation shortcuts for each rendering mode (no toggling -
+	// each key jumps straight to its mode regardless of the current one).
+	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), this);
+	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("ADS"); });
+
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this);
-	connect(shortcut, &QShortcut::activated, this, [this] {
-		// Toggle between ADS and PBR based on current rendering mode
-		RenderingMode currentMode = _viewportWidget->getRenderingMode();
-		if (currentMode == RenderingMode::ADS_BLINN_PHONG)
-		{
-			onRenderingModeSelected("PBR");
-		}
-		else
-		{
-			onRenderingModeSelected("ADS");
-		}
-	});
+	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("PBR"); });
+
+	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this);
+	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("PathTraced"); });
 
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
 		this, &ModelViewer::onCustomMaterialApplied);

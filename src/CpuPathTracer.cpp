@@ -673,8 +673,21 @@ namespace
 	// space-derivative fallback (dFdx/dFdy have no equivalent per-ray in a
 	// path tracer) - when the mesh has no tangent data, this just returns N
 	// unchanged rather than attempting a derivative-based tangent frame.
+	// scale is glTF's normalTexture.scale (RtMaterial::normalScale/
+	// clearcoatNormalScale) - dampens the tangent-plane X/Y perturbation
+	// before renormalizing (main_scene.frag's sampleMappedNormal()), left at
+	// its 1.0 default (full strength, matching glTF's own spec default) by
+	// callers that don't have a specific value to pass. Previously always
+	// implicitly 1.0 regardless of what the material actually authored - a
+	// real, previously-unnoticed gap: a material with a deliberately gentle
+	// bump (a low scale, meant to read as a subtle finish) instead got the
+	// texture's full, undamped tilt, which cascades into every angle-
+	// dependent calculation downstream (Fresnel, reflection direction,
+	// KHR_materials_iridescence's hue) as excess per-pixel noise that no
+	// amount of sampling or environment-side fixes can resolve, since the
+	// underlying normal itself was varying far more than authored.
 	glm::vec3 applyNormalMap(const glm::vec3& N, const glm::vec3& rawTangent, const glm::vec3& rawBitangent,
-		const RtTextureSample* normalTex, const glm::vec2 (&texCoords)[4])
+		const RtTextureSample* normalTex, const glm::vec2 (&texCoords)[4], float scale = 1.0f)
 	{
 		if (!normalTex)
 			return N;
@@ -706,7 +719,17 @@ namespace
 		const glm::vec3 B = glm::normalize(glm::cross(N, T)) * handedness;
 
 		const glm::vec4 sampled = sampleTexture(*normalTex, texCoords);
-		const glm::vec3 tangentNormal = glm::vec3(sampled) * 2.0f - 1.0f;
+		glm::vec3 tangentNormal = glm::vec3(sampled) * 2.0f - 1.0f;
+		// Matches main_scene.frag's sampleMappedNormal() exactly: only the
+		// tangent-plane X/Y components are dampened by scale (glTF's
+		// normalTexture.scale) - Z (how far the perturbed normal tilts out of
+		// the tangent plane) is left alone, then the whole vector is
+		// renormalized. Previously missing entirely - see this function's
+		// scale parameter doc comment (RtMaterial::normalScale) for why that
+		// was a real, previously-unnoticed bug, not a deliberate v1 cut.
+		tangentNormal.x *= scale;
+		tangentNormal.y *= scale;
+		tangentNormal = glm::normalize(tangentNormal);
 
 		const glm::mat3 TBN(T, B, N);
 		return glm::normalize(TBN * tangentNormal);
@@ -744,6 +767,7 @@ namespace
 	}
 
 	glm::vec3 undoSkyboxRotation(const glm::vec3& direction, bool cameraUpAxisZUp, float skyBoxZRotationDegrees);
+	glm::vec3 toPrefilterDirection(const glm::vec3& v);
 
 	glm::vec3 sampleCubemapFaces(const std::vector<float> faces[6], int size, const glm::vec3& direction)
 	{
@@ -829,6 +853,54 @@ namespace
 		return sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir) * environment.envMapExposure;
 	}
 
+	// Variance-reduced alternative to sampleEnvironmentMiss() for an indirect
+	// bounce whose most recent surface interaction was a diffuse (cosine-
+	// weighted) lobe - see RtEnvironment::irradianceFaces's doc comment for
+	// the full rationale. Falls back to the raw map (sampleEnvironmentMiss())
+	// if no irradiance map was captured, same graceful-degradation pattern as
+	// the raw map's own "no environment loaded" fallback.
+	glm::vec3 sampleEnvironmentDiffuse(const RtEnvironment& environment, const glm::vec3& direction)
+	{
+		if (environment.irradianceFaceSize <= 0)
+			return sampleEnvironmentMiss(environment, direction);
+		// Plain undoSkyboxRotation() - see toPrefilterDirection()'s doc
+		// comment for why the irradiance map needs no extra swizzle,
+		// unlike the prefilter map below.
+		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
+		return sampleCubemapFaces(environment.irradianceFaces, environment.irradianceFaceSize, sampleDir) * environment.envMapExposure;
+	}
+
+	// Variance-reduced alternative to sampleEnvironmentMiss() for an indirect
+	// bounce whose most recent surface interaction was the specular/coat
+	// lobe - see RtEnvironment::prefilterMips's doc comment for the full
+	// rationale. roughness selects (and linearly blends between) the two
+	// nearest prefiltered mip levels, mirroring main_scene.frag's own
+	// textureLod(prefilterMap, R, roughness * (prefilterMipLevels-1)).
+	// Falls back to the raw map if no prefilter chain was captured.
+	glm::vec3 sampleEnvironmentSpecular(const RtEnvironment& environment, const glm::vec3& direction, float roughness)
+	{
+		if (environment.prefilterMips.empty())
+			return sampleEnvironmentMiss(environment, direction);
+		// undoSkyboxRotation() first, THEN the extra toPrefilterDirection()
+		// swizzle - see its doc comment for the derivation.
+		const glm::vec3 sampleDir = toPrefilterDirection(
+			undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees));
+
+		const float maxLod = static_cast<float>(environment.prefilterMips.size() - 1);
+		const float lod = std::clamp(roughness, 0.0f, 1.0f) * maxLod;
+		const int mipLow = std::clamp(static_cast<int>(std::floor(lod)), 0, static_cast<int>(maxLod));
+		const int mipHigh = std::min(mipLow + 1, static_cast<int>(maxLod));
+		const float frac = lod - static_cast<float>(mipLow);
+
+		const RtEnvironment::PrefilterMip& lowMip = environment.prefilterMips[static_cast<size_t>(mipLow)];
+		const glm::vec3 colorLow = sampleCubemapFaces(lowMip.faces, lowMip.faceSize, sampleDir);
+		if (mipHigh == mipLow)
+			return colorLow * environment.envMapExposure;
+		const RtEnvironment::PrefilterMip& highMip = environment.prefilterMips[static_cast<size_t>(mipHigh)];
+		const glm::vec3 colorHigh = sampleCubemapFaces(highMip.faces, highMip.faceSize, sampleDir);
+		return glm::mix(colorLow, colorHigh, frac) * environment.envMapExposure;
+	}
+
 	// Primary-ray miss (bounce == 0, i.e. what the camera directly sees as
 	// background): honors RtEnvironment::showBackground (mirrors the
 	// Visualization panel's "Sky Box" checkbox - turning it off shows
@@ -857,6 +929,36 @@ namespace
 		// R3^-1: undo the user-controlled skybox Z rotation.
 		v = glm::rotate(glm::mat4(1.0f), glm::radians(-skyBoxZRotationDegrees), glm::vec3(0.0f, 1.0f, 0.0f)) * v;
 		return glm::vec3(v);
+	}
+
+	// Additional transform needed ONLY for sampling the prefilter map for
+	// specular/reflection bounces - NOT for the raw map or the irradiance
+	// map. Derived from main_scene.frag's actual material-shading code (not
+	// drawSkyBox()'s background-display logic, a different, unrelated
+	// rotation an earlier version of this function incorrectly modeled
+	// instead):
+	//   - Specular reflections: Rprefilter = toPrefilterDirection(
+	//     envMapRotationMatrix * R), where toPrefilterDirection(v) is the
+	//     fixed swizzle (v.x, -v.z, v.y).
+	//   - Diffuse/irradiance: Nibl = envMapRotationMatrix * N - no extra
+	//     swizzle at all.
+	// envMapRotationMatrix (ViewportWidget::updateEnvMapRotationMatrix())
+	// is, algebraically, exactly what undoSkyboxRotation() below already
+	// computes (both convert a world-space direction into the captured
+	// cubemap's own local sample space) - so the irradiance map needs
+	// PLAIN undoSkyboxRotation(), unchanged, and the prefilter map needs
+	// undoSkyboxRotation() with this extra swizzle applied on top. An
+	// earlier version of this function instead skipped undoSkyboxRotation()'s
+	// middle "R2" step for BOTH maps, modeled on drawSkyBox()'s unrelated
+	// background-cube-geometry rotation logic - algebraically a different
+	// composition entirely, which read as approximately-plausible for some
+	// viewing angles but was actually wrong (manifesting as a subtle
+	// reflected-environment scale/framing mismatch against raster, not the
+	// grosser 90 degree rotation the very first, even earlier version of
+	// this code had).
+	glm::vec3 toPrefilterDirection(const glm::vec3& v)
+	{
+		return glm::vec3(v.x, -v.z, v.y);
 	}
 
 	glm::vec3 sampleFallbackBackgroundGradient(const RtEnvironment& environment, const glm::vec2& screenUv)
@@ -1561,9 +1663,16 @@ namespace
 	// mirroring main_scene.frag's buildAnisotropyBasis()/at,ab) - when
 	// hasAniso is false the base specular lobe below samples isotropically
 	// exactly as before (alphaT/alphaB are unused in that case).
+	// outEnvRoughness reports which lobe this call actually sampled, for
+	// sampleEnvironmentSpecular()/sampleEnvironmentDiffuse()'s benefit if
+	// outDir eventually escapes to the environment: >=0 means the coat or
+	// base specular lobe fired (its value is that lobe's own roughness,
+	// clearcoatRoughness or surf.roughness respectively), negative
+	// (sentinel) means the diffuse (cosine-weighted) lobe fired - see
+	// tracePixel()'s use site.
 	bool sampleBSDFBounce(const glm::vec3& N, const glm::vec3& Ncoat, const glm::vec3& V, const SurfaceParams& surf,
 		const glm::vec3& clearcoatBlend, bool hasAniso, const glm::vec3& anisoT, const glm::vec3& anisoB,
-		float alphaT, float alphaB, Rng& rng, glm::vec3& outDir, glm::vec3& outThroughput)
+		float alphaT, float alphaB, Rng& rng, glm::vec3& outDir, glm::vec3& outThroughput, float& outEnvRoughness)
 	{
 		glm::vec3 T, B;
 		buildOrthonormalBasis(N, T, B);
@@ -1614,6 +1723,7 @@ namespace
 
 			outThroughput = F * (G2 / std::max(G1v, 1e-6f)) / coatProb;
 			outDir = L;
+			outEnvRoughness = surf.clearcoatRoughness;
 			return true;
 		}
 
@@ -1675,6 +1785,7 @@ namespace
 
 			outThroughput = F * (G2 / std::max(G1v, 1e-6f)) / specProbScaled;
 			outDir = L;
+			outEnvRoughness = surf.roughness;
 			return true;
 		}
 		else
@@ -1710,6 +1821,7 @@ namespace
 				const glm::vec3 kD = (glm::vec3(1.0f) - F) * (1.0f - surf.metalness);
 				outThroughput = (kD * surf.baseColor) / diffuseProb;
 			}
+			outEnvRoughness = -1.0f; // sentinel: diffuse lobe, use the irradiance map if this escapes to the environment
 			return true;
 		}
 	}
@@ -1822,28 +1934,105 @@ namespace
 		return glm::vec3(0.0f); // exceeded the hit budget - conservatively treat as blocked
 	}
 
-	// Thresholds for "clear transmission" - a primary hit dominated by
-	// undeviated/near-mirror transmission (plain window glass, a clear
-	// panel) rather than by a noisy BSDF lobe. See its use site below and
-	// RtPathTracingSession::publishLatest() for why this category gets the
-	// same raw-bypass treatment as a pure background miss: OIDN's guide
-	// buffers are zeroed for ANY transmissive primary hit (see below), which
-	// starves it of guidance and over-smooths the sharp detail seen through
-	// the glass - but only THIS category is clean enough per-sample (no
-	// microfacet noise, no volumetric TIR/absorption variance, no competing
-	// noisy specular lobe) for bypassing OIDN outright to be safe rather
-	// than trading blur for visible grain.
-	constexpr float kClearTransmissionMinTransmission = 0.5f;
-	constexpr float kClearTransmissionMaxRoughness    = 0.15f;
-	constexpr float kClearTransmissionMaxClearcoat    = 0.05f;
-	constexpr float kClearTransmissionMaxSheen        = 0.05f;
-	constexpr float kClearTransmissionMaxIridescence  = 0.05f;
+	// Above this roughness, a transmissive surface's true appearance is
+	// meant to be diffused/frosted (see tracePixel()'s sqrt(roughness)-
+	// weighted diffuse-transmission blend), not a sharp undeviated view of
+	// what's behind it - see findGuideSurfaceThroughTransmission()'s use
+	// site for why the peek below is gated on this threshold. Confirmed via
+	// the CommercialRefrigerator sample asset (frosted glass door,
+	// roughnessFactor 0.75 with a spatially-varying roughness texture):
+	// unconditionally peeking straight through handed OIDN a perfectly
+	// sharp guide for what should be a frosted/blurred result, causing it
+	// to denoise the genuine stochastic diffuse-transmission scatter back
+	// into a falsely crisp image instead of a frosted one. Matches the
+	// same 0.15 cutoff the old kClearTransmissionMaxRoughness threshold
+	// used (removed elsewhere in this file) to distinguish clear glass
+	// from frosted/diffusing glass.
+	constexpr float kMaxRoughnessForSeeThroughGuide = 0.15f;
+
+	// OIDN denoiser guide buffer for a transmissive primary hit (glass) - its
+	// OWN base color/normal are useless as a guide (a window's flat tint is
+	// unrelated to what's actually visible through it), so instead this peeks
+	// through the surface to find what's really there. Continues an
+	// undeviated straight-through ray (the same thin-wall approximation
+	// already accepted elsewhere in this tracer, rather than the full
+	// microfacet refraction math the main bounce loop uses - this is only a
+	// denoiser hint, not rendered radiance, so it doesn't need to be
+	// physically exact) through any further transmissive surfaces (stacked
+	// glass) up to kMaxPeekDepth deep, until it reaches a non-transmissive
+	// surface (returns true, with that surface's own guide albedo/normal -
+	// recursing through ITS clearcoat blend exactly like the primary-hit
+	// case) or escapes to the environment / exhausts the peek depth (returns
+	// false - caller should fall back to a neutral/zero guide, same as this
+	// tracer's existing pure-environment-miss handling). Only meaningful for
+	// near-clear transmission - see kMaxRoughnessForSeeThroughGuide's doc
+	// comment and the caller's gate on it (which also excludes hasVolume
+	// materials - see that gate's comment for why a solid/volumetric
+	// dielectric can't use this undeviated peek at all). Also respects
+	// alphaMode MASK/BLEND on intermediate hits (mirroring tracePixel()'s
+	// own alpha pass-through handling) so the guide doesn't come from
+	// geometry the real ray would actually see through as if absent.
+	bool findGuideSurfaceThroughTransmission(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
+		glm::vec3 origin, const glm::vec3& direction, Rng& rng, glm::vec3& outAlbedo, glm::vec3& outNormal)
+	{
+		constexpr int kMaxPeekDepth = 4;
+		for (int i = 0; i < kMaxPeekDepth; ++i)
+		{
+			RtRay peekRay;
+			peekRay.origin = origin;
+			peekRay.direction = direction;
+			const RtHit hit = scene.intersect(peekRay);
+			if (!hit.hit || hit.materialIndex >= snapshot.materials.size())
+				return false;
+
+			const RtMaterial& mat = snapshot.materials[hit.materialIndex];
+
+			if (mat.blendMode != 0) // not Opaque - see tracePixel()'s identical alphaTest block
+			{
+				float alphaTest = mat.opacity;
+				if (mat.opacityTexture)
+					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
+				else if (mat.baseColorTexture)
+					alphaTest *= sampleTexture(*mat.baseColorTexture, hit.texCoords).a;
+				alphaTest = std::clamp(alphaTest, 0.0f, 1.0f);
+
+				const bool passThrough = (mat.blendMode == 1) // Masked
+					? (alphaTest < mat.alphaThreshold)
+					: (rng.next01() >= alphaTest); // Alpha (glTF BLEND)
+
+				if (passThrough)
+				{
+					origin = hit.position + direction * 1e-4f;
+					continue;
+				}
+			}
+
+			const SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor);
+
+			if (surf.transmission > 0.001f)
+			{
+				origin = hit.position + direction * 1e-4f; // keep peeking straight through
+				continue;
+			}
+
+			const glm::vec3 N = applyNormalMap(hit.normal, hit.tangent, hit.bitangent, mat.normalTexture.get(), hit.texCoords, mat.normalScale);
+			const glm::vec3 Ncoat = mat.clearcoatNormalTexture
+				? applyNormalMap(hit.normal, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords, mat.clearcoatNormalScale)
+				: N;
+			const glm::vec3 V = glm::normalize(-direction);
+			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
+
+			outAlbedo = glm::mix(surf.baseColor, glm::vec3(1.0f), glm::clamp(clearcoatBlend, glm::vec3(0.0f), glm::vec3(1.0f)));
+			outNormal = mat.clearcoatNormalTexture ? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat)) : N;
+			return true;
+		}
+		return false; // gave up after kMaxPeekDepth stacked transmissive surfaces
+	}
 
 	glm::vec3 tracePixel(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
 		const RtEnvironmentSampler& envSampler,
 		const CpuPathTracer::Settings& settings, int px, int py, int width, int height, uint32_t rngSeed,
-		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr,
-		bool* outClearTransmission = nullptr)
+		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
 	{
 		Rng rng(hashCombine(hashCombine(static_cast<uint32_t>(px), static_cast<uint32_t>(py) * 9781u), rngSeed));
 
@@ -1923,6 +2112,17 @@ namespace
 		// so weighting them against it would incorrectly discount light.
 		float lastBsdfSamplePdf = 0.0f;
 
+		// Which lobe sampleBSDFBounce() picked most recently, for a
+		// variance-reduced environment lookup if the resulting ray escapes
+		// straight to the environment - see sampleEnvironmentSpecular()/
+		// sampleEnvironmentDiffuse()'s doc comments. Only consulted when
+		// lastBsdfSamplePdf > 0 (i.e. the escaping direction really did come
+		// from sampleBSDFBounce(), not an alpha pass-through or the
+		// transmission lobe's own deterministic pick - those keep using the
+		// raw/sharp map unchanged, matching existing behavior), so this
+		// doesn't need resetting alongside lastBsdfSamplePdf's own resets.
+		float lastBounceEnvRoughness = -1.0f;
+
 		int bounce = 0;
 		int transmissionDepth = 0;
 		while (true)
@@ -1937,8 +2137,6 @@ namespace
 				{
 					if (outPrimaryHit)
 						*outPrimaryHit = false;
-					if (outClearTransmission)
-						*outClearTransmission = false;
 					const glm::vec2 screenUv(
 						(static_cast<float>(px) + 0.5f) / static_cast<float>(width),
 						1.0f - (static_cast<float>(py) + 0.5f) / static_cast<float>(height));
@@ -1960,7 +2158,17 @@ namespace
 					const float misWeight = (lastBsdfSamplePdf > 0.0f && envPdfAtRay > 0.0f)
 						? (lastBsdfSamplePdf / (lastBsdfSamplePdf + envPdfAtRay))
 						: 1.0f;
-					radiance += throughput * lastHitAO * sampleEnvironmentMiss(snapshot.environment, ray.direction) * misWeight;
+					// Variance-reduced lookup (see lastBounceEnvRoughness's
+					// declaration) only for a genuine BSDF-lobe escape -
+					// alpha pass-through/transmission's own deterministic
+					// pick (lastBsdfSamplePdf <= 0) keep the raw/sharp map,
+					// unchanged from existing behavior.
+					const glm::vec3 envColor = (lastBsdfSamplePdf <= 0.0f)
+						? sampleEnvironmentMiss(snapshot.environment, ray.direction)
+						: (lastBounceEnvRoughness < 0.0f
+							? sampleEnvironmentDiffuse(snapshot.environment, ray.direction)
+							: sampleEnvironmentSpecular(snapshot.environment, ray.direction, lastBounceEnvRoughness));
+					radiance += throughput * lastHitAO * envColor * misWeight;
 				}
 				break;
 			}
@@ -2042,7 +2250,7 @@ namespace
 			// per-triangle discontinuity the way the base normal map (N) or a
 			// clearcoat normal map otherwise would.
 			const glm::vec3 Nsmooth = N;
-			N = applyNormalMap(N, hit.tangent, hit.bitangent, mat.normalTexture.get(), hit.texCoords);
+			N = applyNormalMap(N, hit.tangent, hit.bitangent, mat.normalTexture.get(), hit.texCoords, mat.normalScale);
 
 			// Geometric (flat, per-triangle) normal, consistently oriented with
 			// N/V - used only for ray-offsetting (numerically robust regardless
@@ -2125,7 +2333,7 @@ namespace
 			// Computed here (rather than after the primary-hit guide-buffer
 			// block below, where it used to live) since that block now needs
 			// Ncoat too.
-			const glm::vec3 Ncoat = applyNormalMap(Nsmooth, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords);
+			const glm::vec3 Ncoat = applyNormalMap(Nsmooth, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords, mat.clearcoatNormalScale);
 			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
 
 			// This is the first REAL hit the ray has resolved to (opaque, or
@@ -2138,22 +2346,12 @@ namespace
 					*outPrimaryHit = true;
 
 				// OIDN denoiser guide buffers (albedo/normal) - see
-				// RtDenoiser::denoise()'s doc comment. Per OIDN's own
-				// documented guidance and RayTrophi's reference
-				// implementation (both independently confirmed via research):
-				// a transmissive primary surface's OWN base color/normal are
-				// actively harmful as guide values - they anchor the
-				// denoiser to the glass's flat tint instead of letting it
-				// treat the pixel as pass-through, smearing away whatever
-				// sharp detail is actually visible through the glass
-				// (background, floor, sky). RayTrophi's fix (ray_color.cuh):
-				// write neutral/zero guide values for a transmissive primary
-				// hit instead of its own material properties. Non-
-				// transmissive hits get their real baseColor/shading normal,
-				// same as any ordinary denoiser guide-buffer setup - EXCEPT
-				// two clearcoat-specific adjustments, both needed even after
-				// the MIS pdf fix above made the coat's sharp reflection
-				// converge correctly pre-denoise:
+				// RtDenoiser::denoise()'s doc comment. Non-transmissive hits
+				// get their real baseColor/shading normal, same as any
+				// ordinary denoiser guide-buffer setup - EXCEPT two
+				// clearcoat-specific adjustments, both needed even after the
+				// MIS pdf fix above made the coat's sharp reflection converge
+				// correctly pre-denoise:
 				//  - guide NORMAL blended toward Ncoat, but ONLY when the
 				//    material actually has its own clearcoatNormalTexture
 				//    (mat.clearcoatNormalTexture present) - that's the ONLY
@@ -2189,28 +2387,43 @@ namespace
 				//    present) since it's already naturally near-zero at
 				//    normal incidence and only grows toward grazing angles,
 				//    where the coat genuinely does dominate what's visible.
-				if (outPrimaryAlbedo)
-					*outPrimaryAlbedo = (surf.transmission > 0.001f)
-						? glm::vec3(0.0f)
-						: glm::mix(surf.baseColor, glm::vec3(1.0f), glm::clamp(clearcoatBlend, glm::vec3(0.0f), glm::vec3(1.0f)));
-				if (outPrimaryNormal)
+				//
+				// A transmissive primary hit (glass) can't use ITS OWN
+				// baseColor/normal here - a window's flat tint is unrelated
+				// to what's actually visible through it - so instead
+				// findGuideSurfaceThroughTransmission() peeks through the
+				// surface for the real guide values (falling back to
+				// neutral/zero, matching this tracer's existing pure-miss
+				// handling, if it escapes to the environment or the peek
+				// depth runs out).
+				if (outPrimaryAlbedo || outPrimaryNormal)
 				{
-					const glm::vec3 guideNormal = mat.clearcoatNormalTexture
-						? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat))
-						: N;
-					*outPrimaryNormal = (surf.transmission > 0.001f) ? glm::vec3(0.0f) : guideNormal;
-				}
+					glm::vec3 throughAlbedo(0.0f), throughNormal(0.0f);
+					const bool haveThroughGuide = (surf.transmission > 0.001f) &&
+						(surf.roughness <= kMaxRoughnessForSeeThroughGuide) &&
+						!surf.hasVolume && // solid/volumetric dielectrics (spheres, lenses, the
+						                   // IOR-cube/dragon test scenes) bend the real refracted
+						                   // path by Snell's law - an undeviated straight-through
+						                   // peek gives OIDN a guide from the WRONG background/
+						                   // object entirely, causing it to denoise the correctly-
+						                   // refracted image toward irrelevant structure (the
+						                   // smudged/blurred regression Codex's review caught).
+						                   // Thin-walled transmission (no volume) has no such bend,
+						                   // so the straight-through peek stays valid there.
+						findGuideSurfaceThroughTransmission(scene, snapshot, hit.position + ray.direction * 1e-4f,
+							ray.direction, rng, throughAlbedo, throughNormal);
 
-				if (outClearTransmission)
-				{
-					const float sheenStrength = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
-					*outClearTransmission =
-						surf.transmission > kClearTransmissionMinTransmission &&
-						surf.roughness    <= kClearTransmissionMaxRoughness &&
-						!surf.hasVolume &&
-						surf.clearcoat          < kClearTransmissionMaxClearcoat &&
-						sheenStrength           < kClearTransmissionMaxSheen &&
-						surf.iridescenceFactor  < kClearTransmissionMaxIridescence;
+					if (outPrimaryAlbedo)
+						*outPrimaryAlbedo = (surf.transmission > 0.001f)
+							? throughAlbedo // zero if haveThroughGuide is false, matching prior neutral fallback
+							: glm::mix(surf.baseColor, glm::vec3(1.0f), glm::clamp(clearcoatBlend, glm::vec3(0.0f), glm::vec3(1.0f)));
+					if (outPrimaryNormal)
+					{
+						const glm::vec3 guideNormal = mat.clearcoatNormalTexture
+							? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat))
+							: N;
+						*outPrimaryNormal = (surf.transmission > 0.001f) ? throughNormal : guideNormal;
+					}
 				}
 
 				primaryHitResolved = true;
@@ -2871,7 +3084,7 @@ namespace
 				continue;
 			}
 
-			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput))
+			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput, lastBounceEnvRoughness))
 				break;
 
 			// Stash this bounce's combined sampling pdf for the miss branch
@@ -2939,8 +3152,7 @@ void CpuPathTracer::renderPass(
 	const std::atomic<bool>* cancelFlag,
 	std::vector<uint8_t>* outPrimaryHitMask,
 	std::vector<glm::vec3>* outPrimaryAlbedo,
-	std::vector<glm::vec3>* outPrimaryNormal,
-	std::vector<uint8_t>* outClearTransmissionMask) const
+	std::vector<glm::vec3>* outPrimaryNormal) const
 {
 	if (width <= 0 || height <= 0)
 	{
@@ -2948,7 +3160,6 @@ void CpuPathTracer::renderPass(
 		if (outPrimaryHitMask) outPrimaryHitMask->clear();
 		if (outPrimaryAlbedo) outPrimaryAlbedo->clear();
 		if (outPrimaryNormal) outPrimaryNormal->clear();
-		if (outClearTransmissionMask) outClearTransmissionMask->clear();
 		return;
 	}
 
@@ -2959,8 +3170,6 @@ void CpuPathTracer::renderPass(
 		outPrimaryAlbedo->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
 	if (outPrimaryNormal)
 		outPrimaryNormal->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
-	if (outClearTransmissionMask)
-		outClearTransmissionMask->assign(static_cast<size_t>(width) * height, 0);
 
 	// Simple row-partitioned parallel-for: worker threads are spawned per
 	// call and joined at the end. A persistent thread pool with a job queue
@@ -2983,22 +3192,18 @@ void CpuPathTracer::renderPass(
 			for (int x = 0; x < width; ++x)
 			{
 				bool primaryHit = false;
-				bool clearTransmission = false;
 				glm::vec3 primaryAlbedo(0.0f), primaryNormal(0.0f);
 				outRadiance[static_cast<size_t>(y) * width + x] =
 					tracePixel(scene, snapshot, envSampler, _settings, x, y, width, height, sampleSeed,
 						outPrimaryHitMask ? &primaryHit : nullptr,
 						outPrimaryAlbedo ? &primaryAlbedo : nullptr,
-						outPrimaryNormal ? &primaryNormal : nullptr,
-						outClearTransmissionMask ? &clearTransmission : nullptr);
+						outPrimaryNormal ? &primaryNormal : nullptr);
 				if (outPrimaryHitMask)
 					(*outPrimaryHitMask)[static_cast<size_t>(y) * width + x] = primaryHit ? 1 : 0;
 				if (outPrimaryAlbedo)
 					(*outPrimaryAlbedo)[static_cast<size_t>(y) * width + x] = primaryAlbedo;
 				if (outPrimaryNormal)
 					(*outPrimaryNormal)[static_cast<size_t>(y) * width + x] = primaryNormal;
-				if (outClearTransmissionMask)
-					(*outClearTransmissionMask)[static_cast<size_t>(y) * width + x] = clearTransmission ? 1 : 0;
 			}
 		}
 	};
