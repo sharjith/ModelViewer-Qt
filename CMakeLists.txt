@@ -47,11 +47,18 @@ if(CMAKE_CUDA_COMPILER)
         NO_DEFAULT_PATH
     )
 
-    if(CUDAToolkit_FOUND AND OPTIX77_INCLUDE_DIR)
+    # bin2c (bundled with the CUDA Toolkit) turns a compiled .ptx file into a
+    # C byte array we embed directly in the executable - see the PTX-embed
+    # custom command further down. Avoids needing to ship/locate a loose
+    # .ptx file alongside the exe at runtime (the same technique the OptiX
+    # SDK samples themselves use, via their own ptx2cpp.cmake).
+    find_program(BIN2C_EXECUTABLE bin2c HINTS "${CUDAToolkit_BIN_DIR}")
+
+    if(CUDAToolkit_FOUND AND OPTIX77_INCLUDE_DIR AND BIN2C_EXECUTABLE)
         set(MODELVIEWER_HAVE_OPTIX TRUE)
         message(STATUS "OptiX GPU path tracer backend: ENABLED (CUDA ${CUDAToolkit_VERSION}, OptiX headers at ${OPTIX77_INCLUDE_DIR})")
     else()
-        message(STATUS "OptiX GPU path tracer backend: disabled (CUDA Toolkit found=${CUDAToolkit_FOUND}, OptiX headers found=${OPTIX77_INCLUDE_DIR})")
+        message(STATUS "OptiX GPU path tracer backend: disabled (CUDA Toolkit found=${CUDAToolkit_FOUND}, OptiX headers found=${OPTIX77_INCLUDE_DIR}, bin2c found=${BIN2C_EXECUTABLE})")
     endif()
 else()
     message(STATUS "OptiX GPU path tracer backend: disabled (no CUDA compiler found)")
@@ -326,6 +333,50 @@ if(MODELVIEWER_HAVE_OPTIX)
     target_compile_definitions(ModelViewer PRIVATE MODELVIEWER_HAVE_OPTIX)
     target_include_directories(ModelViewer PRIVATE ${OPTIX77_INCLUDE_DIR})
     target_link_libraries(ModelViewer PRIVATE CUDA::cudart)
+
+    # OptiX device code (src/cuda/*.cu) can't be compiled as normal CUDA
+    # target sources (enable_language(CUDA)'s default flow links a device
+    # executable/cubin, which optixTrace()/the SBT/traversal built-ins don't
+    # understand) - it needs to become PTX instead, which is what nvcc's
+    # --ptx flag produces directly. Each kernel below: nvcc compiles the .cu
+    # to .ptx, then EmbedPTX.cmake (our own equivalent of the OptiX SDK's
+    # ptx2cpp.cmake) runs bin2c on it and writes a generated .cpp exposing
+    # the PTX as a `const char*` string constant - added to the executable's
+    # sources like any other .cpp, with zero runtime file dependency.
+    function(add_optix_kernel KERNEL_NAME CU_FILE VARIABLE_NAME)
+        set(ptx_file "${CMAKE_CURRENT_BINARY_DIR}/${KERNEL_NAME}.ptx")
+        set(embedded_cpp "${CMAKE_CURRENT_BINARY_DIR}/${KERNEL_NAME}_ptx.cpp")
+
+        add_custom_command(
+            OUTPUT "${ptx_file}"
+            COMMAND ${CMAKE_CUDA_COMPILER}
+                --ptx
+                -I "${OPTIX77_INCLUDE_DIR}"
+                -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
+                -o "${ptx_file}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/RtOptixTriangleParams.h"
+            COMMENT "Compiling ${CU_FILE} to PTX"
+            VERBATIM
+        )
+
+        add_custom_command(
+            OUTPUT "${embedded_cpp}"
+            COMMAND ${CMAKE_COMMAND}
+                -DBIN2C_EXECUTABLE:FILEPATH=${BIN2C_EXECUTABLE}
+                -DPTX_FILE:FILEPATH=${ptx_file}
+                -DCPP_FILE:FILEPATH=${embedded_cpp}
+                -DVARIABLE_NAME:STRING=${VARIABLE_NAME}
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedPTX.cmake"
+            DEPENDS "${ptx_file}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake/EmbedPTX.cmake"
+            COMMENT "Embedding ${KERNEL_NAME}.ptx as ${VARIABLE_NAME}"
+            VERBATIM
+        )
+
+        target_sources(ModelViewer PRIVATE "${embedded_cpp}")
+    endfunction()
+
+    add_optix_kernel(RtOptixTriangle src/cuda/RtOptixTriangle.cu g_rtOptixTrianglePtx)
 endif()
 
 
