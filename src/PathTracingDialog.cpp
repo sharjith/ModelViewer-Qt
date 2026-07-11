@@ -159,6 +159,7 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 		ui->spinBoxRussianRouletteDepth->setValue(viewport->pathTracingRussianRouletteStartDepth());
 		ui->checkBoxEnvImportanceSampling->setChecked(viewport->pathTracingEnvImportanceSamplingEnabled());
 		ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
+		ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(viewport->pathTracingEnginePreference()));
 
 		// Export resolution defaults fresh to the CURRENT viewport size every
 		// time the dialog opens (not persisted via QSettings like the other
@@ -176,6 +177,7 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 	connect(ui->spinBoxMaxBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxBouncesChanged);
 	connect(ui->checkBoxDenoiser, &QCheckBox::toggled, this, &PathTracingDialog::onDenoiserToggled);
 	connect(ui->comboBoxDenoiserDevice, qOverload<int>(&QComboBox::currentIndexChanged), this, &PathTracingDialog::onDenoiserDeviceChanged);
+	connect(ui->comboBoxRenderEngine, qOverload<int>(&QComboBox::currentIndexChanged), this, &PathTracingDialog::onRenderEngineChanged);
 	connect(ui->doubleSpinBoxFireflyClamp, &QDoubleSpinBox::valueChanged, this, &PathTracingDialog::onFireflyClampChanged);
 	connect(ui->spinBoxMaxTransmissionBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxTransmissionBouncesChanged);
 	connect(ui->spinBoxRussianRouletteDepth, &QSpinBox::valueChanged, this, &PathTracingDialog::onRussianRouletteDepthChanged);
@@ -274,6 +276,7 @@ void PathTracingDialog::saveSettings()
 	settings.setValue("pathtracing/russianRouletteDepth", viewport->pathTracingRussianRouletteStartDepth());
 	settings.setValue("pathtracing/envImportanceSampling", viewport->pathTracingEnvImportanceSamplingEnabled());
 	settings.setValue("pathtracing/denoiserDevicePreference", static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
+	settings.setValue("pathtracing/enginePreference", static_cast<int>(viewport->pathTracingEnginePreference()));
 }
 
 void PathTracingDialog::onMaxSamplesChanged(int value)
@@ -299,6 +302,12 @@ void PathTracingDialog::onDenoiserDeviceChanged(int index)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->setPathTracingDenoiserDevicePreference(static_cast<DenoiserDevicePreference>(index));
+}
+
+void PathTracingDialog::onRenderEngineChanged(int index)
+{
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->setPathTracingEnginePreference(static_cast<RtPathTracingEnginePreference>(index));
 }
 
 void PathTracingDialog::onFireflyClampChanged(double value)
@@ -542,6 +551,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	ui->spinBoxRussianRouletteDepth->setValue(3);
 	ui->checkBoxEnvImportanceSampling->setChecked(true);
 	ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(DenoiserDevicePreference::Auto));
+	ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(RtPathTracingEnginePreference::CPU));
 	// Each setValue()/setChecked() above already emitted its usual
 	// valueChanged/toggled signal (unchanged from any other edit), pushing
 	// the reset value into the viewport via this dialog's existing slots -

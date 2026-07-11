@@ -57,6 +57,7 @@ private slots:
 	void onMaxBouncesChanged(int value);
 	void onDenoiserToggled(bool checked);
 	void onDenoiserDeviceChanged(int index);
+	void onRenderEngineChanged(int index);
 	void onFireflyClampChanged(double value);
 	void onMaxTransmissionBouncesChanged(int value);
 	void onRussianRouletteDepthChanged(int value);

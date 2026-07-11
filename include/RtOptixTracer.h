@@ -4,6 +4,20 @@
 #include <memory>
 #include <vector>
 
+// User-facing path-tracing render-engine choice (PT settings dropdown) -
+// mirrors DenoiserDevicePreference's placement/style in RtDenoiser.h, but
+// deliberately has no "Auto" option: unlike denoising (where CPU/GPU produce
+// the same result at different speed, so falling back silently is safe),
+// GPU currently only renders the Phase 1b test triangle placeholder (see
+// RtOptixTracer's own doc comment) - picking it is an explicit, visible
+// choice for GPU-pipeline development/testing, not something that should
+// ever happen implicitly in place of the real CPU renderer.
+enum class RtPathTracingEnginePreference
+{
+	CPU,
+	GPU
+};
+
 // ---------------------------------------------------------------------------
 // RtOptixTracer
 //

@@ -12608,6 +12608,8 @@ void ViewportWidget::loadPathTracingSettingsFromDisk()
 	_ptEnvImportanceSamplingEnabled = settings.value("pathtracing/envImportanceSampling", _ptEnvImportanceSamplingEnabled).toBool();
 	_ptDenoiserDevicePreference = static_cast<DenoiserDevicePreference>(
 		settings.value("pathtracing/denoiserDevicePreference", static_cast<int>(_ptDenoiserDevicePreference)).toInt());
+	_ptEnginePreference = static_cast<RtPathTracingEnginePreference>(
+		settings.value("pathtracing/enginePreference", static_cast<int>(_ptEnginePreference)).toInt());
 }
 
 void ViewportWidget::armPathTracedRenderingMode()
@@ -12823,6 +12825,18 @@ void ViewportWidget::startPathTracedSession()
 	if (fbWidth <= 0 || fbHeight <= 0)
 		return; // genuinely not visible right now (e.g. still minimized) - nothing to render into
 
+	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+	{
+		// Stop any running CPU-session refresh timer first - it would
+		// otherwise keep firing on its old interval and overwrite the GPU
+		// test frame we're about to upload with the previous (now stale)
+		// CPU result on its next tick.
+		if (_pathTracedRefreshTimer)
+			_pathTracedRefreshTimer->stop();
+		startOptixTestPathTracedSession(fbWidth, fbHeight);
+		return;
+	}
+
 	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
 	if (!snapshot)
 		return;
@@ -12845,6 +12859,52 @@ void ViewportWidget::startPathTracedSession()
 
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->start();
+}
+
+void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
+{
+	if (!_ptOptixTracer)
+		_ptOptixTracer = std::make_unique<RtOptixTracer>();
+
+	_rtPresenter.invalidate();
+
+	if (!_ptOptixTracer->isAvailable())
+	{
+		qWarning() << "startOptixTestPathTracedSession: OptiX unavailable on this machine "
+			"(see the RtOptixContext/RtOptixTracer log above) - nothing to display.";
+		update();
+		return;
+	}
+
+	std::vector<uint8_t> pixelsRgba8;
+	if (!_ptOptixTracer->renderTestTriangle(fbWidth, fbHeight, pixelsRgba8))
+	{
+		qWarning() << "startOptixTestPathTracedSession: renderTestTriangle() failed.";
+		update();
+		return;
+	}
+
+	// RtPresenter::upload() expects linear HDR RGB (it applies the same
+	// tonemap+gamma shader pass the CPU renderer's output goes through) -
+	// our test kernel's output is already display-ready 0-255 bytes, so
+	// this double-applies tonemap/gamma and won't color-match the raw PNG
+	// this same kernel produces via the main.cpp smoke test. Acceptable for
+	// this Phase 1b placeholder (proving the engine switch itself works),
+	// not worth a separate "already tonemapped" upload path for a test
+	// triangle that doesn't represent real rendered content.
+	const size_t pixelCount = static_cast<size_t>(fbWidth) * static_cast<size_t>(fbHeight);
+	std::vector<glm::vec3> rgb(pixelCount);
+	std::vector<float> alpha(pixelCount, 1.0f);
+	for (size_t i = 0; i < pixelCount; ++i)
+	{
+		rgb[i] = glm::vec3(
+			pixelsRgba8[i * 4 + 0] / 255.0f,
+			pixelsRgba8[i * 4 + 1] / 255.0f,
+			pixelsRgba8[i * 4 + 2] / 255.0f);
+	}
+
+	_rtPresenter.upload(rgb, fbWidth, fbHeight, &alpha);
+	update();
 }
 
 bool ViewportWidget::renderPathTracedOffline(int width, int height,

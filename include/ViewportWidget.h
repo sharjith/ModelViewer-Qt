@@ -40,6 +40,7 @@
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
+#include "RtOptixTracer.h"
 #include "RtPathTracingSession.h"
 #include "RtPresenter.h"
 
@@ -363,6 +364,12 @@ public:
 	void setPathTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
 	void setPathTracingDenoiserDevicePreference(DenoiserDevicePreference preference) { _ptDenoiserDevicePreference = preference; }
 	DenoiserDevicePreference pathTracingDenoiserDevicePreference() const { return _ptDenoiserDevicePreference; }
+	// GPU currently only renders the Phase 1b OptiX test triangle - see
+	// RtPathTracingEnginePreference's doc comment - so this takes effect on
+	// the NEXT startPathTracedSession() (armed via camera settle/mode
+	// switch), not retroactively on whatever's already displayed.
+	void setPathTracingEnginePreference(RtPathTracingEnginePreference preference) { _ptEnginePreference = preference; }
+	RtPathTracingEnginePreference pathTracingEnginePreference() const { return _ptEnginePreference; }
 	void setPathTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
 	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
 	void setPathTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
@@ -1087,6 +1094,8 @@ private:
 	int      _ptMaxTransmissionBounces = 32;
 	int      _ptRussianRouletteStartDepth = 3;
 	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
+	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::CPU;
+	std::unique_ptr<RtOptixTracer> _ptOptixTracer; // lazily created - see startOptixTestPathTracedSession()
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 
 	// Set for the duration of a captureCleanPathTracedImage() call -
@@ -1100,6 +1109,15 @@ private:
 	void onPathTracedIdleTimeout();
 	void onPathTracedRefreshTimer();
 	void startPathTracedSession();
+
+	// Phase 1b GPU-engine placeholder path - see RtPathTracingEnginePreference's
+	// doc comment. Renders the fixed OptiX test triangle (not the real scene -
+	// no GPU scene/material pipeline exists yet) at the current framebuffer
+	// size and uploads it through the same _rtPresenter the CPU path uses, so
+	// switching the Render Engine dropdown is visibly comparable against the
+	// CPU renderer even at this early stage. Called from startPathTracedSession()
+	// instead of the real _rtSession setup when the GPU engine is selected.
+	void startOptixTestPathTracedSession(int fbWidth, int fbHeight);
 
 	// Builds a fresh RtSceneSnapshot for the given OUTPUT resolution -
 	// shared by startPathTracedSession() (the interactive session) and
