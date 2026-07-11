@@ -20,6 +20,43 @@ else()
     message(STATUS "Found OpenCASCADE " ${OpenCASCADE_VERSION})
 endif()
 
+# ============================================================================
+# Optional GPU path tracer backend (CUDA + OptiX 7.7) - mirrors the existing
+# WebEngine/OIDN-CUDA pattern of graceful degradation: probe for the
+# toolchain without hard-failing the configure step when it's absent (most
+# dev machines and CI won't have an NVIDIA GPU/CUDA Toolkit/OptiX SDK
+# installed), and compile RtOptixContext.cpp as an inert stub in that case -
+# see its #ifdef MODELVIEWER_HAVE_OPTIX guard.
+include(CheckLanguage)
+check_language(CUDA)
+set(MODELVIEWER_HAVE_OPTIX FALSE)
+if(CMAKE_CUDA_COMPILER)
+    enable_language(CUDA)
+    find_package(CUDAToolkit QUIET)
+
+    # OptiX 7.x ships as headers only (optix.h + friends) - the host API is
+    # resolved dynamically at runtime from the NVIDIA display driver via
+    # optixInit(), so there's no .lib to find/link, just the include path.
+    # OPTIX77_ROOT_DIR lets a developer override the install location; the
+    # default matches the SDK installer's standard Windows location.
+    set(OPTIX77_ROOT_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.7.0" CACHE PATH
+        "Path to the OptiX 7.7 SDK install (the directory containing include/optix.h)")
+    find_path(OPTIX77_INCLUDE_DIR
+        NAMES optix.h
+        PATHS "${OPTIX77_ROOT_DIR}/include"
+        NO_DEFAULT_PATH
+    )
+
+    if(CUDAToolkit_FOUND AND OPTIX77_INCLUDE_DIR)
+        set(MODELVIEWER_HAVE_OPTIX TRUE)
+        message(STATUS "OptiX GPU path tracer backend: ENABLED (CUDA ${CUDAToolkit_VERSION}, OptiX headers at ${OPTIX77_INCLUDE_DIR})")
+    else()
+        message(STATUS "OptiX GPU path tracer backend: disabled (CUDA Toolkit found=${CUDAToolkit_FOUND}, OptiX headers found=${OPTIX77_INCLUDE_DIR})")
+    endif()
+else()
+    message(STATUS "OptiX GPU path tracer backend: disabled (no CUDA compiler found)")
+endif()
+
 find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets LinguistTools)
 
 # Optional: WebEngine - just check for it, don't link yet
@@ -281,6 +318,14 @@ target_link_libraries(ModelViewer
 if(HAVE_WEBENGINE)
     target_compile_definitions(ModelViewer PRIVATE HAVE_WEBENGINE)
     target_link_libraries(ModelViewer PRIVATE Qt6::WebEngineWidgets)
+endif()
+
+# Add the optional GPU (OptiX) path tracer backend if the toolchain was found
+# above - see MODELVIEWER_HAVE_OPTIX's doc comment.
+if(MODELVIEWER_HAVE_OPTIX)
+    target_compile_definitions(ModelViewer PRIVATE MODELVIEWER_HAVE_OPTIX)
+    target_include_directories(ModelViewer PRIVATE ${OPTIX77_INCLUDE_DIR})
+    target_link_libraries(ModelViewer PRIVATE CUDA::cudart)
 endif()
 
 

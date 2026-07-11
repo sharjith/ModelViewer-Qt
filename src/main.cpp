@@ -3,6 +3,7 @@
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
+#include "RtOptixContext.h"
 #include <iostream>
 #include <QApplication>
 #include <QDebug>
@@ -100,6 +101,18 @@ int main(int argc, char** argv)
 	Logger::instance().setFileEnabled(fileLogging);
 	int logLevel = settings.value("logLevelComboBox", 1).toInt();
 	Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(logLevel));
+
+	// TEMPORARY Phase 1 checkpoint for the GPU (OptiX) path tracer backend -
+	// see the "OptiX GPU path tracer" project notes. Just proves the CUDA/
+	// OptiX toolchain and this machine's driver actually work together
+	// end-to-end (logs the outcome either way); no real scene/pipeline/
+	// rendering yet. Remove this once real GPU-PT UI plumbing exists and
+	// RtOptixContext is constructed from there instead.
+	{
+		RtOptixContext optixCheck;
+		qInfo() << "Phase 1 OptiX checkpoint: available =" << optixCheck.isAvailable()
+			<< ", device =" << optixCheck.deviceName();
+	}
 
 	// Qt has no built-in global tooltip toggle; install an app-wide filter to suppress
 	// them when disabled. Read once at startup — like MSAA/V-Sync, takes effect on restart.
