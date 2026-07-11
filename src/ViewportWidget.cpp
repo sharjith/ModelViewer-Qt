@@ -12623,22 +12623,10 @@ void ViewportWidget::onPathTracedIdleTimeout()
 		startPathTracedSession();
 }
 
-void ViewportWidget::startPathTracedSession()
+std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(int width, int height)
 {
-	if (!_renderCtrl.isOpenGLInitialized() || !_primaryCamera)
-		return;
-
-	// Re-derive the current device-pixel size fresh rather than trusting
-	// whatever resizeGL() last recorded - minimizing/restoring the window (or
-	// switching focus away and back) can leave a stale/degenerate size cached
-	// if Qt fires resizeGL() with a transient 0x0 during that sequence with no
-	// further resize once the window is genuinely back to its real size. This
-	// makes every new session self-healing instead of permanently stuck.
-	const qreal dpr = devicePixelRatioF();
-	const int fbWidth  = static_cast<int>(width()  * dpr);
-	const int fbHeight = static_cast<int>(height() * dpr);
-	if (fbWidth <= 0 || fbHeight <= 0)
-		return; // genuinely not visible right now (e.g. still minimized) - nothing to render into
+	if (!_primaryCamera)
+		return nullptr;
 
 	std::vector<GPULight> lights = _renderCtrl.punctualLights()->getLights();
 	if (lights.empty())
@@ -12727,10 +12715,66 @@ void ViewportWidget::startPathTracedSession()
 	floorParams.texRepeatT       = _renderCtrl.floorTexRepeatT();
 	floorParams.reflectionsEnabled = _renderCtrl.reflectionsEnabled();
 
+	// Recomputed from the OUTPUT resolution rather than reusing the
+	// camera's own configured aspect - for the interactive session these
+	// are already numerically identical (the camera's aspect is kept in
+	// sync with the viewport's own on-screen shape elsewhere), but for an
+	// offline export at a genuinely different aspect ratio, this is what
+	// makes the render frame correctly to the requested WxH instead of
+	// stretching/squishing the same framing the live viewport uses.
+	const float aspectRatio = height > 0 ? static_cast<float>(width) / static_cast<float>(height) : 1.0f;
+
 	auto snapshot = RtSceneBuilder::build(
-		_sceneRuntime, *_primaryCamera, _primaryCamera->getAspectRatio(),
+		_sceneRuntime, *_primaryCamera, aspectRatio,
 		lights, _pathTracedNextRevision++, &environment, &floorParams,
 		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
+
+	// KHR_materials_transmission without KHR_materials_volume ("thin-walled")
+	// passes rays through completely undeviated per spec - under
+	// orthographic projection every pixel's camera ray shares the exact
+	// same direction, so every point on a thin-walled transmissive surface
+	// ends up sampling the identical environment-map direction: a genuine
+	// mathematical degenerate case (flat/uniform result), not a rendering
+	// bug - see the GlassBrokenWindow investigation. Detected here (once
+	// per snapshot build, not per-pixel) so PathTracingDialog can surface it
+	// via pathTracingOrthoThinWallWarningActive() instead of a user
+	// assuming their glass is broken.
+	_ptOrthoThinWallWarningActive = false;
+	if (snapshot && snapshot->camera.orthographic)
+	{
+		for (const RtMaterial& mat : snapshot->materials)
+		{
+			if (mat.transmission > 0.001f && !mat.hasVolume)
+			{
+				_ptOrthoThinWallWarningActive = true;
+				break;
+			}
+		}
+	}
+
+	return snapshot;
+}
+
+void ViewportWidget::startPathTracedSession()
+{
+	if (!_renderCtrl.isOpenGLInitialized() || !_primaryCamera)
+		return;
+
+	// Re-derive the current device-pixel size fresh rather than trusting
+	// whatever resizeGL() last recorded - minimizing/restoring the window (or
+	// switching focus away and back) can leave a stale/degenerate size cached
+	// if Qt fires resizeGL() with a transient 0x0 during that sequence with no
+	// further resize once the window is genuinely back to its real size. This
+	// makes every new session self-healing instead of permanently stuck.
+	const qreal dpr = devicePixelRatioF();
+	const int fbWidth  = static_cast<int>(width()  * dpr);
+	const int fbHeight = static_cast<int>(height() * dpr);
+	if (fbWidth <= 0 || fbHeight <= 0)
+		return; // genuinely not visible right now (e.g. still minimized) - nothing to render into
+
+	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
+	if (!snapshot)
+		return;
 
 	_rtSession.setResolution(fbWidth, fbHeight);
 	_rtSession.setMaxSamples(_ptMaxSamples);
@@ -12749,6 +12793,83 @@ void ViewportWidget::startPathTracedSession()
 
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->start();
+}
+
+bool ViewportWidget::renderPathTracedOffline(int width, int height,
+	const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
+	std::vector<glm::vec3>& outLinearRgb)
+{
+	if (width <= 0 || height <= 0)
+		return false;
+
+	auto snapshot = buildPathTracedSnapshot(width, height);
+	if (!snapshot)
+		return false;
+
+	// A fresh, independent BVH/environment-sampler/accumulator - entirely
+	// separate from _rtSession/_embreeScene (whatever the interactive
+	// viewport is doing, if anything, keeps running completely undisturbed
+	// by this call).
+	RtEmbreeScene embreeScene;
+	embreeScene.build(snapshot);
+
+	RtEnvironmentSampler envSampler;
+	envSampler.build(snapshot->environment);
+
+	CpuPathTracer tracer;
+	CpuPathTracer::Settings settings;
+	settings.maxBounces                         = _ptMaxBounces;
+	settings.fireflyClampThreshold               = _ptFireflyClampThreshold;
+	settings.maxTransmissionBounces              = _ptMaxTransmissionBounces;
+	settings.russianRouletteStartDepth           = _ptRussianRouletteStartDepth;
+	settings.enableEnvironmentImportanceSampling = _ptEnvImportanceSamplingEnabled;
+	tracer.setSettings(settings);
+
+	RtFrameAccumulator accumulator;
+	accumulator.resize(width, height);
+	accumulator.reset();
+
+	for (uint32_t sample = 0; sample < _ptMaxSamples; ++sample)
+	{
+		std::vector<glm::vec3> passResult;
+		std::vector<uint8_t> hitMask;
+		std::vector<glm::vec3> albedoResult, normalResult;
+		tracer.renderPass(embreeScene, *snapshot, envSampler, width, height, sample, passResult,
+			nullptr, &hitMask, &albedoResult, &normalResult);
+		accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult);
+
+		if (onProgress)
+			onProgress(sample + 1, _ptMaxSamples);
+	}
+
+	std::vector<glm::vec3> resolved = accumulator.resolve();
+	outLinearRgb = resolved;
+
+	if (_ptDenoiserEnabled)
+	{
+		RtDenoiser denoiser;
+		std::vector<glm::vec3> denoised;
+		const std::vector<glm::vec3> albedo = accumulator.resolveAlbedo();
+		const std::vector<glm::vec3> normal = accumulator.resolveNormal();
+		denoiser.denoise(resolved, width, height, denoised, _ptMaxSamples, &albedo, &normal);
+
+		// Restore the raw (undenoised) value for pixels whose primary ray
+		// never hit geometry - matches RtPathTracingSession::publishLatest()'s
+		// exact same reasoning (OIDN has no guide data to work from for a
+		// pure environment-miss pixel, so left to its own devices it
+		// over-smooths sharp background/skybox detail into a blurred
+		// prefilter-map look).
+		const std::vector<uint32_t>& hitCounts = accumulator.hitCounts();
+		if (hitCounts.size() == denoised.size())
+		{
+			for (size_t i = 0; i < denoised.size(); ++i)
+				if (hitCounts[i] == 0)
+					denoised[i] = resolved[i];
+		}
+		outLinearRgb = std::move(denoised);
+	}
+
+	return true;
 }
 
 void ViewportWidget::onPathTracedRefreshTimer()

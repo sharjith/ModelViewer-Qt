@@ -1,6 +1,8 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
+#include <memory>
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
@@ -369,6 +371,15 @@ public:
 	int pathTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
 	int pathTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
 
+	// True when the most recently built PT scene combines orthographic
+	// projection with a thin-walled transmissive material (KHR_materials_
+	// transmission without KHR_materials_volume) - a genuine mathematical
+	// degenerate case (every pixel samples the same environment direction,
+	// see startPathTracedSession()'s detection), not a bug. PathTracingDialog
+	// surfaces this so the user understands why such glass looks flat
+	// instead of assuming the renderer is broken.
+	bool pathTracingOrthoThinWallWarningActive() const { return _ptOrthoThinWallWarningActive; }
+
 	// Progress snapshot for PathTracingDialog's poll timer - current/target
 	// sample counts and whether the worker is still running. Cheap (no frame
 	// copy) - see RtPathTracingSession::currentSampleCount().
@@ -377,6 +388,18 @@ public:
 		outCurrentSamples = _rtSession.currentSampleCount();
 		outTargetSamples  = _rtSession.maxSamples();
 		outRunning        = _rtSession.isRunning();
+	}
+
+	// Raw linear HDR frame (un-tonemapped, optionally OIDN-denoised) - see
+	// RtPathTracingSession::latestFrame(). Used by PathTracingDialog's EXR
+	// export, which needs true linear radiance data rather than the
+	// tonemapped/gamma-encoded 8-bit framebuffer captureCleanPathTracedImage()
+	// returns - RtPresenter's tonemap only ever happens at PRESENT time in
+	// the display shader, never mutating what latestFrame() itself holds.
+	std::vector<glm::vec3> pathTracingRawFrame(int& outWidth, int& outHeight) const
+	{
+		uint32_t sampleCount = 0;
+		return _rtSession.latestFrame(outWidth, outHeight, sampleCount);
 	}
 
 	// Arms Path Traced mode AND starts tracing immediately, rather than
@@ -405,6 +428,50 @@ public:
 		update(); // restore the normal HUD-visible view
 		return img;
 	}
+
+	// Current on-screen device-pixel resolution - same fbWidth/fbHeight
+	// computation startPathTracedSession() uses. PathTracingDialog compares
+	// its requested export resolution against this to decide whether a
+	// downscale of the already-converged frame is enough (fast path) or a
+	// fresh renderPathTracedOffline() call is needed (requested resolution
+	// exceeds this in either dimension).
+	void pathTracingViewportResolution(int& outWidth, int& outHeight) const
+	{
+		const qreal dpr = devicePixelRatioF();
+		outWidth  = static_cast<int>(width()  * dpr);
+		outHeight = static_cast<int>(height() * dpr);
+	}
+
+	// Live tonemap settings - same values passed to _rtPresenter.draw() for
+	// on-screen display. PathTracingDialog's offline export path needs
+	// these directly (see RtTonemap.h) since it never touches the GPU/
+	// RtPresenter at all, unlike the fast path which just grabs the
+	// already-tonemapped framebuffer.
+	void pathTracingToneMapSettings(bool& outHdrToneMapping, bool& outGammaCorrection,
+		float& outScreenGamma, float& outIblExposure, int& outToneMapMode) const
+	{
+		outHdrToneMapping  = _renderCtrl.hdrToneMapping();
+		outGammaCorrection = _renderCtrl.gammaCorrection();
+		outScreenGamma     = _renderCtrl.screenGamma();
+		outIblExposure     = _renderCtrl.iblExposure();
+		outToneMapMode     = static_cast<int>(_renderCtrl.toneMappingMode());
+	}
+
+	// Blocking offline path-traced render at an arbitrary resolution,
+	// decoupled entirely from the interactive session/viewport (see
+	// buildPathTracedSnapshot()'s doc comment for the shared setup logic,
+	// and PathTracingDialog::onExportClicked() for when this is used vs the
+	// fast downscale-existing-frame path). Genuinely blocks the calling
+	// thread for the whole render - no worker thread, no cancellation - per
+	// an explicit call that a blocking offline export is acceptable; the
+	// caller is expected to pump QApplication::processEvents() from
+	// onProgress to keep the UI visually responsive. onProgress is called
+	// once per completed sample with (currentSample, maxSamples).
+	// Returns false (outLinearRgb left untouched) if the scene/camera isn't
+	// ready to render at all.
+	bool renderPathTracedOffline(int width, int height,
+		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
+		std::vector<glm::vec3>& outLinearRgb);
 
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
 	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
@@ -1005,6 +1072,7 @@ private:
 	float    _ptFireflyClampThreshold = 3.0f;
 	int      _ptMaxTransmissionBounces = 32;
 	int      _ptRussianRouletteStartDepth = 3;
+	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 
 	// Set for the duration of a captureCleanPathTracedImage() call -
 	// paintGL() checks this to suppress the axis triad/view cube/mesh-count
@@ -1017,6 +1085,18 @@ private:
 	void onPathTracedIdleTimeout();
 	void onPathTracedRefreshTimer();
 	void startPathTracedSession();
+
+	// Builds a fresh RtSceneSnapshot for the given OUTPUT resolution -
+	// shared by startPathTracedSession() (the interactive session) and
+	// renderPathTracedOffline() (blocking export at an arbitrary
+	// resolution), so the light/environment/floor snapshot-building logic
+	// isn't duplicated between them. aspectRatio is recomputed from
+	// width/height rather than reusing the camera's own configured aspect,
+	// so an offline export at a different aspect ratio than the live
+	// viewport frames correctly instead of stretching the same framing.
+	// Also updates _ptOrthoThinWallWarningActive as a side effect (see its
+	// doc comment) - both callers want this detection to run.
+	std::shared_ptr<const RtSceneSnapshot> buildPathTracedSnapshot(int width, int height);
 
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;

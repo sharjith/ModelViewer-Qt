@@ -30,6 +30,7 @@
     "opencascade",
     "meshoptimizer",
     "embree3",
-    "openimagedenoise"
+    "openimagedenoise",
+    "openexr"
   ]
 }

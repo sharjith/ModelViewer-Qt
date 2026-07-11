@@ -10,6 +10,7 @@ find_package(meshoptimizer REQUIRED)
 find_package(basisu CONFIG REQUIRED)
 find_package(embree 3 CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
+find_package(OpenEXR CONFIG REQUIRED)
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -268,6 +269,7 @@ target_link_libraries(ModelViewer
         basisu::basisu_encoder
         embree
         OpenImageDenoise
+        OpenEXR::OpenEXR
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
@@ -391,6 +393,29 @@ if(WIN32)
             else()
                 message(WARNING "Ray-tracing runtime DLL not found (optional): ${RT_DLL_SOURCE}")
             endif()
+        endforeach()
+
+        # OpenEXR/Imath/Iex/IlmThread DLL filenames include a version suffix
+        # (e.g. "OpenEXR-3_3.dll") that depends on exactly which OpenEXR
+        # version vcpkg's baseline resolves to - glob-discovered here rather
+        # than hardcoded like the ray-tracing DLLs above, since that suffix
+        # isn't knowable ahead of an actual vcpkg install.
+        file(GLOB OPENEXR_RUNTIME_DLLS
+            "${RT_BIN_DIR}/OpenEXR*.dll"
+            "${RT_BIN_DIR}/Imath*.dll"
+            "${RT_BIN_DIR}/Iex*.dll"
+            "${RT_BIN_DIR}/IlmThread*.dll"
+            "${RT_BIN_DIR}/deflate*.dll"
+        )
+        foreach(OPENEXR_DLL ${OPENEXR_RUNTIME_DLLS})
+            get_filename_component(OPENEXR_DLL_NAME "${OPENEXR_DLL}" NAME)
+            add_custom_command(TARGET ModelViewer POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${OPENEXR_DLL}"
+                    "$<TARGET_FILE_DIR:ModelViewer>/${OPENEXR_DLL_NAME}"
+                VERBATIM
+            )
+            message(STATUS "Will deploy: ${OPENEXR_DLL_NAME}")
         endforeach()
     endif()
 endif()

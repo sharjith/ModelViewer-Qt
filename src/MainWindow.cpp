@@ -140,7 +140,18 @@ MainWindow::MainWindow(QWidget* parent)
 		// the user actually presses Render inside the dialog (see
 		// PathTracingDialog::onRenderClicked()), which is the single place
 		// that switches to Path Traced mode.
-		PathTracingDialog* dialog = new PathTracingDialog(activeMdiChild(), this);
+		//
+		// Parented to the ModelViewer (the MDI subwindow's own content
+		// widget - added via QMdiArea::addSubWindow(), which reparents it
+		// under the QMdiSubWindow it creates), NOT to MainWindow (`this`) -
+		// a QDialog still floats as an independent top-level window
+		// regardless of which widget is passed as its parent, but the
+		// parent IS what Qt uses to auto-destroy child widgets when it's
+		// destroyed. Parenting to MainWindow meant the dialog outlived
+		// every MDI document, including all of them being closed - this
+		// way it closes along with the document it belongs to instead.
+		ModelViewer* child = activeMdiChild();
+		PathTracingDialog* dialog = new PathTracingDialog(child, child);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 		dialog->show();
 		});
