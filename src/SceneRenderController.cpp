@@ -2,6 +2,7 @@
 #include "PathUtils.h"
 
 #include "stb_image.h"
+#include "HdrImageLoader.h"
 
 #include <QDebug>
 #include <QDir>
@@ -944,8 +945,7 @@ void SceneRenderController::generateIBL(GLuint defaultFBO)
 bool SceneRenderController::convertEquirectToCubemap(const QString& filePath, GLuint defaultFBO)
 {
     int imgWidth, imgHeight, channels;
-    stbi_set_flip_vertically_on_load(true);
-    float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
+    float* data = HdrImageLoader::load(filePath.toStdString(), imgWidth, imgHeight, channels, true);
 
     if (!data || imgWidth != 2 * imgHeight)
     {

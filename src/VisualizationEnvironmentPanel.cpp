@@ -666,6 +666,10 @@ void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 	else
 		_skyBoxLDRIIndex = std::max(0, index);
 
+	// User explicitly picked a preset from the combo, so it now takes
+	// priority over any previously-loaded custom folder.
+	_customSkyBoxActive = false;
+
 	QString selectedPath = ui->comboBoxSkyBoxMaps->itemData(index).toString();
 	if (!selectedPath.isEmpty())
 	{
@@ -690,6 +694,7 @@ void VisualizationEnvironmentPanel::onSkyBoxTextureClicked()
 		QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 	if (!dir.isEmpty())
 	{
+		_customSkyBoxActive = true;
 		_viewportWidget->setSkyBoxTextureFolder(dir);
 		_viewportWidget->updateView();
 	}
@@ -731,6 +736,8 @@ void VisualizationEnvironmentPanel::onGroundModeChanged()
 {
 	if (!_viewportWidget || !ui)
 		return;
+
+	_groundModeUserSet = true;
 
 	GroundMode mode = GroundMode::None;
 	if (ui->radioButtonGroundFloor->isChecked())
@@ -954,12 +961,20 @@ void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 		ui->comboBoxSkyBoxMaps->setCurrentIndex(indexToRestore);
 	}
 
-	// Load texture folder if available
-	QString selectedPath = ui->comboBoxSkyBoxMaps->itemData(ui->comboBoxSkyBoxMaps->currentIndex()).toString();
-	if (!selectedPath.isEmpty())
+	// Load texture folder if available - unless a custom folder (loaded via
+	// "Select Custom Map", which isn't represented in this preset combo at
+	// all) is currently active. Without this check, every PBR/PathTraced
+	// mode (re)selection - which calls this via setPBRLightingMode(true) -
+	// would silently reload whatever preset index was last active over top
+	// of the user's custom skybox.
+	if (!_customSkyBoxActive)
 	{
-		_viewportWidget->setSkyBoxTextureFolder(selectedPath);
-		_viewportWidget->updateView();
+		QString selectedPath = ui->comboBoxSkyBoxMaps->itemData(ui->comboBoxSkyBoxMaps->currentIndex()).toString();
+		if (!selectedPath.isEmpty())
+		{
+			_viewportWidget->setSkyBoxTextureFolder(selectedPath);
+			_viewportWidget->updateView();
+		}
 	}
 }
 
@@ -980,8 +995,11 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	ui->checkBoxShadowMapping->setChecked(realShaded);
 	ui->checkBoxSelfShadows->setChecked(realShaded);
 	ui->checkBoxReflections->setChecked(realShaded);
-	ui->radioButtonGroundFloor->setChecked(realShaded);
-	ui->radioButtonGroundNone->setChecked(!realShaded);
+	if (!_groundModeUserSet)
+	{
+		ui->radioButtonGroundFloor->setChecked(realShaded);
+		ui->radioButtonGroundNone->setChecked(!realShaded);
+	}
 	ui->checkBoxSkyBoxHDRI->setChecked(ui->checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
 
 	bool skyBoxHDRIChecked = ui->checkBoxSkyBoxHDRI->isChecked();

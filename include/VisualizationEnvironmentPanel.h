@@ -147,6 +147,20 @@ private:
 	int _skyBoxLDRIIndex;
 	int _skyBoxHDRIIndex;
 
+	// True when the active skybox came from onSkyBoxTextureClicked()'s
+	// "Select Custom Map" folder browse rather than the preset combo box -
+	// reloadSkyBoxPresets() must not stomp on it with a preset reload when
+	// this is set (see reloadSkyBoxPresets()).
+	bool _customSkyBoxActive = false;
+
+	// True once the user has explicitly picked a ground mode radio button -
+	// onDisplayModeChanged()'s realism-based floor/none default is only for
+	// the very first switch into realistic shading, not something that
+	// should re-stomp a deliberate later choice (e.g. "None") every time
+	// setRealismEnabled()/displayModeChanged fires again, such as on every
+	// Path Tracing "Render" click.
+	bool _groundModeUserSet = false;
+
 	bool _detached = false;
 
 	// Resize handle for treePunctualLights

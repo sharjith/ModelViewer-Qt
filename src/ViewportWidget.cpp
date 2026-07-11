@@ -29,6 +29,7 @@
 #include "SphereRenderable.h"
 #include "ViewCubeMesh.h"
 #include "stb_image.h"
+#include "HdrImageLoader.h"
 #include "TangentGenerator.h"
 #include "TextRenderer.h"
 #include "Utils.h"
@@ -1211,7 +1212,7 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 	};
 
 	QStringList faceNames = { "right", "left", "top", "bottom", "front", "back" };
-	QStringList supportedFormats = { "jpeg", "jpg", "png", "bmp", "psd", "tga", "gif", "hdr", "pic", "pnm" };
+	QStringList supportedFormats = { "jpeg", "jpg", "png", "bmp", "psd", "tga", "gif", "hdr", "exr", "pic", "pnm" };
 
 	QStringList files = QDir(folder).entryList(QDir::Files | QDir::Readable, QDir::Name);
 
@@ -1250,8 +1251,8 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 
 	if (!allFacesLoaded)
 	{
-		// Fallback: try single HDR cubemap image
-		QStringList hdrFiles = QDir(folder).entryList(QStringList() << "*.hdr", QDir::Files);
+		// Fallback: try single HDR/EXR cubemap image
+		QStringList hdrFiles = QDir(folder).entryList(QStringList() << "*.hdr" << "*.exr", QDir::Files);
 		if (!hdrFiles.isEmpty())
 		{
 			QString fallbackHDR = folder + "/" + hdrFiles.first();
@@ -1302,16 +1303,27 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 		void* data = nullptr;
 		std::string fileName = skyboxImages[i].toStdString();
 
-		stbi_set_flip_vertically_on_load(false);
-		if (_renderCtrl.skyBoxTextureHDRI())
+		// An .exr face can only ever be read as float data (stb_image's
+		// stbi_load() has no EXR support at all) - checked in ADDITION to
+		// the HDRI toggle rather than instead of it, so an .hdr face still
+		// goes through the exact same branch it always has.
+		if (_renderCtrl.skyBoxTextureHDRI() || HdrImageLoader::isExr(fileName))
 		{
-			data = static_cast<float*>(stbi_loadf(fileName.c_str(), &width, &height, &nrComponents, 0));
+			data = static_cast<float*>(HdrImageLoader::load(fileName, width, height, nrComponents, false));
 			if (!data) goto failure;
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
 				width, height, 0, GL_RGB, GL_FLOAT, data);
 		}
 		else
 		{
+			// Reset explicitly rather than assuming it's already false -
+			// HdrImageLoader::load() (used above, and by other call sites
+			// elsewhere) sets this global stb_image flag as needed for its
+			// OWN read and never restores it afterward, and the EXR path
+			// doesn't touch it at all (handles flipping itself), so it
+			// can't be trusted to already be in the state this LDR call
+			// expects.
+			stbi_set_flip_vertically_on_load(false);
 			data = static_cast<unsigned char*>(stbi_load(fileName.c_str(), &width, &height, &nrComponents, 0));
 			if (!data) goto failure;
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
@@ -1348,8 +1360,7 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 bool ViewportWidget::loadCubemapFromSingleHDR(const QString& filePath)
 {
 	int imgWidth, imgHeight, channels;
-	stbi_set_flip_vertically_on_load(false);
-	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
+	float* data = HdrImageLoader::load(filePath.toStdString(), imgWidth, imgHeight, channels, false);
 	if (!data)
 	{
 		qWarning() << "Failed to load HDR file:" << filePath;
