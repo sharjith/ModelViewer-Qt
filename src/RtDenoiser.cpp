@@ -3,9 +3,12 @@
 #include <OpenImageDenoise/oidn.hpp>
 
 #include <QDebug>
+#include <QString>
 
 #include <algorithm>
 #include <cmath>
+#include <string>
+#include <utility>
 
 namespace
 {
@@ -96,29 +99,155 @@ struct RtDenoiser::Impl
 {
 	oidn::DeviceRef device;
 	bool deviceValid = false;
+	DenoiserDevicePreference preference = DenoiserDevicePreference::Auto;
+
+	// CPU device memory is directly host-accessible, so denoise() can wrap
+	// the caller's std::vector storage in-place via OIDN's "shared buffer"
+	// API (oidnNewSharedBuffer, zero extra copies). Any other device type
+	// (currently just CUDA) can NOT safely do that - a plain std::vector's
+	// heap pointer is ordinary pageable host memory, not something a CUDA
+	// kernel can dereference - so those need OIDN's own device-allocated
+	// buffers plus explicit write()/read() transfers instead. See denoise().
+	bool isSharedMemoryDevice = true;
 };
 
-RtDenoiser::RtDenoiser() : _impl(std::make_unique<Impl>())
+namespace
 {
-	_impl->device = oidn::newDevice(oidn::DeviceType::CPU);
-	_impl->device.commit();
+	// Tries newDevice(type) + commit(); returns true (and leaves the device
+	// in *outDevice) only if it actually initialized without error. Always
+	// leaves *outDevice in a well-defined state (either the committed device
+	// or a fresh empty DeviceRef) so callers can just try the next candidate.
+	// outFailureReason, if non-null, is filled in on failure - copied to a
+	// std::string rather than returning OIDN's const char* directly, since
+	// that pointer's lifetime is tied to the device object, which is about
+	// to be destroyed (never outlives this function) on the failure path.
+	bool tryInitDevice(oidn::DeviceType type, oidn::DeviceRef& outDevice, std::string* outFailureReason = nullptr)
+	{
+		oidn::DeviceRef device = oidn::newDevice(type);
+		if (!device)
+		{
+			if (outFailureReason)
+				*outFailureReason = "oidnNewDevice returned a null handle (device type unsupported/unavailable in this OIDN build or on this system)";
+			return false;
+		}
+		device.commit();
+		const char* errorMessage = nullptr;
+		const oidn::Error err = device.getError(errorMessage);
+		if (err != oidn::Error::None)
+		{
+			if (outFailureReason)
+				*outFailureReason = "error " + std::to_string(static_cast<int>(err)) + " - " +
+					(errorMessage ? errorMessage : "no message");
+			return false;
+		}
+		outDevice = std::move(device);
+		return true;
+	}
+}
 
-	const char* errorMessage = nullptr;
-	const oidn::Error err = _impl->device.getError(errorMessage);
-	_impl->deviceValid = (err == oidn::Error::None);
+RtDenoiser::RtDenoiser(DenoiserDevicePreference preference) : _impl(std::make_unique<Impl>())
+{
+	_impl->preference = preference;
+	initializeDevice();
+}
 
-	// Falls back to bilateralFallbackDenoise() (see above) whenever the
-	// device is invalid, rather than a raw copy - every path-traced frame
+RtDenoiser::~RtDenoiser() = default;
+
+void RtDenoiser::initializeDevice()
+{
+	// Release whatever device this instance might already hold (a no-op the
+	// first time, from the constructor) - lets setDevicePreference() just
+	// call this again to switch devices mid-session.
+	_impl->device = oidn::DeviceRef();
+	_impl->deviceValid = false;
+
+	// CPU-only: skip CUDA entirely, matching DenoiserDevicePreference::CPU's
+	// contract.
+	if (_impl->preference == DenoiserDevicePreference::CPU)
+	{
+		if (tryInitDevice(oidn::DeviceType::CPU, _impl->device))
+		{
+			_impl->deviceValid = true;
+			_impl->isSharedMemoryDevice = true;
+		}
+	}
+	// GPU-only: only attempt CUDA - deliberately no CPU fallback here, see
+	// DenoiserDevicePreference::GPU's doc comment.
+	else if (_impl->preference == DenoiserDevicePreference::GPU)
+	{
+		std::string cudaFailureReason;
+		if (tryInitDevice(oidn::DeviceType::CUDA, _impl->device, &cudaFailureReason))
+		{
+			_impl->deviceValid = true;
+			_impl->isSharedMemoryDevice = false;
+		}
+		else
+		{
+			qWarning().noquote() << "RtDenoiser: GPU denoiser device requested but OIDN CUDA device unavailable ("
+				<< QString::fromStdString(cudaFailureReason) << ") - not falling back to CPU (GPU was explicitly"
+				<< " requested); path-traced frames will use the built-in bilateral fallback denoiser instead.";
+		}
+	}
+	// Auto (default): try CUDA first - a plain denoising speedup on an
+	// NVIDIA GPU, entirely independent of this app's CPU Embree ray tracing.
+	// Requires only a working NVIDIA driver at runtime, not the CUDA Toolkit
+	// (see the vcpkg overlay port comment) - falls through to CPU (logging
+	// why) on any machine without a suitable NVIDIA GPU/driver, exactly like
+	// OIDN's own documented device-selection guidance.
+	else
+	{
+		std::string cudaFailureReason;
+		if (tryInitDevice(oidn::DeviceType::CUDA, _impl->device, &cudaFailureReason))
+		{
+			_impl->deviceValid = true;
+			_impl->isSharedMemoryDevice = false;
+		}
+		else
+		{
+			qInfo().noquote() << "RtDenoiser: OIDN CUDA device unavailable (" << QString::fromStdString(cudaFailureReason)
+				<< ") - trying the CPU device instead.";
+			if (tryInitDevice(oidn::DeviceType::CPU, _impl->device))
+			{
+				_impl->deviceValid = true;
+				_impl->isSharedMemoryDevice = true;
+			}
+		}
+	}
+
+	// Falls back to bilateralFallbackDenoise() (see above) whenever neither
+	// device is valid, rather than a raw copy - every path-traced frame
 	// would otherwise look permanently noisy/grainy on a machine where OIDN
 	// fails to initialize (missing runtime dependency, unsupported CPU ISA,
 	// driver issue, ...), with no visible indication why beyond this log.
 	if (!_impl->deviceValid)
-		qWarning() << "RtDenoiser: OIDN CPU device failed to initialize (error"
-			<< static_cast<int>(err) << "-" << (errorMessage ? errorMessage : "no message")
-			<< ") - path-traced frames will use a lower-quality built-in bilateral fallback denoiser instead.";
+	{
+		if (_impl->preference != DenoiserDevicePreference::GPU) // GPU's own branch above already logged why
+			qWarning() << "RtDenoiser: OIDN failed to initialize on the requested device(s)"
+				<< "- path-traced frames will use a lower-quality built-in bilateral fallback denoiser instead.";
+	}
+	else
+		qInfo() << "RtDenoiser: using OIDN" << activeDeviceName() << "device for path-traced frame denoising.";
 }
 
-RtDenoiser::~RtDenoiser() = default;
+void RtDenoiser::setDevicePreference(DenoiserDevicePreference preference)
+{
+	if (_impl->preference == preference)
+		return;
+	_impl->preference = preference;
+	initializeDevice();
+}
+
+DenoiserDevicePreference RtDenoiser::devicePreference() const
+{
+	return _impl->preference;
+}
+
+const char* RtDenoiser::activeDeviceName() const
+{
+	if (!_impl->deviceValid)
+		return "none (bilateral fallback)";
+	return _impl->isSharedMemoryDevice ? "CPU" : "CUDA";
+}
 
 bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int height,
 	std::vector<glm::vec3>& output, uint32_t sampleCount,
@@ -140,24 +269,69 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 	output.resize(input.size());
 
 	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+	const size_t byteSize = pixelCount * sizeof(glm::vec3);
 	const bool haveGuides = albedo && normal &&
 		albedo->size() == pixelCount && normal->size() == pixelCount;
 
-	// const_cast is safe here: OIDN's "shared image" overload only reads from
-	// the "color"/"albedo"/"normal" inputs during execute(), it never writes
-	// back into them.
 	oidn::FilterRef filter = _impl->device.newFilter("RT");
-	filter.setImage("color", const_cast<glm::vec3*>(input.data()), oidn::Format::Float3,
-		static_cast<size_t>(width), static_cast<size_t>(height));
-	if (haveGuides)
+
+	// Only used on the CUDA (non-shared-memory) path below; empty/unused
+	// BufferRefs are harmless and just fall out of scope after execute().
+	oidn::BufferRef colorBuffer, albedoBuffer, normalBuffer, outputBuffer;
+
+	if (_impl->isSharedMemoryDevice)
 	{
-		filter.setImage("albedo", const_cast<glm::vec3*>(albedo->data()), oidn::Format::Float3,
+		// CPU device: host memory IS the device's own memory, so wrap the
+		// caller's existing storage in place - zero extra copies. const_cast
+		// is safe here: OIDN's "shared image" overload only reads from the
+		// "color"/"albedo"/"normal" inputs during execute(), it never writes
+		// back into them.
+		filter.setImage("color", const_cast<glm::vec3*>(input.data()), oidn::Format::Float3,
 			static_cast<size_t>(width), static_cast<size_t>(height));
-		filter.setImage("normal", const_cast<glm::vec3*>(normal->data()), oidn::Format::Float3,
+		if (haveGuides)
+		{
+			filter.setImage("albedo", const_cast<glm::vec3*>(albedo->data()), oidn::Format::Float3,
+				static_cast<size_t>(width), static_cast<size_t>(height));
+			filter.setImage("normal", const_cast<glm::vec3*>(normal->data()), oidn::Format::Float3,
+				static_cast<size_t>(width), static_cast<size_t>(height));
+		}
+		filter.setImage("output", output.data(), oidn::Format::Float3,
 			static_cast<size_t>(width), static_cast<size_t>(height));
 	}
-	filter.setImage("output", output.data(), oidn::Format::Float3,
-		static_cast<size_t>(width), static_cast<size_t>(height));
+	else
+	{
+		// CUDA (or any other non-shared-memory device): a std::vector's
+		// pointer is ordinary pageable host memory, which a CUDA kernel
+		// cannot dereference directly - wrapping it via the shared-image
+		// path above would be wrong on this device. Instead allocate OIDN's
+		// own host-and-device-accessible buffers (newBuffer(byteSize) - see
+		// its doc comment in oidn.hpp) and explicitly transfer data with
+		// write()/read(), OIDN's documented portable mechanism for this
+		// (a plain memcpy on a CPU-class device, a real host<->VRAM copy on
+		// CUDA).
+		colorBuffer = _impl->device.newBuffer(byteSize);
+		colorBuffer.write(0, byteSize, input.data());
+		filter.setImage("color", colorBuffer, oidn::Format::Float3,
+			static_cast<size_t>(width), static_cast<size_t>(height));
+
+		if (haveGuides)
+		{
+			albedoBuffer = _impl->device.newBuffer(byteSize);
+			albedoBuffer.write(0, byteSize, albedo->data());
+			filter.setImage("albedo", albedoBuffer, oidn::Format::Float3,
+				static_cast<size_t>(width), static_cast<size_t>(height));
+
+			normalBuffer = _impl->device.newBuffer(byteSize);
+			normalBuffer.write(0, byteSize, normal->data());
+			filter.setImage("normal", normalBuffer, oidn::Format::Float3,
+				static_cast<size_t>(width), static_cast<size_t>(height));
+		}
+
+		outputBuffer = _impl->device.newBuffer(byteSize);
+		filter.setImage("output", outputBuffer, oidn::Format::Float3,
+			static_cast<size_t>(width), static_cast<size_t>(height));
+	}
+
 	filter.set("hdr", true); // renderPass() output is linear HDR, un-tonemapped
 	filter.commit();
 	filter.execute();
@@ -169,7 +343,7 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 		static bool loggedOnce = false;
 		if (!loggedOnce)
 		{
-			qWarning() << "RtDenoiser: OIDN filter execution failed (error"
+			qWarning() << "RtDenoiser: OIDN filter execution failed on the" << activeDeviceName() << "device (error"
 				<< static_cast<int>(err) << "-" << (errorMessage ? errorMessage : "no message")
 				<< ") - falling back to the built-in bilateral denoiser (logged once).";
 			loggedOnce = true;
@@ -177,6 +351,9 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 		bilateralFallbackDenoise(input, width, height, output, sampleCount);
 		return false;
 	}
+
+	if (!_impl->isSharedMemoryDevice)
+		outputBuffer.read(0, byteSize, output.data());
 
 	return true;
 }

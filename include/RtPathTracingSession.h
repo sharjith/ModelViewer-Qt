@@ -81,6 +81,12 @@ public:
 	void setDenoiserEnabled(bool enabled) { _denoiserEnabled = enabled; }
 	bool denoiserEnabled() const { return _denoiserEnabled; }
 
+	// Forwarded to the owned RtDenoiser - see DenoiserDevicePreference's doc
+	// comment (RtDenoiser.h). Safe to call at any time, including while a
+	// session is actively running (see RtDenoiser::setDevicePreference()).
+	void setDenoiserDevicePreference(DenoiserDevicePreference preference) { _denoiser.setDevicePreference(preference); }
+	DenoiserDevicePreference denoiserDevicePreference() const { return _denoiser.devicePreference(); }
+
 	// Rebuilds the Embree scene from snapshot and (re)starts progressive
 	// accumulation from scratch. Cancels/joins any previously running pass
 	// first, so this is also the right call to "restart with a fresh scene".

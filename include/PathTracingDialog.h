@@ -56,6 +56,7 @@ private slots:
 	void onMaxSamplesChanged(int value);
 	void onMaxBouncesChanged(int value);
 	void onDenoiserToggled(bool checked);
+	void onDenoiserDeviceChanged(int index);
 	void onFireflyClampChanged(double value);
 	void onMaxTransmissionBouncesChanged(int value);
 	void onRussianRouletteDepthChanged(int value);
@@ -94,14 +95,21 @@ private:
 	// the camera settling and restarting outside this dialog entirely).
 	bool _stoppedByUser = false;
 
-	// Elapsed-time display below the progress bar. Started fresh on each
-	// Render click; ticks live while running, then freezes at whatever it
-	// last read once the session stops being active (converged or Stop
-	// pressed) rather than continuing to run in the background - a frozen
-	// "how long did that take" readout is more useful than a clock that
-	// keeps advancing after the render is actually done.
+	// Elapsed-time display below the progress bar. Restarted fresh at the
+	// start of every render cycle - not just an explicit Render click, but
+	// also whenever the camera settles and ViewportWidget auto-restarts a
+	// session on its own (see onProgressTimer()'s rising-edge detection via
+	// _wasSessionRunningLastPoll) - ticks live while running, then freezes
+	// at whatever it last read once the session stops being active
+	// (converged or Stop pressed) rather than continuing to run in the
+	// background - a frozen "how long did that take" readout is more useful
+	// than a clock that keeps advancing after the render is actually done.
+	// An earlier version only ever restarted this on the Render button
+	// click, so every camera-triggered auto-restart kept accumulating on
+	// top of the very first render instead of timing its own cycle.
 	QElapsedTimer _renderTimer;
 	qint64 _frozenElapsedMs = -1; // -1 = not frozen (currently running, or never started)
+	bool _wasSessionRunningLastPoll = false; // see onProgressTimer()'s rising-edge restart
 
 	// Guards against onResolutionPresetSelected() -> spinbox setValue() ->
 	// onExportResolutionChanged() -> syncResolutionPresetFromSpinboxes()

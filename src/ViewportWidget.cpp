@@ -514,6 +514,16 @@ _floorPlane(nullptr),
 	_pathTracedRefreshTimer->setInterval(100);
 	connect(_pathTracedRefreshTimer, &QTimer::timeout, this, &ViewportWidget::onPathTracedRefreshTimer);
 
+	// Load the user's persisted PT quality settings now, unconditionally -
+	// previously this only happened inside PathTracingDialog::loadSettings(),
+	// which only runs if/when that dialog is actually opened. Since Path
+	// Tracing itself can be triggered by the idle timer without the dialog
+	// ever having been opened in the session, that left every PT setting
+	// silently pinned to its hardcoded default (e.g. _ptMaxSamples's 128)
+	// until the user happened to open the dialog once - see
+	// loadPathTracingSettingsFromDisk()'s doc comment.
+	loadPathTracingSettingsFromDisk();
+
 	_animCtrl.setAnimationTimer(new QTimer(this));
 	_animCtrl.animationTimer()->setInterval(16);
 	connect(_animCtrl.animationTimer(), &QTimer::timeout, this, &ViewportWidget::onAnimationTick);
@@ -12586,6 +12596,20 @@ void ViewportWidget::setRenderingMode(const RenderingMode& renderingMode)
 // Path-traced rendering mode
 // ---------------------------------------------------------------------------
 
+void ViewportWidget::loadPathTracingSettingsFromDisk()
+{
+	QSettings settings;
+	_ptMaxSamples = settings.value("pathtracing/maxSamples", _ptMaxSamples).toUInt();
+	_ptMaxBounces = settings.value("pathtracing/maxBounces", _ptMaxBounces).toInt();
+	_ptDenoiserEnabled = settings.value("pathtracing/denoiserEnabled", _ptDenoiserEnabled).toBool();
+	_ptFireflyClampThreshold = settings.value("pathtracing/fireflyClamp", _ptFireflyClampThreshold).toFloat();
+	_ptMaxTransmissionBounces = settings.value("pathtracing/maxTransmissionBounces", _ptMaxTransmissionBounces).toInt();
+	_ptRussianRouletteStartDepth = settings.value("pathtracing/russianRouletteDepth", _ptRussianRouletteStartDepth).toInt();
+	_ptEnvImportanceSamplingEnabled = settings.value("pathtracing/envImportanceSampling", _ptEnvImportanceSamplingEnabled).toBool();
+	_ptDenoiserDevicePreference = static_cast<DenoiserDevicePreference>(
+		settings.value("pathtracing/denoiserDevicePreference", static_cast<int>(_ptDenoiserDevicePreference)).toInt());
+}
+
 void ViewportWidget::armPathTracedRenderingMode()
 {
 	if (_pathTracedArmed)
@@ -12790,6 +12814,7 @@ void ViewportWidget::startPathTracedSession()
 	_rtSession.setResolution(fbWidth, fbHeight);
 	_rtSession.setMaxSamples(_ptMaxSamples);
 	_rtSession.setDenoiserEnabled(_ptDenoiserEnabled);
+	_rtSession.setDenoiserDevicePreference(_ptDenoiserDevicePreference);
 	{
 		CpuPathTracer::Settings settings = _rtSession.tracerSettings();
 		settings.maxBounces                        = _ptMaxBounces;
@@ -12859,7 +12884,7 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 
 	if (_ptDenoiserEnabled)
 	{
-		RtDenoiser denoiser;
+		RtDenoiser denoiser(_ptDenoiserDevicePreference);
 		std::vector<glm::vec3> denoised;
 		const std::vector<glm::vec3> albedo = accumulator.resolveAlbedo();
 		const std::vector<glm::vec3> normal = accumulator.resolveNormal();

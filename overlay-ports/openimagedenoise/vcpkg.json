@@ -1,7 +1,8 @@
 {
   "name": "openimagedenoise",
   "version": "2.5.0",
-  "description": "Intel/RenderKit Open Image Denoise - high-quality denoising filters for ray/path-traced images. This is a local overlay port: OIDN is not published in the upstream vcpkg registry, so this port repackages the official prebuilt binary redistributables (CPU device only - no CUDA/HIP/SYCL, which this project does not use).",
+  "port-version": 1,
+  "description": "Intel/RenderKit Open Image Denoise - high-quality denoising filters for ray/path-traced images. This is a local overlay port: OIDN is not published in the upstream vcpkg registry, so this port repackages the official prebuilt binary redistributables (CPU and CUDA devices only - no HIP/SYCL, which this project does not use).",
   "homepage": "https://github.com/RenderKit/oidn",
   "license": "Apache-2.0",
   "supports": "(windows | linux) & x64",

@@ -361,6 +361,8 @@ public:
 	// Advanced settings - see CpuPathTracer::Settings/RtPathTracingSession
 	// for what each one actually controls.
 	void setPathTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
+	void setPathTracingDenoiserDevicePreference(DenoiserDevicePreference preference) { _ptDenoiserDevicePreference = preference; }
+	DenoiserDevicePreference pathTracingDenoiserDevicePreference() const { return _ptDenoiserDevicePreference; }
 	void setPathTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
 	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
 	void setPathTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
@@ -370,6 +372,18 @@ public:
 	float pathTracingFireflyClampThreshold() const { return _ptFireflyClampThreshold; }
 	int pathTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
 	int pathTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
+
+	// Applies the user's persisted PT settings (QSettings "pathtracing/*"
+	// keys - same keys PathTracingDialog::saveSettings() writes) on top of
+	// whatever these members currently hold, narrowing/leaving each one
+	// untouched if its key was never saved. Called once unconditionally from
+	// the constructor - NOT only from PathTracingDialog::loadSettings() (that
+	// still calls this too, so re-opening the dialog picks up any changes
+	// made outside it) - because Path Tracing can trigger via the idle timer
+	// without the dialog ever having been opened in the session, which
+	// previously left every setting pinned to its hardcoded default (e.g.
+	// _ptMaxSamples's 128) until the user happened to open it once.
+	void loadPathTracingSettingsFromDisk();
 
 	// True when the most recently built PT scene combines orthographic
 	// projection with a thin-walled transmissive material (KHR_materials_
@@ -1072,6 +1086,7 @@ private:
 	float    _ptFireflyClampThreshold = 3.0f;
 	int      _ptMaxTransmissionBounces = 32;
 	int      _ptRussianRouletteStartDepth = 3;
+	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 
 	// Set for the duration of a captureCleanPathTracedImage() call -

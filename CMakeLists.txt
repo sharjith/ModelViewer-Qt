@@ -378,6 +378,7 @@ if(WIN32)
             "OpenImageDenoise.dll"
             "OpenImageDenoise_core.dll"
             "OpenImageDenoise_device_cpu.dll"
+            "OpenImageDenoise_device_cuda.dll"
         )
 
         foreach(RT_DLL ${RAYTRACING_RUNTIME_DLLS})
@@ -588,18 +589,20 @@ if(WIN32)
     )
 
     # install(TARGETS ... RUNTIME_DEPENDENCIES) only resolves direct PE import
-    # dependencies via binary scanning - OpenImageDenoise_device_cpu.dll (OIDN's
-    # CPU compute backend, loaded via LoadLibrary as a plugin, not a linker
-    # import of OpenImageDenoise.dll/_core.dll) and the tbbbind*.dll NUMA-
-    # topology plugins TBB loads the same way are invisible to it, so a
-    # packaged install silently ends up without them while the dev build
-    # output (which gets them from the POST_BUILD copy above) works fine.
-    # That mismatch was the actual cause of OIDN reporting "unsupported
-    # device type: CPU" only in installed/packaged builds - the DLL exists,
-    # it just was never deployed there. Install them explicitly here too.
+    # dependencies via binary scanning - OpenImageDenoise_device_cpu.dll and
+    # OpenImageDenoise_device_cuda.dll (OIDN's CPU/CUDA compute backends,
+    # both loaded via LoadLibrary as plugins, not a linker import of
+    # OpenImageDenoise.dll/_core.dll) and the tbbbind*.dll NUMA-topology
+    # plugins TBB loads the same way are invisible to it, so a packaged
+    # install silently ends up without them while the dev build output
+    # (which gets them from the POST_BUILD copy above) works fine. That
+    # mismatch was the actual cause of OIDN reporting "unsupported device
+    # type: CPU" only in installed/packaged builds - the DLL exists, it just
+    # was never deployed there. Install them explicitly here too.
     if(DEFINED RT_BIN_DIR)
         install(FILES
             "${RT_BIN_DIR}/OpenImageDenoise_device_cpu.dll"
+            "${RT_BIN_DIR}/OpenImageDenoise_device_cuda.dll"
             "${RT_BIN_DIR}/tbbbind.dll"
             "${RT_BIN_DIR}/tbbbind_2_0.dll"
             "${RT_BIN_DIR}/tbbbind_2_5.dll"

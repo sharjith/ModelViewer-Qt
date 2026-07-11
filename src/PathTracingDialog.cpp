@@ -158,6 +158,7 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 		ui->spinBoxMaxTransmissionBounces->setValue(viewport->pathTracingMaxTransmissionBounces());
 		ui->spinBoxRussianRouletteDepth->setValue(viewport->pathTracingRussianRouletteStartDepth());
 		ui->checkBoxEnvImportanceSampling->setChecked(viewport->pathTracingEnvImportanceSamplingEnabled());
+		ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
 
 		// Export resolution defaults fresh to the CURRENT viewport size every
 		// time the dialog opens (not persisted via QSettings like the other
@@ -174,6 +175,7 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 	connect(ui->spinBoxMaxSamples, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxSamplesChanged);
 	connect(ui->spinBoxMaxBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxBouncesChanged);
 	connect(ui->checkBoxDenoiser, &QCheckBox::toggled, this, &PathTracingDialog::onDenoiserToggled);
+	connect(ui->comboBoxDenoiserDevice, qOverload<int>(&QComboBox::currentIndexChanged), this, &PathTracingDialog::onDenoiserDeviceChanged);
 	connect(ui->doubleSpinBoxFireflyClamp, &QDoubleSpinBox::valueChanged, this, &PathTracingDialog::onFireflyClampChanged);
 	connect(ui->spinBoxMaxTransmissionBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxTransmissionBouncesChanged);
 	connect(ui->spinBoxRussianRouletteDepth, &QSpinBox::valueChanged, this, &PathTracingDialog::onRussianRouletteDepthChanged);
@@ -245,17 +247,14 @@ void PathTracingDialog::loadSettings()
 	if (!viewport)
 		return;
 
-	// Only ever narrows an existing value from QSettings, or leaves the
-	// viewport's current (default-constructed) value untouched if this key
-	// was never saved before - first run behaves exactly as if this
-	// function didn't exist.
-	viewport->setPathTracingMaxSamples(settings.value("pathtracing/maxSamples", viewport->pathTracingMaxSamples()).toUInt());
-	viewport->setPathTracingMaxBounces(settings.value("pathtracing/maxBounces", viewport->pathTracingMaxBounces()).toInt());
-	viewport->setPathTracingDenoiserEnabled(settings.value("pathtracing/denoiserEnabled", viewport->pathTracingDenoiserEnabled()).toBool());
-	viewport->setPathTracingFireflyClampThreshold(settings.value("pathtracing/fireflyClamp", viewport->pathTracingFireflyClampThreshold()).toFloat());
-	viewport->setPathTracingMaxTransmissionBounces(settings.value("pathtracing/maxTransmissionBounces", viewport->pathTracingMaxTransmissionBounces()).toInt());
-	viewport->setPathTracingRussianRouletteStartDepth(settings.value("pathtracing/russianRouletteDepth", viewport->pathTracingRussianRouletteStartDepth()).toInt());
-	viewport->setPathTracingEnvImportanceSamplingEnabled(settings.value("pathtracing/envImportanceSampling", viewport->pathTracingEnvImportanceSamplingEnabled()).toBool());
+	// The viewport already loaded these once unconditionally at construction
+	// (see loadPathTracingSettingsFromDisk()'s doc comment - Path Tracing can
+	// trigger via the idle timer without this dialog ever having been
+	// opened, so that load can't depend on the dialog). Re-running it here
+	// picks up any changes made to the settings file outside this session
+	// (or a future settings-reset feature) before the UI widgets below read
+	// the viewport's values.
+	viewport->loadPathTracingSettingsFromDisk();
 }
 
 void PathTracingDialog::saveSettings()
@@ -274,6 +273,7 @@ void PathTracingDialog::saveSettings()
 	settings.setValue("pathtracing/maxTransmissionBounces", viewport->pathTracingMaxTransmissionBounces());
 	settings.setValue("pathtracing/russianRouletteDepth", viewport->pathTracingRussianRouletteStartDepth());
 	settings.setValue("pathtracing/envImportanceSampling", viewport->pathTracingEnvImportanceSamplingEnabled());
+	settings.setValue("pathtracing/denoiserDevicePreference", static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
 }
 
 void PathTracingDialog::onMaxSamplesChanged(int value)
@@ -293,6 +293,12 @@ void PathTracingDialog::onDenoiserToggled(bool checked)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->setPathTracingDenoiserEnabled(checked);
+}
+
+void PathTracingDialog::onDenoiserDeviceChanged(int index)
+{
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->setPathTracingDenoiserDevicePreference(static_cast<DenoiserDevicePreference>(index));
 }
 
 void PathTracingDialog::onFireflyClampChanged(double value)
@@ -336,6 +342,7 @@ void PathTracingDialog::onRenderClicked()
 
 	_renderTimer.start();
 	_frozenElapsedMs = -1;
+	_wasSessionRunningLastPoll = true; // avoids a redundant (harmless) restart on the very next poll tick
 }
 
 void PathTracingDialog::onStopClicked()
@@ -534,6 +541,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	ui->spinBoxMaxTransmissionBounces->setValue(32);
 	ui->spinBoxRussianRouletteDepth->setValue(3);
 	ui->checkBoxEnvImportanceSampling->setChecked(true);
+	ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(DenoiserDevicePreference::Auto));
 	// Each setValue()/setChecked() above already emitted its usual
 	// valueChanged/toggled signal (unchanged from any other edit), pushing
 	// the reset value into the viewport via this dialog's existing slots -
@@ -657,6 +665,17 @@ void PathTracingDialog::onProgressTimer()
 		_stoppedByUser = false; // real progress again - via this dialog's Render, or the camera settling/restarting on its own
 	if (_stoppedByUser)
 		current = 0;
+
+	// Rising edge (wasn't running last poll, is now) means a fresh render
+	// cycle just began - restart the elapsed-time clock for it. Catches
+	// camera-triggered auto-restarts (ViewportWidget's idle timer calling
+	// startPathTracedSession() on its own) the same way as an explicit
+	// Render click already does via its own _renderTimer.start() - without
+	// this, an auto-restarted cycle kept accumulating on top of whatever the
+	// clock already read from the previous cycle instead of timing its own.
+	if (running && !_wasSessionRunningLastPoll)
+		_renderTimer.start();
+	_wasSessionRunningLastPoll = running;
 
 	ui->progressBarSamples->setMaximum(static_cast<int>(std::max<uint32_t>(target, 1)));
 	ui->progressBarSamples->setValue(static_cast<int>(current));

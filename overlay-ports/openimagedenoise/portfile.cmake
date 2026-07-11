@@ -1,9 +1,17 @@
 # OIDN is not in the upstream vcpkg registry (confirmed against vcpkg master,
 # 2026-07-05) - Intel/RenderKit only ship prebuilt binary redistributables on
 # GitHub Releases, no source vcpkg port exists. This overlay port repackages
-# those binaries. CPU device only: the release archive also bundles CUDA/HIP/
-# SYCL device plugins and their oneAPI Level Zero loader DLLs, none of which
-# this project uses, so only the core + CPU-device runtime is installed.
+# those binaries. CPU + CUDA devices only: the release archive also bundles
+# HIP/SYCL device plugins and their oneAPI Level Zero loader DLLs, neither of
+# which this project uses, so those are left out. The CUDA device plugin
+# (OpenImageDenoise_device_cuda.dll) is a prebuilt binary already inside this
+# same archive - a DLL import scan confirms it links only against
+# nvcuda.dll (the NVIDIA display driver's own Driver API library, present on
+# any machine with a working NVIDIA GPU driver installed), NOT against any
+# CUDA Toolkit redistributable - so no CUDA Toolkit is required to build OR
+# run this, only an NVIDIA driver at runtime for the CUDA device to actually
+# initialize (RtDenoiser falls back to the CPU device, then to a built-in
+# bilateral filter, if it doesn't).
 vcpkg_check_linkage(ONLY_DYNAMIC_LIBRARY)
 
 set(OIDN_VERSION "2.5.0")
@@ -48,6 +56,7 @@ if(VCPKG_TARGET_IS_WINDOWS)
         "${SOURCE_PATH}/bin/OpenImageDenoise.dll"
         "${SOURCE_PATH}/bin/OpenImageDenoise_core.dll"
         "${SOURCE_PATH}/bin/OpenImageDenoise_device_cpu.dll"
+        "${SOURCE_PATH}/bin/OpenImageDenoise_device_cuda.dll"
         "${SOURCE_PATH}/bin/tbb12.dll"
         "${SOURCE_PATH}/bin/tbbbind.dll"
         "${SOURCE_PATH}/bin/tbbbind_2_0.dll"
@@ -56,10 +65,15 @@ if(VCPKG_TARGET_IS_WINDOWS)
     file(INSTALL ${OIDN_RUNTIME_FILES} DESTINATION "${CURRENT_PACKAGES_DIR}/bin")
     file(INSTALL ${OIDN_RUNTIME_FILES} DESTINATION "${CURRENT_PACKAGES_DIR}/debug/bin")
 else()
+    # GLOB (not a hardcoded list) for the CUDA .so specifically - not verified
+    # to exist in the Linux release archive the way it was for Windows above,
+    # so this degrades to "not installed" rather than a hard configure error
+    # if a given release doesn't ship it for Linux.
     file(GLOB OIDN_SO_FILES
         "${SOURCE_PATH}/lib/libOpenImageDenoise.so*"
         "${SOURCE_PATH}/lib/libOpenImageDenoise_core.so*"
         "${SOURCE_PATH}/lib/libOpenImageDenoise_device_cpu.so*"
+        "${SOURCE_PATH}/lib/libOpenImageDenoise_device_cuda.so*"
         "${SOURCE_PATH}/lib/libtbb.so*"
         "${SOURCE_PATH}/lib/libtbbbind.so*"
         "${SOURCE_PATH}/lib/libtbbbind_2_0.so*"

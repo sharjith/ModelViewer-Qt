@@ -69,6 +69,16 @@
         </layout>
        </item>
        <item>
+        <widget class="Line" name="lineBeforeDenoiser">
+         <property name="frameShape">
+          <enum>QFrame::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Sunken</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QCheckBox" name="checkBoxDenoiser">
          <property name="text">
           <string>Enable Denoiser</string>
@@ -79,11 +89,51 @@
         </widget>
        </item>
        <item>
+        <layout class="QHBoxLayout" name="horizontalLayoutDenoiserDevice">
+         <item>
+          <widget class="QLabel" name="labelDenoiserDevice">
+           <property name="text">
+            <string>Denoiser Device</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBoxDenoiserDevice">
+           <item>
+            <property name="text">
+             <string>Auto</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>CPU</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>GPU (CUDA)</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="Line" name="lineAfterDenoiser">
+         <property name="frameShape">
+          <enum>QFrame::HLine</enum>
+         </property>
+         <property name="frameShadow">
+          <enum>QFrame::Sunken</enum>
+         </property>
+        </widget>
+       </item>
+       <item>
         <layout class="QHBoxLayout" name="horizontalLayoutResolutionPreset">
          <item>
           <widget class="QLabel" name="labelResolutionPreset">
            <property name="text">
-            <string>Preset</string>
+            <string>Export Preset</string>
            </property>
           </widget>
          </item>
