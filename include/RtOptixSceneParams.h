@@ -19,10 +19,16 @@
 // (cosine-weighted diffuse or GGX-VNDF specular, chosen by a Fresnel-based
 // probability) for its continuation direction, weighting throughput by the
 // importance-sampling estimator - see RtOptixScene.cu's traceBouncePath()/
-// sampleGGXVNDF()/cosineSampleHemisphere() doc comments. Still deferred: AO,
-// opacity/alpha, and every KHR extension texture (specular/clearcoat/sheen/
-// anisotropy/iridescence/transmission) - see RtMaterial's own doc comments
-// for what those add.
+// sampleGGXVNDF()/cosineSampleHemisphere() doc comments. Also has ambient
+// occlusion (applied to the diffuse-lobe's indirect throughput only, not
+// direct lighting - see __closesthit__ch()'s doc comment for why that's a
+// deliberate simplification of CpuPathTracer's own multi-site AO
+// application) and glTF alphaMode Masked cutout (via __anyhit__ah() below -
+// alphaMode Blend/true transparency compositing is deferred to the
+// transmission phase, which needs similar stochastic-alpha machinery
+// anyway). Still deferred: every KHR extension texture (specular/clearcoat/
+// sheen/anisotropy/iridescence/transmission) - see RtMaterial's own doc
+// comments for what those add.
 // ---------------------------------------------------------------------------
 struct RtOptixLight
 {
@@ -215,6 +221,26 @@ struct RtOptixSceneHitGroupData
 	float3 emissive;
 	float emissiveStrength;
 
+	// glTF occlusionTexture.strength - see RtMaterial::occlusionStrength's
+	// doc comment ("clamp(mix(1.0, texAO, occlusionStrength), 0.0001, 1.0)").
+	// Only meaningful when aoTexture.width > 0.
+	float occlusionStrength;
+
+	// Base glTF alphaMode - see RtMaterial::blendMode's doc comment.
+	// 0=Opaque, 1=Masked (cutout, handled by __anyhit__ah() below),
+	// 2=Blend (true transparency compositing - not yet implemented, treated
+	// as Opaque for now; deferred to the transmission phase, which needs
+	// similar stochastic-alpha machinery anyway). alphaThreshold is glTF's
+	// alphaCutoff (Masked only).
+	int blendMode;
+	float alphaThreshold;
+
+	// Flat opacity factor - used when opacityTexture is absent AND
+	// baseColorTexture has no alpha channel to fall back to (matching
+	// CpuPathTracer::evaluateSurface()'s fallback chain: opacityTexture ->
+	// baseColorTexture's alpha -> this flat factor).
+	float opacity;
+
 	// glTF normalTexture.scale - see RtMaterial::normalScale's doc comment.
 	// Only meaningful when normalTexture.width > 0.
 	float normalScale;
@@ -224,4 +250,10 @@ struct RtOptixSceneHitGroupData
 	RtOptixTexture roughnessTexture;
 	RtOptixTexture normalTexture;
 	RtOptixTexture emissiveTexture;
+	RtOptixTexture aoTexture;
+
+	// width<=0 (absent) falls back to baseColorTexture's own alpha channel
+	// (if that's present), then to the flat `opacity` factor above - see
+	// __anyhit__ah()'s doc comment for the exact fallback chain.
+	RtOptixTexture opacityTexture;
 };

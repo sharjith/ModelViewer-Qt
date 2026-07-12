@@ -285,6 +285,12 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	hitgroupDesc.kind = OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 	hitgroupDesc.hitgroup.moduleCH = _impl->module;
 	hitgroupDesc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
+	// Any-hit program - only actually rejects a hit for glTF alphaMode
+	// Masked materials below their alphaCutoff (see RtOptixScene.cu's
+	// __anyhit__ah() doc comment); every other case accepts the hit
+	// immediately (the default when an any-hit program does nothing).
+	hitgroupDesc.hitgroup.moduleAH = _impl->module;
+	hitgroupDesc.hitgroup.entryFunctionNameAH = "__anyhit__ah";
 	logSize = sizeof(log);
 	if (!optixCheck(optixProgramGroupCreate(_impl->context, &hitgroupDesc, 1, &programGroupOptions, log, &logSize, &_impl->hitgroupGroup), "optixProgramGroupCreate(hitgroup)"))
 		return;
@@ -558,6 +564,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughness = mat.roughness;
 			hgSbt.data.emissive = make_float3(mat.emissive.x, mat.emissive.y, mat.emissive.z);
 			hgSbt.data.emissiveStrength = mat.emissiveStrength;
+			hgSbt.data.occlusionStrength = mat.occlusionStrength;
+			hgSbt.data.blendMode = mat.blendMode;
+			hgSbt.data.alphaThreshold = mat.alphaThreshold;
+			hgSbt.data.opacity = mat.opacity;
 			hgSbt.data.normalScale = mat.normalScale;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
@@ -565,6 +575,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			uploadMaterialTexture(mat.roughnessTexture, hgSbt.data.roughnessTexture);
 			uploadMaterialTexture(mat.normalTexture, hgSbt.data.normalTexture);
 			uploadMaterialTexture(mat.emissiveTexture, hgSbt.data.emissiveTexture);
+			uploadMaterialTexture(mat.aoTexture, hgSbt.data.aoTexture);
+			uploadMaterialTexture(mat.opacityTexture, hgSbt.data.opacityTexture);
 		}
 		else
 		{
@@ -573,6 +585,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughness = 0.5f;
 			hgSbt.data.emissive = make_float3(0.0f, 0.0f, 0.0f);
 			hgSbt.data.emissiveStrength = 0.0f;
+			hgSbt.data.occlusionStrength = 1.0f;
+			hgSbt.data.blendMode = 0;
+			hgSbt.data.alphaThreshold = 0.5f;
+			hgSbt.data.opacity = 1.0f;
 			hgSbt.data.normalScale = 1.0f;
 
 			hgSbt.data.baseColorTexture.width = 0;
@@ -580,6 +596,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughnessTexture.width = 0;
 			hgSbt.data.normalTexture.width = 0;
 			hgSbt.data.emissiveTexture.width = 0;
+			hgSbt.data.aoTexture.width = 0;
+			hgSbt.data.opacityTexture.width = 0;
 		}
 
 		hitgroupRecordsHost.push_back(hgSbt);

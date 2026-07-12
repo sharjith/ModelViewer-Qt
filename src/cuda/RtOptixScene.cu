@@ -47,11 +47,19 @@
 // lobe escape uses the sentinel roughness=1.0 (most-blurred mip) in place
 // of a real irradiance map, which this backend doesn't capture separately.
 //
-// Still deferred: AO, opacity/alpha, and every KHR extension texture
-// (specular/clearcoat/sheen/anisotropy/iridescence/transmission) - see
-// RtMaterial's own doc comments for what those add. Self-contained, same
-// style as RtOptixTriangle.cu (no dependency on the OptiX SDK's bundled
-// sutil).
+// Also has ambient occlusion (__closesthit__ch() darkens the diffuse lobe's
+// indirect throughput weight by it - a deliberately simpler approximation
+// of CpuPathTracer's own multi-site AO application, since this backend has
+// no separate IBL step to apply it to) and glTF alphaMode Masked cutout
+// (__anyhit__ah(), a new any-hit program - optixIgnoreIntersection() lets a
+// sub-cutoff hit be transparent to every ray type uniformly, including
+// shadow rays, without needing per-ray-type special-casing).
+//
+// Still deferred: alphaMode Blend (true transparency compositing) and every
+// KHR extension texture (specular/clearcoat/sheen/anisotropy/iridescence/
+// transmission) - see RtMaterial's own doc comments for what those add.
+// Self-contained, same style as RtOptixTriangle.cu (no dependency on the
+// OptiX SDK's bundled sutil).
 // ---------------------------------------------------------------------------
 #include <optix.h>
 
@@ -249,6 +257,37 @@ namespace
 		}
 		if (tex.packingInvert) v = 1.0f - v;
 		return v * tex.packingScale + tex.packingBias;
+	}
+
+	// All 4 UV channels, barycentrically interpolated - a texture's KHR-
+	// declared texCoordIndex can reference any of them (see
+	// sampleTexture2D()'s use site), matching CpuPathTracer::sampleTexture()'s
+	// identical per-texture channel selection. Shared by __closesthit__ch()
+	// and __anyhit__ah() (the latter only needs this to resolve opacity).
+	__forceinline__ __device__ void interpolateUVs(const RtOptixSceneHitGroupData* data, const uint3& tri,
+		float w, float u, float v, float2 outUv[4])
+	{
+		for (int ch = 0; ch < 4; ++ch)
+		{
+			const float2 t0 = data->texCoords[tri.x * 4 + ch];
+			const float2 t1 = data->texCoords[tri.y * 4 + ch];
+			const float2 t2 = data->texCoords[tri.z * 4 + ch];
+			outUv[ch] = t0 * w + t1 * u + t2 * v;
+		}
+	}
+
+	// Resolves this hit's opacity via CpuPathTracer::evaluateSurface()'s
+	// exact fallback chain: a dedicated opacityTexture (channel-packed) if
+	// present, else baseColorTexture's own alpha channel if IT is present,
+	// else the flat opacity factor. Shared by __anyhit__ah() (Masked cutout)
+	// and, later, the transmission phase's Blend handling.
+	__forceinline__ __device__ float resolveOpacity(const RtOptixSceneHitGroupData* data, const float2 uv[4])
+	{
+		if (data->opacityTexture.width > 0)
+			return applyChannelPacking(sampleTexture2D(data->opacityTexture, uv), data->opacityTexture);
+		if (data->baseColorTexture.width > 0)
+			return sampleTexture2D(data->baseColorTexture, uv).w;
+		return data->opacity;
 	}
 
 	// Ported from CpuPathTracer::applyNormalMap() - N is the (already world-
@@ -866,6 +905,36 @@ extern "C" __global__ void __miss__ms()
 	optixSetPayload_14(0u); optixSetPayload_15(0u); optixSetPayload_16(0u);
 }
 
+// glTF alphaMode Masked cutout - any-hit runs for EVERY ray type (primary/
+// bounce trace calls and shadow rays alike), so a sub-cutoff hit is
+// invisible to all of them uniformly, matching the spec's "treat as if this
+// geometry doesn't exist here" semantics (CpuPathTracer's own MASK handling
+// in RtEmbreeScene::intersect()). optixIgnoreIntersection() tells BVH
+// traversal to discard this candidate hit and keep looking - it does NOT
+// terminate traversal, so a shadow ray with OPTIX_RAY_FLAG_TERMINATE_ON_
+// FIRST_HIT correctly continues past a masked-out hit to find (or not find)
+// a REAL occluder behind it. Opaque (blendMode==0) and Blend (blendMode==2,
+// not yet implemented - see RtOptixSceneHitGroupData::blendMode's doc
+// comment) materials always accept the hit here (a no-op any-hit program is
+// the same as not having one at all).
+extern "C" __global__ void __anyhit__ah()
+{
+	const RtOptixSceneHitGroupData* data = reinterpret_cast<const RtOptixSceneHitGroupData*>(optixGetSbtDataPointer());
+	if (data->blendMode != 1)
+		return;
+
+	const unsigned int primIdx = optixGetPrimitiveIndex();
+	const uint3 tri = data->indices[primIdx];
+	const float2 bary = optixGetTriangleBarycentrics();
+	const float u = bary.x, v = bary.y, w = 1.0f - u - v;
+
+	float2 uv[4];
+	interpolateUVs(data, tri, w, u, v, uv);
+
+	if (resolveOpacity(data, uv) < data->alphaThreshold)
+		optixIgnoreIntersection();
+}
+
 extern "C" __global__ void __closesthit__ch()
 {
 	if (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT)
@@ -907,18 +976,8 @@ extern "C" __global__ void __closesthit__ch()
 	if (dot3(worldNormal, rayDir) > 0.0f)
 		worldNormal = worldNormal * -1.0f;
 
-	// All 4 UV channels, barycentrically interpolated - a texture's KHR-
-	// declared texCoordIndex can reference any of them (see
-	// sampleTexture2D()'s use site), matching CpuPathTracer::sampleTexture()'s
-	// identical per-texture channel selection.
 	float2 uv[4];
-	for (int ch = 0; ch < 4; ++ch)
-	{
-		const float2 t0 = data->texCoords[tri.x * 4 + ch];
-		const float2 t1 = data->texCoords[tri.y * 4 + ch];
-		const float2 t2 = data->texCoords[tri.z * 4 + ch];
-		uv[ch] = t0 * w + t1 * u + t2 * v;
-	}
+	interpolateUVs(data, tri, w, u, v, uv);
 
 	// Object-space tangent + handedness, barycentrically interpolated then
 	// transformed to world space via the plain-model-matrix direction
@@ -977,6 +1036,24 @@ extern "C" __global__ void __closesthit__ch()
 	{
 		const float4 sampled = sampleTexture2D(data->emissiveTexture, uv);
 		emissive = emissive * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
+	}
+
+	// Ambient occlusion - ported from CpuPathTracer::evaluateSurface()'s
+	// "clamp(mix(1.0, texAO, occlusionStrength), 0.0001, 1.0)". CPU applies
+	// this to diffuse/specular IBL and environment-escape terms specifically,
+	// never to direct (punctual) lighting - see RtMaterial::occlusionStrength's
+	// doc comment. This backend has no separate IBL step (indirect light is
+	// real bounced continuation instead), so as a deliberately simpler
+	// approximation of that same intent, AO here darkens only the diffuse
+	// lobe's own indirect throughput weight below (matching how baked AO
+	// maps are conventionally applied in real-time engines - to ambient/
+	// indirect diffuse specifically, not specular or direct light).
+	float ao = 1.0f;
+	if (data->aoTexture.width > 0)
+	{
+		const float texAo = applyChannelPacking(sampleTexture2D(data->aoTexture, uv), data->aoTexture);
+		const float mixed = 1.0f + (texAo - 1.0f) * data->occlusionStrength; // mix(1.0, texAo, occlusionStrength)
+		ao = fminf(fmaxf(mixed, 0.0001f), 1.0f);
 	}
 
 	// View direction and the simplified (no KHR_materials_ior/specular) F0 -
@@ -1105,7 +1182,7 @@ extern "C" __global__ void __closesthit__ch()
 			// standard two-lobe stochastic-BSDF estimator.
 			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
 			nextDirection = L;
-			throughputWeight = kD * baseColor * (1.0f / fmaxf(1.0f - specProb, 1e-4f));
+			throughputWeight = kD * baseColor * (ao / fmaxf(1.0f - specProb, 1e-4f));
 			outEscapeRoughness = 1.0f;
 			hasContinuation = true;
 		}
