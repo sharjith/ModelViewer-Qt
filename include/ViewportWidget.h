@@ -40,6 +40,7 @@
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
+#include "RtOptixPathTracingSession.h"
 #include "RtOptixSceneTracer.h"
 #include "RtOptixTracer.h"
 #include "RtPathTracingSession.h"
@@ -404,9 +405,18 @@ public:
 
 	// Progress snapshot for PathTracingDialog's poll timer - current/target
 	// sample counts and whether the worker is still running. Cheap (no frame
-	// copy) - see RtPathTracingSession::currentSampleCount().
+	// copy) - see RtPathTracingSession::currentSampleCount(). Reads from
+	// whichever backend's session is actually the active one, so the
+	// progress bar/elapsed-time display works identically for both engines.
 	void pathTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
 	{
+		if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+		{
+			outCurrentSamples = _ptOptixSession.currentSampleCount();
+			outTargetSamples  = _ptOptixSession.maxSamples();
+			outRunning        = _ptOptixSession.isRunning();
+			return;
+		}
 		outCurrentSamples = _rtSession.currentSampleCount();
 		outTargetSamples  = _rtSession.maxSamples();
 		outRunning        = _rtSession.isRunning();
@@ -1096,8 +1106,7 @@ private:
 	int      _ptRussianRouletteStartDepth = 3;
 	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
 	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::CPU;
-	std::unique_ptr<RtOptixSceneTracer> _ptOptixSceneTracer; // lazily created - see startOptixTestPathTracedSession()
-	uint64_t _ptOptixSceneBuiltRevision = 0; // buildScene() only re-runs when the snapshot's revisionId changed
+	RtOptixPathTracingSession _ptOptixSession; // GPU-backend counterpart to _rtSession above - see startOptixTestPathTracedSession()
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 
 	// Set for the duration of a captureCleanPathTracedImage() call -

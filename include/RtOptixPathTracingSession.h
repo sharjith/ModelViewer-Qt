@@ -1,0 +1,135 @@
+#pragma once
+
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <vector>
+
+#include <glm/glm.hpp>
+
+#include "RtDenoiser.h"
+#include "RtOptixSceneTracer.h"
+#include "RtSceneSnapshot.h"
+
+// ---------------------------------------------------------------------------
+// RtOptixPathTracingSession
+//
+// GPU-backend counterpart to RtPathTracingSession (see that class's doc
+// comment for the pattern this mirrors) - owns a background worker thread
+// that repeatedly renders a small chunk of samples per pixel via
+// RtOptixSceneTracer::renderScene(), accumulates the results (as a running
+// mean, in linear HDR space - see RtOptixSceneParams.h's image field doc
+// comment for why linear-space accumulation matters here) and publishes the
+// latest averaged frame to a mutex-protected slot the GL/UI thread can poll
+// via latestFrame() without blocking the worker. This is what lets
+// PathTracingDialog's progress bar/elapsed-time display move for the GPU
+// engine the same way it already does for the CPU one, instead of the
+// caller blocking on one single all-samples-at-once optixLaunch().
+//
+// Unlike RtPathTracingSession, there is no separate notifyCameraChanged() -
+// ViewportWidget's own CPU-path usage never actually calls that either (see
+// its own doc comment), always calling start() unconditionally instead, so
+// there was no existing behavior to preserve here. start() always resets
+// accumulation from scratch but only rebuilds the GPU acceleration
+// structure (RtOptixSceneTracer::buildScene()) when the snapshot's
+// revisionId actually changed - preserving the revision-gated rebuild
+// optimization ViewportWidget used to do at its own call site before this
+// class existed (building a real GAS/IAS is heavier than Embree's own BVH
+// build, worth skipping on pure camera movement).
+//
+// Also owns an RtDenoiser, run once the final chunk reaches maxSamples() -
+// same "denoise only on the last pass" contract as RtPathTracingSession's
+// own publishLatest(finalDenoise) (see RtDenoiser::denoise()'s doc comment
+// for why: OIDN's guide buffers make more of a difference the fewer real
+// samples/pixel are behind the beauty image, so the final pass is the only
+// one worth paying for). RtOptixSceneTracer::renderScene() supplies the
+// albedo/normal guide buffers this needs - see its own doc comment.
+// ---------------------------------------------------------------------------
+class RtOptixPathTracingSession
+{
+public:
+	RtOptixPathTracingSession();
+	~RtOptixPathTracingSession();
+
+	RtOptixPathTracingSession(const RtOptixPathTracingSession&) = delete;
+	RtOptixPathTracingSession& operator=(const RtOptixPathTracingSession&) = delete;
+
+	bool isAvailable() const;
+
+	// Takes effect on the next start() call - does not affect an already-running session by itself.
+	void setResolution(int width, int height);
+
+	void setMaxSamples(uint32_t maxSamples) { _maxSamples = maxSamples > 0 ? maxSamples : 1; }
+	uint32_t maxSamples() const { return _maxSamples; }
+
+	// Chunk size (samples per pixel gathered per background-thread pass,
+	// i.e. per RtOptixSceneTracer::renderScene() call) - smaller values give
+	// more frequent progress-bar/preview updates at the cost of more
+	// per-launch overhead (device alloc/readback happens once per chunk).
+	// Clamped to maxSamples() internally so a single chunk never overshoots
+	// the target.
+	void setSamplesPerChunk(uint32_t samplesPerChunk) { _samplesPerChunk = samplesPerChunk > 0 ? samplesPerChunk : 1; }
+
+	// When false, the published frame never gets the final OIDN pass even
+	// once maxSamples() is reached - the raw progressive accumulation is
+	// published as-is instead. Mirrors RtPathTracingSession::
+	// setDenoiserEnabled()'s identical contract.
+	void setDenoiserEnabled(bool enabled) { _denoiserEnabled = enabled; }
+	bool denoiserEnabled() const { return _denoiserEnabled; }
+
+	// Forwarded to the owned RtDenoiser - safe to call at any time, including
+	// while a session is actively running (see RtDenoiser::setDevicePreference()).
+	void setDenoiserDevicePreference(DenoiserDevicePreference preference) { _denoiser.setDevicePreference(preference); }
+	DenoiserDevicePreference denoiserDevicePreference() const { return _denoiser.devicePreference(); }
+
+	// (Re)builds the GPU acceleration structure only if snapshot->revisionId
+	// changed since the last successful build, then (re)starts progressive
+	// accumulation from scratch. Cancels/joins any previously running pass
+	// first, so this is also the right call to "restart with a fresh
+	// camera/scene". Returns false only for hard failures (OptiX
+	// unavailable, buildScene() failed) - accumulation simply won't start
+	// on failure.
+	bool start(std::shared_ptr<const RtSceneSnapshot> snapshot);
+
+	// Cancels any in-flight pass and joins the worker thread. Safe to call even if not currently running.
+	void stop();
+
+	bool isRunning() const { return _running.load(std::memory_order_acquire); }
+
+	// Cheap progress-polling accessor - see RtPathTracingSession::currentSampleCount()'s identical reasoning.
+	uint32_t currentSampleCount() const { return _publishedSampleCount.load(std::memory_order_acquire); }
+
+	// Latest averaged linear-HDR frame available for display - safe to call
+	// from any thread while the worker keeps running; returns an empty
+	// vector if no chunk has completed yet.
+	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount) const;
+
+private:
+	void workerLoop(uint64_t myGeneration);
+
+	RtOptixSceneTracer _tracer;
+	RtDenoiser _denoiser;
+	bool _denoiserEnabled = true;
+
+	int _width  = 0;
+	int _height = 0;
+	uint32_t _maxSamples = 128;
+	uint32_t _samplesPerChunk = 1;
+	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
+
+	mutable std::mutex _snapshotMutex;
+	std::shared_ptr<const RtSceneSnapshot> _snapshot;
+
+	std::thread _worker;
+	std::atomic<uint64_t> _generation{ 0 }; // bumped every start() call - lets a still-running worker notice it's stale
+	std::atomic<bool>     _cancelRequested{ false };
+	std::atomic<bool>     _running{ false };
+	std::atomic<uint32_t> _publishedSampleCount{ 0 };
+
+	mutable std::mutex     _publishMutex;
+	std::vector<glm::vec3> _publishedFrame;
+	int _publishedWidth  = 0;
+	int _publishedHeight = 0;
+};

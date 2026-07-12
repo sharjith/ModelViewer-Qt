@@ -581,6 +581,7 @@ ViewportWidget::~ViewportWidget()
 	// it holds a shared_ptr to its own RtSceneSnapshot, not to any of this
 	// widget's scene state, so no ordering dependency on the teardown below.
 	_rtSession.stop();
+	_ptOptixSession.stop(); // no-op if the GPU engine was never used this session
 
 	if (_animCtrl.animationTimer())
 	{
@@ -10759,6 +10760,7 @@ void ViewportWidget::hideEvent(QHideEvent* event)
 		if (_pathTracedRefreshTimer)
 			_pathTracedRefreshTimer->stop();
 		_rtSession.stop();
+		_ptOptixSession.stop();
 		_rtPresenter.invalidate();
 	}
 
@@ -12632,6 +12634,7 @@ void ViewportWidget::disarmPathTracedRenderingMode()
 		_pathTracedRefreshTimer->stop();
 
 	_rtSession.stop();
+	_ptOptixSession.stop();
 	_rtPresenter.invalidate();
 	update(); // drop back to pure raster immediately
 }
@@ -12646,6 +12649,7 @@ void ViewportWidget::resetPathTracedIdleTimer()
 	// returns within about one scanline's tracing time - see CpuPathTracer's
 	// cancelFlag - so this is not a UI stall).
 	_rtSession.stop();
+	_ptOptixSession.stop();
 	_rtPresenter.invalidate();
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->stop();
@@ -12827,15 +12831,11 @@ void ViewportWidget::startPathTracedSession()
 
 	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
 	{
-		// Stop any running CPU-session refresh timer first - it would
-		// otherwise keep firing on its old interval and overwrite the GPU
-		// test frame we're about to upload with the previous (now stale)
-		// CPU result on its next tick.
-		if (_pathTracedRefreshTimer)
-			_pathTracedRefreshTimer->stop();
 		startOptixTestPathTracedSession(fbWidth, fbHeight);
 		return;
 	}
+
+	_ptOptixSession.stop(); // switching to the CPU engine - don't leave a GPU worker thread running behind it
 
 	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
 	if (!snapshot)
@@ -12863,12 +12863,10 @@ void ViewportWidget::startPathTracedSession()
 
 void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 {
-	if (!_ptOptixSceneTracer)
-		_ptOptixSceneTracer = std::make_unique<RtOptixSceneTracer>();
+	_rtSession.stop(); // switching to the GPU engine - don't leave a CPU worker thread running behind it
+	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first chunk publishes
 
-	_rtPresenter.invalidate();
-
-	if (!_ptOptixSceneTracer->isAvailable())
+	if (!_ptOptixSession.isAvailable())
 	{
 		qWarning() << "startOptixTestPathTracedSession: OptiX unavailable on this machine "
 			"(see the RtOptixContext/RtOptixSceneTracer log above) - nothing to display.";
@@ -12883,51 +12881,24 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 		return;
 	}
 
-	// Only rebuild the GPU acceleration structure when the scene actually
-	// changed (geometry/material/visibility - see RtSceneSnapshot::
-	// revisionId's doc comment) - camera-only movement reuses the existing
-	// GAS/IAS and just re-renders through the new camera, matching
-	// RtEmbreeScene's own rebuild-on-revision-change contract.
-	if (snapshot->revisionId != _ptOptixSceneBuiltRevision)
+	// RtOptixPathTracingSession itself only rebuilds the GPU acceleration
+	// structure when the scene actually changed (see its start() doc
+	// comment) - camera-only movement reuses the existing GAS/IAS and just
+	// re-renders through the new camera, matching RtEmbreeScene's own
+	// rebuild-on-revision-change contract.
+	_ptOptixSession.setResolution(fbWidth, fbHeight);
+	_ptOptixSession.setMaxSamples(_ptMaxSamples);
+	_ptOptixSession.setDenoiserEnabled(_ptDenoiserEnabled);
+	_ptOptixSession.setDenoiserDevicePreference(_ptDenoiserDevicePreference);
+	if (!_ptOptixSession.start(snapshot))
 	{
-		if (!_ptOptixSceneTracer->buildScene(*snapshot))
-		{
-			qWarning() << "startOptixTestPathTracedSession: buildScene() failed.";
-			update();
-			return;
-		}
-		_ptOptixSceneBuiltRevision = snapshot->revisionId;
-	}
-
-	std::vector<uint8_t> pixelsRgba8;
-	if (!_ptOptixSceneTracer->renderScene(snapshot->camera, fbWidth, fbHeight, pixelsRgba8))
-	{
-		qWarning() << "startOptixTestPathTracedSession: renderScene() failed.";
+		qWarning() << "startOptixTestPathTracedSession: RtOptixPathTracingSession::start() failed.";
 		update();
 		return;
 	}
 
-	// RtPresenter::upload() expects linear HDR RGB (it applies the same
-	// tonemap+gamma shader pass the CPU renderer's output goes through) -
-	// this Phase 2a kernel's normal-as-color output is already display-ready
-	// 0-255 bytes, so this double-applies tonemap/gamma and won't be a
-	// perfectly neutral display of the raw normals. Acceptable for this
-	// checkpoint (proving real geometry/instancing/camera work), not worth
-	// a separate "already tonemapped" upload path for a debug visualization
-	// that isn't real shading yet.
-	const size_t pixelCount = static_cast<size_t>(fbWidth) * static_cast<size_t>(fbHeight);
-	std::vector<glm::vec3> rgb(pixelCount);
-	std::vector<float> alpha(pixelCount, 1.0f);
-	for (size_t i = 0; i < pixelCount; ++i)
-	{
-		rgb[i] = glm::vec3(
-			pixelsRgba8[i * 4 + 0] / 255.0f,
-			pixelsRgba8[i * 4 + 1] / 255.0f,
-			pixelsRgba8[i * 4 + 2] / 255.0f);
-	}
-
-	_rtPresenter.upload(rgb, fbWidth, fbHeight, &alpha);
-	update();
+	if (_pathTracedRefreshTimer)
+		_pathTracedRefreshTimer->start();
 }
 
 bool ViewportWidget::renderPathTracedOffline(int width, int height,
@@ -13018,10 +12989,24 @@ void ViewportWidget::onPathTracedRefreshTimer()
 
 	int frameWidth = 0, frameHeight = 0;
 	uint32_t sampleCount = 0;
-	std::vector<float> alpha;
-	std::vector<glm::vec3> frame = _rtSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);
-	if (!frame.empty())
-		_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
+
+	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+	{
+		// No alpha channel yet on the GPU path (see RtOptixPathTracingSession/
+		// RtOptixSceneTracer's doc comments on what's not implemented yet) -
+		// RtPresenter::upload() treats a null alpha as fully opaque everywhere,
+		// matching this path's previous explicit all-1.0 alpha exactly.
+		std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount);
+		if (!frame.empty())
+			_rtPresenter.upload(frame, frameWidth, frameHeight);
+	}
+	else
+	{
+		std::vector<float> alpha;
+		std::vector<glm::vec3> frame = _rtSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);
+		if (!frame.empty())
+			_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
+	}
 
 	update();
 }
