@@ -3,22 +3,32 @@
 #include <optix_types.h> // OptixTraversableHandle
 
 // ---------------------------------------------------------------------------
-// RtOptixSceneParams / RtOptixSceneHitGroupData
+// RtOptixSceneParams / RtOptixSceneHitGroupData / RtOptixLight
 //
 // Shared between RtOptixSceneTracer.cpp (host) and src/cuda/RtOptixScene.cu
-// (device) - Phase 2a of the GPU path tracer backend. Unlike Phase 1b's
-// RtOptixTriangleParams (one hardcoded triangle), this renders the app's
-// REAL scene geometry through a real two-level acceleration structure (GAS
-// per RtMeshGeometry, IAS with one OptixInstance per RtInstance - mirrors
-// RtEmbreeScene's BLAS/TLAS structure exactly), using the real RtCamera.
-// Shading is deliberately still just a flat per-triangle object-space normal
-// (transformed to world space via optixTransformNormalFromObjectToWorldSpace()
-// in the closest-hit program) visualized as color - no materials, lights, or
-// bounces yet. The point of this checkpoint is proving real multi-mesh/
-// multi-instance geometry upload, instance transforms, and the real camera
-// projection all work correctly before any shading/material complexity is
-// layered on top.
+// (device) - GPU path tracer backend, real scene geometry via a real two-
+// level acceleration structure (GAS per RtMeshGeometry, IAS with one
+// OptixInstance per RtInstance - mirrors RtEmbreeScene's BLAS/TLAS structure
+// exactly), using the real RtCamera. Phase 2b adds real flat material colors
+// (baseColor/metalness/roughness/emissive, no textures yet) and basic direct
+// lighting (KHR_lights_punctual attenuation ported verbatim from
+// CpuPathTracer::evaluatePunctualLight(), Lambertian diffuse only - no
+// shadow rays/occlusion, no specular/roughness response, no bounces/GI yet -
+// each deferred to a later increment so this stays independently
+// verifiable against the CPU tracer's own direct-lighting-only result).
 // ---------------------------------------------------------------------------
+struct RtOptixLight
+{
+	int type; // matches RtLight::type: 0=Directional, 1=Point, 2=Spot
+	float3 position;
+	float3 direction;
+	float3 color;
+	float intensity;
+	float range;
+	float innerConeCos;
+	float outerConeCos;
+};
+
 struct RtOptixSceneParams
 {
 	uchar4* image;
@@ -34,17 +44,26 @@ struct RtOptixSceneParams
 	float camTanHalfFovY;     // perspective only
 	float camOrthoHalfHeight; // orthographic only
 
+	const RtOptixLight* lights;
+	unsigned int lightCount;
+
 	OptixTraversableHandle handle;
 };
 
 // One per RtInstance in the SBT (see RtOptixSceneTracer.cpp's SBT build) -
-// gives the closest-hit program that instance's own mesh geometry to fetch
-// vertex positions from (OptiX's built-in triangle intersection supplies
+// gives the closest-hit program that instance's own mesh geometry/material
+// to shade with (OptiX's built-in triangle intersection supplies
 // barycentrics and the primitive index, but NOT vertex attribute data - the
 // same reason RtEmbreeScene::intersect() fetches vertices from its own
 // mesh.vertices array by hand).
 struct RtOptixSceneHitGroupData
 {
-	float3* positions; // object-space, indexed via `indices` below
-	uint3* indices;    // one uint3 per triangle - matches RtMeshGeometry's flat uint32 triple layout
+	float3* normals; // object-space, per-vertex, indexed via `indices` below
+	uint3* indices;  // one uint3 per triangle - matches RtMeshGeometry's flat uint32 triple layout
+
+	float3 baseColor;
+	float metalness;
+	float roughness;
+	float3 emissive;
+	float emissiveStrength;
 };

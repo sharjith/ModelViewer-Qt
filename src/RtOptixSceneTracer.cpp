@@ -85,6 +85,7 @@ struct RtOptixSceneTracer::Impl
 	{
 		CUdeviceptr positions = 0;
 		CUdeviceptr indices = 0;
+		CUdeviceptr normals = 0;
 		CUdeviceptr gasOutputBuffer = 0;
 		OptixTraversableHandle handle = 0;
 	};
@@ -93,6 +94,8 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr instancesBuffer = 0;
 	CUdeviceptr iasOutputBuffer = 0;
 	OptixTraversableHandle iasHandle = 0;
+	CUdeviceptr lightsBuffer = 0;
+	unsigned int lightCount = 0;
 
 	OptixModule module = nullptr;
 	OptixPipeline pipeline = nullptr;
@@ -110,6 +113,7 @@ struct RtOptixSceneTracer::Impl
 		for (MeshGas& gas : meshGasEntries)
 		{
 			if (gas.positions) cudaFree(reinterpret_cast<void*>(gas.positions));
+			if (gas.normals) cudaFree(reinterpret_cast<void*>(gas.normals));
 			if (gas.indices) cudaFree(reinterpret_cast<void*>(gas.indices));
 			if (gas.gasOutputBuffer) cudaFree(reinterpret_cast<void*>(gas.gasOutputBuffer));
 		}
@@ -120,6 +124,9 @@ struct RtOptixSceneTracer::Impl
 		if (iasOutputBuffer) cudaFree(reinterpret_cast<void*>(iasOutputBuffer));
 		iasOutputBuffer = 0;
 		iasHandle = 0;
+		if (lightsBuffer) cudaFree(reinterpret_cast<void*>(lightsBuffer));
+		lightsBuffer = 0;
+		lightCount = 0;
 
 		if (hitgroupRecords) cudaFree(reinterpret_cast<void*>(hitgroupRecords));
 		hitgroupRecords = 0;
@@ -290,14 +297,21 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		}
 
 		std::vector<float3> positions(mesh.vertices.size());
+		std::vector<float3> normals(mesh.vertices.size());
 		for (size_t i = 0; i < mesh.vertices.size(); ++i)
+		{
 			positions[i] = make_float3(mesh.vertices[i].position.x, mesh.vertices[i].position.y, mesh.vertices[i].position.z);
+			normals[i] = make_float3(mesh.vertices[i].normal.x, mesh.vertices[i].normal.y, mesh.vertices[i].normal.z);
+		}
 
 		const size_t positionsBytes = positions.size() * sizeof(float3);
+		const size_t normalsBytes = normals.size() * sizeof(float3);
 		const size_t indicesBytes = mesh.indices.size() * sizeof(uint32_t); // uint3[] and uint32_t[3*N] share the same binary layout
 
 		bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.positions), positionsBytes), "cudaMalloc(mesh positions)");
 		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.normals), normalsBytes), "cudaMalloc(mesh normals)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals)");
 		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.indices), indicesBytes), "cudaMalloc(mesh indices)");
 		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.indices), mesh.indices.data(), indicesBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh indices)");
 		if (!ok)
@@ -369,8 +383,29 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		HitGroupSbtRecord hgSbt{};
 		if (!optixCheck(optixSbtRecordPackHeader(_impl->hitgroupGroup, &hgSbt), "optixSbtRecordPackHeader(hitgroup)"))
 			return false;
-		hgSbt.data.positions = reinterpret_cast<float3*>(_impl->meshGasEntries[inst.meshIndex].positions);
+		hgSbt.data.normals = reinterpret_cast<float3*>(_impl->meshGasEntries[inst.meshIndex].normals);
 		hgSbt.data.indices = reinterpret_cast<uint3*>(_impl->meshGasEntries[inst.meshIndex].indices);
+
+		// Flat material colors only (no textures yet) - see
+		// RtOptixSceneParams.h's doc comment for why that scope is deliberate.
+		if (inst.materialIndex < snapshot.materials.size())
+		{
+			const RtMaterial& mat = snapshot.materials[inst.materialIndex];
+			hgSbt.data.baseColor = make_float3(mat.baseColor.x, mat.baseColor.y, mat.baseColor.z);
+			hgSbt.data.metalness = mat.metalness;
+			hgSbt.data.roughness = mat.roughness;
+			hgSbt.data.emissive = make_float3(mat.emissive.x, mat.emissive.y, mat.emissive.z);
+			hgSbt.data.emissiveStrength = mat.emissiveStrength;
+		}
+		else
+		{
+			hgSbt.data.baseColor = make_float3(0.8f, 0.8f, 0.8f);
+			hgSbt.data.metalness = 0.0f;
+			hgSbt.data.roughness = 0.5f;
+			hgSbt.data.emissive = make_float3(0.0f, 0.0f, 0.0f);
+			hgSbt.data.emissiveStrength = 0.0f;
+		}
+
 		hitgroupRecordsHost.push_back(hgSbt);
 	}
 
@@ -427,8 +462,37 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	_impl->sbt.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
 	_impl->sbt.hitgroupRecordCount = static_cast<unsigned int>(hitgroupRecordsHost.size());
 
+	// --- Lights (KHR_lights_punctual - see evaluatePunctualLight() in the
+	// kernel) - flattened world-space list, same one the raster UBO and
+	// CpuPathTracer both use (see RtLight's doc comment), so all three stay
+	// in sync by construction. ---
+	if (!snapshot.lights.empty())
+	{
+		std::vector<RtOptixLight> lightsHost(snapshot.lights.size());
+		for (size_t i = 0; i < snapshot.lights.size(); ++i)
+		{
+			const RtLight& light = snapshot.lights[i];
+			RtOptixLight& out = lightsHost[i];
+			out.type = light.type;
+			out.position = make_float3(light.position.x, light.position.y, light.position.z);
+			out.direction = make_float3(light.direction.x, light.direction.y, light.direction.z);
+			out.color = make_float3(light.color.x, light.color.y, light.color.z);
+			out.intensity = light.intensity;
+			out.range = light.range;
+			out.innerConeCos = light.innerConeCos;
+			out.outerConeCos = light.outerConeCos;
+		}
+
+		const size_t lightsBytes = lightsHost.size() * sizeof(RtOptixLight);
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->lightsBuffer), lightsBytes), "cudaMalloc(lights)"))
+			return false;
+		if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->lightsBuffer), lightsHost.data(), lightsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(lights)"))
+			return false;
+		_impl->lightCount = static_cast<unsigned int>(lightsHost.size());
+	}
+
 	qInfo() << "RtOptixSceneTracer: scene built (" << _impl->meshGasEntries.size() << "meshes,"
-		<< instances.size() << "instances).";
+		<< instances.size() << "instances," << _impl->lightCount << "lights).";
 	return true;
 }
 
@@ -454,6 +518,8 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 	params.camOrthographic = camera.orthographic ? 1 : 0;
 	params.camTanHalfFovY = camera.tanHalfFovY;
 	params.camOrthoHalfHeight = camera.orthoHalfHeight;
+	params.lights = reinterpret_cast<const RtOptixLight*>(_impl->lightsBuffer);
+	params.lightCount = _impl->lightCount;
 	params.handle = _impl->iasHandle;
 
 	CUdeviceptr dParams = 0;
