@@ -29,6 +29,29 @@ struct RtOptixLight
 	float outerConeCos;
 };
 
+// Mirrors RtEnvironment's raw (mip-0) cubemap plus the rotation/exposure/
+// fallback fields CpuPathTracer's sampleEnvironmentBackground()/
+// sampleEnvironmentMiss() need - see undoSkyboxRotation()'s doc comment in
+// CpuPathTracer.cpp for why the captured cubemap needs an un-rotate before
+// sampling. No irradiance/prefilter mip chain yet (that's the CPU tracer's
+// own later variance-reduction refinement, deferred here) - every bounce
+// samples the single raw/sharp map, same as the CPU tracer's own earliest,
+// simplest environment support.
+struct RtOptixEnvironment
+{
+	float3* faces[6]; // nullptr (faceSize<=0) if no environment map loaded
+	int faceSize;
+
+	int showBackground; // bool as int
+	float3 fallbackTopColor;
+	float3 fallbackBottomColor;
+	int fallbackGradientStyle;
+
+	int cameraUpAxisZUp; // bool as int
+	float skyBoxZRotationDegrees;
+	float envMapExposure;
+};
+
 struct RtOptixSceneParams
 {
 	uchar4* image;
@@ -46,6 +69,8 @@ struct RtOptixSceneParams
 
 	const RtOptixLight* lights;
 	unsigned int lightCount;
+
+	RtOptixEnvironment environment;
 
 	OptixTraversableHandle handle;
 };

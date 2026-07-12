@@ -97,6 +97,19 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr lightsBuffer = 0;
 	unsigned int lightCount = 0;
 
+	// Environment cubemap (raw/mip-0 only - see RtOptixEnvironment's doc
+	// comment) plus the scalar rotation/exposure/fallback fields, copied
+	// from the snapshot's RtEnvironment at buildScene() time.
+	CUdeviceptr envFaceBuffers[6] = { 0, 0, 0, 0, 0, 0 };
+	int envFaceSize = 0;
+	bool envShowBackground = false;
+	glm::vec3 envFallbackTopColor{ 0.5f };
+	glm::vec3 envFallbackBottomColor{ 0.5f };
+	int envFallbackGradientStyle = 0;
+	bool envCameraUpAxisZUp = false;
+	float envSkyBoxZRotationDegrees = 0.0f;
+	float envMapExposure = 1.0f;
+
 	OptixModule module = nullptr;
 	OptixPipeline pipeline = nullptr;
 	OptixProgramGroup raygenGroup = nullptr;
@@ -127,6 +140,13 @@ struct RtOptixSceneTracer::Impl
 		if (lightsBuffer) cudaFree(reinterpret_cast<void*>(lightsBuffer));
 		lightsBuffer = 0;
 		lightCount = 0;
+
+		for (CUdeviceptr& face : envFaceBuffers)
+		{
+			if (face) cudaFree(reinterpret_cast<void*>(face));
+			face = 0;
+		}
+		envFaceSize = 0;
 
 		if (hitgroupRecords) cudaFree(reinterpret_cast<void*>(hitgroupRecords));
 		hitgroupRecords = 0;
@@ -175,7 +195,7 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	OptixPipelineCompileOptions pipelineCompileOptions{};
 	pipelineCompileOptions.usesMotionBlur = false;
 	pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
-	pipelineCompileOptions.numPayloadValues = 3;
+	pipelineCompileOptions.numPayloadValues = 4; // p0-p2 = color, p3 = bounce depth (see RtOptixScene.cu's traceRadiance())
 	pipelineCompileOptions.numAttributeValues = 3;
 	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
@@ -218,7 +238,9 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	if (!optixCheck(optixProgramGroupCreate(_impl->context, &hitgroupDesc, 1, &programGroupOptions, log, &logSize, &_impl->hitgroupGroup), "optixProgramGroupCreate(hitgroup)"))
 		return;
 
-	constexpr uint32_t kMaxTraceDepth = 1;
+	// 2: primary trace + one reflection bounce (see RtOptixScene.cu's
+	// __closesthit__ch(), which only ever spawns a reflection at depth==0).
+	constexpr uint32_t kMaxTraceDepth = 2;
 	OptixProgramGroup programGroups[] = { _impl->raygenGroup, _impl->missGroup, _impl->hitgroupGroup };
 
 	OptixPipelineLinkOptions pipelineLinkOptions{};
@@ -491,6 +513,49 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		_impl->lightCount = static_cast<unsigned int>(lightsHost.size());
 	}
 
+	// --- Environment (raw/mip-0 cubemap only - see RtOptixEnvironment's doc
+	// comment) - the same captured cubemap CpuPathTracer's own raw-map
+	// sampling uses. ---
+	const RtEnvironment& env = snapshot.environment;
+	_impl->envFaceSize = env.faceSize;
+	_impl->envShowBackground = env.showBackground;
+	_impl->envFallbackTopColor = env.fallbackTopColor;
+	_impl->envFallbackBottomColor = env.fallbackBottomColor;
+	_impl->envFallbackGradientStyle = env.fallbackGradientStyle;
+	_impl->envCameraUpAxisZUp = env.cameraUpAxisZUp;
+	_impl->envSkyBoxZRotationDegrees = env.skyBoxZRotationDegrees;
+	_impl->envMapExposure = env.envMapExposure;
+
+	if (env.faceSize > 0)
+	{
+		for (int face = 0; face < 6; ++face)
+		{
+			const std::vector<float>& faceData = env.faces[face]; // faceSize*faceSize RGB float triplets
+			if (faceData.size() != static_cast<size_t>(env.faceSize) * env.faceSize * 3)
+			{
+				qWarning() << "RtOptixSceneTracer::buildScene(): environment face" << face << "has unexpected size - disabling environment.";
+				_impl->envFaceSize = 0;
+				break;
+			}
+
+			std::vector<float3> faceFloat3(static_cast<size_t>(env.faceSize) * env.faceSize);
+			for (size_t i = 0; i < faceFloat3.size(); ++i)
+				faceFloat3[i] = make_float3(faceData[i * 3 + 0], faceData[i * 3 + 1], faceData[i * 3 + 2]);
+
+			const size_t faceBytes = faceFloat3.size() * sizeof(float3);
+			if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envFaceBuffers[face]), faceBytes), "cudaMalloc(env face)"))
+			{
+				_impl->envFaceSize = 0;
+				break;
+			}
+			if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envFaceBuffers[face]), faceFloat3.data(), faceBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env face)"))
+			{
+				_impl->envFaceSize = 0;
+				break;
+			}
+		}
+	}
+
 	qInfo() << "RtOptixSceneTracer: scene built (" << _impl->meshGasEntries.size() << "meshes,"
 		<< instances.size() << "instances," << _impl->lightCount << "lights).";
 	return true;
@@ -520,6 +585,18 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 	params.camOrthoHalfHeight = camera.orthoHalfHeight;
 	params.lights = reinterpret_cast<const RtOptixLight*>(_impl->lightsBuffer);
 	params.lightCount = _impl->lightCount;
+
+	for (int face = 0; face < 6; ++face)
+		params.environment.faces[face] = reinterpret_cast<float3*>(_impl->envFaceBuffers[face]);
+	params.environment.faceSize = _impl->envFaceSize;
+	params.environment.showBackground = _impl->envShowBackground ? 1 : 0;
+	params.environment.fallbackTopColor = make_float3(_impl->envFallbackTopColor.x, _impl->envFallbackTopColor.y, _impl->envFallbackTopColor.z);
+	params.environment.fallbackBottomColor = make_float3(_impl->envFallbackBottomColor.x, _impl->envFallbackBottomColor.y, _impl->envFallbackBottomColor.z);
+	params.environment.fallbackGradientStyle = _impl->envFallbackGradientStyle;
+	params.environment.cameraUpAxisZUp = _impl->envCameraUpAxisZUp ? 1 : 0;
+	params.environment.skyBoxZRotationDegrees = _impl->envSkyBoxZRotationDegrees;
+	params.environment.envMapExposure = _impl->envMapExposure;
+
 	params.handle = _impl->iasHandle;
 
 	CUdeviceptr dParams = 0;
