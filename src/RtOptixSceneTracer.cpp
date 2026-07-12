@@ -195,7 +195,7 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	OptixPipelineCompileOptions pipelineCompileOptions{};
 	pipelineCompileOptions.usesMotionBlur = false;
 	pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
-	pipelineCompileOptions.numPayloadValues = 4; // p0-p2 = color, p3 = bounce depth (see RtOptixScene.cu's traceRadiance())
+	pipelineCompileOptions.numPayloadValues = 4; // p0-p2 = color, p3 = bounce depth (see RtOptixScene.cu's traceRadiance()); shadow rays reuse just p0 as an occluded bool (see traceShadowRay())
 	pipelineCompileOptions.numAttributeValues = 3;
 	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
@@ -238,9 +238,11 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	if (!optixCheck(optixProgramGroupCreate(_impl->context, &hitgroupDesc, 1, &programGroupOptions, log, &logSize, &_impl->hitgroupGroup), "optixProgramGroupCreate(hitgroup)"))
 		return;
 
-	// 2: primary trace + one reflection bounce (see RtOptixScene.cu's
-	// __closesthit__ch(), which only ever spawns a reflection at depth==0).
-	constexpr uint32_t kMaxTraceDepth = 2;
+	// 3: primary trace, then either a shadow ray OR one reflection bounce
+	// from that first hit, and (since the reflection bounce's own hit also
+	// casts shadow rays for its direct lighting) a shadow ray nested inside
+	// that reflection bounce - see RtOptixScene.cu's __closesthit__ch().
+	constexpr uint32_t kMaxTraceDepth = 3;
 	OptixProgramGroup programGroups[] = { _impl->raygenGroup, _impl->missGroup, _impl->hitgroupGroup };
 
 	OptixPipelineLinkOptions pipelineLinkOptions{};

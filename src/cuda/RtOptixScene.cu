@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// RtOptixScene.cu - Phase 2d kernel for the GPU (OptiX) path tracer backend.
+// RtOptixScene.cu - Phase 2e kernel for the GPU (OptiX) path tracer backend.
 //
 // Renders the app's real scene geometry (via a real GAS-per-mesh/IAS-per-
 // instance acceleration structure - see RtOptixSceneTracer.cpp) through the
@@ -7,18 +7,25 @@
 // (baseColor/metalness/roughness/emissive - no textures yet), the full
 // metallic-roughness Cook-Torrance BRDF for direct lighting (GGX
 // distribution, Smith-Schlick geometry, Fresnel - ported verbatim from
-// CpuPathTracer's evaluateDirectBRDF()), and now ONE mirror reflection
-// bounce per primary hit: the reflected ray either hits other scene
-// geometry (shaded with its own direct lighting only - no further
-// reflection, to keep recursion bounded) or escapes to the environment
-// cubemap (undoSkyboxRotation()/sampleCubemapFaces() ported verbatim from
-// CpuPathTracer, same raw/sharp map - no roughness-based blur/prefiltering
-// yet, that's the CPU tracer's own later variance-reduction refinement).
-// Still no shadow rays/occlusion, no textures, no anisotropy/clearcoat/
-// sheen/transmission/iridescence, no multi-sample accumulation - see
-// RtOptixSceneParams.h's doc comment for why this scope is deliberate.
-// Self-contained, same style as RtOptixTriangle.cu (no dependency on the
-// OptiX SDK's bundled sutil).
+// CpuPathTracer's evaluateDirectBRDF()), ONE mirror reflection bounce per
+// primary hit (reflected ray either hits other scene geometry, shaded with
+// its own direct lighting only, or escapes to the environment cubemap), and
+// now a plain boolean shadow ray per light: every direct-lighting sample is
+// occlusion-tested before being added, using OPTIX_RAY_FLAG_TERMINATE_ON_
+// FIRST_HIT (stop at ANY hit, not necessarily the closest - a boolean query
+// is all a shadow test needs) rather than a second program-group/SBT pair -
+// __closesthit__ch()/__miss__ms() both check optixGetRayFlags() up front and
+// take a one-line early-out path when it's a shadow ray, writing just the
+// occluded/unoccluded bit into payload 0. This mirrors RtEmbreeScene::
+// occluded()'s plain any-hit test, CpuPathTracer's own ORIGINAL (pre-alpha/
+// transmission-aware) shadow-ray behavior - full alpha/MASK/transmission-
+// aware shadow attenuation (CpuPathTracer::traceShadowRay()'s closest-hit
+// walk) is a later increment, once this GPU backend has textures/alpha and
+// transmissive materials to begin with. Still no textures, no anisotropy/
+// clearcoat/sheen/transmission/iridescence, no roughness-based reflection
+// blur, no multi-sample accumulation - see RtOptixSceneParams.h's doc
+// comment for why this scope is deliberate. Self-contained, same style as
+// RtOptixTriangle.cu (no dependency on the OptiX SDK's bundled sutil).
 // ---------------------------------------------------------------------------
 #include <optix.h>
 
@@ -71,6 +78,15 @@ namespace
 	__forceinline__ __device__ float3 reflectF3(const float3& incident, const float3& normal)
 	{
 		return incident - normal * (2.0f * dot3(normal, incident));
+	}
+
+	// Scale-relative self-intersection epsilon, matching CpuPathTracer.cpp's
+	// selfIntersectionEpsilon() exactly (a fixed world-space constant is
+	// fragile across this app's full size range - too coarse for tiny
+	// models, not enough to escape precision loss on large-coordinate ones).
+	__forceinline__ __device__ float selfIntersectionEpsilon(const float3& position)
+	{
+		return fmaxf(1e-4f, sqrtf(dot3(position, position)) * 1e-5f);
 	}
 
 	// ---- Cook-Torrance terms, ported verbatim from CpuPathTracer.cpp's
@@ -331,6 +347,35 @@ namespace
 			p0, p1, p2, p3);
 		return make_float3(__uint_as_float(p0), __uint_as_float(p1), __uint_as_float(p2));
 	}
+
+	// Plain boolean occlusion query - reuses the same pipeline/SBT as
+	// traceRadiance() above (no dedicated occlusion program group/hit
+	// records) by setting OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT and having
+	// __closesthit__ch()/__miss__ms() check optixGetRayFlags() to take a
+	// one-line early-out instead of running the full shading path. Only
+	// payload 0 is used (and meaningful) for this trace - the other
+	// registers keep whatever stale values they held from the caller's
+	// last traceRadiance() call, which is fine since neither program writes
+	// them on this path.
+	__forceinline__ __device__ bool traceShadowRay(const float3& origin, const float3& direction, float maxDistance)
+	{
+		const float eps = selfIntersectionEpsilon(origin);
+		unsigned int occluded = 0u;
+		optixTrace(
+			params.handle,
+			origin,
+			direction,
+			eps,                                // tmin
+			fmaxf(maxDistance - 2.0f * eps, eps), // tmax
+			0.0f,                                // rayTime
+			OptixVisibilityMask(255),
+			OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,
+			0, // SBT offset
+			1, // SBT stride
+			0, // missSBTIndex
+			occluded);
+		return occluded != 0u;
+	}
 }
 
 extern "C" __global__ void __raygen__rg()
@@ -365,6 +410,13 @@ extern "C" __global__ void __raygen__rg()
 
 extern "C" __global__ void __miss__ms()
 {
+	if (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT)
+	{
+		// Shadow ray reached the light with nothing in the way - unoccluded.
+		optixSetPayload_0(0u);
+		return;
+	}
+
 	const unsigned int depth = optixGetPayload_3();
 	const float3 dir = optixGetWorldRayDirection();
 
@@ -387,6 +439,15 @@ extern "C" __global__ void __miss__ms()
 
 extern "C" __global__ void __closesthit__ch()
 {
+	if (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT)
+	{
+		// Shadow ray hit something before reaching the light - occluded.
+		// Any hit will do (that's the whole point of TERMINATE_ON_FIRST_HIT),
+		// so skip straight past all the shading work below.
+		optixSetPayload_0(1u);
+		return;
+	}
+
 	const RtOptixSceneHitGroupData* data = reinterpret_cast<const RtOptixSceneHitGroupData*>(optixGetSbtDataPointer());
 	const unsigned int depth = optixGetPayload_3();
 
@@ -438,6 +499,14 @@ extern "C" __global__ void __closesthit__ch()
 
 			const float NdotL = fmaxf(dot3(worldNormal, lightDir), 0.0f);
 			if (NdotL <= 0.0f)
+				continue;
+
+			// Offset along the (faceforward) shading normal, same as
+			// CpuPathTracer's NEE shadow rays, to dodge self-intersection
+			// with the surface this ray originates from.
+			const float3 shadowOrigin = worldPos + worldNormal * selfIntersectionEpsilon(worldPos);
+			const float shadowMaxDistance = fminf(lightDistance, 1e16f);
+			if (traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance))
 				continue;
 
 			const float3 H = normalizeF3(V + lightDir);
