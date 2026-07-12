@@ -17,7 +17,9 @@
 
 #include <glm/glm.hpp>
 
+#include <algorithm>
 #include <cstring>
+#include <unordered_map>
 
 namespace
 {
@@ -86,6 +88,9 @@ struct RtOptixSceneTracer::Impl
 		CUdeviceptr positions = 0;
 		CUdeviceptr indices = 0;
 		CUdeviceptr normals = 0;
+		CUdeviceptr texCoords = 0; // float2, 4 per vertex - see RtOptixSceneHitGroupData::texCoords
+		CUdeviceptr tangents = 0;  // float4 (xyz=tangent, w=handedness) - see RtOptixSceneHitGroupData::tangents
+		CUdeviceptr vertexColors = 0; // float3 - see RtOptixSceneHitGroupData::vertexColors
 		CUdeviceptr gasOutputBuffer = 0;
 		OptixTraversableHandle handle = 0;
 	};
@@ -97,9 +102,18 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr lightsBuffer = 0;
 	unsigned int lightCount = 0;
 
-	// Environment cubemap (raw/mip-0 only - see RtOptixEnvironment's doc
-	// comment) plus the scalar rotation/exposure/fallback fields, copied
-	// from the snapshot's RtEnvironment at buildScene() time.
+	// Every material texture buffer uploaded this buildScene() call (baseColor/
+	// metallic/roughness/normal/emissive rgba8 arrays) - kept alive for the
+	// scene's lifetime and freed in freeSceneBuffers(), same pattern as the
+	// environment face buffers below. Deduplicated per-RtTextureSample (by
+	// pointer identity) at upload time so multiple materials/instances sharing
+	// the same texture object don't re-upload identical bytes - see
+	// buildScene()'s uploadTexture() lambda.
+	std::vector<CUdeviceptr> textureBuffers;
+
+	// Environment cubemap (raw/mip-0) plus the scalar rotation/exposure/
+	// fallback fields, copied from the snapshot's RtEnvironment at
+	// buildScene() time.
 	CUdeviceptr envFaceBuffers[6] = { 0, 0, 0, 0, 0, 0 };
 	int envFaceSize = 0;
 	bool envShowBackground = false;
@@ -109,6 +123,20 @@ struct RtOptixSceneTracer::Impl
 	bool envCameraUpAxisZUp = false;
 	float envSkyBoxZRotationDegrees = 0.0f;
 	float envMapExposure = 1.0f;
+
+	// GGX-prefiltered mip chain (RtEnvironment::prefilterMips) - one entry
+	// per mip level, each holding its own 6 face device buffers (kept alive
+	// alongside prefilterMipsBuffer, the device array of RtOptixPrefilterMip
+	// structs whose .faces[] members point at these same buffers - mirrors
+	// the raw-map upload above, just per mip). Empty/0 if no environment (or
+	// no prefilter chain specifically) was captured.
+	struct PrefilterMipGpu
+	{
+		CUdeviceptr faceBuffers[6] = { 0, 0, 0, 0, 0, 0 };
+	};
+	std::vector<PrefilterMipGpu> prefilterMipEntries;
+	CUdeviceptr prefilterMipsBuffer = 0;
+	int prefilterMipCount = 0;
 
 	OptixModule module = nullptr;
 	OptixPipeline pipeline = nullptr;
@@ -127,10 +155,17 @@ struct RtOptixSceneTracer::Impl
 		{
 			if (gas.positions) cudaFree(reinterpret_cast<void*>(gas.positions));
 			if (gas.normals) cudaFree(reinterpret_cast<void*>(gas.normals));
+			if (gas.texCoords) cudaFree(reinterpret_cast<void*>(gas.texCoords));
+			if (gas.tangents) cudaFree(reinterpret_cast<void*>(gas.tangents));
+			if (gas.vertexColors) cudaFree(reinterpret_cast<void*>(gas.vertexColors));
 			if (gas.indices) cudaFree(reinterpret_cast<void*>(gas.indices));
 			if (gas.gasOutputBuffer) cudaFree(reinterpret_cast<void*>(gas.gasOutputBuffer));
 		}
 		meshGasEntries.clear();
+
+		for (CUdeviceptr& texBuf : textureBuffers)
+			if (texBuf) cudaFree(reinterpret_cast<void*>(texBuf));
+		textureBuffers.clear();
 
 		if (instancesBuffer) cudaFree(reinterpret_cast<void*>(instancesBuffer));
 		instancesBuffer = 0;
@@ -147,6 +182,14 @@ struct RtOptixSceneTracer::Impl
 			face = 0;
 		}
 		envFaceSize = 0;
+
+		for (PrefilterMipGpu& mip : prefilterMipEntries)
+			for (CUdeviceptr& face : mip.faceBuffers)
+				if (face) cudaFree(reinterpret_cast<void*>(face));
+		prefilterMipEntries.clear();
+		if (prefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(prefilterMipsBuffer));
+		prefilterMipsBuffer = 0;
+		prefilterMipCount = 0;
 
 		if (hitgroupRecords) cudaFree(reinterpret_cast<void*>(hitgroupRecords));
 		hitgroupRecords = 0;
@@ -195,7 +238,15 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	OptixPipelineCompileOptions pipelineCompileOptions{};
 	pipelineCompileOptions.usesMotionBlur = false;
 	pipelineCompileOptions.traversableGraphFlags = OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_ANY;
-	pipelineCompileOptions.numPayloadValues = 4; // p0-p2 = color, p3 = bounce depth (see RtOptixScene.cu's traceRadiance()); shadow rays reuse just p0 as an occluded bool (see traceShadowRay())
+	// p0-p2 = radiance, p3 = hitFlag, p4-p6 = world-space shading normal
+	// (doubles as the OIDN guide normal at bounce 0), p7 = hit distance,
+	// p8-p10 = next bounce direction, p11-p13 = throughput weight for that
+	// direction, p14-p16 = OIDN guide albedo (baseColor at the hit), p17 =
+	// RNG seed in / this hit's own escape-roughness out, p18 = escape-
+	// roughness in (for the miss shader, if THIS ray escapes) - see
+	// RtOptixScene.cu's traceBouncePath()/__closesthit__ch() doc comments.
+	// Shadow rays reuse just p0 as an occluded bool (see traceShadowRay()).
+	pipelineCompileOptions.numPayloadValues = 19;
 	pipelineCompileOptions.numAttributeValues = 3;
 	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
@@ -238,11 +289,13 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	if (!optixCheck(optixProgramGroupCreate(_impl->context, &hitgroupDesc, 1, &programGroupOptions, log, &logSize, &_impl->hitgroupGroup), "optixProgramGroupCreate(hitgroup)"))
 		return;
 
-	// 3: primary trace, then either a shadow ray OR one reflection bounce
-	// from that first hit, and (since the reflection bounce's own hit also
-	// casts shadow rays for its direct lighting) a shadow ray nested inside
-	// that reflection bounce - see RtOptixScene.cu's __closesthit__ch().
-	constexpr uint32_t kMaxTraceDepth = 3;
+	// 2: the raygen loop's own per-bounce trace call, plus one shadow ray
+	// nested inside that hit's direct-lighting NEE (see RtOptixScene.cu's
+	// __closesthit__ch()) - bounces themselves are an ITERATIVE loop in
+	// __raygen__rg() now, not recursive optixTrace() calls, so this doesn't
+	// grow with maxBounces the way an earlier (single-recursive-reflection)
+	// version of this kernel's depth requirement did.
+	constexpr uint32_t kMaxTraceDepth = 2;
 	OptixProgramGroup programGroups[] = { _impl->raygenGroup, _impl->missGroup, _impl->hitgroupGroup };
 
 	OptixPipelineLinkOptions pipelineLinkOptions{};
@@ -322,20 +375,52 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 		std::vector<float3> positions(mesh.vertices.size());
 		std::vector<float3> normals(mesh.vertices.size());
+		std::vector<float2> texCoords(mesh.vertices.size() * 4);
+		std::vector<float4> tangents(mesh.vertices.size());
+		std::vector<float3> vertexColors(mesh.vertices.size());
 		for (size_t i = 0; i < mesh.vertices.size(); ++i)
 		{
-			positions[i] = make_float3(mesh.vertices[i].position.x, mesh.vertices[i].position.y, mesh.vertices[i].position.z);
-			normals[i] = make_float3(mesh.vertices[i].normal.x, mesh.vertices[i].normal.y, mesh.vertices[i].normal.z);
+			const RtVertex& v = mesh.vertices[i];
+			positions[i] = make_float3(v.position.x, v.position.y, v.position.z);
+			normals[i] = make_float3(v.normal.x, v.normal.y, v.normal.z);
+			vertexColors[i] = make_float3(v.color.x, v.color.y, v.color.z);
+			for (int ch = 0; ch < 4; ++ch)
+				texCoords[i * 4 + ch] = make_float2(v.texCoords[ch].x, v.texCoords[ch].y);
+
+			// Precomputed handedness sign - see RtOptixSceneHitGroupData::
+			// tangents' doc comment for why this matches CpuPathTracer::
+			// applyNormalMap()'s "orthogonalize bitangent, take cross(N,T)
+			// sign" derivation done once here in object space instead of
+			// per-shading-sample in world space.
+			float handedness = 1.0f;
+			if (glm::length(v.tangent) > 0.01f && glm::length(v.bitangent) > 0.01f)
+			{
+				const glm::vec3 T = glm::normalize(v.tangent - glm::dot(v.tangent, v.normal) * v.normal);
+				const glm::vec3 importedBitangent = glm::normalize(v.bitangent - glm::dot(v.bitangent, v.normal) * v.normal);
+				const float sign = glm::sign(glm::dot(glm::cross(v.normal, T), importedBitangent));
+				if (sign != 0.0f)
+					handedness = sign;
+			}
+			tangents[i] = make_float4(v.tangent.x, v.tangent.y, v.tangent.z, handedness);
 		}
 
 		const size_t positionsBytes = positions.size() * sizeof(float3);
 		const size_t normalsBytes = normals.size() * sizeof(float3);
+		const size_t texCoordsBytes = texCoords.size() * sizeof(float2);
+		const size_t tangentsBytes = tangents.size() * sizeof(float4);
+		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float3);
 		const size_t indicesBytes = mesh.indices.size() * sizeof(uint32_t); // uint3[] and uint32_t[3*N] share the same binary layout
 
 		bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.positions), positionsBytes), "cudaMalloc(mesh positions)");
 		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions)");
 		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.normals), normalsBytes), "cudaMalloc(mesh normals)");
 		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.texCoords), texCoordsBytes), "cudaMalloc(mesh texCoords)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), texCoords.data(), texCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.tangents), tangentsBytes), "cudaMalloc(mesh tangents)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.tangents), tangents.data(), tangentsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh tangents)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.vertexColors), vertexColorsBytes), "cudaMalloc(mesh vertexColors)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), vertexColors.data(), vertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors)");
 		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.indices), indicesBytes), "cudaMalloc(mesh indices)");
 		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.indices), mesh.indices.data(), indicesBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh indices)");
 		if (!ok)
@@ -389,6 +474,58 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	std::vector<HitGroupSbtRecord> hitgroupRecordsHost;
 	hitgroupRecordsHost.reserve(snapshot.instances.size());
 
+	// Uploads (and caches, by RtTextureSample pointer identity) one material
+	// texture's rgba8 bytes to the device, populating an RtOptixTexture with
+	// the resulting pointer plus its KHR_texture_transform/wrap/channel-
+	// packing metadata copied verbatim - mirrors RtTextureSample's fields
+	// exactly (see RtOptixSceneParams.h's RtOptixTexture doc comment).
+	// Multiple materials/instances referencing the SAME RtTextureSample
+	// object (a shared texture) upload its bytes only once.
+	std::unordered_map<const RtTextureSample*, CUdeviceptr> textureCache;
+	auto uploadMaterialTexture = [&](const std::shared_ptr<RtTextureSample>& tex, RtOptixTexture& out) -> void
+	{
+		out.rgba8 = nullptr;
+		out.width = 0;
+		out.height = 0;
+		if (!tex || tex->width <= 0 || tex->height <= 0 ||
+			tex->rgba8.size() != static_cast<size_t>(tex->width) * tex->height * 4)
+			return;
+
+		CUdeviceptr deviceRgba8 = 0;
+		auto cached = textureCache.find(tex.get());
+		if (cached != textureCache.end())
+		{
+			deviceRgba8 = cached->second;
+		}
+		else
+		{
+			const size_t bytes = tex->rgba8.size();
+			if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&deviceRgba8), bytes), "cudaMalloc(material texture)"))
+				return;
+			if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(deviceRgba8), tex->rgba8.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture)"))
+			{
+				cudaFree(reinterpret_cast<void*>(deviceRgba8));
+				return;
+			}
+			_impl->textureBuffers.push_back(deviceRgba8);
+			textureCache.emplace(tex.get(), deviceRgba8);
+		}
+
+		out.rgba8 = reinterpret_cast<const uchar4*>(deviceRgba8);
+		out.width = tex->width;
+		out.height = tex->height;
+		out.texCoordIndex = std::clamp(tex->texCoordIndex, 0, 3);
+		out.uvScale = make_float2(tex->uvScale.x, tex->uvScale.y);
+		out.uvOffset = make_float2(tex->uvOffset.x, tex->uvOffset.y);
+		out.uvRotation = tex->uvRotation;
+		out.packingChannel = tex->packingChannel;
+		out.packingInvert = tex->packingInvert ? 1 : 0;
+		out.packingScale = tex->packingScale;
+		out.packingBias = tex->packingBias;
+		out.wrapS = tex->wrapS;
+		out.wrapT = tex->wrapT;
+	};
+
 	for (size_t i = 0; i < snapshot.instances.size(); ++i)
 	{
 		const RtInstance& inst = snapshot.instances[i];
@@ -409,9 +546,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			return false;
 		hgSbt.data.normals = reinterpret_cast<float3*>(_impl->meshGasEntries[inst.meshIndex].normals);
 		hgSbt.data.indices = reinterpret_cast<uint3*>(_impl->meshGasEntries[inst.meshIndex].indices);
+		hgSbt.data.texCoords = reinterpret_cast<float2*>(_impl->meshGasEntries[inst.meshIndex].texCoords);
+		hgSbt.data.tangents = reinterpret_cast<float4*>(_impl->meshGasEntries[inst.meshIndex].tangents);
+		hgSbt.data.vertexColors = reinterpret_cast<float3*>(_impl->meshGasEntries[inst.meshIndex].vertexColors);
 
-		// Flat material colors only (no textures yet) - see
-		// RtOptixSceneParams.h's doc comment for why that scope is deliberate.
 		if (inst.materialIndex < snapshot.materials.size())
 		{
 			const RtMaterial& mat = snapshot.materials[inst.materialIndex];
@@ -420,6 +558,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughness = mat.roughness;
 			hgSbt.data.emissive = make_float3(mat.emissive.x, mat.emissive.y, mat.emissive.z);
 			hgSbt.data.emissiveStrength = mat.emissiveStrength;
+			hgSbt.data.normalScale = mat.normalScale;
+
+			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
+			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
+			uploadMaterialTexture(mat.roughnessTexture, hgSbt.data.roughnessTexture);
+			uploadMaterialTexture(mat.normalTexture, hgSbt.data.normalTexture);
+			uploadMaterialTexture(mat.emissiveTexture, hgSbt.data.emissiveTexture);
 		}
 		else
 		{
@@ -428,6 +573,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughness = 0.5f;
 			hgSbt.data.emissive = make_float3(0.0f, 0.0f, 0.0f);
 			hgSbt.data.emissiveStrength = 0.0f;
+			hgSbt.data.normalScale = 1.0f;
+
+			hgSbt.data.baseColorTexture.width = 0;
+			hgSbt.data.metallicTexture.width = 0;
+			hgSbt.data.roughnessTexture.width = 0;
+			hgSbt.data.normalTexture.width = 0;
+			hgSbt.data.emissiveTexture.width = 0;
 		}
 
 		hitgroupRecordsHost.push_back(hgSbt);
@@ -515,9 +667,28 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		_impl->lightCount = static_cast<unsigned int>(lightsHost.size());
 	}
 
-	// --- Environment (raw/mip-0 cubemap only - see RtOptixEnvironment's doc
-	// comment) - the same captured cubemap CpuPathTracer's own raw-map
-	// sampling uses. ---
+	// --- Environment: raw (mip-0) cubemap, the same captured cubemap
+	// CpuPathTracer's own raw-map sampling uses, plus the GGX-prefiltered
+	// mip chain for roughness-blurred reflections (RtEnvironment::
+	// prefilterMips - see RtOptixSceneParams.h's RtOptixEnvironment doc
+	// comment). ---
+	auto uploadCubemapFace = [](const std::vector<float>& faceData, int faceSize, CUdeviceptr& outBuffer) -> bool
+	{
+		if (faceData.size() != static_cast<size_t>(faceSize) * faceSize * 3)
+			return false;
+
+		std::vector<float3> faceFloat3(static_cast<size_t>(faceSize) * faceSize);
+		for (size_t i = 0; i < faceFloat3.size(); ++i)
+			faceFloat3[i] = make_float3(faceData[i * 3 + 0], faceData[i * 3 + 1], faceData[i * 3 + 2]);
+
+		const size_t faceBytes = faceFloat3.size() * sizeof(float3);
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&outBuffer), faceBytes), "cudaMalloc(env face)"))
+			return false;
+		if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(outBuffer), faceFloat3.data(), faceBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env face)"))
+			return false;
+		return true;
+	};
+
 	const RtEnvironment& env = snapshot.environment;
 	_impl->envFaceSize = env.faceSize;
 	_impl->envShowBackground = env.showBackground;
@@ -532,28 +703,45 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	{
 		for (int face = 0; face < 6; ++face)
 		{
-			const std::vector<float>& faceData = env.faces[face]; // faceSize*faceSize RGB float triplets
-			if (faceData.size() != static_cast<size_t>(env.faceSize) * env.faceSize * 3)
+			if (!uploadCubemapFace(env.faces[face], env.faceSize, _impl->envFaceBuffers[face]))
 			{
 				qWarning() << "RtOptixSceneTracer::buildScene(): environment face" << face << "has unexpected size - disabling environment.";
 				_impl->envFaceSize = 0;
 				break;
 			}
+		}
+	}
 
-			std::vector<float3> faceFloat3(static_cast<size_t>(env.faceSize) * env.faceSize);
-			for (size_t i = 0; i < faceFloat3.size(); ++i)
-				faceFloat3[i] = make_float3(faceData[i * 3 + 0], faceData[i * 3 + 1], faceData[i * 3 + 2]);
-
-			const size_t faceBytes = faceFloat3.size() * sizeof(float3);
-			if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envFaceBuffers[face]), faceBytes), "cudaMalloc(env face)"))
+	_impl->prefilterMipCount = 0;
+	if (!env.prefilterMips.empty())
+	{
+		_impl->prefilterMipEntries.resize(env.prefilterMips.size());
+		std::vector<RtOptixPrefilterMip> hostMips(env.prefilterMips.size());
+		bool mipsOk = true;
+		for (size_t m = 0; mipsOk && m < env.prefilterMips.size(); ++m)
+		{
+			const RtEnvironment::PrefilterMip& mip = env.prefilterMips[m];
+			hostMips[m].faceSize = mip.faceSize;
+			for (int face = 0; face < 6; ++face)
 			{
-				_impl->envFaceSize = 0;
-				break;
+				if (!uploadCubemapFace(mip.faces[face], mip.faceSize, _impl->prefilterMipEntries[m].faceBuffers[face]))
+				{
+					qWarning() << "RtOptixSceneTracer::buildScene(): prefilter mip" << static_cast<int>(m) << "face" << face
+						<< "has unexpected size - disabling the prefilter chain (falling back to the raw map).";
+					mipsOk = false;
+					break;
+				}
+				hostMips[m].faces[face] = reinterpret_cast<float3*>(_impl->prefilterMipEntries[m].faceBuffers[face]);
 			}
-			if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envFaceBuffers[face]), faceFloat3.data(), faceBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env face)"))
+		}
+
+		if (mipsOk)
+		{
+			const size_t mipsBytes = hostMips.size() * sizeof(RtOptixPrefilterMip);
+			if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->prefilterMipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)") &&
+				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->prefilterMipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
 			{
-				_impl->envFaceSize = 0;
-				break;
+				_impl->prefilterMipCount = static_cast<int>(hostMips.size());
 			}
 		}
 	}
@@ -563,18 +751,31 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	return true;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int height, std::vector<uint8_t>& outImageRgba8)
+bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int height, unsigned int samplesPerPixel, unsigned int maxBounces,
+	std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal)
 {
 	if (!_impl->valid || _impl->iasHandle == 0 || width <= 0 || height <= 0)
 		return false;
 
 	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
-	CUdeviceptr dImage = 0;
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dImage), pixelCount * sizeof(uchar4)), "cudaMalloc(output image)"))
+	CUdeviceptr dImage = 0, dAlbedo = 0, dNormal = 0;
+	bool allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dImage), pixelCount * sizeof(float3)), "cudaMalloc(output image)");
+	if (allocOk)
+		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dAlbedo), pixelCount * sizeof(float3)), "cudaMalloc(albedo guide image)");
+	if (allocOk)
+		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dNormal), pixelCount * sizeof(float3)), "cudaMalloc(normal guide image)");
+	if (!allocOk)
+	{
+		if (dNormal) cudaFree(reinterpret_cast<void*>(dNormal));
+		if (dAlbedo) cudaFree(reinterpret_cast<void*>(dAlbedo));
+		if (dImage) cudaFree(reinterpret_cast<void*>(dImage));
 		return false;
+	}
 
 	RtOptixSceneParams params{};
-	params.image = reinterpret_cast<uchar4*>(dImage);
+	params.image = reinterpret_cast<float3*>(dImage);
+	params.albedoImage = reinterpret_cast<float3*>(dAlbedo);
+	params.normalImage = reinterpret_cast<float3*>(dNormal);
 	params.imageWidth = static_cast<unsigned int>(width);
 	params.imageHeight = static_cast<unsigned int>(height);
 	params.camPosition = make_float3(camera.position.x, camera.position.y, camera.position.z);
@@ -598,6 +799,10 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 	params.environment.cameraUpAxisZUp = _impl->envCameraUpAxisZUp ? 1 : 0;
 	params.environment.skyBoxZRotationDegrees = _impl->envSkyBoxZRotationDegrees;
 	params.environment.envMapExposure = _impl->envMapExposure;
+	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->prefilterMipsBuffer);
+	params.environment.prefilterMipCount = _impl->prefilterMipCount;
+	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
+	params.maxBounces = maxBounces > 0 ? maxBounces : 1;
 
 	params.handle = _impl->iasHandle;
 
@@ -605,6 +810,7 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 	bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dParams), sizeof(RtOptixSceneParams)), "cudaMalloc(params)");
 	if (ok)
 		ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(dParams), &params, sizeof(RtOptixSceneParams), cudaMemcpyHostToDevice), "cudaMemcpy(params)");
+
 	if (ok)
 		ok = optixCheck(optixLaunch(_impl->pipeline, nullptr, dParams, sizeof(RtOptixSceneParams), &_impl->sbt,
 			static_cast<unsigned int>(width), static_cast<unsigned int>(height), 1), "optixLaunch()");
@@ -613,15 +819,31 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 
 	if (ok)
 	{
-		outImageRgba8.resize(pixelCount * 4);
-		ok = cudaCheck(cudaMemcpy(outImageRgba8.data(), reinterpret_cast<void*>(dImage), pixelCount * sizeof(uchar4), cudaMemcpyDeviceToHost), "cudaMemcpy(readback)");
+		// float3 and glm::vec3 are both three tight-packed floats (no
+		// padding/alignment mismatch - same layout assumption already made
+		// throughout this file, e.g. camPosition/camForward above), so the
+		// device buffers can be read straight into the glm::vec3 vectors.
+		outImageLinearRgb.resize(pixelCount);
+		outAlbedo.resize(pixelCount);
+		outNormal.resize(pixelCount);
+		ok = cudaCheck(cudaMemcpy(outImageLinearRgb.data(), reinterpret_cast<void*>(dImage), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback image)");
+		if (ok)
+			ok = cudaCheck(cudaMemcpy(outAlbedo.data(), reinterpret_cast<void*>(dAlbedo), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback albedo)");
+		if (ok)
+			ok = cudaCheck(cudaMemcpy(outNormal.data(), reinterpret_cast<void*>(dNormal), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback normal)");
 	}
 
 	if (dParams) cudaFree(reinterpret_cast<void*>(dParams));
 	cudaFree(reinterpret_cast<void*>(dImage));
+	cudaFree(reinterpret_cast<void*>(dAlbedo));
+	cudaFree(reinterpret_cast<void*>(dNormal));
 
 	if (!ok)
-		outImageRgba8.clear();
+	{
+		outImageLinearRgb.clear();
+		outAlbedo.clear();
+		outNormal.clear();
+	}
 	return ok;
 }
 
@@ -647,7 +869,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot&)
 	return false;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera&, int, int, std::vector<uint8_t>&)
+bool RtOptixSceneTracer::renderScene(const RtCamera&, int, int, unsigned int, unsigned int, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&)
 {
 	return false;
 }

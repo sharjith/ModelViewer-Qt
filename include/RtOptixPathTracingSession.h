@@ -64,6 +64,11 @@ public:
 	void setMaxSamples(uint32_t maxSamples) { _maxSamples = maxSamples > 0 ? maxSamples : 1; }
 	uint32_t maxSamples() const { return _maxSamples; }
 
+	// Forwarded to RtOptixSceneTracer::renderScene() - mirrors CpuPathTracer::
+	// Settings::maxBounces (RtPathTracingSession's identical setting).
+	void setMaxBounces(uint32_t maxBounces) { _maxBounces = maxBounces > 0 ? maxBounces : 1; }
+	uint32_t maxBounces() const { return _maxBounces; }
+
 	// Chunk size (samples per pixel gathered per background-thread pass,
 	// i.e. per RtOptixSceneTracer::renderScene() call) - smaller values give
 	// more frequent progress-bar/preview updates at the cost of more
@@ -116,6 +121,7 @@ private:
 	int _width  = 0;
 	int _height = 0;
 	uint32_t _maxSamples = 128;
+	uint32_t _maxBounces = 6;
 	uint32_t _samplesPerChunk = 1;
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
 

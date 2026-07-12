@@ -102,7 +102,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 		const uint32_t chunkSpp = std::min(_samplesPerChunk, _maxSamples - sampleCount);
 
 		std::vector<glm::vec3> chunkFrame, chunkAlbedo, chunkNormal;
-		if (!_tracer.renderScene(snapshot->camera, width, height, chunkSpp, chunkFrame, chunkAlbedo, chunkNormal))
+		if (!_tracer.renderScene(snapshot->camera, width, height, chunkSpp, _maxBounces, chunkFrame, chunkAlbedo, chunkNormal))
 			break;
 
 		if (_cancelRequested.load(std::memory_order_acquire) ||

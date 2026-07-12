@@ -44,10 +44,22 @@ public:
 	bool buildScene(const RtSceneSnapshot& snapshot);
 
 	// Renders the current scene (from the last successful buildScene() call)
-	// through the given camera at the given resolution, single sample per
-	// pixel, no accumulation. On success, resizes outImageRgba8 to
-	// width*height*4 bytes (row-major, no padding) and returns true.
-	bool renderScene(const RtCamera& camera, int width, int height, std::vector<uint8_t>& outImageRgba8);
+	// through the given camera at the given resolution, averaging
+	// samplesPerPixel jittered primary-ray path samples (box-filter AA
+	// jitter, each path up to maxBounces long - see RtOptixSceneParams.h's
+	// samplesPerPixel/maxBounces doc comments) within a single optixLaunch().
+	// Output is linear HDR radiance (un-tonemapped) - same contract as
+	// CpuPathTracer's own frame output - so callers wanting progressive
+	// multi-launch accumulation (see RtOptixPathTracingSession) can average
+	// multiple calls' results in linear space before a single final tonemap.
+	// outAlbedo/outNormal are OIDN guide (auxiliary feature) buffers -
+	// primary-hit base color/world-space shading normal, chunk-averaged the
+	// same way the beauty image is - mirroring RtFrameAccumulator::
+	// resolveAlbedo()/resolveNormal()'s contract, see RtOptixSceneParams.h's
+	// albedoImage/normalImage doc comment. On success, resizes all three to
+	// width*height and returns true.
+	bool renderScene(const RtCamera& camera, int width, int height, unsigned int samplesPerPixel, unsigned int maxBounces,
+		std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal);
 
 private:
 	struct Impl;
