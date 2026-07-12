@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>380</width>
-    <height>360</height>
+    <width>497</width>
+    <height>544</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -16,6 +16,9 @@
   <layout class="QVBoxLayout" name="verticalLayout_main">
    <item>
     <widget class="QTabWidget" name="tabWidgetSettings">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
      <widget class="QWidget" name="tabBasic">
       <attribute name="title">
        <string>Basic</string>
@@ -39,7 +42,7 @@
            </item>
            <item>
             <property name="text">
-             <string>GPU (OptiX) - test triangle only</string>
+             <string>GPU (OptiX)</string>
             </property>
            </item>
           </widget>
@@ -49,10 +52,10 @@
        <item>
         <widget class="Line" name="lineAfterRenderEngine">
          <property name="frameShape">
-          <enum>QFrame::HLine</enum>
+          <enum>QFrame::Shape::HLine</enum>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Sunken</enum>
+          <enum>QFrame::Shadow::Sunken</enum>
          </property>
         </widget>
        </item>
@@ -106,10 +109,10 @@
        <item>
         <widget class="Line" name="lineBeforeDenoiser">
          <property name="frameShape">
-          <enum>QFrame::HLine</enum>
+          <enum>QFrame::Shape::HLine</enum>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Sunken</enum>
+          <enum>QFrame::Shadow::Sunken</enum>
          </property>
         </widget>
        </item>
@@ -156,10 +159,10 @@
        <item>
         <widget class="Line" name="lineAfterDenoiser">
          <property name="frameShape">
-          <enum>QFrame::HLine</enum>
+          <enum>QFrame::Shape::HLine</enum>
          </property>
          <property name="frameShadow">
-          <enum>QFrame::Sunken</enum>
+          <enum>QFrame::Shadow::Sunken</enum>
          </property>
         </widget>
        </item>
@@ -445,7 +448,7 @@
    <item>
     <widget class="QLabel" name="labelElapsedTime">
      <property name="text">
-      <string></string>
+      <string/>
      </property>
      <property name="alignment">
       <set>Qt::AlignmentFlag::AlignHCenter</set>
