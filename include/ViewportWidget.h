@@ -422,6 +422,28 @@ public:
 		outRunning        = _rtSession.isRunning();
 	}
 
+	// Whether whichever backend's session is CURRENTLY the active one
+	// (per _ptEnginePreference) is running - used by the paintGL()/
+	// applicationStateChanged watchdogs that self-heal a stuck-idle path-
+	// traced mode. Checking only _rtSession.isRunning() unconditionally (an
+	// earlier version of both watchdogs did) is permanently false whenever
+	// GPU is selected (that backend never touches _rtSession at all), making
+	// both watchdogs think a build-in-progress GPU session was "stuck idle"
+	// and restart it on every single paint call - each restart calling
+	// RtOptixPathTracingSession::stop() first, which kills whatever
+	// buildScene()/first-chunk-render was already in flight, so the session
+	// could never actually finish and publish its first frame. A real,
+	// previously-unnoticed bug once the GPU path moved from one blocking
+	// optixLaunch() (where hasFrame() flipped true near-instantly, before
+	// paintGL() got a chance to see otherwise) to a background progressive
+	// session with real build/first-chunk latency.
+	bool pathTracedSessionRunning() const
+	{
+		return _ptEnginePreference == RtPathTracingEnginePreference::GPU
+			? _ptOptixSession.isRunning()
+			: _rtSession.isRunning();
+	}
+
 	// Raw linear HDR frame (un-tonemapped, optionally OIDN-denoised) - see
 	// RtPathTracingSession::latestFrame(). Used by PathTracingDialog's EXR
 	// export, which needs true linear radiance data rather than the

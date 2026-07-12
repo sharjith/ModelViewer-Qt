@@ -148,7 +148,7 @@ _floorPlane(nullptr),
 			QTimer::singleShot(0, this, [this]() {
 				if (_pathTracedArmed && isVisible() &&
 				    !_pathTracedIdleTimer->isActive() &&
-				    !_rtSession.isRunning() &&
+				    !pathTracedSessionRunning() &&
 				    !_rtPresenter.hasFrame())
 				{
 					startPathTracedSession();
@@ -1155,7 +1155,7 @@ void ViewportWidget::paintGL()
 		// depending on correctly predicting every platform-specific
 		// visibility/focus event that should have restarted it.
 		if (_pathTracedArmed && !_pathTracedIdleTimer->isActive() &&
-		    !_rtSession.isRunning() && !_rtPresenter.hasFrame())
+		    !pathTracedSessionRunning() && !_rtPresenter.hasFrame())
 		{
 			startPathTracedSession(); // bypass the idle countdown entirely - see applicationStateChanged handler for why
 		}
@@ -10734,7 +10734,7 @@ void ViewportWidget::showEvent(QShowEvent* event)
 	// but the only thing that should re-arm/restart path tracing is actual
 	// camera movement - MDI visibility changes shouldn't. paintGL()'s own
 	// self-healing watchdog (see paintGL()'s "!_pathTracedIdleTimer->
-	// isActive() && !_rtSession.isRunning() && !_rtPresenter.hasFrame()"
+	// isActive() && !pathTracedSessionRunning() && !_rtPresenter.hasFrame()"
 	// check) already restarts a stuck session the moment this widget is
 	// next painted, which happens naturally as soon as Qt shows it again -
 	// so no dedicated restart is needed here.
