@@ -48,7 +48,13 @@ public:
 	// samplesPerPixel jittered primary-ray path samples (box-filter AA
 	// jitter, each path up to maxBounces long - see RtOptixSceneParams.h's
 	// samplesPerPixel/maxBounces doc comments) within a single optixLaunch().
-	// Output is linear HDR radiance (un-tonemapped) - same contract as
+	// environment supplies the CHEAP per-launch scalars (showBackground/
+	// exposure/rotation/fallback colors...) fresh from the caller's current
+	// snapshot each call - only the heavy face/mip texel data comes from the
+	// revision-gated buildScene() upload, so lightweight environment-setting
+	// changes take effect without a scene-revision bump (its faces/
+	// irradiance/prefilter pixel data members are ignored here). Output is
+	// linear HDR radiance (un-tonemapped) - same contract as
 	// CpuPathTracer's own frame output - so callers wanting progressive
 	// multi-launch accumulation (see RtOptixPathTracingSession) can average
 	// multiple calls' results in linear space before a single final tonemap.
@@ -56,10 +62,15 @@ public:
 	// primary-hit base color/world-space shading normal, chunk-averaged the
 	// same way the beauty image is - mirroring RtFrameAccumulator::
 	// resolveAlbedo()/resolveNormal()'s contract, see RtOptixSceneParams.h's
-	// albedoImage/normalImage doc comment. On success, resizes all three to
-	// width*height and returns true.
-	bool renderScene(const RtCamera& camera, int width, int height, unsigned int samplesPerPixel, unsigned int maxBounces,
-		std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal);
+	// albedoImage/normalImage doc comment. outAlpha is the per-pixel
+	// primary-hit fraction (RtPresenter's alpha-composited-background
+	// channel - see RtOptixSceneParams::alphaImage's doc comment). On
+	// success, resizes all four to width*height and returns true.
+	bool renderScene(const RtCamera& camera, const RtEnvironment& environment,
+		int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
+		unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled,
+		std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
+		std::vector<float>& outAlpha);
 
 private:
 	struct Impl;

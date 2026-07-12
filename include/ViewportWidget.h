@@ -309,7 +309,13 @@ public:
 	void setBgBotColor(const QColor& bgBotColor);
 
 	int getBgGradientStyle() const { return _renderCtrl.gradientStyle(); }
-	void setBgGradientStyle(int style) { _renderCtrl.setGradientStyle(style); }
+	// resetPathTracedIdleTimer(): the gradient style feeds the PT snapshot's
+	// fallback-background scalars (RtEnvironment::fallbackGradientStyle) -
+	// without a restart, an already-converged PT frame keeps showing the old
+	// style. Camera-grade restart only (no scene-revision bump): env scalars
+	// flow per-launch, no GPU rebuild needed - see RtOptixSceneTracer::
+	// renderScene(). No-op when PT isn't armed.
+	void setBgGradientStyle(int style) { _renderCtrl.setGradientStyle(style); resetPathTracedIdleTimer(); }
 	void loadBgColorSettings();
 	void loadNavigationSettings();
 	void loadRenderSettings();
@@ -347,9 +353,10 @@ public:
 	// the same effect as a camera-affecting event (falls back to the live
 	// raster feed immediately, restarts the settle countdown); the next
 	// startPathTracedSession() call already rebuilds the RtSceneSnapshot from
-	// current scene state unconditionally, so no separate "rebuild" signal is
-	// needed here.
-	void notifyPathTracedSceneMutated() { resetPathTracedIdleTimer(); }
+	// current scene state unconditionally. The revision bump lets GPU PT
+	// distinguish real scene/env changes from camera-only restarts so it can
+	// keep its GAS/IAS alive across camera movement.
+	void notifyPathTracedSceneMutated() { ++_pathTracedSceneRevision; resetPathTracedIdleTimer(); }
 
 	// User-adjustable PT quality settings (PathTracingDialog) - stored here
 	// rather than pushed straight into _rtSession/CpuPathTracer::Settings so
@@ -693,7 +700,12 @@ public slots:
 	void enableGammaCorrection(bool gammaCorrection) { _renderCtrl.setGammaCorrection(gammaCorrection); update(); }
 	void setScreenGamma(double screenGamma) { _renderCtrl.setScreenGamma(static_cast<float>(screenGamma)); update(); }
 	void setHDRToneMappingMode(HDRToneMapMode mode) { _renderCtrl.setToneMappingMode(mode); update(); }
-	void setEnvMapExposure(double exposure) { _renderCtrl.setEnvMapExposure(std::pow(2.0f, static_cast<float>(exposure))); update(); }
+	// resetPathTracedIdleTimer(): envMapExposure feeds the PT snapshot's
+	// environment scalars - see setBgGradientStyle()'s identical reasoning.
+	// (The neighboring tonemap/gamma/iblExposure setters deliberately DON'T
+	// restart: those are present-time uniforms RtPresenter::draw() reads
+	// live every paint, so update() alone already shows them immediately.)
+	void setEnvMapExposure(double exposure) { _renderCtrl.setEnvMapExposure(std::pow(2.0f, static_cast<float>(exposure))); resetPathTracedIdleTimer(); update(); }
 	void setIBLExposure(double exposure) { _renderCtrl.setIblExposure(std::pow(2.0f, static_cast<float>(exposure))); update(); }
 
 	// Getters for tone mapping and gamma settings
@@ -1112,7 +1124,7 @@ private:
 	bool     _pathTracedArmed        = false; // user selected "Path Traced" mode
 	QTimer*  _pathTracedIdleTimer    = nullptr; // reset on every camera-affecting event
 	QTimer*  _pathTracedRefreshTimer = nullptr; // periodically repaints while a trace is running
-	uint64_t _pathTracedNextRevision = 1;
+	uint64_t _pathTracedSceneRevision = 1;
 
 	// User-adjustable PT quality settings - see setPathTracingMaxSamples()/
 	// setPathTracingMaxBounces()'s doc comments. Defaults match

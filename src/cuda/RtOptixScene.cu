@@ -13,7 +13,8 @@
 // boolean query is all a shadow test needs - rather than a second program-
 // group/SBT pair; __closesthit__ch()/__miss__ms() both check
 // optixGetRayFlags() up front and take a one-line early-out when it's a
-// shadow ray, writing just the occluded/unoccluded bit into payload 0).
+// shadow ray, writing the occluded/unoccluded bit into payload 0; payloads
+// 1/2 carry the source instance and self-shadow toggle for any-hit filtering.
 //
 // __raygen__rg() runs a REAL iterative path-tracing loop (see
 // traceBouncePath()'s doc comment for the full payload layout this needs):
@@ -55,8 +56,13 @@
 // sub-cutoff hit be transparent to every ray type uniformly, including
 // shadow rays, without needing per-ray-type special-casing).
 //
-// Still deferred: alphaMode Blend (true transparency compositing) and every
-// KHR extension texture (specular/clearcoat/sheen/anisotropy/iridescence/
+// KHR_materials_ior + KHR_materials_specular (including their textures)
+// drive the F0/F90/directF0 computation, ported from CpuPathTracer::
+// computeF0F90() - see its use site in __closesthit__ch() for the
+// F0-vs-directF0 (indirect-vs-direct-lighting) split.
+//
+// Still deferred: alphaMode Blend (true transparency compositing) and the
+// remaining KHR extensions (clearcoat/sheen/anisotropy/iridescence/
 // transmission) - see RtMaterial's own doc comments for what those add.
 // Self-contained, same style as RtOptixTriangle.cu (no dependency on the
 // OptiX SDK's bundled sutil).
@@ -350,6 +356,37 @@ namespace
 	{
 		const float t = powf(fminf(fmaxf(1.0f - cosTheta, 0.0f), 1.0f), 5.0f);
 		return lerp3(F0, F90, t);
+	}
+
+	// ---- Height-correlated Smith masking-shadowing (Heitz 2014), ported
+	// verbatim from CpuPathTracer.cpp's smithLambdaGGX()/smithG1GGX()/
+	// smithG2HeightCorrelatedGGX() - the pair the VNDF sampling weight
+	// (F * G2/G1, see __closesthit__ch()'s specular-lobe branch) requires.
+	// Kept deliberately separate from geometrySmith() above, which is the
+	// raster-parity Schlick remapping meant for the direct-lighting BRDF
+	// VALUE only; per CPU's own doc comment, mixing the two is inconsistent
+	// (the sampling weight must match whichever G the VNDF pdf was derived
+	// from for the algebra to cancel). An earlier version of this kernel did
+	// exactly that mixing (geometrySmith with raw roughness in the VNDF
+	// weight), which systematically, angle-dependently dimmed specular
+	// bounce throughput - visible as a smudged, under-defined environment
+	// reflection on a glossy dielectric vs the CPU tracer's own result. Note
+	// these take ALPHA (roughness^2), not roughness. ----
+	__forceinline__ __device__ float smithLambdaGGX(float NdotX, float alpha)
+	{
+		const float NdotX2 = NdotX * NdotX;
+		const float tan2 = fmaxf(0.0f, 1.0f - NdotX2) / fmaxf(NdotX2, 1e-7f);
+		return 0.5f * (-1.0f + sqrtf(1.0f + alpha * alpha * tan2));
+	}
+
+	__forceinline__ __device__ float smithG1GGX(float NdotX, float alpha)
+	{
+		return 1.0f / (1.0f + smithLambdaGGX(NdotX, alpha));
+	}
+
+	__forceinline__ __device__ float smithG2HeightCorrelatedGGX(float NdotV, float NdotL, float alpha)
+	{
+		return 1.0f / (1.0f + smithLambdaGGX(NdotV, alpha) + smithLambdaGGX(NdotL, alpha));
 	}
 
 	// Small, fast, self-contained hash-based PRNG (PCG variant, same
@@ -679,10 +716,10 @@ namespace
 	// stochastically sample this hit's own continuation direction;
 	// escapeRoughness is a SEPARATE input, read by the MISS program only if
 	// THIS particular ray escapes to the environment - it's the roughness
-	// (or the diffuse-lobe sentinel 1.0) of whichever lobe the PREVIOUS
+	// (or a negative sentinel) of whichever lobe the PREVIOUS
 	// bounce's closest-hit sampled to produce this ray's direction (-1.0 for
-	// the very first, primary/camera ray, meaning "show the plain
-	// background, not an environment-lighting contribution"). On a real hit,
+	// the very first, primary/camera ray, -2.0 for a diffuse-lobe escape,
+	// and >=0 for a specular-lobe escape). On a real hit,
 	// outWorldNormal/outGuideAlbedo double as this hit's OIDN guide values
 	// (raygen only actually uses them at bounce 0) and outEscapeRoughness is
 	// the roughness-or-sentinel to feed back in as the NEXT call's
@@ -700,7 +737,7 @@ namespace
 			params.handle,
 			origin,
 			direction,
-			1e-4f,  // tmin
+			selfIntersectionEpsilon(origin), // tmin
 			1e16f,  // tmax
 			0.0f,   // rayTime
 			OptixVisibilityMask(255),
@@ -723,15 +760,16 @@ namespace
 	// other trace wrappers above (no dedicated occlusion program group/hit
 	// records) by setting OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT and having
 	// __closesthit__ch()/__miss__ms() check optixGetRayFlags() to take a
-	// one-line early-out instead of running the full shading path. Only
-	// payload 0 is used (and meaningful) for this trace - the other
-	// registers keep whatever stale values they held from the caller's
-	// previous trace call, which is fine since neither program writes them
-	// on this path.
-	__forceinline__ __device__ bool traceShadowRay(const float3& origin, const float3& direction, float maxDistance)
+	// one-line early-out instead of running the full shading path. Payload
+	// 0 is the occluded bit; payloads 1/2 let __anyhit__ah() ignore hits
+	// against the source instance when self-shadows are disabled.
+	__forceinline__ __device__ bool traceShadowRay(const float3& origin, const float3& direction, float maxDistance,
+		unsigned int sourceInstanceId)
 	{
 		const float eps = selfIntersectionEpsilon(origin);
 		unsigned int occluded = 0u;
+		unsigned int selfInstanceId = sourceInstanceId;
+		unsigned int selfShadowsEnabled = params.selfShadowsEnabled != 0 ? 1u : 0u;
 		optixTrace(
 			params.handle,
 			origin,
@@ -744,7 +782,7 @@ namespace
 			0, // SBT offset
 			1, // SBT stride
 			0, // missSBTIndex
-			occluded);
+			occluded, selfInstanceId, selfShadowsEnabled);
 		return occluded != 0u;
 	}
 }
@@ -766,9 +804,11 @@ extern "C" __global__ void __raygen__rg()
 	float3 accumulated = make_float3(0.0f, 0.0f, 0.0f);
 	float3 accumulatedAlbedo = make_float3(0.0f, 0.0f, 0.0f);
 	float3 accumulatedNormal = make_float3(0.0f, 0.0f, 0.0f);
+	float accumulatedHits = 0.0f; // primary-hit count -> alpha/hit-fraction, see params.alphaImage's doc comment
 	for (unsigned int s = 0; s < spp; ++s)
 	{
-		const unsigned int seed = pcgHash(pixelIndex * 9781u + s * 6271u + 1u);
+		const unsigned int globalSampleIndex = params.sampleOffset + s;
+		const unsigned int seed = pcgHash(pixelIndex * 9781u + globalSampleIndex * 6271u + 1u);
 		const float jitterX = hashToUnitFloat(pcgHash(seed));
 		const float jitterY = hashToUnitFloat(pcgHash(seed ^ 0x9e3779b9u));
 
@@ -823,10 +863,12 @@ extern "C" __global__ void __raygen__rg()
 			{
 				sampleAlbedo = guideAlbedo;
 				sampleNormal = worldNormal;
+				if (hitFlag != 0u) // 1 (hit+continuation) or 2 (hit+dead-end) - either way the primary ray hit geometry
+					accumulatedHits += 1.0f;
 			}
 
-			if (hitFlag == 0u)
-				break; // escaped to the environment, or a dead-end sample with no valid continuation - already fully accounted for above
+			if (hitFlag != 1u)
+				break; // 0: escaped to the environment; 2: hit but dead-end sample with no valid continuation - either way, fully accounted for above
 
 			throughput = throughput * throughputWeight;
 
@@ -859,6 +901,7 @@ extern "C" __global__ void __raygen__rg()
 	params.image[pixelIndex]       = accumulated * invSpp;
 	params.albedoImage[pixelIndex] = accumulatedAlbedo * invSpp;
 	params.normalImage[pixelIndex] = accumulatedNormal * invSpp;
+	params.alphaImage[pixelIndex]  = accumulatedHits * invSpp;
 }
 
 extern "C" __global__ void __miss__ms()
@@ -870,16 +913,14 @@ extern "C" __global__ void __miss__ms()
 		return;
 	}
 
-	// p18 carries the escape-roughness for THIS ray (see traceBouncePath()'s
-	// doc comment) - the sentinel -1 means "this is the primary/camera ray,
-	// show the plain background," any other value means "this ray was
-	// sampled from a bounce's lobe with this roughness (1.0 for the diffuse
-	// lobe's sentinel), sample the correspondingly-blurred environment mip."
+	// p18 carries the escape mode for THIS ray (see traceBouncePath()'s doc
+	// comment): -1 means primary/camera ray, -2 means a diffuse-lobe escape,
+	// and >=0 means a GGX specular-lobe escape with that material roughness.
 	const float escapeRoughness = __uint_as_float(optixGetPayload_18());
 	const float3 dir = optixGetWorldRayDirection();
 
 	float3 result;
-	if (escapeRoughness < 0.0f)
+	if (escapeRoughness == -1.0f)
 	{
 		// Matches CpuPathTracer::tracePixel()'s screenUv convention exactly
 		// (top of image = 1, bottom = 0) - only used by the fallback
@@ -890,9 +931,21 @@ extern "C" __global__ void __miss__ms()
 		const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
 		result = sampleEnvironmentBackground(params.environment, dir, su, sv);
 	}
+	else if (escapeRoughness < 0.0f)
+	{
+		// Diffuse-lobe escape. This backend does not upload the irradiance
+		// cubemap yet, so keep the existing roughest-prefilter stand-in for
+		// diffuse ambient/environment light.
+		result = sampleEnvironmentSpecular(params.environment, dir, 1.0f);
+	}
 	else
 	{
-		result = sampleEnvironmentSpecular(params.environment, dir, escapeRoughness);
+		// Specular-lobe escape. The direction was already sampled from the
+		// rough GGX lobe; sampling a roughness-prefiltered cubemap here would
+		// apply that blur a second time and wash out mirror-like metallic
+		// reflections. Use the sharp environment and let the Monte-Carlo lobe
+		// sampling produce the rough reflection over many samples.
+		result = sampleEnvironmentRaw(params.environment, dir);
 	}
 
 	setPayload(result);
@@ -919,6 +972,17 @@ extern "C" __global__ void __miss__ms()
 // the same as not having one at all).
 extern "C" __global__ void __anyhit__ah()
 {
+	if (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT)
+	{
+		const unsigned int selfInstanceId = optixGetPayload_1();
+		const unsigned int selfShadowsEnabled = optixGetPayload_2();
+		if (selfShadowsEnabled == 0u && optixGetInstanceId() == selfInstanceId)
+		{
+			optixIgnoreIntersection();
+			return;
+		}
+	}
+
 	const RtOptixSceneHitGroupData* data = reinterpret_cast<const RtOptixSceneHitGroupData*>(optixGetSbtDataPointer());
 	if (data->blendMode != 1)
 		return;
@@ -947,6 +1011,7 @@ extern "C" __global__ void __closesthit__ch()
 	}
 
 	const RtOptixSceneHitGroupData* data = reinterpret_cast<const RtOptixSceneHitGroupData*>(optixGetSbtDataPointer());
+	const unsigned int instanceId = optixGetInstanceId();
 
 	const unsigned int primIdx = optixGetPrimitiveIndex();
 	const uint3 tri = data->indices[primIdx];
@@ -1056,14 +1121,47 @@ extern "C" __global__ void __closesthit__ch()
 		ao = fminf(fmaxf(mixed, 0.0001f), 1.0f);
 	}
 
-	// View direction and the simplified (no KHR_materials_ior/specular) F0 -
-	// mirrors CpuPathTracer's own default: dielectrics get the standard
-	// 0.04 reflectance, metals use their own baseColor as F0, F90 = 1.0.
+	// KHR_materials_specular's per-pixel maps - specularTexture's alpha
+	// channel scales specularFactor (channel-packed), specularColorTexture's
+	// RGB (sRGB-encoded) tints specularColorFactor - matching CpuPathTracer::
+	// evaluateSurface()'s identical modulation before computeF0F90().
+	float texturedSpecularFactor = data->specularFactor;
+	if (data->specularTexture.width > 0)
+		texturedSpecularFactor *= applyChannelPacking(sampleTexture2D(data->specularTexture, uv), data->specularTexture);
+
+	float3 texturedSpecularColorFactor = data->specularColorFactor;
+	if (data->specularColorTexture.width > 0)
+	{
+		const float4 sampled = sampleTexture2D(data->specularColorTexture, uv);
+		texturedSpecularColorFactor = texturedSpecularColorFactor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
+	}
+
+	// Ported from CpuPathTracer::computeF0F90() (itself from main_scene.frag's
+	// computeDielectricF0()/computeF90()): KHR_materials_ior replaces the
+	// fixed 0.04 dielectric F0 with an IOR-derived value; KHR_materials_
+	// specular scales/tints the dielectric term (no effect on metals). F0 is
+	// the general/indirect-bounce reflectance (BSDF lobe sampling below);
+	// directF0 additionally scales the dielectric term by specularFactor a
+	// second time and is used ONLY by the direct-lighting loop - the same
+	// F0-vs-directF0 split CpuPathTracer's evaluateDirectBRDF() (directF0)
+	// vs sampleBSDFBounce()/computeLobeProbabilities() (F0) applies. The
+	// pre-metal-mix dielectric terms CPU also computes (dielectricF0/
+	// dielectricDirectF0) are iridescence-only consumers, deferred here.
+	const float f0FromIor = powf((data->ior - 1.0f) / (data->ior + 1.0f), 2.0f);
+	float3 dielectricF0 = make_float3(f0FromIor, f0FromIor, f0FromIor);
+	if (texturedSpecularFactor > 0.0f)
+		dielectricF0 = dielectricF0 * texturedSpecularColorFactor;
+	dielectricF0 = make_float3(
+		fminf(fmaxf(dielectricF0.x, 0.0f), 1.0f),
+		fminf(fmaxf(dielectricF0.y, 0.0f), 1.0f),
+		fminf(fmaxf(dielectricF0.z, 0.0f), 1.0f));
+
 	const float3 V = normalizeF3(rayDir * -1.0f);
 	const float NdotV = fmaxf(dot3(worldNormal, V), 0.0f);
-	const float3 F0 = lerp3(make_float3(0.04f, 0.04f, 0.04f), baseColor, metalness);
-	const float3 F90 = make_float3(1.0f, 1.0f, 1.0f);
-	const float roughness = fmaxf(roughnessFactor, 0.03f); // avoid a singular perfect mirror (alpha=0), matching CpuPathTracer's own floor
+	const float3 F0 = lerp3(dielectricF0, baseColor, metalness);
+	const float3 F90 = lerp3(make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor), make_float3(1.0f, 1.0f, 1.0f), metalness);
+	const float3 directF0 = lerp3(dielectricF0 * texturedSpecularFactor, baseColor, metalness);
+	const float roughness = fmaxf(roughnessFactor, 0.0001f); // matches main_scene.frag/CpuPathTracer roughness floor
 
 	float3 radiance = emissive;
 	if (NdotV > 0.0f)
@@ -1083,14 +1181,18 @@ extern "C" __global__ void __closesthit__ch()
 			// with the surface this ray originates from.
 			const float3 shadowOrigin = worldPos + worldNormal * selfIntersectionEpsilon(worldPos);
 			const float shadowMaxDistance = fminf(lightDistance, 1e16f);
-			if (traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance))
+			if (params.shadowsEnabled != 0 && traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, instanceId))
 				continue;
 
 			const float3 H = normalizeF3(V + lightDir);
 			const float NdotH = fmaxf(dot3(worldNormal, H), 0.0f);
 			const float VdotH = fminf(fmaxf(dot3(H, V), 0.0f), 1.0f);
 
-			const float3 F = fresnelSchlick(VdotH, F0, F90);
+			// directF0, not F0 - the direct-lighting-specific extra
+			// specularFactor scale, matching CpuPathTracer::
+			// evaluateDirectBRDF()'s own fresnelSchlick(VdotH, surf.directF0,
+			// surf.F90) exactly.
+			const float3 F = fresnelSchlick(VdotH, directF0, F90);
 			const float D = distributionGGX(NdotH, roughness);
 			const float G = geometrySmith(NdotV, NdotL, roughness);
 			const float3 specular = F * (D * G / fmaxf(4.0f * NdotV * NdotL, 0.001f));
@@ -1115,7 +1217,7 @@ extern "C" __global__ void __closesthit__ch()
 	// mirror ray for ANY roughness, previously).
 	float3 nextDirection = make_float3(0.0f, 0.0f, 0.0f);
 	float3 throughputWeight = make_float3(0.0f, 0.0f, 0.0f);
-	float outEscapeRoughness = 1.0f; // diffuse-lobe sentinel by default
+	float outEscapeRoughness = -2.0f; // diffuse-lobe sentinel by default
 	bool hasContinuation = false;
 	if (NdotV > 0.0f)
 	{
@@ -1123,15 +1225,29 @@ extern "C" __global__ void __closesthit__ch()
 
 		float3 T, B;
 		buildOrthonormalBasis(worldNormal, T, B);
-		const float3 Vlocal = make_float3(dot3(V, T), dot3(V, B), dot3(V, worldNormal));
+		// z floored at 1e-4 for the VNDF sampler's Ve.z > 0 requirement at
+		// grazing angles - matches CpuPathTracer's own NdotV0 floor exactly.
+		const float3 Vlocal = make_float3(dot3(V, T), dot3(V, B), fmaxf(dot3(V, worldNormal), 1e-4f));
 
-		// Average Fresnel reflectance at the viewing angle, clamped well
-		// away from 0/1 so neither lobe is ever starved of samples entirely
-		// (a dielectric with F0~0.04 would otherwise almost never sample
-		// specular, missing its grazing-angle Fresnel-bright rim; a near-
-		// mirror surface would almost never sample diffuse).
+		// Ported from CpuPathTracer::computeLobeProbabilities(): average F0
+		// plus a metalness boost plus a (1-roughness)^2 smoothness boost,
+		// clamped away from 0/1 so neither lobe is ever starved entirely.
+		// The smoothness term is load-bearing, not a tweak - F0/metalness
+		// alone chronically under-samples SMOOTH DIELECTRICS (F0 ~ 0.04,
+		// metalness 0), clamping them to the probability floor no matter how
+		// narrow (and therefore impossible to resolve via the diffuse lobe)
+		// their specular reflection is; an earlier version of this kernel
+		// used average-Fresnel-at-view alone and a glossy red dielectric
+		// sphere showed essentially no environment reflection at all - the
+		// few specular samples that did land were then smeared away by the
+		// denoiser. Since the estimator divides by whichever probability was
+		// used, this only redistributes samples (variance), never changes
+		// the converged mean.
 		const float3 Fview = fresnelSchlick(NdotV, F0, F90);
-		const float specProb = fminf(fmaxf((Fview.x + Fview.y + Fview.z) * (1.0f / 3.0f), 0.1f), 0.9f);
+		const float smoothness = 1.0f - roughness;
+		const float specProb = fminf(fmaxf(
+			(F0.x + F0.y + F0.z) * (1.0f / 3.0f) + 0.5f * metalness + 0.5f * smoothness * smoothness,
+			0.05f), 0.95f);
 
 		rngState = pcgHash(rngState);
 		const float lobeXi = hashToUnitFloat(rngState);
@@ -1144,6 +1260,22 @@ extern "C" __global__ void __closesthit__ch()
 			const float u2 = hashToUnitFloat(rngState);
 
 			const float alpha = roughness * roughness;
+			const bool polishedMetalMirrorApprox = metalness >= 0.9f && roughness <= 0.12f;
+			if (roughness <= 0.01f || polishedMetalMirrorApprox)
+			{
+				const float3 L = reflectF3(rayDir, worldNormal);
+				const float NdotL = dot3(worldNormal, L);
+				if (NdotL > 0.0f)
+				{
+					const float3 F = fresnelSchlick(NdotV, F0, F90);
+					nextDirection = L;
+					throughputWeight = F * (1.0f / specProb);
+					outEscapeRoughness = 0.0f;
+					hasContinuation = true;
+				}
+			}
+			else
+			{
 			const float3 Hlocal = sampleGGXVNDF(Vlocal, alpha, u1, u2);
 			const float3 Hworld = normalizeF3(T * Hlocal.x + B * Hlocal.y + worldNormal * Hlocal.z);
 			const float3 L = reflectF3(rayDir, Hworld);
@@ -1153,12 +1285,16 @@ extern "C" __global__ void __closesthit__ch()
 				// F*G2/G1 - the well-known VNDF-sampling weight simplification
 				// (the D and one G1 factor already cancel against the VNDF
 				// sampling pdf, leaving just the masking-shadowing ratio).
+				// MUST use the height-correlated Smith pair with alpha - see
+				// smithG1GGX()/smithG2HeightCorrelatedGGX()'s doc comment for
+				// the smudged-reflection bug the raster-parity geometrySmith()
+				// caused here before.
 				const float VdotH = fmaxf(dot3(V, Hworld), 0.0f);
-				const float G1v = geometrySchlickGGX(NdotV, roughness);
-				const float G2 = geometrySmith(NdotV, NdotL, roughness);
+				const float G1v = smithG1GGX(NdotV, alpha);
+				const float G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
 				const float3 F = fresnelSchlick(VdotH, F0, F90);
 				nextDirection = L;
-				throughputWeight = F * (G2 / fmaxf(G1v, 1e-4f)) * (1.0f / specProb);
+				throughputWeight = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / specProb);
 				outEscapeRoughness = roughness;
 				hasContinuation = true;
 			}
@@ -1166,6 +1302,7 @@ extern "C" __global__ void __closesthit__ch()
 			// a known, rare edge case at high roughness/grazing angles.
 			// Treated as a dead-end path (no continuation), same as
 			// CpuPathTracer's own identical handling.
+			}
 		}
 		else
 		{
@@ -1183,13 +1320,18 @@ extern "C" __global__ void __closesthit__ch()
 			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
 			nextDirection = L;
 			throughputWeight = kD * baseColor * (ao / fmaxf(1.0f - specProb, 1e-4f));
-			outEscapeRoughness = 1.0f;
+			outEscapeRoughness = -2.0f;
 			hasContinuation = true;
 		}
 	}
 
 	setPayload(radiance);
-	optixSetPayload_3(hasContinuation ? 1u : 0u);
+	// 1 = hit with a valid continuation direction, 2 = hit but dead-end (no
+	// continuation - e.g. the rare below-surface VNDF sample), 0 = miss
+	// (written by __miss__ms() only). The raygen loop continues only on 1,
+	// but counts BOTH 1 and 2 as "primary ray hit geometry" for the
+	// alpha/hit-fraction channel - a dead-end hit is still a hit.
+	optixSetPayload_3(hasContinuation ? 1u : 2u);
 	optixSetPayload_4(__float_as_uint(worldNormal.x));
 	optixSetPayload_5(__float_as_uint(worldNormal.y));
 	optixSetPayload_6(__float_as_uint(worldNormal.z));

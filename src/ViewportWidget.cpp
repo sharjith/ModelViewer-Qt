@@ -3480,10 +3480,14 @@ void ViewportWidget::showSkyBox(bool show)
 
 	// Toggling this doesn't go through the undo stack (it's a display/
 	// visualization setting, not a document edit), so onUndoStackChanged()'s
-	// notifyPathTracedSceneMutated() hook never sees it - without this, an
-	// already-converged path-traced frame captured with the old
-	// showBackground state would just keep being displayed unchanged.
-	notifyPathTracedSceneMutated();
+	// notifyPathTracedSceneMutated() hook never sees it - without an
+	// explicit restart, an already-converged path-traced frame captured
+	// with the old showBackground state would just keep being displayed
+	// unchanged. Camera-grade restart only (was notifyPathTracedSceneMutated,
+	// downgraded): showBackground is a per-launch environment scalar now
+	// (see RtOptixSceneTracer::renderScene()), so bumping the scene revision
+	// here only forced a pointless full GPU GAS/texture rebuild.
+	resetPathTracedIdleTimer();
 }
 
 void ViewportWidget::showReflections(bool show)
@@ -10965,7 +10969,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	QPoint downPoint(e->position().x(), e->position().y());
 	if (_viewCtrl.transformGizmoTranslating() && (e->buttons() & Qt::LeftButton))
 	{
-		resetPathTracedIdleTimer();
+		notifyPathTracedSceneMutated();
 		updateTransformGizmoTranslationDrag(e->pos());
 		_viewCtrl.setLastMousePos(currentPos);
 		_viewCtrl.setLastMouseTime(currentTime);
@@ -10973,7 +10977,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	if (_viewCtrl.transformGizmoScaling() && (e->buttons() & Qt::LeftButton))
 	{
-		resetPathTracedIdleTimer();
+		notifyPathTracedSceneMutated();
 		updateTransformGizmoScaleDrag(e->pos());
 		_viewCtrl.setLastMousePos(currentPos);
 		_viewCtrl.setLastMouseTime(currentTime);
@@ -10981,7 +10985,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	if (_viewCtrl.transformGizmoRotating() && (e->buttons() & Qt::LeftButton))
 	{
-		resetPathTracedIdleTimer();
+		notifyPathTracedSceneMutated();
 		updateTransformGizmoRotationDrag(e->pos());
 		_viewCtrl.setLastMousePos(currentPos);
 		_viewCtrl.setLastMouseTime(currentTime);
@@ -12783,7 +12787,7 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 
 	auto snapshot = RtSceneBuilder::build(
 		_sceneRuntime, *_primaryCamera, aspectRatio,
-		lights, _pathTracedNextRevision++, &environment, &floorParams,
+		lights, _pathTracedSceneRevision, &environment, &floorParams,
 		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
 
 	// KHR_materials_transmission without KHR_materials_volume ("thin-walled")
@@ -12993,13 +12997,10 @@ void ViewportWidget::onPathTracedRefreshTimer()
 
 	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
 	{
-		// No alpha channel yet on the GPU path (see RtOptixPathTracingSession/
-		// RtOptixSceneTracer's doc comments on what's not implemented yet) -
-		// RtPresenter::upload() treats a null alpha as fully opaque everywhere,
-		// matching this path's previous explicit all-1.0 alpha exactly.
-		std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount);
+		std::vector<float> alpha;
+		std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);
 		if (!frame.empty())
-			_rtPresenter.upload(frame, frameWidth, frameHeight);
+			_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
 	}
 	else
 	{
@@ -13049,7 +13050,10 @@ void ViewportWidget::setSkyBoxZRotation(int index)
 	_renderCtrl.setSkyBoxZRotation(angles[index % 4]);
 	updateEnvMapRotationMatrix();
 	update();
-	notifyPathTracedSceneMutated(); // background rotation changed - see showSkyBox()
+	// Camera-grade restart only (was notifyPathTracedSceneMutated,
+	// downgraded) - skyBoxZRotationDegrees is a per-launch environment
+	// scalar now, same reasoning as showSkyBox().
+	resetPathTracedIdleTimer();
 }
 
 void ViewportWidget::updateEnvMapRotationMatrix()
@@ -13113,6 +13117,10 @@ void ViewportWidget::setBgBotColor(const QColor& bgBotColor)
 	_renderCtrl.setBgBotColor(bgBotColor);
 	updateOverlayEditorTheme();
 	refreshNavigationOverlayStyle();
+	// Feeds the PT snapshot's fallback-background scalars - see
+	// setBgGradientStyle()'s doc comment (ViewportWidget.h) for why this
+	// needs a camera-grade PT restart (and only that - no revision bump).
+	resetPathTracedIdleTimer();
 	update();
 }
 
@@ -13126,6 +13134,8 @@ void ViewportWidget::setBgTopColor(const QColor& bgTopColor)
 	_renderCtrl.setBgTopColor(bgTopColor);
 	updateOverlayEditorTheme();
 	refreshNavigationOverlayStyle();
+	// See setBgBotColor() above.
+	resetPathTracedIdleTimer();
 	update();
 }
 

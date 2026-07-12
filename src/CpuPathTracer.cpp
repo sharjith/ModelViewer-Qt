@@ -542,7 +542,7 @@ namespace
 		s.roughness = mat.roughness;
 		if (mat.roughnessTexture)
 			s.roughness *= applyChannelPacking(sampleTexture(*mat.roughnessTexture, texCoords), *mat.roughnessTexture);
-		s.roughness = std::clamp(s.roughness, 0.03f, 1.0f); // avoid a singular perfect mirror (alpha=0)
+		s.roughness = std::clamp(s.roughness, 0.0001f, 1.0f); // matches main_scene.frag's roughness floor
 
 		s.emissive = mat.emissive * mat.emissiveStrength;
 		if (mat.emissiveTexture)
@@ -600,7 +600,7 @@ namespace
 			}
 			specGlossColor = glm::clamp(specGlossColor, glm::vec3(0.0f), glm::vec3(1.0f));
 
-			s.roughness = std::clamp(1.0f - glossiness, 0.03f, 1.0f);
+			s.roughness = std::clamp(1.0f - glossiness, 0.0001f, 1.0f);
 			s.metalness = 0.0f;
 			s.F0 = specGlossColor;
 			s.F90 = glm::vec3(1.0f);
@@ -1747,6 +1747,18 @@ namespace
 			const float aB = hasAniso ? alphaB : alpha;
 
 			const float NdotV0 = std::max(glm::dot(basisN, V), 1e-4f);
+			const bool polishedMetalMirrorApprox = surf.metalness >= 0.9f && surf.roughness <= 0.12f;
+			if (!hasAniso && (surf.roughness <= 0.01f || polishedMetalMirrorApprox))
+			{
+				outDir = glm::reflect(-V, basisN);
+				if (glm::dot(basisN, outDir) <= 0.0f)
+					return false;
+				const glm::vec3 F = applyIridescenceToFresnel(fresnelSchlick(NdotV0, F0, surf.F90), NdotV0, F0, surf);
+				outThroughput = F / specProbScaled;
+				outEnvRoughness = 0.0f;
+				return true;
+			}
+
 			const glm::vec3 Ve(glm::dot(V, Tb), glm::dot(V, Bb), NdotV0);
 
 			const glm::vec3 hLocal = sampleGGXVNDF(Ve, aT, aB, u1, u2);
@@ -2158,16 +2170,16 @@ namespace
 					const float misWeight = (lastBsdfSamplePdf > 0.0f && envPdfAtRay > 0.0f)
 						? (lastBsdfSamplePdf / (lastBsdfSamplePdf + envPdfAtRay))
 						: 1.0f;
-					// Variance-reduced lookup (see lastBounceEnvRoughness's
-					// declaration) only for a genuine BSDF-lobe escape -
-					// alpha pass-through/transmission's own deterministic
-					// pick (lastBsdfSamplePdf <= 0) keep the raw/sharp map,
-					// unchanged from existing behavior.
+					// Diffuse escapes use the irradiance/diffuse lookup, but
+					// specular escapes keep the raw/sharp map: the outgoing
+					// direction was already sampled from the GGX lobe, so a
+					// roughness-prefiltered cubemap would blur the reflection
+					// a second time.
 					const glm::vec3 envColor = (lastBsdfSamplePdf <= 0.0f)
 						? sampleEnvironmentMiss(snapshot.environment, ray.direction)
 						: (lastBounceEnvRoughness < 0.0f
 							? sampleEnvironmentDiffuse(snapshot.environment, ray.direction)
-							: sampleEnvironmentSpecular(snapshot.environment, ray.direction, lastBounceEnvRoughness));
+							: sampleEnvironmentMiss(snapshot.environment, ray.direction));
 					radiance += throughput * lastHitAO * envColor * misWeight;
 				}
 				break;

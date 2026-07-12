@@ -111,18 +111,20 @@ struct RtOptixSceneTracer::Impl
 	// buildScene()'s uploadTexture() lambda.
 	std::vector<CUdeviceptr> textureBuffers;
 
-	// Environment cubemap (raw/mip-0) plus the scalar rotation/exposure/
-	// fallback fields, copied from the snapshot's RtEnvironment at
-	// buildScene() time.
+	// Environment cubemap (raw/mip-0) face buffers. ONLY the heavy texel
+	// data lives here (uploaded at revision-gated buildScene() time) - the
+	// cheap environment SCALARS (showBackground/exposure/rotation/fallback
+	// colors...) are deliberately NOT captured into this struct: they flow
+	// per-launch through renderScene()'s environment parameter instead, so
+	// a lightweight setting change (e.g. the user tweaking Env Map Exposure
+	// or the background gradient colors) takes effect on the very next
+	// camera-settle restart without needing a scene-revision bump/full
+	// GAS-and-texture rebuild. An earlier version captured the scalars here
+	// too, which - once buildScene() became genuinely revision-gated - left
+	// them stale on the GPU while the CPU tracer (which reads its snapshot
+	// fresh every render) picked the same changes up.
 	CUdeviceptr envFaceBuffers[6] = { 0, 0, 0, 0, 0, 0 };
 	int envFaceSize = 0;
-	bool envShowBackground = false;
-	glm::vec3 envFallbackTopColor{ 0.5f };
-	glm::vec3 envFallbackBottomColor{ 0.5f };
-	int envFallbackGradientStyle = 0;
-	bool envCameraUpAxisZUp = false;
-	float envSkyBoxZRotationDegrees = 0.0f;
-	float envMapExposure = 1.0f;
 
 	// GGX-prefiltered mip chain (RtEnvironment::prefilterMips) - one entry
 	// per mip level, each holding its own 6 face device buffers (kept alive
@@ -245,7 +247,8 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	// RNG seed in / this hit's own escape-roughness out, p18 = escape-
 	// roughness in (for the miss shader, if THIS ray escapes) - see
 	// RtOptixScene.cu's traceBouncePath()/__closesthit__ch() doc comments.
-	// Shadow rays reuse just p0 as an occluded bool (see traceShadowRay()).
+	// Shadow rays reuse p0 as an occluded bool and p1/p2 for self-shadow
+	// filtering (see traceShadowRay()/__anyhit__ah()).
 	pipelineCompileOptions.numPayloadValues = 19;
 	pipelineCompileOptions.numAttributeValues = 3;
 	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
@@ -564,6 +567,9 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughness = mat.roughness;
 			hgSbt.data.emissive = make_float3(mat.emissive.x, mat.emissive.y, mat.emissive.z);
 			hgSbt.data.emissiveStrength = mat.emissiveStrength;
+			hgSbt.data.ior = mat.ior;
+			hgSbt.data.specularFactor = mat.specularFactor;
+			hgSbt.data.specularColorFactor = make_float3(mat.specularColorFactor.x, mat.specularColorFactor.y, mat.specularColorFactor.z);
 			hgSbt.data.occlusionStrength = mat.occlusionStrength;
 			hgSbt.data.blendMode = mat.blendMode;
 			hgSbt.data.alphaThreshold = mat.alphaThreshold;
@@ -577,6 +583,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			uploadMaterialTexture(mat.emissiveTexture, hgSbt.data.emissiveTexture);
 			uploadMaterialTexture(mat.aoTexture, hgSbt.data.aoTexture);
 			uploadMaterialTexture(mat.opacityTexture, hgSbt.data.opacityTexture);
+			uploadMaterialTexture(mat.specularTexture, hgSbt.data.specularTexture);
+			uploadMaterialTexture(mat.specularColorTexture, hgSbt.data.specularColorTexture);
 		}
 		else
 		{
@@ -585,6 +593,9 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.roughness = 0.5f;
 			hgSbt.data.emissive = make_float3(0.0f, 0.0f, 0.0f);
 			hgSbt.data.emissiveStrength = 0.0f;
+			hgSbt.data.ior = 1.5f;
+			hgSbt.data.specularFactor = 1.0f;
+			hgSbt.data.specularColorFactor = make_float3(1.0f, 1.0f, 1.0f);
 			hgSbt.data.occlusionStrength = 1.0f;
 			hgSbt.data.blendMode = 0;
 			hgSbt.data.alphaThreshold = 0.5f;
@@ -598,6 +609,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.emissiveTexture.width = 0;
 			hgSbt.data.aoTexture.width = 0;
 			hgSbt.data.opacityTexture.width = 0;
+			hgSbt.data.specularTexture.width = 0;
+			hgSbt.data.specularColorTexture.width = 0;
 		}
 
 		hitgroupRecordsHost.push_back(hgSbt);
@@ -707,15 +720,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		return true;
 	};
 
+	// Only the heavy face/mip texel data is uploaded here - the environment
+	// SCALARS deliberately flow per-launch through renderScene() instead,
+	// see Impl::envFaceBuffers' doc comment for why.
 	const RtEnvironment& env = snapshot.environment;
 	_impl->envFaceSize = env.faceSize;
-	_impl->envShowBackground = env.showBackground;
-	_impl->envFallbackTopColor = env.fallbackTopColor;
-	_impl->envFallbackBottomColor = env.fallbackBottomColor;
-	_impl->envFallbackGradientStyle = env.fallbackGradientStyle;
-	_impl->envCameraUpAxisZUp = env.cameraUpAxisZUp;
-	_impl->envSkyBoxZRotationDegrees = env.skyBoxZRotationDegrees;
-	_impl->envMapExposure = env.envMapExposure;
 
 	if (env.faceSize > 0)
 	{
@@ -769,21 +778,29 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	return true;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int height, unsigned int samplesPerPixel, unsigned int maxBounces,
-	std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal)
+bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment& environment,
+	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
+	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled,
+	std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
+	std::vector<float>& outAlpha)
 {
+	static_assert(sizeof(glm::vec3) == sizeof(float) * 3, "RtOptixSceneTracer assumes glm::vec3 is three tightly packed floats.");
+
 	if (!_impl->valid || _impl->iasHandle == 0 || width <= 0 || height <= 0)
 		return false;
 
 	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
-	CUdeviceptr dImage = 0, dAlbedo = 0, dNormal = 0;
+	CUdeviceptr dImage = 0, dAlbedo = 0, dNormal = 0, dAlpha = 0;
 	bool allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dImage), pixelCount * sizeof(float3)), "cudaMalloc(output image)");
 	if (allocOk)
 		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dAlbedo), pixelCount * sizeof(float3)), "cudaMalloc(albedo guide image)");
 	if (allocOk)
 		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dNormal), pixelCount * sizeof(float3)), "cudaMalloc(normal guide image)");
+	if (allocOk)
+		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dAlpha), pixelCount * sizeof(float)), "cudaMalloc(alpha image)");
 	if (!allocOk)
 	{
+		if (dAlpha) cudaFree(reinterpret_cast<void*>(dAlpha));
 		if (dNormal) cudaFree(reinterpret_cast<void*>(dNormal));
 		if (dAlbedo) cudaFree(reinterpret_cast<void*>(dAlbedo));
 		if (dImage) cudaFree(reinterpret_cast<void*>(dImage));
@@ -794,6 +811,7 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 	params.image = reinterpret_cast<float3*>(dImage);
 	params.albedoImage = reinterpret_cast<float3*>(dAlbedo);
 	params.normalImage = reinterpret_cast<float3*>(dNormal);
+	params.alphaImage = reinterpret_cast<float*>(dAlpha);
 	params.imageWidth = static_cast<unsigned int>(width);
 	params.imageHeight = static_cast<unsigned int>(height);
 	params.camPosition = make_float3(camera.position.x, camera.position.y, camera.position.z);
@@ -806,20 +824,29 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 	params.camOrthoHalfHeight = camera.orthoHalfHeight;
 	params.lights = reinterpret_cast<const RtOptixLight*>(_impl->lightsBuffer);
 	params.lightCount = _impl->lightCount;
+	params.shadowsEnabled = shadowsEnabled ? 1 : 0;
+	params.selfShadowsEnabled = selfShadowsEnabled ? 1 : 0;
 
+	// Heavy texel data (face/mip device pointers) comes from the revision-
+	// gated buildScene() upload; the cheap scalars come fresh from THIS
+	// call's snapshot environment, so lightweight setting changes (exposure,
+	// fallback gradient colors, skybox visibility/rotation...) take effect
+	// on the next restart without a scene-revision bump - see
+	// Impl::envFaceBuffers' doc comment.
 	for (int face = 0; face < 6; ++face)
 		params.environment.faces[face] = reinterpret_cast<float3*>(_impl->envFaceBuffers[face]);
 	params.environment.faceSize = _impl->envFaceSize;
-	params.environment.showBackground = _impl->envShowBackground ? 1 : 0;
-	params.environment.fallbackTopColor = make_float3(_impl->envFallbackTopColor.x, _impl->envFallbackTopColor.y, _impl->envFallbackTopColor.z);
-	params.environment.fallbackBottomColor = make_float3(_impl->envFallbackBottomColor.x, _impl->envFallbackBottomColor.y, _impl->envFallbackBottomColor.z);
-	params.environment.fallbackGradientStyle = _impl->envFallbackGradientStyle;
-	params.environment.cameraUpAxisZUp = _impl->envCameraUpAxisZUp ? 1 : 0;
-	params.environment.skyBoxZRotationDegrees = _impl->envSkyBoxZRotationDegrees;
-	params.environment.envMapExposure = _impl->envMapExposure;
+	params.environment.showBackground = environment.showBackground ? 1 : 0;
+	params.environment.fallbackTopColor = make_float3(environment.fallbackTopColor.x, environment.fallbackTopColor.y, environment.fallbackTopColor.z);
+	params.environment.fallbackBottomColor = make_float3(environment.fallbackBottomColor.x, environment.fallbackBottomColor.y, environment.fallbackBottomColor.z);
+	params.environment.fallbackGradientStyle = environment.fallbackGradientStyle;
+	params.environment.cameraUpAxisZUp = environment.cameraUpAxisZUp ? 1 : 0;
+	params.environment.skyBoxZRotationDegrees = environment.skyBoxZRotationDegrees;
+	params.environment.envMapExposure = environment.envMapExposure;
 	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->prefilterMipsBuffer);
 	params.environment.prefilterMipCount = _impl->prefilterMipCount;
 	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
+	params.sampleOffset = sampleOffset;
 	params.maxBounces = maxBounces > 0 ? maxBounces : 1;
 
 	params.handle = _impl->iasHandle;
@@ -844,23 +871,28 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, int width, int heig
 		outImageLinearRgb.resize(pixelCount);
 		outAlbedo.resize(pixelCount);
 		outNormal.resize(pixelCount);
+		outAlpha.resize(pixelCount);
 		ok = cudaCheck(cudaMemcpy(outImageLinearRgb.data(), reinterpret_cast<void*>(dImage), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback image)");
 		if (ok)
 			ok = cudaCheck(cudaMemcpy(outAlbedo.data(), reinterpret_cast<void*>(dAlbedo), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback albedo)");
 		if (ok)
 			ok = cudaCheck(cudaMemcpy(outNormal.data(), reinterpret_cast<void*>(dNormal), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback normal)");
+		if (ok)
+			ok = cudaCheck(cudaMemcpy(outAlpha.data(), reinterpret_cast<void*>(dAlpha), pixelCount * sizeof(float), cudaMemcpyDeviceToHost), "cudaMemcpy(readback alpha)");
 	}
 
 	if (dParams) cudaFree(reinterpret_cast<void*>(dParams));
 	cudaFree(reinterpret_cast<void*>(dImage));
 	cudaFree(reinterpret_cast<void*>(dAlbedo));
 	cudaFree(reinterpret_cast<void*>(dNormal));
+	cudaFree(reinterpret_cast<void*>(dAlpha));
 
 	if (!ok)
 	{
 		outImageLinearRgb.clear();
 		outAlbedo.clear();
 		outNormal.clear();
+		outAlpha.clear();
 	}
 	return ok;
 }
@@ -887,7 +919,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot&)
 	return false;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera&, int, int, unsigned int, unsigned int, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&)
+bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
 {
 	return false;
 }

@@ -93,6 +93,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 	std::vector<glm::dvec3> runningMean(pixelCount, glm::dvec3(0.0));
 	std::vector<glm::dvec3> runningMeanAlbedo(pixelCount, glm::dvec3(0.0));
 	std::vector<glm::dvec3> runningMeanNormal(pixelCount, glm::dvec3(0.0));
+	std::vector<double>     runningMeanAlpha(pixelCount, 0.0);
 	uint32_t sampleCount = 0;
 
 	while (!_cancelRequested.load(std::memory_order_acquire) &&
@@ -102,7 +103,10 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 		const uint32_t chunkSpp = std::min(_samplesPerChunk, _maxSamples - sampleCount);
 
 		std::vector<glm::vec3> chunkFrame, chunkAlbedo, chunkNormal;
-		if (!_tracer.renderScene(snapshot->camera, width, height, chunkSpp, _maxBounces, chunkFrame, chunkAlbedo, chunkNormal))
+		std::vector<float> chunkAlpha;
+		if (!_tracer.renderScene(snapshot->camera, snapshot->environment, width, height, chunkSpp, sampleCount, _maxBounces,
+			snapshot->shadowsEnabled, snapshot->selfShadowsEnabled,
+			chunkFrame, chunkAlbedo, chunkNormal, chunkAlpha))
 			break;
 
 		if (_cancelRequested.load(std::memory_order_acquire) ||
@@ -120,12 +124,17 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 			runningMean[i]       += (glm::dvec3(chunkFrame[i])  - runningMean[i])       * chunkWeight;
 			runningMeanAlbedo[i] += (glm::dvec3(chunkAlbedo[i]) - runningMeanAlbedo[i]) * chunkWeight;
 			runningMeanNormal[i] += (glm::dvec3(chunkNormal[i]) - runningMeanNormal[i]) * chunkWeight;
+			runningMeanAlpha[i]  += (static_cast<double>(chunkAlpha[i]) - runningMeanAlpha[i]) * chunkWeight;
 		}
 		sampleCount = newSampleCount;
 
 		std::vector<glm::vec3> resolved(pixelCount);
+		std::vector<float> alpha(pixelCount);
 		for (size_t i = 0; i < pixelCount; ++i)
+		{
 			resolved[i] = glm::vec3(runningMean[i]);
+			alpha[i] = static_cast<float>(runningMeanAlpha[i]);
+		}
 
 		std::vector<glm::vec3> presented = resolved;
 
@@ -141,11 +150,22 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 				resolvedNormal[i] = glm::vec3(runningMeanNormal[i]);
 			}
 			_denoiser.denoise(resolved, width, height, presented, sampleCount, &resolvedAlbedo, &resolvedNormal);
+
+			// Pure-background pixels (no primary ray ever hit geometry) keep
+			// the raw accumulated value - OIDN over-smooths a sharp traced
+			// background it has no guide values for; same restoration
+			// RtPathTracingSession::publishLatest() does. Mostly invisible
+			// here since these pixels are alpha=0 anyway (raster shows
+			// through), but keeps the published frame itself sane.
+			for (size_t i = 0; i < pixelCount; ++i)
+				if (alpha[i] <= 0.0f)
+					presented[i] = resolved[i];
 		}
 
 		{
 			std::lock_guard<std::mutex> lock(_publishMutex);
 			_publishedFrame  = std::move(presented);
+			_publishedAlpha  = std::move(alpha);
 			_publishedWidth  = width;
 			_publishedHeight = height;
 		}
@@ -155,11 +175,14 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 	_running.store(false, std::memory_order_release);
 }
 
-std::vector<glm::vec3> RtOptixPathTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount) const
+std::vector<glm::vec3> RtOptixPathTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
+	std::vector<float>* outAlpha) const
 {
 	std::lock_guard<std::mutex> lock(_publishMutex);
 	outWidth       = _publishedWidth;
 	outHeight      = _publishedHeight;
 	outSampleCount = _publishedSampleCount.load(std::memory_order_acquire);
+	if (outAlpha)
+		*outAlpha = _publishedAlpha;
 	return _publishedFrame;
 }

@@ -26,9 +26,10 @@
 // application) and glTF alphaMode Masked cutout (via __anyhit__ah() below -
 // alphaMode Blend/true transparency compositing is deferred to the
 // transmission phase, which needs similar stochastic-alpha machinery
-// anyway). Still deferred: every KHR extension texture (specular/clearcoat/
-// sheen/anisotropy/iridescence/transmission) - see RtMaterial's own doc
-// comments for what those add.
+// anyway). KHR_materials_ior + KHR_materials_specular (including their
+// textures) now drive the F0/F90/directF0 computation - see RtOptixScene.cu's
+// computeF0F90 port. Still deferred: clearcoat/sheen/anisotropy/iridescence/
+// transmission - see RtMaterial's own doc comments for what those add.
 // ---------------------------------------------------------------------------
 struct RtOptixLight
 {
@@ -113,6 +114,17 @@ struct RtOptixSceneParams
 	// mirror-bounce term).
 	float3* albedoImage;
 	float3* normalImage;
+	// Per-pixel primary-hit fraction (hits/spp for this launch's samples) -
+	// mirrors RtFrameAccumulator::hitCounts()/RtPathTracingSession's
+	// published alpha exactly. RtPresenter alpha-blends the path-traced
+	// frame over the already-rendered raster, so 0 here (pure background)
+	// lets raster's own sharp skybox/gradient show through instead of this
+	// kernel's traced background - the SAME "alpha-composited background"
+	// design the CPU session uses (see RtPathTracingSession::publishLatest());
+	// without it the GPU frame rendered fully opaque, covering the raster
+	// skybox, which is why enabling the Sky Box checkbox showed no skybox
+	// in GPU mode while CPU mode (alpha-composited) showed it fine.
+	float* alphaImage;
 	unsigned int imageWidth;
 	unsigned int imageHeight;
 
@@ -127,6 +139,8 @@ struct RtOptixSceneParams
 
 	const RtOptixLight* lights;
 	unsigned int lightCount;
+	int shadowsEnabled;
+	int selfShadowsEnabled;
 
 	RtOptixEnvironment environment;
 
@@ -138,6 +152,12 @@ struct RtOptixSceneParams
 	// progress reporting - see that class's doc comment - so this is a
 	// per-launch chunk size, not necessarily the full target sample count.
 	unsigned int samplesPerPixel;
+
+	// Global sample index of sample 0 in this launch. Progressive rendering
+	// invokes this kernel repeatedly in chunks; without this offset, chunk 0
+	// sample 0 and chunk N sample 0 reuse the exact same RNG seed and the
+	// accumulation never actually refines.
+	unsigned int sampleOffset;
 
 	// Maximum path length (primary hit + subsequent bounces) the raygen loop
 	// in RtOptixScene.cu will trace per sample before giving up - mirrors
@@ -221,6 +241,20 @@ struct RtOptixSceneHitGroupData
 	float3 emissive;
 	float emissiveStrength;
 
+	// KHR_materials_ior - replaces the fixed 1.5/0.04 dielectric F0
+	// assumption; see RtOptixScene.cu's computeF0F90() port (and
+	// CpuPathTracer's identically-named original) for how this and the
+	// KHR_materials_specular factors below combine into F0/F90/directF0.
+	float ior;
+
+	// KHR_materials_specular - scales/tints dielectric reflectance (no
+	// effect on metals). specularTexture's ALPHA channel scales
+	// specularFactor (channel-packed, packingChannel=3 set by
+	// RtSceneBuilder), specularColorTexture's RGB (sRGB-encoded) tints
+	// specularColorFactor - same slots/conventions as RtMaterial's.
+	float specularFactor;
+	float3 specularColorFactor;
+
 	// glTF occlusionTexture.strength - see RtMaterial::occlusionStrength's
 	// doc comment ("clamp(mix(1.0, texAO, occlusionStrength), 0.0001, 1.0)").
 	// Only meaningful when aoTexture.width > 0.
@@ -251,6 +285,8 @@ struct RtOptixSceneHitGroupData
 	RtOptixTexture normalTexture;
 	RtOptixTexture emissiveTexture;
 	RtOptixTexture aoTexture;
+	RtOptixTexture specularTexture;      // A channel scales specularFactor - see above
+	RtOptixTexture specularColorTexture; // RGB (sRGB) tints specularColorFactor - see above
 
 	// width<=0 (absent) falls back to baseColorTexture's own alpha channel
 	// (if that's present), then to the flat `opacity` factor above - see

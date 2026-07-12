@@ -108,8 +108,13 @@ public:
 
 	// Latest averaged linear-HDR frame available for display - safe to call
 	// from any thread while the worker keeps running; returns an empty
-	// vector if no chunk has completed yet.
-	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount) const;
+	// vector if no chunk has completed yet. outAlpha (if non-null) receives
+	// the per-pixel primary-hit fraction (0 = pure background), which
+	// RtPresenter alpha-blends so raster's own sharp skybox/gradient shows
+	// through behind the path-traced geometry - the same alpha-composited-
+	// background contract as RtPathTracingSession::latestFrame().
+	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
+		std::vector<float>* outAlpha = nullptr) const;
 
 private:
 	void workerLoop(uint64_t myGeneration);
@@ -136,6 +141,7 @@ private:
 
 	mutable std::mutex     _publishMutex;
 	std::vector<glm::vec3> _publishedFrame;
+	std::vector<float>     _publishedAlpha;
 	int _publishedWidth  = 0;
 	int _publishedHeight = 0;
 };
