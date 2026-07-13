@@ -12909,6 +12909,7 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 	_ptOptixSession.setResolution(fbWidth, fbHeight);
 	_ptOptixSession.setMaxSamples(_ptMaxSamples);
 	_ptOptixSession.setMaxBounces(static_cast<uint32_t>(std::max(_ptMaxBounces, 1)));
+	_ptOptixSession.setEnvironmentImportanceSamplingEnabled(_ptEnvImportanceSamplingEnabled);
 	_ptOptixSession.setDenoiserEnabled(_ptDenoiserEnabled);
 	_ptOptixSession.setDenoiserDevicePreference(_ptDenoiserDevicePreference);
 	if (!_ptOptixSession.start(snapshot))

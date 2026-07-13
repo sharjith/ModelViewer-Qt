@@ -51,6 +51,17 @@ public:
 	// sampling pdf).
 	float pdf(const glm::vec3& direction) const;
 
+	// Raw distribution data, for uploading to a GPU backend so it can
+	// importance-sample/evaluate the SAME distribution CPU built here
+	// (RtOptixSceneTracer::buildScene() builds and uploads one of these
+	// alongside the environment cubemap) rather than duplicating the CDF-
+	// construction algorithm device-side and risking the two engines
+	// drifting apart. See this class's own field doc comments for layout.
+	int faceSize() const { return _size; }
+	float totalWeight() const { return _totalWeight; }
+	const std::vector<float>& flatCdf() const { return _flatCdf; }
+	const std::vector<float>& texelPdf() const { return _texelPdf; }
+
 private:
 	int _size = 0;
 	std::vector<float> _flatCdf;   // size 6*_size*_size+1, cumulative, [0..totalWeight]

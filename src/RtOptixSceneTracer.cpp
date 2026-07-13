@@ -12,6 +12,7 @@
 // NOTE: optix_function_table_definition.h must be included in exactly one
 // translation unit across the whole program - that's RtOptixContext.cpp.
 
+#include "RtEnvironmentSampler.h"
 #include "RtOptixEmbeddedPtx.h"
 #include "RtOptixSceneParams.h"
 
@@ -21,6 +22,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <limits>
 #include <unordered_map>
 
 namespace
@@ -142,6 +144,15 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr prefilterMipsBuffer = 0;
 	int prefilterMipCount = 0;
 
+	// Environment-light NEE + MIS - device upload of a host-built
+	// RtEnvironmentSampler's raw distribution (see RtOptixSceneParams.h's
+	// RtOptixEnvironment::envFlatCdf doc comment). Rebuilt/reuploaded
+	// alongside the environment cubemap above (same revision-gated
+	// buildScene() call), not per-launch.
+	CUdeviceptr envFlatCdfBuffer = 0;
+	CUdeviceptr envTexelPdfBuffer = 0;
+	float envTotalWeight = 0.0f;
+
 	OptixModule module = nullptr;
 	OptixPipeline pipeline = nullptr;
 	OptixProgramGroup raygenGroup = nullptr;
@@ -204,6 +215,12 @@ struct RtOptixSceneTracer::Impl
 		if (prefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(prefilterMipsBuffer));
 		prefilterMipsBuffer = 0;
 		prefilterMipCount = 0;
+
+		if (envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(envFlatCdfBuffer));
+		envFlatCdfBuffer = 0;
+		if (envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(envTexelPdfBuffer));
+		envTexelPdfBuffer = 0;
+		envTotalWeight = 0.0f;
 
 		if (hitgroupRecords) cudaFree(reinterpret_cast<void*>(hitgroupRecords));
 		hitgroupRecords = 0;
@@ -373,11 +390,12 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	// p8-p10 = next bounce direction, p11-p13 = throughput weight for that
 	// direction, p14-p16 = OIDN guide albedo (baseColor at the hit), p17 =
 	// RNG seed in / this hit's own escape-roughness out, p18 = escape-
-	// roughness in (for the miss shader, if THIS ray escapes) - see
+	// roughness in (for the miss shader, if THIS ray escapes), p19 =
+	// previous-BSDF pdf in / next-BSDF pdf out for env-MIS - see
 	// RtOptixScene.cu's traceBouncePath()/__closesthit__ch() doc comments.
 	// Shadow rays reuse p0 as an occluded bool and p1/p2 for self-shadow
 	// filtering (see traceShadowRay()/__anyhit__ah()).
-	pipelineCompileOptions.numPayloadValues = 19;
+	pipelineCompileOptions.numPayloadValues = 20;
 	pipelineCompileOptions.numAttributeValues = 3;
 	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
@@ -568,7 +586,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		}
 
 		OptixAccelBuildOptions accelOptions{};
-		accelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE;
+		// ALLOW_RANDOM_VERTEX_ACCESS is required for __closesthit__ch()'s
+		// optixGetTriangleVertexData() call (texture-footprint/LOD
+		// computation - see its call site's doc comment) to legally read a
+		// hit triangle's object-space vertex positions back out of this GAS.
+		accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
 		accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
 
 		const uint32_t triangleInputFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
@@ -620,11 +642,24 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// Multiple materials/instances referencing the SAME RtTextureSample
 	// object (a shared texture) upload its bytes only once.
 	std::unordered_map<const RtTextureSample*, CUdeviceptr> textureCache;
+
+	// Uploaded mip pyramid for one RtTextureSample (device array of
+	// RtOptixTextureMipLevel entries, each pointing at its own uploaded
+	// rgba8 buffer) - deduplicated by RtTextureSample pointer identity like
+	// textureCache above. mipArrayDevice==0 means "no mips uploaded" (either
+	// the source RtTextureSample::mips was empty, or an upload failed) - out.
+	// mips/mipCount then stay nullptr/0, and RtOptixScene.cu's
+	// sampleTexture2D() falls back to base-level-only sampling.
+	struct MipCacheEntry { CUdeviceptr mipArrayDevice; int mipCount; };
+	std::unordered_map<const RtTextureSample*, MipCacheEntry> textureMipCache;
+
 	auto uploadMaterialTexture = [&](const std::shared_ptr<RtTextureSample>& tex, RtOptixTexture& out) -> void
 	{
 		out.rgba8 = nullptr;
 		out.width = 0;
 		out.height = 0;
+		out.mips = nullptr;
+		out.mipCount = 0;
 		if (!tex || tex->width <= 0 || tex->height <= 0 ||
 			tex->rgba8.size() != static_cast<size_t>(tex->width) * tex->height * 4)
 			return;
@@ -662,6 +697,77 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		out.packingBias = tex->packingBias;
 		out.wrapS = tex->wrapS;
 		out.wrapT = tex->wrapT;
+
+		// Box-filter mip pyramid (RtTextureSample::mips, built once on the
+		// host by RtSceneBuilder::buildMipChain()) - each level's rgba8
+		// uploaded individually, then a device array of RtOptixTextureMipLevel
+		// {devicePtr,width,height} entries uploaded once, mirroring
+		// RtOptixEnvironment::prefilterMips' own per-level-array upload
+		// pattern. See RtOptixTexture::mips' doc comment for the consumer.
+		auto mipCached = textureMipCache.find(tex.get());
+		if (mipCached != textureMipCache.end())
+		{
+			out.mips = reinterpret_cast<const RtOptixTextureMipLevel*>(mipCached->second.mipArrayDevice);
+			out.mipCount = mipCached->second.mipCount;
+			return;
+		}
+
+		CUdeviceptr mipArrayDevice = 0;
+		int mipCount = 0;
+		if (!tex->mips.empty())
+		{
+			std::vector<RtOptixTextureMipLevel> mipsHost;
+			mipsHost.reserve(tex->mips.size());
+			bool ok = true;
+			for (const RtTextureMipLevel& mip : tex->mips)
+			{
+				if (mip.width <= 0 || mip.height <= 0 ||
+					mip.rgba8.size() != static_cast<size_t>(mip.width) * mip.height * 4)
+				{
+					ok = false;
+					break;
+				}
+				CUdeviceptr deviceMipRgba8 = 0;
+				const size_t mipBytes = mip.rgba8.size();
+				if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&deviceMipRgba8), mipBytes), "cudaMalloc(material texture mip)"))
+				{
+					ok = false;
+					break;
+				}
+				if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(deviceMipRgba8), mip.rgba8.data(), mipBytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture mip)"))
+				{
+					cudaFree(reinterpret_cast<void*>(deviceMipRgba8));
+					ok = false;
+					break;
+				}
+				_impl->textureBuffers.push_back(deviceMipRgba8);
+
+				RtOptixTextureMipLevel entry{};
+				entry.rgba8 = reinterpret_cast<const uchar4*>(deviceMipRgba8);
+				entry.width = mip.width;
+				entry.height = mip.height;
+				mipsHost.push_back(entry);
+			}
+
+			if (ok && !mipsHost.empty())
+			{
+				const size_t arrayBytes = mipsHost.size() * sizeof(RtOptixTextureMipLevel);
+				if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipArrayDevice), arrayBytes), "cudaMalloc(material texture mip array)") &&
+					cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipArrayDevice), mipsHost.data(), arrayBytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture mip array)"))
+				{
+					_impl->textureBuffers.push_back(mipArrayDevice);
+					mipCount = static_cast<int>(mipsHost.size());
+				}
+				else
+				{
+					mipArrayDevice = 0;
+				}
+			}
+		}
+
+		textureMipCache.emplace(tex.get(), MipCacheEntry{ mipArrayDevice, mipCount });
+		out.mips = reinterpret_cast<const RtOptixTextureMipLevel*>(mipArrayDevice);
+		out.mipCount = mipCount;
 	};
 
 	for (size_t i = 0; i < snapshot.instances.size(); ++i)
@@ -675,6 +781,23 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		optixInst.instanceId = static_cast<unsigned int>(i);
 		optixInst.sbtOffset = static_cast<unsigned int>(hitgroupRecordsHost.size()); // 1 ray type -> sbtOffset == record index
 		optixInst.visibilityMask = 255;
+		// Deliberately NOT flipped for negative-determinant (mirrored)
+		// instances, despite an earlier version of this code doing so via
+		// OPTIX_INSTANCE_FLAG_FLIP_TRIANGLE_FACING. OptiX transforms the RAY
+		// into object space and tests winding there against the triangle's
+		// own local normal - algebraically identical to the mathematically
+		// correct world-space test (dot(rayDir_world, inverseTranspose(M)*
+		// n_local)) for ANY invertible M, reflections included:
+		//   sign(dot(rayDir_world, (M^-1)^T * n_local))
+		//     = sign(dot(M^-1 * rayDir_world, n_local))   [transpose identity]
+		//     = sign(dot(rayDir_objectSpace, n_local))     <- what OptiX computes natively
+		// So optixIsTriangleFrontFaceHit() is ALREADY correct without this
+		// flag, for both positive- and negative-determinant instances -
+		// applying the flag only to negative-determinant ones double-flips
+		// an already-correct answer. Confirmed by testing against glTF's
+		// NegativeScaleTest.gltf: adding the flag fixed the positive-scale
+		// row (which was never flipped) while breaking the negative-scale
+		// row (which was), exactly the tell.
 		optixInst.flags = OPTIX_INSTANCE_FLAG_NONE;
 		optixInst.traversableHandle = _impl->meshGasEntries[inst.meshIndex].handle;
 		instances.push_back(optixInst);
@@ -702,6 +825,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.occlusionStrength = mat.occlusionStrength;
 			hgSbt.data.blendMode = mat.blendMode;
 			hgSbt.data.alphaThreshold = mat.alphaThreshold;
+			hgSbt.data.twoSided = mat.twoSided ? 1 : 0;
 			hgSbt.data.opacity = mat.opacity;
 			hgSbt.data.normalScale = mat.normalScale;
 			hgSbt.data.clearcoat = mat.clearcoat;
@@ -714,6 +838,18 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.iridescenceFactor = mat.iridescenceFactor;
 			hgSbt.data.iridescenceIor = mat.iridescenceIor;
 			hgSbt.data.iridescenceThickness = mat.iridescenceThicknessMax;
+			hgSbt.data.useSpecGloss = mat.useSpecGloss ? 1 : 0;
+			hgSbt.data.diffuseColor = make_float3(mat.diffuseColor.x, mat.diffuseColor.y, mat.diffuseColor.z);
+			hgSbt.data.specGlossSpecularColor = make_float3(mat.specGlossSpecularColor.x, mat.specGlossSpecularColor.y, mat.specGlossSpecularColor.z);
+			hgSbt.data.glossinessFactor = mat.glossinessFactor;
+			hgSbt.data.diffuseTransmissionFactor = mat.diffuseTransmissionFactor;
+			hgSbt.data.diffuseTransmissionColor = make_float3(mat.diffuseTransmissionColor.x, mat.diffuseTransmissionColor.y, mat.diffuseTransmissionColor.z);
+			hgSbt.data.transmission = mat.transmission;
+			hgSbt.data.hasVolume = mat.hasVolume ? 1 : 0;
+			hgSbt.data.attenuationColor = make_float3(mat.attenuationColor.x, mat.attenuationColor.y, mat.attenuationColor.z);
+			hgSbt.data.attenuationDistance = mat.attenuationDistance;
+			hgSbt.data.thicknessFactor = mat.thicknessFactor;
+			hgSbt.data.dispersion = mat.dispersion;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
 			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
@@ -732,6 +868,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			uploadMaterialTexture(mat.anisotropyTexture, hgSbt.data.anisotropyTexture);
 			uploadMaterialTexture(mat.iridescenceTexture, hgSbt.data.iridescenceTexture);
 			uploadMaterialTexture(mat.iridescenceThicknessTexture, hgSbt.data.iridescenceThicknessTexture);
+			uploadMaterialTexture(mat.diffuseTexture, hgSbt.data.diffuseTexture);
+			uploadMaterialTexture(mat.specularGlossinessTexture, hgSbt.data.specularGlossinessTexture);
+			uploadMaterialTexture(mat.diffuseTransmissionTexture, hgSbt.data.diffuseTransmissionTexture);
+			uploadMaterialTexture(mat.diffuseTransmissionColorTexture, hgSbt.data.diffuseTransmissionColorTexture);
+			uploadMaterialTexture(mat.transmissionTexture, hgSbt.data.transmissionTexture);
 		}
 		else
 		{
@@ -746,6 +887,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.occlusionStrength = 1.0f;
 			hgSbt.data.blendMode = 0;
 			hgSbt.data.alphaThreshold = 0.5f;
+			hgSbt.data.twoSided = 1;
 			hgSbt.data.opacity = 1.0f;
 			hgSbt.data.normalScale = 1.0f;
 			hgSbt.data.clearcoat = 0.0f;
@@ -758,6 +900,18 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.iridescenceFactor = 0.0f;
 			hgSbt.data.iridescenceIor = 1.3f;
 			hgSbt.data.iridescenceThickness = 400.0f;
+			hgSbt.data.useSpecGloss = 0;
+			hgSbt.data.diffuseColor = make_float3(1.0f, 1.0f, 1.0f);
+			hgSbt.data.specGlossSpecularColor = make_float3(0.0f, 0.0f, 0.0f);
+			hgSbt.data.glossinessFactor = 1.0f;
+			hgSbt.data.diffuseTransmissionFactor = 0.0f;
+			hgSbt.data.diffuseTransmissionColor = make_float3(1.0f, 1.0f, 1.0f);
+			hgSbt.data.transmission = 0.0f;
+			hgSbt.data.hasVolume = 0;
+			hgSbt.data.attenuationColor = make_float3(1.0f, 1.0f, 1.0f);
+			hgSbt.data.attenuationDistance = std::numeric_limits<float>::infinity();
+			hgSbt.data.thicknessFactor = 0.0f;
+			hgSbt.data.dispersion = 0.0f;
 
 			hgSbt.data.baseColorTexture.width = 0;
 			hgSbt.data.metallicTexture.width = 0;
@@ -776,6 +930,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.anisotropyTexture.width = 0;
 			hgSbt.data.iridescenceTexture.width = 0;
 			hgSbt.data.iridescenceThicknessTexture.width = 0;
+			hgSbt.data.diffuseTexture.width = 0;
+			hgSbt.data.specularGlossinessTexture.width = 0;
+			hgSbt.data.diffuseTransmissionTexture.width = 0;
+			hgSbt.data.diffuseTransmissionColorTexture.width = 0;
+			hgSbt.data.transmissionTexture.width = 0;
 		}
 
 		hitgroupRecordsHost.push_back(hgSbt);
@@ -938,6 +1097,41 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		}
 	}
 
+	// Environment-light NEE + MIS - builds a host-side RtEnvironmentSampler
+	// from the SAME environment cubemap just uploaded above (so both engines
+	// importance-sample the identical distribution), then uploads its raw
+	// flat CDF/texel-pdf arrays verbatim - see RtOptixSceneParams.h's
+	// RtOptixEnvironment::envFlatCdf doc comment. A local, buildScene()-
+	// scoped instance is sufficient (unlike CPU's RtPathTracingSession-owned
+	// one, which stays alive to serve every render call) since this backend
+	// only needs the arrays uploaded once, not kept around host-side.
+	_impl->envTotalWeight = 0.0f;
+	{
+		RtEnvironmentSampler envSampler;
+		envSampler.build(env);
+		if (envSampler.isValid())
+		{
+			const std::vector<float>& flatCdf = envSampler.flatCdf();
+			const std::vector<float>& texelPdf = envSampler.texelPdf();
+			const size_t flatCdfBytes = flatCdf.size() * sizeof(float);
+			const size_t texelPdfBytes = texelPdf.size() * sizeof(float);
+			if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envFlatCdfBuffer), flatCdfBytes), "cudaMalloc(env flat CDF)") &&
+				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envFlatCdfBuffer), flatCdf.data(), flatCdfBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env flat CDF)") &&
+				cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envTexelPdfBuffer), texelPdfBytes), "cudaMalloc(env texel pdf)") &&
+				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envTexelPdfBuffer), texelPdf.data(), texelPdfBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env texel pdf)"))
+			{
+				_impl->envTotalWeight = envSampler.totalWeight();
+			}
+			else
+			{
+				if (_impl->envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(_impl->envFlatCdfBuffer));
+				_impl->envFlatCdfBuffer = 0;
+				if (_impl->envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(_impl->envTexelPdfBuffer));
+				_impl->envTexelPdfBuffer = 0;
+			}
+		}
+	}
+
 	qInfo() << "RtOptixSceneTracer: scene built (" << _impl->meshGasEntries.size() << "meshes,"
 		<< instances.size() << "instances," << _impl->lightCount << "lights).";
 	return true;
@@ -945,7 +1139,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment& environment,
 	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
-	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled,
+	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
 	std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
 	std::vector<float>& outAlpha)
 {
@@ -991,6 +1185,7 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.lightCount = _impl->lightCount;
 	params.shadowsEnabled = shadowsEnabled ? 1 : 0;
 	params.selfShadowsEnabled = selfShadowsEnabled ? 1 : 0;
+	params.enableEnvironmentImportanceSampling = enableEnvironmentImportanceSampling ? 1 : 0;
 
 	// Heavy texel data (face/mip device pointers) comes from the revision-
 	// gated buildScene() upload; the cheap scalars come fresh from THIS
@@ -1010,6 +1205,9 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.environment.envMapExposure = environment.envMapExposure;
 	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->prefilterMipsBuffer);
 	params.environment.prefilterMipCount = _impl->prefilterMipCount;
+	params.environment.envFlatCdf = reinterpret_cast<const float*>(_impl->envFlatCdfBuffer);
+	params.environment.envTexelPdf = reinterpret_cast<const float*>(_impl->envTexelPdfBuffer);
+	params.environment.envTotalWeight = _impl->envTotalWeight;
 	params.sheenAlbedoLUT = reinterpret_cast<const float*>(_impl->sheenAlbedoLutBuffer);
 	params.sheenAlbedoLUTSize = _impl->sheenAlbedoLutBuffer ? Impl::kSheenAlbedoLutSize : 0;
 	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
@@ -1086,7 +1284,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot&)
 	return false;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
+bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
 {
 	return false;
 }

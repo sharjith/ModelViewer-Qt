@@ -53,4 +53,18 @@ struct RtHit
 
 	uint32_t  instanceIndex = 0;
 	uint32_t  materialIndex = 0;
+
+	// Texel-density proxy for texture-minification LOD selection - the hit
+	// triangle's world-space area divided into its UV(channel 0)-space area
+	// (units: UV^2 per world-unit^2), computed once in RtEmbreeScene::
+	// intersect() from the triangle's raw (pre-interpolation) vertex data.
+	// Deliberately resolution-independent (no specific texture's width/
+	// height baked in, since different textures on the same material can
+	// have different native resolutions) - CpuPathTracer.cpp's
+	// computeTextureLod() combines this with a specific texture's own
+	// dimensions and the camera's per-pixel world-space footprint at this
+	// hit to pick a mip level. 0 (the default) means "no LOD info available
+	// / not computed for this hit" - sampleTexture() then falls back to its
+	// existing base-level-only behavior, same as before this field existed.
+	float     uvAreaPerWorldArea = 0.0f;
 };

@@ -23,10 +23,9 @@
 // occlusion (applied to the diffuse-lobe's indirect throughput only, not
 // direct lighting - see __closesthit__ch()'s doc comment for why that's a
 // deliberate simplification of CpuPathTracer's own multi-site AO
-// application) and glTF alphaMode Masked cutout (via __anyhit__ah() below -
-// alphaMode Blend/true transparency compositing is deferred to the
-// transmission phase, which needs similar stochastic-alpha machinery
-// anyway). KHR_materials_ior + KHR_materials_specular (including their
+// application) and glTF alphaMode Masked/Blend cutout (via __anyhit__ah()
+// below - Masked deterministic, Blend a stochastic per-sample existence
+// pick). KHR_materials_ior + KHR_materials_specular (including their
 // textures) now drive the F0/F90/directF0 computation - see RtOptixScene.cu's
 // computeF0F90 port. KHR_materials_clearcoat (a second GGX lobe over its own
 // normal/roughness, blended per computeClearcoatFresnel()'s Fresnel weight -
@@ -37,10 +36,25 @@
 // plus a base-layer energy-compensation dampening via a small baked
 // directional-albedo LUT - see sheenAlbedoLUT below), KHR_materials_
 // anisotropy (stretches the base specular lobe along a tangent-space
-// direction, both direct and indirect), and KHR_materials_iridescence
-// (thin-film Fresnel tinting, both direct and indirect) are now implemented.
-// Still deferred: transmission - see RtMaterial's own doc comments for what
-// that adds.
+// direction, both direct and indirect), KHR_materials_iridescence (thin-film
+// Fresnel tinting, both direct and indirect), KHR_materials_
+// pbrSpecularGlossiness (legacy workflow, overrides baseColor/metalness/
+// roughness/F0 wholesale), and KHR_materials_diffuse_transmission (a second
+// back-hemisphere diffuse lobe, both direct and indirect) are now
+// implemented. Material textures also carry a box-filtered mip pyramid
+// (RtOptixTexture::mips) with a per-primary-hit, triangle/camera-footprint-
+// derived trilinear LOD (see RtOptixScene.cu's computeTextureLod()/
+// sampleTexture2D()) to avoid minification aliasing, mirroring
+// CpuPathTracer's identical mip-mapping. KHR_materials_transmission +
+// KHR_materials_volume + KHR_materials_dispersion are now implemented too -
+// see RtOptixScene.cu's transmission branch in __closesthit__ch() (ported
+// from CpuPathTracer::tracePixel()'s identical transmission handling,
+// including real Beer-Lambert volume absorption over the traced entry-to-
+// exit distance and hero-wavelength dispersion). One deliberate simplification
+// versus CPU: the transmission-bounce depth budget (CpuPathTracer::
+// Settings::maxTransmissionBounces) isn't exposed as a per-launch setting
+// yet - this backend uses a fixed constant (kMaxTransmissionBounces in
+// __raygen__rg(), matching CPU's own default of 32) instead.
 // ---------------------------------------------------------------------------
 struct RtOptixLight
 {
@@ -98,6 +112,23 @@ struct RtOptixEnvironment
 	// captured, in which case reflections fall back to the raw map.
 	const RtOptixPrefilterMip* prefilterMips;
 	int prefilterMipCount;
+
+	// Environment-light NEE + MIS - device counterpart of RtEnvironmentSampler's
+	// internal distribution, uploaded VERBATIM (not rebuilt device-side) by
+	// RtOptixSceneTracer::buildScene() from a host-built RtEnvironmentSampler
+	// instance, so both engines importance-sample the identical luminance-
+	// weighted distribution over the same cubemap. envFlatCdf is the
+	// cumulative array (size 6*faceSize*faceSize+1, [0..envTotalWeight]);
+	// envTexelPdf is the per-texel solid-angle pdf (size 6*faceSize*faceSize).
+	// See RtOptixScene.cu's envSamplerSample()/envSamplerPdf() (device
+	// counterparts of RtEnvironmentSampler::sample()/pdf()) for how these are
+	// consumed. nullptr/envTotalWeight<=0 means "no importance-sampling data"
+	// (matches RtEnvironmentSampler::isValid()'s identical gate) - environment-
+	// NEE is then simply skipped, same as when the CPU sampler itself isn't
+	// valid.
+	const float* envFlatCdf;
+	const float* envTexelPdf;
+	float envTotalWeight;
 };
 
 struct RtOptixSceneParams
@@ -153,6 +184,11 @@ struct RtOptixSceneParams
 	int shadowsEnabled;
 	int selfShadowsEnabled;
 
+	// Mirrors CpuPathTracer::Settings::enableEnvironmentImportanceSampling -
+	// see RtOptixEnvironment::envFlatCdf's doc comment for the additional
+	// envTotalWeight>0 gate this is combined with in __closesthit__ch().
+	int enableEnvironmentImportanceSampling;
+
 	RtOptixEnvironment environment;
 
 	// KHR_materials_sheen's directional-albedo LUT - device-side counterpart
@@ -197,6 +233,16 @@ struct RtOptixSceneParams
 // normal/emissive textures ignore packingChannel/packingInvert/packingScale/
 // packingBias (RGB/RGBA reads), those fields only matter for single-channel
 // (metallic/roughness) textures.
+// Device-side counterpart of RtTextureMipLevel - one box-filtered mip level
+// of a material texture's rgba8 pyramid. See RtOptixTexture::mips' doc
+// comment for how these are consumed.
+struct RtOptixTextureMipLevel
+{
+	const uchar4* rgba8;
+	int width;
+	int height;
+};
+
 struct RtOptixTexture
 {
 	const uchar4* rgba8; // width*height texels, row-major RGBA8, no padding - matches RtTextureSample::rgba8's byte layout exactly
@@ -215,6 +261,17 @@ struct RtOptixTexture
 
 	unsigned int wrapS; // raw GL wrap enum (GL_REPEAT/GL_CLAMP_TO_EDGE/GL_MIRRORED_REPEAT) - see RtTextureSample::wrapS's doc comment
 	unsigned int wrapT;
+
+	// Box-filtered mip pyramid - device counterpart of RtTextureSample::mips,
+	// same ordering (mips[0] duplicates the base rgba8/width/height above,
+	// for uniform indexing). nullptr/0 if the upload failed or the source
+	// RtTextureSample had no mips (RtOptixScene.cu's sampleTexture2D() then
+	// falls back to base-level-only sampling, same as before this field
+	// existed). See RtOptixScene.cu's computeTextureLod()/sampleTexture2D()
+	// for how a per-hit footprint combines with this texture's own width/
+	// height to pick a level.
+	const RtOptixTextureMipLevel* mips;
+	int mipCount;
 };
 
 // One per RtInstance in the SBT (see RtOptixSceneTracer.cpp's SBT build) -
@@ -282,13 +339,23 @@ struct RtOptixSceneHitGroupData
 	float occlusionStrength;
 
 	// Base glTF alphaMode - see RtMaterial::blendMode's doc comment.
-	// 0=Opaque, 1=Masked (cutout, handled by __anyhit__ah() below),
-	// 2=Blend (true transparency compositing - not yet implemented, treated
-	// as Opaque for now; deferred to the transmission phase, which needs
-	// similar stochastic-alpha machinery anyway). alphaThreshold is glTF's
-	// alphaCutoff (Masked only).
+	// 0=Opaque, 1=Masked (deterministic cutout), 2=Blend (stochastic
+	// per-sample existence pick - both handled uniformly by __anyhit__ah()
+	// below, ported from CpuPathTracer's identical MASK/BLEND alphaTest
+	// block). alphaThreshold is glTF's alphaCutoff (Masked only).
 	int blendMode;
 	float alphaThreshold;
+
+	// glTF material.doubleSided (int as bool) - previously unreferenced by
+	// this kernel entirely, so every material rendered as if double-sided.
+	// A single-sided material's back face should be treated as if it doesn't
+	// exist, matching real-time back-face culling - see __anyhit__ah()'s
+	// optixIsTriangleFrontFaceHit() check, which is already correct for
+	// mirrored/negative-scale instances too with no extra instance flag
+	// needed - see RtOptixSceneTracer.cpp's optixInst.flags assignment for
+	// the proof (OptiX's native object-space winding test is algebraically
+	// identical to the world-space test for any invertible transform).
+	int twoSided;
 
 	// Flat opacity factor - used when opacityTexture is absent AND
 	// baseColorTexture has no alpha channel to fall back to (matching
@@ -347,6 +414,56 @@ struct RtOptixSceneHitGroupData
 	float iridescenceIor;
 	float iridescenceThickness;
 
+	// KHR_materials_pbrSpecularGlossiness - legacy alternate workflow to
+	// metallic-roughness. When useSpecGloss is set, this COMPLETELY REPLACES
+	// baseColor/metalness/roughness/F0/F90/directF0's normal meaning (see
+	// RtOptixScene.cu's override block in __closesthit__ch(), ported from
+	// CpuPathTracer::evaluateSurface()'s identical override) - diffuseColor
+	// becomes the baseColor equivalent, specGlossSpecularColor is a direct
+	// RGB F0 (not IOR-derived), roughness = 1-glossiness. specularGlossinessTexture
+	// is packed RGB=specular color (sRGB), A=glossiness (linear) - matching
+	// CpuPathTracer's identical packed-texture sampling.
+	int useSpecGloss; // bool as int
+	float3 diffuseColor;
+	float3 specGlossSpecularColor;
+	float glossinessFactor;
+
+	// KHR_materials_diffuse_transmission - a translucent DIFFUSE material
+	// (leaves, paper, curtains): light landing on the front diffusely
+	// scatters through to the back (and vice versa), no ior/Fresnel/
+	// refraction involved - see RtOptixScene.cu's direct-lighting back-
+	// hemisphere NEE term and the indirect diffuse lobe's front/back
+	// stochastic pick, ported from CpuPathTracer::tracePixel()/
+	// sampleBSDFBounce() exactly. diffuseTransmissionFactor's texture uses
+	// the ALPHA channel (glTF spec); diffuseTransmissionColorTexture uses
+	// RGB (sRGB).
+	float diffuseTransmissionFactor;
+	float3 diffuseTransmissionColor;
+
+	// KHR_materials_transmission + KHR_materials_volume + KHR_materials_
+	// dispersion - see RtOptixScene.cu's transmission branch in
+	// __closesthit__ch() (bypasses the general stochastic lobe-selection
+	// entirely for transmissive materials, mirroring CpuPathTracer::
+	// tracePixel()'s identical bypass) for the full reflect/refract/TIR/
+	// dispersion mechanics, ported from CpuPathTracer's own transmission
+	// handling verbatim. hasVolume mirrors RtMaterial::hasVolume (thin-
+	// walled vs solid-dielectric gate); attenuationColor/attenuationDistance
+	// feed Beer-Lambert absorption over the REAL traced entry-to-exit
+	// distance (not the authored thicknessFactor approximation raster
+	// uses) - see calculateVolumeAttenuation(). thicknessFactor is only
+	// used by KHR_materials_diffuse_transmission's own NEE volume-tint
+	// scaling (matches CpuPathTracer::tracePixel()'s identical use), since
+	// that path has no traced distance of its own to measure. transmissionTexture's
+	// R channel scales transmission (channel-packed, matching RtMaterial's
+	// convention). dispersion has no texture input (glTF spec: a flat
+	// factor only).
+	float transmission;
+	int hasVolume; // bool as int
+	float3 attenuationColor;
+	float attenuationDistance;
+	float thicknessFactor;
+	float dispersion;
+
 	RtOptixTexture baseColorTexture;
 	RtOptixTexture metallicTexture;
 	RtOptixTexture roughnessTexture;
@@ -371,4 +488,12 @@ struct RtOptixSceneHitGroupData
 	RtOptixTexture anisotropyTexture; // raw RGB sample, decoded via decodeAnisotropyTexture() - see anisotropyStrength's doc comment
 	RtOptixTexture iridescenceTexture;          // channel-packed, scales iridescenceFactor
 	RtOptixTexture iridescenceThicknessTexture; // channel-packed, REPLACES iridescenceThickness
+
+	RtOptixTexture diffuseTexture;              // sRGB RGB, spec-gloss's baseColorTexture equivalent
+	RtOptixTexture specularGlossinessTexture;   // packed RGB=specular color (sRGB), A=glossiness (linear)
+
+	RtOptixTexture diffuseTransmissionTexture;      // A channel scales diffuseTransmissionFactor
+	RtOptixTexture diffuseTransmissionColorTexture; // sRGB RGB, tints diffuseTransmissionColor
+
+	RtOptixTexture transmissionTexture; // R channel scales transmission
 };

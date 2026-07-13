@@ -360,7 +360,57 @@ namespace
 	// for raster (mip-mapping/trilinear would be the fully correct fix for
 	// minification, but bilinear alone already removes the snap-between-
 	// uncorrelated-texels behavior that was causing non-convergence here).
-	glm::vec4 sampleTexture(const RtTextureSample& tex, const glm::vec2 (&texCoords)[4])
+	// Bilinear sample of ONE mip level - factored out of sampleTexture() so
+	// trilinear filtering (below) can call it twice (the two nearest levels)
+	// and blend. st is already wrapped/transformed; width/height/rgba8/wrapS/
+	// wrapT identify the specific level being sampled.
+	glm::vec4 bilinearSampleLevel(int width, int height, const std::vector<uint8_t>& rgba8,
+		unsigned int wrapS, unsigned int wrapT, const glm::vec2& st)
+	{
+		// Standard half-texel-centered bilinear: texel (0,0)'s center sits at
+		// continuous position 0.5, matching GL's own texture-unit convention.
+		const float fx = st.x * width  - 0.5f;
+		const float fy = st.y * height - 0.5f;
+		const int x0 = static_cast<int>(std::floor(fx));
+		const int y0 = static_cast<int>(std::floor(fy));
+		const float tx = fx - static_cast<float>(x0);
+		const float ty = fy - static_cast<float>(y0);
+
+		// Each of the 2x2 neighbor texels is wrapped independently (not
+		// clamped) - see wrapTexelIndex()'s doc comment for why a plain
+		// clamp would be wrong for REPEAT/MIRRORED_REPEAT at a tile edge.
+		auto texel = [&](int x, int y) -> glm::vec4
+		{
+			x = wrapTexelIndex(x, width,  wrapS);
+			y = wrapTexelIndex(y, height, wrapT);
+			const size_t idx = (static_cast<size_t>(y) * width + x) * 4;
+			return glm::vec4(
+				rgba8[idx + 0] / 255.0f,
+				rgba8[idx + 1] / 255.0f,
+				rgba8[idx + 2] / 255.0f,
+				rgba8[idx + 3] / 255.0f);
+		};
+
+		const glm::vec4 c00 = texel(x0,     y0);
+		const glm::vec4 c10 = texel(x0 + 1, y0);
+		const glm::vec4 c01 = texel(x0,     y0 + 1);
+		const glm::vec4 c11 = texel(x0 + 1, y0 + 1);
+
+		const glm::vec4 top    = glm::mix(c00, c10, tx);
+		const glm::vec4 bottom = glm::mix(c01, c11, tx);
+		return glm::mix(top, bottom, ty);
+	}
+
+	// lod: mip level to sample, trilinearly blended between floor(lod) and
+	// ceil(lod) - see RtTextureSample::mips' doc comment for why this exists
+	// (path-traced texture minification aliasing) and computeTextureLod()
+	// for how callers derive it. Defaults to 0.0f (base level only, the
+	// exact previous behavior) for call sites that don't have per-hit
+	// triangle/camera context cheaply available (shadow rays, alpha-cutout
+	// existence tests, transmission peeks) - those are boolean-ish existence
+	// checks where minification aliasing is far less perceptually important
+	// than on directly-shaded, visible surfaces.
+	glm::vec4 sampleTexture(const RtTextureSample& tex, const glm::vec2 (&texCoords)[4], float lod = 0.0f)
 	{
 		if (tex.width <= 0 || tex.height <= 0 || tex.rgba8.empty())
 			return glm::vec4(1.0f);
@@ -388,38 +438,22 @@ namespace
 		st.x = applyWrap(st.x, tex.wrapS);
 		st.y = applyWrap(st.y, tex.wrapT);
 
-		// Standard half-texel-centered bilinear: texel (0,0)'s center sits at
-		// continuous position 0.5, matching GL's own texture-unit convention.
-		const float fx = st.x * tex.width  - 0.5f;
-		const float fy = st.y * tex.height - 0.5f;
-		const int x0 = static_cast<int>(std::floor(fx));
-		const int y0 = static_cast<int>(std::floor(fy));
-		const float tx = fx - static_cast<float>(x0);
-		const float ty = fy - static_cast<float>(y0);
+		if (tex.mips.empty() || lod <= 0.0f)
+			return bilinearSampleLevel(tex.width, tex.height, tex.rgba8, tex.wrapS, tex.wrapT, st);
 
-		// Each of the 2x2 neighbor texels is wrapped independently (not
-		// clamped) - see wrapTexelIndex()'s doc comment for why a plain
-		// clamp would be wrong for REPEAT/MIRRORED_REPEAT at a tile edge.
-		auto texel = [&](int x, int y) -> glm::vec4
-		{
-			x = wrapTexelIndex(x, tex.width,  tex.wrapS);
-			y = wrapTexelIndex(y, tex.height, tex.wrapT);
-			const size_t idx = (static_cast<size_t>(y) * tex.width + x) * 4;
-			return glm::vec4(
-				tex.rgba8[idx + 0] / 255.0f,
-				tex.rgba8[idx + 1] / 255.0f,
-				tex.rgba8[idx + 2] / 255.0f,
-				tex.rgba8[idx + 3] / 255.0f);
-		};
+		const float clampedLod = std::clamp(lod, 0.0f, static_cast<float>(tex.mips.size() - 1));
+		const int level0 = static_cast<int>(std::floor(clampedLod));
+		const int level1 = std::min(level0 + 1, static_cast<int>(tex.mips.size()) - 1);
+		const float levelBlend = clampedLod - static_cast<float>(level0);
 
-		const glm::vec4 c00 = texel(x0,     y0);
-		const glm::vec4 c10 = texel(x0 + 1, y0);
-		const glm::vec4 c01 = texel(x0,     y0 + 1);
-		const glm::vec4 c11 = texel(x0 + 1, y0 + 1);
+		const RtTextureMipLevel& mip0 = tex.mips[level0];
+		const glm::vec4 sample0 = bilinearSampleLevel(mip0.width, mip0.height, mip0.rgba8, tex.wrapS, tex.wrapT, st);
+		if (level1 == level0)
+			return sample0;
 
-		const glm::vec4 top    = glm::mix(c00, c10, tx);
-		const glm::vec4 bottom = glm::mix(c01, c11, tx);
-		return glm::mix(top, bottom, ty);
+		const RtTextureMipLevel& mip1 = tex.mips[level1];
+		const glm::vec4 sample1 = bilinearSampleLevel(mip1.width, mip1.height, mip1.rgba8, tex.wrapS, tex.wrapT, st);
+		return glm::mix(sample0, sample1, levelBlend);
 	}
 
 	float applyChannelPacking(const glm::vec4& rgba, const RtTextureSample& tex)
@@ -519,51 +553,73 @@ namespace
 		glm::vec3 diffuseTransmissionColor  = glm::vec3(1.0f);
 	};
 
+	// Per-texture mip level for this specific texture's own resolution,
+	// derived from the hit's resolution-independent footprintInUvArea (see
+	// RtHit::uvAreaPerWorldArea's doc comment and tracePixel()'s own comment
+	// on where footprintInUvArea comes from - the camera pixel's world-space
+	// footprint at the hit, converted to UV-space via the triangle's own
+	// UV/world-area ratio). footprintInUvArea<=0 means "no LOD info for this
+	// hit" (e.g. a bounce/indirect hit, where this isn't computed) -
+	// sampleTexture()'s own lod<=0 fast path already handles that by
+	// sampling the base level only, matching this function's pre-mipmap
+	// behavior exactly.
+	float computeTextureLod(const RtTextureSample& tex, float footprintInUvArea)
+	{
+		if (footprintInUvArea <= 0.0f || tex.mips.size() <= 1)
+			return 0.0f;
+		const float footprintInTexelsSq = footprintInUvArea * static_cast<float>(tex.width) * static_cast<float>(tex.height);
+		return 0.5f * std::log2(std::max(footprintInTexelsSq, 1.0f));
+	}
+
 	// vertexColor is the interpolated COLOR_0 attribute (or the (1,1,1,1)
 	// identity when the mesh has none - see RtSceneBuilder's hasVertexColors
 	// gating), applied last and RGB-only, exactly matching computeBaseColor()
 	// in main_scene.frag ("Apply vertex color last (in linear)" - COLOR_0 is
 	// already linear per glTF spec, unlike textures, so no sRGB decode here).
-	SurfaceParams evaluateSurface(const RtMaterial& mat, const glm::vec2 (&texCoords)[4], const glm::vec4& vertexColor)
+	// footprintInUvArea: see computeTextureLod()'s doc comment - 0.0f (the
+	// default) reproduces this function's pre-mipmap behavior exactly
+	// (every texture read samples its base level only).
+	SurfaceParams evaluateSurface(const RtMaterial& mat, const glm::vec2 (&texCoords)[4], const glm::vec4& vertexColor,
+		float footprintInUvArea = 0.0f)
 	{
 		SurfaceParams s;
 		s.baseColor = mat.baseColor;
 		if (mat.baseColorTexture)
 		{
-			const glm::vec4 t = sampleTexture(*mat.baseColorTexture, texCoords);
+			const glm::vec4 t = sampleTexture(*mat.baseColorTexture, texCoords, computeTextureLod(*mat.baseColorTexture, footprintInUvArea));
 			s.baseColor *= sRGBToLinear(glm::vec3(t));
 		}
 		s.baseColor *= glm::vec3(vertexColor);
 
 		s.metalness = mat.metalness;
 		if (mat.metallicTexture)
-			s.metalness *= applyChannelPacking(sampleTexture(*mat.metallicTexture, texCoords), *mat.metallicTexture);
+			s.metalness *= applyChannelPacking(sampleTexture(*mat.metallicTexture, texCoords, computeTextureLod(*mat.metallicTexture, footprintInUvArea)), *mat.metallicTexture);
 
 		s.roughness = mat.roughness;
 		if (mat.roughnessTexture)
-			s.roughness *= applyChannelPacking(sampleTexture(*mat.roughnessTexture, texCoords), *mat.roughnessTexture);
+			s.roughness *= applyChannelPacking(sampleTexture(*mat.roughnessTexture, texCoords, computeTextureLod(*mat.roughnessTexture, footprintInUvArea)), *mat.roughnessTexture);
 		s.roughness = std::clamp(s.roughness, 0.0001f, 1.0f); // matches main_scene.frag's roughness floor
 
 		s.emissive = mat.emissive * mat.emissiveStrength;
 		if (mat.emissiveTexture)
-			s.emissive *= sRGBToLinear(glm::vec3(sampleTexture(*mat.emissiveTexture, texCoords)));
+			s.emissive *= sRGBToLinear(glm::vec3(sampleTexture(*mat.emissiveTexture, texCoords, computeTextureLod(*mat.emissiveTexture, footprintInUvArea))));
 
 		// Ported verbatim from main_scene.frag: "clamp(mix(1.0, texAO,
 		// occlusionStrength), 0.0001, 1.0)".
 		s.ao = 1.0f;
 		if (mat.aoTexture)
 		{
-			const float texAO = applyChannelPacking(sampleTexture(*mat.aoTexture, texCoords), *mat.aoTexture);
+			const float texAO = applyChannelPacking(sampleTexture(*mat.aoTexture, texCoords, computeTextureLod(*mat.aoTexture, footprintInUvArea)), *mat.aoTexture);
 			s.ao = std::clamp(glm::mix(1.0f, texAO, mat.occlusionStrength), 0.0001f, 1.0f);
 		}
 
 		float texturedSpecularFactor = mat.specularFactor;
 		if (mat.specularTexture)
-			texturedSpecularFactor *= applyChannelPacking(sampleTexture(*mat.specularTexture, texCoords), *mat.specularTexture);
+			texturedSpecularFactor *= applyChannelPacking(sampleTexture(*mat.specularTexture, texCoords, computeTextureLod(*mat.specularTexture, footprintInUvArea)), *mat.specularTexture);
 
 		glm::vec3 texturedSpecularColorFactor = mat.specularColorFactor;
 		if (mat.specularColorTexture)
-			texturedSpecularColorFactor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.specularColorTexture, texCoords)));
+			texturedSpecularColorFactor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.specularColorTexture, texCoords, computeTextureLod(*mat.specularColorTexture, footprintInUvArea))));
 
 		computeF0F90(mat, s.baseColor, s.metalness, texturedSpecularFactor, texturedSpecularColorFactor, s.F0, s.F90, s.directF0, s.dielectricF0, s.dielectricDirectF0);
 		s.specularFactor = texturedSpecularFactor;
@@ -585,7 +641,7 @@ namespace
 			s.baseColor = mat.diffuseColor;
 			if (mat.diffuseTexture)
 			{
-				const glm::vec4 t = sampleTexture(*mat.diffuseTexture, texCoords);
+				const glm::vec4 t = sampleTexture(*mat.diffuseTexture, texCoords, computeTextureLod(*mat.diffuseTexture, footprintInUvArea));
 				s.baseColor *= sRGBToLinear(glm::vec3(t));
 			}
 			s.baseColor *= glm::vec3(vertexColor);
@@ -594,7 +650,7 @@ namespace
 			float glossiness = mat.glossinessFactor;
 			if (mat.specularGlossinessTexture)
 			{
-				const glm::vec4 packed = sampleTexture(*mat.specularGlossinessTexture, texCoords);
+				const glm::vec4 packed = sampleTexture(*mat.specularGlossinessTexture, texCoords, computeTextureLod(*mat.specularGlossinessTexture, footprintInUvArea));
 				specGlossColor *= sRGBToLinear(glm::vec3(packed));
 				glossiness *= packed.a;
 			}
@@ -612,35 +668,35 @@ namespace
 
 		s.clearcoat = mat.clearcoat;
 		if (mat.clearcoatTexture)
-			s.clearcoat *= applyChannelPacking(sampleTexture(*mat.clearcoatTexture, texCoords), *mat.clearcoatTexture);
+			s.clearcoat *= applyChannelPacking(sampleTexture(*mat.clearcoatTexture, texCoords, computeTextureLod(*mat.clearcoatTexture, footprintInUvArea)), *mat.clearcoatTexture);
 		s.clearcoat = std::clamp(s.clearcoat, 0.0f, 1.0f);
 
 		s.clearcoatRoughness = mat.clearcoatRoughness;
 		if (mat.clearcoatRoughnessTexture)
-			s.clearcoatRoughness *= applyChannelPacking(sampleTexture(*mat.clearcoatRoughnessTexture, texCoords), *mat.clearcoatRoughnessTexture);
+			s.clearcoatRoughness *= applyChannelPacking(sampleTexture(*mat.clearcoatRoughnessTexture, texCoords, computeTextureLod(*mat.clearcoatRoughnessTexture, footprintInUvArea)), *mat.clearcoatRoughnessTexture);
 		s.clearcoatRoughness = std::clamp(s.clearcoatRoughness, 0.0001f, 1.0f);
 
 		s.sheenColor = mat.sheenColor;
 		if (mat.sheenColorTexture)
-			s.sheenColor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.sheenColorTexture, texCoords)));
+			s.sheenColor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.sheenColorTexture, texCoords, computeTextureLod(*mat.sheenColorTexture, footprintInUvArea))));
 		s.sheenColor = glm::clamp(s.sheenColor, glm::vec3(0.0f), glm::vec3(1.0f));
 
 		s.sheenRoughness = mat.sheenRoughness;
 		if (mat.sheenRoughnessTexture)
-			s.sheenRoughness *= applyChannelPacking(sampleTexture(*mat.sheenRoughnessTexture, texCoords), *mat.sheenRoughnessTexture);
+			s.sheenRoughness *= applyChannelPacking(sampleTexture(*mat.sheenRoughnessTexture, texCoords, computeTextureLod(*mat.sheenRoughnessTexture, footprintInUvArea)), *mat.sheenRoughnessTexture);
 		s.sheenRoughness = std::clamp(s.sheenRoughness, 0.0001f, 1.0f);
 
 		s.anisotropyStrength = mat.anisotropyStrength;
 		s.anisotropyRotation = mat.anisotropyRotation;
 		if (mat.anisotropyTexture)
 		{
-			const glm::vec3 texel(sampleTexture(*mat.anisotropyTexture, texCoords));
+			const glm::vec3 texel(sampleTexture(*mat.anisotropyTexture, texCoords, computeTextureLod(*mat.anisotropyTexture, footprintInUvArea)));
 			decodeAnisotropyTexture(texel, mat.anisotropyStrength, mat.anisotropyRotation, s.anisotropyStrength, s.anisotropyRotation);
 		}
 
 		s.iridescenceFactor = mat.iridescenceFactor;
 		if (mat.iridescenceTexture)
-			s.iridescenceFactor *= applyChannelPacking(sampleTexture(*mat.iridescenceTexture, texCoords), *mat.iridescenceTexture);
+			s.iridescenceFactor *= applyChannelPacking(sampleTexture(*mat.iridescenceTexture, texCoords, computeTextureLod(*mat.iridescenceTexture, footprintInUvArea)), *mat.iridescenceTexture);
 
 		s.iridescenceIor = mat.iridescenceIor;
 
@@ -649,11 +705,11 @@ namespace
 		// iridescenceThickness = pbrLighting.iridescenceThicknessMax default.
 		s.iridescenceThickness = mat.iridescenceThicknessMax;
 		if (mat.iridescenceThicknessTexture)
-			s.iridescenceThickness = applyChannelPacking(sampleTexture(*mat.iridescenceThicknessTexture, texCoords), *mat.iridescenceThicknessTexture);
+			s.iridescenceThickness = applyChannelPacking(sampleTexture(*mat.iridescenceThicknessTexture, texCoords, computeTextureLod(*mat.iridescenceThicknessTexture, footprintInUvArea)), *mat.iridescenceThicknessTexture);
 
 		s.transmission = mat.transmission;
 		if (mat.transmissionTexture)
-			s.transmission *= applyChannelPacking(sampleTexture(*mat.transmissionTexture, texCoords), *mat.transmissionTexture);
+			s.transmission *= applyChannelPacking(sampleTexture(*mat.transmissionTexture, texCoords, computeTextureLod(*mat.transmissionTexture, footprintInUvArea)), *mat.transmissionTexture);
 		s.hasVolume           = mat.hasVolume;
 		s.attenuationColor    = mat.attenuationColor;
 		s.attenuationDistance = mat.attenuationDistance;
@@ -661,10 +717,10 @@ namespace
 
 		s.diffuseTransmissionFactor = mat.diffuseTransmissionFactor;
 		if (mat.diffuseTransmissionTexture)
-			s.diffuseTransmissionFactor *= applyChannelPacking(sampleTexture(*mat.diffuseTransmissionTexture, texCoords), *mat.diffuseTransmissionTexture);
+			s.diffuseTransmissionFactor *= applyChannelPacking(sampleTexture(*mat.diffuseTransmissionTexture, texCoords, computeTextureLod(*mat.diffuseTransmissionTexture, footprintInUvArea)), *mat.diffuseTransmissionTexture);
 		s.diffuseTransmissionColor = mat.diffuseTransmissionColor;
 		if (mat.diffuseTransmissionColorTexture)
-			s.diffuseTransmissionColor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.diffuseTransmissionColorTexture, texCoords)));
+			s.diffuseTransmissionColor *= sRGBToLinear(glm::vec3(sampleTexture(*mat.diffuseTransmissionColorTexture, texCoords, computeTextureLod(*mat.diffuseTransmissionColorTexture, footprintInUvArea))));
 
 		return s;
 	}
@@ -1909,8 +1965,13 @@ namespace
 
 			const RtMaterial& mat = snapshot.materials[hit.materialIndex];
 
-			bool passThrough = false;
-			if (mat.blendMode != 0) // not Opaque - see tracePixel()'s identical alphaTest block
+			// glTF material.doubleSided==false back-face culling - a
+			// single-sided material's back face doesn't block light either,
+			// matching tracePixel()'s identical hitBackface-gated pass-
+			// through (see that call site's doc comment for the full
+			// rationale/reference asset).
+			bool passThrough = (!mat.twoSided) && (glm::dot(ray.direction, hit.geometricNormal) > 0.0f);
+			if (!passThrough && mat.blendMode != 0) // not Opaque - see tracePixel()'s identical alphaTest block
 			{
 				float alphaTest = mat.opacity;
 				if (mat.opacityTexture)
@@ -2215,7 +2276,28 @@ namespace
 				break;
 
 			const RtMaterial& mat = snapshot.materials[hit.materialIndex];
-			SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor);
+
+			// Camera pixel footprint at this hit, converted to this hit's own
+			// UV space via hit.uvAreaPerWorldArea (see its doc comment) -
+			// computeTextureLod() then combines this with each individual
+			// texture's own width/height. Deliberately restricted to primary
+			// (bounce==0, transmissionDepth==0) hits only: propagating a
+			// proper footprint through bounces/transmission needs full ray
+			// differentials, which this tracer doesn't carry - indirect hits
+			// just sample the base mip level (footprintInUvArea=0.0f),
+			// matching this tracer's pre-mipmap behavior there. Primary hits
+			// are what the reported minification-aliasing "smudge" artifact
+			// actually affects, so this is the case that matters.
+			float footprintInUvArea = 0.0f;
+			if (bounce == 0 && transmissionDepth == 0 && hit.uvAreaPerWorldArea > 0.0f)
+			{
+				const float pixelWorldSize = cam.orthographic
+					? (2.0f * cam.orthoHalfHeight / static_cast<float>(height))
+					: (hit.distance * 2.0f * cam.tanHalfFovY / static_cast<float>(height));
+				footprintInUvArea = hit.uvAreaPerWorldArea * pixelWorldSize * pixelWorldSize;
+			}
+
+			SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor, footprintInUvArea);
 			lastHitAO = surf.ao;
 
 			// Path regularization (Muller et al. 2018), per the RayTrophi
@@ -2341,6 +2423,29 @@ namespace
 			const uint32_t shadowRayMask = snapshot.selfShadowsEnabled
 				? 0xFFFFFFFFu
 				: ~(1u << (hit.instanceIndex % 32u));
+
+			// glTF material.doubleSided==false back-face culling - previously
+			// unimplemented in this tracer entirely (every material rendered
+			// as if double-sided, matching neither raster nor the glTF spec's
+			// "When doubleSided is false, back-face culling is enabled" rule).
+			// Treated exactly like an alpha-cutout pass-through below (the
+			// surface "isn't there" for this hit, ray continues undeviated) -
+			// hitBackface (plain dot(ray.direction, hit.geometricNormal) > 0,
+			// no negative-determinant-instance correction needed - see
+			// RtEmbreeScene::intersect()'s derivation) is the same test
+			// already used for volume/dispersion above. Reported against
+			// glTF's own NegativeScaleTest.gltf sample, whose README
+			// documents this exact failure mode ("PROBLEM: No Back-Face
+			// Culling") independent of the negative-scale case it's paired
+			// with in that asset.
+			const bool solidVolumeExitCandidate = surf.hasVolume && surf.transmission > 0.001f;
+			if (!mat.twoSided && hitBackface && !solidVolumeExitCandidate)
+			{
+				ray.origin = hit.position - Ng * eps;
+				lastBsdfSamplePdf = 0.0f;
+				++bounce;
+				continue;
+			}
 
 			// Base glTF alphaMode (OPAQUE/MASK/BLEND) - previously
 			// unimplemented in this tracer at all (a pre-existing gap, not

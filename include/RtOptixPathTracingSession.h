@@ -69,6 +69,15 @@ public:
 	void setMaxBounces(uint32_t maxBounces) { _maxBounces = maxBounces > 0 ? maxBounces : 1; }
 	uint32_t maxBounces() const { return _maxBounces; }
 
+	// Forwarded to RtOptixSceneTracer::renderScene() - mirrors CpuPathTracer::
+	// Settings::enableEnvironmentImportanceSampling / ViewportWidget's
+	// "Environment Importance Sampling" toggle. Environment-NEE is still
+	// additionally gated on the uploaded distribution actually being valid
+	// (see RtOptixSceneParams::RtOptixEnvironment::envTotalWeight's doc
+	// comment) - this flag only controls whether it's ATTEMPTED at all.
+	void setEnvironmentImportanceSamplingEnabled(bool enabled) { _enableEnvironmentImportanceSampling = enabled; }
+	bool environmentImportanceSamplingEnabled() const { return _enableEnvironmentImportanceSampling; }
+
 	// Chunk size (samples per pixel gathered per background-thread pass,
 	// i.e. per RtOptixSceneTracer::renderScene() call) - smaller values give
 	// more frequent progress-bar/preview updates at the cost of more
@@ -127,6 +136,7 @@ private:
 	int _height = 0;
 	uint32_t _maxSamples = 128;
 	uint32_t _maxBounces = 6;
+	bool _enableEnvironmentImportanceSampling = true;
 	uint32_t _samplesPerChunk = 1;
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
 

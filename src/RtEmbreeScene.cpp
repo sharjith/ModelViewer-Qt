@@ -5,6 +5,8 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
+#include <cmath>
+
 RtEmbreeScene::RtEmbreeScene()
 {
 	_device = rtcNewDevice(nullptr);
@@ -171,6 +173,26 @@ RtHit RtEmbreeScene::intersect(const RtRay& ray) const
 	const glm::mat3 modelMatrix3 = glm::mat3(instance.localToWorld);
 	const glm::mat3 normalMatrix = glm::inverseTranspose(modelMatrix3);
 
+	// localGeometricNormal is derived from winding (a cross product of the
+	// triangle's edges), but - despite an earlier version of this code
+	// applying an extra sign(determinant) correction here for negative-
+	// determinant (mirrored) instances - inverse-transpose alone is ALREADY
+	// correct for this, with no extra sign needed, for ANY invertible
+	// instance transform including reflections. Proof: Embree (like OptiX)
+	// intersects by transforming the RAY into object space and testing
+	// against the LOCAL winding-derived normal there; that object-space
+	// test is algebraically identical to the world-space test this flat
+	// normal is actually used for (hitBackface = dot(ray.direction,
+	// geometricNormal) > 0):
+	//   sign(dot(rayDir_world, (M^-1)^T * n_local))
+	//     = sign(dot(M^-1 * rayDir_world, n_local))   [transpose identity]
+	//     = sign(dot(rayDir_objectSpace, n_local))      <- Embree's own object-space test
+	// So plain inverse-transpose already gives a hitBackface result
+	// consistent with Embree's native intersection, unmodified. Confirmed by
+	// testing against glTF's NegativeScaleTest.gltf: the extra sign flip
+	// fixed the positive-scale row (never flipped) while breaking the
+	// negative-scale row (which was) - exactly the tell of a double-flip on
+	// an already-correct answer.
 	result.hit             = true;
 	result.distance        = rayhit.ray.tfar;
 	result.position        = ray.origin + ray.direction * rayhit.ray.tfar;
@@ -188,6 +210,21 @@ RtHit RtEmbreeScene::intersect(const RtRay& ray) const
 	result.vertexColor     = w * v0.color + u * v1.color + v * v2.color;
 	result.instanceIndex   = instanceIndex;
 	result.materialIndex   = instance.materialIndex;
+
+	// See RtHit::uvAreaPerWorldArea's doc comment - the triangle's UV
+	// (channel 0) area over its WORLD-space (post-instance-transform) area,
+	// resolution-independent (no specific texture's width/height baked in
+	// here). World-space edges (not local) since a non-uniform/scaled
+	// instance transform changes the triangle's actual world-space size.
+	const glm::vec3 worldP0 = modelMatrix3 * v0.position;
+	const glm::vec3 worldP1 = modelMatrix3 * v1.position;
+	const glm::vec3 worldP2 = modelMatrix3 * v2.position;
+	const float worldArea = 0.5f * glm::length(glm::cross(worldP1 - worldP0, worldP2 - worldP0));
+	const glm::vec2 uv0 = v0.texCoords[0];
+	const glm::vec2 uv1 = v1.texCoords[0];
+	const glm::vec2 uv2 = v2.texCoords[0];
+	const float uvArea = 0.5f * std::abs((uv1.x - uv0.x) * (uv2.y - uv0.y) - (uv2.x - uv0.x) * (uv1.y - uv0.y));
+	result.uvAreaPerWorldArea = worldArea > 1e-12f ? (uvArea / worldArea) : 0.0f;
 
 	return result;
 }

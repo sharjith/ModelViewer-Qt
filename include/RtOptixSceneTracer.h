@@ -66,9 +66,14 @@ public:
 	// primary-hit fraction (RtPresenter's alpha-composited-background
 	// channel - see RtOptixSceneParams::alphaImage's doc comment). On
 	// success, resizes all four to width*height and returns true.
+	// enableEnvironmentImportanceSampling mirrors CpuPathTracer::Settings::
+	// enableEnvironmentImportanceSampling - additionally gated on the
+	// uploaded environment-sampler distribution actually being valid (see
+	// RtOptixSceneParams::RtOptixEnvironment::envTotalWeight's doc comment),
+	// same as CPU's own envSampler.isValid() check.
 	bool renderScene(const RtCamera& camera, const RtEnvironment& environment,
 		int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
-		unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled,
+		unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
 		std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
 		std::vector<float>& outAlpha);
 

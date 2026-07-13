@@ -105,7 +105,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 		std::vector<glm::vec3> chunkFrame, chunkAlbedo, chunkNormal;
 		std::vector<float> chunkAlpha;
 		if (!_tracer.renderScene(snapshot->camera, snapshot->environment, width, height, chunkSpp, sampleCount, _maxBounces,
-			snapshot->shadowsEnabled, snapshot->selfShadowsEnabled,
+			snapshot->shadowsEnabled, snapshot->selfShadowsEnabled, _enableEnvironmentImportanceSampling,
 			chunkFrame, chunkAlbedo, chunkNormal, chunkAlpha))
 			break;
 

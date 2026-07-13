@@ -77,11 +77,23 @@
 // - over a rotated tangent frame for indirect bounces), and
 // KHR_materials_iridescence (evalIridescence()'s thin-film Fresnel tint,
 // applied to both the direct-lighting dielectric/metal reconstruction and
-// the indirect specular lobe's Fresnel term) are now implemented, all ported
-// from CpuPathTracer's identically-named functions.
+// the indirect specular lobe's Fresnel term), KHR_materials_
+// pbrSpecularGlossiness (legacy workflow - overrides baseColor/metalness/
+// roughness/F0/F90/directF0 wholesale, and mixes rather than adds diffuse+
+// specular for direct lighting), and KHR_materials_diffuse_transmission (a
+// second back-hemisphere diffuse lobe, both a direct-lighting BTDF term and a
+// stochastic front/back pick for indirect bounces - the raygen loop's next-
+// bounce ray origin offset is now direction-aware for this, not always
+// +worldNormal) are now implemented, all ported from CpuPathTracer's
+// identically-named functions.
 //
-// Still deferred: alphaMode Blend (true transparency compositing) and
-// transmission - see RtMaterial's own doc comments for what those add.
+// glTF alphaMode Blend (a stochastic per-sample existence pick, same
+// mechanism as Masked's deterministic threshold - see __anyhit__ah()) is
+// also now implemented.
+//
+// KHR_materials_transmission/volume/dispersion are implemented too, using
+// the same dedicated transmission branch and separate transmission-depth
+// budget as the CPU tracer.
 // Self-contained, same style as RtOptixTriangle.cu (no dependency on the
 // OptiX SDK's bundled sutil).
 // ---------------------------------------------------------------------------
@@ -127,6 +139,11 @@ namespace
 		return make_float3(a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x);
 	}
 
+	__forceinline__ __device__ float length3(const float3& v)
+	{
+		return sqrtf(dot3(v, v));
+	}
+
 	__forceinline__ __device__ float2 operator+(const float2& a, const float2& b)
 	{
 		return make_float2(a.x + b.x, a.y + b.y);
@@ -164,6 +181,34 @@ namespace
 	__forceinline__ __device__ float3 reflectF3(const float3& incident, const float3& normal)
 	{
 		return incident - normal * (2.0f * dot3(normal, incident));
+	}
+
+	// GLSL/glm::refract() semantics exactly - returns the zero vector on
+	// total internal reflection (the caller then knows to fall back to a
+	// mirror bounce), matching CpuPathTracer's own use of glm::refract() in
+	// its KHR_materials_transmission handling.
+	__forceinline__ __device__ float3 refractF3(const float3& incident, const float3& normal, float eta)
+	{
+		const float NdotI = dot3(normal, incident);
+		const float k = 1.0f - eta * eta * (1.0f - NdotI * NdotI);
+		if (k < 0.0f)
+			return make_float3(0.0f, 0.0f, 0.0f);
+		return incident * eta - normal * (eta * NdotI + sqrtf(k));
+	}
+
+	// KHR_materials_volume - Beer-Lambert absorption over the real traced
+	// distance a ray travelled through the medium since its previous hit,
+	// ported from CpuPathTracer::calculateVolumeAttenuation() verbatim.
+	// attenuationDistance<=0 means "no attenuation" (matches
+	// RtMaterial::attenuationDistance's own default-infinity convention -
+	// pow(color, distance/infinity) trivially equals 1 anyway, so only the
+	// <=0 case needs an explicit guard to avoid a divide-by-zero).
+	__forceinline__ __device__ float3 calculateVolumeAttenuation(const float3& attenuationColor, float attenuationDistance, float distance)
+	{
+		if (attenuationDistance <= 0.0f)
+			return make_float3(1.0f, 1.0f, 1.0f);
+		const float t = distance / attenuationDistance;
+		return make_float3(powf(attenuationColor.x, t), powf(attenuationColor.y, t), powf(attenuationColor.z, t));
 	}
 
 	// Scale-relative self-intersection epsilon, matching CpuPathTracer.cpp's
@@ -226,21 +271,65 @@ namespace
 		return make_float4(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, a.z + (b.z - a.z) * t, a.w + (b.w - a.w) * t);
 	}
 
-	__forceinline__ __device__ float4 fetchTexelWrapped(const RtOptixTexture& tex, int x, int y)
+	__forceinline__ __device__ float4 fetchTexelWrapped(const uchar4* rgba8, int width, int height,
+		unsigned int wrapS, unsigned int wrapT, int x, int y)
 	{
-		x = wrapTexelIndex(x, tex.width, tex.wrapS);
-		y = wrapTexelIndex(y, tex.height, tex.wrapT);
-		const uchar4 p = tex.rgba8[static_cast<size_t>(y) * tex.width + x];
+		x = wrapTexelIndex(x, width, wrapS);
+		y = wrapTexelIndex(y, height, wrapT);
+		const uchar4 p = rgba8[static_cast<size_t>(y) * width + x];
 		return make_float4(p.x / 255.0f, p.y / 255.0f, p.z / 255.0f, p.w / 255.0f);
 	}
 
-	// Bilinear, half-texel-centered, wrap-aware, KHR_texture_transform-aware
-	// sample - see CpuPathTracer::sampleTexture()'s doc comment for why each
-	// of those matters (a nearest-neighbor or wrap-oblivious sample would
-	// silently regress the exact bugs that function's own history fixed).
-	// Returns raw (not sRGB-decoded) 0-1 RGBA - callers decide whether this
-	// texture's bytes are sRGB color data or linear scalar/vector data.
-	__forceinline__ __device__ float4 sampleTexture2D(const RtOptixTexture& tex, const float2 uv[4])
+	// Bilinear, half-texel-centered, wrap-aware sample of ONE mip level -
+	// factored out of sampleTexture2D() so trilinear filtering (below) can
+	// call it twice (the two nearest levels) and blend, mirroring
+	// CpuPathTracer::bilinearSampleLevel().
+	__forceinline__ __device__ float4 bilinearSampleLevel2D(const uchar4* rgba8, int width, int height,
+		unsigned int wrapS, unsigned int wrapT, const float2& st)
+	{
+		const float fx = st.x * static_cast<float>(width)  - 0.5f;
+		const float fy = st.y * static_cast<float>(height) - 0.5f;
+		const int x0 = static_cast<int>(floorf(fx));
+		const int y0 = static_cast<int>(floorf(fy));
+		const float tx = fx - static_cast<float>(x0);
+		const float ty = fy - static_cast<float>(y0);
+
+		const float4 c00 = fetchTexelWrapped(rgba8, width, height, wrapS, wrapT, x0,     y0);
+		const float4 c10 = fetchTexelWrapped(rgba8, width, height, wrapS, wrapT, x0 + 1, y0);
+		const float4 c01 = fetchTexelWrapped(rgba8, width, height, wrapS, wrapT, x0,     y0 + 1);
+		const float4 c11 = fetchTexelWrapped(rgba8, width, height, wrapS, wrapT, x0 + 1, y0 + 1);
+
+		const float4 top    = lerp4(c00, c10, tx);
+		const float4 bottom = lerp4(c01, c11, tx);
+		return lerp4(top, bottom, ty);
+	}
+
+	// Per-texture mip level for this specific texture's own resolution -
+	// device counterpart of CpuPathTracer::computeTextureLod(), see that
+	// function's doc comment for the derivation. footprintInUvArea<=0 means
+	// "no LOD info for this hit" (bounce/indirect hits, where __closesthit__ch()
+	// doesn't compute one) - sampleTexture2D()'s own lod<=0 fast path handles
+	// that by sampling the base level only, matching pre-mipmap behavior.
+	__forceinline__ __device__ float computeTextureLod(const RtOptixTexture& tex, float footprintInUvArea)
+	{
+		if (footprintInUvArea <= 0.0f || tex.mipCount <= 1 || tex.mips == nullptr)
+			return 0.0f;
+		const float footprintInTexelsSq = footprintInUvArea * static_cast<float>(tex.width) * static_cast<float>(tex.height);
+		return 0.5f * log2f(fmaxf(footprintInTexelsSq, 1.0f));
+	}
+
+	// Bilinear, half-texel-centered, wrap-aware, KHR_texture_transform-aware,
+	// trilinear-mip sample - see CpuPathTracer::sampleTexture()'s doc comment
+	// for why each of those matters (a nearest-neighbor or wrap-oblivious
+	// sample would silently regress the exact bugs that function's own
+	// history fixed). Returns raw (not sRGB-decoded) 0-1 RGBA - callers
+	// decide whether this texture's bytes are sRGB color data or linear
+	// scalar/vector data. lod defaults to 0.0f (base level only, the exact
+	// previous behavior) for call sites without per-hit triangle/camera
+	// context cheaply available (shadow rays, alpha-cutout existence tests,
+	// normal maps) - see CpuPathTracer::sampleTexture()'s identical default
+	// and reasoning.
+	__forceinline__ __device__ float4 sampleTexture2D(const RtOptixTexture& tex, const float2 uv[4], float lod = 0.0f)
 	{
 		if (tex.width <= 0 || tex.height <= 0)
 			return make_float4(1.0f, 1.0f, 1.0f, 1.0f);
@@ -259,21 +348,22 @@ namespace
 		st.x = applyWrap(st.x, tex.wrapS);
 		st.y = applyWrap(st.y, tex.wrapT);
 
-		const float fx = st.x * static_cast<float>(tex.width)  - 0.5f;
-		const float fy = st.y * static_cast<float>(tex.height) - 0.5f;
-		const int x0 = static_cast<int>(floorf(fx));
-		const int y0 = static_cast<int>(floorf(fy));
-		const float tx = fx - static_cast<float>(x0);
-		const float ty = fy - static_cast<float>(y0);
+		if (tex.mipCount <= 0 || tex.mips == nullptr || lod <= 0.0f)
+			return bilinearSampleLevel2D(tex.rgba8, tex.width, tex.height, tex.wrapS, tex.wrapT, st);
 
-		const float4 c00 = fetchTexelWrapped(tex, x0,     y0);
-		const float4 c10 = fetchTexelWrapped(tex, x0 + 1, y0);
-		const float4 c01 = fetchTexelWrapped(tex, x0,     y0 + 1);
-		const float4 c11 = fetchTexelWrapped(tex, x0 + 1, y0 + 1);
+		const float clampedLod = fminf(fmaxf(lod, 0.0f), static_cast<float>(tex.mipCount - 1));
+		const int level0 = static_cast<int>(floorf(clampedLod));
+		const int level1 = min(level0 + 1, tex.mipCount - 1);
+		const float levelBlend = clampedLod - static_cast<float>(level0);
 
-		const float4 top    = lerp4(c00, c10, tx);
-		const float4 bottom = lerp4(c01, c11, tx);
-		return lerp4(top, bottom, ty);
+		const RtOptixTextureMipLevel& mip0 = tex.mips[level0];
+		const float4 sample0 = bilinearSampleLevel2D(mip0.rgba8, mip0.width, mip0.height, tex.wrapS, tex.wrapT, st);
+		if (level1 == level0)
+			return sample0;
+
+		const RtOptixTextureMipLevel& mip1 = tex.mips[level1];
+		const float4 sample1 = bilinearSampleLevel2D(mip1.rgba8, mip1.width, mip1.height, tex.wrapS, tex.wrapT, st);
+		return lerp4(sample0, sample1, levelBlend);
 	}
 
 	__forceinline__ __device__ float applyChannelPacking(const float4& rgba, const RtOptixTexture& tex)
@@ -764,6 +854,160 @@ namespace
 			: 0.0f;
 	}
 
+	// Heitz 2018 VNDF importance-sampling pdf (isotropic case) - the pdf the
+	// general specular/coat lobes actually sample from, evaluated here for an
+	// ARBITRARY given L rather than a freshly-sampled one (needed for
+	// environment-NEE's MIS weighting below - see evaluateBsdfPdf()). Ported
+	// from CpuPathTracer::ggxVndfPdfIsotropic() verbatim, including its
+	// unclamped-D rationale (NOT distributionGGX(), which floors its
+	// denominator for direct-light-BRDF safety against an exactly-aligned
+	// punctual light - that floor is wrong for a pdf evaluation, since it
+	// under-estimates D exactly where a smooth material's VNDF-sampled H
+	// lands, which previously handed MIS most of its weight to environment-
+	// NEE and visibly darkened mirror reflections).
+	__forceinline__ __device__ float ggxVndfPdfIsotropic(const float3& N, const float3& V, const float3& L, float roughness)
+	{
+		const float NdotV = fmaxf(dot3(N, V), 0.0f);
+		const float NdotL = fmaxf(dot3(N, L), 0.0f);
+		if (NdotV <= 0.0f || NdotL <= 0.0f)
+			return 0.0f;
+
+		const float3 H = normalizeF3(V + L);
+		const float NdotH = fmaxf(dot3(N, H), 0.0f);
+		const float VdotH = fmaxf(dot3(V, H), 0.0f);
+		if (NdotH <= 0.0f || VdotH <= 0.0f)
+			return 0.0f;
+
+		const float alpha = roughness * roughness;
+		const float a2 = alpha * alpha;
+		const float denomTerm = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+		const float D = a2 / fmaxf(kPi * denomTerm * denomTerm, 1e-12f);
+
+		const float G1v = smithG1GGX(NdotV, alpha);
+		return (G1v * D * VdotH) / fmaxf(NdotV, 1e-6f) / fmaxf(4.0f * VdotH, 1e-6f);
+	}
+
+	// Combined sampling pdf of the general lobe-selection code (diffuse/
+	// specular/coat) for an arbitrary given direction L - used only for
+	// environment-NEE's MIS weighting (see __closesthit__ch()'s
+	// environment-NEE block). Ported from CpuPathTracer::evaluateBsdfPdf()
+	// verbatim - must match the lobe-selection code's actual three-way split
+	// exactly (coat picked first with probability coatProb, only the
+	// remainder further split between spec/diffuse).
+	__forceinline__ __device__ float evaluateBsdfPdf(const float3& N, const float3& Ncoat, const float3& V, const float3& L,
+		float roughness, float clearcoatRoughness, bool hasAniso, const float3& anisoT, const float3& anisoB,
+		float alphaT, float alphaB, float specProb, float coatProb)
+	{
+		const float NdotL = dot3(N, L);
+		if (NdotL <= 0.0f)
+			return 0.0f;
+
+		const float specProbScaled = specProb * (1.0f - coatProb);
+		const float diffuseProb = fmaxf(1.0f - coatProb - specProbScaled, 0.0f);
+
+		const float coatPdf = coatProb > 0.0f ? ggxVndfPdfIsotropic(Ncoat, V, L, clearcoatRoughness) : 0.0f;
+
+		float specPdf;
+		if (hasAniso)
+		{
+			const float NdotV = fmaxf(dot3(N, V), 0.0f);
+			const float3 H = normalizeF3(V + L);
+			const float NdotH = fmaxf(dot3(N, H), 0.0f);
+			const float VdotH = fmaxf(dot3(V, H), 0.0f);
+			if (NdotV <= 0.0f || NdotH <= 0.0f || VdotH <= 0.0f)
+				specPdf = 0.0f;
+			else
+			{
+				const float TdotH = dot3(anisoT, H), BdotH = dot3(anisoB, H);
+				const float D = distributionGGXAnisotropic(NdotH, TdotH, BdotH, alphaT, alphaB);
+				const float3 Vlocal = make_float3(dot3(V, anisoT), dot3(V, anisoB), NdotV);
+				const float G1v = smithG1GGXAniso(Vlocal, alphaT, alphaB);
+				specPdf = (G1v * D * VdotH) / fmaxf(NdotV, 1e-6f) / fmaxf(4.0f * VdotH, 1e-6f);
+			}
+		}
+		else
+		{
+			specPdf = ggxVndfPdfIsotropic(N, V, L, roughness);
+		}
+
+		const float cosinePdf = NdotL / kPi;
+		return coatProb * coatPdf + specProbScaled * specPdf + diffuseProb * cosinePdf;
+	}
+
+	// Ported from CpuPathTracer::evaluateDirectBRDF() - the direct-light BRDF
+	// evaluated at an ARBITRARY given L, needed by the environment-NEE block
+	// below (which needs the same BRDF the punctual-light loop's own inline
+	// computation in __closesthit__ch() evaluates, just at the env-sampled
+	// direction instead of a light's). Kept as a standalone function (not
+	// shared with that inline loop) to avoid touching its already-working
+	// code path.
+	__forceinline__ __device__ float3 evaluateDirectBRDF(const float3& N, const float3& V, const float3& L,
+		const float3& baseColor, float metalness, const float3& directF0, const float3& F90, float roughness,
+		bool hasAniso, const float3& anisoT, const float3& anisoB, float alphaT, float alphaB,
+		int useSpecGloss, float transmission, float diffuseTransmissionFactor,
+		float iridescenceFactor, float iridescenceIor, float iridescenceThickness,
+		const float3& dielectricF0, const float3& dielectricDirectF0, float texturedSpecularFactor)
+	{
+		const float NdotL = fmaxf(dot3(N, L), 0.0f);
+		const float NdotV = fmaxf(dot3(N, V), 0.0f);
+		if (NdotL <= 0.0f || NdotV <= 0.0f)
+			return make_float3(0.0f, 0.0f, 0.0f);
+
+		const float3 H = normalizeF3(V + L);
+		const float NdotH = fmaxf(dot3(N, H), 0.0f);
+		const float VdotH = fminf(fmaxf(dot3(H, V), 0.0f), 1.0f);
+
+		const float3 F = fresnelSchlick(VdotH, directF0, F90);
+
+		float3 specularNoF;
+		if (hasAniso)
+		{
+			const float D_aniso = distributionGGXAnisotropic(NdotH, dot3(anisoT, H), dot3(anisoB, H), alphaT, alphaB);
+			const float V_aniso = visibilityGGXAnisotropic(NdotL, NdotV,
+				dot3(anisoB, V), dot3(anisoT, V), dot3(anisoT, L), dot3(anisoB, L), alphaT, alphaB);
+			const float dv = D_aniso * V_aniso;
+			specularNoF = make_float3(dv, dv, dv);
+		}
+		else
+		{
+			const float D = distributionGGX(NdotH, roughness);
+			const float G = geometrySmith(NdotV, NdotL, roughness);
+			const float dg = (D * G) / fmaxf(4.0f * NdotV * NdotL, 0.001f);
+			specularNoF = make_float3(dg, dg, dg);
+		}
+		const float3 specular = specularNoF * F;
+
+		if (useSpecGloss != 0)
+		{
+			const float3 l_diffuse = baseColor * (1.0f / kPi);
+			return lerp3(l_diffuse, specular, F) * NdotL;
+		}
+
+		const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - F) * (1.0f - metalness);
+		const float3 diffuse = kD * baseColor * (1.0f / kPi) * (1.0f - transmission) * (1.0f - diffuseTransmissionFactor);
+
+		if (iridescenceFactor > 0.001f && iridescenceThickness > 0.0f)
+		{
+			const float3 l_diffuse = diffuse * NdotL;
+			const float3 l_specular = specularNoF * NdotL * (1.0f - transmission);
+
+			const float3 dielectricFresnel = fresnelSchlick(VdotH, dielectricDirectF0,
+				make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor));
+			const float3 metalFresnel = fresnelSchlick(VdotH, baseColor, make_float3(1.0f, 1.0f, 1.0f));
+			float3 dielectricBrdf = lerp3(l_diffuse, l_specular, dielectricFresnel);
+			float3 metalBrdf = metalFresnel * l_specular;
+
+			const float3 iridescenceFresnelDielectric = evalIridescence(1.0f, iridescenceIor, NdotV, iridescenceThickness, dielectricF0, make_float3(1.0f, 1.0f, 1.0f));
+			const float3 iridescenceFresnelMetallic = evalIridescence(1.0f, iridescenceIor, NdotV, iridescenceThickness, baseColor, make_float3(1.0f, 1.0f, 1.0f));
+			metalBrdf = lerp3(metalBrdf, l_specular * iridescenceFresnelMetallic, iridescenceFactor);
+			dielectricBrdf = lerp3(dielectricBrdf, rgbMix(l_diffuse, l_specular, iridescenceFresnelDielectric), iridescenceFactor);
+
+			return lerp3(dielectricBrdf, metalBrdf, metalness);
+		}
+
+		return (diffuse + specular * (1.0f - transmission)) * NdotL;
+	}
+
 	// Small, fast, self-contained hash-based PRNG (PCG variant, same
 	// technique as the OptiX SDK samples' rng.h - reimplemented here rather
 	// than pulled in, matching this file's own no-sutil-dependency style).
@@ -936,6 +1180,90 @@ namespace
 		v = (tc / ma + 1.0f) * 0.5f;
 	}
 
+	// Inverse of selectCubemapFaceUV() - reconstructs an (unnormalized)
+	// direction from a face index and u/v in [0,1]. Matches
+	// RtEnvironmentSampler's own faceScToDirection() exactly, just
+	// re-expressed in u/v (converted to that function's [-1,1] sc/tc here)
+	// instead of taking sc/tc directly.
+	__forceinline__ __device__ float3 faceUVToDirection(int face, float u, float v)
+	{
+		const float sc = u * 2.0f - 1.0f;
+		const float tc = v * 2.0f - 1.0f;
+		switch (face)
+		{
+			case 0:  return make_float3(1.0f, -tc, -sc);
+			case 1:  return make_float3(-1.0f, -tc, sc);
+			case 2:  return make_float3(sc, 1.0f, tc);
+			case 3:  return make_float3(sc, -1.0f, -tc);
+			case 4:  return make_float3(sc, -tc, 1.0f);
+			default: return make_float3(-sc, -tc, -1.0f);
+		}
+	}
+
+	// Device counterpart of RtEnvironmentSampler::sample()/pdf() - importance
+	// samples (or evaluates the pdf of) the SAME luminance-weighted flat CDF
+	// CPU builds and RtOptixSceneTracer::buildScene() uploads verbatim (see
+	// RtOptixEnvironment::envFlatCdf's doc comment), so both engines converge
+	// toward the identical environment-NEE distribution. u0 picks a texel
+	// (binary search over the cumulative array, matching std::upper_bound);
+	// u1/u2 jitter continuously within that texel.
+	__forceinline__ __device__ void envSamplerSample(const RtOptixEnvironment& env, float u0, float u1, float u2, float3& outDir, float& outPdf)
+	{
+		if (env.envFlatCdf == nullptr || env.envTexelPdf == nullptr || env.envTotalWeight <= 0.0f || env.faceSize <= 0)
+		{
+			outDir = make_float3(0.0f, 1.0f, 0.0f);
+			outPdf = 0.0f;
+			return;
+		}
+
+		const size_t faceSize = static_cast<size_t>(env.faceSize);
+		const size_t texelsPerFace = faceSize * faceSize;
+		const size_t totalTexels = texelsPerFace * 6;
+
+		const float target = fminf(fmaxf(u0, 0.0f), 1.0f) * env.envTotalWeight;
+		size_t lo = 0, hi = totalTexels + 1; // upper_bound over envFlatCdf[0..totalTexels]
+		while (lo < hi)
+		{
+			const size_t mid = lo + (hi - lo) / 2;
+			if (env.envFlatCdf[mid] <= target)
+				lo = mid + 1;
+			else
+				hi = mid;
+		}
+		size_t flatIndex = lo - 1; // lo>=1 always: envFlatCdf[0]==0.0f<=target (target>=0) guarantees at least one advance
+		if (flatIndex > totalTexels - 1)
+			flatIndex = totalTexels - 1;
+
+		const int face = static_cast<int>(flatIndex / texelsPerFace);
+		const size_t rem = flatIndex % texelsPerFace;
+		const int y = static_cast<int>(rem / faceSize);
+		const int x = static_cast<int>(rem % faceSize);
+
+		const float invSize = 1.0f / static_cast<float>(env.faceSize);
+		const float u = (static_cast<float>(x) + u1) * invSize;
+		const float v = (static_cast<float>(y) + u2) * invSize;
+
+		outDir = normalizeF3(faceUVToDirection(face, u, v));
+		outPdf = env.envTexelPdf[flatIndex];
+	}
+
+	__forceinline__ __device__ float envSamplerPdf(const RtOptixEnvironment& env, const float3& direction)
+	{
+		if (env.envTexelPdf == nullptr || env.envTotalWeight <= 0.0f || env.faceSize <= 0)
+			return 0.0f;
+
+		int face;
+		float u, v;
+		selectCubemapFaceUV(normalizeF3(direction), face, u, v);
+
+		const int faceSize = env.faceSize;
+		const int x = min(max(static_cast<int>(u * static_cast<float>(faceSize)), 0), faceSize - 1);
+		const int y = min(max(static_cast<int>(v * static_cast<float>(faceSize)), 0), faceSize - 1);
+
+		const size_t flatIndex = static_cast<size_t>(face) * faceSize * faceSize + static_cast<size_t>(y) * faceSize + x;
+		return env.envTexelPdf[flatIndex];
+	}
+
 	// Takes a raw faces[6]/size pair rather than a whole RtOptixEnvironment so
 	// it can sample either the raw map (env.faces/env.faceSize) or any one
 	// prefilter mip level (RtOptixPrefilterMip::faces/faceSize) - matches
@@ -1105,14 +1433,16 @@ namespace
 	// the roughness-or-sentinel to feed back in as the NEXT call's
 	// escapeRoughness input.
 	__forceinline__ __device__ void traceBouncePath(const float3& origin, const float3& direction,
-		unsigned int rngSeed, float escapeRoughness,
+		unsigned int rngSeed, float escapeRoughness, float previousBsdfPdf,
 		float3& outRadiance, unsigned int& outHitFlag, float3& outWorldNormal, float& outHitDistance,
-		float3& outNextDirection, float3& outThroughputWeight, float3& outGuideAlbedo, float& outEscapeRoughness)
+		float3& outNextDirection, float3& outThroughputWeight, float3& outGuideAlbedo, float& outEscapeRoughness,
+		float& outNextBsdfPdf)
 	{
 		unsigned int p0 = 0u, p1 = 0u, p2 = 0u, p3 = 0u, p4 = 0u, p5 = 0u, p6 = 0u, p7 = 0u, p8 = 0u;
 		unsigned int p9 = 0u, p10 = 0u, p11 = 0u, p12 = 0u, p13 = 0u, p14 = 0u, p15 = 0u, p16 = 0u;
 		unsigned int p17 = rngSeed;
 		unsigned int p18 = __float_as_uint(escapeRoughness);
+		unsigned int p19 = __float_as_uint(previousBsdfPdf);
 		optixTrace(
 			params.handle,
 			origin,
@@ -1125,7 +1455,7 @@ namespace
 			0, // SBT offset
 			1, // SBT stride
 			0, // missSBTIndex
-			p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18);
+			p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19);
 		outRadiance = make_float3(__uint_as_float(p0), __uint_as_float(p1), __uint_as_float(p2));
 		outHitFlag = p3;
 		outWorldNormal = make_float3(__uint_as_float(p4), __uint_as_float(p5), __uint_as_float(p6));
@@ -1134,22 +1464,29 @@ namespace
 		outThroughputWeight = make_float3(__uint_as_float(p11), __uint_as_float(p12), __uint_as_float(p13));
 		outGuideAlbedo = make_float3(__uint_as_float(p14), __uint_as_float(p15), __uint_as_float(p16));
 		outEscapeRoughness = __uint_as_float(p17);
+		outNextBsdfPdf = __uint_as_float(p19);
 	}
 
-	// Plain boolean occlusion query - reuses the same pipeline/SBT as the
+	// RGB transmittance shadow query - reuses the same pipeline/SBT as the
 	// other trace wrappers above (no dedicated occlusion program group/hit
 	// records) by setting OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT and having
 	// __closesthit__ch()/__miss__ms() check optixGetRayFlags() to take a
 	// one-line early-out instead of running the full shading path. Payload
 	// 0 is the occluded bit; payloads 1/2 let __anyhit__ah() ignore hits
-	// against the source instance when self-shadows are disabled.
-	__forceinline__ __device__ bool traceShadowRay(const float3& origin, const float3& direction, float maxDistance,
-		unsigned int sourceInstanceId)
+	// against the source instance when self-shadows are disabled; payload 3
+	// is an RNG seed __anyhit__ah() reads/advances; payloads 4-6 carry a
+	// running RGB transmittance through transmissive any-hit pass-throughs.
+	__forceinline__ __device__ float3 traceShadowRay(const float3& origin, const float3& direction, float maxDistance,
+		unsigned int sourceInstanceId, unsigned int rngSeed)
 	{
 		const float eps = selfIntersectionEpsilon(origin);
 		unsigned int occluded = 0u;
 		unsigned int selfInstanceId = sourceInstanceId;
 		unsigned int selfShadowsEnabled = params.selfShadowsEnabled != 0 ? 1u : 0u;
+		unsigned int alphaRngSeed = rngSeed;
+		unsigned int trX = __float_as_uint(1.0f);
+		unsigned int trY = __float_as_uint(1.0f);
+		unsigned int trZ = __float_as_uint(1.0f);
 		optixTrace(
 			params.handle,
 			origin,
@@ -1162,8 +1499,10 @@ namespace
 			0, // SBT offset
 			1, // SBT stride
 			0, // missSBTIndex
-			occluded, selfInstanceId, selfShadowsEnabled);
-		return occluded != 0u;
+			occluded, selfInstanceId, selfShadowsEnabled, alphaRngSeed, trX, trY, trZ);
+		if (occluded != 0u)
+			return make_float3(0.0f, 0.0f, 0.0f);
+		return make_float3(__uint_as_float(trX), __uint_as_float(trY), __uint_as_float(trZ));
 	}
 }
 
@@ -1225,29 +1564,43 @@ extern "C" __global__ void __raygen__rg()
 		float3 sampleNormal = make_float3(0.0f, 0.0f, 0.0f);
 		unsigned int rngState = pcgHash(seed ^ 0x68bc21ebu); // decorrelated from the AA-jitter stream above
 		float escapeRoughness = -1.0f;
+		float previousBsdfPdf = 0.0f;
 		float3 curOrigin = rayOrigin;
 		float3 curDirection = rayDirection;
 
-		for (unsigned int bounce = 0; bounce < maxBounces; ++bounce)
+		// KHR_materials_transmission tracks its own, separate bounce-depth
+		// budget (transmissionDepth), just like CpuPathTracer::tracePixel()'s
+		// identical bounce/transmissionDepth split - a transmission
+		// continuation (hitFlag==3, see __closesthit__ch()'s transmission
+		// branch) increments transmissionDepth instead of bounce, so a long
+		// TIR chain inside a dielectric doesn't eat into the ordinary
+		// maxBounces budget at all. kMaxTransmissionBounces matches
+		// CpuPathTracer::Settings::maxTransmissionBounces's own default (32) -
+		// this backend doesn't expose it as a per-launch setting yet (see
+		// this file's top-of-file doc comment).
+		constexpr unsigned int kMaxTransmissionBounces = 32;
+		unsigned int bounce = 0;
+		unsigned int transmissionDepth = 0;
+		while (bounce < maxBounces)
 		{
-			rngState = pcgHash(rngState + bounce * 0x9e3779b9u);
+			rngState = pcgHash(rngState + (bounce + transmissionDepth) * 0x9e3779b9u);
 
 			float3 hitRadiance, worldNormal, nextDirection, throughputWeight, guideAlbedo;
-			float hitDistance, nextEscapeRoughness;
+			float hitDistance, nextEscapeRoughness, nextBsdfPdf;
 			unsigned int hitFlag;
-			traceBouncePath(curOrigin, curDirection, rngState, escapeRoughness,
-				hitRadiance, hitFlag, worldNormal, hitDistance, nextDirection, throughputWeight, guideAlbedo, nextEscapeRoughness);
+			traceBouncePath(curOrigin, curDirection, rngState, escapeRoughness, previousBsdfPdf,
+				hitRadiance, hitFlag, worldNormal, hitDistance, nextDirection, throughputWeight, guideAlbedo, nextEscapeRoughness, nextBsdfPdf);
 
 			sampleRadiance = sampleRadiance + throughput * hitRadiance;
-			if (bounce == 0)
+			if (bounce == 0 && transmissionDepth == 0)
 			{
 				sampleAlbedo = guideAlbedo;
 				sampleNormal = worldNormal;
-				if (hitFlag != 0u) // 1 (hit+continuation) or 2 (hit+dead-end) - either way the primary ray hit geometry
+				if (hitFlag != 0u) // 1/2/3 (hit, any kind) - either way the primary ray hit geometry
 					accumulatedHits += 1.0f;
 			}
 
-			if (hitFlag != 1u)
+			if (hitFlag == 0u || hitFlag == 2u)
 				break; // 0: escaped to the environment; 2: hit but dead-end sample with no valid continuation - either way, fully accounted for above
 
 			throughput = throughput * throughputWeight;
@@ -1256,8 +1609,12 @@ extern "C" __global__ void __raygen__rg()
 			// cost/variance on long paths - matches the spirit of
 			// CpuPathTracer::Settings::russianRouletteStartDepth (a fixed
 			// depth floor before RR kicks in, so the cheap, high-value first
-			// few bounces are never cut short).
-			if (bounce >= 2)
+			// few bounces are never cut short). Combined bounce+
+			// transmissionDepth, matching CPU's identical combined gate - a
+			// long TIR chain with genuinely low throughput (e.g. from
+			// attenuationColor absorption) still gets a chance to terminate
+			// early rather than only ever stopping via kMaxTransmissionBounces.
+			if (bounce + transmissionDepth >= 2)
 			{
 				const float continueProb = fminf(fmaxf(fmaxf(throughput.x, fmaxf(throughput.y, throughput.z)), 0.05f), 0.95f);
 				rngState = pcgHash(rngState ^ 0xA5A5A5A5u);
@@ -1267,9 +1624,32 @@ extern "C" __global__ void __raygen__rg()
 			}
 
 			const float3 hitPos = curOrigin + curDirection * hitDistance;
-			curOrigin = hitPos + worldNormal * selfIntersectionEpsilon(hitPos);
+			// Offset toward whichever side nextDirection actually continues
+			// on - ordinarily always the front (+worldNormal), but
+			// KHR_materials_diffuse_transmission's back-hemisphere lobe (see
+			// __closesthit__ch()'s diffuse-lobe branch) and KHR_materials_
+			// transmission's refracted/thin-walled-through directions (see
+			// its transmission branch) can return a direction on the far
+			// side of the surface, which needs the opposite offset to avoid
+			// immediately self-intersecting the same triangle - matches
+			// CpuPathTracer::tracePixel()'s identical direction-aware offset
+			// exactly.
+			const float offsetSign = dot3(nextDirection, worldNormal) >= 0.0f ? 1.0f : -1.0f;
+			curOrigin = hitPos + worldNormal * (selfIntersectionEpsilon(hitPos) * offsetSign);
 			curDirection = nextDirection;
 			escapeRoughness = nextEscapeRoughness;
+			previousBsdfPdf = nextBsdfPdf;
+
+			if (hitFlag == 3u)
+			{
+				++transmissionDepth;
+				if (transmissionDepth >= kMaxTransmissionBounces)
+					break; // exhausted the transmission budget - a rare edge case (an extremely narrow TIR escape cone), matching CPU's identical exhaustion handling
+			}
+			else
+			{
+				++bounce;
+			}
 		}
 
 		accumulated = accumulated + sampleRadiance;
@@ -1295,8 +1675,11 @@ extern "C" __global__ void __miss__ms()
 
 	// p18 carries the escape mode for THIS ray (see traceBouncePath()'s doc
 	// comment): -1 means primary/camera ray, -2 means a diffuse-lobe escape,
-	// and >=0 means a GGX specular-lobe escape with that material roughness.
+	// -3 means a KHR_materials_transmission-branch escape (see
+	// __closesthit__ch()'s transmission branch), and >=0 means a GGX
+	// specular-lobe escape with that material roughness.
 	const float escapeRoughness = __uint_as_float(optixGetPayload_18());
+	const float previousBsdfPdf = __uint_as_float(optixGetPayload_19());
 	const float3 dir = optixGetWorldRayDirection();
 
 	float3 result;
@@ -1310,6 +1693,17 @@ extern "C" __global__ void __miss__ms()
 		const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
 		const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
 		result = sampleEnvironmentBackground(params.environment, dir, su, sv);
+	}
+	else if (escapeRoughness == -3.0f)
+	{
+		// KHR_materials_transmission-branch escape (reflect, thin-walled
+		// pass-through, or refract/TIR) - a deterministic Fresnel pick, not a
+		// diffuse/specular-lobe MIXTURE sample, so it gets the same sharp/
+		// unblurred map the specular-lobe escape below uses, matching
+		// CpuPathTracer::tracePixel()'s identical lastBsdfSamplePdf<=0 ->
+		// sampleEnvironmentMiss() (this backend's sampleEnvironmentRaw())
+		// treatment for this same case exactly.
+		result = sampleEnvironmentRaw(params.environment, dir);
 	}
 	else if (escapeRoughness < 0.0f)
 	{
@@ -1328,6 +1722,13 @@ extern "C" __global__ void __miss__ms()
 		result = sampleEnvironmentRaw(params.environment, dir);
 	}
 
+	if (previousBsdfPdf > 0.0f && params.enableEnvironmentImportanceSampling != 0)
+	{
+		const float envPdfAtRay = envSamplerPdf(params.environment, dir);
+		if (envPdfAtRay > 0.0f)
+			result = result * (previousBsdfPdf / (previousBsdfPdf + envPdfAtRay));
+	}
+
 	setPayload(result);
 	optixSetPayload_3(0u); // hitFlag = miss, no continuation for the raygen loop
 
@@ -1336,20 +1737,43 @@ extern "C" __global__ void __miss__ms()
 	// outPrimaryNormal default when the primary ray never hits geometry.
 	optixSetPayload_4(0u); optixSetPayload_5(0u); optixSetPayload_6(0u);
 	optixSetPayload_14(0u); optixSetPayload_15(0u); optixSetPayload_16(0u);
+	optixSetPayload_19(0u);
 }
 
-// glTF alphaMode Masked cutout - any-hit runs for EVERY ray type (primary/
-// bounce trace calls and shadow rays alike), so a sub-cutoff hit is
+// glTF alphaMode Masked/Blend cutout - any-hit runs for EVERY ray type
+// (primary/bounce trace calls and shadow rays alike), so a rejected hit is
 // invisible to all of them uniformly, matching the spec's "treat as if this
-// geometry doesn't exist here" semantics (CpuPathTracer's own MASK handling
-// in RtEmbreeScene::intersect()). optixIgnoreIntersection() tells BVH
-// traversal to discard this candidate hit and keep looking - it does NOT
-// terminate traversal, so a shadow ray with OPTIX_RAY_FLAG_TERMINATE_ON_
-// FIRST_HIT correctly continues past a masked-out hit to find (or not find)
-// a REAL occluder behind it. Opaque (blendMode==0) and Blend (blendMode==2,
-// not yet implemented - see RtOptixSceneHitGroupData::blendMode's doc
-// comment) materials always accept the hit here (a no-op any-hit program is
-// the same as not having one at all).
+// geometry doesn't exist here" semantics (CpuPathTracer's own MASK/BLEND
+// handling in tracePixel()'s identical alphaTest block). optixIgnoreIntersection()
+// tells BVH traversal to discard this candidate hit and keep looking - it
+// does NOT terminate traversal, so a shadow ray with
+// OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT correctly continues past a rejected
+// hit to find (or not find) a REAL occluder behind it. Opaque (blendMode==0)
+// materials always accept the hit here (a no-op any-hit program is the same
+// as not having one at all). Masked (1) uses a deterministic threshold test
+// (matching main_scene.frag's hard discard); Blend (2, glTF alphaMode BLEND)
+// stochastically picks per sample instead - ported from CpuPathTracer's
+// identical "rng.next01() >= alphaTest" - since a binary "was the surface
+// here or not" existence pick needs no weight adjustment either way (unlike
+// a Fresnel-weighted energy split), the whichever-branch-taken throughput is
+// already correct as-is. Needs actual randomness (unlike Masked's fixed
+// threshold), which bounce-trace rays get from payload 17 (the same RNG
+// seed traceBouncePath() threads in) and shadow rays get from payload 3
+// (threaded in by traceShadowRay() specifically for this - see its own doc
+// comment) - both payloads are ADVANCED (hashed and written back) here so a
+// ray passing through several Blend surfaces in a row draws a fresh value
+// at each one instead of reusing the same draw. Previously entirely
+// unimplemented in this kernel (every Blend material rendered fully
+// opaque) - visible as a deterministic (non-noise, doesn't improve with more
+// samples) ghost of the wrong/hidden layer bleeding through an overlapping
+// Blend-textured surface, reported against glTF's own NegativeScaleTest.gltf
+// sample (its answer-key texture cards use alphaMode BLEND).
+//
+// Also handles KHR_materials_transmission's shadow-ray pass-through (SHADOW
+// RAYS ONLY - see the dedicated check inside this function for the full
+// rationale): without it, any transmissive (glass) material would block
+// shadow rays as if fully opaque, since __closesthit__ch()'s own
+// transmission handling only runs for ordinary camera/bounce rays.
 extern "C" __global__ void __anyhit__ah()
 {
 	if (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT)
@@ -1364,8 +1788,43 @@ extern "C" __global__ void __anyhit__ah()
 	}
 
 	const RtOptixSceneHitGroupData* data = reinterpret_cast<const RtOptixSceneHitGroupData*>(optixGetSbtDataPointer());
-	if (data->blendMode != 1)
+
+	const bool isShadowRayAH = (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT) != 0;
+
+	// glTF material.doubleSided==false back-face culling - a single-sided
+	// material's back face generally doesn't exist for any ray type, same
+	// "invisible uniformly" semantics as the Masked cutout below. One
+	// important exception: non-shadow rays crossing out of a solid
+	// KHR_materials_volume surface must reach closest-hit so Beer-Lambert
+	// attenuation can be applied at the exit surface. CPU does exactly that:
+	// it applies volume attenuation before its later single-sided backface
+	// pass-through. If any-hit discards that exit first, PTG never sees the
+	// attenuation color.
+	// optixIsTriangleFrontFaceHit() needs NO negative-determinant-instance
+	// correction (no OPTIX_INSTANCE_FLAG_FLIP_TRIANGLE_FACING at IAS-build
+	// time, deliberately - see RtOptixSceneTracer.cpp's IAS-build comment for
+	// the derivation showing OptiX's native object-space winding test is
+	// already correct for any instance transform, reflections included).
+	// Conceptually matches raster's gl_FrontFacing-based discard (see
+	// main_scene.frag) - previously entirely unimplemented in this kernel, so
+	// every material rendered as if double-sided. Reported against glTF's
+	// own NegativeScaleTest.gltf sample.
+	const bool solidVolumeExitCandidate = !isShadowRayAH && data->hasVolume != 0 && data->transmission > 0.001f;
+	if (data->twoSided == 0 && !optixIsTriangleFrontFaceHit() && !solidVolumeExitCandidate)
+	{
+		optixIgnoreIntersection();
 		return;
+	}
+
+	const bool needsAlphaTest = data->blendMode != 0;
+	// KHR_materials_transmission - SHADOW RAYS ONLY (ordinary camera/bounce
+	// rays instead handle transmission via __closesthit__ch()'s dedicated
+	// reflect/refract branch, which needs this hit's REAL shading, not a
+	// pass-through skip) - see the check further down for the full
+	// rationale.
+	const bool needsTransmissionTest = isShadowRayAH && data->transmission > 0.001f;
+	if (!needsAlphaTest && !needsTransmissionTest)
+		return; // Opaque and non-transmissive (or a non-shadow ray) - no test needed at all
 
 	const unsigned int primIdx = optixGetPrimitiveIndex();
 	const uint3 tri = data->indices[primIdx];
@@ -1375,8 +1834,88 @@ extern "C" __global__ void __anyhit__ah()
 	float2 uv[4];
 	interpolateUVs(data, tri, w, u, v, uv);
 
-	if (resolveOpacity(data, uv) < data->alphaThreshold)
+	bool passThrough = false;
+	if (needsAlphaTest)
+	{
+		const float opacity = resolveOpacity(data, uv);
+		if (data->blendMode == 1) // Masked
+		{
+			passThrough = opacity < data->alphaThreshold;
+		}
+		else // Blend (glTF alphaMode BLEND) - stochastic, see this function's doc comment
+		{
+			const unsigned int seed = pcgHash(isShadowRayAH ? optixGetPayload_3() : optixGetPayload_17());
+			if (isShadowRayAH)
+				optixSetPayload_3(seed);
+			else
+				optixSetPayload_17(seed);
+			passThrough = hashToUnitFloat(seed) >= opacity;
+		}
+	}
+
+	// KHR_materials_transmission's shadow-ray handling - ported from
+	// CpuPathTracer::traceShadowRay()'s identical Fresnel-weighted
+	// stochastic pass-through. CPU carries full RGB transmittance through a
+	// closest-hit-walking shadow loop; this OptiX any-hit path mirrors that
+	// by multiplying payload 4-6 by baseColor * volumeTint *
+	// transmissionFactor whenever the ray passes through. Uses the FLAT
+	// (per-triangle) normal, not the smooth shading one, matching CPU's own
+	// hit.geometricNormal-based Fresnel term exactly - fetched via
+	// optixGetTriangleVertexData() (needs OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS
+	// on this GAS, already enabled for the texture-footprint/LOD computation
+	// - see RtOptixSceneTracer.cpp's GAS build).
+	float3 transmissionTint = make_float3(1.0f, 1.0f, 1.0f);
+	if (!passThrough && needsTransmissionTest)
+	{
+		float transmissionFactor = data->transmission;
+		if (data->transmissionTexture.width > 0)
+			transmissionFactor *= applyChannelPacking(sampleTexture2D(data->transmissionTexture, uv), data->transmissionTexture);
+		transmissionFactor = fminf(fmaxf(transmissionFactor, 0.0f), 1.0f);
+
+		float3 objectTriAH[3];
+		optixGetTriangleVertexData(optixGetGASTraversableHandle(), primIdx, optixGetSbtGASIndex(), 0.0f, objectTriAH);
+		const float3 objectFlatNormal = cross3(objectTriAH[1] - objectTriAH[0], objectTriAH[2] - objectTriAH[0]);
+		const float3 worldFlatNormal = normalizeF3(optixTransformNormalFromObjectToWorldSpace(objectFlatNormal));
+		const float3 rayDirAH = optixGetWorldRayDirection();
+		const float NdotV = fminf(fmaxf(dot3(worldFlatNormal, rayDirAH * -1.0f), 0.0f), 1.0f);
+
+		const float f0FromIor = powf((data->ior - 1.0f) / (data->ior + 1.0f), 2.0f);
+		const float3 dielectricF0Shadow = make_float3(
+			fminf(fmaxf(f0FromIor * data->specularColorFactor.x * data->specularFactor, 0.0f), 1.0f),
+			fminf(fmaxf(f0FromIor * data->specularColorFactor.y * data->specularFactor, 0.0f), 1.0f),
+			fminf(fmaxf(f0FromIor * data->specularColorFactor.z * data->specularFactor, 0.0f), 1.0f));
+		const float3 fresnel = fresnelSchlick(NdotV, dielectricF0Shadow, make_float3(1.0f, 1.0f, 1.0f));
+		const float reflectProb = fminf(fmaxf((fresnel.x + fresnel.y + fresnel.z) / 3.0f, 0.05f), 0.95f);
+
+		float3 tint = data->baseColor;
+		if (data->baseColorTexture.width > 0)
+		{
+			const float4 sampledBase = sampleTexture2D(data->baseColorTexture, uv);
+			tint = tint * sRGBToLinear(make_float3(sampledBase.x, sampledBase.y, sampledBase.z));
+		}
+		if (data->hasVolume != 0)
+			tint = tint * calculateVolumeAttenuation(data->attenuationColor, data->attenuationDistance, data->thicknessFactor);
+		transmissionTint = tint * transmissionFactor;
+
+		const unsigned int seed = pcgHash(optixGetPayload_3());
+		optixSetPayload_3(seed);
+		passThrough = hashToUnitFloat(seed) >= reflectProb;
+	}
+
+	if (passThrough)
+	{
+		if (isShadowRayAH && needsTransmissionTest)
+		{
+			const float3 shadowTr = make_float3(
+				__uint_as_float(optixGetPayload_4()),
+				__uint_as_float(optixGetPayload_5()),
+				__uint_as_float(optixGetPayload_6())) * transmissionTint;
+			optixSetPayload_4(__float_as_uint(shadowTr.x));
+			optixSetPayload_5(__float_as_uint(shadowTr.y));
+			optixSetPayload_6(__float_as_uint(shadowTr.z));
+		}
 		optixIgnoreIntersection();
+	}
 }
 
 extern "C" __global__ void __closesthit__ch()
@@ -1416,13 +1955,61 @@ extern "C" __global__ void __closesthit__ch()
 	const float3 rayDir = optixGetWorldRayDirection();
 	const float3 worldPos = rayOrigin + rayDir * optixGetRayTmax();
 
+	// Flat per-triangle geometric normal, distinct from the smooth
+	// vertex-interpolated shading normal above. CPU derives hitBackface
+	// from dot(ray.direction, hit.geometricNormal)>0; do the same explicit
+	// test here instead of relying on OptiX's front-face flag so volume
+	// entry/exit classification is exactly shared between PTC and PTG.
+	float3 objectTri[3];
+	optixGetTriangleVertexData(optixGetGASTraversableHandle(), primIdx, optixGetSbtGASIndex(), 0.0f, objectTri);
+	const float3 objectFlatNormal = cross3(objectTri[1] - objectTri[0], objectTri[2] - objectTri[0]);
+	const float3 worldFlatNormal = normalizeF3(optixTransformNormalFromObjectToWorldSpace(objectFlatNormal));
+
 	// Faceforward against the ray, matching CpuPathTracer's own "shade the
 	// side the ray actually hit" handling for thin/backfacing geometry.
 	if (dot3(worldNormal, rayDir) > 0.0f)
 		worldNormal = worldNormal * -1.0f;
 
+	// Stateless "am I currently inside this medium" test - ported from
+	// CpuPathTracer::tracePixel()'s identical per-hit (never carried-forward)
+	// derivation: true when the ray struck this triangle's BACK face,
+	// meaning it's exiting a volume rather than entering one.
+	// Uses the same flat geometric normal as CPU, not the smooth shading
+	// normal (which may be normal-mapped/faceforwarded for shading).
+	const bool hitBackface = dot3(rayDir, worldFlatNormal) > 0.0f;
+
 	float2 uv[4];
 	interpolateUVs(data, tri, w, u, v, uv);
+
+	// Camera pixel footprint at this hit, converted to this hit's own UV
+	// space via the triangle's own UV(channel 0)/world-area ratio - device
+	// counterpart of CpuPathTracer::tracePixel()'s identical computation and
+	// RtHit::uvAreaPerWorldArea's doc comment. Restricted to primary rays
+	// only (escapeRoughness==-1.0f - see traceBouncePath()'s doc comment):
+	// this backend keys "primary ray" off the same escape sentinel used by
+	// the miss shader. Non-primary and transmission-continuation hits pass
+	// footprintInUvArea=0.0f, which computeTextureLod() treats as "no LOD
+	// info" (base mip only) - same pragmatic simplification CPU makes for
+	// its own indirect hits.
+	float footprintInUvArea = 0.0f;
+	if (__uint_as_float(optixGetPayload_18()) == -1.0f)
+	{
+		const float3 worldP0 = optixTransformPointFromObjectToWorldSpace(objectTri[0]);
+		const float3 worldP1 = optixTransformPointFromObjectToWorldSpace(objectTri[1]);
+		const float3 worldP2 = optixTransformPointFromObjectToWorldSpace(objectTri[2]);
+		const float worldArea = 0.5f * length3(cross3(worldP1 - worldP0, worldP2 - worldP0));
+
+		const float2 uv0 = data->texCoords[tri.x * 4 + 0];
+		const float2 uv1 = data->texCoords[tri.y * 4 + 0];
+		const float2 uv2 = data->texCoords[tri.z * 4 + 0];
+		const float uvArea = 0.5f * fabsf((uv1.x - uv0.x) * (uv2.y - uv0.y) - (uv2.x - uv0.x) * (uv1.y - uv0.y));
+		const float uvAreaPerWorldArea = worldArea > 1e-12f ? (uvArea / worldArea) : 0.0f;
+
+		const float pixelWorldSize = (params.camOrthographic != 0)
+			? (2.0f * params.camOrthoHalfHeight / static_cast<float>(params.imageHeight))
+			: (optixGetRayTmax() * 2.0f * params.camTanHalfFovY / static_cast<float>(params.imageHeight));
+		footprintInUvArea = uvAreaPerWorldArea * pixelWorldSize * pixelWorldSize;
+	}
 
 	// Object-space tangent + handedness, barycentrically interpolated then
 	// transformed to world space via the plain-model-matrix direction
@@ -1467,7 +2054,7 @@ extern "C" __global__ void __closesthit__ch()
 	float3 baseColor = data->baseColor;
 	if (data->baseColorTexture.width > 0)
 	{
-		const float4 sampled = sampleTexture2D(data->baseColorTexture, uv);
+		const float4 sampled = sampleTexture2D(data->baseColorTexture, uv, computeTextureLod(data->baseColorTexture, footprintInUvArea));
 		baseColor = baseColor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
 	}
 
@@ -1485,16 +2072,16 @@ extern "C" __global__ void __closesthit__ch()
 
 	float metalness = data->metalness;
 	if (data->metallicTexture.width > 0)
-		metalness *= applyChannelPacking(sampleTexture2D(data->metallicTexture, uv), data->metallicTexture);
+		metalness *= applyChannelPacking(sampleTexture2D(data->metallicTexture, uv, computeTextureLod(data->metallicTexture, footprintInUvArea)), data->metallicTexture);
 
 	float roughnessFactor = data->roughness;
 	if (data->roughnessTexture.width > 0)
-		roughnessFactor *= applyChannelPacking(sampleTexture2D(data->roughnessTexture, uv), data->roughnessTexture);
+		roughnessFactor *= applyChannelPacking(sampleTexture2D(data->roughnessTexture, uv, computeTextureLod(data->roughnessTexture, footprintInUvArea)), data->roughnessTexture);
 
 	float3 emissive = data->emissive * data->emissiveStrength;
 	if (data->emissiveTexture.width > 0)
 	{
-		const float4 sampled = sampleTexture2D(data->emissiveTexture, uv);
+		const float4 sampled = sampleTexture2D(data->emissiveTexture, uv, computeTextureLod(data->emissiveTexture, footprintInUvArea));
 		emissive = emissive * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
 	}
 
@@ -1511,7 +2098,7 @@ extern "C" __global__ void __closesthit__ch()
 	float ao = 1.0f;
 	if (data->aoTexture.width > 0)
 	{
-		const float texAo = applyChannelPacking(sampleTexture2D(data->aoTexture, uv), data->aoTexture);
+		const float texAo = applyChannelPacking(sampleTexture2D(data->aoTexture, uv, computeTextureLod(data->aoTexture, footprintInUvArea)), data->aoTexture);
 		const float mixed = 1.0f + (texAo - 1.0f) * data->occlusionStrength; // mix(1.0, texAo, occlusionStrength)
 		ao = fminf(fmaxf(mixed, 0.0001f), 1.0f);
 	}
@@ -1522,12 +2109,12 @@ extern "C" __global__ void __closesthit__ch()
 	// evaluateSurface()'s identical modulation before computeF0F90().
 	float texturedSpecularFactor = data->specularFactor;
 	if (data->specularTexture.width > 0)
-		texturedSpecularFactor *= applyChannelPacking(sampleTexture2D(data->specularTexture, uv), data->specularTexture);
+		texturedSpecularFactor *= applyChannelPacking(sampleTexture2D(data->specularTexture, uv, computeTextureLod(data->specularTexture, footprintInUvArea)), data->specularTexture);
 
 	float3 texturedSpecularColorFactor = data->specularColorFactor;
 	if (data->specularColorTexture.width > 0)
 	{
-		const float4 sampled = sampleTexture2D(data->specularColorTexture, uv);
+		const float4 sampled = sampleTexture2D(data->specularColorTexture, uv, computeTextureLod(data->specularColorTexture, footprintInUvArea));
 		texturedSpecularColorFactor = texturedSpecularColorFactor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
 	}
 
@@ -1572,21 +2159,65 @@ extern "C" __global__ void __closesthit__ch()
 	const bool isPrimaryOrthoHit = (params.camOrthographic != 0) && (primaryRaySentinel == -1.0f);
 	const float3 V = isPrimaryOrthoHit ? normalizeF3(params.camPosition - worldPos) : normalizeF3(rayDir * -1.0f);
 	const float NdotV = fmaxf(dot3(worldNormal, V), 0.0f);
-	const float3 F0 = lerp3(dielectricF0, baseColor, metalness);
-	const float3 F90 = lerp3(make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor), make_float3(1.0f, 1.0f, 1.0f), metalness);
-	const float3 directF0 = lerp3(dielectricF0 * texturedSpecularFactor, baseColor, metalness);
-	const float roughness = fmaxf(roughnessFactor, 0.0001f); // matches main_scene.frag/CpuPathTracer roughness floor
+	float3 F0 = lerp3(dielectricF0, baseColor, metalness);
+	float3 F90 = lerp3(make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor), make_float3(1.0f, 1.0f, 1.0f), metalness);
+	float3 directF0 = lerp3(dielectricF0 * texturedSpecularFactor, baseColor, metalness);
+	float roughness = fmaxf(roughnessFactor, 0.0001f); // matches main_scene.frag/CpuPathTracer roughness floor
+
+	// KHR_materials_pbrSpecularGlossiness - legacy alternate workflow; COMPLETELY
+	// REPLACES the metallic-roughness values just computed above, matching
+	// CpuPathTracer::evaluateSurface()'s identical override block exactly.
+	// baseColor becomes diffuseColor, F0 becomes the specular color directly
+	// (an authored RGB reflectance, not IOR-derived), F90 is forced to 1.0,
+	// metalness is forced to 0 (spec-gloss has no metalness concept), and
+	// roughness is derived from glossiness's inverse. dielectricF0 is also
+	// overridden so KHR_materials_iridescence (if combined with spec-gloss,
+	// via dielectricDirectF0 = dielectricF0*texturedSpecularFactor below)
+	// still gets a sensible base reflectance to work from.
+	if (data->useSpecGloss != 0)
+	{
+		baseColor = data->diffuseColor;
+		if (data->diffuseTexture.width > 0)
+		{
+			const float4 sampled = sampleTexture2D(data->diffuseTexture, uv, computeTextureLod(data->diffuseTexture, footprintInUvArea));
+			baseColor = baseColor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
+		}
+		{
+			const float3 vc0 = data->vertexColors[tri.x];
+			const float3 vc1 = data->vertexColors[tri.y];
+			const float3 vc2 = data->vertexColors[tri.z];
+			baseColor = baseColor * (vc0 * w + vc1 * u + vc2 * v);
+		}
+
+		float3 specGlossColor = data->specGlossSpecularColor;
+		float glossiness = data->glossinessFactor;
+		if (data->specularGlossinessTexture.width > 0)
+		{
+			const float4 packed = sampleTexture2D(data->specularGlossinessTexture, uv, computeTextureLod(data->specularGlossinessTexture, footprintInUvArea));
+			specGlossColor = specGlossColor * sRGBToLinear(make_float3(packed.x, packed.y, packed.z));
+			glossiness *= packed.w;
+		}
+		specGlossColor = make_float3(fminf(fmaxf(specGlossColor.x, 0.0f), 1.0f), fminf(fmaxf(specGlossColor.y, 0.0f), 1.0f), fminf(fmaxf(specGlossColor.z, 0.0f), 1.0f));
+
+		roughness = fminf(fmaxf(1.0f - glossiness, 0.0001f), 1.0f);
+		metalness = 0.0f;
+		F0 = specGlossColor;
+		F90 = make_float3(1.0f, 1.0f, 1.0f);
+		directF0 = specGlossColor;
+		dielectricF0 = specGlossColor;
+		texturedSpecularFactor = 1.0f;
+	}
 
 	// KHR_materials_clearcoat - factors/textures ported from CpuPathTracer::
 	// evaluateSurface()'s identical R/G-channel-packed sampling.
 	float clearcoat = data->clearcoat;
 	if (data->clearcoatTexture.width > 0)
-		clearcoat *= applyChannelPacking(sampleTexture2D(data->clearcoatTexture, uv), data->clearcoatTexture);
+		clearcoat *= applyChannelPacking(sampleTexture2D(data->clearcoatTexture, uv, computeTextureLod(data->clearcoatTexture, footprintInUvArea)), data->clearcoatTexture);
 	clearcoat = fminf(fmaxf(clearcoat, 0.0f), 1.0f);
 
 	float clearcoatRoughness = data->clearcoatRoughness;
 	if (data->clearcoatRoughnessTexture.width > 0)
-		clearcoatRoughness *= applyChannelPacking(sampleTexture2D(data->clearcoatRoughnessTexture, uv), data->clearcoatRoughnessTexture);
+		clearcoatRoughness *= applyChannelPacking(sampleTexture2D(data->clearcoatRoughnessTexture, uv, computeTextureLod(data->clearcoatRoughnessTexture, footprintInUvArea)), data->clearcoatRoughnessTexture);
 	clearcoatRoughness = fminf(fmaxf(clearcoatRoughness, 0.0001f), 1.0f);
 
 	// KHR_materials_sheen - sheenColorTexture is sRGB RGB, sheenRoughnessTexture's
@@ -1595,14 +2226,14 @@ extern "C" __global__ void __closesthit__ch()
 	float3 sheenColor = data->sheenColorFactor;
 	if (data->sheenColorTexture.width > 0)
 	{
-		const float4 sampled = sampleTexture2D(data->sheenColorTexture, uv);
+		const float4 sampled = sampleTexture2D(data->sheenColorTexture, uv, computeTextureLod(data->sheenColorTexture, footprintInUvArea));
 		sheenColor = sheenColor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
 	}
 	sheenColor = make_float3(fminf(fmaxf(sheenColor.x, 0.0f), 1.0f), fminf(fmaxf(sheenColor.y, 0.0f), 1.0f), fminf(fmaxf(sheenColor.z, 0.0f), 1.0f));
 
 	float sheenRoughness = data->sheenRoughness;
 	if (data->sheenRoughnessTexture.width > 0)
-		sheenRoughness *= applyChannelPacking(sampleTexture2D(data->sheenRoughnessTexture, uv), data->sheenRoughnessTexture);
+		sheenRoughness *= applyChannelPacking(sampleTexture2D(data->sheenRoughnessTexture, uv, computeTextureLod(data->sheenRoughnessTexture, footprintInUvArea)), data->sheenRoughnessTexture);
 	sheenRoughness = fminf(fmaxf(sheenRoughness, 0.0001f), 1.0f);
 
 	// Fresnel-weighted blend factor between the base layer and the coat layer
@@ -1630,7 +2261,7 @@ extern "C" __global__ void __closesthit__ch()
 	float anisotropyRotation = data->anisotropyRotation;
 	if (data->anisotropyTexture.width > 0)
 	{
-		const float4 sampled = sampleTexture2D(data->anisotropyTexture, uv);
+		const float4 sampled = sampleTexture2D(data->anisotropyTexture, uv, computeTextureLod(data->anisotropyTexture, footprintInUvArea));
 		decodeAnisotropyTexture(make_float3(sampled.x, sampled.y, sampled.z), data->anisotropyStrength, data->anisotropyRotation,
 			anisotropyStrength, anisotropyRotation);
 	}
@@ -1672,13 +2303,61 @@ extern "C" __global__ void __closesthit__ch()
 	// evaluateSurface() exactly).
 	float iridescenceFactor = data->iridescenceFactor;
 	if (data->iridescenceTexture.width > 0)
-		iridescenceFactor *= applyChannelPacking(sampleTexture2D(data->iridescenceTexture, uv), data->iridescenceTexture);
+		iridescenceFactor *= applyChannelPacking(sampleTexture2D(data->iridescenceTexture, uv, computeTextureLod(data->iridescenceTexture, footprintInUvArea)), data->iridescenceTexture);
 	iridescenceFactor = fminf(fmaxf(iridescenceFactor, 0.0f), 1.0f);
 
 	const float iridescenceIor = data->iridescenceIor;
 	float iridescenceThickness = data->iridescenceThickness;
 	if (data->iridescenceThicknessTexture.width > 0)
-		iridescenceThickness = applyChannelPacking(sampleTexture2D(data->iridescenceThicknessTexture, uv), data->iridescenceThicknessTexture);
+		iridescenceThickness = applyChannelPacking(sampleTexture2D(data->iridescenceThicknessTexture, uv, computeTextureLod(data->iridescenceThicknessTexture, footprintInUvArea)), data->iridescenceThicknessTexture);
+
+	// KHR_materials_diffuse_transmission - a translucent DIFFUSE material
+	// (leaves, paper, curtains): light landing on the front diffusely
+	// scatters through to the back (and vice versa), no ior/Fresnel/
+	// refraction involved. diffuseTransmissionTexture's ALPHA channel scales
+	// diffuseTransmissionFactor (glTF spec convention); diffuseTransmissionColorTexture
+	// is sRGB RGB - matching CpuPathTracer::evaluateSurface() exactly.
+	float diffuseTransmissionFactor = data->diffuseTransmissionFactor;
+	if (data->diffuseTransmissionTexture.width > 0)
+		diffuseTransmissionFactor *= applyChannelPacking(sampleTexture2D(data->diffuseTransmissionTexture, uv, computeTextureLod(data->diffuseTransmissionTexture, footprintInUvArea)), data->diffuseTransmissionTexture);
+
+	float3 diffuseTransmissionColor = data->diffuseTransmissionColor;
+	if (data->diffuseTransmissionColorTexture.width > 0)
+	{
+		const float4 sampled = sampleTexture2D(data->diffuseTransmissionColorTexture, uv, computeTextureLod(data->diffuseTransmissionColorTexture, footprintInUvArea));
+		diffuseTransmissionColor = diffuseTransmissionColor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
+	}
+
+	// KHR_materials_transmission + KHR_materials_volume + KHR_materials_
+	// dispersion - transmissionTexture's R channel scales transmission
+	// (channel-packed); hasVolume/attenuationColor/attenuationDistance/
+	// thicknessFactor/dispersion have no texture inputs (matches
+	// CpuPathTracer::evaluateSurface() exactly).
+	float transmission = data->transmission;
+	if (data->transmissionTexture.width > 0)
+		transmission *= applyChannelPacking(sampleTexture2D(data->transmissionTexture, uv, computeTextureLod(data->transmissionTexture, footprintInUvArea)), data->transmissionTexture);
+	const int hasVolume = data->hasVolume;
+	const float3 attenuationColor = data->attenuationColor;
+	const float attenuationDistance = data->attenuationDistance;
+	const float thicknessFactor = data->thicknessFactor;
+	const float dispersion = data->dispersion;
+
+	// Beer-Lambert absorption over the real distance traveled since the
+	// previous hit - only on a back-face hit of a material that actually
+	// has a volume (a thin-walled surface has no interior to absorb
+	// through). optixGetRayTmax() is exactly that distance: curOrigin in
+	// __raygen__rg() is always the previous hit's own position (offset by a
+	// negligible epsilon), so the length of THIS ray is the distance
+	// travelled through the medium since entry - ported from
+	// CpuPathTracer::tracePixel()'s identical glm::length(hit.position -
+	// prevHitPos) computation. Applied to this hit's own radiance/
+	// throughputWeight contribution at the very end of this function (see
+	// their assignment there), matching CPU's single throughput*=atten
+	// multiply affecting everything computed from this point onward in the
+	// same tracePixel() iteration.
+	const float3 volumeAttenuation = (hitBackface && hasVolume != 0)
+		? calculateVolumeAttenuation(attenuationColor, attenuationDistance, optixGetRayTmax())
+		: make_float3(1.0f, 1.0f, 1.0f);
 
 	float3 radiance = emissive;
 	if (NdotV > 0.0f)
@@ -1689,17 +2368,57 @@ extern "C" __global__ void __closesthit__ch()
 			float lightDistance;
 			evaluatePunctualLight(params.lights[i], worldPos, lightDir, lightIntensity, lightDistance);
 
-			const float NdotL = fmaxf(dot3(worldNormal, lightDir), 0.0f);
-			if (NdotL <= 0.0f)
+			const float rawNdotL = dot3(worldNormal, lightDir);
+			if (rawNdotL <= 0.0f)
+			{
+				// KHR_materials_diffuse_transmission - a light on the BACK
+				// side of the surface (relative to worldNormal) still
+				// contributes if the material lets light diffusely scatter
+				// through from behind (e.g. a leaf/curtain lit from the far
+				// side) - a plain Lambertian term using |NdotL| and tinted by
+				// diffuseTransmissionColor, evaluated separately from the
+				// front-hemisphere response since this is a distinct light-
+				// transport path, not a variant of the same BRDF lobe. The
+				// shadow ray originates from the back side (-worldNormal)
+				// since that's the side actually facing this light. Ported
+				// from CpuPathTracer::tracePixel()'s identical NEE handling,
+				// including KHR_materials_volume's thicknessFactor-based tint
+				// (this path has no traced entry-to-exit distance of its own
+				// to measure, unlike KHR_materials_transmission's real
+				// Beer-Lambert absorption above - thicknessFactor is the
+				// authored approximation instead, same as CPU).
+				if (diffuseTransmissionFactor > 0.0f)
+				{
+					const float3 backShadowOrigin = worldPos - worldNormal * selfIntersectionEpsilon(worldPos);
+					const float backShadowMaxDistance = fminf(lightDistance, 1e16f);
+					const unsigned int backShadowRngSeed = pcgHash(optixGetPayload_17() ^ (i * 0x9E3779B9u) ^ 0xB5297A4Du);
+					const float3 backShadowTransmittance = params.shadowsEnabled != 0
+						? traceShadowRay(backShadowOrigin, lightDir, backShadowMaxDistance, instanceId, backShadowRngSeed)
+						: make_float3(1.0f, 1.0f, 1.0f);
+					if (backShadowTransmittance.x > 0.0f || backShadowTransmittance.y > 0.0f || backShadowTransmittance.z > 0.0f)
+					{
+						float3 diffuseBTDF = diffuseTransmissionColor * (1.0f / kPi) * fabsf(rawNdotL) * diffuseTransmissionFactor;
+						if (hasVolume != 0)
+							diffuseBTDF = diffuseBTDF * calculateVolumeAttenuation(attenuationColor, attenuationDistance, thicknessFactor);
+						radiance = radiance + diffuseBTDF * (lightIntensity * backShadowTransmittance);
+					}
+				}
 				continue;
+			}
+			const float NdotL = rawNdotL;
 
 			// Offset along the (faceforward) shading normal, same as
 			// CpuPathTracer's NEE shadow rays, to dodge self-intersection
 			// with the surface this ray originates from.
 			const float3 shadowOrigin = worldPos + worldNormal * selfIntersectionEpsilon(worldPos);
 			const float shadowMaxDistance = fminf(lightDistance, 1e16f);
-			if (params.shadowsEnabled != 0 && traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, instanceId))
+			const unsigned int shadowRngSeed = pcgHash(optixGetPayload_17() ^ (i * 0x9E3779B9u));
+			const float3 shadowTransmittance = params.shadowsEnabled != 0
+				? traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, instanceId, shadowRngSeed)
+				: make_float3(1.0f, 1.0f, 1.0f);
+			if (shadowTransmittance.x <= 0.0f && shadowTransmittance.y <= 0.0f && shadowTransmittance.z <= 0.0f)
 				continue;
+			const float3 shadowedLightIntensity = lightIntensity * shadowTransmittance;
 
 			const float3 H = normalizeF3(V + lightDir);
 			const float NdotH = fmaxf(dot3(worldNormal, H), 0.0f);
@@ -1735,18 +2454,46 @@ extern "C" __global__ void __closesthit__ch()
 			const float3 specular = specularNoF * F;
 
 			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - F) * (1.0f - metalness);
-			const float3 diffuse = kD * baseColor * (1.0f / kPi);
+			// KHR_materials_transmission - at transmission=1 the diffuse
+			// response vanishes entirely (replaced by the refracted
+			// continuation ray in the lobe-selection section below), a plain
+			// deterministic scale-down (no variance added). KHR_materials_
+			// diffuse_transmission - part of the front-facing diffuse albedo
+			// is redirected to transmit through to the back instead (see the
+			// back-hemisphere NEE term above and the diffuse-lobe front/back
+			// stochastic split below) - both ported from CpuPathTracer::
+			// evaluateDirectBRDF() exactly.
+			const float3 diffuse = kD * baseColor * (1.0f / kPi) * (1.0f - transmission) * (1.0f - diffuseTransmissionFactor);
 
 			float3 baseDirect;
+			// KHR_materials_pbrSpecularGlossiness's direct-lighting formula -
+			// MIXES (not adds) diffuse/specular by the dielectric Fresnel
+			// term, matching CpuPathTracer::evaluateDirectBRDF()'s useSpecGloss
+			// early return exactly (l_diffuse there is baseColor/pi WITHOUT
+			// the kD=(1-F) weighting `diffuse` above already has - mix()
+			// itself supplies that weighting, so re-applying it would double
+			// it). Checked BEFORE iridescence below and returns early,
+			// matching CPU's own early-return ordering - spec-gloss +
+			// iridescence combined has no iridescence effect on direct
+			// lighting in either engine, a pre-existing CPU limitation
+			// preserved here for parity, not a new gap introduced by this port.
+			if (data->useSpecGloss != 0)
+			{
+				const float3 l_diffuse = baseColor * (1.0f / kPi);
+				baseDirect = lerp3(l_diffuse, specular, F) * (shadowedLightIntensity * NdotL);
+			}
 			// KHR_materials_iridescence - ported from CpuPathTracer::
 			// evaluateDirectBRDF()'s iridescence branch, which entirely
 			// replaces the diffuse+specular combination above with its own
 			// dielectric/metal reconstruction rather than adding a term on
 			// top.
-			if (iridescenceFactor > 0.001f && iridescenceThickness > 0.0f)
+			else if (iridescenceFactor > 0.001f && iridescenceThickness > 0.0f)
 			{
 				const float3 l_diffuse = diffuse * NdotL;
-				const float3 l_specular = specularNoF * NdotL;
+				// KHR_materials_transmission - scaled down here too, not just
+				// diffuse above, matching CpuPathTracer::evaluateDirectBRDF()'s
+				// identical iridescence-branch treatment.
+				const float3 l_specular = specularNoF * NdotL * (1.0f - transmission);
 
 				const float3 dielectricFresnel = fresnelSchlick(VdotH, dielectricDirectF0,
 					make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor));
@@ -1759,11 +2506,18 @@ extern "C" __global__ void __closesthit__ch()
 				metalBrdf = lerp3(metalBrdf, l_specular * iridescenceFresnelMetallic, iridescenceFactor);
 				dielectricBrdf = lerp3(dielectricBrdf, rgbMix(l_diffuse, l_specular, iridescenceFresnelDielectric), iridescenceFactor);
 
-				baseDirect = lerp3(dielectricBrdf, metalBrdf, metalness) * lightIntensity;
+				baseDirect = lerp3(dielectricBrdf, metalBrdf, metalness) * shadowedLightIntensity;
 			}
 			else
 			{
-				baseDirect = (diffuse + specular) * lightIntensity * NdotL;
+				// KHR_materials_transmission - both DS's and RayTrophi's
+				// reference implementations skip NEE specular against smooth/
+				// near-delta transmissive materials entirely; this backend
+				// (like CPU) doesn't yet support rough/glossy transmission's
+				// own NEE term, so the specular response is scaled down the
+				// same way diffuse already is, matching CpuPathTracer::
+				// evaluateDirectBRDF()'s identical final-return formula.
+				baseDirect = (diffuse + specular * (1.0f - transmission)) * shadowedLightIntensity * NdotL;
 			}
 
 			// KHR_materials_sheen's base-layer energy-compensation dampening -
@@ -1789,7 +2543,7 @@ extern "C" __global__ void __closesthit__ch()
 			// materials, reducing to baseDirect unchanged.
 			if (clearcoat > 0.0f)
 			{
-				const float3 coatDirect = evaluateClearcoatDirect(Ncoat, V, lightDir, clearcoat, clearcoatRoughness) * lightIntensity;
+				const float3 coatDirect = evaluateClearcoatDirect(Ncoat, V, lightDir, clearcoat, clearcoatRoughness) * shadowedLightIntensity;
 				radiance = radiance + lerp3(baseDirect, coatDirect, fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f, 0.0f), 1.0f));
 			}
 			else
@@ -1799,7 +2553,83 @@ extern "C" __global__ void __closesthit__ch()
 
 			// KHR_materials_sheen - additive, not blended.
 			if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
-				radiance = radiance + calculateSheen(worldNormal, V, lightDir, sheenColor, sheenRoughness) * lightIntensity;
+				radiance = radiance + calculateSheen(worldNormal, V, lightDir, sheenColor, sheenRoughness) * shadowedLightIntensity;
+		}
+	}
+
+	// Environment NEE - direct importance sampling of the HDRI with balance-
+	// heuristic MIS against the BSDF-sampled environment escapes handled in
+	// __miss__ms(). This completes the host-side CDF upload/device sampler
+	// Claude added: without this closest-hit term the uploaded tables were
+	// dead data, and enabling the setting could only affect future code.
+	if (params.enableEnvironmentImportanceSampling != 0
+		&& params.environment.envTotalWeight > 0.0f
+		&& params.environment.envFlatCdf != nullptr
+		&& params.environment.envTexelPdf != nullptr
+		&& transmission <= 0.001f
+		&& NdotV > 0.0f)
+	{
+		unsigned int envRng = optixGetPayload_17() ^ 0x6D2B79F5u;
+		envRng = pcgHash(envRng);
+		const float eu0 = hashToUnitFloat(envRng);
+		envRng = pcgHash(envRng);
+		const float eu1 = hashToUnitFloat(envRng);
+		envRng = pcgHash(envRng);
+		const float eu2 = hashToUnitFloat(envRng);
+
+		float3 envDir;
+		float envPdf;
+		envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
+
+		const float NdotLEnv = dot3(worldNormal, envDir);
+		if (envPdf > 0.0f && NdotLEnv > 0.0f)
+		{
+			const float3 envShadowOrigin = worldPos + worldNormal * selfIntersectionEpsilon(worldPos);
+			const unsigned int envShadowRngSeed = pcgHash(optixGetPayload_17() ^ 0xBB67AE85u);
+			const float3 envShadowTransmittance = params.shadowsEnabled != 0
+				? traceShadowRay(envShadowOrigin, envDir, 1e16f, instanceId, envShadowRngSeed)
+				: make_float3(1.0f, 1.0f, 1.0f);
+			if (envShadowTransmittance.x > 0.0f || envShadowTransmittance.y > 0.0f || envShadowTransmittance.z > 0.0f)
+			{
+				float specProbEnv, coatProbEnv;
+				computeLobeProbabilities(F0, metalness, roughness, clearcoatBlend, clearcoat, clearcoatRoughness, anisotropyStrength, specProbEnv, coatProbEnv);
+				const float bsdfPdf = evaluateBsdfPdf(worldNormal, Ncoat, V, envDir,
+					roughness, clearcoatRoughness, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, specProbEnv, coatProbEnv);
+				const float misWeight = envPdf / (envPdf + bsdfPdf);
+
+				const float3 envRadiance = sampleEnvironmentRaw(params.environment, envDir) * envShadowTransmittance;
+				float3 envDirect = evaluateDirectBRDF(worldNormal, V, envDir,
+					baseColor, metalness, directF0, F90, roughness,
+					hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB,
+					data->useSpecGloss, transmission, diffuseTransmissionFactor,
+					iridescenceFactor, iridescenceIor, iridescenceThickness,
+					dielectricF0, dielectricDirectF0, texturedSpecularFactor) * envRadiance;
+
+				if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
+				{
+					const float sheenStrength = fmaxf(fmaxf(sheenColor.x, sheenColor.y), sheenColor.z);
+					const float NdotVSheen = fminf(fmaxf(dot3(worldNormal, V), 0.0f), 1.0f);
+					const float albedoSheenScaling = fminf(
+						1.0f - sheenStrength * sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, NdotVSheen, sheenRoughness),
+						1.0f - sheenStrength * sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, fminf(fmaxf(NdotLEnv, 0.0f), 1.0f), sheenRoughness));
+					envDirect = envDirect * albedoSheenScaling;
+				}
+
+				const float3 weightedEnv = make_float3(ao * misWeight / envPdf, ao * misWeight / envPdf, ao * misWeight / envPdf);
+				if (clearcoat > 0.0f)
+				{
+					const float3 coatDirect = evaluateClearcoatDirect(Ncoat, V, envDir, clearcoat, clearcoatRoughness) * envRadiance;
+					const float clearcoatBlendScalar = fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f, 0.0f), 1.0f);
+					radiance = radiance + weightedEnv * lerp3(envDirect, coatDirect, clearcoatBlendScalar);
+				}
+				else
+				{
+					radiance = radiance + weightedEnv * envDirect;
+				}
+
+				if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
+					radiance = radiance + weightedEnv * calculateSheen(worldNormal, V, envDir, sheenColor, sheenRoughness) * envRadiance;
+			}
 		}
 	}
 
@@ -1882,8 +2712,193 @@ extern "C" __global__ void __closesthit__ch()
 	float3 nextDirection = make_float3(0.0f, 0.0f, 0.0f);
 	float3 throughputWeight = make_float3(0.0f, 0.0f, 0.0f);
 	float outEscapeRoughness = -2.0f; // diffuse-lobe sentinel by default
+	float outBsdfPdf = 0.0f;
 	bool hasContinuation = false;
-	if (NdotV > 0.0f)
+
+	// KHR_materials_transmission - bypasses the general multi-lobe
+	// stochastic BSDF sampling below ENTIRELY for transmissive materials,
+	// mirroring CpuPathTracer::tracePixel()'s identical bypass: a single
+	// Fresnel-weighted reflect-or-refract choice, computed exactly once,
+	// rather than stacking a second independent rare-branch probability on
+	// top of the lobe-selection's own internal specProb weighting (which
+	// would multiply the two together into extreme-variance fireflies -
+	// see CPU's own doc comment for the full rationale). Rough/glossy
+	// transmission and interaction with clearcoat/sheen/anisotropy are out
+	// of scope here too, matching CPU - transmissive materials are treated
+	// as smooth dielectrics (with GGX-VNDF roughness support per Walter et
+	// al. 2007, same as CPU).
+	bool isTransmissionBounce = false;
+	if (transmission > 0.001f)
+	{
+		isTransmissionBounce = true;
+		unsigned int rngState = optixGetPayload_17();
+
+		const float NdotVTransmission = fminf(fmaxf(NdotV, 0.0f), 1.0f);
+		float3 Ht, Bt;
+		buildOrthonormalBasis(worldNormal, Ht, Bt);
+		const float transmissionAlpha = roughness * roughness;
+		const float NdotV0 = fmaxf(NdotVTransmission, 1e-4f);
+		const float3 Ve = make_float3(dot3(V, Ht), dot3(V, Bt), NdotV0);
+
+		rngState = pcgHash(rngState);
+		const float u1t = hashToUnitFloat(rngState);
+		rngState = pcgHash(rngState);
+		const float u2t = hashToUnitFloat(rngState);
+		const float3 hLocal = sampleGGXVNDF(Ve, transmissionAlpha, transmissionAlpha, u1t, u2t);
+		const float3 Hm = normalizeF3(Ht * hLocal.x + Bt * hLocal.y + worldNormal * hLocal.z);
+		const float VdotHm = fminf(fmaxf(dot3(V, Hm), 0.0f), 1.0f);
+
+		// KHR_materials_iridescence applies to the Fresnel reflectance at
+		// ANY dielectric interface, not just an opaque one - a transmissive
+		// material (soap bubble, iridescent glass) still shows the same
+		// thin-film color shift on its reflected portion. Evaluated at the
+		// microfacet normal (VdotHm), matching Walter et al.'s treatment.
+		const float3 transmissionFresnel = applyIridescenceToFresnel(
+			fresnelSchlick(VdotHm, dielectricF0, make_float3(1.0f, 1.0f, 1.0f)), VdotHm, dielectricF0,
+			iridescenceFactor, iridescenceIor, iridescenceThickness);
+		const float reflectProb = fminf(fmaxf((transmissionFresnel.x + transmissionFresnel.y + transmissionFresnel.z) / 3.0f, 0.05f), 0.95f);
+
+		rngState = pcgHash(rngState);
+		const float reflectXi = hashToUnitFloat(rngState);
+
+		float3 bounceDir = make_float3(0.0f, 0.0f, 0.0f);
+		float3 bounceThroughput = make_float3(0.0f, 0.0f, 0.0f);
+		bool valid = false;
+
+		if (reflectXi < reflectProb)
+		{
+			// glm::reflect(ray.direction, Hm) on CPU - the true incoming ray
+			// direction, NOT -V (which, for an orthographic PRIMARY hit, is
+			// the raster-matching "fake camera" vector, not the true parallel
+			// ray direction) - matches CpuPathTracer::tracePixel()'s
+			// transmission-branch reflect exactly.
+			bounceDir = reflectF3(rayDir, Hm);
+			const float NdotL = dot3(worldNormal, bounceDir);
+			if (NdotL > 0.0f)
+			{
+				const float G1v = smithG1GGX(NdotV0, transmissionAlpha);
+				const float G2 = smithG2HeightCorrelatedGGX(NdotV0, NdotL, transmissionAlpha);
+				bounceThroughput = transmissionFresnel * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / reflectProb);
+				valid = true;
+			}
+			// NdotL<=0: a VNDF sample that reflects below the macro surface -
+			// dead-end path, same as CPU's identical handling.
+		}
+		else if (hasVolume == 0)
+		{
+			// KHR_materials_transmission WITHOUT KHR_materials_volume means
+			// the surface is implicitly thin-walled (glTF's "hole"/idealized
+			// infinitely-thin-film intent) - the transmitted ray passes
+			// straight through completely undeviated, tinted by baseColor
+			// (matches CpuPathTracer's identical thin-walled branch exactly,
+			// including its baseColor tint rationale).
+			bounceDir = rayDir;
+			bounceThroughput = baseColor * (make_float3(1.0f, 1.0f, 1.0f) - transmissionFresnel) * (1.0f / (1.0f - reflectProb));
+			valid = true;
+		}
+		else
+		{
+			// KHR_materials_dispersion - per-channel IOR spread on refraction,
+			// via the same hero-wavelength stochastic-single-channel trick
+			// CpuPathTracer uses (rather than tracing 3 separate rays per
+			// sample): pick ONE channel with equal 1/3 probability, refract
+			// using only that channel's IOR, mask+triple the resulting
+			// throughput to that channel. dispersion==0 (the common case)
+			// makes this a no-op (dispersedIor==data->ior, channelMask==(1,1,1)).
+			float dispersedIor = data->ior;
+			float3 channelMask = make_float3(1.0f, 1.0f, 1.0f);
+			if (dispersion > 0.0f)
+			{
+				const float halfSpread = (data->ior - 1.0f) * 0.025f * dispersion;
+				rngState = pcgHash(rngState);
+				const float channelXi = hashToUnitFloat(rngState);
+				if (channelXi < 1.0f / 3.0f)
+				{
+					dispersedIor = data->ior - halfSpread;
+					channelMask = make_float3(3.0f, 0.0f, 0.0f);
+				}
+				else if (channelXi < 2.0f / 3.0f)
+				{
+					channelMask = make_float3(0.0f, 3.0f, 0.0f);
+				}
+				else
+				{
+					dispersedIor = data->ior + halfSpread;
+					channelMask = make_float3(0.0f, 0.0f, 3.0f);
+				}
+			}
+
+			const float eta = hitBackface ? dispersedIor : (1.0f / dispersedIor);
+			float3 refractDir = refractF3(rayDir, Hm, eta);
+			if (refractDir.x == 0.0f && refractDir.y == 0.0f && refractDir.z == 0.0f)
+			{
+				// Total internal reflection - a genuine mirror bounce (100%
+				// reflectance, geometrically forced by Snell's law), NOT a
+				// partial/tinted transmission event - deliberately NOT tinted
+				// by baseColor and NOT channel-masked (TIR is dispersion-
+				// neutral), matching CpuPathTracer's identical TIR handling.
+				refractDir = reflectF3(rayDir, Hm);
+				const float NdotL = dot3(worldNormal, refractDir);
+				if (NdotL > 0.0f)
+				{
+					const float G1v = smithG1GGX(NdotV0, transmissionAlpha);
+					const float G2 = smithG2HeightCorrelatedGGX(NdotV0, NdotL, transmissionAlpha);
+					bounceDir = refractDir;
+					bounceThroughput = make_float3(G2 / fmaxf(G1v, 1e-6f), G2 / fmaxf(G1v, 1e-6f), G2 / fmaxf(G1v, 1e-6f));
+					valid = true;
+				}
+			}
+			else
+			{
+				bounceDir = refractDir;
+
+				// Pragmatic multi-scatter approximation for high-roughness
+				// "frosted diffuser" materials - blends the transmitted
+				// direction toward a true Lambertian cosine-weighted
+				// hemisphere (on the far side, -worldNormal) with probability
+				// sqrt(roughness), matching CpuPathTracer's identical stand-in
+				// for real subsurface scattering exactly (same sqrt(roughness)
+				// mapping rationale).
+				const float diffuseBlendProb = sqrtf(fminf(fmaxf(roughness, 0.0f), 1.0f));
+				rngState = pcgHash(rngState);
+				if (diffuseBlendProb > 0.0f && hashToUnitFloat(rngState) < diffuseBlendProb)
+				{
+					float3 Td, Bd;
+					buildOrthonormalBasis(worldNormal * -1.0f, Td, Bd);
+					rngState = pcgHash(rngState);
+					const float du1 = hashToUnitFloat(rngState);
+					rngState = pcgHash(rngState);
+					const float du2 = hashToUnitFloat(rngState);
+					const float3 diffuseLocal = cosineSampleHemisphere(du1, du2);
+					bounceDir = normalizeF3(Td * diffuseLocal.x + Bd * diffuseLocal.y + (worldNormal * -1.0f) * diffuseLocal.z);
+				}
+
+				// Smith masking-shadowing ratio for the transmitted direction -
+				// NdotL is naturally negative here (L is on the opposite side
+				// of N from V), so the visibility term uses |NdotL|, matching
+				// CpuPathTracer's identical treatment.
+				const float NdotL = fabsf(dot3(worldNormal, bounceDir));
+				const float G1v = smithG1GGX(NdotV0, transmissionAlpha);
+				const float G2 = smithG2HeightCorrelatedGGX(NdotV0, NdotL, transmissionAlpha);
+				bounceThroughput = channelMask * baseColor * (make_float3(1.0f, 1.0f, 1.0f) - transmissionFresnel) * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / (1.0f - reflectProb));
+				valid = true;
+			}
+		}
+
+		if (valid)
+		{
+			nextDirection = bounceDir;
+			throughputWeight = bounceThroughput;
+			// Transmission-branch sentinel - raw/sharp env map on a miss,
+			// matching CpuPathTracer's lastBsdfSamplePdf=0 -> sampleEnvironmentMiss()
+			// treatment for this same "deterministic Fresnel pick, not a
+			// BSDF-lobe-mixture sample" case (see __miss__ms()).
+			outEscapeRoughness = -3.0f;
+			outBsdfPdf = 0.0f;
+			hasContinuation = true;
+		}
+	}
+	else if (NdotV > 0.0f)
 	{
 		unsigned int rngState = optixGetPayload_17();
 
@@ -2050,33 +3065,81 @@ extern "C" __global__ void __closesthit__ch()
 		}
 		else
 		{
+			// KHR_materials_diffuse_transmission - stochastically pick
+			// between this front-hemisphere reflection lobe (around
+			// worldNormal) and a back-hemisphere transmission lobe (around
+			// -worldNormal), weighted by diffuseTransmissionFactor (0 reduces
+			// to the original front-only behavior exactly). Sampling
+			// -worldNormal with the SAME (T,B) basis is valid since it shares
+			// the same tangent plane, just flipped. The stochastic pick
+			// weight cancels out of the final throughput algebraically (both
+			// branches divide by the same diffuseProb, not diffuseProb
+			// scaled by the pick probability) - see CpuPathTracer::
+			// sampleBSDFBounce()'s identical diffuse-transmission branch.
+			rngState = pcgHash(rngState);
+			const bool transmitDiffuse = diffuseTransmissionFactor > 0.0f && hashToUnitFloat(rngState) < diffuseTransmissionFactor;
+			const float3 lobeNormal = transmitDiffuse ? (worldNormal * -1.0f) : worldNormal;
 			const float3 localDir = cosineSampleHemisphere(u1, u2);
-			const float3 L = normalizeF3(T * localDir.x + B * localDir.y + worldNormal * localDir.z);
+			const float3 L = normalizeF3(T * localDir.x + B * localDir.y + lobeNormal * localDir.z);
 			// Cosine-weighted sampling's pdf (NdotL/pi) exactly cancels the
 			// Lambertian BRDF's own NdotL/pi term, leaving just the albedo -
 			// divided by this lobe's own selection probability, per the
 			// standard multi-lobe stochastic-BSDF estimator.
 			const float diffuseProb = fmaxf(1.0f - coatProb - specProb * (1.0f - coatProb), 1e-4f);
-			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
 			nextDirection = L;
-			throughputWeight = kD * baseColor * (ao / diffuseProb);
+			if (transmitDiffuse)
+			{
+				throughputWeight = diffuseTransmissionColor * (1.0f / diffuseProb);
+			}
+			else
+			{
+				const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
+				throughputWeight = kD * baseColor * (ao / diffuseProb);
+			}
 			outEscapeRoughness = -2.0f;
 			hasContinuation = true;
 		}
+
+		if (hasContinuation)
+			outBsdfPdf = evaluateBsdfPdf(worldNormal, Ncoat, V, nextDirection,
+				roughness, clearcoatRoughness, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, specProb, coatProb);
 	}
 
 	// KHR_materials_sheen's base+sheen energy-conservation dampening,
 	// applied uniformly regardless of which lobe was picked above - see
-	// sheenIndirectDampening's own computation/doc comment.
-	throughputWeight = throughputWeight * sheenIndirectDampening;
+	// sheenIndirectDampening's own computation/doc comment. NOT applied to
+	// the transmission branch above (matching CpuPathTracer::tracePixel(),
+	// which only multiplies its own identical dampening term into the
+	// general lobe-selection path's throughput, never the transmission
+	// branch's - sheen+transmission combined materials are a rare, largely
+	// untested combination in either engine).
+	if (!isTransmissionBounce)
+		throughputWeight = throughputWeight * sheenIndirectDampening;
+
+	// KHR_materials_volume's Beer-Lambert absorption applies to EVERYTHING
+	// this hit contributes from this point onward - both its own direct/
+	// emissive radiance and the throughput weight future bounces will be
+	// scaled by - matching CpuPathTracer::tracePixel()'s single early
+	// throughput*=volumeAttenuation multiply, which (by running before that
+	// function's own NEE/emissive accumulation) affects both in exactly the
+	// same way. A no-op (1,1,1) multiply whenever volumeAttenuation isn't
+	// applicable (see its own computation above).
+	radiance = radiance * volumeAttenuation;
+	throughputWeight = throughputWeight * volumeAttenuation;
 
 	setPayload(radiance);
-	// 1 = hit with a valid continuation direction, 2 = hit but dead-end (no
+	// 1 = hit with a valid continuation direction that counts against the
+	// raygen loop's ordinary bounce budget, 3 = hit with a valid
+	// KHR_materials_transmission continuation that instead counts against
+	// its own, separate (and much larger) transmission-bounce budget - see
+	// __raygen__rg()'s transmissionDepth handling, mirroring
+	// CpuPathTracer::Settings::maxTransmissionBounces being tracked
+	// independently of the ordinary bounce cap. 2 = hit but dead-end (no
 	// continuation - e.g. the rare below-surface VNDF sample), 0 = miss
-	// (written by __miss__ms() only). The raygen loop continues only on 1,
-	// but counts BOTH 1 and 2 as "primary ray hit geometry" for the
+	// (written by __miss__ms() only). The raygen loop continues on 1 or 3,
+	// but counts ALL of 1/2/3 as "primary ray hit geometry" for the
 	// alpha/hit-fraction channel - a dead-end hit is still a hit.
-	optixSetPayload_3(hasContinuation ? 1u : 2u);
+	optixSetPayload_3(hasContinuation ? (isTransmissionBounce ? 3u : 1u) : 2u);
 	optixSetPayload_4(__float_as_uint(worldNormal.x));
 	optixSetPayload_5(__float_as_uint(worldNormal.y));
 	optixSetPayload_6(__float_as_uint(worldNormal.z));
@@ -2091,4 +3154,5 @@ extern "C" __global__ void __closesthit__ch()
 	optixSetPayload_15(__float_as_uint(baseColor.y));
 	optixSetPayload_16(__float_as_uint(baseColor.z));
 	optixSetPayload_17(__float_as_uint(outEscapeRoughness));
+	optixSetPayload_19(__float_as_uint(outBsdfPdf));
 }

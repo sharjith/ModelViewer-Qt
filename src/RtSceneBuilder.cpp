@@ -26,6 +26,70 @@ namespace
 		return glm::make_mat4(m.constData());
 	}
 
+	// Builds RtTextureSample::mips - see that field's own doc comment for
+	// why this exists (path-traced texture minification aliasing, no
+	// hardware mipmapping equivalent). Box-filter downsample (plain 2x2
+	// average of the PREVIOUS level's sRGB-encoded bytes, not a linear-space
+	// average) - a standard, if not perfectly radiometrically precise,
+	// simplification real-time mipmap generators commonly make too; the
+	// existing sampleTexture()/sRGBToLinear() call sites already decode
+	// AFTER sampling, same as here. Halves each dimension every level (never
+	// below 1), down to a 1x1 level - mips[0] duplicates the already-
+	// populated base level so every level is uniformly indexable.
+	void buildMipChain(RtTextureSample& sample)
+	{
+		sample.mips.clear();
+		if (sample.width <= 0 || sample.height <= 0 || sample.rgba8.empty())
+			return;
+
+		RtTextureMipLevel base;
+		base.width  = sample.width;
+		base.height = sample.height;
+		base.rgba8  = sample.rgba8;
+		sample.mips.push_back(std::move(base));
+
+		while (sample.mips.back().width > 1 || sample.mips.back().height > 1)
+		{
+			const RtTextureMipLevel& prev = sample.mips.back();
+			const int nextW = (std::max)(1, prev.width  / 2);
+			const int nextH = (std::max)(1, prev.height / 2);
+
+			RtTextureMipLevel next;
+			next.width  = nextW;
+			next.height = nextH;
+			next.rgba8.resize(static_cast<size_t>(nextW) * nextH * 4);
+
+			for (int y = 0; y < nextH; ++y)
+			{
+				const int srcY0 = (std::min)(prev.height - 1, y * 2);
+				const int srcY1 = (std::min)(prev.height - 1, y * 2 + 1);
+				for (int x = 0; x < nextW; ++x)
+				{
+					const int srcX0 = (std::min)(prev.width - 1, x * 2);
+					const int srcX1 = (std::min)(prev.width - 1, x * 2 + 1);
+
+					unsigned int sum[4] = { 0, 0, 0, 0 };
+					const int srcXs[2] = { srcX0, srcX1 };
+					const int srcYs[2] = { srcY0, srcY1 };
+					for (int sy : srcYs)
+					{
+						for (int sx : srcXs)
+						{
+							const size_t srcIdx = (static_cast<size_t>(sy) * prev.width + sx) * 4;
+							for (int c = 0; c < 4; ++c)
+								sum[c] += prev.rgba8[srcIdx + c];
+						}
+					}
+
+					const size_t dstIdx = (static_cast<size_t>(y) * nextW + x) * 4;
+					for (int c = 0; c < 4; ++c)
+						next.rgba8[dstIdx + c] = static_cast<uint8_t>((sum[c] + 2) / 4);
+				}
+			}
+
+			sample.mips.push_back(std::move(next));
+		}
+	}
 }
 
 RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
@@ -172,6 +236,7 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 		sample->packingChannel = -1;
 	}
 
+	buildMipChain(*sample);
 	return sample;
 }
 
@@ -189,6 +254,7 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.blendMode        = static_cast<int>(material.blendMode());
 	rt.alphaThreshold   = material.alphaThreshold();
 	rt.opacityTexture   = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Opacity), "opacityMap", material.opacityMapPath(), "opacity");
+	rt.twoSided          = material.twoSided();
 	rt.unlit             = material.isUnlit();
 	rt.occlusionStrength = material.occlusionStrength();
 

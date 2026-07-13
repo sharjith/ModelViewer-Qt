@@ -67,11 +67,37 @@ struct RtMeshGeometry
 // metadata verbatim. Decoding which channel(s) to read (e.g. metallic in B,
 // roughness in G) is deferred to the BSDF evaluation in CpuPathTracer - this
 // struct only carries the raw data forward.
+// One level of RtTextureSample's mip pyramid - see RtTextureSample::mips'
+// doc comment.
+struct RtTextureMipLevel
+{
+	std::vector<uint8_t> rgba8; // width * height * 4, row-major, no padding
+	int width  = 0;
+	int height = 0;
+};
+
 struct RtTextureSample
 {
 	std::vector<uint8_t> rgba8; // width * height * 4, row-major, no padding
 	int width  = 0;
 	int height = 0;
+
+	// Box-filtered mip pyramid, built ONCE at texture-load time
+	// (RtSceneBuilder::extractTextureSample()) - mips[0] duplicates the base
+	// level above (same width/height/rgba8), mips[1] is half-resolution,
+	// mips[2] quarter, etc., down to a 1x1 level. Without this, a path
+	// tracer's plain bilinear sample at the texture's FULL resolution
+	// aliases badly whenever a textured surface is minified (viewed from a
+	// distance/oblique angle) - unlike raster's hardware mipmapping, there
+	// is no other mechanism here to average away sub-texel detail smaller
+	// than one pixel's footprint. See CpuPathTracer.cpp's computeTextureLod()/
+	// sampleTexture()'s lod parameter for how this is consumed (a ray-cone-
+	// style estimate of the hit's texel footprint, trilinearly blended
+	// between the two nearest levels here). Deliberately built as a
+	// self-contained, uniformly-indexable chain (duplicating the base into
+	// mips[0]) rather than tacking "levels 1+" onto the existing width/
+	// height/rgba8 fields, for simpler, branch-free level-N sampling code.
+	std::vector<RtTextureMipLevel> mips;
 
 	int       texCoordIndex = 0;
 	glm::vec2 uvScale{ 1.0f };
@@ -133,6 +159,17 @@ struct RtMaterial
 	int       blendMode      = 0;
 	float     alphaThreshold = 0.5f;
 	std::shared_ptr<RtTextureSample> opacityTexture;
+
+	// glTF's material.doubleSided (Material::twoSided()) - previously
+	// unreferenced by either path tracer entirely, so EVERY material rendered
+	// as if double-sided regardless of what was authored. Per the glTF spec,
+	// a single-sided (false) material's back face should be treated as if it
+	// doesn't exist (matching real-time back-face culling) - see
+	// CpuPathTracer.cpp's hitBackface-gated pass-through and
+	// RtOptixScene.cu's __anyhit__ah() optixIsFrontFaceHit() check for where
+	// this is now honored. Defaults to true (double-sided), matching
+	// Material::_twoSided's own default.
+	bool      twoSided = true;
 
 	// KHR_materials_pbrSpecularGlossiness - legacy alternate workflow to
 	// metallic-roughness (glTF's ORIGINAL v1 material model, kept as an
@@ -328,6 +365,20 @@ struct RtInstance
 	uint32_t  meshIndex     = 0;
 	uint32_t  materialIndex = 0;
 	glm::mat4 localToWorld{ 1.0f };
+
+	// NOTE: a negative-determinant localToWorld (e.g. glTF's
+	// NegativeScaleTest.gltf) needs NO special handling here, unlike
+	// raster's glFrontFace(GL_CW/GL_CCW) flip (RenderableMesh::render()).
+	// Both path tracers intersect by transforming the RAY into object space
+	// and testing winding there against the triangle's own local normal -
+	// algebraically identical to the correct world-space test for ANY
+	// invertible transform, reflections included (see RtEmbreeScene::
+	// intersect()'s and RtOptixSceneTracer.cpp's IAS-build comments for the
+	// derivation). An earlier version of this struct carried a
+	// hasNegativeScale flag and both tracers applied an extra sign/flip
+	// correction driven by it - confirmed WRONG by testing against
+	// NegativeScaleTest.gltf (fixed the never-flipped positive-scale row,
+	// broke the negative-scale row that got the extra flip) - removed.
 };
 
 // Flattened form of GPULight (PunctualLights.h) - position/direction are
