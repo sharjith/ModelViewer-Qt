@@ -2245,7 +2245,29 @@ namespace
 			prevHitPos = hit.position;
 
 			glm::vec3 N = hit.normal;
-			const glm::vec3 V = -ray.direction;
+			// Shading view vector. Perspective: -ray.direction already equals
+			// normalize(cam.position - hit.position) exactly (ray.origin is
+			// cam.position, so cam.position-hit.position is just -t*ray.
+			// direction) - no divergence there. Orthographic PRIMARY rays are
+			// a genuinely different case: RtRay's ortho rays are traced
+			// PARALLEL (constant ray.direction=cam.forward, only the origin
+			// sweeps across the view plane - see this function's ray setup
+			// above), so -ray.direction is constant across the whole object,
+			// whereas main_scene.frag's frame.V = normalize(cameraPos -
+			// fragPos) is NOT (it has no perspective/ortho branch at all) -
+			// varying per-fragment even in ortho. Using the constant vector
+			// here fed BOTH the Fresnel terms AND the specular lobe's own
+			// sampling frame, so the reflected-environment direction came out
+			// systematically differently scaled/framed than raster - the
+			// user-reported "overstretched"/mismatched ortho reflection.
+			// Fixed by computing V the same surface-varying way raster does,
+			// but ONLY at the true primary camera-visible hit (bounce==0,
+			// no transmission pass-through yet) - every other hit is a REAL
+			// traced secondary ray with its own genuine incoming direction,
+			// which must stay -ray.direction (there is no "camera position"
+			// a bounce ray's shading point is at a fixed relative offset from).
+			const bool isPrimaryOrthoHit = cam.orthographic && bounce == 0 && transmissionDepth == 0;
+			const glm::vec3 V = isPrimaryOrthoHit ? glm::normalize(cam.position - hit.position) : -ray.direction;
 			if (glm::dot(N, V) < 0.0f)
 				N = -N; // shade the side the ray actually hit (thin/backfacing geometry)
 

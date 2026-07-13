@@ -28,8 +28,16 @@
 // transmission phase, which needs similar stochastic-alpha machinery
 // anyway). KHR_materials_ior + KHR_materials_specular (including their
 // textures) now drive the F0/F90/directF0 computation - see RtOptixScene.cu's
-// computeF0F90 port. Still deferred: clearcoat/sheen/anisotropy/iridescence/
-// transmission - see RtMaterial's own doc comments for what those add.
+// computeF0F90 port. KHR_materials_clearcoat (a second GGX lobe over its own
+// normal/roughness, blended per computeClearcoatFresnel()'s Fresnel weight -
+// both a direct-light mix and a third stochastic indirect lobe, ported from
+// CpuPathTracer::evaluateClearcoatDirect()/sampleBSDFBounce()'s coat branch)
+// and KHR_materials_sheen (additive Charlie-NDF grazing-angle lobe, both
+// direct/punctual lighting and a small stochastic environment/IBL sample,
+// plus a base-layer energy-compensation dampening via a small baked
+// directional-albedo LUT - see sheenAlbedoLUT below) are now implemented.
+// Still deferred: anisotropy/iridescence/transmission - see RtMaterial's own
+// doc comments for what those add.
 // ---------------------------------------------------------------------------
 struct RtOptixLight
 {
@@ -143,6 +151,16 @@ struct RtOptixSceneParams
 	int selfShadowsEnabled;
 
 	RtOptixEnvironment environment;
+
+	// KHR_materials_sheen's directional-albedo LUT - device-side counterpart
+	// of CpuPathTracer::sheenAlbedoLUT()/sampleSheenAlbedoLUT(), baked ONCE on
+	// the host (same algorithm, same fixed RNG seed) and uploaded alongside
+	// the rest of the revision-gated scene data (not per-launch - it depends
+	// on nothing but the Charlie BRDF itself). sheenAlbedoLUTSize x
+	// sheenAlbedoLUTSize row-major floats, indexed [roughness][NdotV] exactly
+	// like the CPU table. nullptr/0 only if the device upload failed.
+	const float* sheenAlbedoLUT;
+	int sheenAlbedoLUTSize;
 
 	// Number of jittered primary-ray samples averaged per pixel within THIS
 	// launch (box-filter AA jitter, via a per-(pixel,sample) hash seed - see
@@ -279,6 +297,25 @@ struct RtOptixSceneHitGroupData
 	// Only meaningful when normalTexture.width > 0.
 	float normalScale;
 
+	// KHR_materials_clearcoat - a second, independent GGX lobe with its own
+	// normal/roughness, layered over the base lobes. Field names/semantics
+	// mirror RtMaterial's own clearcoat/clearcoatRoughness/
+	// clearcoatNormalScale exactly (see RtSceneSnapshot.h's doc comment).
+	// clearcoatTexture's R channel scales clearcoat, clearcoatRoughnessTexture's
+	// G channel scales clearcoatRoughness (packing set by RtSceneBuilder, read
+	// the same way metallicTexture/roughnessTexture are above).
+	float clearcoat;
+	float clearcoatRoughness;
+	float clearcoatNormalScale;
+
+	// KHR_materials_sheen - additive fabric/velvet-like grazing-angle
+	// retroreflection lobe (Charlie NDF). sheenColorFactor==(0,0,0) means "no
+	// sheen" (mirrors RtMaterial::sheenColor's same convention).
+	// sheenColorTexture is sRGB-encoded RGB; sheenRoughnessTexture's A channel
+	// scales sheenRoughness (packing set by RtSceneBuilder).
+	float3 sheenColorFactor;
+	float sheenRoughness;
+
 	RtOptixTexture baseColorTexture;
 	RtOptixTexture metallicTexture;
 	RtOptixTexture roughnessTexture;
@@ -292,4 +329,11 @@ struct RtOptixSceneHitGroupData
 	// (if that's present), then to the flat `opacity` factor above - see
 	// __anyhit__ah()'s doc comment for the exact fallback chain.
 	RtOptixTexture opacityTexture;
+
+	RtOptixTexture clearcoatTexture;          // R channel scales clearcoat
+	RtOptixTexture clearcoatRoughnessTexture; // G channel scales clearcoatRoughness
+	RtOptixTexture clearcoatNormalTexture;
+
+	RtOptixTexture sheenColorTexture;     // sRGB RGB, tints sheenColorFactor
+	RtOptixTexture sheenRoughnessTexture; // A channel scales sheenRoughness
 };

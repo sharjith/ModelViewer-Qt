@@ -61,9 +61,22 @@
 // computeF0F90() - see its use site in __closesthit__ch() for the
 // F0-vs-directF0 (indirect-vs-direct-lighting) split.
 //
-// Still deferred: alphaMode Blend (true transparency compositing) and the
-// remaining KHR extensions (clearcoat/sheen/anisotropy/iridescence/
-// transmission) - see RtMaterial's own doc comments for what those add.
+// KHR_materials_clearcoat (a second GGX lobe over its own normal/roughness -
+// evaluateClearcoatDirect()/computeClearcoatFresnel(), blended into direct
+// lighting via an analytic mix() and sampled as a third stochastic indirect
+// lobe alongside diffuse/specular - see computeLobeProbabilities()) and
+// KHR_materials_sheen (additive Charlie-NDF lobe - calculateSheen() for
+// direct/punctual lighting, plus a small RNG-jittered-cone environment/IBL
+// sample around the mirror-reflect direction - the visually DOMINANT
+// contribution on scenes lit mainly by their environment, per CpuPathTracer's
+// own history discovering this - and a base-layer energy-compensation
+// dampening via sampleSheenAlbedoLUT()'s baked directional-albedo LUT) are
+// now implemented, both ported from CpuPathTracer's identically-named
+// functions.
+//
+// Still deferred: alphaMode Blend (true transparency compositing) and
+// anisotropy/iridescence/transmission - see RtMaterial's own doc comments for
+// what those add.
 // Self-contained, same style as RtOptixTriangle.cu (no dependency on the
 // OptiX SDK's bundled sutil).
 // ---------------------------------------------------------------------------
@@ -387,6 +400,130 @@ namespace
 	__forceinline__ __device__ float smithG2HeightCorrelatedGGX(float NdotV, float NdotL, float alpha)
 	{
 		return 1.0f / (1.0f + smithLambdaGGX(NdotV, alpha) + smithLambdaGGX(NdotL, alpha));
+	}
+
+	// ---- KHR_materials_clearcoat, ported verbatim from CpuPathTracer.cpp's
+	// evaluateClearcoatDirect()/computeClearcoatFresnel() (themselves from
+	// main_scene.frag). Note evaluateClearcoatDirect() deliberately reuses
+	// distributionGGX()/geometrySmith() (which re-square their "roughness"
+	// argument internally) by passing clearcoatRoughness^2 (alpha) rather than
+	// clearcoatRoughness directly, and has no NdotL factor at all (divides by
+	// NdotV only) - both kept verbatim to match the shader's own clearcoat
+	// call site exactly rather than "fixing" it into a more standard form. ----
+	__forceinline__ __device__ float3 evaluateClearcoatDirect(const float3& Ncoat, const float3& V, const float3& L,
+		float clearcoat, float clearcoatRoughness)
+	{
+		if (clearcoat <= 0.0f)
+			return make_float3(0.0f, 0.0f, 0.0f);
+
+		const float3 H = normalizeF3(V + L);
+		const float NdotL = fmaxf(dot3(Ncoat, L), 0.0f);
+		const float NdotV = fmaxf(dot3(Ncoat, V), 0.0f);
+		const float NdotH = fmaxf(dot3(Ncoat, H), 0.0f);
+		if (NdotL <= 0.0f || NdotV <= 0.0f)
+			return make_float3(0.0f, 0.0f, 0.0f);
+
+		const float alpha = clearcoatRoughness * clearcoatRoughness;
+		const float D = distributionGGX(NdotH, alpha);
+		const float G = geometrySmith(NdotV, NdotL, alpha);
+		const float clearcoatBRDF = (D * G) / fmaxf(4.0f * NdotV, 0.001f);
+		return make_float3(clearcoatBRDF * clearcoat, clearcoatBRDF * clearcoat, clearcoatBRDF * clearcoat);
+	}
+
+	// clamp(ior, 1, inf)-derived dielectric F0, the coat layer's fixed Fresnel
+	// reflectance - unlike the base layer, the coat never tints via
+	// specularColorFactor or mixes toward metalness.
+	__forceinline__ __device__ float3 computeClearcoatFresnel(float ior, const float3& Ncoat, const float3& V)
+	{
+		const float clearcoatIor = fmaxf(ior, 1.0f);
+		const float f0Scalar = powf((clearcoatIor - 1.0f) / (clearcoatIor + 1.0f), 2.0f);
+		const float NdotV = fminf(fmaxf(dot3(Ncoat, V), 0.0f), 1.0f);
+		return fresnelSchlick(NdotV, make_float3(f0Scalar, f0Scalar, f0Scalar), make_float3(1.0f, 1.0f, 1.0f));
+	}
+
+	// ---- KHR_materials_sheen, ported verbatim from CpuPathTracer.cpp's
+	// distributionCharlie()/lambdaSheen()/visibilitySheen()/calculateSheen()
+	// (themselves from main_scene.frag). ----
+	__forceinline__ __device__ float distributionCharlie(float NdotH, float roughness)
+	{
+		const float alpha = fmaxf(roughness * roughness, 0.000001f);
+		const float invAlpha = 1.0f / alpha;
+		const float sin2h = fmaxf(1.0f - NdotH * NdotH, 0.0078125f); // 2^(-7)
+		return (2.0f + invAlpha) * powf(sin2h, invAlpha * 0.5f) / (2.0f * kPi);
+	}
+
+	__forceinline__ __device__ float lambdaSheenNumericHelper(float x, float alphaG)
+	{
+		const float oneMinusAlphaSq = (1.0f - alphaG) * (1.0f - alphaG);
+		const float a = 21.5473f + (25.3245f - 21.5473f) * oneMinusAlphaSq;
+		const float b = 3.82987f + (3.32435f - 3.82987f) * oneMinusAlphaSq;
+		const float c = 0.19823f + (0.16801f - 0.19823f) * oneMinusAlphaSq;
+		const float d = -1.97760f + (-1.27393f - (-1.97760f)) * oneMinusAlphaSq;
+		const float e = -4.32054f + (-4.85967f - (-4.32054f)) * oneMinusAlphaSq;
+		return a / (1.0f + b * powf(x, c)) + d * x + e;
+	}
+
+	__forceinline__ __device__ float lambdaSheen(float cosTheta, float alphaG)
+	{
+		if (fabsf(cosTheta) < 0.5f)
+			return expf(lambdaSheenNumericHelper(cosTheta, alphaG));
+		return expf(2.0f * lambdaSheenNumericHelper(0.5f, alphaG) -
+			lambdaSheenNumericHelper(1.0f - cosTheta, alphaG));
+	}
+
+	__forceinline__ __device__ float visibilitySheen(float NdotL, float NdotV, float sheenRoughness)
+	{
+		sheenRoughness = fmaxf(sheenRoughness, 0.000001f);
+		const float alphaG = sheenRoughness * sheenRoughness;
+		return fminf(fmaxf(1.0f / ((1.0f + lambdaSheen(NdotV, alphaG) + lambdaSheen(NdotL, alphaG)) * (4.0f * NdotV * NdotL)), 0.0f), 1.0f);
+	}
+
+	__forceinline__ __device__ float3 calculateSheen(const float3& N, const float3& V, const float3& L, const float3& sheenColor, float sheenRoughness)
+	{
+		const float3 H = normalizeF3(V + L);
+		const float NdotL = fminf(fmaxf(dot3(N, L), 0.0f), 1.0f);
+		const float NdotV = fminf(fmaxf(dot3(N, V), 0.0f), 1.0f);
+		const float NdotH = fminf(fmaxf(dot3(N, H), 0.0f), 1.0f);
+		if (NdotL <= 0.0f || NdotV <= 0.0f)
+			return make_float3(0.0f, 0.0f, 0.0f);
+
+		const float sheenRoughFinal = fminf(fmaxf(sheenRoughness, 0.000001f), 1.0f);
+		const float D = distributionCharlie(NdotH, sheenRoughFinal);
+		const float V_sheen = visibilitySheen(NdotL, NdotV, sheenRoughFinal);
+		return sheenColor * (D * V_sheen * NdotL);
+	}
+
+	// Bilinear lookup into the sheen directional-albedo LUT baked on the host
+	// (RtOptixSceneTracer::Impl::ensureSheenAlbedoLut()) - device-side
+	// counterpart of CpuPathTracer::sampleSheenAlbedoLUT(). Nearest-indexed
+	// (matches the CPU function exactly - no bilinear there either), guards
+	// against a missing/failed-upload LUT by returning 0 (no dampening).
+	__forceinline__ __device__ float sampleSheenAlbedoLUT(const float* lut, int lutSize, float NdotV, float roughness)
+	{
+		if (!lut || lutSize <= 0)
+			return 0.0f;
+		const int vi = min(max(static_cast<int>(NdotV * lutSize), 0), lutSize - 1);
+		const int ri = min(max(static_cast<int>(roughness * lutSize), 0), lutSize - 1);
+		return lut[static_cast<size_t>(ri) * lutSize + vi];
+	}
+
+	// Ported from CpuPathTracer::computeLobeProbabilities(): base specular
+	// probability plus a clearcoat probability, both boosted by their own
+	// (1-roughness)^2 smoothness term for the same under-sampling reason the
+	// base specular lobe's own smoothness boost exists (see
+	// __closesthit__ch()'s specProb comment) - a smooth coat's narrow
+	// reflection is otherwise starved to the probability floor regardless of
+	// view angle.
+	__forceinline__ __device__ void computeLobeProbabilities(const float3& F0, float metalness, float roughness,
+		const float3& clearcoatBlend, float clearcoat, float clearcoatRoughness, float& outSpecProb, float& outCoatProb)
+	{
+		const float smoothness = 1.0f - roughness;
+		outSpecProb = fminf(fmaxf((F0.x + F0.y + F0.z) * (1.0f / 3.0f) + 0.5f * metalness + 0.5f * smoothness * smoothness, 0.05f), 0.95f);
+
+		const float coatSmoothness = 1.0f - clearcoatRoughness;
+		outCoatProb = clearcoat > 0.0f
+			? fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f + 0.5f * clearcoat * coatSmoothness * coatSmoothness, 0.05f), 0.9f)
+			: 0.0f;
 	}
 
 	// Small, fast, self-contained hash-based PRNG (PCG variant, same
@@ -1063,7 +1200,22 @@ extern "C" __global__ void __closesthit__ch()
 	const float4 worldTangentAndHandedness = make_float4(worldTangent.x, worldTangent.y, worldTangent.z,
 		(interpolatedHandedness >= 0.0f) ? 1.0f : -1.0f);
 
+	// Geometric (faceforward, pre-normal-map) shading normal - the base for
+	// KHR_materials_clearcoat's OWN normal map below, matching
+	// CpuPathTracer::tracePixel()'s Ncoat derivation (applyNormalMap(hit.
+	// normal, ..., clearcoatNormalTexture, ...) - i.e. built from the same
+	// raw geometric normal the base layer starts from, NOT from the
+	// already-base-normal-mapped worldNormal).
+	const float3 geometricNormal = worldNormal;
+
 	worldNormal = applyNormalMap(worldNormal, worldTangentAndHandedness, data->normalTexture, uv, data->normalScale);
+
+	// KHR_materials_clearcoat's own normal map, independent of the base
+	// layer's - falls back to the (already normal-mapped) base shading
+	// normal when absent, matching CpuPathTracer's ": N" fallback exactly.
+	const float3 Ncoat = (data->clearcoatNormalTexture.width > 0)
+		? applyNormalMap(geometricNormal, worldTangentAndHandedness, data->clearcoatNormalTexture, uv, data->clearcoatNormalScale)
+		: worldNormal;
 
 	// Core PBR textures, matching CpuPathTracer::evaluateSurface()'s exact
 	// factor*texture multiply order and sRGB/linear decode split (baseColor/
@@ -1156,12 +1308,65 @@ extern "C" __global__ void __closesthit__ch()
 		fminf(fmaxf(dielectricF0.y, 0.0f), 1.0f),
 		fminf(fmaxf(dielectricF0.z, 0.0f), 1.0f));
 
-	const float3 V = normalizeF3(rayDir * -1.0f);
+	// Shading view vector - see CpuPathTracer::tracePixel()'s identical fix
+	// for the full rationale. Perspective: -rayDir already equals normalize
+	// (camPosition - worldPos) exactly, no divergence. Orthographic PRIMARY
+	// rays (escapeRoughness==-1.0f, the sentinel traceBouncePath()'s doc
+	// comment gives the very first/camera ray) are traced PARALLEL (constant
+	// rayDirection=camForward - see __raygen__rg()'s ray setup), so -rayDir
+	// is constant across the whole object, whereas main_scene.frag's
+	// frame.V = normalize(cameraPos - fragPos) is NOT (no ortho branch there
+	// at all) - varying per-fragment even in ortho. Using the constant
+	// vector fed both the Fresnel terms and the specular lobe's own sampling
+	// frame, producing a systematically differently scaled/framed reflected-
+	// environment direction than raster - the reported "overstretched"/
+	// mismatched ortho reflection (perspective was unaffected, hence why it
+	// only showed up in ortho mode). Every OTHER hit (secondary bounce) is a
+	// REAL traced ray with its own genuine incoming direction and must stay
+	// -rayDir - there is no single "camera position" a bounce ray's shading
+	// point is at a fixed relative offset from.
+	const float primaryRaySentinel = __uint_as_float(optixGetPayload_18());
+	const bool isPrimaryOrthoHit = (params.camOrthographic != 0) && (primaryRaySentinel == -1.0f);
+	const float3 V = isPrimaryOrthoHit ? normalizeF3(params.camPosition - worldPos) : normalizeF3(rayDir * -1.0f);
 	const float NdotV = fmaxf(dot3(worldNormal, V), 0.0f);
 	const float3 F0 = lerp3(dielectricF0, baseColor, metalness);
 	const float3 F90 = lerp3(make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor), make_float3(1.0f, 1.0f, 1.0f), metalness);
 	const float3 directF0 = lerp3(dielectricF0 * texturedSpecularFactor, baseColor, metalness);
 	const float roughness = fmaxf(roughnessFactor, 0.0001f); // matches main_scene.frag/CpuPathTracer roughness floor
+
+	// KHR_materials_clearcoat - factors/textures ported from CpuPathTracer::
+	// evaluateSurface()'s identical R/G-channel-packed sampling.
+	float clearcoat = data->clearcoat;
+	if (data->clearcoatTexture.width > 0)
+		clearcoat *= applyChannelPacking(sampleTexture2D(data->clearcoatTexture, uv), data->clearcoatTexture);
+	clearcoat = fminf(fmaxf(clearcoat, 0.0f), 1.0f);
+
+	float clearcoatRoughness = data->clearcoatRoughness;
+	if (data->clearcoatRoughnessTexture.width > 0)
+		clearcoatRoughness *= applyChannelPacking(sampleTexture2D(data->clearcoatRoughnessTexture, uv), data->clearcoatRoughnessTexture);
+	clearcoatRoughness = fminf(fmaxf(clearcoatRoughness, 0.0001f), 1.0f);
+
+	// KHR_materials_sheen - sheenColorTexture is sRGB RGB, sheenRoughnessTexture's
+	// alpha channel scales sheenRoughness (channel-packed by RtSceneBuilder),
+	// matching CpuPathTracer::evaluateSurface() exactly.
+	float3 sheenColor = data->sheenColorFactor;
+	if (data->sheenColorTexture.width > 0)
+	{
+		const float4 sampled = sampleTexture2D(data->sheenColorTexture, uv);
+		sheenColor = sheenColor * sRGBToLinear(make_float3(sampled.x, sampled.y, sampled.z));
+	}
+	sheenColor = make_float3(fminf(fmaxf(sheenColor.x, 0.0f), 1.0f), fminf(fmaxf(sheenColor.y, 0.0f), 1.0f), fminf(fmaxf(sheenColor.z, 0.0f), 1.0f));
+
+	float sheenRoughness = data->sheenRoughness;
+	if (data->sheenRoughnessTexture.width > 0)
+		sheenRoughness *= applyChannelPacking(sampleTexture2D(data->sheenRoughnessTexture, uv), data->sheenRoughnessTexture);
+	sheenRoughness = fminf(fmaxf(sheenRoughness, 0.0001f), 1.0f);
+
+	// Fresnel-weighted blend factor between the base layer and the coat layer
+	// - ported from CpuPathTracer::tracePixel()'s "clearcoat * computeClearcoatFresnel(...)",
+	// consumed both by the direct-lighting mix() below and by
+	// computeLobeProbabilities()'s coat-lobe sampling weight.
+	const float3 clearcoatBlend = computeClearcoatFresnel(data->ior, Ncoat, V) * clearcoat;
 
 	float3 radiance = emissive;
 	if (NdotV > 0.0f)
@@ -1200,8 +1405,108 @@ extern "C" __global__ void __closesthit__ch()
 			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - F) * (1.0f - metalness);
 			const float3 diffuse = kD * baseColor * (1.0f / kPi);
 
-			radiance = radiance + (diffuse + specular) * lightIntensity * NdotL;
+			float3 baseDirect = (diffuse + specular) * lightIntensity * NdotL;
+
+			// KHR_materials_sheen's base-layer energy-compensation dampening -
+			// ported from CpuPathTracer::tracePixel()'s "albedoSheenScaling",
+			// itself from main_scene.frag's direct-light sheen handling. Not
+			// optional polish - per the Dassault Enterprise PBR spec this is
+			// the actual mechanism keeping base+sheen combined energy-
+			// conserving (otherwise the sheen fuzz reads as pure extra
+			// brightness rather than partially replacing the base response).
+			if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
+			{
+				const float sheenStrength = fmaxf(fmaxf(sheenColor.x, sheenColor.y), sheenColor.z);
+				const float NdotVSheen = fminf(fmaxf(dot3(worldNormal, V), 0.0f), 1.0f);
+				const float albedoSheenScaling = fminf(
+					1.0f - sheenStrength * sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, NdotVSheen, sheenRoughness),
+					1.0f - sheenStrength * sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, fminf(fmaxf(NdotL, 0.0f), 1.0f), sheenRoughness));
+				baseDirect = baseDirect * albedoSheenScaling;
+			}
+
+			// KHR_materials_clearcoat - blend base vs. coat exactly like
+			// composeLayeredPBR()'s mix(baseLayer, clearcoatLayer, clearcoat*
+			// clearcoatFresnel); clearcoatBlend is 0 for non-clearcoat
+			// materials, reducing to baseDirect unchanged.
+			if (clearcoat > 0.0f)
+			{
+				const float3 coatDirect = evaluateClearcoatDirect(Ncoat, V, lightDir, clearcoat, clearcoatRoughness) * lightIntensity;
+				radiance = radiance + lerp3(baseDirect, coatDirect, fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f, 0.0f), 1.0f));
+			}
+			else
+			{
+				radiance = radiance + baseDirect;
+			}
+
+			// KHR_materials_sheen - additive, not blended.
+			if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
+				radiance = radiance + calculateSheen(worldNormal, V, lightDir, sheenColor, sheenRoughness) * lightIntensity;
 		}
+	}
+
+	// KHR_materials_sheen's environment/IBL contribution - ported from
+	// CpuPathTracer::tracePixel()'s identical block. This is NOT an optional
+	// extra: per that function's own doc comment, direct (punctual-light)
+	// sheen alone reads as "missing" on any scene lit mainly by its
+	// environment (the common case for glTF sheen test/showcase assets,
+	// which are typically lit by a neutral studio HDRI with weak or no
+	// punctual lights) - env/IBL sheen turned out to be the visually
+	// DOMINANT contribution there. This kernel originally skipped it as a
+	// documented simplification (no separate IBL step, unlike AO's
+	// throughput-only treatment) - that gap is exactly what made
+	// sheenColorFactor variation invisible in GPU renders of SheenTestGrid
+	// while raster and CPU PT (which already had this block) both show it
+	// clearly. A small fixed number of RNG-jittered samples in a
+	// roughness-sized cone around the mirror-reflect direction, taken on
+	// every hit (not gated behind a rare lobe-selection probability) -
+	// cheap since sampleEnvironmentRaw() is a plain cubemap fetch, not a
+	// traced ray.
+	float sheenIndirectDampening = 1.0f;
+	if (NdotV > 0.0f && (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f))
+	{
+		const float sheenStrengthForIBL = fmaxf(fmaxf(sheenColor.x, sheenColor.y), sheenColor.z);
+		const float3 R = reflectF3(V * -1.0f, worldNormal);
+		float3 Tc, Bc;
+		buildOrthonormalBasis(R, Tc, Bc);
+
+		const float sheenRoughFinal = fminf(fmaxf(sheenRoughness, 0.0001f), 1.0f);
+		const float coneAngle = sheenRoughFinal * (kPi * 0.5f); // up to a full hemisphere spread at roughness 1
+
+		// Derived from, but distinct from, the RNG stream the lobe-selection
+		// code below draws from optixGetPayload_17() - reading a payload
+		// doesn't consume/mutate it, so both blocks would otherwise see the
+		// identical raw seed; XOR-ing a distinguishing constant first keeps
+		// their jitter sequences decorrelated.
+		unsigned int sheenRng = optixGetPayload_17() ^ 0xC0FFEE17u;
+
+		constexpr int kSheenEnvSamples = 8;
+		float3 envSum = make_float3(0.0f, 0.0f, 0.0f);
+		for (int s = 0; s < kSheenEnvSamples; ++s)
+		{
+			sheenRng = pcgHash(sheenRng);
+			const float u1 = hashToUnitFloat(sheenRng);
+			sheenRng = pcgHash(sheenRng);
+			const float u2 = hashToUnitFloat(sheenRng);
+
+			const float phi = 2.0f * kPi * u1;
+			const float cosTheta = 1.0f - u2 * (1.0f - cosf(coneAngle)); // uniform within the cone
+			const float sinTheta = sqrtf(fmaxf(0.0f, 1.0f - cosTheta * cosTheta));
+			const float3 localDir = make_float3(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
+			const float3 dir = normalizeF3(Tc * localDir.x + Bc * localDir.y + R * localDir.z);
+			envSum = envSum + sampleEnvironmentRaw(params.environment, dir);
+		}
+		envSum = envSum * (1.0f / static_cast<float>(kSheenEnvSamples));
+
+		const float NdotVSheenIbl = fminf(fmaxf(dot3(worldNormal, V), 0.0f), 1.0f);
+		const float E_sheen = sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, NdotVSheenIbl, sheenRoughFinal);
+		radiance = radiance + sheenColor * envSum * (ao * E_sheen);
+
+		// Dampens the base layer's OWN indirect (bounce) throughput, applied
+		// to whichever lobe the stochastic BSDF sample below picks -
+		// mirrors CpuPathTracer's throughput *= sheenIndirectDampening,
+		// the same base+sheen energy-conservation mechanism the direct-light
+		// albedoSheenScaling term above provides for punctual lights.
+		sheenIndirectDampening = 1.0f - sheenStrengthForIBL * E_sheen;
 	}
 
 	// Stochastic BSDF sample for the raygen loop's NEXT bounce - replaces
@@ -1244,32 +1549,83 @@ extern "C" __global__ void __closesthit__ch()
 		// used, this only redistributes samples (variance), never changes
 		// the converged mean.
 		const float3 Fview = fresnelSchlick(NdotV, F0, F90);
-		const float smoothness = 1.0f - roughness;
-		const float specProb = fminf(fmaxf(
-			(F0.x + F0.y + F0.z) * (1.0f / 3.0f) + 0.5f * metalness + 0.5f * smoothness * smoothness,
-			0.05f), 0.95f);
+		float specProb, coatProb;
+		computeLobeProbabilities(F0, metalness, roughness, clearcoatBlend, clearcoat, clearcoatRoughness, specProb, coatProb);
 
 		rngState = pcgHash(rngState);
 		const float lobeXi = hashToUnitFloat(rngState);
+		rngState = pcgHash(rngState);
+		const float u1 = hashToUnitFloat(rngState);
+		rngState = pcgHash(rngState);
+		const float u2 = hashToUnitFloat(rngState);
 
-		if (lobeXi < specProb)
+		if (lobeXi < coatProb)
 		{
-			rngState = pcgHash(rngState);
-			const float u1 = hashToUnitFloat(rngState);
-			rngState = pcgHash(rngState);
-			const float u2 = hashToUnitFloat(rngState);
+			// KHR_materials_clearcoat, indirect side: a third stochastically-
+			// selected GGX lobe over the coat's own normal/roughness/fixed
+			// dielectric F0 - ported from CpuPathTracer::sampleBSDFBounce()'s
+			// coat branch. There's no analytic prefiltered-IBL lookup
+			// available here for the coat (unlike the direct-light path,
+			// which replicates the analytic mix() exactly), so this is the
+			// standard way a layered BSDF is handled in a Monte-Carlo path
+			// tracer instead.
+			float3 Tc, Bc;
+			buildOrthonormalBasis(Ncoat, Tc, Bc);
 
+			const float alpha = clearcoatRoughness * clearcoatRoughness;
+			const float NdotV0 = fmaxf(dot3(Ncoat, V), 1e-4f);
+			const float3 Ve = make_float3(dot3(V, Tc), dot3(V, Bc), NdotV0);
+
+			const float3 Hlocal = sampleGGXVNDF(Ve, alpha, u1, u2);
+			const float3 H = normalizeF3(Tc * Hlocal.x + Bc * Hlocal.y + Ncoat * Hlocal.z);
+			// reflect(-V, H), NOT reflect(rayDir, H) - matches CpuPathTracer::
+			// sampleBSDFBounce()'s identical glm::reflect(-V, H) exactly. The
+			// two are equal in perspective (-V == rayDir always there), but
+			// diverge for an orthographic PRIMARY hit, where V has been
+			// re-derived above as the raster-matching per-fragment "fake
+			// camera" vector while rayDir stays the true parallel ray - using
+			// rayDir here would silently discard that fix for the actual
+			// reflected DIRECTION (only Fresnel/NdotV would have picked it up),
+			// which is what caused the reported reflection stretch/mismatch
+			// in the first place, not just a brightness difference.
+			const float3 L = reflectF3(V * -1.0f, H);
+
+			const float NdotL = dot3(Ncoat, L);
+			const float NdotVc = dot3(Ncoat, V);
+			if (NdotL > 0.0f && NdotVc > 0.0f)
+			{
+				const float VdotH = fminf(fmaxf(dot3(H, V), 0.0f), 1.0f);
+				const float3 coatF0 = computeClearcoatFresnel(data->ior, Ncoat, V); // undoes clearcoatBlend's own *clearcoat factor
+				const float3 F = fresnelSchlick(VdotH, coatF0, make_float3(1.0f, 1.0f, 1.0f));
+
+				const float G1v = smithG1GGX(NdotVc, alpha);
+				const float G2 = smithG2HeightCorrelatedGGX(NdotVc, NdotL, alpha);
+				nextDirection = L;
+				throughputWeight = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / coatProb);
+				outEscapeRoughness = clearcoatRoughness;
+				hasContinuation = true;
+			}
+			// NdotL<=0: a VNDF sample that reflects below the coat's macro
+			// surface - dead-end path, same handling as the base specular
+			// lobe's own identical edge case below.
+		}
+		else if (lobeXi < coatProb + specProb * (1.0f - coatProb))
+		{
+			const float specProbScaled = specProb * (1.0f - coatProb);
 			const float alpha = roughness * roughness;
 			const bool polishedMetalMirrorApprox = metalness >= 0.9f && roughness <= 0.12f;
 			if (roughness <= 0.01f || polishedMetalMirrorApprox)
 			{
-				const float3 L = reflectF3(rayDir, worldNormal);
+				// reflect(-V, N), not reflect(rayDir, N) - see the coat lobe's
+				// identical comment above for why (matches CpuPathTracer's
+				// own glm::reflect(-V, basisN) here).
+				const float3 L = reflectF3(V * -1.0f, worldNormal);
 				const float NdotL = dot3(worldNormal, L);
 				if (NdotL > 0.0f)
 				{
 					const float3 F = fresnelSchlick(NdotV, F0, F90);
 					nextDirection = L;
-					throughputWeight = F * (1.0f / specProb);
+					throughputWeight = F * (1.0f / specProbScaled);
 					outEscapeRoughness = 0.0f;
 					hasContinuation = true;
 				}
@@ -1278,7 +1634,10 @@ extern "C" __global__ void __closesthit__ch()
 			{
 			const float3 Hlocal = sampleGGXVNDF(Vlocal, alpha, u1, u2);
 			const float3 Hworld = normalizeF3(T * Hlocal.x + B * Hlocal.y + worldNormal * Hlocal.z);
-			const float3 L = reflectF3(rayDir, Hworld);
+			// reflect(-V, H), not reflect(rayDir, H) - see the coat lobe's
+			// identical comment above for why (matches CpuPathTracer's own
+			// glm::reflect(-V, H) here).
+			const float3 L = reflectF3(V * -1.0f, Hworld);
 			const float NdotL = dot3(worldNormal, L);
 			if (NdotL > 0.0f)
 			{
@@ -1294,7 +1653,7 @@ extern "C" __global__ void __closesthit__ch()
 				const float G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
 				const float3 F = fresnelSchlick(VdotH, F0, F90);
 				nextDirection = L;
-				throughputWeight = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / specProb);
+				throughputWeight = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / specProbScaled);
 				outEscapeRoughness = roughness;
 				hasContinuation = true;
 			}
@@ -1306,24 +1665,25 @@ extern "C" __global__ void __closesthit__ch()
 		}
 		else
 		{
-			rngState = pcgHash(rngState);
-			const float u1 = hashToUnitFloat(rngState);
-			rngState = pcgHash(rngState);
-			const float u2 = hashToUnitFloat(rngState);
-
 			const float3 localDir = cosineSampleHemisphere(u1, u2);
 			const float3 L = normalizeF3(T * localDir.x + B * localDir.y + worldNormal * localDir.z);
 			// Cosine-weighted sampling's pdf (NdotL/pi) exactly cancels the
 			// Lambertian BRDF's own NdotL/pi term, leaving just the albedo -
 			// divided by this lobe's own selection probability, per the
-			// standard two-lobe stochastic-BSDF estimator.
+			// standard multi-lobe stochastic-BSDF estimator.
+			const float diffuseProb = fmaxf(1.0f - coatProb - specProb * (1.0f - coatProb), 1e-4f);
 			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
 			nextDirection = L;
-			throughputWeight = kD * baseColor * (ao / fmaxf(1.0f - specProb, 1e-4f));
+			throughputWeight = kD * baseColor * (ao / diffuseProb);
 			outEscapeRoughness = -2.0f;
 			hasContinuation = true;
 		}
 	}
+
+	// KHR_materials_sheen's base+sheen energy-conservation dampening,
+	// applied uniformly regardless of which lobe was picked above - see
+	// sheenIndirectDampening's own computation/doc comment.
+	throughputWeight = throughputWeight * sheenIndirectDampening;
 
 	setPayload(radiance);
 	// 1 = hit with a valid continuation direction, 2 = hit but dead-end (no

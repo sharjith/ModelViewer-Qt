@@ -373,11 +373,30 @@ public:
 	void setPathTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
 	void setPathTracingDenoiserDevicePreference(DenoiserDevicePreference preference) { _ptDenoiserDevicePreference = preference; }
 	DenoiserDevicePreference pathTracingDenoiserDevicePreference() const { return _ptDenoiserDevicePreference; }
-	// GPU currently only renders the Phase 1b OptiX test triangle - see
-	// RtPathTracingEnginePreference's doc comment - so this takes effect on
-	// the NEXT startPathTracedSession() (armed via camera settle/mode
-	// switch), not retroactively on whatever's already displayed.
-	void setPathTracingEnginePreference(RtPathTracingEnginePreference preference) { _ptEnginePreference = preference; }
+	// Switching engines mid-session used to leave the OLD engine's already-
+	// converged (and now stale) frame on screen - this setter used to be a
+	// plain field assignment, never stopping the old session/invalidating
+	// the presenter, and the idle timer had usually already fired and gone
+	// quiet, so nothing repainted until the user happened to nudge the
+	// camera. Worse, if that nudge (e.g. a zoom) landed before the switch
+	// forced a restart, the stale frame (captured at the OLD zoom level)
+	// stayed composited over the NEWLY-resized raster underneath - "two
+	// models of different sizes" on screen at once. resetPathTracedIdleTimer()
+	// immediately stops both sessions and invalidates the presenter (clearing
+	// the stale frame, falling back to the live raster), then
+	// startPathTracedSession() re-renders with the new engine right away
+	// instead of waiting for the idle-settle countdown (that debounce exists
+	// for rapid camera interaction, not a single explicit menu choice).
+	void setPathTracingEnginePreference(RtPathTracingEnginePreference preference)
+	{
+		if (_ptEnginePreference == preference)
+			return;
+		_ptEnginePreference = preference;
+		if (!_pathTracedArmed)
+			return; // not in path-traced mode right now - just remember the preference for next time
+		resetPathTracedIdleTimer();
+		startPathTracedSession();
+	}
 	RtPathTracingEnginePreference pathTracingEnginePreference() const { return _ptEnginePreference; }
 	void setPathTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
 	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }

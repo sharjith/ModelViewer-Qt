@@ -16,8 +16,10 @@
 #include "RtOptixSceneParams.h"
 
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <unordered_map>
 
@@ -151,6 +153,16 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr hitgroupRecords = 0; // one HitGroupSbtRecord per instance
 	OptixShaderBindingTable sbt = {};
 
+	// KHR_materials_sheen's directional-albedo LUT (RtOptixSceneParams::
+	// sheenAlbedoLUT) - a process-constant table (depends on nothing but the
+	// Charlie BRDF), so it's baked and uploaded ONCE (lazily, on the first
+	// buildScene() call) rather than per-scene-revision like the rest of
+	// freeSceneBuffers()'s buffers - see ensureSheenAlbedoLut().
+	static constexpr int kSheenAlbedoLutSize = 32;
+	CUdeviceptr sheenAlbedoLutBuffer = 0;
+
+	void ensureSheenAlbedoLut();
+
 	void freeSceneBuffers()
 	{
 		for (MeshGas& gas : meshGasEntries)
@@ -202,6 +214,7 @@ struct RtOptixSceneTracer::Impl
 	~Impl()
 	{
 		freeSceneBuffers();
+		if (sheenAlbedoLutBuffer) cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
 		if (raygenRecord) cudaFree(reinterpret_cast<void*>(raygenRecord));
 		if (missRecord) cudaFree(reinterpret_cast<void*>(missRecord));
 
@@ -213,6 +226,121 @@ struct RtOptixSceneTracer::Impl
 		if (context) optixDeviceContextDestroy(context);
 	}
 };
+
+namespace
+{
+	// Host-side bake of KHR_materials_sheen's directional-albedo LUT - mirrors
+	// CpuPathTracer::sheenAlbedoLUT()'s algorithm/fixed seed exactly (see that
+	// function's doc comment for why a small Monte-Carlo-baked table stands in
+	// for main_scene.frag's baked sheenELUT texture), just using a local
+	// deterministic RNG instead of CpuPathTracer.cpp's private Rng type.
+	// Row-major [roughness][NdotV], matching RtOptixSceneParams::
+	// sheenAlbedoLUT's doc comment and RtOptixScene.cu's sampleSheenAlbedoLUT()
+	// device-side lookup.
+	float distributionCharlieHost(float NdotH, float roughness)
+	{
+		const float alpha = (std::max)(roughness * roughness, 0.000001f);
+		const float invAlpha = 1.0f / alpha;
+		const float sin2h = (std::max)(1.0f - NdotH * NdotH, 0.0078125f); // 2^(-7)
+		return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * glm::pi<float>());
+	}
+
+	float lambdaSheenNumericHelperHost(float x, float alphaG)
+	{
+		const float oneMinusAlphaSq = (1.0f - alphaG) * (1.0f - alphaG);
+		const float a = glm::mix(21.5473f, 25.3245f, oneMinusAlphaSq);
+		const float b = glm::mix(3.82987f, 3.32435f, oneMinusAlphaSq);
+		const float c = glm::mix(0.19823f, 0.16801f, oneMinusAlphaSq);
+		const float d = glm::mix(-1.97760f, -1.27393f, oneMinusAlphaSq);
+		const float e = glm::mix(-4.32054f, -4.85967f, oneMinusAlphaSq);
+		return a / (1.0f + b * std::pow(x, c)) + d * x + e;
+	}
+
+	float lambdaSheenHost(float cosTheta, float alphaG)
+	{
+		if (std::abs(cosTheta) < 0.5f)
+			return std::exp(lambdaSheenNumericHelperHost(cosTheta, alphaG));
+		return std::exp(2.0f * lambdaSheenNumericHelperHost(0.5f, alphaG) -
+			lambdaSheenNumericHelperHost(1.0f - cosTheta, alphaG));
+	}
+
+	float visibilitySheenHost(float NdotL, float NdotV, float sheenRoughness)
+	{
+		sheenRoughness = (std::max)(sheenRoughness, 0.000001f);
+		const float alphaG = sheenRoughness * sheenRoughness;
+		return std::clamp(1.0f / ((1.0f + lambdaSheenHost(NdotV, alphaG) + lambdaSheenHost(NdotL, alphaG)) * (4.0f * NdotV * NdotL)), 0.0f, 1.0f);
+	}
+
+	// Small deterministic PCG-style hash RNG - fixed seed, only ever used for
+	// this one-time bake, so it doesn't need to match the kernel's own
+	// per-pixel RNG stream.
+	struct LutBakeRng
+	{
+		unsigned int state;
+		float next01()
+		{
+			state = state * 747796405u + 2891336453u;
+			unsigned int word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+			word = (word >> 22u) ^ word;
+			return static_cast<float>(word) / 4294967296.0f;
+		}
+	};
+
+	std::vector<float> bakeSheenAlbedoLutHost(int lutSize)
+	{
+		constexpr int kBakeSamples = 256;
+		std::vector<float> table(static_cast<size_t>(lutSize) * lutSize);
+		LutBakeRng rng{ 0x5EEE17u };
+		for (int ri = 0; ri < lutSize; ++ri)
+		{
+			const float roughness = (ri + 0.5f) / lutSize;
+			for (int vi = 0; vi < lutSize; ++vi)
+			{
+				const float NdotV = (std::max)((vi + 0.5f) / lutSize, 1e-4f);
+				const glm::vec3 V(std::sqrt((std::max)(0.0f, 1.0f - NdotV * NdotV)), 0.0f, NdotV);
+
+				float sum = 0.0f;
+				for (int s = 0; s < kBakeSamples; ++s)
+				{
+					// Cosine-weighted hemisphere sample in the local frame
+					// (N=+Z) - matches CpuPathTracer::cosineSampleHemisphere()
+					// exactly, inlined here to avoid depending on that TU.
+					const float u1 = rng.next01();
+					const float u2 = rng.next01();
+					const float r = std::sqrt(u1);
+					const float phi = 2.0f * glm::pi<float>() * u2;
+					const glm::vec3 L(r * std::cos(phi), r * std::sin(phi), std::sqrt((std::max)(0.0f, 1.0f - u1)));
+
+					const float NdotL = (std::max)(L.z, 1e-4f);
+					const glm::vec3 H = glm::normalize(V + L);
+					const float NdotH = std::clamp(H.z, 0.0f, 1.0f);
+					sum += distributionCharlieHost(NdotH, roughness) * visibilitySheenHost(NdotL, NdotV, roughness) * glm::pi<float>();
+				}
+				table[static_cast<size_t>(ri) * lutSize + vi] = sum / kBakeSamples;
+			}
+		}
+		return table;
+	}
+}
+
+void RtOptixSceneTracer::Impl::ensureSheenAlbedoLut()
+{
+	if (sheenAlbedoLutBuffer)
+		return; // already baked/uploaded - process-constant, never needs a rebuild
+
+	const std::vector<float> lut = bakeSheenAlbedoLutHost(kSheenAlbedoLutSize);
+	const size_t bytes = lut.size() * sizeof(float);
+	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&sheenAlbedoLutBuffer), bytes), "cudaMalloc(sheen albedo LUT)"))
+	{
+		sheenAlbedoLutBuffer = 0;
+		return;
+	}
+	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(sheenAlbedoLutBuffer), lut.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(sheen albedo LUT)"))
+	{
+		cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
+		sheenAlbedoLutBuffer = 0;
+	}
+}
 
 RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 {
@@ -367,6 +495,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	if (!_impl->valid)
 		return false;
 
+	_impl->ensureSheenAlbedoLut(); // process-constant, baked once - see its own doc comment
 	_impl->freeSceneBuffers();
 
 	// --- One GAS per unique mesh - mirrors RtEmbreeScene::build()'s BLAS
@@ -575,6 +704,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.alphaThreshold = mat.alphaThreshold;
 			hgSbt.data.opacity = mat.opacity;
 			hgSbt.data.normalScale = mat.normalScale;
+			hgSbt.data.clearcoat = mat.clearcoat;
+			hgSbt.data.clearcoatRoughness = mat.clearcoatRoughness;
+			hgSbt.data.clearcoatNormalScale = mat.clearcoatNormalScale;
+			hgSbt.data.sheenColorFactor = make_float3(mat.sheenColor.x, mat.sheenColor.y, mat.sheenColor.z);
+			hgSbt.data.sheenRoughness = mat.sheenRoughness;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
 			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
@@ -585,6 +719,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			uploadMaterialTexture(mat.opacityTexture, hgSbt.data.opacityTexture);
 			uploadMaterialTexture(mat.specularTexture, hgSbt.data.specularTexture);
 			uploadMaterialTexture(mat.specularColorTexture, hgSbt.data.specularColorTexture);
+			uploadMaterialTexture(mat.clearcoatTexture, hgSbt.data.clearcoatTexture);
+			uploadMaterialTexture(mat.clearcoatRoughnessTexture, hgSbt.data.clearcoatRoughnessTexture);
+			uploadMaterialTexture(mat.clearcoatNormalTexture, hgSbt.data.clearcoatNormalTexture);
+			uploadMaterialTexture(mat.sheenColorTexture, hgSbt.data.sheenColorTexture);
+			uploadMaterialTexture(mat.sheenRoughnessTexture, hgSbt.data.sheenRoughnessTexture);
 		}
 		else
 		{
@@ -601,6 +740,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.alphaThreshold = 0.5f;
 			hgSbt.data.opacity = 1.0f;
 			hgSbt.data.normalScale = 1.0f;
+			hgSbt.data.clearcoat = 0.0f;
+			hgSbt.data.clearcoatRoughness = 0.0001f;
+			hgSbt.data.clearcoatNormalScale = 1.0f;
+			hgSbt.data.sheenColorFactor = make_float3(0.0f, 0.0f, 0.0f);
+			hgSbt.data.sheenRoughness = 0.0001f;
 
 			hgSbt.data.baseColorTexture.width = 0;
 			hgSbt.data.metallicTexture.width = 0;
@@ -611,6 +755,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.opacityTexture.width = 0;
 			hgSbt.data.specularTexture.width = 0;
 			hgSbt.data.specularColorTexture.width = 0;
+			hgSbt.data.clearcoatTexture.width = 0;
+			hgSbt.data.clearcoatRoughnessTexture.width = 0;
+			hgSbt.data.clearcoatNormalTexture.width = 0;
+			hgSbt.data.sheenColorTexture.width = 0;
+			hgSbt.data.sheenRoughnessTexture.width = 0;
 		}
 
 		hitgroupRecordsHost.push_back(hgSbt);
@@ -845,6 +994,8 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.environment.envMapExposure = environment.envMapExposure;
 	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->prefilterMipsBuffer);
 	params.environment.prefilterMipCount = _impl->prefilterMipCount;
+	params.sheenAlbedoLUT = reinterpret_cast<const float*>(_impl->sheenAlbedoLutBuffer);
+	params.sheenAlbedoLUTSize = _impl->sheenAlbedoLutBuffer ? Impl::kSheenAlbedoLutSize : 0;
 	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
 	params.sampleOffset = sampleOffset;
 	params.maxBounces = maxBounces > 0 ? maxBounces : 1;
