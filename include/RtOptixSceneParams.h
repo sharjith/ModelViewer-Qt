@@ -35,9 +35,12 @@
 // and KHR_materials_sheen (additive Charlie-NDF grazing-angle lobe, both
 // direct/punctual lighting and a small stochastic environment/IBL sample,
 // plus a base-layer energy-compensation dampening via a small baked
-// directional-albedo LUT - see sheenAlbedoLUT below) are now implemented.
-// Still deferred: anisotropy/iridescence/transmission - see RtMaterial's own
-// doc comments for what those add.
+// directional-albedo LUT - see sheenAlbedoLUT below), KHR_materials_
+// anisotropy (stretches the base specular lobe along a tangent-space
+// direction, both direct and indirect), and KHR_materials_iridescence
+// (thin-film Fresnel tinting, both direct and indirect) are now implemented.
+// Still deferred: transmission - see RtMaterial's own doc comments for what
+// that adds.
 // ---------------------------------------------------------------------------
 struct RtOptixLight
 {
@@ -316,6 +319,34 @@ struct RtOptixSceneHitGroupData
 	float3 sheenColorFactor;
 	float sheenRoughness;
 
+	// KHR_materials_anisotropy - stretches the base specular lobe along a
+	// tangent-space direction. anisotropyTexture (when present) carries a
+	// per-pixel direction in its RG channels ([0,1] -> [-1,1], further
+	// rotated by anisotropyRotation) and a strength SCALE in its B channel -
+	// decoded together, not simple factor*texture channel packing, so it's
+	// read as a raw RGB sample (see decodeAnisotropyTexture() in
+	// RtOptixScene.cu, ported from CpuPathTracer's identically-named
+	// function) rather than through RtOptixTexture's packingChannel
+	// machinery. anisotropyRotation is in radians (RtMaterial's own
+	// convention, already converted from the glTF factor's raw units).
+	float anisotropyStrength;
+	float anisotropyRotation;
+
+	// KHR_materials_iridescence - thin-film interference tinting applied to
+	// the Fresnel term (see RtOptixScene.cu's applyIridescenceToFresnel()/
+	// evalIridescence(), ported from CpuPathTracer's identically-named
+	// functions). iridescenceFactor<=0 means "no iridescence" (matches
+	// RtMaterial::iridescenceFactor's default). iridescenceThickness is
+	// REPLACED (not multiplied) by iridescenceThicknessTexture when present -
+	// matches CpuPathTracer::evaluateSurface()'s "s.iridescenceThickness =
+	// mat.iridescenceThicknessMax; if (texture) s.iridescenceThickness =
+	// applyChannelPacking(...)" exactly (the max/min-thickness texture-lerp
+	// glTF technically defines is deferred - this backend, like CPU, treats
+	// the texture as supplying the final thickness directly).
+	float iridescenceFactor;
+	float iridescenceIor;
+	float iridescenceThickness;
+
 	RtOptixTexture baseColorTexture;
 	RtOptixTexture metallicTexture;
 	RtOptixTexture roughnessTexture;
@@ -336,4 +367,8 @@ struct RtOptixSceneHitGroupData
 
 	RtOptixTexture sheenColorTexture;     // sRGB RGB, tints sheenColorFactor
 	RtOptixTexture sheenRoughnessTexture; // A channel scales sheenRoughness
+
+	RtOptixTexture anisotropyTexture; // raw RGB sample, decoded via decodeAnisotropyTexture() - see anisotropyStrength's doc comment
+	RtOptixTexture iridescenceTexture;          // channel-packed, scales iridescenceFactor
+	RtOptixTexture iridescenceThicknessTexture; // channel-packed, REPLACES iridescenceThickness
 };

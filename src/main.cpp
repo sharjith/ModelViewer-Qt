@@ -3,20 +3,15 @@
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
-#include "RtOptixContext.h"
-#include "RtOptixTracer.h"
 #include <iostream>
 #include <QApplication>
 #include <QDebug>
-#include <QDir>
 #include <QEvent>
 #include <QFileInfo>
-#include <QImage>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QScreen>
 #include <QSplashScreen>
-#include <QStandardPaths>
 #include <QStyleFactory>
 #include <memory>
 #include <sstream>
@@ -105,39 +100,6 @@ int main(int argc, char** argv)
 	Logger::instance().setFileEnabled(fileLogging);
 	int logLevel = settings.value("logLevelComboBox", 1).toInt();
 	Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(logLevel));
-
-	// TEMPORARY Phase 1/1b checkpoint for the GPU (OptiX) path tracer
-	// backend - see the "OptiX GPU path tracer" project notes. Proves the
-	// CUDA/OptiX toolchain, this machine's driver, and a full minimal
-	// pipeline (GAS + module/pipeline/SBT + launch + readback) all work
-	// end-to-end on one hardcoded test triangle - no real scene/materials
-	// yet. Remove this once real GPU-PT UI plumbing exists and
-	// RtOptixTracer is driven from there instead.
-	{
-		RtOptixContext optixCheck;
-		qInfo() << "Phase 1 OptiX checkpoint: available =" << optixCheck.isAvailable()
-			<< ", device =" << optixCheck.deviceName();
-
-		RtOptixTracer optixTracer;
-		if (optixTracer.isAvailable())
-		{
-			std::vector<uint8_t> pixels;
-			if (optixTracer.renderTestTriangle(512, 512, pixels))
-			{
-				QImage image(pixels.data(), 512, 512, 512 * 4, QImage::Format_RGBA8888);
-				const QString outPath = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
-					.filePath("modelviewer_optix_phase1b_test_triangle.png");
-				if (image.save(outPath))
-					qInfo() << "Phase 1b OptiX checkpoint: test triangle rendered and saved to" << outPath;
-				else
-					qWarning() << "Phase 1b OptiX checkpoint: rendered but failed to save PNG to" << outPath;
-			}
-			else
-			{
-				qWarning() << "Phase 1b OptiX checkpoint: renderTestTriangle() failed - see the log above for why.";
-			}
-		}
-	}
 
 	// Qt has no built-in global tooltip toggle; install an app-wide filter to suppress
 	// them when disabled. Read once at startup — like MSAA/V-Sync, takes effect on restart.

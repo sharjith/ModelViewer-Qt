@@ -37,13 +37,20 @@ if(CMAKE_CUDA_COMPILER)
     # OptiX 7.x ships as headers only (optix.h + friends) - the host API is
     # resolved dynamically at runtime from the NVIDIA display driver via
     # optixInit(), so there's no .lib to find/link, just the include path.
-    # OPTIX77_ROOT_DIR lets a developer override the install location; the
-    # default matches the SDK installer's standard Windows location.
-    set(OPTIX77_ROOT_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK 7.7.0" CACHE PATH
-        "Path to the OptiX 7.7 SDK install (the directory containing include/optix.h)")
-    find_path(OPTIX77_INCLUDE_DIR
+    # OPTIX_SDK_VERSION selects which installed SDK version to look for (the
+    # NVIDIA installer's standard Windows location is versioned in the
+    # directory name itself, e.g. "OptiX SDK 7.7.0" vs "OptiX SDK 8.0.0") -
+    # bump this to pick up a newer SDK on hardware/drivers that support it,
+    # without needing to touch the path logic below. OPTIX_ROOT_DIR lets a
+    # developer override the install location entirely (e.g. a non-default
+    # install path, or Linux) independent of the version.
+    set(OPTIX_SDK_VERSION "7.7.0" CACHE STRING
+        "OptiX SDK version to locate (matches the installer's default directory name, e.g. 7.7.0)")
+    set(OPTIX_ROOT_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK ${OPTIX_SDK_VERSION}" CACHE PATH
+        "Path to the OptiX SDK install (the directory containing include/optix.h)")
+    find_path(OPTIX_INCLUDE_DIR
         NAMES optix.h
-        PATHS "${OPTIX77_ROOT_DIR}/include"
+        PATHS "${OPTIX_ROOT_DIR}/include"
         NO_DEFAULT_PATH
     )
 
@@ -54,11 +61,11 @@ if(CMAKE_CUDA_COMPILER)
     # SDK samples themselves use, via their own ptx2cpp.cmake).
     find_program(BIN2C_EXECUTABLE bin2c HINTS "${CUDAToolkit_BIN_DIR}")
 
-    if(CUDAToolkit_FOUND AND OPTIX77_INCLUDE_DIR AND BIN2C_EXECUTABLE)
+    if(CUDAToolkit_FOUND AND OPTIX_INCLUDE_DIR AND BIN2C_EXECUTABLE)
         set(MODELVIEWER_HAVE_OPTIX TRUE)
-        message(STATUS "OptiX GPU path tracer backend: ENABLED (CUDA ${CUDAToolkit_VERSION}, OptiX headers at ${OPTIX77_INCLUDE_DIR})")
+        message(STATUS "OptiX GPU path tracer backend: ENABLED (CUDA ${CUDAToolkit_VERSION}, OptiX ${OPTIX_SDK_VERSION} headers at ${OPTIX_INCLUDE_DIR})")
     else()
-        message(STATUS "OptiX GPU path tracer backend: disabled (CUDA Toolkit found=${CUDAToolkit_FOUND}, OptiX headers found=${OPTIX77_INCLUDE_DIR}, bin2c found=${BIN2C_EXECUTABLE})")
+        message(STATUS "OptiX GPU path tracer backend: disabled (CUDA Toolkit found=${CUDAToolkit_FOUND}, OptiX ${OPTIX_SDK_VERSION} headers found=${OPTIX_INCLUDE_DIR}, bin2c found=${BIN2C_EXECUTABLE})")
     endif()
 else()
     message(STATUS "OptiX GPU path tracer backend: disabled (no CUDA compiler found)")
@@ -331,7 +338,7 @@ endif()
 # above - see MODELVIEWER_HAVE_OPTIX's doc comment.
 if(MODELVIEWER_HAVE_OPTIX)
     target_compile_definitions(ModelViewer PRIVATE MODELVIEWER_HAVE_OPTIX)
-    target_include_directories(ModelViewer PRIVATE ${OPTIX77_INCLUDE_DIR})
+    target_include_directories(ModelViewer PRIVATE ${OPTIX_INCLUDE_DIR})
     target_link_libraries(ModelViewer PRIVATE CUDA::cudart)
 
     # OptiX device code (src/cuda/*.cu) can't be compiled as normal CUDA
@@ -351,7 +358,7 @@ if(MODELVIEWER_HAVE_OPTIX)
             OUTPUT "${ptx_file}"
             COMMAND ${CMAKE_CUDA_COMPILER}
                 --ptx
-                -I "${OPTIX77_INCLUDE_DIR}"
+                -I "${OPTIX_INCLUDE_DIR}"
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
                 -o "${ptx_file}"

@@ -709,6 +709,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.clearcoatNormalScale = mat.clearcoatNormalScale;
 			hgSbt.data.sheenColorFactor = make_float3(mat.sheenColor.x, mat.sheenColor.y, mat.sheenColor.z);
 			hgSbt.data.sheenRoughness = mat.sheenRoughness;
+			hgSbt.data.anisotropyStrength = mat.anisotropyStrength;
+			hgSbt.data.anisotropyRotation = mat.anisotropyRotation;
+			hgSbt.data.iridescenceFactor = mat.iridescenceFactor;
+			hgSbt.data.iridescenceIor = mat.iridescenceIor;
+			hgSbt.data.iridescenceThickness = mat.iridescenceThicknessMax;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
 			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
@@ -724,6 +729,9 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			uploadMaterialTexture(mat.clearcoatNormalTexture, hgSbt.data.clearcoatNormalTexture);
 			uploadMaterialTexture(mat.sheenColorTexture, hgSbt.data.sheenColorTexture);
 			uploadMaterialTexture(mat.sheenRoughnessTexture, hgSbt.data.sheenRoughnessTexture);
+			uploadMaterialTexture(mat.anisotropyTexture, hgSbt.data.anisotropyTexture);
+			uploadMaterialTexture(mat.iridescenceTexture, hgSbt.data.iridescenceTexture);
+			uploadMaterialTexture(mat.iridescenceThicknessTexture, hgSbt.data.iridescenceThicknessTexture);
 		}
 		else
 		{
@@ -745,6 +753,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.clearcoatNormalScale = 1.0f;
 			hgSbt.data.sheenColorFactor = make_float3(0.0f, 0.0f, 0.0f);
 			hgSbt.data.sheenRoughness = 0.0001f;
+			hgSbt.data.anisotropyStrength = 0.0f;
+			hgSbt.data.anisotropyRotation = 0.0f;
+			hgSbt.data.iridescenceFactor = 0.0f;
+			hgSbt.data.iridescenceIor = 1.3f;
+			hgSbt.data.iridescenceThickness = 400.0f;
 
 			hgSbt.data.baseColorTexture.width = 0;
 			hgSbt.data.metallicTexture.width = 0;
@@ -760,6 +773,9 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.clearcoatNormalTexture.width = 0;
 			hgSbt.data.sheenColorTexture.width = 0;
 			hgSbt.data.sheenRoughnessTexture.width = 0;
+			hgSbt.data.anisotropyTexture.width = 0;
+			hgSbt.data.iridescenceTexture.width = 0;
+			hgSbt.data.iridescenceThicknessTexture.width = 0;
 		}
 
 		hitgroupRecordsHost.push_back(hgSbt);

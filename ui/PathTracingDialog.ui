@@ -144,12 +144,17 @@
            </item>
            <item>
             <property name="text">
-             <string>CPU</string>
+             <string>OIDN (CPU)</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>GPU (CUDA)</string>
+             <string>OIDN (GPU CUDA)</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>OptiX</string>
             </property>
            </item>
           </widget>

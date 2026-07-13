@@ -1520,7 +1520,30 @@ namespace
 	{
 		const glm::vec3& F0 = surf.F0;
 		const float smoothness = 1.0f - surf.roughness;
-		outSpecProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness + 0.5f * smoothness * smoothness, 0.05f, 0.95f);
+
+		// KHR_materials_anisotropy under-samples the same way smooth
+		// dielectrics/clearcoat did before their own smoothness boosts
+		// above/below - but for a different reason. anisoAlphaB (the sharp/
+		// minor axis) is no sharper than plain roughness already implies (the
+		// smoothness term above already covers it); the actual problem is
+		// that VNDF-sampling a STRETCHED lobe (anisoAlphaT widened toward 1,
+		// see tracePixel()'s per-hit anisoAlphaT/anisoAlphaB derivation) has
+		// higher per-sample variance than an isotropic lobe of the same
+		// average roughness - resolving the smeared "brushed metal" highlight
+		// cleanly needs more of the total sample budget directed at this
+		// lobe, not just correct importance sampling within it once chosen.
+		// Reported by the user comparing AnisotropyBarnLamp's raster (a
+		// smooth, noise-free swept ring from the analytic prefiltered-IBL
+		// lookup) against a visibly patchier/incomplete PT highlight at
+		// ordinary (32) sample counts - bumping samples alone helped some,
+		// confirming this is a variance/convergence problem this boost
+		// specifically targets, not a biased/wrong result. Same "only
+		// redistributes samples, never changes the converged mean" property
+		// as the other boosts here since the estimator divides by whichever
+		// probability was actually used.
+		const float anisotropyBoost = surf.anisotropyStrength * surf.anisotropyStrength;
+		outSpecProb = std::clamp((F0.r + F0.g + F0.b) / 3.0f + 0.5f * surf.metalness + 0.5f * smoothness * smoothness
+			+ 0.5f * anisotropyBoost, 0.05f, 0.95f);
 
 		// Same under-sampling problem as the base specular lobe above, for
 		// the same reason: clearcoatBlend alone is small at near-normal

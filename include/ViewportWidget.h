@@ -448,6 +448,19 @@ public:
 		outRunning        = _rtSession.isRunning();
 	}
 
+	// Milliseconds since the CURRENTLY active PT session actually began -
+	// _ptSessionElapsedTimer is (re)started at the single place a session
+	// really starts (startPathTracedSession()/startOptixTestPathTracedSession()),
+	// regardless of what triggered it: the dialog's own Render button, a
+	// keyboard shortcut toggling path-traced mode directly, or an automatic
+	// camera-settle restart. PathTracingDialog reads this directly instead of
+	// running its own independent clock that only starts once the dialog
+	// happens to be open and polling - a dialog opened AFTER a shortcut-
+	// triggered session was already well underway previously had no way to
+	// know that, and showed elapsed time counting up from 0 instead of the
+	// session's real age.
+	qint64 pathTracingElapsedMs() const { return _ptSessionElapsedTimer.isValid() ? _ptSessionElapsedTimer.elapsed() : 0; }
+
 	// Whether whichever backend's session is CURRENTLY the active one
 	// (per _ptEnginePreference) is running - used by the paintGL()/
 	// applicationStateChanged watchdogs that self-heal a stuck-idle path-
@@ -1161,6 +1174,7 @@ private:
 	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::CPU;
 	RtOptixPathTracingSession _ptOptixSession; // GPU-backend counterpart to _rtSession above - see startOptixTestPathTracedSession()
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
+	QElapsedTimer _ptSessionElapsedTimer; // see pathTracingElapsedMs()'s doc comment
 
 	// Set for the duration of a captureCleanPathTracedImage() call -
 	// paintGL() checks this to suppress the axis triad/view cube/mesh-count

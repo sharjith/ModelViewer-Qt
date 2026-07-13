@@ -128,10 +128,12 @@ MainWindow::MainWindow(QWidget* parent)
 			activeMdiChild()->showTextureDebugPanel();
 		});
 
-	// Tools → Path Tracing - non-modal, one instance per invocation (mirrors
-	// SettingsDialog's WA_DeleteOnClose pattern) rather than a single
-	// persistent instance, since it's cheap to reopen and simpler than
-	// tracking/reusing one across different active documents.
+	// Tools → Path Tracing - non-modal, at most one instance per document
+	// (mirrors SettingsDialog's WA_DeleteOnClose pattern for auto-cleanup,
+	// but reuses/raises an already-open dialog instead of stacking a new one
+	// on each click - repeatedly triggering the menu/shortcut used to spawn
+	// a fresh dialog every time, leaving several identical windows open on
+	// top of each other with no way to tell them apart).
 	connect(ui->actionPathTracing, &QAction::triggered, this, [this]() {
 		if (!activeMdiChild())
 			return;
@@ -150,7 +152,21 @@ MainWindow::MainWindow(QWidget* parent)
 		// destroyed. Parenting to MainWindow meant the dialog outlived
 		// every MDI document, including all of them being closed - this
 		// way it closes along with the document it belongs to instead.
+		//
+		// findChild() (direct children only - the dialog parents its own
+		// widgets under itself too, but none of THOSE are PathTracingDialogs)
+		// doubles as the "is one already open for this document" check:
+		// WA_DeleteOnClose means a closed dialog stops being findable here,
+		// so this naturally reduces to "create one" the first time and
+		// "bring the existing one forward" on every repeat click after.
 		ModelViewer* child = activeMdiChild();
+		if (PathTracingDialog* existing = child->findChild<PathTracingDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		{
+			existing->show();
+			existing->raise();
+			existing->activateWindow();
+			return;
+		}
 		PathTracingDialog* dialog = new PathTracingDialog(child, child);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 		dialog->show();

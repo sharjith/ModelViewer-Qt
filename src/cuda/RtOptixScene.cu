@@ -70,13 +70,18 @@
 // sample around the mirror-reflect direction - the visually DOMINANT
 // contribution on scenes lit mainly by their environment, per CpuPathTracer's
 // own history discovering this - and a base-layer energy-compensation
-// dampening via sampleSheenAlbedoLUT()'s baked directional-albedo LUT) are
-// now implemented, both ported from CpuPathTracer's identically-named
-// functions.
+// dampening via sampleSheenAlbedoLUT()'s baked directional-albedo LUT),
+// KHR_materials_anisotropy (distributionGGXAnisotropic()/
+// visibilityGGXAnisotropic() for direct lighting, an anisotropic VNDF/Smith
+// pair - sampleGGXVNDF()/smithG1GGXAniso()/smithG2HeightCorrelatedGGXAniso()
+// - over a rotated tangent frame for indirect bounces), and
+// KHR_materials_iridescence (evalIridescence()'s thin-film Fresnel tint,
+// applied to both the direct-lighting dielectric/metal reconstruction and
+// the indirect specular lobe's Fresnel term) are now implemented, all ported
+// from CpuPathTracer's identically-named functions.
 //
 // Still deferred: alphaMode Blend (true transparency compositing) and
-// anisotropy/iridescence/transmission - see RtMaterial's own doc comments for
-// what those add.
+// transmission - see RtMaterial's own doc comments for what those add.
 // Self-contained, same style as RtOptixTriangle.cu (no dependency on the
 // OptiX SDK's bundled sutil).
 // ---------------------------------------------------------------------------
@@ -146,6 +151,14 @@ namespace
 	__forceinline__ __device__ float3 lerp3(const float3& a, const float3& b, float t)
 	{
 		return a + (b - a) * t;
+	}
+
+	// Per-component mix, t itself varying per channel - glm::mix(a,b,vec3)'s
+	// GPU counterpart (needed by KHR_materials_iridescence's direct-lighting
+	// branch, which mixes by a per-channel Fresnel color, not a scalar).
+	__forceinline__ __device__ float3 lerp3(const float3& a, const float3& b, const float3& t)
+	{
+		return make_float3(a.x + (b.x - a.x) * t.x, a.y + (b.y - a.y) * t.y, a.z + (b.z - a.z) * t.z);
 	}
 
 	__forceinline__ __device__ float3 reflectF3(const float3& incident, const float3& normal)
@@ -402,6 +415,219 @@ namespace
 		return 1.0f / (1.0f + smithLambdaGGX(NdotV, alpha) + smithLambdaGGX(NdotL, alpha));
 	}
 
+	// ---- KHR_materials_anisotropy - ported verbatim from CpuPathTracer.cpp's
+	// smithLambdaGGXAniso()/smithG1GGXAniso()/smithG2HeightCorrelatedGGXAniso()/
+	// distributionGGXAnisotropic()/visibilityGGXAnisotropic() (themselves from
+	// main_scene.frag's D_GGX_anisotropic()/V_GGX_anisotropic()).
+	// smithLambdaGGXAniso() reduces to smithLambdaGGX(Xlocal.z, alpha) exactly
+	// when alphaX==alphaY (isotropic case), consistent with how
+	// sampleGGXVNDF() unifies both cases - Xlocal is X expressed in the
+	// (anisotropicT, anisotropicB, N) local frame: (dot(X,T), dot(X,B),
+	// dot(X,N)). ----
+	__forceinline__ __device__ float smithLambdaGGXAniso(const float3& Xlocal, float alphaX, float alphaY)
+	{
+		const float NdotX2 = Xlocal.z * Xlocal.z;
+		const float ax2 = alphaX * alphaX, ay2 = alphaY * alphaY;
+		const float tan2Num = ax2 * Xlocal.x * Xlocal.x + ay2 * Xlocal.y * Xlocal.y;
+		return 0.5f * (-1.0f + sqrtf(1.0f + tan2Num / fmaxf(NdotX2, 1e-7f)));
+	}
+
+	__forceinline__ __device__ float smithG1GGXAniso(const float3& Xlocal, float alphaX, float alphaY)
+	{
+		return 1.0f / (1.0f + smithLambdaGGXAniso(Xlocal, alphaX, alphaY));
+	}
+
+	__forceinline__ __device__ float smithG2HeightCorrelatedGGXAniso(const float3& Vlocal, const float3& Llocal, float alphaX, float alphaY)
+	{
+		return 1.0f / (1.0f + smithLambdaGGXAniso(Vlocal, alphaX, alphaY) + smithLambdaGGXAniso(Llocal, alphaX, alphaY));
+	}
+
+	// Direct-lighting (NEE) anisotropic Cook-Torrance D/V - V_GGX_anisotropic
+	// already bakes in the 1/(4*NdotV*NdotL) visibility term (Khronos spec's
+	// "V" function), unlike the isotropic distributionGGX()/geometrySmith()
+	// pair which needs that division applied separately at the call site.
+	__forceinline__ __device__ float distributionGGXAnisotropic(float NdotH, float TdotH, float BdotH, float at, float ab)
+	{
+		const float a2 = at * ab;
+		const float3 f = make_float3(ab * TdotH, at * BdotH, a2 * NdotH);
+		const float w2 = a2 / dot3(f, f);
+		return a2 * w2 * w2 / kPi;
+	}
+
+	__forceinline__ __device__ float visibilityGGXAnisotropic(float NdotL, float NdotV, float BdotV, float TdotV, float TdotL, float BdotL, float at, float ab)
+	{
+		const float3 vV = make_float3(at * TdotV, ab * BdotV, NdotV);
+		const float3 vL = make_float3(at * TdotL, ab * BdotL, NdotL);
+		const float GGXV = NdotL * sqrtf(dot3(vV, vV));
+		const float GGXL = NdotV * sqrtf(dot3(vL, vL));
+		return fminf(fmaxf(0.5f / (GGXV + GGXL), 0.0f), 1.0f);
+	}
+
+	// Ported from decodeAnisotropyTexture() in main_scene.frag (via
+	// CpuPathTracer's identically-named function). Without a texture this is
+	// a no-op (returns the raw uniform factors unchanged) - only called when
+	// a texture is actually present. With a texture, the RG channels
+	// ([0,1] -> [-1,1]) give a base direction that the uniform rotation then
+	// rotates further, reduced to a single final angle (outRotation) since
+	// that's all the tangent-frame construction below needs. The texture's B
+	// channel scales the uniform strength.
+	__forceinline__ __device__ void decodeAnisotropyTexture(const float3& texelRGB, float uniformStrength, float uniformRotation,
+		float& outStrength, float& outRotation)
+	{
+		float2 direction = make_float2(texelRGB.x * 2.0f - 1.0f, texelRGB.y * 2.0f - 1.0f);
+		const float directionLength = sqrtf(direction.x * direction.x + direction.y * direction.y);
+		direction = (directionLength < 0.0001f) ? make_float2(1.0f, 0.0f) : (direction * (1.0f / directionLength));
+
+		outStrength = fminf(fmaxf(texelRGB.z * uniformStrength, 0.0f), 1.0f);
+
+		const float c = cosf(uniformRotation);
+		const float s = sinf(uniformRotation);
+		const float2 rotated = make_float2(c * direction.x - s * direction.y, s * direction.x + c * direction.y);
+		outRotation = atan2f(rotated.y, rotated.x);
+	}
+
+	// ---- KHR_materials_iridescence, ported verbatim from CpuPathTracer.cpp's
+	// evalIridescence()/fresnel0ToIor()/iorToFresnel0()/fSchlickIridescence()/
+	// evalSensitivity()/rgbMix()/applyIridescenceToFresnel() (themselves from
+	// main_scene.frag). ----
+	__forceinline__ __device__ float3 sqf3(const float3& a) { return a * a; }
+
+	__forceinline__ __device__ float3 fresnel0ToIor(const float3& fresnel0)
+	{
+		const float3 sqrtF0 = make_float3(sqrtf(fresnel0.x), sqrtf(fresnel0.y), sqrtf(fresnel0.z));
+		return make_float3((1.0f + sqrtF0.x) / (1.0f - sqrtF0.x), (1.0f + sqrtF0.y) / (1.0f - sqrtF0.y), (1.0f + sqrtF0.z) / (1.0f - sqrtF0.z));
+	}
+
+	__forceinline__ __device__ float3 iorToFresnel0_3(const float3& transmittedIor, float incidentIor)
+	{
+		const float3 d = make_float3(transmittedIor.x - incidentIor, transmittedIor.y - incidentIor, transmittedIor.z - incidentIor);
+		const float3 s = make_float3(transmittedIor.x + incidentIor, transmittedIor.y + incidentIor, transmittedIor.z + incidentIor);
+		return sqf3(make_float3(d.x / s.x, d.y / s.y, d.z / s.z));
+	}
+
+	__forceinline__ __device__ float iorToFresnel0_1(float transmittedIor, float incidentIor)
+	{
+		const float d = (transmittedIor - incidentIor) / (transmittedIor + incidentIor);
+		return d * d;
+	}
+
+	__forceinline__ __device__ float fSchlickIridescence1(float f0, float cosTheta, float f90)
+	{
+		return f0 + (f90 - f0) * powf(fminf(fmaxf(1.0f - cosTheta, 0.0f), 1.0f), 5.0f);
+	}
+
+	__forceinline__ __device__ float3 fSchlickIridescence3(const float3& f0, float cosTheta, const float3& f90)
+	{
+		const float t = powf(fminf(fmaxf(1.0f - cosTheta, 0.0f), 1.0f), 5.0f);
+		return f0 + (f90 - f0) * t;
+	}
+
+	// XYZ color-matching-function sensitivity curves -> linear sRGB, giving
+	// thin-film interference its vibrant, angle-dependent hue shift.
+	__forceinline__ __device__ float3 evalSensitivity(float OPD, const float3& shift)
+	{
+		const float phase = 2.0f * kPi * OPD * 1.0e-9f;
+		const float3 val = make_float3(5.4856e-13f, 4.4201e-13f, 5.2481e-13f);
+		const float3 pos = make_float3(1.6810e+06f, 1.7953e+06f, 2.2084e+06f);
+		const float3 var = make_float3(4.3278e+09f, 9.3046e+09f, 6.6121e+09f);
+
+		float3 xyz;
+		xyz.x = val.x * sqrtf(2.0f * kPi * var.x) * cosf(pos.x * phase + shift.x) * expf(-(phase * phase) * var.x);
+		xyz.y = val.y * sqrtf(2.0f * kPi * var.y) * cosf(pos.y * phase + shift.y) * expf(-(phase * phase) * var.y);
+		xyz.z = val.z * sqrtf(2.0f * kPi * var.z) * cosf(pos.z * phase + shift.z) * expf(-(phase * phase) * var.z);
+		xyz.x += 9.7470e-14f * sqrtf(2.0f * kPi * 4.5282e+09f) * cosf(2.2399e+06f * phase + shift.x) * expf(-4.5282e+09f * (phase * phase));
+		xyz = xyz * (1.0f / 1.0685e-7f);
+
+		// Matches main_scene.frag's XYZ_TO_REC709 mat3 literal - GLSL's
+		// mat3(...) 9-scalar constructor is column-major, matching the row-major
+		// listing below transposed the same way CpuPathTracer's glm::mat3
+		// (also column-major) reproduces it with the identical 9 values.
+		return make_float3(
+			3.2404542f * xyz.x + -1.5371385f * xyz.y + -0.4985314f * xyz.z,
+			-0.9692660f * xyz.x + 1.8760108f * xyz.y + 0.0415560f * xyz.z,
+			0.0556434f * xyz.x + -0.2040259f * xyz.y + 1.0572252f * xyz.z);
+	}
+
+	// baseF90 defaults to (1,1,1) to match main_scene.frag's single-arg overload.
+	__forceinline__ __device__ float3 evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness,
+		const float3& baseF0, const float3& baseF90)
+	{
+		const float t = fminf(fmaxf(thinFilmThickness / 0.03f, 0.0f), 1.0f); // smoothstep(0,0.03,thickness), thickness>=0 here
+		const float smoothT = t * t * (3.0f - 2.0f * t);
+		const float iridescenceIor = outsideIOR + (eta2 - outsideIOR) * smoothT;
+		const float sinTheta2Sq = (outsideIOR / iridescenceIor) * (outsideIOR / iridescenceIor) * (1.0f - cosTheta1 * cosTheta1);
+		const float cosTheta2Sq = 1.0f - sinTheta2Sq;
+		if (cosTheta2Sq < 0.0f)
+			return make_float3(1.0f, 1.0f, 1.0f);
+		const float cosTheta2 = sqrtf(cosTheta2Sq);
+
+		const float R0 = iorToFresnel0_1(iridescenceIor, outsideIOR);
+		const float R12 = fSchlickIridescence1(R0, cosTheta1, 1.0f);
+		const float T121 = 1.0f - R12;
+		float phi12 = 0.0f;
+		if (iridescenceIor < outsideIOR) phi12 = kPi;
+		const float phi21 = kPi - phi12;
+
+		const float3 baseF0Clamped = make_float3(fminf(fmaxf(baseF0.x, 0.0f), 0.9999f), fminf(fmaxf(baseF0.y, 0.0f), 0.9999f), fminf(fmaxf(baseF0.z, 0.0f), 0.9999f));
+		const float3 baseIOR = fresnel0ToIor(baseF0Clamped);
+		const float3 R1 = iorToFresnel0_3(baseIOR, iridescenceIor);
+		const float3 R23 = fSchlickIridescence3(R1, cosTheta2, baseF90);
+		float3 phi23 = make_float3(0.0f, 0.0f, 0.0f);
+		if (baseIOR.x < iridescenceIor) phi23.x = kPi;
+		if (baseIOR.y < iridescenceIor) phi23.y = kPi;
+		if (baseIOR.z < iridescenceIor) phi23.z = kPi;
+
+		const float OPD = 2.0f * iridescenceIor * thinFilmThickness * cosTheta2;
+		const float3 phi = make_float3(phi21 + phi23.x, phi21 + phi23.y, phi21 + phi23.z);
+
+		float3 R123 = R23 * R12;
+		R123 = make_float3(fminf(fmaxf(R123.x, 1e-5f), 0.9999f), fminf(fmaxf(R123.y, 1e-5f), 0.9999f), fminf(fmaxf(R123.z, 1e-5f), 0.9999f));
+		const float3 r123 = make_float3(sqrtf(R123.x), sqrtf(R123.y), sqrtf(R123.z));
+		const float3 T121sq = make_float3(T121 * T121, T121 * T121, T121 * T121);
+		const float3 Rs = make_float3(T121sq.x * R23.x, T121sq.y * R23.y, T121sq.z * R23.z) * make_float3(1.0f / (1.0f - R123.x), 1.0f / (1.0f - R123.y), 1.0f / (1.0f - R123.z));
+
+		float3 I = make_float3(R12 + Rs.x, R12 + Rs.y, R12 + Rs.z); // DC term
+
+		float3 Cm = Rs - make_float3(T121, T121, T121);
+		for (int m = 1; m <= 2; ++m)
+		{
+			Cm = Cm * r123;
+			const float3 Sm = evalSensitivity(static_cast<float>(m) * OPD, make_float3(static_cast<float>(m) * phi.x, static_cast<float>(m) * phi.y, static_cast<float>(m) * phi.z)) * 2.0f;
+			I = I + Cm * Sm;
+		}
+		return make_float3(fmaxf(I.x, 0.0f), fmaxf(I.y, 0.0f), fmaxf(I.z, 0.0f));
+	}
+
+	// Ported from rgb_mix() in main_scene.frag - an energy-conserving mix for
+	// iridescent dielectric surfaces. A per-channel-varying Fresnel would let
+	// a plain per-channel mix() leave low-Fresnel channels holding onto most
+	// of "base", inflating overall brightness; this reduces base by the MAX
+	// channel's Fresnel uniformly instead, so no channel keeps more base than
+	// the most-reflective channel allows, while per-channel specular coloring
+	// is preserved.
+	__forceinline__ __device__ float3 rgbMix(const float3& base, const float3& layer, const float3& rgbAlpha)
+	{
+		const float rgbAlphaMax = fmaxf(fmaxf(rgbAlpha.x, rgbAlpha.y), rgbAlpha.z);
+		return base * (1.0f - rgbAlphaMax) + layer * rgbAlpha;
+	}
+
+	// Indirect/bounce-sampling side of KHR_materials_iridescence - unlike
+	// direct lighting (which replicates main_scene.frag's evaluateBaseDirect()
+	// iridescence branch exactly), there's no analytic prefiltered-IBL lookup
+	// here to replicate raster's evaluateBaseIBL() iridescence branch against,
+	// so this instead blends the ordinary Fresnel term toward
+	// evalIridescence()'s angle/thickness-dependent color by
+	// iridescenceFactor - ported from CpuPathTracer::applyIridescenceToFresnel().
+	__forceinline__ __device__ float3 applyIridescenceToFresnel(const float3& baseFresnel, float cosTheta, const float3& F0,
+		float iridescenceFactor, float iridescenceIor, float iridescenceThickness)
+	{
+		if (iridescenceFactor <= 0.001f || iridescenceThickness <= 0.0f)
+			return baseFresnel;
+		const float3 F0Clamped = make_float3(fminf(fmaxf(F0.x, 0.0f), 0.9999f), fminf(fmaxf(F0.y, 0.0f), 0.9999f), fminf(fmaxf(F0.z, 0.0f), 0.9999f));
+		const float3 iridescent = evalIridescence(1.0f, iridescenceIor, fminf(fmaxf(cosTheta, 0.0f), 1.0f), iridescenceThickness, F0Clamped, make_float3(1.0f, 1.0f, 1.0f));
+		return baseFresnel * (1.0f - iridescenceFactor) + iridescent * iridescenceFactor;
+	}
+
 	// ---- KHR_materials_clearcoat, ported verbatim from CpuPathTracer.cpp's
 	// evaluateClearcoatDirect()/computeClearcoatFresnel() (themselves from
 	// main_scene.frag). Note evaluateClearcoatDirect() deliberately reuses
@@ -513,12 +739,24 @@ namespace
 	// base specular lobe's own smoothness boost exists (see
 	// __closesthit__ch()'s specProb comment) - a smooth coat's narrow
 	// reflection is otherwise starved to the probability floor regardless of
-	// view angle.
+	// view angle. Also boosted by anisotropyStrength^2 - VNDF-sampling a
+	// STRETCHED anisotropic lobe (anisoAlphaT widened toward 1) has higher
+	// per-sample variance than an isotropic lobe of the same average
+	// roughness, so resolving a "brushed metal" highlight cleanly needs more
+	// of the sample budget directed at this lobe, not just correct
+	// importance sampling once chosen - see CpuPathTracer::
+	// computeLobeProbabilities()'s identical boost for the full rationale
+	// (reported by the user comparing AnisotropyBarnLamp's raster - a smooth,
+	// noise-free swept ring - against a patchier PT highlight at ordinary
+	// sample counts).
 	__forceinline__ __device__ void computeLobeProbabilities(const float3& F0, float metalness, float roughness,
-		const float3& clearcoatBlend, float clearcoat, float clearcoatRoughness, float& outSpecProb, float& outCoatProb)
+		const float3& clearcoatBlend, float clearcoat, float clearcoatRoughness, float anisotropyStrength,
+		float& outSpecProb, float& outCoatProb)
 	{
 		const float smoothness = 1.0f - roughness;
-		outSpecProb = fminf(fmaxf((F0.x + F0.y + F0.z) * (1.0f / 3.0f) + 0.5f * metalness + 0.5f * smoothness * smoothness, 0.05f), 0.95f);
+		const float anisotropyBoost = anisotropyStrength * anisotropyStrength;
+		outSpecProb = fminf(fmaxf((F0.x + F0.y + F0.z) * (1.0f / 3.0f) + 0.5f * metalness + 0.5f * smoothness * smoothness
+			+ 0.5f * anisotropyBoost, 0.05f), 0.95f);
 
 		const float coatSmoothness = 1.0f - clearcoatRoughness;
 		outCoatProb = clearcoat > 0.0f
@@ -579,17 +817,22 @@ namespace
 	}
 
 	// GGX Visible Normal Distribution Function sample (Heitz 2018, "Sampling
-	// the GGX Distribution of Visible Normals") - isotropic form (single
-	// alpha, matching this backend's no-anisotropy scope). Ve is the view
-	// direction in TANGENT space (Z-up); returns the sampled half-vector H,
-	// also in tangent space. Reflecting the (tangent-space or, as used here,
-	// world-space-via-the-same-basis) view direction around this H gives a
+	// the GGX Distribution of Visible Normals"). Ve is the view direction in
+	// TANGENT space (Z-up); returns the sampled half-vector H, also in
+	// tangent space. Reflecting the (tangent-space or, as used here, world-
+	// space-via-the-same-basis) view direction around this H gives a
 	// specular-lobe-importance-sampled bounce direction, whose throughput
 	// weight is F*G2/G1 (the well-known VNDF-sampling simplification - see
-	// this file's specular-lobe branch in __closesthit__ch()).
-	__forceinline__ __device__ float3 sampleGGXVNDF(const float3& Ve, float alpha, float u1, float u2)
+	// this file's specular-lobe branch in __closesthit__ch()). The algorithm
+	// as published is already anisotropic-capable (separate alphaX/alphaY
+	// roughness scaling) - ported from CpuPathTracer::sampleGGXVNDF(), whose
+	// own doc comment notes alphaX/alphaY are only ever equal for isotropic
+	// materials, letting KHR_materials_anisotropy's stretched lobe reuse this
+	// same sampler (with its own rotated tangent frame) rather than needing
+	// a separate one. Existing isotropic call sites just pass alpha for both.
+	__forceinline__ __device__ float3 sampleGGXVNDF(const float3& Ve, float alphaX, float alphaY, float u1, float u2)
 	{
-		const float3 Vh = normalizeF3(make_float3(alpha * Ve.x, alpha * Ve.y, Ve.z));
+		const float3 Vh = normalizeF3(make_float3(alphaX * Ve.x, alphaY * Ve.y, Ve.z));
 
 		const float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
 		const float3 T1 = lensq > 0.0f ? (make_float3(-Vh.y, Vh.x, 0.0f) * rsqrtf(lensq)) : make_float3(1.0f, 0.0f, 0.0f);
@@ -604,7 +847,7 @@ namespace
 
 		const float3 Nh = T1 * t1 + T2 * t2 + Vh * sqrtf(fmaxf(0.0f, 1.0f - t1 * t1 - t2 * t2));
 
-		return normalizeF3(make_float3(alpha * Nh.x, alpha * Nh.y, fmaxf(0.0f, Nh.z)));
+		return normalizeF3(make_float3(alphaX * Nh.x, alphaY * Nh.y, fmaxf(0.0f, Nh.z)));
 	}
 
 	// Ported verbatim from CpuPathTracer::evaluatePunctualLight() (itself
@@ -1368,6 +1611,75 @@ extern "C" __global__ void __closesthit__ch()
 	// computeLobeProbabilities()'s coat-lobe sampling weight.
 	const float3 clearcoatBlend = computeClearcoatFresnel(data->ior, Ncoat, V) * clearcoat;
 
+	// KHR_materials_iridescence's direct-lighting branch needs the PRE-metal-
+	// mix dielectric direct-F0 standalone (see CpuPathTracer::computeF0F90()'s
+	// outDielectricDirectF0 doc comment) - dielectricF0*texturedSpecularFactor
+	// is already computed inline as part of directF0 above; naming it here
+	// just reuses that same expression.
+	const float3 dielectricDirectF0 = dielectricF0 * texturedSpecularFactor;
+
+	// KHR_materials_anisotropy - stretches the base specular lobe along a
+	// tangent-space direction. Ported from CpuPathTracer::tracePixel()'s
+	// per-hit computation (buildAnisotropyBasis() in main_scene.frag) using
+	// geometricNormal as the analog of frame.Ng/Nsmooth (the smoothly-
+	// interpolated, pre-normal-map normal - NOT the flat per-triangle one).
+	// Requires real tangent data to build a meaningful basis - untextured/
+	// tangentless meshes simply render isotropically (hasAniso false), same
+	// scoping already accepted for normal mapping in this file.
+	float anisotropyStrength = data->anisotropyStrength;
+	float anisotropyRotation = data->anisotropyRotation;
+	if (data->anisotropyTexture.width > 0)
+	{
+		const float4 sampled = sampleTexture2D(data->anisotropyTexture, uv);
+		decodeAnisotropyTexture(make_float3(sampled.x, sampled.y, sampled.z), data->anisotropyStrength, data->anisotropyRotation,
+			anisotropyStrength, anisotropyRotation);
+	}
+	const float3 worldTangentDir = make_float3(worldTangentAndHandedness.x, worldTangentAndHandedness.y, worldTangentAndHandedness.z);
+	const bool hasAniso = anisotropyStrength > 0.0f && dot3(worldTangentDir, worldTangentDir) > 0.0001f;
+	float3 anisoT = make_float3(1.0f, 0.0f, 0.0f);
+	float3 anisoB = make_float3(0.0f, 1.0f, 0.0f);
+	float anisoAlphaT = roughness * roughness;
+	float anisoAlphaB = anisoAlphaT;
+	if (hasAniso)
+	{
+		// Tb/Bb: same orthogonalized-tangent-frame derivation applyNormalMap()
+		// uses (T orthogonalized against N, B = normalize(cross(N,T))*
+		// handedness) - this backend only stores one tangent+handedness sign
+		// per vertex (not independent tangent/bitangent attributes like
+		// CpuPathTracer's hit.tangent/hit.bitangent), so Bb is ALREADY
+		// guaranteed orthogonal/consistently-oriented by construction; no
+		// extra "flip if cross(Tb,Bb)*N < 0" correction is needed (or even
+		// meaningful) here the way CPU's independently-stored attributes need.
+		const float3 Tb = normalizeF3(worldTangentDir - geometricNormal * dot3(worldTangentDir, geometricNormal));
+		const float3 Bb = normalizeF3(cross3(geometricNormal, Tb)) * worldTangentAndHandedness.w;
+
+		const float2 dir = make_float2(cosf(anisotropyRotation), sinf(anisotropyRotation));
+		anisoT = normalizeF3(Tb * dir.x + Bb * dir.y);
+		anisoB = normalizeF3(cross3(geometricNormal, anisoT));
+		if (dot3(anisoB, anisoB) < 0.0001f * 0.0001f)
+			anisoB = normalizeF3(cross3(geometricNormal, Tb));
+		if (dot3(cross3(anisoT, anisoB), geometricNormal) < 0.0f)
+			anisoB = anisoB * -1.0f;
+
+		const float alphaRoughness = fmaxf(roughness * roughness, 0.001f);
+		anisoAlphaT = alphaRoughness + (1.0f - alphaRoughness) * (anisotropyStrength * anisotropyStrength);
+		anisoAlphaB = fminf(fmaxf(alphaRoughness, 0.001f), 1.0f);
+	}
+
+	// KHR_materials_iridescence - iridescenceTexture is channel-packed
+	// (scales iridescenceFactor); iridescenceThicknessTexture REPLACES
+	// iridescenceThickness rather than scaling it (matches CpuPathTracer::
+	// evaluateSurface() exactly).
+	float iridescenceFactor = data->iridescenceFactor;
+	if (data->iridescenceTexture.width > 0)
+		iridescenceFactor *= applyChannelPacking(sampleTexture2D(data->iridescenceTexture, uv), data->iridescenceTexture);
+	iridescenceFactor = fminf(fmaxf(iridescenceFactor, 0.0f), 1.0f);
+
+	const float iridescenceIor = data->iridescenceIor;
+	float iridescenceThickness = data->iridescenceThickness;
+	if (data->iridescenceThicknessTexture.width > 0)
+		iridescenceThickness = applyChannelPacking(sampleTexture2D(data->iridescenceThicknessTexture, uv), data->iridescenceThicknessTexture);
+
 	float3 radiance = emissive;
 	if (NdotV > 0.0f)
 	{
@@ -1398,14 +1710,61 @@ extern "C" __global__ void __closesthit__ch()
 			// evaluateDirectBRDF()'s own fresnelSchlick(VdotH, surf.directF0,
 			// surf.F90) exactly.
 			const float3 F = fresnelSchlick(VdotH, directF0, F90);
-			const float D = distributionGGX(NdotH, roughness);
-			const float G = geometrySmith(NdotV, NdotL, roughness);
-			const float3 specular = F * (D * G / fmaxf(4.0f * NdotV * NdotL, 0.001f));
+
+			// KHR_materials_anisotropy - ported from CpuPathTracer::
+			// evaluateDirectBRDF()'s hasAniso branch. specularNoF is kept
+			// Fresnel-FREE (matching CPU) since KHR_materials_iridescence's
+			// direct-lighting branch below needs the bare D*V/G term to
+			// rebuild its own dielectric/metal Fresnel split from scratch.
+			float3 specularNoF;
+			if (hasAniso)
+			{
+				const float D_aniso = distributionGGXAnisotropic(NdotH, dot3(anisoT, H), dot3(anisoB, H), anisoAlphaT, anisoAlphaB);
+				const float V_aniso = visibilityGGXAnisotropic(NdotL, NdotV,
+					dot3(anisoB, V), dot3(anisoT, V), dot3(anisoT, lightDir), dot3(anisoB, lightDir), anisoAlphaT, anisoAlphaB);
+				const float dv = D_aniso * V_aniso;
+				specularNoF = make_float3(dv, dv, dv);
+			}
+			else
+			{
+				const float D = distributionGGX(NdotH, roughness);
+				const float G = geometrySmith(NdotV, NdotL, roughness);
+				const float dg = (D * G) / fmaxf(4.0f * NdotV * NdotL, 0.001f);
+				specularNoF = make_float3(dg, dg, dg);
+			}
+			const float3 specular = specularNoF * F;
 
 			const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - F) * (1.0f - metalness);
 			const float3 diffuse = kD * baseColor * (1.0f / kPi);
 
-			float3 baseDirect = (diffuse + specular) * lightIntensity * NdotL;
+			float3 baseDirect;
+			// KHR_materials_iridescence - ported from CpuPathTracer::
+			// evaluateDirectBRDF()'s iridescence branch, which entirely
+			// replaces the diffuse+specular combination above with its own
+			// dielectric/metal reconstruction rather than adding a term on
+			// top.
+			if (iridescenceFactor > 0.001f && iridescenceThickness > 0.0f)
+			{
+				const float3 l_diffuse = diffuse * NdotL;
+				const float3 l_specular = specularNoF * NdotL;
+
+				const float3 dielectricFresnel = fresnelSchlick(VdotH, dielectricDirectF0,
+					make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor));
+				const float3 metalFresnel = fresnelSchlick(VdotH, baseColor, make_float3(1.0f, 1.0f, 1.0f));
+				float3 dielectricBrdf = lerp3(l_diffuse, l_specular, dielectricFresnel);
+				float3 metalBrdf = metalFresnel * l_specular;
+
+				const float3 iridescenceFresnelDielectric = evalIridescence(1.0f, iridescenceIor, NdotV, iridescenceThickness, dielectricF0, make_float3(1.0f, 1.0f, 1.0f));
+				const float3 iridescenceFresnelMetallic = evalIridescence(1.0f, iridescenceIor, NdotV, iridescenceThickness, baseColor, make_float3(1.0f, 1.0f, 1.0f));
+				metalBrdf = lerp3(metalBrdf, l_specular * iridescenceFresnelMetallic, iridescenceFactor);
+				dielectricBrdf = lerp3(dielectricBrdf, rgbMix(l_diffuse, l_specular, iridescenceFresnelDielectric), iridescenceFactor);
+
+				baseDirect = lerp3(dielectricBrdf, metalBrdf, metalness) * lightIntensity;
+			}
+			else
+			{
+				baseDirect = (diffuse + specular) * lightIntensity * NdotL;
+			}
 
 			// KHR_materials_sheen's base-layer energy-compensation dampening -
 			// ported from CpuPathTracer::tracePixel()'s "albedoSheenScaling",
@@ -1530,9 +1889,6 @@ extern "C" __global__ void __closesthit__ch()
 
 		float3 T, B;
 		buildOrthonormalBasis(worldNormal, T, B);
-		// z floored at 1e-4 for the VNDF sampler's Ve.z > 0 requirement at
-		// grazing angles - matches CpuPathTracer's own NdotV0 floor exactly.
-		const float3 Vlocal = make_float3(dot3(V, T), dot3(V, B), fmaxf(dot3(V, worldNormal), 1e-4f));
 
 		// Ported from CpuPathTracer::computeLobeProbabilities(): average F0
 		// plus a metalness boost plus a (1-roughness)^2 smoothness boost,
@@ -1550,7 +1906,7 @@ extern "C" __global__ void __closesthit__ch()
 		// the converged mean.
 		const float3 Fview = fresnelSchlick(NdotV, F0, F90);
 		float specProb, coatProb;
-		computeLobeProbabilities(F0, metalness, roughness, clearcoatBlend, clearcoat, clearcoatRoughness, specProb, coatProb);
+		computeLobeProbabilities(F0, metalness, roughness, clearcoatBlend, clearcoat, clearcoatRoughness, anisotropyStrength, specProb, coatProb);
 
 		rngState = pcgHash(rngState);
 		const float lobeXi = hashToUnitFloat(rngState);
@@ -1576,7 +1932,7 @@ extern "C" __global__ void __closesthit__ch()
 			const float NdotV0 = fmaxf(dot3(Ncoat, V), 1e-4f);
 			const float3 Ve = make_float3(dot3(V, Tc), dot3(V, Bc), NdotV0);
 
-			const float3 Hlocal = sampleGGXVNDF(Ve, alpha, u1, u2);
+			const float3 Hlocal = sampleGGXVNDF(Ve, alpha, alpha, u1, u2); // isotropic coat lobe - alphaX==alphaY
 			const float3 H = normalizeF3(Tc * Hlocal.x + Bc * Hlocal.y + Ncoat * Hlocal.z);
 			// reflect(-V, H), NOT reflect(rayDir, H) - matches CpuPathTracer::
 			// sampleBSDFBounce()'s identical glm::reflect(-V, H) exactly. The
@@ -1613,8 +1969,22 @@ extern "C" __global__ void __closesthit__ch()
 		{
 			const float specProbScaled = specProb * (1.0f - coatProb);
 			const float alpha = roughness * roughness;
+			// KHR_materials_anisotropy: reuse the rotated (anisoT, anisoB)
+			// frame and its separate alphaT/alphaB in place of the isotropic
+			// (T, B, alpha) basis when active - matches CpuPathTracer::
+			// sampleBSDFBounce()'s hasAniso?anisoT:T/hasAniso?alphaT:alpha
+			// selection exactly. The mirror fast-path is skipped entirely
+			// when hasAniso (also matching CPU) - a perfectly smooth
+			// anisotropic material still has a meaningfully STRETCHED
+			// (non-mirror) lobe via anisoAlphaT, so short-circuiting to an
+			// isotropic mirror reflection would silently discard the
+			// stretch the user actually authored.
+			const float3& Tb = hasAniso ? anisoT : T;
+			const float3& Bb = hasAniso ? anisoB : B;
+			const float aT = hasAniso ? anisoAlphaT : alpha;
+			const float aB = hasAniso ? anisoAlphaB : alpha;
 			const bool polishedMetalMirrorApprox = metalness >= 0.9f && roughness <= 0.12f;
-			if (roughness <= 0.01f || polishedMetalMirrorApprox)
+			if (!hasAniso && (roughness <= 0.01f || polishedMetalMirrorApprox))
 			{
 				// reflect(-V, N), not reflect(rayDir, N) - see the coat lobe's
 				// identical comment above for why (matches CpuPathTracer's
@@ -1623,7 +1993,7 @@ extern "C" __global__ void __closesthit__ch()
 				const float NdotL = dot3(worldNormal, L);
 				if (NdotL > 0.0f)
 				{
-					const float3 F = fresnelSchlick(NdotV, F0, F90);
+					const float3 F = applyIridescenceToFresnel(fresnelSchlick(NdotV, F0, F90), NdotV, F0, iridescenceFactor, iridescenceIor, iridescenceThickness);
 					nextDirection = L;
 					throughputWeight = F * (1.0f / specProbScaled);
 					outEscapeRoughness = 0.0f;
@@ -1632,8 +2002,10 @@ extern "C" __global__ void __closesthit__ch()
 			}
 			else
 			{
-			const float3 Hlocal = sampleGGXVNDF(Vlocal, alpha, u1, u2);
-			const float3 Hworld = normalizeF3(T * Hlocal.x + B * Hlocal.y + worldNormal * Hlocal.z);
+			const float NdotV0 = fmaxf(dot3(worldNormal, V), 1e-4f);
+			const float3 Ve = make_float3(dot3(V, Tb), dot3(V, Bb), NdotV0);
+			const float3 Hlocal = sampleGGXVNDF(Ve, aT, aB, u1, u2);
+			const float3 Hworld = normalizeF3(Tb * Hlocal.x + Bb * Hlocal.y + worldNormal * Hlocal.z);
 			// reflect(-V, H), not reflect(rayDir, H) - see the coat lobe's
 			// identical comment above for why (matches CpuPathTracer's own
 			// glm::reflect(-V, H) here).
@@ -1647,11 +2019,24 @@ extern "C" __global__ void __closesthit__ch()
 				// MUST use the height-correlated Smith pair with alpha - see
 				// smithG1GGX()/smithG2HeightCorrelatedGGX()'s doc comment for
 				// the smudged-reflection bug the raster-parity geometrySmith()
-				// caused here before.
+				// caused here before. Anisotropic materials use the anisotropic
+				// Smith pair instead (over Tb/Bb), matching CpuPathTracer's
+				// sampleBSDFBounce() exactly.
 				const float VdotH = fmaxf(dot3(V, Hworld), 0.0f);
-				const float G1v = smithG1GGX(NdotV, alpha);
-				const float G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
-				const float3 F = fresnelSchlick(VdotH, F0, F90);
+				float G1v, G2;
+				if (hasAniso)
+				{
+					const float3 Vlocal2 = make_float3(dot3(V, Tb), dot3(V, Bb), NdotV);
+					const float3 Llocal2 = make_float3(dot3(L, Tb), dot3(L, Bb), NdotL);
+					G1v = smithG1GGXAniso(Vlocal2, aT, aB);
+					G2 = smithG2HeightCorrelatedGGXAniso(Vlocal2, Llocal2, aT, aB);
+				}
+				else
+				{
+					G1v = smithG1GGX(NdotV, alpha);
+					G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
+				}
+				const float3 F = applyIridescenceToFresnel(fresnelSchlick(VdotH, F0, F90), VdotH, F0, iridescenceFactor, iridescenceIor, iridescenceThickness);
 				nextDirection = L;
 				throughputWeight = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / specProbScaled);
 				outEscapeRoughness = roughness;

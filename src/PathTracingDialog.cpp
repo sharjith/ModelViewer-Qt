@@ -16,6 +16,7 @@
 #include <QMdiSubWindow>
 #include <QApplication>
 #include <QEventLoop>
+#include <QStandardItemModel>
 
 #include <ImfRgbaFile.h>
 #include <ImfArray.h>
@@ -139,6 +140,23 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 {
 	ui->setupUi(this);
 	setModal(false); // watch the viewport update live while adjusting settings
+
+	// The OptiX item is a placeholder for a future NVIDIA OptiX denoiser
+	// backend (distinct from the OIDN CPU/GPU-CUDA options above it, which
+	// are both already implemented) - reserving its place in the dropdown
+	// now, but disabled, so it can't actually be selected (and silently
+	// cast to an enum value nothing implements yet) until that backend
+	// exists. DenoiserDevicePreference doesn't have a 4th enumerator to
+	// match, so leave this index unreachable via the combo itself.
+	if (auto* model = qobject_cast<QStandardItemModel*>(ui->comboBoxDenoiserDevice->model()))
+	{
+		constexpr int kOptixPlaceholderIndex = 3;
+		if (QStandardItem* item = model->item(kOptixPlaceholderIndex))
+		{
+			item->setEnabled(false);
+			item->setToolTip(tr("Not yet implemented - reserved for a future NVIDIA OptiX denoiser backend."));
+		}
+	}
 
 	populateResolutionPresets();
 	loadSettings(); // pulls last-used values from QSettings into the viewport, and restores window geometry - before the UI below reads them
@@ -346,12 +364,9 @@ void PathTracingDialog::onRenderClicked()
 	_modelViewer->onRenderingModeSelected("PathTraced");
 
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
-		viewport->requestPathTracedRenderNow(); // start immediately, don't wait for the idle-settle countdown
+		viewport->requestPathTracedRenderNow(); // start immediately, don't wait for the idle-settle countdown - also (re)starts ViewportWidget's own elapsed-time clock
 	_stoppedByUser = false;
-
-	_renderTimer.start();
 	_frozenElapsedMs = -1;
-	_wasSessionRunningLastPoll = true; // avoids a redundant (harmless) restart on the very next poll tick
 }
 
 void PathTracingDialog::onStopClicked()
@@ -676,38 +691,30 @@ void PathTracingDialog::onProgressTimer()
 	if (_stoppedByUser)
 		current = 0;
 
-	// Rising edge (wasn't running last poll, is now) means a fresh render
-	// cycle just began - restart the elapsed-time clock for it. Catches
-	// camera-triggered auto-restarts (ViewportWidget's idle timer calling
-	// startPathTracedSession() on its own) the same way as an explicit
-	// Render click already does via its own _renderTimer.start() - without
-	// this, an auto-restarted cycle kept accumulating on top of whatever the
-	// clock already read from the previous cycle instead of timing its own.
-	if (running && !_wasSessionRunningLastPoll)
-		_renderTimer.start();
-	_wasSessionRunningLastPoll = running;
-
 	ui->progressBarSamples->setMaximum(static_cast<int>(std::max<uint32_t>(target, 1)));
 	ui->progressBarSamples->setValue(static_cast<int>(current));
 	ui->labelStatus->setText(running
 		? tr("Rendering... %1 / %2 samples").arg(current).arg(target)
 		: (current > 0 ? tr("Converged: %1 / %2 samples").arg(current).arg(target) : tr("Idle")));
 
-	// See _renderTimer's doc comment - ticks live while running, freezes at
-	// the last read once the session stops being active rather than
-	// continuing to advance after the render is actually done.
-	if (_renderTimer.isValid())
+	// See _frozenElapsedMs's doc comment - ticks live (read straight from
+	// ViewportWidget's own session clock) while running, freezes at the last
+	// read once the session stops being active rather than continuing to
+	// advance after the render is actually done. Hidden entirely before the
+	// first render this dialog has ever observed (running was never true and
+	// nothing is frozen yet).
+	if (running || _frozenElapsedMs >= 0)
 	{
 		qint64 elapsedMs;
 		if (running)
 		{
 			_frozenElapsedMs = -1;
-			elapsedMs = _renderTimer.elapsed();
+			elapsedMs = viewport->pathTracingElapsedMs();
 		}
 		else
 		{
 			if (_frozenElapsedMs < 0)
-				_frozenElapsedMs = _renderTimer.elapsed();
+				_frozenElapsedMs = viewport->pathTracingElapsedMs();
 			elapsedMs = _frozenElapsedMs;
 		}
 

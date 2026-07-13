@@ -3514,6 +3514,21 @@ void ViewportWidget::setGroundMode(GroundMode mode)
 	updateFloorPlane();
 	update();
 	emit floorShown(_renderCtrl.groundMode() == GroundMode::Floor);
+
+	// Adding/removing the floor is a genuine GEOMETRY change (RtSceneBuilder::
+	// build() only calls addFloorInstance() when groundMode==Floor - see its
+	// own doc comment), unlike the lightweight environment scalars that
+	// deliberately flow per-launch without a revision bump. CPU's session
+	// rebuilds its Embree scene unconditionally on every start() regardless
+	// of revision (see RtPathTracingSession::start()), so it picks up a floor
+	// toggle on its very next render for free; GPU's RtOptixSceneTracer::
+	// buildScene() only rebuilds the GAS/IAS when the scene revision actually
+	// changes (see RtOptixPathTracingSession::start()'s revision-gate), so
+	// without this it kept reusing whichever GAS/IAS (with or without a
+	// floor instance) happened to be built before the toggle - same bug
+	// class as the earlier skybox-visibility fix, just for real geometry
+	// instead of a scalar.
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::setFloorTexture(QImage img)
@@ -12860,6 +12875,7 @@ void ViewportWidget::startPathTracedSession()
 	}
 	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
 	_rtSession.start(snapshot);
+	_ptSessionElapsedTimer.start(); // see pathTracingElapsedMs()'s doc comment
 
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->start();
@@ -12901,6 +12917,7 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 		update();
 		return;
 	}
+	_ptSessionElapsedTimer.start(); // see pathTracingElapsedMs()'s doc comment
 
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->start();

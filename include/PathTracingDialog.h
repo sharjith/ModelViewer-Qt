@@ -96,21 +96,22 @@ private:
 	// the camera settling and restarting outside this dialog entirely).
 	bool _stoppedByUser = false;
 
-	// Elapsed-time display below the progress bar. Restarted fresh at the
-	// start of every render cycle - not just an explicit Render click, but
-	// also whenever the camera settles and ViewportWidget auto-restarts a
-	// session on its own (see onProgressTimer()'s rising-edge detection via
-	// _wasSessionRunningLastPoll) - ticks live while running, then freezes
-	// at whatever it last read once the session stops being active
-	// (converged or Stop pressed) rather than continuing to run in the
-	// background - a frozen "how long did that take" readout is more useful
-	// than a clock that keeps advancing after the render is actually done.
-	// An earlier version only ever restarted this on the Render button
-	// click, so every camera-triggered auto-restart kept accumulating on
-	// top of the very first render instead of timing its own cycle.
-	QElapsedTimer _renderTimer;
+	// Elapsed-time display below the progress bar. The LIVE value is read
+	// straight from ViewportWidget::pathTracingElapsedMs() every poll - that
+	// clock is authoritative (restarted at the one place a session actually
+	// begins, regardless of what triggered it: this dialog's Render button, a
+	// keyboard shortcut, or ViewportWidget auto-restarting on its own after
+	// the camera settles), so this dialog no longer needs to guess when a
+	// render cycle began by watching for its own rising edge. An earlier
+	// version kept its own independent QElapsedTimer that only started once
+	// THIS dialog observed a running session for the first time - reopening
+	// the dialog after a session was already started via keyboard shortcut
+	// (with no dialog open to observe the rising edge) showed elapsed time
+	// counting up from 0 instead of the session's real age.
+	// _frozenElapsedMs still freezes the display at its last live-read value
+	// once the session stops being active (converged or Stop pressed),
+	// rather than the display continuing to imply the render is still going.
 	qint64 _frozenElapsedMs = -1; // -1 = not frozen (currently running, or never started)
-	bool _wasSessionRunningLastPoll = false; // see onProgressTimer()'s rising-edge restart
 
 	// Guards against onResolutionPresetSelected() -> spinbox setValue() ->
 	// onExportResolutionChanged() -> syncResolutionPresetFromSpinboxes()
