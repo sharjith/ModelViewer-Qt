@@ -241,43 +241,53 @@ bool SceneRenderController::captureIrradianceCubemapCPU(std::vector<float> outFa
     return true;
 }
 
-bool SceneRenderController::capturePrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips)
+bool SceneRenderController::captureCubemapMipChainCPU(GLuint texture, unsigned int mipLevels, std::vector<PrefilterMipCPU>& outMips)
 {
-    if (_prefilterMap == 0 || _prefilterMipLevels == 0)
+    if (texture == 0 || mipLevels == 0)
         return false;
 
     GLint prevBinding = 0;
-    glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, &prevBinding);
+    this->glGetIntegerv(GL_TEXTURE_BINDING_CUBE_MAP, &prevBinding);
 
-    glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
+    this->glBindTexture(GL_TEXTURE_CUBE_MAP, texture);
 
-    std::vector<PrefilterMipCPU> mips;
-    mips.reserve(_prefilterMipLevels);
-    for (unsigned int mip = 0; mip < _prefilterMipLevels; ++mip)
+    std::vector<SceneRenderController::PrefilterMipCPU> mips;
+    mips.reserve(mipLevels);
+    for (unsigned int mip = 0; mip < mipLevels; ++mip)
     {
         GLint w = 0, h = 0;
-        glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, static_cast<GLint>(mip), GL_TEXTURE_WIDTH, &w);
-        glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, static_cast<GLint>(mip), GL_TEXTURE_HEIGHT, &h);
+        this->glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, static_cast<GLint>(mip), GL_TEXTURE_WIDTH, &w);
+        this->glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, static_cast<GLint>(mip), GL_TEXTURE_HEIGHT, &h);
         if (w <= 0 || h <= 0)
             break; // ran past the texture's actual allocated mip chain
 
-        PrefilterMipCPU mipData;
+        SceneRenderController::PrefilterMipCPU mipData;
         mipData.faceSize = w;
         for (int i = 0; i < 6; ++i)
         {
             mipData.faces[i].resize(static_cast<size_t>(w) * static_cast<size_t>(h) * 3);
-            glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, static_cast<GLint>(mip), GL_RGB, GL_FLOAT, mipData.faces[i].data());
+            this->glGetTexImage(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, static_cast<GLint>(mip), GL_RGB, GL_FLOAT, mipData.faces[i].data());
         }
         mips.push_back(std::move(mipData));
     }
 
-    glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(prevBinding));
+    this->glBindTexture(GL_TEXTURE_CUBE_MAP, static_cast<GLuint>(prevBinding));
 
     if (mips.empty())
         return false;
 
     outMips = std::move(mips);
     return true;
+}
+
+bool SceneRenderController::capturePrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips)
+{
+    return captureCubemapMipChainCPU(_prefilterMap, _prefilterMipLevels, outMips);
+}
+
+bool SceneRenderController::captureSheenPrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips)
+{
+    return captureCubemapMipChainCPU(_sheenPrefilterMap, _sheenPrefilterMipLevels, outMips);
 }
 
 // ---------------------------------------------------------------------------

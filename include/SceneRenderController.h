@@ -169,6 +169,7 @@ public:
     // captureEnvironmentCubemapCPU() - only call when starting a new
     // path-traced session, not per frame.
     bool capturePrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips);
+    bool captureSheenPrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips);
 
     GLuint irradianceMap()            const { return _irradianceMap; }
     void   setIrradianceMap(GLuint t)       { _irradianceMap = t; }
@@ -537,6 +538,7 @@ public:
 
 private:
     static void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
+    bool captureCubemapMipChainCPU(GLuint texture, unsigned int mipLevels, std::vector<PrefilterMipCPU>& outMips);
 
     // ---- Shader programs ---------------------------------------------------
     std::unique_ptr<ShaderProgram> _bgShader;

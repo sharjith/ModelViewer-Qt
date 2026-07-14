@@ -15,6 +15,11 @@
 #include "RtEnvironmentSampler.h"
 #include "RtOptixEmbeddedPtx.h"
 #include "RtOptixSceneParams.h"
+#include "PathUtils.h"
+
+#include <QDir>
+#include <QFileInfo>
+#include <QImage>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
@@ -27,6 +32,44 @@
 
 namespace
 {
+	QString resolveKhronosLUTPath(const QString& fileName)
+	{
+		const QString dataCandidate = QDir(PathUtils::getDataDirectory()).absoluteFilePath(
+			"textures/khronos/" + fileName);
+		if (QFileInfo::exists(dataCandidate))
+			return dataCandidate;
+		const QString sourceCandidate = QDir(QDir::currentPath()).absoluteFilePath(
+			"textures/khronos/" + fileName);
+		if (QFileInfo::exists(sourceCandidate))
+			return sourceCandidate;
+		return dataCandidate;
+	}
+
+	std::vector<float> loadKhronosScalarLUT(const QString& fileName, int channel, int lutSize)
+	{
+		const QString path = resolveKhronosLUTPath(fileName);
+		QImage image(path);
+		if (image.isNull())
+			return {};
+
+		QImage rgba = image.convertToFormat(QImage::Format_RGBA8888);
+		std::vector<float> table(static_cast<size_t>(lutSize) * lutSize);
+		for (int ri = 0; ri < lutSize; ++ri)
+		{
+			const float roughness = (ri + 0.5f) / static_cast<float>(lutSize);
+			const int y = std::clamp(static_cast<int>(roughness * static_cast<float>(rgba.height() - 1)), 0, rgba.height() - 1);
+			for (int vi = 0; vi < lutSize; ++vi)
+			{
+				const float ndotv = (vi + 0.5f) / static_cast<float>(lutSize);
+				const int x = std::clamp(static_cast<int>(ndotv * static_cast<float>(rgba.width() - 1)), 0, rgba.width() - 1);
+				const QRgb pixel = rgba.pixel(x, y);
+				const int component = channel == 0 ? qRed(pixel) : (channel == 1 ? qGreen(pixel) : (channel == 2 ? qBlue(pixel) : qAlpha(pixel)));
+				table[static_cast<size_t>(ri) * lutSize + vi] = static_cast<float>(component) / 255.0f;
+			}
+		}
+		return table;
+	}
+
 	bool cudaCheck(cudaError_t err, const char* what)
 	{
 		if (err == cudaSuccess)
@@ -143,6 +186,9 @@ struct RtOptixSceneTracer::Impl
 	std::vector<PrefilterMipGpu> prefilterMipEntries;
 	CUdeviceptr prefilterMipsBuffer = 0;
 	int prefilterMipCount = 0;
+	std::vector<PrefilterMipGpu> sheenPrefilterMipEntries;
+	CUdeviceptr sheenPrefilterMipsBuffer = 0;
+	int sheenPrefilterMipCount = 0;
 
 	// Environment-light NEE + MIS - device upload of a host-built
 	// RtEnvironmentSampler's raw distribution (see RtOptixSceneParams.h's
@@ -169,8 +215,9 @@ struct RtOptixSceneTracer::Impl
 	// Charlie BRDF), so it's baked and uploaded ONCE (lazily, on the first
 	// buildScene() call) rather than per-scene-revision like the rest of
 	// freeSceneBuffers()'s buffers - see ensureSheenAlbedoLut().
-	static constexpr int kSheenAlbedoLutSize = 32;
+	static constexpr int kSheenAlbedoLutSize = 128;
 	CUdeviceptr sheenAlbedoLutBuffer = 0;
+	CUdeviceptr sheenCharlieLutBuffer = 0;
 
 	void ensureSheenAlbedoLut();
 
@@ -216,6 +263,14 @@ struct RtOptixSceneTracer::Impl
 		prefilterMipsBuffer = 0;
 		prefilterMipCount = 0;
 
+		for (PrefilterMipGpu& mip : sheenPrefilterMipEntries)
+			for (CUdeviceptr& face : mip.faceBuffers)
+				if (face) cudaFree(reinterpret_cast<void*>(face));
+		sheenPrefilterMipEntries.clear();
+		if (sheenPrefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(sheenPrefilterMipsBuffer));
+		sheenPrefilterMipsBuffer = 0;
+		sheenPrefilterMipCount = 0;
+
 		if (envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(envFlatCdfBuffer));
 		envFlatCdfBuffer = 0;
 		if (envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(envTexelPdfBuffer));
@@ -232,6 +287,7 @@ struct RtOptixSceneTracer::Impl
 	{
 		freeSceneBuffers();
 		if (sheenAlbedoLutBuffer) cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
+		if (sheenCharlieLutBuffer) cudaFree(reinterpret_cast<void*>(sheenCharlieLutBuffer));
 		if (raygenRecord) cudaFree(reinterpret_cast<void*>(raygenRecord));
 		if (missRecord) cudaFree(reinterpret_cast<void*>(missRecord));
 
@@ -258,6 +314,13 @@ namespace
 	{
 		const float alpha = (std::max)(roughness * roughness, 0.000001f);
 		const float invAlpha = 1.0f / alpha;
+		const float sin2h = (std::max)(1.0f - NdotH * NdotH, 0.0078125f); // 2^(-7)
+		return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * glm::pi<float>());
+	}
+
+	float distributionCharlieLegacyHost(float NdotH, float roughness)
+	{
+		const float invAlpha = 1.0f / (std::max)(roughness, 0.001f);
 		const float sin2h = (std::max)(1.0f - NdotH * NdotH, 0.0078125f); // 2^(-7)
 		return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * glm::pi<float>());
 	}
@@ -338,24 +401,95 @@ namespace
 		}
 		return table;
 	}
+
+	float radicalInverseVdCHost(uint32_t bits)
+	{
+		bits = (bits << 16u) | (bits >> 16u);
+		bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+		bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+		bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+		bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+		return static_cast<float>(bits) * 2.3283064365386963e-10f;
+	}
+
+	glm::vec3 importanceSampleCharlieHost(const glm::vec2& xi, float sheenRoughness)
+	{
+		const float alpha = (std::max)(sheenRoughness, 0.001f);
+		const float phi = 2.0f * glm::pi<float>() * xi.x;
+		const float sinTheta = std::pow(xi.y, alpha / (2.0f * alpha + 1.0f));
+		const float cosTheta = std::sqrt((std::max)(1.0f - sinTheta * sinTheta, 0.0f));
+		return glm::normalize(glm::vec3(std::cos(phi) * sinTheta, std::sin(phi) * sinTheta, cosTheta));
+	}
+
+	std::vector<float> bakeSheenCharlieLutHost(int lutSize)
+	{
+		constexpr int kBakeSamples = 1024;
+		std::vector<float> table(static_cast<size_t>(lutSize) * lutSize);
+		for (int ri = 0; ri < lutSize; ++ri)
+		{
+			const float roughness = (ri + 0.5f) / lutSize;
+			for (int vi = 0; vi < lutSize; ++vi)
+			{
+				const float NdotV = (std::max)((vi + 0.5f) / lutSize, 1e-4f);
+				const glm::vec3 V(std::sqrt((std::max)(0.0f, 1.0f - NdotV * NdotV)), 0.0f, NdotV);
+
+				float sum = 0.0f;
+				for (int s = 0; s < kBakeSamples; ++s)
+				{
+					const glm::vec2 xi((s + 0.5f) / kBakeSamples, radicalInverseVdCHost(static_cast<uint32_t>(s)));
+					const glm::vec3 H = importanceSampleCharlieHost(xi, roughness);
+					const glm::vec3 L = glm::normalize(2.0f * glm::dot(V, H) * H - V);
+					const float NdotL = (std::max)(L.z, 0.0f);
+					const float NdotH = (std::max)(H.z, 0.0f);
+					if (NdotL > 0.0f && NdotH > 0.0f)
+						sum += distributionCharlieLegacyHost(NdotH, roughness) * visibilitySheenHost(NdotL, NdotV, roughness) * NdotL;
+				}
+				table[static_cast<size_t>(ri) * lutSize + vi] = sum / kBakeSamples;
+			}
+		}
+		return table;
+	}
 }
 
 void RtOptixSceneTracer::Impl::ensureSheenAlbedoLut()
 {
-	if (sheenAlbedoLutBuffer)
+	if (sheenAlbedoLutBuffer && sheenCharlieLutBuffer)
 		return; // already baked/uploaded - process-constant, never needs a rebuild
 
-	const std::vector<float> lut = bakeSheenAlbedoLutHost(kSheenAlbedoLutSize);
-	const size_t bytes = lut.size() * sizeof(float);
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&sheenAlbedoLutBuffer), bytes), "cudaMalloc(sheen albedo LUT)"))
+	if (!sheenAlbedoLutBuffer)
 	{
-		sheenAlbedoLutBuffer = 0;
-		return;
+		std::vector<float> lut = loadKhronosScalarLUT(QStringLiteral("lut_sheen_E.png"), 0, kSheenAlbedoLutSize);
+		if (lut.empty())
+			lut = bakeSheenAlbedoLutHost(kSheenAlbedoLutSize);
+		const size_t bytes = lut.size() * sizeof(float);
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&sheenAlbedoLutBuffer), bytes), "cudaMalloc(sheen albedo LUT)"))
+		{
+			sheenAlbedoLutBuffer = 0;
+			return;
+		}
+		if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(sheenAlbedoLutBuffer), lut.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(sheen albedo LUT)"))
+		{
+			cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
+			sheenAlbedoLutBuffer = 0;
+		}
 	}
-	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(sheenAlbedoLutBuffer), lut.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(sheen albedo LUT)"))
+
+	if (!sheenCharlieLutBuffer)
 	{
-		cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
-		sheenAlbedoLutBuffer = 0;
+		std::vector<float> lut = loadKhronosScalarLUT(QStringLiteral("lut_charlie.png"), 2, kSheenAlbedoLutSize);
+		if (lut.empty())
+			lut = bakeSheenCharlieLutHost(kSheenAlbedoLutSize);
+		const size_t bytes = lut.size() * sizeof(float);
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&sheenCharlieLutBuffer), bytes), "cudaMalloc(sheen Charlie LUT)"))
+		{
+			sheenCharlieLutBuffer = 0;
+			return;
+		}
+		if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(sheenCharlieLutBuffer), lut.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(sheen Charlie LUT)"))
+		{
+			cudaFree(reinterpret_cast<void*>(sheenCharlieLutBuffer));
+			sheenCharlieLutBuffer = 0;
+		}
 	}
 }
 
@@ -1063,39 +1197,49 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		}
 	}
 
-	_impl->prefilterMipCount = 0;
-	if (!env.prefilterMips.empty())
+	auto uploadPrefilterChain = [&](const std::vector<RtEnvironment::PrefilterMip>& sourceMips,
+		std::vector<Impl::PrefilterMipGpu>& gpuMips,
+		CUdeviceptr& mipsBuffer,
+		int& mipCount,
+		const char* label) -> void
 	{
-		_impl->prefilterMipEntries.resize(env.prefilterMips.size());
-		std::vector<RtOptixPrefilterMip> hostMips(env.prefilterMips.size());
+		mipCount = 0;
+		if (sourceMips.empty())
+			return;
+
+		gpuMips.resize(sourceMips.size());
+		std::vector<RtOptixPrefilterMip> hostMips(sourceMips.size());
 		bool mipsOk = true;
-		for (size_t m = 0; mipsOk && m < env.prefilterMips.size(); ++m)
+		for (size_t m = 0; mipsOk && m < sourceMips.size(); ++m)
 		{
-			const RtEnvironment::PrefilterMip& mip = env.prefilterMips[m];
+			const RtEnvironment::PrefilterMip& mip = sourceMips[m];
 			hostMips[m].faceSize = mip.faceSize;
 			for (int face = 0; face < 6; ++face)
 			{
-				if (!uploadCubemapFace(mip.faces[face], mip.faceSize, _impl->prefilterMipEntries[m].faceBuffers[face]))
+				if (!uploadCubemapFace(mip.faces[face], mip.faceSize, gpuMips[m].faceBuffers[face]))
 				{
-					qWarning() << "RtOptixSceneTracer::buildScene(): prefilter mip" << static_cast<int>(m) << "face" << face
+					qWarning() << "RtOptixSceneTracer::buildScene():" << label << "mip" << static_cast<int>(m) << "face" << face
 						<< "has unexpected size - disabling the prefilter chain (falling back to the raw map).";
 					mipsOk = false;
 					break;
 				}
-				hostMips[m].faces[face] = reinterpret_cast<float3*>(_impl->prefilterMipEntries[m].faceBuffers[face]);
+				hostMips[m].faces[face] = reinterpret_cast<float3*>(gpuMips[m].faceBuffers[face]);
 			}
 		}
 
 		if (mipsOk)
 		{
 			const size_t mipsBytes = hostMips.size() * sizeof(RtOptixPrefilterMip);
-			if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->prefilterMipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)") &&
-				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->prefilterMipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
+			if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)") &&
+				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
 			{
-				_impl->prefilterMipCount = static_cast<int>(hostMips.size());
+				mipCount = static_cast<int>(hostMips.size());
 			}
 		}
-	}
+	};
+
+	uploadPrefilterChain(env.prefilterMips, _impl->prefilterMipEntries, _impl->prefilterMipsBuffer, _impl->prefilterMipCount, "prefilter");
+	uploadPrefilterChain(env.sheenPrefilterMips, _impl->sheenPrefilterMipEntries, _impl->sheenPrefilterMipsBuffer, _impl->sheenPrefilterMipCount, "sheen prefilter");
 
 	// Environment-light NEE + MIS - builds a host-side RtEnvironmentSampler
 	// from the SAME environment cubemap just uploaded above (so both engines
@@ -1205,10 +1349,13 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.environment.envMapExposure = environment.envMapExposure;
 	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->prefilterMipsBuffer);
 	params.environment.prefilterMipCount = _impl->prefilterMipCount;
+	params.environment.sheenPrefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->sheenPrefilterMipsBuffer);
+	params.environment.sheenPrefilterMipCount = _impl->sheenPrefilterMipCount;
 	params.environment.envFlatCdf = reinterpret_cast<const float*>(_impl->envFlatCdfBuffer);
 	params.environment.envTexelPdf = reinterpret_cast<const float*>(_impl->envTexelPdfBuffer);
 	params.environment.envTotalWeight = _impl->envTotalWeight;
 	params.sheenAlbedoLUT = reinterpret_cast<const float*>(_impl->sheenAlbedoLutBuffer);
+	params.sheenCharlieLUT = reinterpret_cast<const float*>(_impl->sheenCharlieLutBuffer);
 	params.sheenAlbedoLUTSize = _impl->sheenAlbedoLutBuffer ? Impl::kSheenAlbedoLutSize : 0;
 	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
 	params.sampleOffset = sampleOffset;

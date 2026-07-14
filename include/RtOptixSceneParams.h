@@ -112,6 +112,8 @@ struct RtOptixEnvironment
 	// captured, in which case reflections fall back to the raw map.
 	const RtOptixPrefilterMip* prefilterMips;
 	int prefilterMipCount;
+	const RtOptixPrefilterMip* sheenPrefilterMips;
+	int sheenPrefilterMipCount;
 
 	// Environment-light NEE + MIS - device counterpart of RtEnvironmentSampler's
 	// internal distribution, uploaded VERBATIM (not rebuilt device-side) by
@@ -191,14 +193,13 @@ struct RtOptixSceneParams
 
 	RtOptixEnvironment environment;
 
-	// KHR_materials_sheen's directional-albedo LUT - device-side counterpart
-	// of CpuPathTracer::sheenAlbedoLUT()/sampleSheenAlbedoLUT(), baked ONCE on
-	// the host (same algorithm, same fixed RNG seed) and uploaded alongside
-	// the rest of the revision-gated scene data (not per-launch - it depends
-	// on nothing but the Charlie BRDF itself). sheenAlbedoLUTSize x
-	// sheenAlbedoLUTSize row-major floats, indexed [roughness][NdotV] exactly
-	// like the CPU table. nullptr/0 only if the device upload failed.
+	// KHR_materials_sheen directional-albedo LUTs. sheenAlbedoLUT mirrors
+	// raster's sheenELUT.r/new roughness² convention for direct-light base
+	// dampening; sheenCharlieLUT mirrors raster's charlieLUT.b/legacy roughness
+	// convention, used only as the IBL energy bound via min(charlie, sheenE).
+	// Both are process-constant row-major [roughness][NdotV] tables.
 	const float* sheenAlbedoLUT;
+	const float* sheenCharlieLUT;
 	int sheenAlbedoLUTSize;
 
 	// Number of jittered primary-ray samples averaged per pixel within THIS

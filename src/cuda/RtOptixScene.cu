@@ -809,18 +809,37 @@ namespace
 		return sheenColor * (D * V_sheen * NdotL);
 	}
 
-	// Bilinear lookup into the sheen directional-albedo LUT baked on the host
-	// (RtOptixSceneTracer::Impl::ensureSheenAlbedoLut()) - device-side
-	// counterpart of CpuPathTracer::sampleSheenAlbedoLUT(). Nearest-indexed
-	// (matches the CPU function exactly - no bilinear there either), guards
-	// against a missing/failed-upload LUT by returning 0 (no dampening).
+	// Bilinear lookup into the same Khronos sheen LUT data raster samples with
+	// GL_LINEAR filtering. Guards against a missing/failed upload by returning
+	// 0 (no dampening/add-back).
 	__forceinline__ __device__ float sampleSheenAlbedoLUT(const float* lut, int lutSize, float NdotV, float roughness)
 	{
 		if (!lut || lutSize <= 0)
 			return 0.0f;
-		const int vi = min(max(static_cast<int>(NdotV * lutSize), 0), lutSize - 1);
-		const int ri = min(max(static_cast<int>(roughness * lutSize), 0), lutSize - 1);
-		return lut[static_cast<size_t>(ri) * lutSize + vi];
+		const float x = fminf(fmaxf(NdotV, 0.0f), 1.0f) * static_cast<float>(lutSize - 1);
+		const float y = fminf(fmaxf(roughness, 0.0f), 1.0f) * static_cast<float>(lutSize - 1);
+		const int x0 = min(max(static_cast<int>(floorf(x)), 0), lutSize - 1);
+		const int y0 = min(max(static_cast<int>(floorf(y)), 0), lutSize - 1);
+		const int x1 = min(x0 + 1, lutSize - 1);
+		const int y1 = min(y0 + 1, lutSize - 1);
+		const float tx = x - static_cast<float>(x0);
+		const float ty = y - static_cast<float>(y0);
+		const float v00 = lut[static_cast<size_t>(y0) * lutSize + x0];
+		const float v10 = lut[static_cast<size_t>(y0) * lutSize + x1];
+		const float v01 = lut[static_cast<size_t>(y1) * lutSize + x0];
+		const float v11 = lut[static_cast<size_t>(y1) * lutSize + x1];
+		const float vx0 = v00 + (v10 - v00) * tx;
+		const float vx1 = v01 + (v11 - v01) * tx;
+		return vx0 + (vx1 - vx0) * ty;
+	}
+
+	__forceinline__ __device__ float sampleSheenIblEnergy(float NdotV, float roughness)
+	{
+		const float eSheen = sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, NdotV, roughness);
+		if (!params.sheenCharlieLUT)
+			return eSheen;
+		const float eCharlie = sampleSheenAlbedoLUT(params.sheenCharlieLUT, params.sheenAlbedoLUTSize, NdotV, roughness);
+		return fminf(eCharlie, eSheen);
 	}
 
 	// Ported from CpuPathTracer::computeLobeProbabilities(): base specular
@@ -1120,7 +1139,10 @@ namespace
 		outDir = pointToLight * (1.0f / distance);
 		outDistance = distance;
 
-		float rangeAttenuation = 1.0f / (distance * distance);
+		// range < 0 marks the app/raster default light: positional direction,
+		// constant intensity. KHR_lights_punctual point/spot lights keep their
+		// spec-defined inverse-square attenuation when range >= 0.
+		float rangeAttenuation = (light.range < 0.0f) ? 1.0f : 1.0f / (distance * distance);
 		if (light.range > 0.0f)
 		{
 			const float ratio = distance / light.range;
@@ -1413,6 +1435,30 @@ namespace
 			return colorLow * env.envMapExposure;
 
 		const RtOptixPrefilterMip& highMip = env.prefilterMips[mipHigh];
+		const float3 colorHigh = sampleCubemapFaces(highMip.faces, highMip.faceSize, sampleDir);
+		return lerp3(colorLow, colorHigh, frac) * env.envMapExposure;
+	}
+
+	__forceinline__ __device__ float3 sampleEnvironmentSheen(const RtOptixEnvironment& env, const float3& direction, float roughness)
+	{
+		if (env.sheenPrefilterMipCount <= 0)
+			return sampleEnvironmentSpecular(env, direction, roughness);
+
+		const float3 sampleDir = toPrefilterDirection(
+			undoSkyboxRotation(direction, env.cameraUpAxisZUp != 0, env.skyBoxZRotationDegrees));
+
+		const float maxLod = static_cast<float>(env.sheenPrefilterMipCount - 1);
+		const float lod = fminf(fmaxf(roughness, 0.0f), 1.0f) * maxLod;
+		const int mipLow = min(max(static_cast<int>(floorf(lod)), 0), static_cast<int>(maxLod));
+		const int mipHigh = min(mipLow + 1, static_cast<int>(maxLod));
+		const float frac = lod - static_cast<float>(mipLow);
+
+		const RtOptixPrefilterMip& lowMip = env.sheenPrefilterMips[mipLow];
+		const float3 colorLow = sampleCubemapFaces(lowMip.faces, lowMip.faceSize, sampleDir);
+		if (mipHigh == mipLow)
+			return colorLow * env.envMapExposure;
+
+		const RtOptixPrefilterMip& highMip = env.sheenPrefilterMips[mipHigh];
 		const float3 colorHigh = sampleCubemapFaces(highMip.faces, highMip.faceSize, sampleDir);
 		return lerp3(colorLow, colorHigh, frac) * env.envMapExposure;
 	}
@@ -2413,9 +2459,19 @@ extern "C" __global__ void __closesthit__ch()
 			const float3 shadowOrigin = worldPos + worldNormal * selfIntersectionEpsilon(worldPos);
 			const float shadowMaxDistance = fminf(lightDistance, 1e16f);
 			const unsigned int shadowRngSeed = pcgHash(optixGetPayload_17() ^ (i * 0x9E3779B9u));
-			const float3 shadowTransmittance = params.shadowsEnabled != 0
+			float3 shadowTransmittance = params.shadowsEnabled != 0
 				? traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, instanceId, shadowRngSeed)
 				: make_float3(1.0f, 1.0f, 1.0f);
+			if (params.lights[i].range < 0.0f)
+			{
+				// Raster clamps the app/default light's shadow factor to 0.85,
+				// leaving 15% direct light in fully shadowed regions. Keep real
+				// glTF punctual lights on the physical traceShadowRay result.
+				shadowTransmittance = make_float3(
+					fmaxf(shadowTransmittance.x, 0.15f),
+					fmaxf(shadowTransmittance.y, 0.15f),
+					fmaxf(shadowTransmittance.z, 0.15f));
+			}
 			if (shadowTransmittance.x <= 0.0f && shadowTransmittance.y <= 0.0f && shadowTransmittance.z <= 0.0f)
 				continue;
 			const float3 shadowedLightIntensity = lightIntensity * shadowTransmittance;
@@ -2609,9 +2665,8 @@ extern "C" __global__ void __closesthit__ch()
 				{
 					const float sheenStrength = fmaxf(fmaxf(sheenColor.x, sheenColor.y), sheenColor.z);
 					const float NdotVSheen = fminf(fmaxf(dot3(worldNormal, V), 0.0f), 1.0f);
-					const float albedoSheenScaling = fminf(
-						1.0f - sheenStrength * sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, NdotVSheen, sheenRoughness),
-						1.0f - sheenStrength * sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, fminf(fmaxf(NdotLEnv, 0.0f), 1.0f), sheenRoughness));
+					const float albedoSheenScaling =
+						1.0f - sheenStrength * sampleSheenIblEnergy(NdotVSheen, sheenRoughness);
 					envDirect = envDirect * albedoSheenScaling;
 				}
 
@@ -2626,69 +2681,28 @@ extern "C" __global__ void __closesthit__ch()
 				{
 					radiance = radiance + weightedEnv * envDirect;
 				}
-
-				if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
-					radiance = radiance + weightedEnv * calculateSheen(worldNormal, V, envDir, sheenColor, sheenRoughness) * envRadiance;
 			}
 		}
 	}
 
-	// KHR_materials_sheen's environment/IBL contribution - ported from
-	// CpuPathTracer::tracePixel()'s identical block. This is NOT an optional
-	// extra: per that function's own doc comment, direct (punctual-light)
-	// sheen alone reads as "missing" on any scene lit mainly by its
-	// environment (the common case for glTF sheen test/showcase assets,
-	// which are typically lit by a neutral studio HDRI with weak or no
-	// punctual lights) - env/IBL sheen turned out to be the visually
-	// DOMINANT contribution there. This kernel originally skipped it as a
-	// documented simplification (no separate IBL step, unlike AO's
-	// throughput-only treatment) - that gap is exactly what made
-	// sheenColorFactor variation invisible in GPU renders of SheenTestGrid
-	// while raster and CPU PT (which already had this block) both show it
-	// clearly. A small fixed number of RNG-jittered samples in a
-	// roughness-sized cone around the mirror-reflect direction, taken on
-	// every hit (not gated behind a rare lobe-selection probability) -
-	// cheap since sampleEnvironmentRaw() is a plain cubemap fetch, not a
-	// traced ray.
+	// KHR_materials_sheen environment/IBL contribution. Raster evaluates this
+	// as a split-sum lookup into sheenPrefilterMap multiplied by
+	// min(charlieLUT.b, sheenELUT.r). Reuse the existing prefiltered
+	// environment chain here rather than a raw stochastic cone: it is not a
+	// perfect Charlie prefilter, but it tracks raster's stable prefiltered IBL
+	// much more closely than a bright raw-environment overlay.
 	float sheenIndirectDampening = 1.0f;
 	if (NdotV > 0.0f && (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f))
 	{
 		const float sheenStrengthForIBL = fmaxf(fmaxf(sheenColor.x, sheenColor.y), sheenColor.z);
 		const float3 R = reflectF3(V * -1.0f, worldNormal);
-		float3 Tc, Bc;
-		buildOrthonormalBasis(R, Tc, Bc);
 
 		const float sheenRoughFinal = fminf(fmaxf(sheenRoughness, 0.0001f), 1.0f);
-		const float coneAngle = sheenRoughFinal * (kPi * 0.5f); // up to a full hemisphere spread at roughness 1
-
-		// Derived from, but distinct from, the RNG stream the lobe-selection
-		// code below draws from optixGetPayload_17() - reading a payload
-		// doesn't consume/mutate it, so both blocks would otherwise see the
-		// identical raw seed; XOR-ing a distinguishing constant first keeps
-		// their jitter sequences decorrelated.
-		unsigned int sheenRng = optixGetPayload_17() ^ 0xC0FFEE17u;
-
-		constexpr int kSheenEnvSamples = 8;
-		float3 envSum = make_float3(0.0f, 0.0f, 0.0f);
-		for (int s = 0; s < kSheenEnvSamples; ++s)
-		{
-			sheenRng = pcgHash(sheenRng);
-			const float u1 = hashToUnitFloat(sheenRng);
-			sheenRng = pcgHash(sheenRng);
-			const float u2 = hashToUnitFloat(sheenRng);
-
-			const float phi = 2.0f * kPi * u1;
-			const float cosTheta = 1.0f - u2 * (1.0f - cosf(coneAngle)); // uniform within the cone
-			const float sinTheta = sqrtf(fmaxf(0.0f, 1.0f - cosTheta * cosTheta));
-			const float3 localDir = make_float3(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
-			const float3 dir = normalizeF3(Tc * localDir.x + Bc * localDir.y + R * localDir.z);
-			envSum = envSum + sampleEnvironmentRaw(params.environment, dir);
-		}
-		envSum = envSum * (1.0f / static_cast<float>(kSheenEnvSamples));
+		const float3 envSheen = sampleEnvironmentSheen(params.environment, R, sheenRoughFinal);
 
 		const float NdotVSheenIbl = fminf(fmaxf(dot3(worldNormal, V), 0.0f), 1.0f);
-		const float E_sheen = sampleSheenAlbedoLUT(params.sheenAlbedoLUT, params.sheenAlbedoLUTSize, NdotVSheenIbl, sheenRoughFinal);
-		radiance = radiance + sheenColor * envSum * (ao * E_sheen);
+		const float E_sheen = sampleSheenIblEnergy(NdotVSheenIbl, sheenRoughFinal);
+		radiance = radiance + sheenColor * envSheen * (ao * E_sheen);
 
 		// Dampens the base layer's OWN indirect (bounce) throughput, applied
 		// to whichever lobe the stochastic BSDF sample below picks -

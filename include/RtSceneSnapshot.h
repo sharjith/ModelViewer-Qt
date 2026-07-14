@@ -392,6 +392,9 @@ struct RtLight
 	glm::vec3 direction{ 0.0f, -1.0f, 0.0f };
 	glm::vec3 color{ 1.0f };
 	float     intensity    = 1.0f;
+	// range < 0 is reserved for the app/raster default lightSource: positional
+	// direction, constant intensity. Real KHR_lights_punctual point/spot lights
+	// use range >= 0 and keep inverse-square attenuation.
 	float     range        = 0.0f;
 	float     innerConeCos = 1.0f;
 	float     outerConeCos = 0.7f;
@@ -523,6 +526,7 @@ struct RtEnvironment
 		int faceSize = 0;
 	};
 	std::vector<PrefilterMip> prefilterMips;
+	std::vector<PrefilterMip> sheenPrefilterMips;
 };
 
 struct RtSceneSnapshot

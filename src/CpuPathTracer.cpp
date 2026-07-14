@@ -1,5 +1,10 @@
 #include "CpuPathTracer.h"
+#include "PathUtils.h"
 #include "RtEmbreeScene.h"
+
+#include <QDir>
+#include <QFileInfo>
+#include <QImage>
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -957,6 +962,29 @@ namespace
 		return glm::mix(colorLow, colorHigh, frac) * environment.envMapExposure;
 	}
 
+	glm::vec3 sampleEnvironmentSheen(const RtEnvironment& environment, const glm::vec3& direction, float roughness)
+	{
+		if (environment.sheenPrefilterMips.empty())
+			return sampleEnvironmentSpecular(environment, direction, roughness);
+
+		const glm::vec3 sampleDir = toPrefilterDirection(
+			undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees));
+
+		const float maxLod = static_cast<float>(environment.sheenPrefilterMips.size() - 1);
+		const float lod = std::clamp(roughness, 0.0f, 1.0f) * maxLod;
+		const int mipLow = std::clamp(static_cast<int>(std::floor(lod)), 0, static_cast<int>(maxLod));
+		const int mipHigh = std::min(mipLow + 1, static_cast<int>(maxLod));
+		const float frac = lod - static_cast<float>(mipLow);
+
+		const RtEnvironment::PrefilterMip& lowMip = environment.sheenPrefilterMips[static_cast<size_t>(mipLow)];
+		const glm::vec3 colorLow = sampleCubemapFaces(lowMip.faces, lowMip.faceSize, sampleDir);
+		if (mipHigh == mipLow)
+			return colorLow * environment.envMapExposure;
+		const RtEnvironment::PrefilterMip& highMip = environment.sheenPrefilterMips[static_cast<size_t>(mipHigh)];
+		const glm::vec3 colorHigh = sampleCubemapFaces(highMip.faces, highMip.faceSize, sampleDir);
+		return glm::mix(colorLow, colorHigh, frac) * environment.envMapExposure;
+	}
+
 	// Primary-ray miss (bounce == 0, i.e. what the camera directly sees as
 	// background): honors RtEnvironment::showBackground (mirrors the
 	// Visualization panel's "Sky Box" checkbox - turning it off shows
@@ -1073,7 +1101,13 @@ namespace
 		outDir = pointToLight / distance;
 		outDistance = distance;
 
-		float rangeAttenuation = 1.0f / (distance * distance);
+		// Raster's built-in/default light (lightSource.* in main_scene.frag)
+		// behaves like a positional light direction with CONSTANT intensity:
+		// frame.L = normalize(lightSource.position - v_position), then
+		// lightIntensity = lightSource.diffuse. RtSceneSnapshot encodes that
+		// legacy light with range < 0 so glTF KHR_lights_punctual point/spot
+		// lights keep their physically-specified inverse-square attenuation.
+		float rangeAttenuation = (light.range < 0.0f) ? 1.0f : 1.0f / (distance * distance);
 		if (light.range > 0.0f)
 		{
 			const float distAttenuation = 1.0f - std::pow(distance / light.range, 4.0f);
@@ -1437,6 +1471,13 @@ namespace
 		return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * kPi);
 	}
 
+	float distributionCharlieLegacy(float NdotH, float roughness)
+	{
+		const float invAlpha = 1.0f / std::max(roughness, 0.001f);
+		const float sin2h = std::max(1.0f - NdotH * NdotH, 0.0078125f); // 2^(-7)
+		return (2.0f + invAlpha) * std::pow(sin2h, invAlpha * 0.5f) / (2.0f * kPi);
+	}
+
 	float lambdaSheenNumericHelper(float x, float alphaG)
 	{
 		const float oneMinusAlphaSq = (1.0f - alphaG) * (1.0f - alphaG);
@@ -1514,13 +1555,55 @@ namespace
 	// and 32x32 texels x 256 samples (~262k evaluations of two closed-form
 	// trig functions) takes well under a millisecond, so there's no need for
 	// the fancier once-at-startup wiring a large asset-loading LUT would need.
-	constexpr int kSheenLUTSize = 32;
+	constexpr int kSheenLUTSize = 128;
 	constexpr int kSheenLUTBakeSamples = 256;
+
+	QString resolveKhronosLUTPath(const QString& fileName)
+	{
+		const QString dataCandidate = QDir(PathUtils::getDataDirectory()).absoluteFilePath(
+			"textures/khronos/" + fileName);
+		if (QFileInfo::exists(dataCandidate))
+			return dataCandidate;
+		const QString sourceCandidate = QDir(QDir::currentPath()).absoluteFilePath(
+			"textures/khronos/" + fileName);
+		if (QFileInfo::exists(sourceCandidate))
+			return sourceCandidate;
+		return dataCandidate;
+	}
+
+	std::vector<float> loadKhronosScalarLUT(const QString& fileName, int channel, int lutSize)
+	{
+		const QString path = resolveKhronosLUTPath(fileName);
+		QImage image(path);
+		if (image.isNull())
+			return {};
+
+		QImage rgba = image.convertToFormat(QImage::Format_RGBA8888);
+		std::vector<float> table(static_cast<size_t>(lutSize) * lutSize);
+		for (int ri = 0; ri < lutSize; ++ri)
+		{
+			const float roughness = (ri + 0.5f) / static_cast<float>(lutSize);
+			const int y = std::clamp(static_cast<int>(roughness * static_cast<float>(rgba.height() - 1)), 0, rgba.height() - 1);
+			for (int vi = 0; vi < lutSize; ++vi)
+			{
+				const float ndotv = (vi + 0.5f) / static_cast<float>(lutSize);
+				const int x = std::clamp(static_cast<int>(ndotv * static_cast<float>(rgba.width() - 1)), 0, rgba.width() - 1);
+				const QRgb pixel = rgba.pixel(x, y);
+				const int component = channel == 0 ? qRed(pixel) : (channel == 1 ? qGreen(pixel) : (channel == 2 ? qBlue(pixel) : qAlpha(pixel)));
+				table[static_cast<size_t>(ri) * lutSize + vi] = static_cast<float>(component) / 255.0f;
+			}
+		}
+		return table;
+	}
 
 	const std::vector<float>& sheenAlbedoLUT()
 	{
 		static const std::vector<float> lut = []()
 		{
+			std::vector<float> loaded = loadKhronosScalarLUT(QStringLiteral("lut_sheen_E.png"), 0, kSheenLUTSize);
+			if (!loaded.empty())
+				return loaded;
+
 			std::vector<float> table(static_cast<size_t>(kSheenLUTSize) * kSheenLUTSize);
 			Rng rng(0x5EEE17u); // fixed seed - deterministic bake, not tied to any pixel/frame RNG stream
 			for (int ri = 0; ri < kSheenLUTSize; ++ri)
@@ -1548,12 +1631,93 @@ namespace
 		return lut;
 	}
 
+	float sampleScalarLUT(const std::vector<float>& lut, float NdotV, float roughness)
+	{
+		const float x = std::clamp(NdotV, 0.0f, 1.0f) * static_cast<float>(kSheenLUTSize - 1);
+		const float y = std::clamp(roughness, 0.0f, 1.0f) * static_cast<float>(kSheenLUTSize - 1);
+		const int x0 = std::clamp(static_cast<int>(std::floor(x)), 0, kSheenLUTSize - 1);
+		const int y0 = std::clamp(static_cast<int>(std::floor(y)), 0, kSheenLUTSize - 1);
+		const int x1 = std::min(x0 + 1, kSheenLUTSize - 1);
+		const int y1 = std::min(y0 + 1, kSheenLUTSize - 1);
+		const float tx = x - static_cast<float>(x0);
+		const float ty = y - static_cast<float>(y0);
+
+		const float v00 = lut[static_cast<size_t>(y0) * kSheenLUTSize + x0];
+		const float v10 = lut[static_cast<size_t>(y0) * kSheenLUTSize + x1];
+		const float v01 = lut[static_cast<size_t>(y1) * kSheenLUTSize + x0];
+		const float v11 = lut[static_cast<size_t>(y1) * kSheenLUTSize + x1];
+		return glm::mix(glm::mix(v00, v10, tx), glm::mix(v01, v11, tx), ty);
+	}
+
 	float sampleSheenAlbedoLUT(float NdotV, float roughness)
 	{
-		const std::vector<float>& lut = sheenAlbedoLUT();
-		const int vi = std::clamp(static_cast<int>(NdotV * kSheenLUTSize), 0, kSheenLUTSize - 1);
-		const int ri = std::clamp(static_cast<int>(roughness * kSheenLUTSize), 0, kSheenLUTSize - 1);
-		return lut[static_cast<size_t>(ri) * kSheenLUTSize + vi];
+		return sampleScalarLUT(sheenAlbedoLUT(), NdotV, roughness);
+	}
+
+	float radicalInverseVdC(uint32_t bits)
+	{
+		bits = (bits << 16u) | (bits >> 16u);
+		bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+		bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+		bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+		bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+		return static_cast<float>(bits) * 2.3283064365386963e-10f;
+	}
+
+	glm::vec3 importanceSampleCharlie(const glm::vec2& xi, float sheenRoughness)
+	{
+		const float alpha = std::max(sheenRoughness, 0.001f);
+		const float phi = 2.0f * kPi * xi.x;
+		const float sinTheta = std::pow(xi.y, alpha / (2.0f * alpha + 1.0f));
+		const float cosTheta = std::sqrt(std::max(1.0f - sinTheta * sinTheta, 0.0f));
+		return glm::normalize(glm::vec3(std::cos(phi) * sinTheta, std::sin(phi) * sinTheta, cosTheta));
+	}
+
+	const std::vector<float>& sheenCharlieLUT()
+	{
+		constexpr int kCharlieBakeSamples = 1024;
+		static const std::vector<float> lut = []()
+		{
+			std::vector<float> loaded = loadKhronosScalarLUT(QStringLiteral("lut_charlie.png"), 2, kSheenLUTSize);
+			if (!loaded.empty())
+				return loaded;
+
+			std::vector<float> table(static_cast<size_t>(kSheenLUTSize) * kSheenLUTSize);
+			for (int ri = 0; ri < kSheenLUTSize; ++ri)
+			{
+				const float roughness = (ri + 0.5f) / kSheenLUTSize;
+				for (int vi = 0; vi < kSheenLUTSize; ++vi)
+				{
+					const float NdotV = std::max((vi + 0.5f) / kSheenLUTSize, 1e-4f);
+					const glm::vec3 V(std::sqrt(std::max(0.0f, 1.0f - NdotV * NdotV)), 0.0f, NdotV);
+
+					float sum = 0.0f;
+					for (int s = 0; s < kCharlieBakeSamples; ++s)
+					{
+						const glm::vec2 xi((s + 0.5f) / kCharlieBakeSamples, radicalInverseVdC(static_cast<uint32_t>(s)));
+						const glm::vec3 H = importanceSampleCharlie(xi, roughness);
+						const glm::vec3 L = glm::normalize(2.0f * glm::dot(V, H) * H - V);
+						const float NdotL = std::max(L.z, 0.0f);
+						const float NdotH = std::max(H.z, 0.0f);
+						if (NdotL > 0.0f && NdotH > 0.0f)
+							sum += distributionCharlieLegacy(NdotH, roughness) * visibilitySheen(NdotL, NdotV, roughness) * NdotL;
+					}
+					table[static_cast<size_t>(ri) * kSheenLUTSize + vi] = sum / kCharlieBakeSamples;
+				}
+			}
+			return table;
+		}();
+		return lut;
+	}
+
+	float sampleSheenCharlieLUT(float NdotV, float roughness)
+	{
+		return sampleScalarLUT(sheenCharlieLUT(), NdotV, roughness);
+	}
+
+	float sampleSheenIblEnergy(float NdotV, float roughness)
+	{
+		return std::min(sampleSheenCharlieLUT(NdotV, roughness), sampleSheenAlbedoLUT(NdotV, roughness));
 	}
 
 	// F0/metalness alone chronically under-samples glossy dielectrics: a
@@ -2619,47 +2783,24 @@ namespace
 			// common non-sheen case.
 			float sheenIndirectDampening = 1.0f;
 
-			// KHR_materials_sheen, indirect/environment side - a genuine
-			// stochastic integration of the actual live environment (a small
-			// fixed count of RNG-jittered samples in a roughness-sized cone
-			// around the mirror-reflect direction, taken every hit/every
-			// pass - not gated behind a rare lobe-selection probability),
-			// rather than trying to replicate raster's evaluateSheenIBL()
-			// (a single lookup into a precomputed, roughness-mip-quantized
-			// prefiltered cubemap). This is a genuinely more accurate result
-			// than raster's baked approximation - real reflected environment
-			// detail shows through (correctly blurred by the cone, not
-			// flattened to one color), and RNG jitter (not a fixed offset
-			// pattern - two earlier attempts at a fixed pattern produced a
-			// Moire dot grid) means it accumulates into a clean blur across
-			// passes rather than aliasing.
+			// KHR_materials_sheen, indirect/environment side. Raster evaluates
+			// this as a split-sum lookup into sheenPrefilterMap multiplied by
+			// min(charlieLUT.b, sheenELUT.r). Reuse the path tracer's existing
+			// prefiltered environment chain here rather than a raw stochastic
+			// cone: it is not a perfect Charlie prefilter, but it is much
+			// closer to raster's stable prefiltered IBL than repeatedly adding
+			// bright raw environment samples as a separate sheen overlay.
 			if (surf.sheenColor != glm::vec3(0.0f))
 			{
 				const float sheenStrengthForIBL = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
 				const glm::vec3 R = glm::reflect(-V, N);
-				glm::vec3 Tc, Bc;
-				buildOrthonormalBasis(R, Tc, Bc);
 
 				const float sheenRoughFinal = std::clamp(surf.sheenRoughness, 0.0001f, 1.0f);
-				const float coneAngle = sheenRoughFinal * (kPi * 0.5f); // up to a full hemisphere spread at roughness 1
-
-				constexpr int kSheenEnvSamples = 8;
-				glm::vec3 envSum(0.0f);
-				for (int s = 0; s < kSheenEnvSamples; ++s)
-				{
-					const float u1 = rng.next01();
-					const float u2 = rng.next01();
-					const float phi = 2.0f * kPi * u1;
-					const float cosTheta = 1.0f - u2 * (1.0f - std::cos(coneAngle)); // uniform within the cone
-					const float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cosTheta * cosTheta));
-					const glm::vec3 localDir(sinTheta * std::cos(phi), sinTheta * std::sin(phi), cosTheta);
-					envSum += sampleEnvironmentMiss(snapshot.environment, localToWorld(localDir, R, Tc, Bc));
-				}
-				envSum /= static_cast<float>(kSheenEnvSamples);
+				const glm::vec3 envSheen = sampleEnvironmentSheen(snapshot.environment, R, sheenRoughFinal);
 
 				const float NdotV_sheen = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
-				const float E_sheen = sampleSheenAlbedoLUT(NdotV_sheen, sheenRoughFinal);
-				radiance += throughput * surf.ao * surf.sheenColor * envSum * E_sheen;
+				const float E_sheen = sampleSheenIblEnergy(NdotV_sheen, sheenRoughFinal);
+				radiance += throughput * surf.ao * surf.sheenColor * envSheen * E_sheen;
 
 				// main_scene.frag's "iblSheenScaling" - dampens the base
 				// layer's INDIRECT diffuse/specular the same way
@@ -2770,9 +2911,17 @@ namespace
 				shadowRay.direction = lightDir;
 				shadowRay.tFar = lightDistance - 2.0f * eps;
 				shadowRay.mask = shadowRayMask;
-				const glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
+				glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
 					? traceShadowRay(scene, snapshot, shadowRay, rng)
 					: glm::vec3(1.0f);
+				if (light.range < 0.0f)
+				{
+					// Raster clamps the default light's shadow factor to 0.85
+					// (main_scene.frag), so even fully shadowed default-light
+					// direct terms retain 15%. Keep real glTF punctual lights
+					// physically hard/colored through traceShadowRay().
+					shadowTransmittance = glm::max(shadowTransmittance, glm::vec3(0.15f));
+				}
 				if (shadowTransmittance == glm::vec3(0.0f))
 					continue;
 				lightIntensity *= shadowTransmittance;
@@ -2871,9 +3020,8 @@ namespace
 						{
 							const float sheenStrength = std::max({ surf.sheenColor.r, surf.sheenColor.g, surf.sheenColor.b });
 							const float NdotVSheen = std::clamp(glm::dot(N, V), 0.0f, 1.0f);
-							const float albedoSheenScaling = std::min(
-								1.0f - sheenStrength * sampleSheenAlbedoLUT(NdotVSheen, surf.sheenRoughness),
-								1.0f - sheenStrength * sampleSheenAlbedoLUT(std::clamp(NdotLEnv, 0.0f, 1.0f), surf.sheenRoughness));
+							const float albedoSheenScaling =
+								1.0f - sheenStrength * sampleSheenIblEnergy(NdotVSheen, surf.sheenRoughness);
 							envDirect *= albedoSheenScaling;
 						}
 
@@ -2895,9 +3043,6 @@ namespace
 						{
 							radiance += weightedEnv * envDirect;
 						}
-
-						if (surf.sheenColor != glm::vec3(0.0f))
-							radiance += weightedEnv * calculateSheen(N, V, envDir, surf.sheenColor, surf.sheenRoughness) * envRadiance;
 					}
 				}
 			}
