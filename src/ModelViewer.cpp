@@ -1799,6 +1799,7 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 	_sceneGraph->setActiveVariant(sourceFile, variantIndex);
 	_viewportWidget->refreshAnimationMaterialState(sourceFile);
 	_viewportWidget->update();
+	_viewportWidget->notifyPathTracedSceneMutated();
 }
 
 void ModelViewer::setupUndoStackMonitoring()

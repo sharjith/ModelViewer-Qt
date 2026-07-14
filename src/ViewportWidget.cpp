@@ -8957,6 +8957,7 @@ void ViewportWidget::restoreCameraPose(const CameraPose& pose)
 	_primaryCamera->setView(pose.position, pose.viewDir, pose.upVector, pose.rightVector);
 	_viewCtrl.syncPoseFromCamera(*_primaryCamera);
 	update();
+	resetPathTracedIdleTimer();
 }
 
 
@@ -9316,6 +9317,7 @@ void ViewportWidget::resetToSystemCamera()
 	_animCtrl.setActiveGltfCamera(QString(), -1);
 
 	update();
+	resetPathTracedIdleTimer();
 }
 
 GltfCameraData ViewportWidget::cameraDataForMvfSave(const GltfCameraData& source) const
@@ -9421,6 +9423,7 @@ void ViewportWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 			: _primaryCamera->getOrbitDistance())
 		: worldPos;
 	_primaryCamera->setView(pivotPos, worldDir, worldUp, right);
+	resetPathTracedIdleTimer();
 }
 
 void ViewportWidget::refreshAnimationMaterialState(const QString& sourceFile)
