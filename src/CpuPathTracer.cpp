@@ -1822,7 +1822,8 @@ namespace
 		// reflections of the environment. This local, unclamped copy is
 		// otherwise identical to distributionGGX()'s formula.
 		const float a2 = alpha * alpha;
-		const float denomTerm = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+		const float NdotH2 = NdotH * NdotH;
+		const float denomTerm = NdotH2 * a2 + (1.0f - NdotH2);
 		const float D = a2 / std::max(kPi * denomTerm * denomTerm, 1e-12f);
 
 		const float G1v = smithG1GGX(NdotV, alpha);
@@ -3399,6 +3400,41 @@ namespace
 			// declaration) - MIS-weights this direction against
 			// environment-NEE if it turns out to escape straight to the
 			// environment.
+			//
+			// lastBounceEnvRoughness==0.0f (an EXACT literal, only ever
+			// written by sampleBSDFBounce()'s polished-metal-mirror shortcut -
+			// every other lobe reports a floored, always-nonzero roughness:
+			// surf.roughness/surf.clearcoatRoughness are both clamped to a
+			// 0.0001 minimum in evaluateSurface(), and the diffuse lobe uses
+			// a negative sentinel instead) signals that this bounce is a
+			// deterministic near-delta reflection, not a real finite-width
+			// GGX sample. MIS's balance heuristic is meaningless for a delta
+			// BSDF: NEE can (almost) never importance-sample the exact mirror
+			// direction, so it contributes ~0 regardless, while the
+			// bsdf-escape channel's pdf/(pdf+envPdf) weight would get
+			// discounted by envPdfAtRay's mere PRESENCE at that direction -
+			// not just noisily, but systematically (the mirror direction is
+			// fixed per hit, so the same discount applies every sample). The
+			// two channels then don't actually complement each other, and
+			// energy is lost for good - this is a genuine bias, not variance
+			// that more samples would resolve. Skipping MIS here (full
+			// weight, matching the transmission/alpha-passthrough branches'
+			// identical lastBsdfSamplePdf=0.0f convention) is what an
+			// unbiased renderer must do for delta/near-delta BSDFs - this was
+			// the actual cause of polished, highly-metallic spheres (e.g.
+			// glTF's MetalRoughSpheresNoTextures) rendering with a dark body
+			// and only sparse bright specks instead of a bright mirror-like
+			// environment reflection; an earlier attempt at this fix instead
+			// patched evaluateBsdfPdf()'s own GGX-D numerical stability
+			// (still worth keeping - see its own comment - but insufficient
+			// on its own, since the deeper issue is evaluating a "pdf" for a
+			// direction that isn't really sampled from a continuous
+			// distribution at all).
+			if (lastBounceEnvRoughness == 0.0f)
+			{
+				lastBsdfSamplePdf = 0.0f;
+			}
+			else
 			{
 				float specProbForPdf, coatProbForPdf;
 				computeLobeProbabilities(surf, clearcoatBlend, specProbForPdf, coatProbForPdf);

@@ -899,7 +899,8 @@ namespace
 
 		const float alpha = roughness * roughness;
 		const float a2 = alpha * alpha;
-		const float denomTerm = NdotH * NdotH * (a2 - 1.0f) + 1.0f;
+		const float NdotH2 = NdotH * NdotH;
+		const float denomTerm = NdotH2 * a2 + (1.0f - NdotH2);
 		const float D = a2 / fmaxf(kPi * denomTerm * denomTerm, 1e-12f);
 
 		const float G1v = smithG1GGX(NdotV, alpha);
@@ -3114,7 +3115,27 @@ extern "C" __global__ void __closesthit__ch()
 			hasContinuation = true;
 		}
 
-		if (hasContinuation)
+		// outEscapeRoughness==0.0f is an EXACT literal only ever written by
+		// the polished-metal-mirror shortcut above - every other lobe here
+		// reports a floored, always-nonzero roughness (roughness/
+		// clearcoatRoughness are both clamped to a 0.0001 minimum
+		// device-side, and the diffuse lobe uses the -2.0f sentinel
+		// instead), so this exactly identifies a deterministic near-delta
+		// reflection rather than a real finite-width GGX sample. Evaluating
+		// a finite MIS pdf for a delta BSDF is meaningless: NEE can
+		// (almost) never importance-sample the exact mirror direction, so
+		// it contributes ~0 regardless, while computing a pdf for the
+		// bsdf-escape channel here would get it discounted by
+		// envPdfAtRay's mere presence at that direction in __miss__ms() -
+		// not noise, a systematic bias, since the mirror direction is fixed
+		// per hit. Skip MIS entirely (outBsdfPdf stays 0.0f, matching the
+		// transmission branch's identical convention above) - ported from
+		// CpuPathTracer::tracePixel()'s identical fix, which was the actual
+		// cause of polished, highly-metallic spheres (e.g. glTF's
+		// MetalRoughSpheresNoTextures) rendering with a dark body and only
+		// sparse bright specks instead of a bright mirror-like environment
+		// reflection.
+		if (hasContinuation && outEscapeRoughness != 0.0f)
 			outBsdfPdf = evaluateBsdfPdf(worldNormal, Ncoat, V, nextDirection,
 				roughness, clearcoatRoughness, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, specProb, coatProb);
 	}
