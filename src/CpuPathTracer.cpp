@@ -27,6 +27,7 @@ namespace
 	constexpr bool kDebugVisualizeUV = false;
 	constexpr bool kDebugVisualizeTransmission = false;
 	constexpr bool kDebugVisualizeTransmissionBounceCount = false;
+	constexpr bool kDebugVisualizeClearcoat = false;
 
 	// xorshift32 - fast, small, good enough for Monte Carlo path tracing noise
 	// (not for cryptography). Seeded per-pixel-per-pass so successive
@@ -1965,7 +1966,23 @@ namespace
 			const float G1v = smithG1GGX(NdotV, alpha);
 			const float G2  = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
 
-			outThroughput = F * (G2 / std::max(G1v, 1e-6f)) / coatProb;
+			// Missing surf.clearcoat factor here previously left this lobe's
+			// throughput representing "the coat's own full-strength Fresnel
+			// reflectance", not "how much of this point is actually coated" -
+			// coatProb's denominator does NOT cancel this out for partial
+			// (0<clearcoat<1) values (it's clamped and has an additive
+			// smoothness term, not a pure multiple of clearcoat), so at
+			// clearcoat==1 this was a no-op (masking the bug for uniformly-
+			// coated materials) but at intermediate values - exactly
+			// KHR_materials_clearcoat's clearcoatTexture use case, e.g. glTF's
+			// ClearCoatTest.gltf "Partial Coating" bands - it made the coat's
+			// indirect/environment reflection come out far too strong
+			// relative to the true partial coat amount, washing out the
+			// intended low-to-high gradient into a uniformly glossy result.
+			// main_scene.frag's own analytic clearcoatIBL() does the same
+			// multiply explicitly ("return prefilteredColor * params.clearcoat
+			// * params.ambientOcclusion").
+			outThroughput = surf.clearcoat * F * (G2 / std::max(G1v, 1e-6f)) / coatProb;
 			outDir = L;
 			outEnvRoughness = surf.clearcoatRoughness;
 			return true;
@@ -2283,7 +2300,12 @@ namespace
 			const glm::vec3 V = glm::normalize(-direction);
 			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
 
-			outAlbedo = glm::mix(surf.baseColor, glm::vec3(1.0f), glm::clamp(clearcoatBlend, glm::vec3(0.0f), glm::vec3(1.0f)));
+			// See tracePixel()'s identical clearcoatGuideStrength doc comment -
+			// clearcoatBlend alone carries no signal for a texture-driven
+			// (rather than view-angle-driven) coat/no-coat boundary.
+			const float clearcoatGuideStrength = std::max(surf.clearcoat,
+				std::clamp((clearcoatBlend.r + clearcoatBlend.g + clearcoatBlend.b) / 3.0f, 0.0f, 1.0f));
+			outAlbedo = glm::mix(surf.baseColor, glm::vec3(1.0f), clearcoatGuideStrength);
 			outNormal = mat.clearcoatNormalTexture ? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat)) : N;
 			return true;
 		}
@@ -2352,6 +2374,15 @@ namespace
 		// background-compositing) path regardless of how many pass-throughs
 		// preceded the real hit.
 		bool primaryHitResolved = false;
+
+		// kDebugVisualizeClearcoat - captured once, at the primary hit, then
+		// substituted for the real radiance at the very end of this function
+		// (see the final `return radiance` below) instead of returning early
+		// here - an early return skipped primaryHitResolved/outPrimaryHit/
+		// the OIDN guide-buffer capture for every pixel in the scene, not
+		// just clearcoat ones, which broke denoising and hit-tracking
+		// wholesale. x >= 0.0f means "set".
+		glm::vec3 debugClearcoatColor(-1.0f);
 
 		// bounce tracks ordinary (opaque diffuse/specular/clearcoat/alpha-
 		// pass-through) depth against settings.maxBounces, same as before.
@@ -2663,6 +2694,36 @@ namespace
 			const glm::vec3 Ncoat = applyNormalMap(Nsmooth, hit.tangent, hit.bitangent, mat.clearcoatNormalTexture.get(), hit.texCoords, mat.clearcoatNormalScale);
 			const glm::vec3 clearcoatBlend = surf.clearcoat * computeClearcoatFresnel(mat.ior, Ncoat, V);
 
+			// kDebugVisualizeClearcoat - false-colors the primary hit only:
+			// red = surf.clearcoat (the raw, texture-sampled mask - should
+			// show the ClearCoatTest.gltf "Partial Coating" bands crisply if
+			// the texture data reaching this point is genuinely banded),
+			// green = clearcoatBlend.r (the angle-dependent Fresnel weight
+			// actually used everywhere below to composite the coat over the
+			// base layer - expected to look almost flat across the torus
+			// regardless of the texture, since Fresnel depends on view angle
+			// not on surf.clearcoat's spatial pattern), blue = the mip LOD
+			// actually used to sample mat.clearcoatTexture, normalized against
+			// its own mip-chain length (0 = base level/sharpest, 1 = smallest/
+			// blurriest mip) - a saturated blue would mean minification
+			// aliasing is collapsing this texture to a single near-flat
+			// averaged color despite genuinely banded source data. Captured
+			// here, then substituted in for the real radiance at this
+			// function's final `return radiance` below, so the ordinary
+			// primary-hit bookkeeping (primaryHitResolved/outPrimaryHit/OIDN
+			// guide buffers) still runs untouched for every pixel. Flip the
+			// constant at the top of this file to enable.
+			if (kDebugVisualizeClearcoat && !primaryHitResolved)
+			{
+				float lodNorm = 0.0f;
+				if (mat.clearcoatTexture && mat.clearcoatTexture->mips.size() > 1)
+				{
+					const float lod = computeTextureLod(*mat.clearcoatTexture, footprintInUvArea);
+					lodNorm = std::clamp(lod / static_cast<float>(mat.clearcoatTexture->mips.size() - 1), 0.0f, 1.0f);
+				}
+				debugClearcoatColor = glm::vec3(surf.clearcoat, clearcoatBlend.r, lodNorm);
+			}
+
 			// This is the first REAL hit the ray has resolved to (opaque, or
 			// an alphaMode surface that survived the test above) - see
 			// primaryHitResolved's declaration for why this can no longer
@@ -2714,6 +2775,22 @@ namespace
 				//    present) since it's already naturally near-zero at
 				//    normal incidence and only grows toward grazing angles,
 				//    where the coat genuinely does dominate what's visible.
+				//  - clearcoatBlend alone is angle-dependent ONLY - it carries
+				//    NO signal for a SPATIALLY-TEXTURED clearcoat factor
+				//    (KHR_materials_clearcoat's clearcoatTexture, e.g. glTF's
+				//    ClearCoatTest.gltf "Partial Coating" bands): Fresnel
+				//    varies smoothly with view angle across a surface, so a
+				//    texture-driven coat/no-coat boundary (roughly constant
+				//    view angle across it) produces almost no clearcoatBlend
+				//    difference between the two sides, even though the real
+				//    coated-vs-uncoated appearance differs sharply (correctly,
+				//    pre-denoise - the bands are visible at any sample count,
+				//    ruling out under-sampling). OIDN then reads the texture's
+				//    own genuine pattern as noise and blurs the bands away
+				//    entirely. clearcoatGuideStrength below takes the MAX of
+				//    the existing angle-driven signal and a direct
+				//    surf.clearcoat-driven floor, so a textured coat mask gets
+				//    a guide-albedo difference regardless of view angle.
 				//
 				// A transmissive primary hit (glass) can't use ITS OWN
 				// baseColor/normal here - a window's flat tint is unrelated
@@ -2741,9 +2818,13 @@ namespace
 							ray.direction, rng, throughAlbedo, throughNormal);
 
 					if (outPrimaryAlbedo)
+					{
+						const float clearcoatGuideStrength = std::max(surf.clearcoat,
+							std::clamp((clearcoatBlend.r + clearcoatBlend.g + clearcoatBlend.b) / 3.0f, 0.0f, 1.0f));
 						*outPrimaryAlbedo = (surf.transmission > 0.001f)
 							? throughAlbedo // zero if haveThroughGuide is false, matching prior neutral fallback
-							: glm::mix(surf.baseColor, glm::vec3(1.0f), glm::clamp(clearcoatBlend, glm::vec3(0.0f), glm::vec3(1.0f)));
+							: glm::mix(surf.baseColor, glm::vec3(1.0f), clearcoatGuideStrength);
+					}
 					if (outPrimaryNormal)
 					{
 						const glm::vec3 guideNormal = mat.clearcoatNormalTexture
@@ -3480,6 +3561,9 @@ namespace
 		const float maxChannel = std::max({ radiance.r, radiance.g, radiance.b });
 		if (maxChannel > settings.fireflyClampThreshold && maxChannel > 0.0f)
 			radiance *= (settings.fireflyClampThreshold / maxChannel);
+
+		if (kDebugVisualizeClearcoat && debugClearcoatColor.x >= 0.0f)
+			return debugClearcoatColor;
 
 		return radiance;
 	}

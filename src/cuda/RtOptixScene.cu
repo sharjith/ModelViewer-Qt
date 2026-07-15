@@ -2987,7 +2987,15 @@ extern "C" __global__ void __closesthit__ch()
 				const float G1v = smithG1GGX(NdotVc, alpha);
 				const float G2 = smithG2HeightCorrelatedGGX(NdotVc, NdotL, alpha);
 				nextDirection = L;
-				throughputWeight = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / coatProb);
+				// clearcoat multiply matches CpuPathTracer::sampleBSDFBounce()'s
+				// identical fix - see its doc comment. Without it, this lobe's
+				// throughput represented the coat's full-strength Fresnel
+				// reflectance regardless of how much of this point is actually
+				// coated; a no-op at clearcoat==1 (uniform coats), but at
+				// partial (0<clearcoat<1) values - KHR_materials_clearcoat's
+				// clearcoatTexture case - it made the indirect/environment
+				// reflection far too strong relative to the true coat amount.
+				throughputWeight = F * (clearcoat * G2 / fmaxf(G1v, 1e-6f)) * (1.0f / coatProb);
 				outEscapeRoughness = clearcoatRoughness;
 				hasContinuation = true;
 			}
@@ -3185,9 +3193,29 @@ extern "C" __global__ void __closesthit__ch()
 	optixSetPayload_11(__float_as_uint(throughputWeight.x));
 	optixSetPayload_12(__float_as_uint(throughputWeight.y));
 	optixSetPayload_13(__float_as_uint(throughputWeight.z));
-	optixSetPayload_14(__float_as_uint(baseColor.x));
-	optixSetPayload_15(__float_as_uint(baseColor.y));
-	optixSetPayload_16(__float_as_uint(baseColor.z));
+	// OIDN guide albedo - ported from CpuPathTracer::tracePixel()'s identical
+	// clearcoatGuideStrength computation (this backend previously used raw
+	// baseColor here unconditionally, with NO clearcoat contribution at
+	// all - a real, worse-than-CPU gap, not merely a missing refinement).
+	// Blends toward neutral white by the max of two signals: clearcoatBlend
+	// (Fresnel-weighted, angle-dependent - needed for a uniformly-coated
+	// curved surface, where the coat's own colorless reflectance dominates
+	// increasingly toward grazing silhouette edges) and clearcoat directly
+	// (a direct, view-INDEPENDENT floor driven by KHR_materials_clearcoat's
+	// own clearcoatTexture mask). Fresnel varies smoothly with view angle
+	// and carries no signal at all for a texture-driven coat/no-coat
+	// boundary (e.g. glTF's ClearCoatTest.gltf "Partial Coating" bands,
+	// roughly constant view angle across the boundary) - relying on
+	// clearcoatBlend alone let OIDN read that texture's own genuine pattern
+	// as noise and blur the bands away entirely, even though they converged
+	// correctly pre-denoise (visible at any sample count, ruling out
+	// under-sampling as the cause).
+	const float clearcoatGuideStrength = fmaxf(clearcoat,
+		fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f, 0.0f), 1.0f));
+	const float3 guideAlbedo = lerp3(baseColor, make_float3(1.0f, 1.0f, 1.0f), clearcoatGuideStrength);
+	optixSetPayload_14(__float_as_uint(guideAlbedo.x));
+	optixSetPayload_15(__float_as_uint(guideAlbedo.y));
+	optixSetPayload_16(__float_as_uint(guideAlbedo.z));
 	optixSetPayload_17(__float_as_uint(outEscapeRoughness));
 	optixSetPayload_19(__float_as_uint(outBsdfPdf));
 }
