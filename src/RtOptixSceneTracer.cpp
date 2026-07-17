@@ -173,6 +173,23 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr envFaceBuffers[6] = { 0, 0, 0, 0, 0, 0 };
 	int envFaceSize = 0;
 
+	// Diffuse-convolved irradiance cubemap (RtEnvironment::irradianceFaces) -
+	// same upload pattern as envFaceBuffers/envFaceSize above, just a
+	// separate single-level cubemap. Used for indirect bounces whose most
+	// recent surface interaction was a diffuse (cosine-weighted) lobe - see
+	// RtOptixScene.cu's sampleEnvironmentDiffuse() and CpuPathTracer.cpp's
+	// identically-named function/RtEnvironment::irradianceFaces' doc comment
+	// for the full rationale. This backend used to fall back to the
+	// roughest GGX-prefiltered specular mip as a stand-in here - NOT
+	// equivalent to a true Lambertian convolution (GGX importance sampling
+	// at roughness=1 still weights differently and retains more directional
+	// structure), which was inflating diffuse-lobe environment escapes
+	// relative to CPU - most visible on scenes with no punctual lights where
+	// environment light is the only illumination and diffuse escapes
+	// dominate (e.g. KHR_materials_volume_scatter's ScatteringSkull.gltf).
+	CUdeviceptr irradianceFaceBuffers[6] = { 0, 0, 0, 0, 0, 0 };
+	int irradianceFaceSize = 0;
+
 	// GGX-prefiltered mip chain (RtEnvironment::prefilterMips) - one entry
 	// per mip level, each holding its own 6 face device buffers (kept alive
 	// alongside prefilterMipsBuffer, the device array of RtOptixPrefilterMip
@@ -254,6 +271,13 @@ struct RtOptixSceneTracer::Impl
 			face = 0;
 		}
 		envFaceSize = 0;
+
+		for (CUdeviceptr& face : irradianceFaceBuffers)
+		{
+			if (face) cudaFree(reinterpret_cast<void*>(face));
+			face = 0;
+		}
+		irradianceFaceSize = 0;
 
 		for (PrefilterMipGpu& mip : prefilterMipEntries)
 			for (CUdeviceptr& face : mip.faceBuffers)
@@ -1197,6 +1221,20 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		}
 	}
 
+	_impl->irradianceFaceSize = env.irradianceFaceSize;
+	if (env.irradianceFaceSize > 0)
+	{
+		for (int face = 0; face < 6; ++face)
+		{
+			if (!uploadCubemapFace(env.irradianceFaces[face], env.irradianceFaceSize, _impl->irradianceFaceBuffers[face]))
+			{
+				qWarning() << "RtOptixSceneTracer::buildScene(): irradiance face" << face << "has unexpected size - disabling GPU diffuse IBL (falls back to the raw map).";
+				_impl->irradianceFaceSize = 0;
+				break;
+			}
+		}
+	}
+
 	auto uploadPrefilterChain = [&](const std::vector<RtEnvironment::PrefilterMip>& sourceMips,
 		std::vector<Impl::PrefilterMipGpu>& gpuMips,
 		CUdeviceptr& mipsBuffer,
@@ -1340,6 +1378,9 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	for (int face = 0; face < 6; ++face)
 		params.environment.faces[face] = reinterpret_cast<float3*>(_impl->envFaceBuffers[face]);
 	params.environment.faceSize = _impl->envFaceSize;
+	for (int face = 0; face < 6; ++face)
+		params.environment.irradianceFaces[face] = reinterpret_cast<float3*>(_impl->irradianceFaceBuffers[face]);
+	params.environment.irradianceFaceSize = _impl->irradianceFaceSize;
 	params.environment.showBackground = environment.showBackground ? 1 : 0;
 	params.environment.fallbackTopColor = make_float3(environment.fallbackTopColor.x, environment.fallbackTopColor.y, environment.fallbackTopColor.z);
 	params.environment.fallbackBottomColor = make_float3(environment.fallbackBottomColor.x, environment.fallbackBottomColor.y, environment.fallbackBottomColor.z);

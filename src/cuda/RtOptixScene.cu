@@ -43,10 +43,10 @@
 // detail - e.g. a neighboring glossy object's own texture - since there was
 // no way to importance-sample or blur it away). Escaping bounce rays still
 // sample the roughness-appropriate GGX-prefiltered mip level for variance
-// reduction (sampleEnvironmentSpecular(), same as before) - see
-// RtOptixSceneParams.h's RtOptixEnvironment doc comment for why a diffuse-
-// lobe escape uses the sentinel roughness=1.0 (most-blurred mip) in place
-// of a real irradiance map, which this backend doesn't capture separately.
+// reduction (sampleEnvironmentSpecular(), same as before); a diffuse-lobe
+// escape instead samples a real cosine-weighted irradiance convolution
+// (sampleEnvironmentDiffuse()) - see RtOptixSceneParams.h's RtOptixEnvironment
+// doc comment.
 //
 // Also has ambient occlusion (__closesthit__ch() darkens the diffuse lobe's
 // indirect throughput weight by it - a deliberately simpler approximation
@@ -1408,6 +1408,27 @@ namespace
 		return sampleCubemapFaces(env.faces, env.faceSize, sampleDir) * env.envMapExposure;
 	}
 
+	// Diffuse-lobe environment sample - ported from CpuPathTracer::
+	// sampleEnvironmentDiffuse(): a real cosine-weighted irradiance
+	// convolution (RtOptixEnvironment::irradianceFaces - see its own doc
+	// comment), plain undoSkyboxRotation() with NO extra toPrefilterDirection
+	// swizzle (that swizzle is specifically a quirk of how the SPECULAR
+	// prefilter chain was captured - see toPrefilterDirection()'s own doc
+	// comment - not a general property of blurred/convolved IBL sampling,
+	// and the irradiance map is captured without it, matching CPU exactly).
+	// Falls back to the raw map (sampleEnvironmentRaw(), NOT the specular
+	// prefilter chain's roughest mip - that was the old, inexact stand-in
+	// this replaces) if no irradiance map was uploaded, matching CPU's own
+	// identical sampleEnvironmentDiffuse()->sampleEnvironmentMiss() fallback.
+	__forceinline__ __device__ float3 sampleEnvironmentDiffuse(const RtOptixEnvironment& env, const float3& direction)
+	{
+		if (env.irradianceFaceSize <= 0)
+			return sampleEnvironmentRaw(env, direction);
+
+		const float3 sampleDir = undoSkyboxRotation(direction, env.cameraUpAxisZUp != 0, env.skyBoxZRotationDegrees);
+		return sampleCubemapFaces(env.irradianceFaces, env.irradianceFaceSize, sampleDir) * env.envMapExposure;
+	}
+
 	// Roughness-aware specular/reflection environment sample - ported from
 	// CpuPathTracer::sampleEnvironmentSpecular(): selects (and linearly
 	// blends between) the two nearest GGX-prefiltered mip levels for the
@@ -1754,10 +1775,13 @@ extern "C" __global__ void __miss__ms()
 	}
 	else if (escapeRoughness < 0.0f)
 	{
-		// Diffuse-lobe escape. This backend does not upload the irradiance
-		// cubemap yet, so keep the existing roughest-prefilter stand-in for
-		// diffuse ambient/environment light.
-		result = sampleEnvironmentSpecular(params.environment, dir, 1.0f);
+		// Diffuse-lobe escape - real cosine-weighted irradiance convolution,
+		// matching CpuPathTracer::tracePixel()'s identical lastBounceEnvRoughness
+		// < 0.0f -> sampleEnvironmentDiffuse() treatment exactly (previously
+		// used the roughest specular prefilter mip as an inexact stand-in -
+		// see sampleEnvironmentDiffuse()'s own doc comment for why that
+		// mattered).
+		result = sampleEnvironmentDiffuse(params.environment, dir);
 	}
 	else
 	{

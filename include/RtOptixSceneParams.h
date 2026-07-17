@@ -89,13 +89,24 @@ struct RtOptixPrefilterMip
 // see RtOptixScene.cu's sampleEnvironmentSpecular() and CpuPathTracer's
 // identically-named function/its toPrefilterDirection() doc comment for the
 // extra swizzle the prefilter chain (but NOT the raw map) needs. A cosine-
-// weighted diffuse-lobe escape passes roughness=1.0 (the most-blurred mip)
-// as a rough stand-in for a real irradiance map, which this backend doesn't
-// capture separately yet.
+// weighted diffuse-lobe escape samples irradianceFaces below - a real
+// diffuse-convolved cubemap, same one CPU's sampleEnvironmentDiffuse() uses
+// (RtEnvironment::irradianceFaces, captured via SceneRenderController::
+// irradianceMap() and shared by both engines' snapshot already) - not a
+// roughest-specular-mip stand-in.
 struct RtOptixEnvironment
 {
 	float3* faces[6]; // nullptr (faceSize<=0) if no environment map loaded
 	int faceSize;
+
+	// Diffuse-convolved irradiance cubemap - see RtEnvironment::
+	// irradianceFaces' doc comment for the full rationale (used for indirect
+	// bounces whose most recent surface interaction was a diffuse lobe).
+	// nullptr/irradianceFaceSize<=0 means "not captured" (no environment map
+	// loaded), in which case sampleEnvironmentDiffuse() falls back to the
+	// raw map, matching CPU's own identical fallback exactly.
+	float3* irradianceFaces[6];
+	int irradianceFaceSize;
 
 	int showBackground; // bool as int
 	float3 fallbackTopColor;
