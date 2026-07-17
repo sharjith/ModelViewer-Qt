@@ -127,7 +127,8 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	const SceneMesh* mesh, const SceneRuntime& runtime, const Material& material,
 	int textureType, const char* meshTextureTypeKey, const QString& materialMapPath,
-	const char* packingKey)
+	const char* packingKey, TextureDedupCache& dedupCache,
+	const RtPackingOverride* packingOverride)
 {
 	// Tier 1: mesh-level texture list (SceneMesh::textures(), keyed by a type
 	// string like "albedoMap") - imported (glTF) materials don't use this, but
@@ -194,6 +195,54 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	if (img.isNull())
 		return nullptr;
 
+	// Packing resolved before the cache lookup below, not after - see
+	// extractTextureSample()'s own doc comment (RtSceneBuilder.h) on why a
+	// cached/shared RtTextureSample can never be safely mutated post-hoc.
+	int packingChannel = -1;
+	bool packingInvert = false;
+	float packingScale = 1.0f, packingBias = 0.0f;
+	if (packingOverride)
+	{
+		packingChannel = packingOverride->channel;
+		packingInvert  = packingOverride->invert;
+		packingScale   = packingOverride->scale;
+		packingBias    = packingOverride->bias;
+	}
+	else if (packingKey)
+	{
+		const Material::ChannelPacking packing = material.packingFor(QString::fromLatin1(packingKey));
+		packingChannel = packing.channel;
+		packingInvert  = packing.invert;
+		packingScale   = packing.scale;
+		packingBias    = packing.bias;
+	}
+	// else: not a scalar-packed slot (albedo/normal/emissive use full RGB) - packingChannel stays -1.
+
+	// Dedup cache lookup keyed on the source QImage's identity (before any
+	// format conversion below, since that's the buffer actually shared across
+	// call sites that reference the same underlying texture) plus every
+	// baked-in parameter resolved so far - see TextureDedupKey's doc comment.
+	// Checked before the (potentially expensive) format conversion/scanline
+	// copy/mip-chain build below so a cache hit skips all of that work, not
+	// just the shared_ptr allocation.
+	TextureDedupKey key;
+	key.imageCacheKey  = img.cacheKey();
+	key.uvScaleX       = uvScale.x;
+	key.uvScaleY       = uvScale.y;
+	key.uvOffsetX      = uvOffset.x;
+	key.uvOffsetY      = uvOffset.y;
+	key.uvRotation     = uvRotation;
+	key.texCoordIndex  = texCoordIndex;
+	key.wrapS          = wrapS;
+	key.wrapT          = wrapT;
+	key.packingChannel = packingChannel;
+	key.packingInvert  = packingInvert;
+	key.packingScale   = packingScale;
+	key.packingBias    = packingBias;
+
+	if (const auto it = dedupCache.find(key); it != dedupCache.end())
+		return it->second;
+
 	if (img.format() != QImage::Format_RGBA8888)
 		img = img.convertToFormat(QImage::Format_RGBA8888);
 	if (img.isNull() || img.width() <= 0 || img.height() <= 0)
@@ -215,32 +264,23 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 			static_cast<size_t>(img.width()) * 4);
 	}
 
-	sample->texCoordIndex = texCoordIndex;
-	sample->uvScale       = uvScale;
-	sample->uvOffset      = uvOffset;
-	sample->uvRotation    = uvRotation;
-	sample->wrapS         = wrapS;
-	sample->wrapT         = wrapT;
-
-	if (packingKey)
-	{
-		const Material::ChannelPacking packing = material.packingFor(QString::fromLatin1(packingKey));
-		sample->packingChannel = packing.channel;
-		sample->packingInvert  = packing.invert;
-		sample->packingScale   = packing.scale;
-		sample->packingBias    = packing.bias;
-	}
-	else
-	{
-		// Not a scalar-packed slot (albedo/normal/emissive use full RGB).
-		sample->packingChannel = -1;
-	}
+	sample->texCoordIndex  = texCoordIndex;
+	sample->uvScale        = uvScale;
+	sample->uvOffset       = uvOffset;
+	sample->uvRotation     = uvRotation;
+	sample->wrapS          = wrapS;
+	sample->wrapT          = wrapT;
+	sample->packingChannel = packingChannel;
+	sample->packingInvert  = packingInvert;
+	sample->packingScale   = packingScale;
+	sample->packingBias    = packingBias;
 
 	buildMipChain(*sample);
+	dedupCache.emplace(key, sample);
 	return sample;
 }
 
-RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRuntime& runtime)
+RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRuntime& runtime, TextureDedupCache& dedupCache)
 {
 	const Material material = mesh->getMaterial();
 
@@ -253,7 +293,7 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.opacity          = material.opacity();
 	rt.blendMode        = static_cast<int>(material.blendMode());
 	rt.alphaThreshold   = material.alphaThreshold();
-	rt.opacityTexture   = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Opacity), "opacityMap", material.opacityMapPath(), "opacity");
+	rt.opacityTexture   = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Opacity), "opacityMap", material.opacityMapPath(), "opacity", dedupCache);
 	rt.twoSided          = material.twoSided();
 	rt.unlit             = material.isUnlit();
 	rt.occlusionStrength = material.occlusionStrength();
@@ -265,125 +305,94 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.diffuseColor = toGlm(material.diffuseColor());
 	rt.specGlossSpecularColor = toGlm(material.specularColor());
 	rt.glossinessFactor = material.glossinessFactor();
-	rt.diffuseTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Diffuse), "diffuseMap", material.diffuseMapPath(), nullptr);
+	rt.diffuseTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Diffuse), "diffuseMap", material.diffuseMapPath(), nullptr, dedupCache);
 	// Packed RGB=specular color (sRGB, sampled directly as .rgb in
 	// evaluateSurface() - NOT via applyChannelPacking, which is only for
 	// single-channel factors) / A=glossiness (linear, packed channel below).
-	rt.specularGlossinessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularGlossiness), "specularGlossinessMap", material.specularGlossinessMap(), nullptr);
-	if (rt.specularGlossinessTexture)
 	{
-		rt.specularGlossinessTexture->packingChannel = 3; // A
-		rt.specularGlossinessTexture->packingInvert  = false;
-		rt.specularGlossinessTexture->packingScale   = 1.0f;
-		rt.specularGlossinessTexture->packingBias    = 0.0f;
+		const RtPackingOverride packAlpha{ 3, false, 1.0f, 0.0f }; // A
+		rt.specularGlossinessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularGlossiness), "specularGlossinessMap", material.specularGlossinessMap(), nullptr, dedupCache, &packAlpha);
 	}
 	rt.ior                  = material.ior();
 	rt.specularFactor       = material.specularFactor();
 	rt.specularColorFactor  = toGlm(material.specularColorFactor());
 
-	rt.baseColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Albedo), "albedoMap", material.albedoMapPath(), nullptr);
-	rt.metallicTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Metallic), "metallicMap", material.metallicMapPath(), "metallic");
-	rt.roughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Roughness), "roughnessMap", material.roughnessMapPath(), "roughness");
-	rt.normalTexture    = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Normal), "normalMap", material.normalMapPath(), nullptr);
+	rt.baseColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Albedo), "albedoMap", material.albedoMapPath(), nullptr, dedupCache);
+	rt.metallicTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Metallic), "metallicMap", material.metallicMapPath(), "metallic", dedupCache);
+	rt.roughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Roughness), "roughnessMap", material.roughnessMapPath(), "roughness", dedupCache);
+	rt.normalTexture    = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Normal), "normalMap", material.normalMapPath(), nullptr, dedupCache);
 	rt.normalScale      = material.normalScale();
-	rt.emissiveTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Emissive), "emissiveMap", material.emissiveMapPath(), nullptr);
-	rt.aoTexture        = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::AmbientOcclusion), "aoMap", material.aoMapPath(), "ao");
+	rt.emissiveTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Emissive), "emissiveMap", material.emissiveMapPath(), nullptr, dedupCache);
+	rt.aoTexture        = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::AmbientOcclusion), "aoMap", material.aoMapPath(), "ao", dedupCache);
 
 	// KHR_materials_specular's per-pixel maps - specularFactorMap's alpha
 	// channel scales specularFactor (glTF-declared packing, not user-
 	// configurable via Material::packingFor() like metallic/roughness/ao,
-	// so the packing metadata is set directly below rather than via a
-	// packingKey lookup), specularColorMap's RGB (sRGB) tints
+	// so the packing metadata is passed as an override below rather than via
+	// a packingKey lookup), specularColorMap's RGB (sRGB) tints
 	// specularColorFactor.
-	rt.specularTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularFactor), "specularFactorMap", material.specularFactorMap(), nullptr);
-	if (rt.specularTexture)
 	{
-		rt.specularTexture->packingChannel = 3; // A
-		rt.specularTexture->packingInvert  = false;
-		rt.specularTexture->packingScale   = 1.0f;
-		rt.specularTexture->packingBias    = 0.0f;
+		const RtPackingOverride packAlpha{ 3, false, 1.0f, 0.0f }; // A
+		rt.specularTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularFactor), "specularFactorMap", material.specularFactorMap(), nullptr, dedupCache, &packAlpha);
 	}
-	rt.specularColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularColor), "specularColorMap", material.specularColorMap(), nullptr);
+	rt.specularColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SpecularColor), "specularColorMap", material.specularColorMap(), nullptr, dedupCache);
 
 	// KHR_materials_clearcoat. Channel packing is glTF-fixed (not user-
 	// configurable via Material::packingFor() like metallic/roughness/ao),
-	// so it's set directly below rather than via a packingKey lookup -
-	// mirrors main_scene.frag's hardcoded ".r"/".g" reads.
+	// so it's passed as an override below rather than via a packingKey
+	// lookup - mirrors main_scene.frag's hardcoded ".r"/".g" reads.
 	rt.clearcoat          = material.clearcoat();
 	rt.clearcoatRoughness = std::clamp(material.clearcoatRoughness(), 0.0001f, 1.0f);
-	rt.clearcoatTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatColor), "clearcoatColorMap", material.clearcoatColorMapPath(), nullptr);
-	if (rt.clearcoatTexture)
 	{
-		rt.clearcoatTexture->packingChannel = 0; // R
-		rt.clearcoatTexture->packingInvert  = false;
-		rt.clearcoatTexture->packingScale   = 1.0f;
-		rt.clearcoatTexture->packingBias    = 0.0f;
+		const RtPackingOverride packR{ 0, false, 1.0f, 0.0f }; // R
+		rt.clearcoatTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatColor), "clearcoatColorMap", material.clearcoatColorMapPath(), nullptr, dedupCache, &packR);
 	}
-	rt.clearcoatRoughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatRoughness), "clearcoatRoughnessMap", material.clearcoatRoughnessMapPath(), nullptr);
-	if (rt.clearcoatRoughnessTexture)
 	{
-		rt.clearcoatRoughnessTexture->packingChannel = 1; // G
-		rt.clearcoatRoughnessTexture->packingInvert  = false;
-		rt.clearcoatRoughnessTexture->packingScale   = 1.0f;
-		rt.clearcoatRoughnessTexture->packingBias    = 0.0f;
+		const RtPackingOverride packG{ 1, false, 1.0f, 0.0f }; // G
+		rt.clearcoatRoughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatRoughness), "clearcoatRoughnessMap", material.clearcoatRoughnessMapPath(), nullptr, dedupCache, &packG);
 	}
-	rt.clearcoatNormalTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatNormal), "clearcoatNormalMap", material.clearcoatNormalMapPath(), nullptr);
+	rt.clearcoatNormalTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::ClearcoatNormal), "clearcoatNormalMap", material.clearcoatNormalMapPath(), nullptr, dedupCache);
 	rt.clearcoatNormalScale   = material.clearcoatNormalScale();
 
 	// KHR_materials_sheen. Channel packing is glTF-fixed (sheenRoughnessMap's
-	// alpha channel), so set directly rather than via a packingKey lookup.
+	// alpha channel), so passed as an override rather than via a packingKey
+	// lookup.
 	rt.sheenColor     = toGlm(material.sheenColor());
 	rt.sheenRoughness = std::clamp(material.sheenRoughness(), 0.0001f, 1.0f);
-	rt.sheenColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SheenColor), "sheenColorMap", material.sheenColorMapPath(), nullptr);
-	rt.sheenRoughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SheenRoughness), "sheenRoughnessMap", material.sheenRoughnessMapPath(), nullptr);
-	if (rt.sheenRoughnessTexture)
+	rt.sheenColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SheenColor), "sheenColorMap", material.sheenColorMapPath(), nullptr, dedupCache);
 	{
-		rt.sheenRoughnessTexture->packingChannel = 3; // A
-		rt.sheenRoughnessTexture->packingInvert  = false;
-		rt.sheenRoughnessTexture->packingScale   = 1.0f;
-		rt.sheenRoughnessTexture->packingBias    = 0.0f;
+		const RtPackingOverride packAlpha{ 3, false, 1.0f, 0.0f }; // A
+		rt.sheenRoughnessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::SheenRoughness), "sheenRoughnessMap", material.sheenRoughnessMapPath(), nullptr, dedupCache, &packAlpha);
 	}
 
 	// KHR_materials_anisotropy
 	rt.anisotropyStrength = material.anisotropyStrength();
 	rt.anisotropyRotation = material.anisotropyRotation();
-	rt.anisotropyTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Anisotropy), "anisotropyMap", material.anisotropyMap(), nullptr);
+	rt.anisotropyTexture  = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Anisotropy), "anisotropyMap", material.anisotropyMap(), nullptr, dedupCache);
 
 	// KHR_materials_iridescence
 	rt.iridescenceFactor       = material.iridescenceFactor();
 	rt.iridescenceIor          = material.iridescenceIor();
 	rt.iridescenceThicknessMin = material.iridescenceThicknessMin();
 	rt.iridescenceThicknessMax = material.iridescenceThicknessMax();
-	rt.iridescenceTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Iridescence), "iridescenceMap", material.iridescenceMap(), nullptr);
-	if (rt.iridescenceTexture)
 	{
-		rt.iridescenceTexture->packingChannel = 0; // R
-		rt.iridescenceTexture->packingInvert  = false;
-		rt.iridescenceTexture->packingScale   = 1.0f;
-		rt.iridescenceTexture->packingBias    = 0.0f;
+		const RtPackingOverride packR{ 0, false, 1.0f, 0.0f }; // R
+		rt.iridescenceTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Iridescence), "iridescenceMap", material.iridescenceMap(), nullptr, dedupCache, &packR);
 	}
-	rt.iridescenceThicknessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::IridescenceThickness), "iridescenceThicknessMap", material.iridescenceThicknessMap(), nullptr);
-	if (rt.iridescenceThicknessTexture)
 	{
 		// mix(min, max, texG) == texG*(max-min) + min - exactly the linear
 		// form applyChannelPacking() computes (packingScale*v + packingBias).
-		rt.iridescenceThicknessTexture->packingChannel = 1; // G
-		rt.iridescenceThicknessTexture->packingInvert  = false;
-		rt.iridescenceThicknessTexture->packingScale   = rt.iridescenceThicknessMax - rt.iridescenceThicknessMin;
-		rt.iridescenceThicknessTexture->packingBias    = rt.iridescenceThicknessMin;
+		const RtPackingOverride packG{ 1, false, rt.iridescenceThicknessMax - rt.iridescenceThicknessMin, rt.iridescenceThicknessMin }; // G
+		rt.iridescenceThicknessTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::IridescenceThickness), "iridescenceThicknessMap", material.iridescenceThicknessMap(), nullptr, dedupCache, &packG);
 	}
 
 	// KHR_materials_transmission + KHR_materials_volume - see
 	// RtSceneSnapshot.h's comment on why thicknessFactor's VALUE is
 	// deliberately not read here (only its presence, as hasVolume).
 	rt.transmission = material.transmission();
-	rt.transmissionTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Transmission), "transmissionMap", material.transmissionMapPath(), nullptr);
-	if (rt.transmissionTexture)
 	{
-		rt.transmissionTexture->packingChannel = 0; // R
-		rt.transmissionTexture->packingInvert  = false;
-		rt.transmissionTexture->packingScale   = 1.0f;
-		rt.transmissionTexture->packingBias    = 0.0f;
+		const RtPackingOverride packR{ 0, false, 1.0f, 0.0f }; // R
+		rt.transmissionTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::Transmission), "transmissionMap", material.transmissionMapPath(), nullptr, dedupCache, &packR);
 	}
 	rt.hasVolume           = material.thicknessFactor() > 0.0f;
 	rt.attenuationColor    = toGlm(material.attenuationColor());
@@ -401,20 +410,16 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	// existing Lambertian lobe rather than a refraction path.
 	rt.diffuseTransmissionFactor = material.diffuseTransmissionFactor();
 	rt.diffuseTransmissionColor  = toGlm(material.diffuseTransmissionColorFactor());
-	rt.diffuseTransmissionTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::DiffuseTransmission), "diffuseTransmissionMap", material.diffuseTransmissionMap(), nullptr);
-	if (rt.diffuseTransmissionTexture)
 	{
-		rt.diffuseTransmissionTexture->packingChannel = 3; // A
-		rt.diffuseTransmissionTexture->packingInvert  = false;
-		rt.diffuseTransmissionTexture->packingScale   = 1.0f;
-		rt.diffuseTransmissionTexture->packingBias    = 0.0f;
+		const RtPackingOverride packAlpha{ 3, false, 1.0f, 0.0f }; // A
+		rt.diffuseTransmissionTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::DiffuseTransmission), "diffuseTransmissionMap", material.diffuseTransmissionMap(), nullptr, dedupCache, &packAlpha);
 	}
-	rt.diffuseTransmissionColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::DiffuseTransmissionColor), "diffuseTransmissionColorMap", material.diffuseTransmissionColorMap(), nullptr);
+	rt.diffuseTransmissionColorTexture = extractTextureSample(mesh, runtime, material, static_cast<int>(Material::TextureType::DiffuseTransmissionColor), "diffuseTransmissionColorMap", material.diffuseTransmissionColorMap(), nullptr, dedupCache);
 
 	return rt;
 }
 
-RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled)
+RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled, TextureDedupCache& dedupCache)
 {
 	RtMaterial rt;
 	rt.baseColor         = toGlm(material.albedoColor());
@@ -457,12 +462,12 @@ RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, con
 	// (material.texture(Albedo)) already carries imageData directly (see
 	// ViewportWidget::syncFloorPlaneAlbedoTexture()'s "generated://floor-
 	// albedo" texture), so no texCache/tier-3 lookup is needed either.
-	rt.baseColorTexture = extractTextureSample(nullptr, runtime, material, static_cast<int>(Material::TextureType::Albedo), nullptr, material.albedoMapPath(), nullptr);
+	rt.baseColorTexture = extractTextureSample(nullptr, runtime, material, static_cast<int>(Material::TextureType::Albedo), nullptr, material.albedoMapPath(), nullptr, dedupCache);
 
 	return rt;
 }
 
-void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor)
+void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache)
 {
 	if (!floor.floorMesh)
 		return; // floor not created yet (e.g. before the viewport's first layout pass)
@@ -536,7 +541,7 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 
 	const uint32_t index = static_cast<uint32_t>(snapshot.meshes.size());
 	snapshot.meshes.push_back(std::move(geom));
-	snapshot.materials.push_back(convertFloorMaterial(runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled));
+	snapshot.materials.push_back(convertFloorMaterial(runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled, dedupCache));
 
 	RtInstance instance;
 	instance.meshIndex     = index;
@@ -571,6 +576,11 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	snapshot->instances.reserve(visibleIds.size());
 	snapshot->materials.reserve(visibleIds.size());
 
+	// Scoped to this single build() call - see TextureDedupCache's own doc
+	// comment (RtSceneBuilder.h) for why a texture edited/reloaded between
+	// two builds is never at risk of serving a stale cached copy from this.
+	TextureDedupCache dedupCache;
+
 	for (int id : visibleIds)
 	{
 		if (id < 0) continue;
@@ -589,7 +599,7 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 		const uint32_t index = static_cast<uint32_t>(snapshot->meshes.size());
 
 		snapshot->meshes.push_back(convertGeometry(mesh));
-		snapshot->materials.push_back(convertMaterial(mesh, runtime));
+		snapshot->materials.push_back(convertMaterial(mesh, runtime, dedupCache));
 
 		RtInstance instance;
 		instance.meshIndex     = index;
@@ -599,7 +609,7 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	}
 
 	if (floor && floor->groundMode == GroundMode::Floor)
-		addFloorInstance(*snapshot, runtime, *floor);
+		addFloorInstance(*snapshot, runtime, *floor, dedupCache);
 
 	snapshot->lights.reserve(lights.size());
 	for (const GPULight& light : lights)

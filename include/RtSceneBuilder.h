@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include <QString>
@@ -59,6 +61,22 @@ struct RtFloorParams
 	bool reflectionsEnabled = true;
 };
 
+// Fixed (glTF-spec-mandated, not user-configurable) channel packing for a
+// texture slot whose packing can't be looked up via Material::packingFor() -
+// e.g. sheenRoughnessMap's alpha channel, clearcoatMap's red channel. Passed
+// into extractTextureSample() so the packing is baked in before the
+// RtTextureSample is created/cached, rather than mutated on the returned
+// object afterwards - a mutate-after-return pattern is incompatible with
+// sharing one cached instance across multiple call sites (see
+// RtSceneBuilder::extractTextureSample()'s dedup-cache doc comment).
+struct RtPackingOverride
+{
+	int channel   = -1;
+	bool invert   = false;
+	float scale   = 1.0f;
+	float bias    = 0.0f;
+};
+
 // ---------------------------------------------------------------------------
 // RtSceneBuilder
 //
@@ -113,6 +131,62 @@ public:
 		bool selfShadowsEnabled = true);
 
 private:
+	// Identifies a fully-resolved RtTextureSample (source pixels + every
+	// baked-in per-usage parameter) well enough that two extractTextureSample()
+	// calls producing an identical key are guaranteed to want identical output -
+	// see extractTextureSample()'s own doc comment for why this exists and what
+	// it deliberately does NOT catch (independently-decoded copies of the same
+	// source image).
+	struct TextureDedupKey
+	{
+		qint64 imageCacheKey = 0;
+		float uvScaleX = 1.0f, uvScaleY = 1.0f;
+		float uvOffsetX = 0.0f, uvOffsetY = 0.0f;
+		float uvRotation = 0.0f;
+		int texCoordIndex = 0;
+		unsigned int wrapS = 0, wrapT = 0;
+		int packingChannel = -1;
+		bool packingInvert = false;
+		float packingScale = 1.0f;
+		float packingBias = 0.0f;
+
+		bool operator==(const TextureDedupKey& o) const
+		{
+			return imageCacheKey == o.imageCacheKey &&
+				uvScaleX == o.uvScaleX && uvScaleY == o.uvScaleY &&
+				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
+				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
+				wrapS == o.wrapS && wrapT == o.wrapT &&
+				packingChannel == o.packingChannel && packingInvert == o.packingInvert &&
+				packingScale == o.packingScale && packingBias == o.packingBias;
+		}
+	};
+	struct TextureDedupKeyHash
+	{
+		size_t operator()(const TextureDedupKey& k) const
+		{
+			size_t h = std::hash<qint64>{}(k.imageCacheKey);
+			auto mix = [&h](size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); };
+			mix(std::hash<float>{}(k.uvScaleX));
+			mix(std::hash<float>{}(k.uvScaleY));
+			mix(std::hash<float>{}(k.uvOffsetX));
+			mix(std::hash<float>{}(k.uvOffsetY));
+			mix(std::hash<float>{}(k.uvRotation));
+			mix(std::hash<int>{}(k.texCoordIndex));
+			mix(std::hash<unsigned int>{}(k.wrapS));
+			mix(std::hash<unsigned int>{}(k.wrapT));
+			mix(std::hash<int>{}(k.packingChannel));
+			mix(std::hash<bool>{}(k.packingInvert));
+			mix(std::hash<float>{}(k.packingScale));
+			mix(std::hash<float>{}(k.packingBias));
+			return h;
+		}
+	};
+	// Keyed and populated per-build() call (see build()'s local variable) -
+	// never persisted across calls, so a texture edited/reloaded between two
+	// builds is never at risk of serving a stale cached copy.
+	using TextureDedupCache = std::unordered_map<TextureDedupKey, std::shared_ptr<RtTextureSample>, TextureDedupKeyHash>;
+
 	static RtMeshGeometry convertGeometry(const SceneMesh* mesh);
 
 	// Floor's RenderableMesh has no SceneMesh/Assimp material behind it (it's
@@ -136,7 +210,7 @@ private:
 	// physically-grounded lever available to make the *real* GGX specular
 	// lobe visibly reflective without introducing a second, fake reflection
 	// mechanism into the tracer.
-	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled);
+	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled, TextureDedupCache& dedupCache);
 
 	// Builds a fresh, minimal 4-vertex/2-triangle quad sized just beyond
 	// floor.sceneBoundingBox (see RtFloorParams) rather than reusing
@@ -145,7 +219,7 @@ private:
 	// ray tracing (unlike rasterization, intersection math doesn't care how
 	// many triangles a flat plane is cut into), so there's no reason to pay
 	// for the raster extent's far larger surface area/BVH footprint here.
-	static void addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor);
+	static void addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache);
 
 	// Takes the owning SceneMesh and the SceneRuntime, not just the Material,
 	// because a texture's actual decoded pixel data can live in any of THREE
@@ -167,9 +241,35 @@ private:
 	//      exists in this cache, keyed by the source file path.
 	// extractTextureSample() checks all three, in that order, and uses
 	// whichever first has non-null imageData/image data for the requested slot.
-	static RtMaterial convertMaterial(const SceneMesh* mesh, const SceneRuntime& runtime);
+	static RtMaterial convertMaterial(const SceneMesh* mesh, const SceneRuntime& runtime, TextureDedupCache& dedupCache);
+	// dedupCache: many meshes/materials in a scene commonly reference the very
+	// same underlying texture (a shared glTF material used by dozens of
+	// instances is the common case, not the exception) - without this cache,
+	// every one of those call sites independently re-decoded the QImage to
+	// RGBA8888, copied its pixels into a brand-new RtTextureSample, and
+	// rebuilt its full mip chain, and RtOptixSceneTracer's own upload cache
+	// (keyed on RtTextureSample*, see its textureCache/textureMipCache) then
+	// saw N distinct pointers and uploaded N redundant copies to VRAM too.
+	// Keyed on QImage::cacheKey() (identifies the same underlying decoded
+	// pixel buffer without hashing pixels) plus every parameter baked into
+	// the resulting RtTextureSample (UV transform, wrap mode, channel
+	// packing) - see TextureDedupKey. Deliberately does NOT catch two
+	// independently-decoded QImages that merely contain identical pixels
+	// (e.g. two SceneMesh::textures() copies loaded from the same file at
+	// import time but never sharing a QImage buffer) - only the common
+	// same-Material/same-cache-entry sharing case, which is what actually
+	// drives the duplication in real scenes.
+	// packingOverride: when non-null, used verbatim instead of
+	// material.packingFor(packingKey) - required for the ~10 texture slots
+	// whose channel packing is glTF-spec-fixed rather than user-configurable
+	// (sheenRoughnessMap alpha, clearcoatMap red, etc.). These used to be
+	// applied by mutating the returned RtTextureSample after the call
+	// returned, which is exactly the kind of use-after-cache mutation the
+	// dedup cache above cannot tolerate (a second, unrelated call site
+	// sharing that same cached instance would see the mutation too).
 	static std::shared_ptr<RtTextureSample> extractTextureSample(
 		const SceneMesh* mesh, const SceneRuntime& runtime, const Material& material,
 		int textureType, const char* meshTextureTypeKey, const QString& materialMapPath,
-		const char* packingKey);
+		const char* packingKey, TextureDedupCache& dedupCache,
+		const RtPackingOverride* packingOverride = nullptr);
 };
