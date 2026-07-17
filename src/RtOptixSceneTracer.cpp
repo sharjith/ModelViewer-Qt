@@ -877,6 +877,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			std::vector<RtOptixTextureMipLevel> mipsHost;
 			mipsHost.reserve(tex->mips.size());
 			bool ok = true;
+			bool first = true;
 			for (const RtTextureMipLevel& mip : tex->mips)
 			{
 				if (mip.width <= 0 || mip.height <= 0 ||
@@ -885,6 +886,28 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 					ok = false;
 					break;
 				}
+
+				// mips[0] is guaranteed byte-identical to the base level just
+				// uploaded above as deviceRgba8 (RtSceneBuilder::buildMipChain()
+				// constructs it as a straight copy of sample.rgba8, kept only so
+				// the CPU tracer can index mips[0..N] uniformly rather than
+				// special-casing level 0 against width/height/rgba8 directly -
+				// see RtTextureSample::mips' doc comment). Re-uploading that same
+				// data to a second VRAM buffer here would double the resident
+				// cost of every texture's base level for no benefit - reuse the
+				// buffer already uploaded instead of allocating a duplicate.
+				if (first && mip.width == tex->width && mip.height == tex->height)
+				{
+					RtOptixTextureMipLevel entry{};
+					entry.rgba8 = reinterpret_cast<const uchar4*>(deviceRgba8);
+					entry.width = mip.width;
+					entry.height = mip.height;
+					mipsHost.push_back(entry);
+					first = false;
+					continue;
+				}
+				first = false;
+
 				CUdeviceptr deviceMipRgba8 = 0;
 				const size_t mipBytes = mip.rgba8.size();
 				if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&deviceMipRgba8), mipBytes), "cudaMalloc(material texture mip)"))
@@ -910,14 +933,23 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			if (ok && !mipsHost.empty())
 			{
 				const size_t arrayBytes = mipsHost.size() * sizeof(RtOptixTextureMipLevel);
-				if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipArrayDevice), arrayBytes), "cudaMalloc(material texture mip array)") &&
-					cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipArrayDevice), mipsHost.data(), arrayBytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture mip array)"))
+				const bool mallocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipArrayDevice), arrayBytes), "cudaMalloc(material texture mip array)");
+				if (mallocOk && cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipArrayDevice), mipsHost.data(), arrayBytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture mip array)"))
 				{
 					_impl->textureBuffers.push_back(mipArrayDevice);
 					mipCount = static_cast<int>(mipsHost.size());
 				}
 				else
 				{
+					// mallocOk but the memcpy failed: mipArrayDevice is a real,
+					// still-live allocation that was never pushed onto
+					// textureBuffers (only a successful upload gets tracked
+					// there for freeSceneBuffers() to free later) - free it
+					// here directly or it's orphaned with no remaining pointer
+					// to reach it. If mallocOk is false, mipArrayDevice is
+					// already 0 and cudaFree(nullptr) is a harmless no-op.
+					if (mallocOk)
+						cudaFree(reinterpret_cast<void*>(mipArrayDevice));
 					mipArrayDevice = 0;
 				}
 			}
