@@ -245,7 +245,7 @@
           <string notr="true">color: #b8860b;</string>
          </property>
          <property name="text">
-          <string>Export resolution exceeds the current viewport size - this will trigger an offline render, which may take a while and will block the application until it finishes.</string>
+          <string>Export resolution exceeds the current viewport size - this will trigger an offline render, which may take a while (cancellable via the Cancel button that replaces Stop for the duration).</string>
          </property>
          <property name="wordWrap">
           <bool>true</bool>

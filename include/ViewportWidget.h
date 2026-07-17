@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <functional>
 #include <memory>
 
@@ -489,9 +490,19 @@ public:
 	// tonemapped/gamma-encoded 8-bit framebuffer captureCleanPathTracedImage()
 	// returns - RtPresenter's tonemap only ever happens at PRESENT time in
 	// the display shader, never mutating what latestFrame() itself holds.
+	// Must branch on _ptEnginePreference the same way pathTracedSessionRunning()
+	// above does - an earlier version always read _rtSession regardless of
+	// which engine was actually live, so a fast-path EXR export while the
+	// GPU engine was selected silently pulled from _rtSession's own EMPTY
+	// buffer (never started, since GPU mode means _rtSession.stop() was
+	// called and it never ran) - an all-zero buffer writes out as solid
+	// black, not a crash or an obvious error, which is what made this easy
+	// to miss.
 	std::vector<glm::vec3> pathTracingRawFrame(int& outWidth, int& outHeight) const
 	{
 		uint32_t sampleCount = 0;
+		if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+			return _ptOptixSession.latestFrame(outWidth, outHeight, sampleCount);
 		return _rtSession.latestFrame(outWidth, outHeight, sampleCount);
 	}
 
@@ -554,17 +565,39 @@ public:
 	// decoupled entirely from the interactive session/viewport (see
 	// buildPathTracedSnapshot()'s doc comment for the shared setup logic,
 	// and PathTracingDialog::onExportClicked() for when this is used vs the
-	// fast downscale-existing-frame path). Genuinely blocks the calling
-	// thread for the whole render - no worker thread, no cancellation - per
-	// an explicit call that a blocking offline export is acceptable; the
-	// caller is expected to pump QApplication::processEvents() from
-	// onProgress to keep the UI visually responsive. onProgress is called
-	// once per completed sample with (currentSample, maxSamples).
-	// Returns false (outLinearRgb left untouched) if the scene/camera isn't
-	// ready to render at all.
+	// fast downscale-existing-frame path). Dispatches to CPU (RtEmbreeScene/
+	// CpuPathTracer) or GPU (renderPathTracedOfflineGpu(), RtOptixSceneTracer)
+	// based on _ptEnginePreference - same engine the interactive viewport is
+	// currently using. Genuinely blocks the calling thread for the whole
+	// render - no worker thread - per an explicit call that a blocking
+	// offline export is acceptable; the caller is expected to pump
+	// QApplication::processEvents() (WITHOUT ExcludeUserInputEvents - see
+	// cancelPathTracedOfflineRender()'s doc comment for why) from onProgress
+	// to keep the UI visually responsive and let a cancel request actually
+	// reach this call. onProgress is called once per completed sample with
+	// (currentSample, maxSamples). Returns false (outLinearRgb left
+	// untouched) if the scene/camera isn't ready to render at all, or (GPU
+	// only) if OptiX isn't available on this machine. outCancelled, if
+	// non-null, is set true when the render stopped early because
+	// cancelPathTracedOfflineRender() was called mid-render - a false
+	// return with outCancelled set is not a failure and shouldn't be
+	// reported as one.
 	bool renderPathTracedOffline(int width, int height,
 		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
-		std::vector<glm::vec3>& outLinearRgb);
+		std::vector<glm::vec3>& outLinearRgb, bool* outCancelled = nullptr);
+
+	// Requests that an in-progress renderPathTracedOffline() stop at the
+	// next opportunity (next sample boundary on GPU, next scanline on CPU -
+	// see CpuPathTracer::renderPass()'s own cancelFlag doc comment) rather
+	// than running to completion. Safe to call from a Qt slot invoked via
+	// QApplication::processEvents() while renderPathTracedOffline() is
+	// still blocking the calling thread further up the same call stack -
+	// this is the ONLY way a click can reach that call at all, since it
+	// never returns to the event loop on its own until done or cancelled.
+	// No-op if no offline render is currently in progress (the flag is
+	// reset at the start of every renderPathTracedOffline() call, so a
+	// stale request can't affect a later, unrelated one).
+	void cancelPathTracedOfflineRender() { _ptOfflineCancelRequested.store(true, std::memory_order_release); }
 
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
 	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
@@ -1180,6 +1213,16 @@ private:
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 	QElapsedTimer _ptSessionElapsedTimer; // see pathTracingElapsedMs()'s doc comment
 
+	// See cancelPathTracedOfflineRender()'s doc comment - reset to false at
+	// the start of every renderPathTracedOffline() call, checked between
+	// samples/chunks by that call and its GPU counterpart. Atomic even
+	// though everything touching it currently runs on the same (UI) thread
+	// - the whole point is that it's set from a Qt slot invoked via
+	// QApplication::processEvents() while a call further up the SAME
+	// thread's stack is still blocking, which is a real (if same-thread)
+	// concurrent-access pattern worth being explicit and correct about.
+	std::atomic<bool> _ptOfflineCancelRequested{ false };
+
 	// Set for the duration of a captureCleanPathTracedImage() call -
 	// paintGL() checks this to suppress the axis triad/view cube/mesh-count
 	// HUD overlays (see their call sites) so an exported render contains
@@ -1203,6 +1246,20 @@ private:
 	// Called from startPathTracedSession() instead of the real _rtSession
 	// setup when the GPU engine is selected.
 	void startOptixTestPathTracedSession(int fbWidth, int fbHeight);
+
+	// GPU-engine counterpart to renderPathTracedOffline()'s CPU path -
+	// same blocking-until-done, own-fresh-scene-independent-of-the-live-
+	// session contract, just built on RtOptixSceneTracer instead of
+	// RtEmbreeScene/CpuPathTracer. Mirrors RtOptixPathTracingSession::
+	// workerLoop()'s exact chunked running-mean accumulation + final-pass-
+	// only denoise (see that function's own doc comment for the numerics
+	// rationale), just as a plain synchronous loop in the calling thread
+	// rather than a background worker - offline export already blocks the
+	// whole application per renderPathTracedOffline()'s own contract, so
+	// there is no reason to pay for a worker thread + polling wait here.
+	bool renderPathTracedOfflineGpu(int width, int height, const RtSceneSnapshot& snapshot,
+		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
+		std::vector<glm::vec3>& outLinearRgb, bool* outCancelled);
 
 	// Builds a fresh RtSceneSnapshot for the given OUTPUT resolution -
 	// shared by startPathTracedSession() (the interactive session) and

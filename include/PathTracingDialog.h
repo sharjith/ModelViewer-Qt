@@ -2,6 +2,7 @@
 
 #include <QDialog>
 #include <QElapsedTimer>
+#include <QString>
 #include <cstdint>
 #include <memory>
 
@@ -73,7 +74,18 @@ private slots:
 	void onResolutionPresetSelected(int index);
 
 private:
-	void updateButtonsForState(bool running, uint32_t currentSamples);
+	// Self-contained (queries the viewport itself, no parameters) so it can
+	// be called freely from both the periodic progress poll (onProgressTimer())
+	// and immediately on a resolution-spinbox edit (onExportResolutionChanged())
+	// - Export must become available the instant an export resolution larger
+	// than the viewport is entered, not wait for the next poll tick.
+	void updateButtonsForState();
+	// "M:SS" formatting shared by onProgressTimer()'s live/frozen elapsed
+	// display and onExportClicked()'s offline-render progress callback -
+	// the latter can't rely on onProgressTimer() at all since it stops that
+	// timer for the whole blocking export (see onExportClicked()'s own doc
+	// comment on why).
+	static QString formatElapsedTime(qint64 elapsedMs);
 	void loadSettings(); // QSettings "pathtracing/*" - geometry + last-used values, loaded into the viewport before the UI reads them
 	void saveSettings(); // called from closeEvent()
 	void updateResolutionWarning(); // shows/hides labelResolutionWarning + adjustSize() on change, mirrors labelOrthoThinWallWarning's pattern
@@ -95,6 +107,17 @@ private:
 	// Cleared the moment real progress is observed again (via Render, or
 	// the camera settling and restarting outside this dialog entirely).
 	bool _stoppedByUser = false;
+
+	// Set for the duration of onExportClicked()'s blocking offline-render
+	// branch (needsOfflineRender==true) - repurposes pushButtonStop (label
+	// swapped to "Cancel" for the duration) to call ViewportWidget::
+	// cancelPathTracedOfflineRender() instead of its normal onStopClicked()
+	// interactive-session-stop behavior, since a blocking offline render has
+	// no running RtPathTracingSession/RtOptixPathTracingSession to stop in
+	// the first place. See onExportClicked()'s own doc comment for the rest
+	// of the cancellation mechanism (why the whole dialog can't just be
+	// setEnabled(false) the way it used to be).
+	bool _offlineRenderInProgress = false;
 
 	// Elapsed-time display below the progress bar. The LIVE value is read
 	// straight from ViewportWidget::pathTracingElapsedMs() every poll - that

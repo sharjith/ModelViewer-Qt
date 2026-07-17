@@ -3535,12 +3535,21 @@ void ViewportWidget::setFloorTexture(QImage img)
 {
 	_floorTexImage = convertToGLFormat(img);
 	syncFloorPlaneAlbedoTexture();
+	// Same bug class as setGroundMode()'s identical fix just above - PT's
+	// snapshot correctly re-reads the floor's live Material/texture on every
+	// build() call, but GPU's RtOptixSceneTracer::buildScene() only actually
+	// RUNS (re-uploading the new texture) when the scene revision changes -
+	// without this, a floor texture edit stayed stale on GPU (picked up
+	// immediately on CPU, which rebuilds unconditionally every session
+	// start) until something ELSE happened to bump the revision.
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::showFloorTexture(bool show)
 {
 	_renderCtrl.setFloorTextureDisplayed(show);
 	syncFloorPlaneAlbedoTexture();
+	notifyPathTracedSceneMutated(); // see setFloorTexture()'s identical doc comment
 }
 
 void ViewportWidget::addToDisplay(SceneMesh* mesh)
@@ -12935,14 +12944,48 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 
 bool ViewportWidget::renderPathTracedOffline(int width, int height,
 	const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
-	std::vector<glm::vec3>& outLinearRgb)
+	std::vector<glm::vec3>& outLinearRgb, bool* outCancelled)
 {
+	if (outCancelled)
+		*outCancelled = false;
+	_ptOfflineCancelRequested.store(false, std::memory_order_release); // see cancelPathTracedOfflineRender()'s doc comment
+
 	if (width <= 0 || height <= 0)
 		return false;
+
+	// Stop whichever interactive session might currently be running - same
+	// "never run two PT backends at once" discipline resetPathTracedIdleTimer()/
+	// startPathTracedSession()/startOptixTestPathTracedSession() already
+	// enforce elsewhere. Without this, an offline export triggered while the
+	// interactive GPU session is still actively rendering would have its
+	// background worker thread issuing CUDA/OptiX calls on the same device/
+	// context concurrently with this call's own (on the GPU engine - see
+	// renderPathTracedOfflineGpu()) - genuinely concurrent, unsynchronized
+	// CUDA calls from two different host threads, on top of the interactive
+	// session's already-built GAS/IAS/textures needlessly doubling peak VRAM
+	// alongside this call's own fresh, independent scene build for the whole
+	// export duration. Both stopped unconditionally (matching the existing
+	// pattern's own style) rather than only whichever engine is about to be
+	// used, since a stale worker from a PREVIOUS engine switch could still be
+	// running too.
+	_rtSession.stop();
+	_ptOptixSession.stop();
+
+	// See pathTracingElapsedMs()'s doc comment - (re)started at the single
+	// place a render actually begins, same as startPathTracedSession()/
+	// startOptixTestPathTracedSession()'s identical calls. Without this, an
+	// offline export's elapsed-time display (PathTracingDialog::
+	// onExportClicked()'s progress callback) would show whatever stale
+	// value was left over from the last INTERACTIVE session instead of the
+	// export's own actual duration.
+	_ptSessionElapsedTimer.start();
 
 	auto snapshot = buildPathTracedSnapshot(width, height);
 	if (!snapshot)
 		return false;
+
+	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+		return renderPathTracedOfflineGpu(width, height, *snapshot, onProgress, outLinearRgb, outCancelled);
 
 	// A fresh, independent BVH/environment-sampler/accumulator - entirely
 	// separate from _rtSession/_embreeScene (whatever the interactive
@@ -12969,11 +13012,24 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 
 	for (uint32_t sample = 0; sample < _ptMaxSamples; ++sample)
 	{
+		if (_ptOfflineCancelRequested.load(std::memory_order_acquire))
+		{
+			if (outCancelled) *outCancelled = true;
+			return false;
+		}
+
 		std::vector<glm::vec3> passResult;
 		std::vector<uint8_t> hitMask;
 		std::vector<glm::vec3> albedoResult, normalResult;
 		tracer.renderPass(embreeScene, *snapshot, envSampler, width, height, sample, passResult,
-			nullptr, &hitMask, &albedoResult, &normalResult);
+			&_ptOfflineCancelRequested, &hitMask, &albedoResult, &normalResult);
+		if (_ptOfflineCancelRequested.load(std::memory_order_acquire))
+		{
+			// passResult may only be partially filled - see renderPass()'s
+			// own cancelFlag doc comment - must be discarded, not accumulated.
+			if (outCancelled) *outCancelled = true;
+			return false;
+		}
 		accumulator.accumulate(passResult, &hitMask, &albedoResult, &normalResult);
 
 		if (onProgress)
@@ -13004,6 +13060,104 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 				if (hitCounts[i] == 0)
 					denoised[i] = resolved[i];
 		}
+
+		outLinearRgb = std::move(denoised);
+	}
+
+	return true;
+}
+
+bool ViewportWidget::renderPathTracedOfflineGpu(int width, int height, const RtSceneSnapshot& snapshot,
+	const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
+	std::vector<glm::vec3>& outLinearRgb, bool* outCancelled)
+{
+	// A fresh, independent tracer/GAS-IAS build - entirely separate from
+	// _ptOptixSession (whatever the interactive GPU session, if any, keeps
+	// running completely undisturbed by this call) - mirrors the CPU path's
+	// identical fresh-RtEmbreeScene rationale above.
+	RtOptixSceneTracer tracer;
+	if (!tracer.isAvailable())
+		return false;
+	if (!tracer.buildScene(snapshot))
+		return false;
+
+	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+	const uint32_t maxSamples = std::max<uint32_t>(_ptMaxSamples, 1);
+
+	// Running means in double precision, accumulated across chunks - same
+	// numerically-steadier-than-fp32 rationale as RtOptixPathTracingSession::
+	// workerLoop(), which this loop otherwise mirrors exactly (just as a
+	// plain blocking loop instead of a background worker - see this
+	// function's own doc comment in ViewportWidget.h).
+	std::vector<glm::dvec3> runningMean(pixelCount, glm::dvec3(0.0));
+	std::vector<glm::dvec3> runningMeanAlbedo(pixelCount, glm::dvec3(0.0));
+	std::vector<glm::dvec3> runningMeanNormal(pixelCount, glm::dvec3(0.0));
+	std::vector<double>     runningMeanAlpha(pixelCount, 0.0);
+	uint32_t sampleCount = 0;
+
+	// Chunk size of 1 keeps onProgress's documented "once per completed
+	// sample" contract identical to the CPU path above, rather than only
+	// updating once per (potentially large) GPU launch chunk.
+	while (sampleCount < maxSamples)
+	{
+		if (_ptOfflineCancelRequested.load(std::memory_order_acquire))
+		{
+			if (outCancelled) *outCancelled = true;
+			return false;
+		}
+
+		std::vector<glm::vec3> chunkFrame, chunkAlbedo, chunkNormal;
+		std::vector<float> chunkAlpha;
+		if (!tracer.renderScene(snapshot.camera, snapshot.environment, width, height, 1, sampleCount,
+			static_cast<unsigned int>(std::max(_ptMaxBounces, 1)),
+			snapshot.shadowsEnabled, snapshot.selfShadowsEnabled, _ptEnvImportanceSamplingEnabled,
+			static_cast<unsigned int>(std::max(_ptMaxTransmissionBounces, 1)), _ptFireflyClampThreshold,
+			static_cast<unsigned int>(std::max(_ptRussianRouletteStartDepth, 1)),
+			chunkFrame, chunkAlbedo, chunkNormal, chunkAlpha))
+			return false;
+		if (chunkFrame.size() != pixelCount)
+			return false;
+
+		const uint32_t newSampleCount = sampleCount + 1;
+		const double chunkWeight = 1.0 / static_cast<double>(newSampleCount);
+		for (size_t i = 0; i < pixelCount; ++i)
+		{
+			runningMean[i]       += (glm::dvec3(chunkFrame[i])  - runningMean[i])       * chunkWeight;
+			runningMeanAlbedo[i] += (glm::dvec3(chunkAlbedo[i]) - runningMeanAlbedo[i]) * chunkWeight;
+			runningMeanNormal[i] += (glm::dvec3(chunkNormal[i]) - runningMeanNormal[i]) * chunkWeight;
+			runningMeanAlpha[i]  += (static_cast<double>(chunkAlpha[i]) - runningMeanAlpha[i]) * chunkWeight;
+		}
+		sampleCount = newSampleCount;
+
+		if (onProgress)
+			onProgress(sampleCount, maxSamples);
+	}
+
+	std::vector<glm::vec3> resolved(pixelCount);
+	for (size_t i = 0; i < pixelCount; ++i)
+		resolved[i] = glm::vec3(runningMean[i]);
+	outLinearRgb = resolved;
+
+	if (_ptDenoiserEnabled)
+	{
+		std::vector<glm::vec3> resolvedAlbedo(pixelCount), resolvedNormal(pixelCount);
+		for (size_t i = 0; i < pixelCount; ++i)
+		{
+			resolvedAlbedo[i] = glm::vec3(runningMeanAlbedo[i]);
+			resolvedNormal[i] = glm::vec3(runningMeanNormal[i]);
+		}
+
+		RtDenoiser denoiser(_ptDenoiserDevicePreference);
+		std::vector<glm::vec3> denoised;
+		denoiser.denoise(resolved, width, height, denoised, maxSamples, &resolvedAlbedo, &resolvedNormal);
+
+		// Pure-background pixels (no primary ray ever hit geometry) keep the
+		// raw accumulated value - OIDN over-smooths a sharp traced background
+		// it has no guide values for - matches RtOptixPathTracingSession::
+		// workerLoop()'s identical restoration exactly.
+		for (size_t i = 0; i < pixelCount; ++i)
+			if (runningMeanAlpha[i] <= 0.0)
+				denoised[i] = resolved[i];
 
 		outLinearRgb = std::move(denoised);
 	}
@@ -13045,6 +13199,7 @@ void ViewportWidget::setFloorTexRepeatT(double floorTexRepeatT)
 	_renderCtrl.setFloorTexRepeatT(static_cast<float>(floorTexRepeatT));
 	updateFloorPlane();
 	update();
+	notifyPathTracedSceneMutated(); // see setFloorTexture()'s identical doc comment - floor UV tiling is baked into PT's snapshot geometry
 }
 
 void ViewportWidget::setFloorTexRepeatS(double floorTexRepeatS)
@@ -13052,6 +13207,7 @@ void ViewportWidget::setFloorTexRepeatS(double floorTexRepeatS)
 	_renderCtrl.setFloorTexRepeatS(static_cast<float>(floorTexRepeatS));
 	updateFloorPlane();
 	update();
+	notifyPathTracedSceneMutated(); // see setFloorTexture()'s identical doc comment - floor UV tiling is baked into PT's snapshot geometry
 }
 
 void ViewportWidget::setFloorOffsetPercent(double value)
@@ -13059,6 +13215,7 @@ void ViewportWidget::setFloorOffsetPercent(double value)
 	_renderCtrl.setFloorOffsetPercent(static_cast<float>(value / 100.0f));
 	updateFloorPlane();
 	update();
+	notifyPathTracedSceneMutated(); // see setFloorTexture()'s identical doc comment - floor offset moves PT's snapshot geometry
 }
 
 void ViewportWidget::setPerspFOV(int fovDegrees)

@@ -6,8 +6,10 @@
 #include "RtTonemap.h"
 
 #include <QTimer>
+#include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QStandardPaths>
 #include <QImage>
 #include <QCloseEvent>
 #include <QSettings>
@@ -374,6 +376,19 @@ void PathTracingDialog::onStopClicked()
 	if (!_modelViewer)
 		return;
 
+	// Repurposed as Cancel for a blocking offline export - see
+	// _offlineRenderInProgress's doc comment. There is no interactive
+	// session to stop in that case (renderPathTracedOffline() doesn't
+	// start one), so the normal fall-back-to-raster behavior below doesn't
+	// apply at all here.
+	if (_offlineRenderInProgress)
+	{
+		ViewportWidget* viewport = _modelViewer->getViewportWidget();
+		if (viewport)
+			viewport->cancelPathTracedOfflineRender();
+		return;
+	}
+
 	// Falls all the way back to plain PBR raster, matching what selecting
 	// "PBR" from the toolbar's own menu would do - leaves no dangling
 	// "armed but stopped" state for the toolbar to disagree with.
@@ -404,7 +419,8 @@ void PathTracingDialog::onExportClicked()
 		const auto reply = QMessageBox::question(this, tr("Offline Render Required"),
 			tr("The requested export resolution (%1x%2) exceeds the current viewport size (%3x%4).\n\n"
 			   "This will run a fresh offline render at the requested resolution, which may take a "
-			   "while and will block the application until it finishes.\n\nContinue?")
+			   "while - you can cancel it at any time using the Cancel button that replaces Stop "
+			   "for the duration.\n\nContinue?")
 				.arg(targetWidth).arg(targetHeight).arg(viewportWidth).arg(viewportHeight),
 			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
 		if (reply != QMessageBox::Yes)
@@ -421,13 +437,29 @@ void PathTracingDialog::onExportClicked()
 	const uint32_t sampleCountForFilename = needsOfflineRender ? viewport->pathTracingMaxSamples() : currentSamples;
 
 	QString docName = tr("render");
+	QString docFolder;
 	if (_modelViewer && !_modelViewer->currentFile().isEmpty())
-		docName = QFileInfo(_modelViewer->currentFile()).completeBaseName();
+	{
+		const QFileInfo currentFileInfo(_modelViewer->currentFile());
+		docName = currentFileInfo.completeBaseName();
+		docFolder = currentFileInfo.absolutePath();
+	}
 	const QString defaultName = QString("%1_%2spp_%3x%4")
 		.arg(docName).arg(sampleCountForFilename).arg(targetWidth).arg(targetHeight);
 
+	// getSaveFileName() with a bare filename (no directory component) falls
+	// back to whatever the platform/Qt itself considers "current" - often
+	// the app's working directory, not anywhere a user would expect to find
+	// their export. Prefer the currently loaded model's own folder (most
+	// export renders belong right next to their source model); fall back to
+	// the user's Documents folder when no model is loaded yet.
+	const QString defaultFolder = !docFolder.isEmpty()
+		? docFolder
+		: QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+	const QString defaultPath = QDir(defaultFolder).filePath(defaultName);
+
 	QString selectedFilter;
-	const QString path = QFileDialog::getSaveFileName(this, tr("Export Path-Traced Image"), defaultName,
+	const QString path = QFileDialog::getSaveFileName(this, tr("Export Path-Traced Image"), defaultPath,
 		tr("PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp);;TIFF Image (*.tif *.tiff);;OpenEXR Image (*.exr)"),
 		&selectedFilter);
 	if (path.isEmpty())
@@ -452,33 +484,91 @@ void PathTracingDialog::onExportClicked()
 	{
 		// Genuinely blocks this thread for the whole render (see
 		// ViewportWidget::renderPathTracedOffline()'s doc comment) - the
-		// user explicitly confirmed that tradeoff above. Disable this
-		// dialog's own controls and stop the interactive progress poll for
-		// the duration, since QApplication::processEvents() below would
-		// otherwise let onProgressTimer() fire mid-loop and clobber the
-		// offline-progress display with the (unrelated, possibly stale)
-		// interactive session's own state, or let a stray click re-enter
-		// one of these slots.
+		// user explicitly confirmed that tradeoff above. Stop the
+		// interactive progress poll for the duration, since
+		// QApplication::processEvents() below would otherwise let
+		// onProgressTimer() fire mid-loop and clobber the offline-progress
+		// display with the (unrelated, possibly stale) interactive
+		// session's own state.
+		//
+		// Deliberately does NOT setEnabled(false) the whole dialog the way
+		// an earlier version did - that left no way to cancel a long
+		// export short of force-closing the app. Instead, every control
+		// EXCEPT pushButtonStop is disabled individually (Qt's effective
+		// enabled state considers the whole ancestor chain, so a child
+		// can't be selectively re-enabled once its parent dialog itself is
+		// disabled - this dialog has to stay enabled for Stop to be
+		// clickable at all), and that one button is repurposed as Cancel
+		// for the duration (see onStopClicked()'s _offlineRenderInProgress
+		// branch). processEvents() below also drops
+		// ExcludeUserInputEvents - that flag was specifically what made a
+		// Cancel click impossible to ever process while blocked here; now
+		// that everything else is disabled and therefore inert to input
+		// regardless, allowing user-input events through only lets the one
+		// enabled button (Stop/Cancel) actually do anything.
 		_progressTimer->stop();
-		setEnabled(false);
+		ui->tabWidgetSettings->setEnabled(false);
+		ui->comboBoxResolutionPreset->setEnabled(false);
+		ui->spinBoxExportWidth->setEnabled(false);
+		ui->spinBoxExportHeight->setEnabled(false);
+		ui->pushButtonMatchViewport->setEnabled(false);
+		ui->pushButtonRender->setEnabled(false);
+		ui->pushButtonExport->setEnabled(false);
+		ui->pushButtonRestoreDefaults->setEnabled(false);
+		ui->pushButtonStop->setEnabled(true);
+		ui->pushButtonStop->setText(tr("Cancel"));
+		_offlineRenderInProgress = true;
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 
+		// See ViewportWidget::renderPathTracedOffline()'s own doc comment -
+		// it (re)starts the session elapsed clock for the export itself.
+		// Reset here too so the very first progress tick below (before the
+		// clock has ticked meaningfully) doesn't briefly show a leftover
+		// value from whatever ran before, and so onProgressTimer()'s own
+		// freeze logic re-reads fresh once it resumes after this render
+		// (see that logic's own doc comment) instead of keeping whatever
+		// was frozen from a PREVIOUS interactive session.
+		_frozenElapsedMs = -1;
+
 		std::vector<glm::vec3> linearRgb;
+		bool cancelled = false;
 		const bool renderedOk = viewport->renderPathTracedOffline(targetWidth, targetHeight,
-			[this](uint32_t currentSample, uint32_t maxSamples)
+			[this, viewport](uint32_t currentSample, uint32_t maxSamples)
 			{
 				ui->progressBarSamples->setMaximum(static_cast<int>(std::max<uint32_t>(maxSamples, 1)));
 				ui->progressBarSamples->setValue(static_cast<int>(currentSample));
-				ui->labelStatus->setText(tr("Offline rendering... %1 / %2 samples").arg(currentSample).arg(maxSamples));
-				QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+				ui->labelStatus->setText(tr("Offline rendering... %1 / %2 samples (Cancel to stop)").arg(currentSample).arg(maxSamples));
+				ui->labelElapsedTime->setText(formatElapsedTime(viewport->pathTracingElapsedMs()));
+				QApplication::processEvents();
 			},
-			linearRgb);
+			linearRgb, &cancelled);
+
+		_offlineRenderInProgress = false;
+		ui->pushButtonStop->setText(tr("Stop"));
+		ui->tabWidgetSettings->setEnabled(true);
+		ui->comboBoxResolutionPreset->setEnabled(true);
+		ui->spinBoxExportWidth->setEnabled(true);
+		ui->spinBoxExportHeight->setEnabled(true);
+		ui->pushButtonMatchViewport->setEnabled(true);
+		ui->pushButtonRender->setEnabled(true);
+		ui->pushButtonExport->setEnabled(true);
+		ui->pushButtonRestoreDefaults->setEnabled(true);
+		QApplication::restoreOverrideCursor();
+		// Freeze the display at the export's own final elapsed time, matching
+		// onProgressTimer()'s "freeze once the session stops being active"
+		// convention exactly, rather than leaving _frozenElapsedMs at -1 and
+		// letting the next poll tick re-derive it implicitly.
+		_frozenElapsedMs = viewport->pathTracingElapsedMs();
+		_progressTimer->start();
+
+		if (cancelled)
+		{
+			ui->labelStatus->setText(tr("Export cancelled."));
+			return;
+		}
 
 		if (!renderedOk)
 		{
-			QApplication::restoreOverrideCursor();
-			setEnabled(true);
-			_progressTimer->start();
 			QMessageBox::warning(this, tr("Export Failed"), tr("Could not render at the requested resolution."));
 			return;
 		}
@@ -514,10 +604,6 @@ void PathTracingDialog::onExportClicked()
 			}
 			saveOk = image.save(path, ldrFormat.toUtf8().constData());
 		}
-
-		QApplication::restoreOverrideCursor();
-		setEnabled(true);
-		_progressTimer->start();
 	}
 	else if (exportExr)
 	{
@@ -548,7 +634,12 @@ void PathTracingDialog::onExportClicked()
 	}
 
 	if (!saveOk)
+	{
 		QMessageBox::warning(this, tr("Export Failed"), tr("Could not write the image file. See the log for details."));
+		return;
+	}
+
+	QMessageBox::information(this, tr("Export Complete"), tr("Image exported successfully to:\n%1").arg(path));
 }
 
 void PathTracingDialog::onRestoreDefaultsClicked()
@@ -578,6 +669,10 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 void PathTracingDialog::onExportResolutionChanged()
 {
 	updateResolutionWarning();
+	// Export must become enabled the instant a resolution larger than the
+	// viewport is entered - see updateButtonsForState()'s own doc comment -
+	// not wait for onProgressTimer()'s next poll tick.
+	updateButtonsForState();
 	if (!_updatingResolutionFromPreset)
 		syncResolutionPresetFromSpinboxes();
 }
@@ -718,10 +813,7 @@ void PathTracingDialog::onProgressTimer()
 			elapsedMs = _frozenElapsedMs;
 		}
 
-		const qint64 totalSeconds = elapsedMs / 1000;
-		ui->labelElapsedTime->setText(tr("Elapsed: %1:%2")
-			.arg(totalSeconds / 60, 2, 10, QChar('0'))
-			.arg(totalSeconds % 60, 2, 10, QChar('0')));
+		ui->labelElapsedTime->setText(formatElapsedTime(elapsedMs));
 	}
 
 	// Set once per session start (see ViewportWidget::startPathTracedSession()'s
@@ -744,7 +836,7 @@ void PathTracingDialog::onProgressTimer()
 	// resolution now exceeds it, with no direct signal for that resize.
 	updateResolutionWarning();
 
-	updateButtonsForState(running, current);
+	updateButtonsForState();
 }
 
 void PathTracingDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
@@ -767,9 +859,36 @@ void PathTracingDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 	setVisible(isOwnDocumentActive);
 }
 
-void PathTracingDialog::updateButtonsForState(bool running, uint32_t currentSamples)
+QString PathTracingDialog::formatElapsedTime(qint64 elapsedMs)
 {
+	const qint64 totalSeconds = elapsedMs / 1000;
+	return tr("Elapsed: %1:%2")
+		.arg(totalSeconds / 60, 2, 10, QChar('0'))
+		.arg(totalSeconds % 60, 2, 10, QChar('0'));
+}
+
+void PathTracingDialog::updateButtonsForState()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	uint32_t currentSamples = 0, targetSamples = 0;
+	bool running = false;
+	viewport->pathTracingProgress(currentSamples, targetSamples, running);
+
+	// Export is also valid with zero converged viewport samples when the
+	// requested export resolution exceeds the viewport - onExportClicked()'s
+	// offline-render branch runs an entirely fresh, independent render at
+	// that resolution and never touches the viewport's own accumulated
+	// frame, so it has no business waiting on it. Mirrors
+	// updateResolutionWarning()'s identical exceedsViewport computation.
+	int viewportWidth = 0, viewportHeight = 0;
+	viewport->pathTracingViewportResolution(viewportWidth, viewportHeight);
+	const bool exceedsViewport = ui->spinBoxExportWidth->value() > viewportWidth
+		|| ui->spinBoxExportHeight->value() > viewportHeight;
+
 	ui->pushButtonRender->setEnabled(!running);
 	ui->pushButtonStop->setEnabled(running);
-	ui->pushButtonExport->setEnabled(!running && currentSamples > 0);
+	ui->pushButtonExport->setEnabled(!running && (currentSamples > 0 || exceedsViewport));
 }
