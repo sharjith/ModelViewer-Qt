@@ -1008,6 +1008,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.attenuationDistance = mat.attenuationDistance;
 			hgSbt.data.thicknessFactor = mat.thicknessFactor;
 			hgSbt.data.dispersion = mat.dispersion;
+			hgSbt.data.multiScatterColor = make_float3(mat.multiScatterColor.x, mat.multiScatterColor.y, mat.multiScatterColor.z);
+			hgSbt.data.hasVolumeScattering = mat.hasVolumeScattering ? 1 : 0;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
 			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
@@ -1070,6 +1072,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.attenuationDistance = std::numeric_limits<float>::infinity();
 			hgSbt.data.thicknessFactor = 0.0f;
 			hgSbt.data.dispersion = 0.0f;
+			hgSbt.data.multiScatterColor = make_float3(1.0f, 1.0f, 1.0f);
+			hgSbt.data.hasVolumeScattering = 0;
 
 			hgSbt.data.baseColorTexture.width = 0;
 			hgSbt.data.metallicTexture.width = 0;

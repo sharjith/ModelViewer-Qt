@@ -390,6 +390,11 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	rt.attenuationDistance = material.attenuationDistance();
 	rt.dispersion          = material.dispersion();
 	rt.thicknessFactor     = material.thicknessFactor();
+	// multiscatterColorFactor is consumed directly as Burley normalized
+	// diffusion's target albedo `A` - no conversion needed (see
+	// sampleBSSRDFEntryPoint()'s doc comment in CpuPathTracer.cpp).
+	rt.multiScatterColor = toGlm(material.multiScatterColor());
+	rt.hasVolumeScattering = material.hasVolumeScattering();
 
 	// KHR_materials_diffuse_transmission - see RtSceneSnapshot.h's comment
 	// on why this is handled as a front/back-hemisphere split of the

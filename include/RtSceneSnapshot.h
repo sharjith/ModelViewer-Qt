@@ -340,6 +340,19 @@ struct RtMaterial
 	// avoid tracing 3x rays per dispersive sample.
 	float dispersion = 0.0f;
 
+	// KHR_materials_volume_scatter - adds real multiple-scattering events
+	// inside the KHR_materials_volume medium above (the extinction derived
+	// from attenuationColor/attenuationDistance), instead of a single
+	// straight-line Beer-Lambert chord from entry to exit. multiScatterColor
+	// is used directly as the per-scattering-event single-scatter albedo -
+	// see CpuPathTracer.cpp's transmission handling for the free-flight
+	// random walk this drives. hasVolumeScattering mirrors hasVolume's role
+	// above: whether KHR_materials_volume_scatter is actually present on
+	// this material (multiScatterColor's own default of white would
+	// otherwise be indistinguishable from "no scattering configured").
+	glm::vec3 multiScatterColor    = glm::vec3(1.0f);
+	bool      hasVolumeScattering  = false;
+
 	// KHR_materials_diffuse_transmission - a translucent DIFFUSE material
 	// (leaves, paper, thin curtains), distinct from KHR_materials_
 	// transmission's specular/refractive glass model: light landing on the

@@ -553,6 +553,14 @@ namespace
 		float     attenuationDistance = std::numeric_limits<float>::infinity();
 		float     dispersion          = 0.0f;
 
+		// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s doc
+		// comment. multiScatterColor is the authored multiscatterColorFactor,
+		// consumed directly as Burley normalized diffusion's target albedo
+		// `A` (no per-event conversion). hasVolumeScattering mirrors
+		// hasVolume's presence-gate role above.
+		glm::vec3 multiScatterColor   = glm::vec3(1.0f);
+		bool      hasVolumeScattering = false;
+
 		// KHR_materials_diffuse_transmission - see tracePixel()'s NEE and
 		// diffuse-lobe handling.
 		float     diffuseTransmissionFactor = 0.0f;
@@ -720,6 +728,8 @@ namespace
 		s.attenuationColor    = mat.attenuationColor;
 		s.attenuationDistance = mat.attenuationDistance;
 		s.dispersion          = mat.dispersion;
+		s.multiScatterColor   = mat.multiScatterColor;
+		s.hasVolumeScattering = mat.hasVolumeScattering;
 
 		s.diffuseTransmissionFactor = mat.diffuseTransmissionFactor;
 		if (mat.diffuseTransmissionTexture)
@@ -1896,6 +1906,181 @@ namespace
 		return coatProb * coatPdf + specProbScaled * specPdf + diffuseProb * cosinePdf;
 	}
 
+	// KHR_materials_volume_scatter, BSSRDF diffusion-profile importance
+	// sampling (Christensen & Burley 2015 "normalized diffusion", building
+	// on Jensen et al. 2001's dipole theory; sampling algorithm per King et
+	// al. 2013, as surveyed by the "ReSTIR Subsurface Scattering for
+	// Real-Time Path Tracing" paper - Werner/Schussler/Dachsbacher 2024 -
+	// this feature's own plan doc has the full citation trail). Supersedes
+	// an earlier genuine free-flight random-walk implementation: that
+	// approach was high-variance and slow to converge (confirmed via a
+	// debug visualization showing near-total Russian-roulette termination
+	// in dense regions before a walk could find a valid exit), and the
+	// cited paper confirms real random walks are considered impractical
+	// even by real-time-adjacent 2024 research - this closed-form
+	// importance-sampled substitute is the field's standard technique.
+	//
+	// Given the primary hit x1, this directly SAMPLES a probable entry
+	// point x2 elsewhere on the surface (no simulated scattering events)
+	// using a closed-form radial diffusion profile, per channel (R=0,G=1,
+	// B=2), following Christensen & Burley 2015 Eq. 6:
+	//   sigma_t = -ln(attenuationColor)/attenuationDistance   (same formula
+	//             as calculateVolumeAttenuation() elsewhere in this file)
+	//   l = 1/sigma_t                                  (mean free path)
+	//   A = multiScatterColor[channel]                 (authored target
+	//       albedo, used directly - no per-event conversion, unlike the
+	//       removed random walk's Kulla-Conty remap)
+	//   s = 1.9 - A + 3.5*(A-0.8)^2                     (shape parameter)
+	//   d = l / s                                       (diffusion scale)
+	//   Rd(r) = A*(exp(-r/d) + exp(-r/(3d))) / (8*pi*d*r)   (area-density
+	//           profile - integrates to 1 over the disk with its own
+	//           2*pi*r Jacobian, i.e. this IS the pdf-per-unit-area)
+	//   P(r) = 1 - 0.25*exp(-r/d) - 0.75*exp(-r/(3d))   (CDF, inverted
+	//          below by bisection - matches this file's other bisection-
+	//          based inversions, e.g. computeDiffuseFresnelReflectance())
+	//
+	// Restricted to the PRIMARY hit only (mirrors the cited paper's own
+	// scoping decision to bound cost) - tracePixel() only calls this at
+	// bounce==0, transmissionDepth==0; any later hit on a translucent
+	// surface falls back to ordinary diffuse_transmission shading.
+	//
+	// Follows PBRT's TabulatedBSSRDF::Sample_Sp/Pdf_Sp structure (the
+	// standard reference implementation of this exact technique): pick one
+	// of x1's 3 local axes (normal/tangent/bitangent, uniform 1/3 each -
+	// simplified from PBRT's {.5,.25,.25} weighting per this feature's own
+	// plan) and one spectral channel (uniform 1/3) to SAMPLE a disk point
+	// and probe-trace it onto the real surface; then evaluate a COMBINED
+	// pdf that MIS-sums over all 3 axes and all 3 channels (since the same
+	// x2 could in principle have been reached via any of them), each axis's
+	// contribution weighted by |dot(axis, x2's normal)| - the standard
+	// projected-radius correction for curved geometry. v1 takes the
+	// CLOSEST probe intersection only (skips the paper's multi-intersection
+	// MIS optimization - a correctness/perf tradeoff explicitly deferred by
+	// this feature's plan, not required for a first working version).
+	// shadingNormal is x1's FACEFORWARD-CORRECTED shading normal (tracePixel()'s
+	// local `N`, already flipped to face the ray on a backface hit) - NOT
+	// hit1.normal directly. Using the raw, possibly inward-facing mesh
+	// normal here (an earlier version of this function did exactly that)
+	// sends the sampling frame's whole disk-and-probe construction the
+	// WRONG way on any backface hit, causing a spike of spurious probe
+	// failures - rare on smooth convex regions (a skull's dome), but common
+	// on thin/concave/complex geometry (teeth, mandible interior) where
+	// backface hits are frequent. GPU's __closesthit__ch() already computes
+	// and uses its own equivalent corrected worldNormal here - this brings
+	// CPU in line with it exactly.
+	bool sampleBSSRDFEntryPoint(const RtEmbreeScene& scene, const RtHit& hit1, const glm::vec3& shadingNormal,
+		const SurfaceParams& surf, Rng& rng, RtHit& outEntryHit, glm::vec3& outThroughput)
+	{
+		glm::vec3 axes[3];
+		axes[0] = shadingNormal;
+		buildOrthonormalBasis(shadingNormal, axes[1], axes[2]);
+
+		auto sigmaTFor = [&](int c) {
+			const float ac = c == 0 ? surf.attenuationColor.r : c == 1 ? surf.attenuationColor.g : surf.attenuationColor.b;
+			if (surf.attenuationDistance <= 0.0f)
+				return 1.0f; // degenerate - matches calculateVolumeAttenuation()'s own <=0 gate
+			return -std::log(std::max(ac, 1e-6f)) / surf.attenuationDistance;
+		};
+		auto albedoFor = [&](int c) {
+			return std::clamp(c == 0 ? surf.multiScatterColor.r : c == 1 ? surf.multiScatterColor.g : surf.multiScatterColor.b, 0.0f, 1.0f);
+		};
+		auto diffusionScaleFor = [&](int c) {
+			const float A = albedoFor(c);
+			const float s = 1.9f - A + 3.5f * (A - 0.8f) * (A - 0.8f);
+			const float l = 1.0f / std::max(sigmaTFor(c), 1e-6f);
+			return l / std::max(s, 1e-4f);
+		};
+		auto cdf = [](float r, float d) {
+			if (r <= 0.0f || d <= 0.0f) return 0.0f;
+			return 1.0f - 0.25f * std::exp(-r / d) - 0.75f * std::exp(-r / (3.0f * d));
+		};
+		auto invertCdf = [&](float d, float xi) {
+			float lo = 0.0f, hi = std::max(d, 1e-6f);
+			while (cdf(hi, d) < xi && hi < d * 1.0e6f)
+				hi *= 2.0f;
+			for (int i = 0; i < 30; ++i)
+			{
+				const float mid = 0.5f * (lo + hi);
+				if (cdf(mid, d) < xi) lo = mid; else hi = mid;
+			}
+			return 0.5f * (lo + hi);
+		};
+		// Normalized-diffusion area-density profile itself (see this
+		// function's doc comment) - used both for the throughput numerator
+		// (evaluated at the real 3D distance) and, at a per-axis PROJECTED
+		// radius, for the combined MIS pdf below - mirroring PBRT's
+		// Sr()/Pdf_Sr() split exactly.
+		auto Rd = [](float r, float A, float d) {
+			if (r <= 1e-6f || d <= 0.0f) return 0.0f;
+			return A * (std::exp(-r / d) + std::exp(-r / (3.0f * d))) / (8.0f * kPi * d * r);
+		};
+
+		const int channel = std::min(2, static_cast<int>(rng.next01() * 3.0f));
+		const int axis = std::min(2, static_cast<int>(rng.next01() * 3.0f));
+		const float d = diffusionScaleFor(channel);
+		if (d <= 0.0f)
+			return false;
+
+		const float r = invertCdf(d, rng.next01());
+		const float rMax = invertCdf(d, 0.999f);
+		if (!(r < rMax))
+			return false;
+
+		const glm::vec3& probeAxis = axes[axis];
+		const glm::vec3& diskU = axes[(axis + 1) % 3];
+		const glm::vec3& diskV = axes[(axis + 2) % 3];
+
+		const float phi = rng.next01() * 2.0f * kPi;
+		const float probeHeight = std::sqrt(std::max(rMax * rMax - r * r, 0.0f));
+		const glm::vec3 diskPoint = hit1.position + r * std::cos(phi) * diskU + r * std::sin(phi) * diskV;
+		const glm::vec3 probeOrigin = diskPoint + probeAxis * probeHeight;
+
+		RtRay probeRay;
+		probeRay.origin = probeOrigin;
+		probeRay.direction = -probeAxis;
+		probeRay.tNear = 1e-4f;
+		probeRay.tFar = 2.0f * probeHeight + 1e-3f;
+
+		const RtHit hit2 = scene.intersect(probeRay);
+		if (!hit2.hit || hit2.materialIndex != hit1.materialIndex)
+			return false; // v1 doesn't handle cross-material entry points - see this feature's plan
+
+		const glm::vec3 delta = hit2.position - hit1.position;
+		const float actualR = glm::length(delta);
+		if (actualR >= rMax || actualR <= 1e-6f)
+			return false;
+
+		// Combined MIS pdf over all 3 (axis, channel) sampling strategies
+		// that could have produced this x2 - see this function's doc
+		// comment. rProj[axis] is delta's length projected onto the plane
+		// PERPENDICULAR to that axis (i.e. with that axis's own component
+		// removed), matching how the disk point was originally constructed
+		// for whichever axis actually got sampled.
+		float combinedPdf = 0.0f;
+		for (int a = 0; a < 3; ++a)
+		{
+			const float alongAxis = glm::dot(delta, axes[a]);
+			const float rProj = std::sqrt(std::max(actualR * actualR - alongAxis * alongAxis, 0.0f));
+			const float cosTerm = std::abs(glm::dot(axes[a], hit2.normal));
+			for (int c = 0; c < 3; ++c)
+				combinedPdf += Rd(rProj, albedoFor(c), diffusionScaleFor(c)) * cosTerm * (1.0f / 3.0f) * (1.0f / 3.0f);
+		}
+		if (!(combinedPdf > 0.0f))
+			return false;
+
+		// Throughput uses the REAL 3D distance (not a projected radius) -
+		// the profile itself is a function of true distance, only the pdf's
+		// per-axis bookkeeping needs the projected form.
+		const glm::vec3 RdSpectral(
+			Rd(actualR, albedoFor(0), diffusionScaleFor(0)),
+			Rd(actualR, albedoFor(1), diffusionScaleFor(1)),
+			Rd(actualR, albedoFor(2), diffusionScaleFor(2)));
+
+		outThroughput = surf.diffuseTransmissionColor * RdSpectral / combinedPdf;
+		outEntryHit = hit2;
+		return true;
+	}
+
 	// Stochastically samples one bounce direction from the BSDF (cosine-
 	// weighted diffuse lobe or GGX specular lobe), returning the throughput
 	// multiplier already divided by the sampling pdf and lobe-choice
@@ -1917,8 +2102,12 @@ namespace
 	// tracePixel()'s use site.
 	bool sampleBSDFBounce(const glm::vec3& N, const glm::vec3& Ncoat, const glm::vec3& V, const SurfaceParams& surf,
 		const glm::vec3& clearcoatBlend, bool hasAniso, const glm::vec3& anisoT, const glm::vec3& anisoB,
-		float alphaT, float alphaB, Rng& rng, glm::vec3& outDir, glm::vec3& outThroughput, float& outEnvRoughness)
+		float alphaT, float alphaB, Rng& rng, glm::vec3& outDir, glm::vec3& outThroughput, float& outEnvRoughness,
+		bool* outTransmittedDiffuse = nullptr)
 	{
+		if (outTransmittedDiffuse)
+			*outTransmittedDiffuse = false;
+
 		glm::vec3 T, B;
 		buildOrthonormalBasis(N, T, B);
 
@@ -2086,6 +2275,8 @@ namespace
 			if (transmitDiffuse)
 			{
 				outThroughput = surf.diffuseTransmissionColor / diffuseProb;
+				if (outTransmittedDiffuse)
+					*outTransmittedDiffuse = true;
 			}
 			else
 			{
@@ -2417,12 +2608,24 @@ namespace
 
 		int bounce = 0;
 		int transmissionDepth = 0;
+
+		// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s doc
+		// comment. When that function substitutes a BSSRDF-sampled entry
+		// point for the ordinary diffuse_transmission lobe, the resulting
+		// RtHit (already fully populated by the probe ray's own
+		// scene.intersect() call - UVs, tangent frame, material index, all
+		// of it) is stashed here so the NEXT loop iteration uses it
+		// directly as "the hit" instead of re-tracing `ray` (which by then
+		// only holds a placeholder direction - see that call site).
+		bool hasPendingHit = false;
+		RtHit pendingHit;
 		while (true)
 		{
 			if (bounce > settings.maxBounces)
 				break; // matches the original "for (bounce=0; bounce<=maxBounces;...)" loop's exact termination point
 
-			const RtHit hit = scene.intersect(ray);
+			const RtHit hit = hasPendingHit ? pendingHit : scene.intersect(ray);
+			hasPendingHit = false;
 			if (!hit.hit)
 			{
 				if (!primaryHitResolved)
@@ -3473,8 +3676,41 @@ namespace
 				continue;
 			}
 
-			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput, lastBounceEnvRoughness))
+			bool transmittedDiffuse = false;
+			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput, lastBounceEnvRoughness, &transmittedDiffuse))
 				break;
+
+			// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s
+			// doc comment. Supersedes the ordinary diffuse_transmission
+			// back-hemisphere lobe sampleBSDFBounce() just picked
+			// (bounceDir/bounceThroughput, discarded below - not applied to
+			// throughput) for materials that ALSO carry volume-scatter
+			// data: instead of a single cosine-weighted transmitted ray,
+			// jump straight to a BSSRDF-importance-sampled entry point
+			// elsewhere on the surface and resume ordinary (opaque) shading
+			// from there next iteration, via pendingHit.
+			if (transmittedDiffuse && surf.hasVolumeScattering && bounce == 0 && transmissionDepth == 0)
+			{
+				glm::vec3 bssrdfWeight;
+				const bool bssrdfOk = sampleBSSRDFEntryPoint(scene, hit, N, surf, rng, pendingHit, bssrdfWeight);
+				if (!bssrdfOk)
+					break; // no valid entry point found - terminate rather than falling back to the walk-era approximation
+
+				throughput *= bssrdfWeight;
+				if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
+					break;
+
+				hasPendingHit = true;
+				// Placeholder: arriving from outside, front face - see
+				// hitBackface's doc comment above (this keeps next
+				// iteration's Beer-Lambert absorption gate correctly off,
+				// since sampleBSSRDFEntryPoint()'s Rd() weight already
+				// accounts for the light transport between x1 and x2).
+				ray.direction = -pendingHit.normal;
+				lastBsdfSamplePdf = 0.0f;
+				++bounce; // spend one bounce budget unit on the substitution - also keeps bounce==0-gated primary-only logic (ortho V, texture LOD) from misfiring on the entry point next iteration
+				continue;
+			}
 
 			// Stash this bounce's combined sampling pdf for the miss branch
 			// at the top of the next iteration (see lastBsdfSamplePdf's

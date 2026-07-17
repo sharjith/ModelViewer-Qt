@@ -489,6 +489,15 @@ struct RtOptixSceneHitGroupData
 	float thicknessFactor;
 	float dispersion;
 
+	// KHR_materials_volume_scatter - see RtOptixScene.cu's
+	// sampleBSSRDFEntryPoint() (BSSRDF diffusion-profile importance
+	// sampling, called from __closesthit__ch()'s diffuse-transmission
+	// branch). multiScatterColor is the authored multiscatterColorFactor,
+	// passed straight through as Burley normalized diffusion's target
+	// albedo `A` - no per-event conversion (see RtSceneBuilder.cpp).
+	float3 multiScatterColor;
+	int hasVolumeScattering; // bool as int
+
 	RtOptixTexture baseColorTexture;
 	RtOptixTexture metallicTexture;
 	RtOptixTexture roughnessTexture;
