@@ -1322,6 +1322,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment& environment,
 	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
 	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
+	unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
 	std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
 	std::vector<float>& outAlpha)
 {
@@ -1401,6 +1402,9 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
 	params.sampleOffset = sampleOffset;
 	params.maxBounces = maxBounces > 0 ? maxBounces : 1;
+	params.maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1;
+	params.fireflyClampThreshold = fireflyClampThreshold > 0.0f ? fireflyClampThreshold : 0.01f;
+	params.russianRouletteStartDepth = russianRouletteStartDepth > 0 ? russianRouletteStartDepth : 1;
 
 	params.handle = _impl->iasHandle;
 
@@ -1472,7 +1476,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot&)
 	return false;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
+bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, unsigned int, float, unsigned int, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
 {
 	return false;
 }

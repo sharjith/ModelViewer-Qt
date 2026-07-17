@@ -417,7 +417,7 @@ public:
 	// made outside it) - because Path Tracing can trigger via the idle timer
 	// without the dialog ever having been opened in the session, which
 	// previously left every setting pinned to its hardcoded default (e.g.
-	// _ptMaxSamples's 128) until the user happened to open it once.
+	// _ptMaxSamples's 16) until the user happened to open it once.
 	void loadPathTracingSettingsFromDisk();
 
 	// True when the most recently built PT scene combines orthographic
@@ -1160,10 +1160,14 @@ private:
 
 	// User-adjustable PT quality settings - see setPathTracingMaxSamples()/
 	// setPathTracingMaxBounces()'s doc comments. Defaults match
-	// RtPathTracingSession/CpuPathTracer::Settings's own previous hardcoded
-	// values exactly, so behavior is unchanged until a user actually opens
-	// PathTracingDialog and changes them.
-	uint32_t _ptMaxSamples = 128;
+	// RtPathTracingSession/CpuPathTracer::Settings's own defaults exactly, so
+	// behavior is unchanged until a user actually opens PathTracingDialog and
+	// changes them. _ptMaxSamples deliberately lower (16, not the old 128) -
+	// a fast, responsive default that still lets the live viewport refine
+	// quickly; the same spinBoxMaxSamples value also drives offline Export
+	// (see PathTracingDialog::onExportClicked()), so users doing a final
+	// high-quality render should raise it there before exporting.
+	uint32_t _ptMaxSamples = 16;
 	int      _ptMaxBounces = 6;
 	bool     _ptDenoiserEnabled = true;
 	bool     _ptEnvImportanceSamplingEnabled = true;

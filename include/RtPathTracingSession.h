@@ -125,7 +125,7 @@ private:
 
 	int _width  = 0;
 	int _height = 0;
-	uint32_t _maxSamples = 128;
+	uint32_t _maxSamples = 16;
 	bool _denoiserEnabled = true;
 
 	mutable std::mutex _snapshotMutex;

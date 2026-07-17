@@ -558,7 +558,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	// worth having explicitly now that every value here persists via
 	// QSettings across app restarts (see loadSettings()/saveSettings()) and
 	// can otherwise drift somewhere odd with no easy way back.
-	ui->spinBoxMaxSamples->setValue(128);
+	ui->spinBoxMaxSamples->setValue(16);
 	ui->spinBoxMaxBounces->setValue(6);
 	ui->checkBoxDenoiser->setChecked(true);
 	ui->doubleSpinBoxFireflyClamp->setValue(3.0);

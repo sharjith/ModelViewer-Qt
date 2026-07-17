@@ -71,9 +71,13 @@ public:
 	// uploaded environment-sampler distribution actually being valid (see
 	// RtOptixSceneParams::RtOptixEnvironment::envTotalWeight's doc comment),
 	// same as CPU's own envSampler.isValid() check.
+	// maxTransmissionBounces/fireflyClampThreshold/russianRouletteStartDepth
+	// mirror CpuPathTracer::Settings' identically-named fields exactly - see
+	// RtOptixSceneParams.h's doc comment on the fields these populate.
 	bool renderScene(const RtCamera& camera, const RtEnvironment& environment,
 		int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
 		unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
+		unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
 		std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
 		std::vector<float>& outAlpha);
 

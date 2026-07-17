@@ -50,11 +50,12 @@
 // see RtOptixScene.cu's transmission branch in __closesthit__ch() (ported
 // from CpuPathTracer::tracePixel()'s identical transmission handling,
 // including real Beer-Lambert volume absorption over the traced entry-to-
-// exit distance and hero-wavelength dispersion). One deliberate simplification
-// versus CPU: the transmission-bounce depth budget (CpuPathTracer::
-// Settings::maxTransmissionBounces) isn't exposed as a per-launch setting
-// yet - this backend uses a fixed constant (kMaxTransmissionBounces in
-// __raygen__rg(), matching CPU's own default of 32) instead.
+// exit distance and hero-wavelength dispersion). maxTransmissionBounces/
+// fireflyClampThreshold/russianRouletteStartDepth below all mirror
+// CpuPathTracer::Settings' identically-named fields exactly, read from the
+// same PathTracingDialog-backed ViewportWidget settings CPU uses - they used
+// to be hardcoded constants in RtOptixScene.cu instead, silently diverging
+// from whatever the dialog actually showed.
 // ---------------------------------------------------------------------------
 struct RtOptixLight
 {
@@ -233,6 +234,18 @@ struct RtOptixSceneParams
 	// CpuPathTracer::Settings::maxBounces (RtPathTracingSession's identical
 	// setting), previously read but never actually honored by this backend.
 	unsigned int maxBounces;
+
+	// Mirrors CpuPathTracer::Settings::maxTransmissionBounces/
+	// fireflyClampThreshold/russianRouletteStartDepth exactly - all three
+	// used to be hardcoded constants in RtOptixScene.cu (kMaxTransmission
+	// Bounces=32, kFireflyClampThreshold=3.0f, an inline `>= 2` literal)
+	// instead of reading the user's actual dialog settings, silently
+	// diverging from whatever CPU was configured with even when the UI
+	// showed identical values - see PathTracingDialog's matching CPU/GPU
+	// hygiene pass.
+	unsigned int maxTransmissionBounces;
+	float fireflyClampThreshold;
+	unsigned int russianRouletteStartDepth;
 
 	OptixTraversableHandle handle;
 };

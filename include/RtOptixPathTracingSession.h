@@ -78,6 +78,22 @@ public:
 	void setEnvironmentImportanceSamplingEnabled(bool enabled) { _enableEnvironmentImportanceSampling = enabled; }
 	bool environmentImportanceSamplingEnabled() const { return _enableEnvironmentImportanceSampling; }
 
+	// Forwarded to RtOptixSceneTracer::renderScene() - mirror CpuPathTracer::
+	// Settings::maxTransmissionBounces/fireflyClampThreshold/
+	// russianRouletteStartDepth exactly (same defaults too) - previously
+	// hardcoded constants in RtOptixScene.cu, silently ignoring whatever
+	// ViewportWidget's PathTracingDialog-backed settings actually held even
+	// when CPU and GPU renders were started from identical-looking dialog
+	// state.
+	void setMaxTransmissionBounces(uint32_t maxTransmissionBounces) { _maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1; }
+	uint32_t maxTransmissionBounces() const { return _maxTransmissionBounces; }
+
+	void setFireflyClampThreshold(float threshold) { _fireflyClampThreshold = threshold > 0.0f ? threshold : 0.01f; }
+	float fireflyClampThreshold() const { return _fireflyClampThreshold; }
+
+	void setRussianRouletteStartDepth(uint32_t depth) { _russianRouletteStartDepth = depth > 0 ? depth : 1; }
+	uint32_t russianRouletteStartDepth() const { return _russianRouletteStartDepth; }
+
 	// Chunk size (samples per pixel gathered per background-thread pass,
 	// i.e. per RtOptixSceneTracer::renderScene() call) - smaller values give
 	// more frequent progress-bar/preview updates at the cost of more
@@ -134,9 +150,12 @@ private:
 
 	int _width  = 0;
 	int _height = 0;
-	uint32_t _maxSamples = 128;
+	uint32_t _maxSamples = 16;
 	uint32_t _maxBounces = 6;
 	bool _enableEnvironmentImportanceSampling = true;
+	uint32_t _maxTransmissionBounces = 32;
+	float _fireflyClampThreshold = 3.0f;
+	uint32_t _russianRouletteStartDepth = 3;
 	uint32_t _samplesPerChunk = 1;
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
 
