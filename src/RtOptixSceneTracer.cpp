@@ -240,6 +240,15 @@ struct RtOptixSceneTracer::Impl
 
 	void freeSceneBuffers()
 	{
+		// Diagnostic only - lets a document-open/close cycle be read directly
+		// off the log to confirm GPU scene teardown is actually happening
+		// (called unconditionally at the START of every buildScene(), and
+		// again from ~Impl() when the whole tracer/document is destroyed -
+		// see that destructor's own log line for distinguishing the two).
+		if (!meshGasEntries.empty() || !textureBuffers.empty())
+			qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << meshGasEntries.size()
+				<< "mesh GAS entries and" << textureBuffers.size() << "texture buffers.";
+
 		for (MeshGas& gas : meshGasEntries)
 		{
 			if (gas.positions) cudaFree(reinterpret_cast<void*>(gas.positions));
@@ -309,6 +318,13 @@ struct RtOptixSceneTracer::Impl
 
 	~Impl()
 	{
+		// Whole-tracer teardown (document closed, or GPU engine torn down) -
+		// distinct from freeSceneBuffers()'s own per-rebuild log line above:
+		// seeing THIS line in the log confirms the pipeline/module/device
+		// context themselves (not just the scene's mesh/texture buffers) were
+		// actually released, not just their owning RtOptixSceneTracer/
+		// RtOptixPathTracingSession going out of scope in C++ terms.
+		qInfo() << "RtOptixSceneTracer: tracer destroyed - releasing pipeline/module/device context.";
 		freeSceneBuffers();
 		if (sheenAlbedoLutBuffer) cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
 		if (sheenCharlieLutBuffer) cudaFree(reinterpret_cast<void*>(sheenCharlieLutBuffer));
@@ -671,6 +687,24 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	if (!_impl->valid)
 		return false;
 
+	// Releases whatever THIS build attempt allocated if the function returns
+	// before reaching the success point at the bottom (there are ~15 early
+	// `return false;` sites below, for bad geometry/CUDA allocation failures/
+	// etc. - not worth annotating each one individually). Without this, a
+	// build that fails partway through leaves its already-uploaded GAS/
+	// texture/environment buffers allocated until the NEXT buildScene() call
+	// (whose own freeSceneBuffers() at the top would eventually reach them)
+	// or the tracer's destruction - exactly backwards for a failure that may
+	// itself be OOM-triggered, which should shed memory pressure immediately
+	// instead of compounding it.
+	bool succeeded = false;
+	struct BuildFailureGuard
+	{
+		Impl* impl;
+		const bool& succeeded;
+		~BuildFailureGuard() { if (!succeeded) impl->freeSceneBuffers(); }
+	} buildFailureGuard{ _impl.get(), succeeded };
+
 	_impl->ensureSheenAlbedoLut(); // process-constant, baked once - see its own doc comment
 	_impl->freeSceneBuffers();
 
@@ -811,6 +845,24 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	struct MipCacheEntry { CUdeviceptr mipArrayDevice; int mipCount; };
 	std::unordered_map<const RtTextureSample*, MipCacheEntry> textureMipCache;
 
+	// Diagnostics only (logged once at the end of this function, see the
+	// "scene built" qInfo() below) - lets a report like "GPU performance
+	// degrades as more documents get loaded" be read directly off the log
+	// instead of re-derived from scratch each time: dedupedTextureRefs high
+	// relative to uniqueTextures confirms the RtSceneBuilder/upload dedup
+	// above is actually doing its job on a given scene, and textureBytes/
+	// mipBytes give a concrete per-buildScene() VRAM figure to compare
+	// across documents or over a session.
+	struct TextureUploadStats
+	{
+		int uniqueTextures = 0;      // distinct RtTextureSample pointers actually uploaded (cache miss)
+		int dedupedTextureRefs = 0;  // requests that hit an already-uploaded texture (cache hit)
+		size_t textureBytes = 0;     // total base-level rgba8 bytes uploaded to VRAM
+		int mipLevelsUploaded = 0;   // mip levels uploaded as new buffers (excludes reused level 0)
+		int mipLevelsReused = 0;     // level-0 mips that reused the base buffer instead of a new upload
+		size_t mipBytes = 0;         // total mip-level bytes uploaded (excludes reused level 0)
+	} textureStats;
+
 	auto uploadMaterialTexture = [&](const std::shared_ptr<RtTextureSample>& tex, RtOptixTexture& out) -> void
 	{
 		out.rgba8 = nullptr;
@@ -827,6 +879,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		if (cached != textureCache.end())
 		{
 			deviceRgba8 = cached->second;
+			++textureStats.dedupedTextureRefs;
 		}
 		else
 		{
@@ -840,6 +893,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			}
 			_impl->textureBuffers.push_back(deviceRgba8);
 			textureCache.emplace(tex.get(), deviceRgba8);
+			++textureStats.uniqueTextures;
+			textureStats.textureBytes += bytes;
 		}
 
 		out.rgba8 = reinterpret_cast<const uchar4*>(deviceRgba8);
@@ -878,6 +933,24 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			mipsHost.reserve(tex->mips.size());
 			bool ok = true;
 			bool first = true;
+			// Accumulated locally and only folded into textureStats once this
+			// texture's mip array is confirmed fully built below - crediting
+			// textureStats eagerly during the loop would over-report bytes/
+			// levels as "uploaded" for any texture whose build later fails
+			// (per-level or at the final array-copy step), since those
+			// buffers get freed again rather than ending up resident.
+			int localMipLevelsUploaded = 0;
+			int localMipLevelsReused = 0;
+			size_t localMipBytes = 0;
+			// Marks where THIS texture's per-level mip buffers start within
+			// textureBuffers (excludes the base deviceRgba8 buffer, pushed
+			// earlier, and any reused mip-0 entry, which never pushes here) -
+			// if the loop below bails partway through, everything from this
+			// index onward is freed immediately rather than left allocated
+			// until the next buildScene()/destructor (see BuildFailureGuard's
+			// doc comment above for why immediate release matters on a
+			// failure path).
+			const size_t mipBuffersStartIndex = _impl->textureBuffers.size();
 			for (const RtTextureMipLevel& mip : tex->mips)
 			{
 				if (mip.width <= 0 || mip.height <= 0 ||
@@ -904,6 +977,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 					entry.height = mip.height;
 					mipsHost.push_back(entry);
 					first = false;
+					++localMipLevelsReused;
 					continue;
 				}
 				first = false;
@@ -921,6 +995,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 					ok = false;
 					break;
 				}
+				++localMipLevelsUploaded;
+				localMipBytes += mipBytes;
 				_impl->textureBuffers.push_back(deviceMipRgba8);
 
 				RtOptixTextureMipLevel entry{};
@@ -952,6 +1028,31 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 						cudaFree(reinterpret_cast<void*>(mipArrayDevice));
 					mipArrayDevice = 0;
 				}
+			}
+
+			if (mipCount > 0)
+			{
+				// Only now, with the array genuinely finalized and resident,
+				// do the per-level uploads this texture made actually count
+				// as "uploaded" - see localMipLevelsUploaded's own doc
+				// comment above for why this isn't credited eagerly.
+				textureStats.mipLevelsUploaded += localMipLevelsUploaded;
+				textureStats.mipLevelsReused += localMipLevelsReused;
+				textureStats.mipBytes += localMipBytes;
+			}
+			else
+			{
+				// Either the per-level loop failed partway (ok==false) or it
+				// finished but the final array malloc/memcpy above failed -
+				// either way, out.mips/mipCount stay null/0 (base-only
+				// sampling fallback) and every per-level buffer this
+				// texture's loop uploaded is now unreferenced. Free them
+				// immediately rather than leaving them allocated until the
+				// next buildScene()/destructor - see BuildFailureGuard's doc
+				// comment above for why immediate release matters here.
+				for (size_t i = mipBuffersStartIndex; i < _impl->textureBuffers.size(); ++i)
+					if (_impl->textureBuffers[i]) cudaFree(reinterpret_cast<void*>(_impl->textureBuffers[i]));
+				_impl->textureBuffers.resize(mipBuffersStartIndex);
 			}
 		}
 
@@ -1234,8 +1335,34 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&outBuffer), faceBytes), "cudaMalloc(env face)"))
 			return false;
 		if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(outBuffer), faceFloat3.data(), faceBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env face)"))
+		{
+			// cudaMalloc above succeeded - outBuffer is a real, live
+			// allocation. Every current call site binds outBuffer to a
+			// persistent Impl member that freeSceneBuffers() will eventually
+			// reach even without this (so this wasn't a live leak today),
+			// but freeing it here directly means a caller doesn't have to
+			// know that to be correct, and the allocation isn't held onto
+			// pointlessly until the next rebuild.
+			cudaFree(reinterpret_cast<void*>(outBuffer));
+			outBuffer = 0;
 			return false;
+		}
 		return true;
+	};
+
+	// Frees every non-null entry of a fixed 6-face cubemap array and zeroes
+	// them - used below whenever a face upload fails partway through and the
+	// whole cubemap (raw env / irradiance) gets disabled, so the faces that
+	// DID succeed before the failure don't sit resident-but-unreferenced
+	// until the next buildScene()/destructor - same immediate-release
+	// discipline as BuildFailureGuard/the per-texture mip cleanup above.
+	auto freeCubemapFaces = [](CUdeviceptr* faces) -> void
+	{
+		for (int i = 0; i < 6; ++i)
+		{
+			if (faces[i]) cudaFree(reinterpret_cast<void*>(faces[i]));
+			faces[i] = 0;
+		}
 	};
 
 	// Only the heavy face/mip texel data is uploaded here - the environment
@@ -1252,6 +1379,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			{
 				qWarning() << "RtOptixSceneTracer::buildScene(): environment face" << face << "has unexpected size - disabling environment.";
 				_impl->envFaceSize = 0;
+				freeCubemapFaces(_impl->envFaceBuffers);
 				break;
 			}
 		}
@@ -1266,6 +1394,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			{
 				qWarning() << "RtOptixSceneTracer::buildScene(): irradiance face" << face << "has unexpected size - disabling GPU diffuse IBL (falls back to the raw map).";
 				_impl->irradianceFaceSize = 0;
+				freeCubemapFaces(_impl->irradianceFaceBuffers);
 				break;
 			}
 		}
@@ -1301,14 +1430,44 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			}
 		}
 
+		bool finalized = false;
 		if (mipsOk)
 		{
 			const size_t mipsBytes = hostMips.size() * sizeof(RtOptixPrefilterMip);
-			if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)") &&
-				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
+			const bool mallocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)");
+			if (mallocOk && cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
 			{
 				mipCount = static_cast<int>(hostMips.size());
+				finalized = true;
 			}
+			else if (mallocOk)
+			{
+				// malloc succeeded but the memcpy failed - same pattern as the
+				// per-texture mip array above: free the live-but-unfinalized
+				// allocation directly rather than leaving it in mipsBuffer
+				// (still reachable via the persistent Impl member the caller
+				// passed in, but pointlessly resident with mipCount left at 0).
+				cudaFree(reinterpret_cast<void*>(mipsBuffer));
+				mipsBuffer = 0;
+			}
+		}
+
+		if (!finalized)
+		{
+			// Either a per-face upload failed partway through the chain
+			// (mipsOk==false) or the chain finished but the final device-
+			// array malloc/memcpy above failed - either way mipCount stays 0
+			// (chain disabled, falls back to the raw map) and every face
+			// buffer already uploaded for this chain is now unreferenced.
+			// Free them immediately rather than leaving them resident until
+			// the next buildScene()/destructor.
+			for (Impl::PrefilterMipGpu& gpuMip : gpuMips)
+				for (CUdeviceptr& face : gpuMip.faceBuffers)
+				{
+					if (face) cudaFree(reinterpret_cast<void*>(face));
+					face = 0;
+				}
+			gpuMips.clear();
 		}
 	};
 
@@ -1352,6 +1511,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 	qInfo() << "RtOptixSceneTracer: scene built (" << _impl->meshGasEntries.size() << "meshes,"
 		<< instances.size() << "instances," << _impl->lightCount << "lights).";
+	qInfo() << "RtOptixSceneTracer: textures -" << textureStats.uniqueTextures << "unique uploaded,"
+		<< textureStats.dedupedTextureRefs << "refs deduped," << (textureStats.textureBytes / 1024 / 1024) << "MB base,"
+		<< textureStats.mipLevelsUploaded << "mip levels uploaded (" << (textureStats.mipBytes / 1024 / 1024) << "MB ),"
+		<< textureStats.mipLevelsReused << "mip-0 levels reused (0 MB extra).";
+	succeeded = true;
 	return true;
 }
 
