@@ -9633,6 +9633,21 @@ void ViewportWidget::updateAnimatedMeshState(const QString& sourceFile,
 
 	for (SceneNode* child : fileNode->children)
 		applyToMeshes(child);
+
+	// Every mutation above (setSceneRenderTransformFast()'s rigid node
+	// transform, setJointPalette()'s per-frame skinning pose) feeds directly
+	// into RtSceneBuilder::convertGeometry()'s next flatten pass, but nothing
+	// here previously told the path tracer that had happened - a PT session
+	// left running while an animation played kept showing whatever pose was
+	// baked into its last-built snapshot, visually at odds with the raster
+	// mesh now actively moving underneath/behind it. notifyPathTracedSceneMutated()
+	// falls back to the live raster feed immediately and restarts the settle
+	// countdown - called every tick during active playback, so PT simply
+	// defers to raster for the whole animation (the countdown keeps getting
+	// reset) and only rebuilds once the pose actually stops changing, exactly
+	// like the existing camera-interaction pattern already relies on to avoid
+	// a full scene rebuild on every single frame of continuous movement.
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::applyNodeTransformsToMeshes(

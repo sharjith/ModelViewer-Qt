@@ -104,6 +104,34 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 	// default is the correct identity value.
 	const bool hasVertexColors = mesh->hasVertexColors();
 
+	// KHR_mesh_skinning (bone/joint skinning) - mesh->vertices() only ever
+	// carries the BIND-POSE position/normal/tangent/bitangent (morph targets
+	// aside - SceneMesh::applyMorphWeights() bakes those into _vertices
+	// in-place, so those already came through above; skinning does not).
+	// Raster's actual posed geometry only exists as a per-frame joint-matrix
+	// UNIFORM array applied by main_scene.vert's computeSkinMatrix() at draw
+	// time - it never gets written back into any CPU-side buffer this
+	// tracer can read. Without this, any skinned/rigged model path-traced
+	// in its rest/bind pose regardless of the raster viewport's current
+	// animation frame. Applied here (mirroring computeSkinMatrix()/main()
+	// exactly: same per-vertex 4-bone blend, same no-renormalization-of-
+	// weights assumption per glTF's WEIGHTS_0-sums-to-1 convention, same
+	// mat3(skin) - no inverse-transpose - for normals/tangents/bitangents,
+	// since a skeletal rig's joints are rotation+translation only, never
+	// non-uniform scale) so both engines pick up whatever pose the mesh is
+	// CURRENTLY sitting in (playing, paused, or scrubbed) the moment this
+	// snapshot is built - not continuously re-synced during playback, same
+	// as everything else this one-shot "flatten and freeze" builder captures.
+	const QVector<QMatrix4x4>& jointPaletteQt = mesh->jointPalette();
+	const bool applySkinning = mesh->hasSkinning() && !jointPaletteQt.isEmpty();
+	std::vector<glm::mat4> jointPalette;
+	if (applySkinning)
+	{
+		jointPalette.reserve(jointPaletteQt.size());
+		for (const QMatrix4x4& m : jointPaletteQt)
+			jointPalette.push_back(toGlm(m));
+	}
+
 	geom.vertices.reserve(verts.size());
 	for (const Vertex& v : verts)
 	{
@@ -116,6 +144,32 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 			rv.texCoords[uvSet] = v.TexCoords[uvSet];
 		if (hasVertexColors)
 			rv.color = v.Color;
+
+		if (applySkinning)
+		{
+			glm::mat4 skin(0.0f);
+			float totalWeight = 0.0f;
+			for (int i = 0; i < 4; ++i)
+			{
+				const float weight = v.JointWeights[i];
+				if (weight <= 0.0f)
+					continue;
+				const int jointIndex = static_cast<int>(v.JointIndices[i]);
+				if (jointIndex < 0 || jointIndex >= static_cast<int>(jointPalette.size()))
+					continue;
+				skin += jointPalette[jointIndex] * weight;
+				totalWeight += weight;
+			}
+			if (totalWeight > 0.0f)
+			{
+				rv.position = glm::vec3(skin * glm::vec4(rv.position, 1.0f));
+				const glm::mat3 skin3(skin);
+				rv.normal    = skin3 * rv.normal;
+				rv.tangent   = skin3 * rv.tangent;
+				rv.bitangent = skin3 * rv.bitangent;
+			}
+		}
+
 		geom.vertices.push_back(rv);
 	}
 
