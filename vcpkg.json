@@ -29,7 +29,10 @@
     "glm",
     "opencascade",
     "meshoptimizer",
-    "embree3",
+    {
+      "name": "embree3",
+      "features": [ "ray-mask" ]
+    },
     "openimagedenoise",
     "openexr"
   ]

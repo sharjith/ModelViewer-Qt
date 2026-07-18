@@ -126,7 +126,16 @@ RtHit RtEmbreeScene::intersect(const RtRay& ray) const
 	rayhit.ray.dir_z = ray.direction.z;
 	rayhit.ray.tnear = ray.tNear;
 	rayhit.ray.tfar  = ray.tFar;
-	rayhit.ray.mask  = static_cast<unsigned int>(-1);
+	// See RtRay::mask's doc comment - this was hardcoded to "hit everything"
+	// here, silently ignoring whatever mask the caller set (e.g. a shadow
+	// ray's "Self Shadows off" exclusion bit). occluded() below already did
+	// this correctly; this sibling function just never got the same
+	// treatment. Since intersect() (not occluded()) is what
+	// CpuPathTracer::traceShadowRay() actually calls in its closest-hit-
+	// walking loop, this meant the Self Shadows toggle had NO EFFECT on any
+	// CPU shadow ray at all, for any material - a shadow ray could always
+	// self-intersect its own originating instance regardless of the toggle.
+	rayhit.ray.mask  = ray.mask;
 	rayhit.ray.flags = 0;
 	rayhit.ray.time  = 0.0f;
 	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
