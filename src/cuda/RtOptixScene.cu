@@ -109,6 +109,17 @@ namespace
 {
 	constexpr float kPi = 3.14159265f;
 
+	// Debug-visualization toggle, mirroring CpuPathTracer.cpp's identical
+	// kDebugVisualizeClearcoat (and its own file-top doc comment on the
+	// pattern: flip manually for debugging, set back to false before
+	// committing). Added specifically to compare PTC vs PTG per-hit clearcoat
+	// values directly (red/green/blue channels below) after a reported PTC-
+	// vs-PTG clearcoat reflection mismatch on automotive paint survived
+	// ruling out TBN handedness, shadow-ray origin, environment prefilter
+	// lookup, clearcoat GGX sampling, and texture-LOD formula comparisons -
+	// see __closesthit__ch()'s use site for what each channel means.
+	constexpr bool kDebugVisualizeClearcoat = false;
+
 	__forceinline__ __device__ float3 operator+(const float3& a, const float3& b)
 	{
 		return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -2191,7 +2202,20 @@ extern "C" __global__ void __anyhit__ah()
 	// pass-through skip) - see the check further down for the full
 	// rationale.
 	const bool needsTransmissionTest = isShadowRayAH && data->transmission > 0.001f;
-	if (!needsAlphaTest && !needsTransmissionTest)
+	// KHR_materials_diffuse_transmission - SHADOW RAYS ONLY, same reasoning
+	// as needsTransmissionTest above. Without this, a shadow ray hitting a
+	// diffuse-transmissive surface (e.g. another leaf in a dense plant model)
+	// registered as fully opaque, since only mat.transmission (glass/
+	// dielectric) had a pass-through branch - the diffuse-transmission back-
+	// side NEE ray (this kernel's rawNdotL<=0 branch above) toward a light
+	// almost always clips at least one OTHER leaf instance before reaching
+	// it, so every leaf's transmitted glow read as fully shadowed the
+	// instant Shadows was enabled, independent of the Self Shadows toggle
+	// (which only excludes the ORIGINATING instance, not other leaves
+	// genuinely in the ray's path). See CpuPathTracer::traceShadowRay()'s
+	// identical addition.
+	const bool needsDiffuseTransmissionTest = isShadowRayAH && data->diffuseTransmissionFactor > 0.001f;
+	if (!needsAlphaTest && !needsTransmissionTest && !needsDiffuseTransmissionTest)
 		return; // Opaque and non-transmissive (or a non-shadow ray) - no test needed at all
 
 	const unsigned int primIdx = optixGetPrimitiveIndex();
@@ -2270,14 +2294,49 @@ extern "C" __global__ void __anyhit__ah()
 		passThrough = hashToUnitFloat(seed) >= reflectProb;
 	}
 
+	// KHR_materials_diffuse_transmission's shadow-ray handling - mirrors
+	// CpuPathTracer::traceShadowRay()'s identical addition. Stochastic
+	// pass-through by diffuseTransmissionFactor (Russian-roulette, unbiased
+	// over many samples), no Fresnel/IOR term needed since this isn't a
+	// refractive BTDF like KHR_materials_transmission above.
+	float3 diffuseTransmissionTint = make_float3(1.0f, 1.0f, 1.0f);
+	if (!passThrough && needsDiffuseTransmissionTest)
+	{
+		float diffuseTransFactor = data->diffuseTransmissionFactor;
+		if (data->diffuseTransmissionTexture.width > 0)
+			diffuseTransFactor *= applyChannelPacking(sampleTexture2D(data->diffuseTransmissionTexture, uv), data->diffuseTransmissionTexture);
+		diffuseTransFactor = fminf(fmaxf(diffuseTransFactor, 0.0f), 1.0f);
+
+		// needsDiffuseTransmissionTest implies isShadowRayAH (see its
+		// declaration above) - payload 3 is this any-hit shader's shadow-ray
+		// RNG stream carrier (same one the alpha-test/transmission blocks
+		// above chain through), no non-shadow-ray branch needed here.
+		const unsigned int seed = pcgHash(optixGetPayload_3());
+		optixSetPayload_3(seed);
+		passThrough = hashToUnitFloat(seed) < diffuseTransFactor;
+		if (passThrough)
+		{
+			float3 tint = data->diffuseTransmissionColor;
+			if (data->diffuseTransmissionColorTexture.width > 0)
+			{
+				const float4 sampledColor = sampleTexture2D(data->diffuseTransmissionColorTexture, uv);
+				tint = tint * sRGBToLinear(make_float3(sampledColor.x, sampledColor.y, sampledColor.z));
+			}
+			if (data->hasVolume != 0)
+				tint = tint * calculateVolumeAttenuation(data->attenuationColor, data->attenuationDistance, data->thicknessFactor);
+			diffuseTransmissionTint = tint;
+		}
+	}
+
 	if (passThrough)
 	{
-		if (isShadowRayAH && needsTransmissionTest)
+		if (isShadowRayAH && (needsTransmissionTest || needsDiffuseTransmissionTest))
 		{
+			const float3 combinedTint = transmissionTint * diffuseTransmissionTint;
 			const float3 shadowTr = make_float3(
 				__uint_as_float(optixGetPayload_4()),
 				__uint_as_float(optixGetPayload_5()),
-				__uint_as_float(optixGetPayload_6())) * transmissionTint;
+				__uint_as_float(optixGetPayload_6())) * combinedTint;
 			optixSetPayload_4(__float_as_uint(shadowTr.x));
 			optixSetPayload_5(__float_as_uint(shadowTr.y));
 			optixSetPayload_6(__float_as_uint(shadowTr.z));
@@ -2419,11 +2478,27 @@ extern "C" __global__ void __closesthit__ch()
 	worldNormal = applyNormalMap(worldNormal, worldTangentAndHandedness, data->normalTexture, uv, data->normalScale);
 
 	// KHR_materials_clearcoat's own normal map, independent of the base
-	// layer's - falls back to the (already normal-mapped) base shading
-	// normal when absent, matching CpuPathTracer's ": N" fallback exactly.
+	// layer's - falls back to geometricNormal (the pre-base-normal-map
+	// smooth normal) when absent, matching CpuPathTracer::tracePixel()'s
+	// main bounce-sampling loop exactly: its Ncoat is
+	// applyNormalMap(Nsmooth, ..., mat.clearcoatNormalTexture.get(), ...)
+	// at CpuPathTracer.cpp's own use site, and applyNormalMap() returns its
+	// input unchanged when there's no texture - so CPU's effective fallback
+	// is Nsmooth (pre-base-normal-map), not the already-perturbed N. A
+	// previous version of this fallback used worldNormal (POST-base-normal-
+	// map, since that reassignment happens on the line above) - wrong, and
+	// consequential: a car-paint base color/metallic-flake normal map is
+	// exactly the kind of noisy per-pixel detail whose leaking into the
+	// clearcoat's OWN reflection direction broadens/scrambles what should be
+	// a much smoother coat reflection, visible from the very first sample
+	// (this is a deterministic per-hit normal, not a shadow-ray/sampling-
+	// noise effect) - this was the actual cause of a reported PTC-vs-PTG
+	// clearcoat reflection mismatch on automotive paint, found after ruling
+	// out TBN handedness, shadow-ray origin, environment prefilter lookup,
+	// clearcoat GGX sampling, and texture-LOD formula differences.
 	const float3 Ncoat = (data->clearcoatNormalTexture.width > 0)
 		? applyNormalMap(geometricNormal, worldTangentAndHandedness, data->clearcoatNormalTexture, uv, data->clearcoatNormalScale)
-		: worldNormal;
+		: geometricNormal;
 
 	// Core PBR textures, matching CpuPathTracer::evaluateSurface()'s exact
 	// factor*texture multiply order and sRGB/linear decode split (baseColor/
@@ -2631,6 +2706,33 @@ extern "C" __global__ void __closesthit__ch()
 	// consumed both by the direct-lighting mix() below and by
 	// computeLobeProbabilities()'s coat-lobe sampling weight.
 	const float3 clearcoatBlend = computeClearcoatFresnel(data->ior, Ncoat, V) * clearcoat;
+
+	// kDebugVisualizeClearcoat - false-colors the primary hit only, mirroring
+	// CpuPathTracer::tracePixel()'s identical capture exactly: red =
+	// clearcoat (raw, texture-sampled mask), green = clearcoatBlend.x (the
+	// angle-dependent Fresnel weight actually used to composite the coat over
+	// the base layer), blue = the mip LOD actually used to sample
+	// data->clearcoatTexture, normalized against its own mip-chain length (0
+	// = base level/sharpest, 1 = smallest/blurriest mip). Written directly
+	// into the radiance payload (0-2) and hitFlag forced to 0 (the same value
+	// __miss__ms() uses for "escaped, no continuation") so the raygen loop's
+	// `if (hitFlag == 0u) break;` stops this sample immediately after -
+	// matching CpuPathTracer's own early substitution-for-the-whole-function-
+	// return exactly (no later bounce ever dilutes this pixel's debug color).
+	if (kDebugVisualizeClearcoat && primaryRaySentinel == -1.0f)
+	{
+		float lodNorm = 0.0f;
+		if (data->clearcoatTexture.width > 0 && data->clearcoatTexture.mipCount > 1)
+		{
+			const float lod = computeTextureLod(data->clearcoatTexture, footprintInUvArea);
+			lodNorm = fminf(fmaxf(lod / static_cast<float>(data->clearcoatTexture.mipCount - 1), 0.0f), 1.0f);
+		}
+		optixSetPayload_0(__float_as_uint(clearcoat));
+		optixSetPayload_1(__float_as_uint(clearcoatBlend.x));
+		optixSetPayload_2(__float_as_uint(lodNorm));
+		optixSetPayload_3(0u); // hitFlag = 0 ("escaped", matching __miss__ms()'s value) - terminates the raygen bounce loop right after this sample
+		return;
+	}
 
 	// KHR_materials_iridescence's direct-lighting branch needs the PRE-metal-
 	// mix dielectric direct-F0 standalone (see CpuPathTracer::computeF0F90()'s

@@ -28,6 +28,13 @@ namespace
 	constexpr bool kDebugVisualizeTransmission = false;
 	constexpr bool kDebugVisualizeTransmissionBounceCount = false;
 	constexpr bool kDebugVisualizeClearcoat = false;
+	// False-colors the primary hit's raw front-hemisphere shadowTransmittance
+	// (summed across all lights, BEFORE the default light's 0.15 floor clamp
+	// is applied) - added to diagnose the DiffuseTransmissionPlant "leaves
+	// aren't getting light under Shadows" report: distinguishes "shadow rays
+	// are landing on the floor almost everywhere" (dense self-occlusion) from
+	// "something else is dimming this." See tracePixel()'s NEE loop.
+	constexpr bool kDebugVisualizeShadowTransmittance = false;
 
 	// xorshift32 - fast, small, good enough for Monte Carlo path tracing noise
 	// (not for cryptography). Seeded per-pixel-per-pass so successive
@@ -2389,6 +2396,40 @@ namespace
 				}
 			}
 
+			// KHR_materials_diffuse_transmission - a shadow ray hitting a
+			// diffuse-transmissive surface (e.g. another leaf in a dense
+			// plant) was previously treated as fully opaque here, since only
+			// mat.transmission (glass/dielectric) had a pass-through branch
+			// above. In practice a diffuse-transmission back-side NEE ray
+			// (tracePixel()'s NdotL<=0 branch) toward the light almost always
+			// clips at least one OTHER leaf instance before reaching it in a
+			// densely packed model, so every leaf's transmitted glow read as
+			// fully shadowed the instant Shadows was enabled - independent of
+			// the Self Shadows toggle (which only excludes the ORIGINATING
+			// instance, not other leaves genuinely in the ray's path).
+			// Stochastic pass-through by diffuseTransmissionFactor, same
+			// Russian-roulette pattern as the transmission block above (unbiased
+			// over many samples) rather than a deterministic attenuation - no
+			// Fresnel/IOR term needed since this isn't a refractive BTDF.
+			if (!passThrough && mat.diffuseTransmissionFactor > 0.001f)
+			{
+				float diffuseTransFactor = mat.diffuseTransmissionFactor;
+				if (mat.diffuseTransmissionTexture)
+					diffuseTransFactor *= applyChannelPacking(sampleTexture(*mat.diffuseTransmissionTexture, hit.texCoords), *mat.diffuseTransmissionTexture);
+				diffuseTransFactor = std::clamp(diffuseTransFactor, 0.0f, 1.0f);
+
+				passThrough = rng.next01() < diffuseTransFactor;
+				if (passThrough)
+				{
+					glm::vec3 tint = mat.diffuseTransmissionColor;
+					if (mat.diffuseTransmissionColorTexture)
+						tint *= sRGBToLinear(glm::vec3(sampleTexture(*mat.diffuseTransmissionColorTexture, hit.texCoords))); // sRGB per RtMaterial::diffuseTransmissionColorTexture's doc comment
+					if (mat.hasVolume)
+						tint *= calculateVolumeAttenuation(mat.attenuationColor, mat.attenuationDistance, mat.thicknessFactor);
+					transmittance *= tint;
+				}
+			}
+
 			if (!passThrough)
 				return glm::vec3(0.0f); // genuinely blocked here
 
@@ -2574,6 +2615,27 @@ namespace
 		// just clearcoat ones, which broke denoising and hit-tracking
 		// wholesale. x >= 0.0f means "set".
 		glm::vec3 debugClearcoatColor(-1.0f);
+
+		// kDebugVisualizeShadowTransmittance - captured once, at the primary
+		// hit, same pattern as debugClearcoatColor above. Summed (not
+		// averaged) across every REAL scene light's raw transmittance
+		// (light.range >= 0 - the app's own always-on default/fallback light
+		// is deliberately excluded here, since it dominated the sum to
+		// near-white everywhere and masked what a single small, close-range
+		// point light like a firefly is actually doing) - front-hemisphere
+		// shadowTransmittance (BEFORE the default light's 0.15 floor clamp,
+		// moot anyway since that light is excluded) for lights on the N
+		// side, back-hemisphere backTransmittance (the diffuse-transmission
+		// NEE term) for lights on the far side.
+		glm::vec3 debugShadowTransmittanceColor(-1.0f);
+		// primaryHitResolved itself flips to true a few lines before the NEE
+		// loop this debug capture lives in even runs (both belong to the SAME
+		// hit's shading pass) - checking !primaryHitResolved at the NEE site
+		// directly would therefore never be true. Snapshotting it here, right
+		// before that flip, is what kDebugVisualizeClearcoat's earlier capture
+		// site gets "for free" only because it happens to sit textually before
+		// the flip; this one doesn't, so it needs its own copy.
+		bool isPrimaryHitForShadowDebug = false;
 
 		// bounce tracks ordinary (opaque diffuse/specular/clearcoat/alpha-
 		// pass-through) depth against settings.maxBounces, same as before.
@@ -3037,6 +3099,7 @@ namespace
 					}
 				}
 
+				isPrimaryHitForShadowDebug = !primaryHitResolved;
 				primaryHitResolved = true;
 			}
 
@@ -3169,6 +3232,14 @@ namespace
 						const glm::vec3 backTransmittance = snapshot.shadowsEnabled
 							? traceShadowRay(scene, snapshot, backShadowRay, rng)
 							: glm::vec3(1.0f);
+
+						if (kDebugVisualizeShadowTransmittance && isPrimaryHitForShadowDebug && light.range >= 0.0f)
+						{
+							if (debugShadowTransmittanceColor.x < 0.0f)
+								debugShadowTransmittanceColor = glm::vec3(0.0f);
+							debugShadowTransmittanceColor += backTransmittance;
+						}
+
 						if (backTransmittance != glm::vec3(0.0f))
 						{
 							glm::vec3 diffuseBTDF = surf.diffuseTransmissionColor / kPi * std::abs(NdotL) * surf.diffuseTransmissionFactor;
@@ -3199,6 +3270,14 @@ namespace
 				glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
 					? traceShadowRay(scene, snapshot, shadowRay, rng)
 					: glm::vec3(1.0f);
+
+				if (kDebugVisualizeShadowTransmittance && isPrimaryHitForShadowDebug && light.range >= 0.0f)
+				{
+					if (debugShadowTransmittanceColor.x < 0.0f)
+						debugShadowTransmittanceColor = glm::vec3(0.0f);
+					debugShadowTransmittanceColor += shadowTransmittance;
+				}
+
 				if (light.range < 0.0f)
 				{
 					// Raster clamps the default light's shadow factor to 0.85
@@ -3800,6 +3879,9 @@ namespace
 
 		if (kDebugVisualizeClearcoat && debugClearcoatColor.x >= 0.0f)
 			return debugClearcoatColor;
+
+		if (kDebugVisualizeShadowTransmittance && debugShadowTransmittanceColor.x >= 0.0f)
+			return debugShadowTransmittanceColor;
 
 		return radiance;
 	}
