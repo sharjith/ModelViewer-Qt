@@ -1905,7 +1905,13 @@ extern "C" __global__ void __raygen__rg()
 		// RtOptixSceneParams.h's doc comment on that field).
 		unsigned int bounce = 0;
 		unsigned int transmissionDepth = 0;
-		while (bounce < maxBounces)
+		// Inclusive (<=), matching CpuPathTracer::tracePixel()'s documented
+		// "for (bounce=0; bounce<=maxBounces;...)" termination point exactly -
+		// this loop previously used < maxBounces, running one fewer real
+		// bounce than CPU for the identical maxBounces setting (e.g. 6 vs 7
+		// total iterations at the default), losing longer light paths a
+		// highly reflective clearcoat/mirror surface depends on.
+		while (bounce <= maxBounces)
 		{
 			rngState = pcgHash(rngState + (bounce + transmissionDepth) * 0x9e3779b9u);
 
@@ -3048,7 +3054,13 @@ extern "C" __global__ void __closesthit__ch()
 			if (clearcoat > 0.0f)
 			{
 				const float3 coatDirect = evaluateClearcoatDirect(Ncoat, V, lightDir, clearcoat, clearcoatRoughness) * shadowedLightIntensity;
-				radiance = radiance + lerp3(baseDirect, coatDirect, fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f, 0.0f), 1.0f));
+				// Component-wise vec3 mix, matching CpuPathTracer::tracePixel()'s
+				// glm::mix(baseDirect, coatDirect, clearcoatBlend) exactly - a
+				// scalar (x+y+z)/3 average here would silently diverge if
+				// clearcoatBlend ever becomes chromatic (it's currently always
+				// achromatic dielectric Fresnel, so this was visually near-
+				// identical, but not exact parity).
+				radiance = radiance + lerp3(baseDirect, coatDirect, clearcoatBlend);
 			}
 			else
 			{
@@ -3122,8 +3134,11 @@ extern "C" __global__ void __closesthit__ch()
 				if (clearcoat > 0.0f)
 				{
 					const float3 coatDirect = evaluateClearcoatDirect(Ncoat, V, envDir, clearcoat, clearcoatRoughness) * envRadiance;
-					const float clearcoatBlendScalar = fminf(fmaxf((clearcoatBlend.x + clearcoatBlend.y + clearcoatBlend.z) / 3.0f, 0.0f), 1.0f);
-					radiance = radiance + weightedEnv * lerp3(envDirect, coatDirect, clearcoatBlendScalar);
+					// Component-wise vec3 mix, matching CpuPathTracer::tracePixel()'s
+					// glm::mix(envDirect, coatDirect, clearcoatBlend) exactly - see
+					// the direct-light NEE site above for why the scalar average
+					// this replaces wasn't exact parity.
+					radiance = radiance + weightedEnv * lerp3(envDirect, coatDirect, clearcoatBlend);
 				}
 				else
 				{
