@@ -548,6 +548,24 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	if (!optixCheck(optixDeviceContextCreate(nullptr, &contextOptions, &_impl->context), "optixDeviceContextCreate()"))
 		return;
 
+	// Logs whether this GPU actually has RT cores (hardware BVH traversal/
+	// ray-triangle intersection) or OptiX is falling back to a software
+	// megakernel implementation - OPTIX_DEVICE_PROPERTY_RTCORE_VERSION is
+	// the canonical way to ask this (0 = no RT cores present, nonzero = a
+	// hardware generation number, e.g. 10/Turing, 20/Ampere, 30/Ada). More
+	// authoritative than inferring it from raw CUDA compute capability,
+	// since it's the exact thing OptiX itself checked before deciding which
+	// traversal path to compile/dispatch for this device.
+	unsigned int rtCoreVersion = 0;
+	if (optixCheck(optixDeviceContextGetProperty(_impl->context, OPTIX_DEVICE_PROPERTY_RTCORE_VERSION,
+		&rtCoreVersion, sizeof(rtCoreVersion)), "optixDeviceContextGetProperty(RTCORE_VERSION)"))
+	{
+		if (rtCoreVersion > 0)
+			qInfo() << "RtOptixSceneTracer: RT core version" << rtCoreVersion << "- using hardware-accelerated ray tracing.";
+		else
+			qInfo() << "RtOptixSceneTracer: no RT cores on this device - OptiX is using its software (megakernel) BVH traversal fallback.";
+	}
+
 	// --- Module/pipeline/program groups (fixed - independent of any
 	// particular scene, unlike the GAS/IAS/SBT built per buildScene() call) ---
 	OptixModuleCompileOptions moduleCompileOptions{};
