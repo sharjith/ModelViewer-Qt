@@ -271,6 +271,15 @@ bool RtDenoiser::denoiseWithOptix(const std::vector<glm::vec3>& input, int width
 	OptixDenoiserOptions denoiserOptions{};
 	denoiserOptions.guideAlbedo = haveGuides ? 1u : 0u;
 	denoiserOptions.guideNormal = haveGuides ? 1u : 0u;
+#if OPTIX_VERSION >= 80000
+	// denoiseAlpha moved from OptixDenoiserParams (SDK 7.x, set on 'params'
+	// below instead) to OptixDenoiserOptions somewhere around SDK 8.0 - we
+	// don't feed alpha data through this denoiser at all (float3 RGB only),
+	// so COPY (the default/no-op mode, value 0 in both SDK generations) is
+	// correct either way; this just satisfies whichever struct actually
+	// declares the field for the SDK this build was configured against.
+	denoiserOptions.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
+#endif
 
 	OptixDenoiser denoiser = nullptr;
 	bool ok = optixOk(optixDenoiserCreate(_impl->optixContext, OPTIX_DENOISER_MODEL_KIND_HDR, &denoiserOptions, &denoiser),
@@ -321,7 +330,9 @@ bool RtDenoiser::denoiseWithOptix(const std::vector<glm::vec3>& input, int width
 	layer.output = outputImage;
 
 	OptixDenoiserParams params{};
-	params.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
+#if OPTIX_VERSION < 80000
+	params.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY; // see denoiserOptions.denoiseAlpha's doc comment above
+#endif
 	params.hdrIntensity = intensityDevice;
 	params.blendFactor = 0.0f;
 

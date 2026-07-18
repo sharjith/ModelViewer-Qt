@@ -18,6 +18,7 @@
 #include <QMdiSubWindow>
 #include <QApplication>
 #include <QEventLoop>
+#include <QLocale>
 #include <QStandardItemModel>
 
 #include <ImfRgbaFile.h>
@@ -795,27 +796,37 @@ void PathTracingDialog::onProgressTimer()
 		: (current > 0 ? tr("Converged: %1 / %2 samples").arg(current).arg(target) : tr("Idle")));
 
 	// See _frozenElapsedMs's doc comment - ticks live (read straight from
-	// ViewportWidget's own session clock) while running, freezes at the last
-	// read once the session stops being active rather than continuing to
-	// advance after the render is actually done. Hidden entirely before the
-	// first render this dialog has ever observed (running was never true and
-	// nothing is frozen yet).
-	if (running || _frozenElapsedMs >= 0)
+	// ViewportWidget's own session clock) while running, continuously
+	// updating _frozenElapsedMs to that same live value so it's always ready
+	// to serve as "the render's final duration" the instant running stops -
+	// no separate transition-detection needed, and a brand NEW session
+	// naturally overwrites the old frozen value the moment it starts
+	// publishing progress again (ViewportWidget's own session clock restarts
+	// then too - see pathTracingElapsedMs()'s doc comment). Once stopped,
+	// just re-displays that last captured value rather than re-reading the
+	// live clock, so it does not keep advancing after the render is actually
+	// done. Hidden entirely before the first render this dialog has ever
+	// observed (running was never true and _frozenElapsedMs is still its
+	// initial -1). effectiveElapsedMs (0 until the first render) is also
+	// what refreshDiagnostics() uses below, so Render Time/Samples-per-sec/
+	// MRays-per-sec freeze in step with this label instead of continuing to
+	// climb off ViewportWidget's live, never-reset session clock after Stop
+	// is pressed - or, as a previous version of this logic did, going stale
+	// at 0 forever after the very first stopped tick (resetting
+	// _frozenElapsedMs to -1 on every single running tick meant the one tick
+	// where running first went false always found -1 and had nothing to
+	// freeze).
+	qint64 effectiveElapsedMs = 0;
+	if (running)
 	{
-		qint64 elapsedMs;
-		if (running)
-		{
-			_frozenElapsedMs = -1;
-			elapsedMs = viewport->pathTracingElapsedMs();
-		}
-		else
-		{
-			if (_frozenElapsedMs < 0)
-				_frozenElapsedMs = viewport->pathTracingElapsedMs();
-			elapsedMs = _frozenElapsedMs;
-		}
-
-		ui->labelElapsedTime->setText(formatElapsedTime(elapsedMs));
+		effectiveElapsedMs = viewport->pathTracingElapsedMs();
+		_frozenElapsedMs = effectiveElapsedMs;
+		ui->labelElapsedTime->setText(formatElapsedTime(effectiveElapsedMs));
+	}
+	else if (_frozenElapsedMs >= 0)
+	{
+		effectiveElapsedMs = _frozenElapsedMs;
+		ui->labelElapsedTime->setText(formatElapsedTime(effectiveElapsedMs));
 	}
 
 	// Set once per session start (see ViewportWidget::startPathTracedSession()'s
@@ -837,6 +848,13 @@ void PathTracingDialog::onProgressTimer()
 	// viewport window itself can flip whether the currently-entered export
 	// resolution now exceeds it, with no direct signal for that resize.
 	updateResolutionWarning();
+
+	// Gated on the Diagnostics tab actually being the visible one right now
+	// (per this feature's own design goal) - every field read there is
+	// already cheap/precomputed, but there's no reason to touch even that,
+	// every 200ms, while nobody can see the result.
+	if (ui->tabWidgetSettings->currentWidget() == ui->tabDiagnostics)
+		refreshDiagnostics(effectiveElapsedMs);
 
 	updateButtonsForState();
 }
@@ -867,6 +885,61 @@ QString PathTracingDialog::formatElapsedTime(qint64 elapsedMs)
 	return tr("Elapsed: %1:%2")
 		.arg(totalSeconds / 60, 2, 10, QChar('0'))
 		.arg(totalSeconds % 60, 2, 10, QChar('0'));
+}
+
+void PathTracingDialog::refreshDiagnostics(qint64 effectiveElapsedMs)
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	const ViewportWidget::PathTracingDiagnostics diag = viewport->pathTracingDiagnostics();
+
+	ui->labelDiagRendererValue->setText(diag.rendererName);
+	ui->labelDiagGpuValue->setText(diag.gpuDeviceName.isEmpty() ? tr("N/A") : diag.gpuDeviceName);
+	ui->labelDiagTraversalValue->setText(!diag.traversalKnown
+		? tr("N/A (CPU engine)")
+		: (diag.hasHardwareRT ? tr("Hardware RT") : tr("Software (megakernel)")));
+	ui->labelDiagDenoiserValue->setText(diag.denoiserName.isEmpty() ? tr("N/A") : diag.denoiserName);
+
+	ui->labelDiagResolutionValue->setText(diag.width > 0 && diag.height > 0
+		? tr("%1 x %2").arg(diag.width).arg(diag.height)
+		: tr("N/A"));
+	ui->labelDiagTrianglesValue->setText(diag.triangleCountKnown
+		? QLocale::system().toString(static_cast<qulonglong>(diag.triangleCount))
+		: tr("N/A (CPU engine)"));
+	ui->labelDiagBlasValue->setText(diag.buildTimesKnown ? tr("%1 ms").arg(diag.gasBuildMs, 0, 'f', 1) : tr("N/A (CPU engine)"));
+	ui->labelDiagTlasValue->setText(diag.buildTimesKnown ? tr("%1 ms").arg(diag.iasBuildMs, 0, 'f', 1) : tr("N/A (CPU engine)"));
+
+	// Total (not per-pixel) samples/sec across the whole image - matches how
+	// path-tracer throughput is usually quoted (e.g. this is what "10.8 M
+	// samples/sec" on a GPU renderer's stats overlay means). Uses
+	// effectiveElapsedMs (frozen once rendering stops - see this function's
+	// own doc comment), NOT diag.elapsedMs, which is ViewportWidget's live,
+	// never-reset session clock and would otherwise keep inflating the
+	// denominator (shrinking these rates toward zero) forever after Stop.
+	const double elapsedSeconds = effectiveElapsedMs / 1000.0;
+	if (diag.currentSamples > 0 && elapsedSeconds > 0.0 && diag.width > 0 && diag.height > 0)
+	{
+		const double totalSamples = static_cast<double>(diag.width) * diag.height * diag.currentSamples;
+		const double samplesPerSec = totalSamples / elapsedSeconds;
+		ui->labelDiagSamplesPerSecValue->setText(tr("%1 M").arg(samplesPerSec / 1.0e6, 0, 'f', 1));
+
+		// Rough estimate, not a true traced-ray counter: assumes one primary/
+		// continuation ray plus one shadow ray per bounce, up to this
+		// session's configured max bounce depth - good enough for a relative
+		// throughput indicator, not a precise ray count.
+		const double raysPerSample = 1.0 + 2.0 * std::max(1, viewport->pathTracingMaxBounces());
+		const double mraysPerSec = samplesPerSec * raysPerSample / 1.0e6;
+		ui->labelDiagMRaysPerSecValue->setText(tr("~%1").arg(mraysPerSec, 0, 'f', 0));
+	}
+	else
+	{
+		ui->labelDiagSamplesPerSecValue->setText(tr("N/A"));
+		ui->labelDiagMRaysPerSecValue->setText(tr("N/A"));
+	}
+
+	ui->labelDiagRenderTimeValue->setText(effectiveElapsedMs > 0 ? tr("%1 s").arg(elapsedSeconds, 0, 'f', 1) : tr("N/A"));
 }
 
 void PathTracingDialog::updateButtonsForState()

@@ -112,6 +112,15 @@ public:
 	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
 		std::vector<float>* outAlpha = nullptr) const;
 
+	// Human-readable active denoiser name (Diagnostics tab) - mirrors
+	// RtOptixPathTracingSession::activeDenoiserName().
+	const char* activeDenoiserName() const { return _denoiser.activeDeviceName(); }
+
+	// Current render resolution (Diagnostics tab) - whatever the last
+	// setResolution() call set, regardless of whether a session is running.
+	int width() const { return _width; }
+	int height() const { return _height; }
+
 private:
 	void workerLoop(uint64_t myRevision);
 	void publishLatest(bool finalDenoise);

@@ -34,6 +34,7 @@
 #include <QPointer>
 #include <QRubberBand>
 #include <QSet>
+#include <QString>
 #include <array>
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
@@ -473,6 +474,62 @@ public:
 		outCurrentSamples = _rtSession.currentSampleCount();
 		outTargetSamples  = _rtSession.maxSamples();
 		outRunning        = _rtSession.isRunning();
+	}
+
+	// Snapshot of everything PathTracingDialog's Diagnostics tab displays -
+	// see the diagnostics-tab feature notes for the field list this mirrors
+	// (Renderer/GPU/Traversal/Denoiser, Resolution/Triangles/BLAS-TLAS build
+	// time/samples-per-sec/render time). Deliberately a single call rather
+	// than several small accessors, so PathTracingDialog can gate ALL of it
+	// behind "is the Diagnostics tab actually the visible one right now" at
+	// one call site instead of several - every field read here is already
+	// cheap/precomputed (see RtOptixSceneTracer's own diagnostics accessors'
+	// doc comments), but there's still no reason to touch any of it, even
+	// this cheaply, while the tab isn't on screen to show it.
+	struct PathTracingDiagnostics
+	{
+		bool gpuEngineActive = false;
+		QString rendererName;   // "OptiX (GPU)" or "Embree (CPU)"
+		QString gpuDeviceName;  // physical GPU name, if this build has OptiX at all - empty otherwise
+		bool traversalKnown = false; // false while the CPU engine is active - traversal mode is an OptiX-only concept
+		bool hasHardwareRT = false;
+		QString denoiserName;
+		int width = 0;
+		int height = 0;
+		bool triangleCountKnown = false; // false while the CPU engine is active - see pathTracingDiagnostics()'s doc comment
+		uint64_t triangleCount = 0;
+		bool buildTimesKnown = false; // false while the CPU engine is active - BLAS/TLAS are OptiX-only concepts
+		double gasBuildMs = 0.0;
+		double iasBuildMs = 0.0;
+		uint32_t currentSamples = 0;
+		uint32_t targetSamples = 0;
+		// Deliberately no elapsedMs field here: pathTracingElapsedMs() is a
+		// live, never-reset session clock that keeps ticking after Stop is
+		// pressed - callers computing a rate (samples/sec, render time) MUST
+		// use PathTracingDialog's own frozen-on-stop elapsed value (see
+		// onProgressTimer()'s _frozenElapsedMs) instead, or those rates would
+		// keep sliding toward zero forever after rendering actually stops.
+	};
+	PathTracingDiagnostics pathTracingDiagnostics() const
+	{
+		PathTracingDiagnostics d;
+		const bool gpu = effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU;
+		d.gpuEngineActive = gpu;
+		d.rendererName    = gpu ? QStringLiteral("OptiX (GPU)") : QStringLiteral("Embree (CPU)");
+		d.gpuDeviceName   = QString::fromLatin1(_ptOptixSession.tracer().deviceName());
+		d.traversalKnown  = gpu && _ptOptixSession.tracer().isAvailable();
+		d.hasHardwareRT   = _ptOptixSession.tracer().hasHardwareRT();
+		d.denoiserName    = QString::fromLatin1(gpu ? _ptOptixSession.activeDenoiserName() : _rtSession.activeDenoiserName());
+		d.width           = gpu ? _ptOptixSession.width()  : _rtSession.width();
+		d.height          = gpu ? _ptOptixSession.height() : _rtSession.height();
+		d.triangleCountKnown = gpu;
+		d.triangleCount   = gpu ? _ptOptixSession.tracer().lastTriangleCount() : 0;
+		d.buildTimesKnown = gpu;
+		d.gasBuildMs      = gpu ? _ptOptixSession.tracer().lastGasBuildMs() : 0.0;
+		d.iasBuildMs      = gpu ? _ptOptixSession.tracer().lastIasBuildMs() : 0.0;
+		bool running = false;
+		pathTracingProgress(d.currentSamples, d.targetSamples, running);
+		return d;
 	}
 
 	// Milliseconds since the CURRENTLY active PT session actually began -

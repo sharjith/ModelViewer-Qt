@@ -92,6 +92,20 @@ private:
 	void populateResolutionPresets();
 	void syncResolutionPresetFromSpinboxes(); // selects the matching preset (or "Custom") after a manual width/height edit
 
+	// Populates the Diagnostics tab from ViewportWidget::pathTracingDiagnostics().
+	// Called from onProgressTimer() but gated there on the Diagnostics tab
+	// actually being the visible one right now - every field is cheap to
+	// read (see pathTracingDiagnostics()'s own doc comment), but there's no
+	// reason to touch even that while nobody can see the result, and
+	// samples/sec here does its own arithmetic on top. effectiveElapsedMs is
+	// onProgressTimer()'s already-frozen elapsed time (see _frozenElapsedMs's
+	// doc comment), NOT ViewportWidget::pathTracingElapsedMs()/diag.elapsedMs
+	// directly - the latter is a live, never-reset session clock that keeps
+	// ticking after Stop is pressed, which previously made Render Time/
+	// Samples-per-sec/MRays-per-sec keep climbing even once rendering had
+	// actually stopped.
+	void refreshDiagnostics(qint64 effectiveElapsedMs);
+
 	ModelViewer* _modelViewer; // not owned - dialog is a child of the ModelViewer's window
 	QTimer* _progressTimer;
 	std::unique_ptr<Ui::PathTracingDialog> ui;
@@ -131,10 +145,15 @@ private:
 	// the dialog after a session was already started via keyboard shortcut
 	// (with no dialog open to observe the rising edge) showed elapsed time
 	// counting up from 0 instead of the session's real age.
-	// _frozenElapsedMs still freezes the display at its last live-read value
-	// once the session stops being active (converged or Stop pressed),
-	// rather than the display continuing to imply the render is still going.
-	qint64 _frozenElapsedMs = -1; // -1 = not frozen (currently running, or never started)
+	// _frozenElapsedMs is continuously updated to the live elapsed value
+	// while a session is running (see onProgressTimer()), so it's always
+	// ready to serve as "the render's final duration" the instant running
+	// stops - once stopped, that last captured value is what's displayed/
+	// reported (Diagnostics tab included) instead of the display continuing
+	// to imply the render is still going, or ViewportWidget's own live,
+	// never-reset session clock inflating rates like samples/sec toward zero
+	// forever after Stop.
+	qint64 _frozenElapsedMs = -1; // -1 = never started (no session observed yet this dialog's lifetime)
 
 	// Guards against onResolutionPresetSelected() -> spinbox setValue() ->
 	// onExportResolutionChanged() -> syncResolutionPresetFromSpinboxes()

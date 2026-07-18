@@ -35,6 +35,18 @@ public:
 
 	bool isAvailable() const;
 
+	// Diagnostics tab accessors (PathTracingDialog) - all read already-
+	// computed state with no per-call GPU work, so polling them at UI refresh
+	// rate is free. hasHardwareRT()/deviceName() are fixed once isAvailable()
+	// is true (set in the constructor); the rest reflect the most recent
+	// successful buildScene() call and stay 0/empty until one has happened.
+	// See RtOptixSceneTracer.cpp's Impl fields for what each measures.
+	bool hasHardwareRT() const;
+	const char* deviceName() const;
+	double lastGasBuildMs() const;
+	double lastIasBuildMs() const;
+	uint64_t lastTriangleCount() const;
+
 	// (Re)builds the GPU acceleration structure from this snapshot's
 	// meshes/instances - mirrors RtEmbreeScene::build()'s contract. Always
 	// rebuilds unconditionally (no revision-check fast path yet - see

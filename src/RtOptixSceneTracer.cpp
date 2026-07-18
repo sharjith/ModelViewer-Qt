@@ -1,6 +1,7 @@
 #include "RtOptixSceneTracer.h"
 
 #include <QDebug>
+#include <QElapsedTimer>
 
 #ifdef MODELVIEWER_HAVE_OPTIX
 
@@ -28,6 +29,7 @@
 #include <cmath>
 #include <cstring>
 #include <limits>
+#include <string>
 #include <unordered_map>
 
 namespace
@@ -126,6 +128,17 @@ struct RtOptixSceneTracer::Impl
 	bool valid = false;
 
 	OptixDeviceContext context = nullptr;
+
+	// Diagnostics snapshot (Diagnostics tab) - populated once in the
+	// constructor (rtCoreVersion/deviceName, fixed for this context's
+	// lifetime) or once per buildScene() call (the rest, since the scene
+	// doesn't change between renderScene() calls) - never touched from
+	// renderScene() itself, so reading these has no per-frame cost.
+	unsigned int rtCoreVersion = 0;
+	std::string deviceName;
+	double lastGasBuildMs = 0.0;  // total across all meshes' GAS builds, this buildScene() call
+	double lastIasBuildMs = 0.0;
+	uint64_t lastTriangleCount = 0;
 
 	// One entry per snapshot mesh (GAS) - kept alive for the lifetime of the
 	// built scene since the closest-hit shader dereferences positions/indices
@@ -548,6 +561,10 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	if (!optixCheck(optixDeviceContextCreate(nullptr, &contextOptions, &_impl->context), "optixDeviceContextCreate()"))
 		return;
 
+	cudaDeviceProp props{};
+	if (cudaGetDeviceProperties(&props, 0) == cudaSuccess)
+		_impl->deviceName = props.name;
+
 	// Logs whether this GPU actually has RT cores (hardware BVH traversal/
 	// ray-triangle intersection) or OptiX is falling back to a software
 	// megakernel implementation - OPTIX_DEVICE_PROPERTY_RTCORE_VERSION is
@@ -555,13 +572,14 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	// hardware generation number, e.g. 10/Turing, 20/Ampere, 30/Ada). More
 	// authoritative than inferring it from raw CUDA compute capability,
 	// since it's the exact thing OptiX itself checked before deciding which
-	// traversal path to compile/dispatch for this device.
-	unsigned int rtCoreVersion = 0;
+	// traversal path to compile/dispatch for this device. Stored on Impl (not
+	// just logged) so the Diagnostics tab can show "Hardware RT"/"Software
+	// (megakernel)" without re-querying it every poll tick.
 	if (optixCheck(optixDeviceContextGetProperty(_impl->context, OPTIX_DEVICE_PROPERTY_RTCORE_VERSION,
-		&rtCoreVersion, sizeof(rtCoreVersion)), "optixDeviceContextGetProperty(RTCORE_VERSION)"))
+		&_impl->rtCoreVersion, sizeof(_impl->rtCoreVersion)), "optixDeviceContextGetProperty(RTCORE_VERSION)"))
 	{
-		if (rtCoreVersion > 0)
-			qInfo() << "RtOptixSceneTracer: RT core version" << rtCoreVersion << "- using hardware-accelerated ray tracing.";
+		if (_impl->rtCoreVersion > 0)
+			qInfo() << "RtOptixSceneTracer: RT core version" << _impl->rtCoreVersion << "- using hardware-accelerated ray tracing.";
 		else
 			qInfo() << "RtOptixSceneTracer: no RT cores on this device - OptiX is using its software (megakernel) BVH traversal fallback.";
 	}
@@ -700,6 +718,31 @@ bool RtOptixSceneTracer::isAvailable() const
 	return _impl->valid;
 }
 
+bool RtOptixSceneTracer::hasHardwareRT() const
+{
+	return _impl->rtCoreVersion > 0;
+}
+
+const char* RtOptixSceneTracer::deviceName() const
+{
+	return _impl->deviceName.c_str();
+}
+
+double RtOptixSceneTracer::lastGasBuildMs() const
+{
+	return _impl->lastGasBuildMs;
+}
+
+double RtOptixSceneTracer::lastIasBuildMs() const
+{
+	return _impl->lastIasBuildMs;
+}
+
+uint64_t RtOptixSceneTracer::lastTriangleCount() const
+{
+	return _impl->lastTriangleCount;
+}
+
 bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 {
 	if (!_impl->valid)
@@ -729,6 +772,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// --- One GAS per unique mesh - mirrors RtEmbreeScene::build()'s BLAS
 	// loop exactly, just building an OptiX GAS instead of an Embree scene. ---
 	_impl->meshGasEntries.reserve(snapshot.meshes.size());
+	_impl->lastGasBuildMs = 0.0;
+	_impl->lastTriangleCount = 0;
 	for (const RtMeshGeometry& mesh : snapshot.meshes)
 	{
 		Impl::MeshGas gas;
@@ -827,12 +872,26 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.gasOutputBuffer), gasBufferSizes.outputSizeInBytes), "cudaMalloc(gas output)");
 		if (ok)
 		{
+			// Diagnostics tab timing only - optixAccelBuild() itself queues
+			// onto the default stream, so this timer's end (the cudaFree()
+			// right below, which - like every other synchronization-free
+			// readback in this file - relies on the legacy default stream's
+			// implicit blocking semantics) is what actually makes it
+			// measure real GPU build time rather than just host-side launch
+			// overhead.
+			QElapsedTimer gasTimer;
+			gasTimer.start();
 			ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
 				tempBuffer, gasBufferSizes.tempSizeInBytes,
 				gas.gasOutputBuffer, gasBufferSizes.outputSizeInBytes,
 				&gas.handle, nullptr, 0), "optixAccelBuild(GAS)");
+			if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
+			tempBuffer = 0;
+			_impl->lastGasBuildMs += static_cast<double>(gasTimer.nsecsElapsed()) / 1.0e6;
+			if (ok)
+				_impl->lastTriangleCount += mesh.indices.size() / 3;
 		}
-		if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
+		if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer)); // only reached if a malloc above failed
 
 		_impl->meshGasEntries.push_back(gas);
 	}
@@ -1287,11 +1346,17 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		return false;
 	}
 
+	// Diagnostics tab timing only - see the matching GAS-build timer's doc
+	// comment above for why the cudaFree() right below is what makes this
+	// measure real GPU build time, not just launch overhead.
+	QElapsedTimer iasTimer;
+	iasTimer.start();
 	const bool iasBuilt = optixCheck(optixAccelBuild(_impl->context, 0, &iasAccelOptions, &instanceInput, 1,
 		iasTempBuffer, iasBufferSizes.tempSizeInBytes,
 		_impl->iasOutputBuffer, iasBufferSizes.outputSizeInBytes,
 		&_impl->iasHandle, nullptr, 0), "optixAccelBuild(IAS)");
 	cudaFree(reinterpret_cast<void*>(iasTempBuffer));
+	_impl->lastIasBuildMs = static_cast<double>(iasTimer.nsecsElapsed()) / 1.0e6;
 	if (!iasBuilt)
 		return false;
 
@@ -1687,6 +1752,31 @@ RtOptixSceneTracer::~RtOptixSceneTracer() = default;
 bool RtOptixSceneTracer::isAvailable() const
 {
 	return false;
+}
+
+bool RtOptixSceneTracer::hasHardwareRT() const
+{
+	return false;
+}
+
+const char* RtOptixSceneTracer::deviceName() const
+{
+	return "";
+}
+
+double RtOptixSceneTracer::lastGasBuildMs() const
+{
+	return 0.0;
+}
+
+double RtOptixSceneTracer::lastIasBuildMs() const
+{
+	return 0.0;
+}
+
+uint64_t RtOptixSceneTracer::lastTriangleCount() const
+{
+	return 0;
 }
 
 bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot&)

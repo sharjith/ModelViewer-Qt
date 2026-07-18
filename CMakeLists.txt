@@ -44,7 +44,7 @@ if(CMAKE_CUDA_COMPILER)
     # without needing to touch the path logic below. OPTIX_ROOT_DIR lets a
     # developer override the install location entirely (e.g. a non-default
     # install path, or Linux) independent of the version.
-    set(OPTIX_SDK_VERSION "7.7.0" CACHE STRING
+    set(OPTIX_SDK_VERSION "9.1.0" CACHE STRING
         "OptiX SDK version to locate (matches the installer's default directory name, e.g. 7.7.0)")
     set(OPTIX_ROOT_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK ${OPTIX_SDK_VERSION}" CACHE PATH
         "Path to the OptiX SDK install (the directory containing include/optix.h)")

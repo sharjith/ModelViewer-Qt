@@ -141,6 +141,20 @@ public:
 	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
 		std::vector<float>* outAlpha = nullptr) const;
 
+	// Diagnostics tab accessor (PathTracingDialog) - read-only access to the
+	// owned tracer's own diagnostics accessors (hasHardwareRT()/deviceName()/
+	// lastGasBuildMs()/lastIasBuildMs()/lastTriangleCount() - see
+	// RtOptixSceneTracer.h). No per-call GPU work, safe to poll at UI refresh rate.
+	const RtOptixSceneTracer& tracer() const { return _tracer; }
+
+	// Human-readable active denoiser name - mirrors RtDenoiser::activeDeviceName().
+	const char* activeDenoiserName() const { return _denoiser.activeDeviceName(); }
+
+	// Current render resolution (Diagnostics tab) - whatever the last
+	// setResolution() call set, regardless of whether a session is running.
+	int width() const { return _width; }
+	int height() const { return _height; }
+
 private:
 	void workerLoop(uint64_t myGeneration);
 
