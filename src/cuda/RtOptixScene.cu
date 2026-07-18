@@ -1616,6 +1616,8 @@ namespace
 		unsigned int trX = __float_as_uint(1.0f);
 		unsigned int trY = __float_as_uint(1.0f);
 		unsigned int trZ = __float_as_uint(1.0f);
+		unsigned int p7 = 0u, p8 = 0u, p9 = 0u, p10 = 0u, p11 = 0u, p12 = 0u, p13 = 0u;
+		unsigned int p14 = 0u, p15 = 0u, p16 = 0u, p17 = 0u, p18 = 0u, p19 = 0u;
 		optixTrace(
 			params.handle,
 			origin,
@@ -1628,7 +1630,8 @@ namespace
 			0, // SBT offset
 			1, // SBT stride
 			0, // missSBTIndex
-			occluded, selfInstanceId, selfShadowsEnabled, alphaRngSeed, trX, trY, trZ);
+			occluded, selfInstanceId, selfShadowsEnabled, alphaRngSeed, trX, trY, trZ,
+			p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19);
 		if (occluded != 0u)
 			return make_float3(0.0f, 0.0f, 0.0f);
 		return make_float3(__uint_as_float(trX), __uint_as_float(trY), __uint_as_float(trZ));
