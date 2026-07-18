@@ -7,23 +7,38 @@
 #include <glm/glm.hpp>
 
 // User-facing denoiser device choice (Visualization/PT settings dropdown):
-//   Auto - try CUDA, fall back to CPU, then to the built-in bilateral filter
-//          if neither OIDN device initializes. The permissive default.
-//   CPU  - skip CUDA entirely and use the CPU device (falls back to
-//          bilateral if even that fails to initialize).
-//   GPU  - only attempt CUDA; if it's unavailable, falls straight to the
-//          bilateral filter WITHOUT trying CPU. Deliberately does not
-//          silently substitute CPU here - a user who explicitly asked for
-//          GPU denoising should get an unambiguous signal (the existing
-//          "OIDN device unavailable" log, plus a visibly different
-//          activeDeviceName()) that GPU denoising specifically isn't
-//          working, rather than transparently getting CPU denoising instead
-//          and never finding out.
+//   Auto  - try native OptiX first (generally the best quality/performance on
+//           an RTX GPU, and independent of which render engine actually
+//           produced the frame - see OptiX's own entry below), then OIDN
+//           CUDA, then OIDN CPU, then finally the built-in bilateral filter
+//           if none of those initialize. The permissive default.
+//   CPU   - skip CUDA/OptiX entirely and use the OIDN CPU device (falls back
+//           to bilateral if even that fails to initialize).
+//   GPU   - only attempt OIDN CUDA; if it's unavailable, falls straight to
+//           the bilateral filter WITHOUT trying CPU or OptiX. Deliberately
+//           does not silently substitute another device here - a user who
+//           explicitly asked for GPU denoising should get an unambiguous
+//           signal (the existing "OIDN device unavailable" log, plus a
+//           visibly different activeDeviceName()) that GPU denoising
+//           specifically isn't working, rather than transparently getting
+//           something else instead and never finding out.
+//   OptiX - NVIDIA's own AI denoiser (optixDenoiserInvoke() - a genuinely
+//           different model/API from Intel's OIDN above, not just another
+//           OIDN device type). RtDenoiser owns its own standalone
+//           OptixDeviceContext (see Impl::optixContext's doc comment in
+//           RtDenoiser.cpp), so unlike GPU's OIDN-CUDA option this works
+//           regardless of which render engine (CPU Embree or GPU OptiX)
+//           actually produced the frame being denoised - it only needs an
+//           NVIDIA GPU with OptiX support to be present. Falls back to the
+//           bilateral filter (never silently to OIDN) if that's not the
+//           case, or this build has no OptiX SDK at all, matching GPU's own
+//           explicit-choice-deserves-an-unambiguous-signal philosophy above.
 enum class DenoiserDevicePreference
 {
 	Auto,
 	CPU,
-	GPU
+	GPU,
+	OptiX
 };
 
 // ---------------------------------------------------------------------------
@@ -110,6 +125,16 @@ public:
 
 private:
 	void initializeDevice();
+
+	// Only ever called (from denoise()) when initializeDevice() successfully
+	// set up a native OptiX denoiser context - defined (as a real OptiX
+	// create/setup/invoke sequence) only when this build has the OptiX SDK;
+	// a private member function rather than a free function in RtDenoiser.cpp
+	// so it can reach the private Impl type without exposing any OptiX types
+	// in this header.
+	bool denoiseWithOptix(const std::vector<glm::vec3>& input, int width, int height,
+		std::vector<glm::vec3>& output,
+		const std::vector<glm::vec3>* albedo, const std::vector<glm::vec3>* normal);
 
 	struct Impl;
 	std::unique_ptr<Impl> _impl;

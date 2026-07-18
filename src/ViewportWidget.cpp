@@ -12878,7 +12878,7 @@ void ViewportWidget::startPathTracedSession()
 	if (fbWidth <= 0 || fbHeight <= 0)
 		return; // genuinely not visible right now (e.g. still minimized) - nothing to render into
 
-	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 	{
 		startOptixTestPathTracedSession(fbWidth, fbHeight);
 		return;
@@ -12893,6 +12893,11 @@ void ViewportWidget::startPathTracedSession()
 	_rtSession.setResolution(fbWidth, fbHeight);
 	_rtSession.setMaxSamples(_ptMaxSamples);
 	_rtSession.setDenoiserEnabled(_ptDenoiserEnabled);
+	// Forwarded as-is, including OptiX: RtDenoiser owns its own standalone
+	// OptixDeviceContext (see RtDenoiser.cpp's Impl::optixContext doc
+	// comment), so the native OptiX denoiser works regardless of which
+	// render engine (this CPU/Embree session or the GPU/OptiX one) actually
+	// produced the frame being denoised.
 	_rtSession.setDenoiserDevicePreference(_ptDenoiserDevicePreference);
 	{
 		CpuPathTracer::Settings settings = _rtSession.tracerSettings();
@@ -12999,7 +13004,7 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 	if (!snapshot)
 		return false;
 
-	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 		return renderPathTracedOfflineGpu(width, height, *snapshot, onProgress, outLinearRgb, outCancelled);
 
 	// A fresh, independent BVH/environment-sampler/accumulator - entirely
@@ -13056,6 +13061,10 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 
 	if (_ptDenoiserEnabled)
 	{
+		// Forwarded as-is (see startPathTracedSession()'s identical comment) -
+		// the native OptiX denoiser works regardless of which engine rendered
+		// this frame, since RtDenoiser owns its own standalone
+		// OptixDeviceContext rather than reusing the path tracer's.
 		RtDenoiser denoiser(_ptDenoiserDevicePreference);
 		std::vector<glm::vec3> denoised;
 		const std::vector<glm::vec3> albedo = accumulator.resolveAlbedo();
@@ -13191,7 +13200,7 @@ void ViewportWidget::onPathTracedRefreshTimer()
 	int frameWidth = 0, frameHeight = 0;
 	uint32_t sampleCount = 0;
 
-	if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 	{
 		std::vector<float> alpha;
 		std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);

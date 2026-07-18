@@ -399,6 +399,32 @@ public:
 		startPathTracedSession();
 	}
 	RtPathTracingEnginePreference pathTracingEnginePreference() const { return _ptEnginePreference; }
+	// Resolves Auto to a concrete CPU/GPU choice - GPU if this document's
+	// OptiX tracer initialized successfully, CPU otherwise. Cheap: _ptOptixSession's
+	// RtOptixSceneTracer already ran the real cudaFree(0)/optixInit()/device-
+	// context/pipeline setup unconditionally in its own constructor the
+	// moment this ViewportWidget was created (see RtOptixSceneTracer's own
+	// constructor), so isAvailable() here is just reading an already-computed
+	// bool, not probing anything new. Every render-path branch below reads
+	// THIS, never _ptEnginePreference directly, so Auto never needs handling
+	// at individual call sites - CPU and GPU remain the only two real
+	// backends as far as rendering code is concerned. pathTracingEnginePreference()
+	// above still returns the RAW (possibly Auto) preference, since
+	// PathTracingDialog's combo box needs to keep showing "Auto" as what the
+	// user actually chose, not silently normalize it to whatever it resolved to.
+	//
+	// NOT the reference point for DenoiserDevicePreference::OptiX - unlike the
+	// render engine choice above, the native OptiX denoiser (RtDenoiser) owns
+	// its own standalone OptixDeviceContext and works regardless of which
+	// engine actually produced the frame, so _ptDenoiserDevicePreference is
+	// forwarded to both _rtSession and _ptOptixSession as-is (see the
+	// setDenoiserDevicePreference() call sites in ViewportWidget.cpp).
+	RtPathTracingEnginePreference effectivePathTracingEnginePreference() const
+	{
+		if (_ptEnginePreference == RtPathTracingEnginePreference::Auto)
+			return _ptOptixSession.isAvailable() ? RtPathTracingEnginePreference::GPU : RtPathTracingEnginePreference::CPU;
+		return _ptEnginePreference;
+	}
 	void setPathTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
 	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
 	void setPathTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
@@ -437,7 +463,7 @@ public:
 	// progress bar/elapsed-time display works identically for both engines.
 	void pathTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
 	{
-		if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+		if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 		{
 			outCurrentSamples = _ptOptixSession.currentSampleCount();
 			outTargetSamples  = _ptOptixSession.maxSamples();
@@ -479,7 +505,7 @@ public:
 	// session with real build/first-chunk latency.
 	bool pathTracedSessionRunning() const
 	{
-		return _ptEnginePreference == RtPathTracingEnginePreference::GPU
+		return effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU
 			? _ptOptixSession.isRunning()
 			: _rtSession.isRunning();
 	}
@@ -501,7 +527,7 @@ public:
 	std::vector<glm::vec3> pathTracingRawFrame(int& outWidth, int& outHeight) const
 	{
 		uint32_t sampleCount = 0;
-		if (_ptEnginePreference == RtPathTracingEnginePreference::GPU)
+		if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 			return _ptOptixSession.latestFrame(outWidth, outHeight, sampleCount);
 		return _rtSession.latestFrame(outWidth, outHeight, sampleCount);
 	}
@@ -1208,7 +1234,7 @@ private:
 	int      _ptMaxTransmissionBounces = 32;
 	int      _ptRussianRouletteStartDepth = 3;
 	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
-	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::CPU;
+	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::Auto;
 	RtOptixPathTracingSession _ptOptixSession; // GPU-backend counterpart to _rtSession above - see startOptixTestPathTracedSession()
 	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
 	QElapsedTimer _ptSessionElapsedTimer; // see pathTracingElapsedMs()'s doc comment

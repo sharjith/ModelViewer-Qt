@@ -143,20 +143,22 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 	ui->setupUi(this);
 	setModal(false); // watch the viewport update live while adjusting settings
 
-	// The OptiX item is a placeholder for a future NVIDIA OptiX denoiser
-	// backend (distinct from the OIDN CPU/GPU-CUDA options above it, which
-	// are both already implemented) - reserving its place in the dropdown
-	// now, but disabled, so it can't actually be selected (and silently
-	// cast to an enum value nothing implements yet) until that backend
-	// exists. DenoiserDevicePreference doesn't have a 4th enumerator to
-	// match, so leave this index unreachable via the combo itself.
+	// The OptiX item uses NVIDIA's own AI denoiser (optixDenoiserInvoke()) -
+	// a genuinely different model/API from the OIDN CPU/GPU-CUDA options
+	// above it, not just another OIDN device type. Works regardless of which
+	// render engine (Embree CPU or OptiX GPU) actually produced the frame,
+	// since RtDenoiser owns its own standalone OptixDeviceContext rather than
+	// reusing the path tracer's - it only needs an NVIDIA GPU with OptiX
+	// support present. Falls back to the built-in bilateral filter (never
+	// silently to OIDN) if that's not the case, or this build has no OptiX
+	// SDK at all.
 	if (auto* model = qobject_cast<QStandardItemModel*>(ui->comboBoxDenoiserDevice->model()))
 	{
-		constexpr int kOptixPlaceholderIndex = 3;
-		if (QStandardItem* item = model->item(kOptixPlaceholderIndex))
+		constexpr int kOptixItemIndex = 3;
+		if (QStandardItem* item = model->item(kOptixItemIndex))
 		{
-			item->setEnabled(false);
-			item->setToolTip(tr("Not yet implemented - reserved for a future NVIDIA OptiX denoiser backend."));
+			item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back to "
+				"the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
 		}
 	}
 
@@ -657,7 +659,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	ui->spinBoxRussianRouletteDepth->setValue(3);
 	ui->checkBoxEnvImportanceSampling->setChecked(true);
 	ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(DenoiserDevicePreference::Auto));
-	ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(RtPathTracingEnginePreference::CPU));
+	ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(RtPathTracingEnginePreference::Auto));
 	// Each setValue()/setChecked() above already emitted its usual
 	// valueChanged/toggled signal (unchanged from any other edit), pushing
 	// the reset value into the viewport via this dialog's existing slots -

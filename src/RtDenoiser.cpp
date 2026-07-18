@@ -2,6 +2,15 @@
 
 #include <OpenImageDenoise/oidn.hpp>
 
+#ifdef MODELVIEWER_HAVE_OPTIX
+#include <cuda_runtime.h>
+#include <optix.h>
+#include <optix_stubs.h>
+// NOTE: optix_function_table_definition.h must be included in exactly one
+// translation unit across the whole program - that's RtOptixContext.cpp, not
+// this file.
+#endif
+
 #include <QDebug>
 #include <QElapsedTimer>
 #include <QString>
@@ -110,6 +119,33 @@ struct RtDenoiser::Impl
 	// kernel can dereference - so those need OIDN's own device-allocated
 	// buffers plus explicit write()/read() transfers instead. See denoise().
 	bool isSharedMemoryDevice = true;
+
+	// Set only when preference == OptiX and a native OptiX denoiser context
+	// was successfully created (see initializeDevice()'s OptiX branch) -
+	// denoise() branches to denoiseWithOptix() instead of the OIDN filter
+	// path above when this is true. This is a genuinely different API
+	// (optixDenoiserInvoke()) from Intel's OIDN above, not just another OIDN
+	// device type, so it's tracked independently of deviceValid/
+	// isSharedMemoryDevice rather than folded into OIDN's device selection.
+	bool useNativeOptixDenoiser = false;
+#ifdef MODELVIEWER_HAVE_OPTIX
+	// Created once in initializeDevice() and held for this Impl's lifetime -
+	// only the per-call OptixDenoiser handle (sized to that call's
+	// width/height) is created/destroyed fresh every denoise() call, mirroring
+	// how the OIDN path above also creates its oidn::FilterRef fresh each
+	// call rather than caching it. Deliberately an independent
+	// OptixDeviceContext rather than sharing RtOptixSceneTracer's - matches
+	// how RtOptixSceneTracer itself already creates its own context rather
+	// than reusing RtOptixContext's; each GPU-facing piece in this codebase
+	// owns its own CUDA/OptiX device state.
+	OptixDeviceContext optixContext = nullptr;
+
+	~Impl()
+	{
+		if (optixContext)
+			optixDeviceContextDestroy(optixContext);
+	}
+#endif
 };
 
 namespace
@@ -144,7 +180,175 @@ namespace
 		outDevice = std::move(device);
 		return true;
 	}
+
+#ifdef MODELVIEWER_HAVE_OPTIX
+	bool cudaOk(cudaError_t err, const char* what)
+	{
+		if (err != cudaSuccess)
+		{
+			qWarning() << "RtDenoiser: CUDA call failed (" << what << "):" << cudaGetErrorString(err);
+			return false;
+		}
+		return true;
+	}
+
+	bool optixOk(OptixResult result, const char* what)
+	{
+		if (result != OPTIX_SUCCESS)
+		{
+			qWarning() << "RtDenoiser: OptiX call failed (" << what << "), result" << static_cast<int>(result);
+			return false;
+		}
+		return true;
+	}
+
+	void optixDenoiserLogCallback(unsigned int level, const char* tag, const char* message, void* /*cbdata*/)
+	{
+		const QString text = QString("RtDenoiser: OptiX [%1][%2]: %3").arg(level).arg(tag).arg(message);
+		if (level <= 2)
+			qWarning().noquote() << text;
+		else
+			qInfo().noquote() << text;
+	}
+
+	// Mirrors RtOptixContext.cpp's constructor exactly (cudaFree(0) to force
+	// CUDA's primary context into existence, optixInit(), then
+	// optixDeviceContextCreate() with CUcontext(0) meaning "use CUDA's
+	// current context") - see RtDenoiser::Impl::optixContext's doc comment
+	// for why this doesn't just reuse RtOptixContext/RtOptixSceneTracer's own
+	// context instead.
+	bool initializeOptixDenoiserContext(OptixDeviceContext& outContext)
+	{
+		if (!cudaOk(cudaFree(0), "cudaFree(0)"))
+			return false;
+
+		if (!optixOk(optixInit(), "optixInit()"))
+			return false;
+
+		OptixDeviceContextOptions options{};
+		options.logCallbackFunction = &optixDenoiserLogCallback;
+		options.logCallbackLevel = 4;
+#ifndef NDEBUG
+		options.validationMode = OPTIX_DEVICE_CONTEXT_VALIDATION_MODE_ALL;
+#endif
+		return optixOk(optixDeviceContextCreate(nullptr, &options, &outContext), "optixDeviceContextCreate()");
+	}
+
+	OptixImage2D makeOptixImage(CUdeviceptr data, int width, int height)
+	{
+		OptixImage2D image{};
+		image.data = data;
+		image.width = static_cast<unsigned int>(width);
+		image.height = static_cast<unsigned int>(height);
+		image.rowStrideInBytes = static_cast<unsigned int>(width) * sizeof(float3);
+		image.pixelStrideInBytes = sizeof(float3);
+		image.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+		return image;
+	}
+
+#endif // MODELVIEWER_HAVE_OPTIX
 }
+
+#ifdef MODELVIEWER_HAVE_OPTIX
+// Runs one full create -> computeMemoryResources -> setup -> (optional
+// computeIntensity) -> invoke sequence and reads the result back to
+// 'output', then tears every per-call OptiX/CUDA resource back down before
+// returning - mirrors this file's OIDN path, which also creates/destroys its
+// oidn::FilterRef fresh every call rather than caching it. Only
+// Impl::optixContext itself is persisted across calls (see its doc comment).
+// Returns false (leaving 'output' untouched) on any failure - denoise() falls
+// back to the bilateral filter in that case, same as an OIDN filter-execution
+// failure. A private member function (rather than a free function) so it can
+// reach _impl->optixContext without exposing the private Impl type outside
+// this class - see RtDenoiser.h's doc comment on this method.
+bool RtDenoiser::denoiseWithOptix(const std::vector<glm::vec3>& input, int width, int height,
+	std::vector<glm::vec3>& output, const std::vector<glm::vec3>* albedo, const std::vector<glm::vec3>* normal)
+{
+	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+	const size_t byteSize = pixelCount * sizeof(float3);
+	const bool haveGuides = albedo && normal && albedo->size() == pixelCount && normal->size() == pixelCount;
+
+	OptixDenoiserOptions denoiserOptions{};
+	denoiserOptions.guideAlbedo = haveGuides ? 1u : 0u;
+	denoiserOptions.guideNormal = haveGuides ? 1u : 0u;
+
+	OptixDenoiser denoiser = nullptr;
+	bool ok = optixOk(optixDenoiserCreate(_impl->optixContext, OPTIX_DENOISER_MODEL_KIND_HDR, &denoiserOptions, &denoiser),
+		"optixDenoiserCreate()");
+
+	OptixDenoiserSizes sizes{};
+	if (ok)
+		ok = optixOk(optixDenoiserComputeMemoryResources(denoiser, static_cast<unsigned int>(width),
+			static_cast<unsigned int>(height), &sizes), "optixDenoiserComputeMemoryResources()");
+
+	CUdeviceptr state = 0, scratch = 0, colorDevice = 0, albedoDevice = 0, normalDevice = 0;
+	CUdeviceptr outputDevice = 0, intensityDevice = 0;
+
+	if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&state), sizes.stateSizeInBytes), "cudaMalloc(optix denoiser state)");
+	if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&scratch), sizes.withoutOverlapScratchSizeInBytes), "cudaMalloc(optix denoiser scratch)");
+	if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&colorDevice), byteSize), "cudaMalloc(optix denoiser color)");
+	if (ok) ok = cudaOk(cudaMemcpy(reinterpret_cast<void*>(colorDevice), input.data(), byteSize, cudaMemcpyHostToDevice), "cudaMemcpy(optix denoiser color)");
+	if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&outputDevice), byteSize), "cudaMalloc(optix denoiser output)");
+	if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&intensityDevice), sizeof(float)), "cudaMalloc(optix denoiser intensity)");
+	if (ok && haveGuides)
+	{
+		ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&albedoDevice), byteSize), "cudaMalloc(optix denoiser albedo)");
+		if (ok) ok = cudaOk(cudaMemcpy(reinterpret_cast<void*>(albedoDevice), albedo->data(), byteSize, cudaMemcpyHostToDevice), "cudaMemcpy(optix denoiser albedo)");
+		if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&normalDevice), byteSize), "cudaMalloc(optix denoiser normal)");
+		if (ok) ok = cudaOk(cudaMemcpy(reinterpret_cast<void*>(normalDevice), normal->data(), byteSize, cudaMemcpyHostToDevice), "cudaMemcpy(optix denoiser normal)");
+	}
+
+	const OptixImage2D colorImage = makeOptixImage(colorDevice, width, height);
+	const OptixImage2D outputImage = makeOptixImage(outputDevice, width, height);
+
+	if (ok)
+		ok = optixOk(optixDenoiserSetup(denoiser, nullptr, static_cast<unsigned int>(width), static_cast<unsigned int>(height),
+			state, sizes.stateSizeInBytes, scratch, sizes.withoutOverlapScratchSizeInBytes), "optixDenoiserSetup()");
+
+	if (ok)
+		ok = optixOk(optixDenoiserComputeIntensity(denoiser, nullptr, &colorImage, intensityDevice, scratch,
+			sizes.withoutOverlapScratchSizeInBytes), "optixDenoiserComputeIntensity()");
+
+	OptixDenoiserGuideLayer guideLayer{};
+	if (haveGuides)
+	{
+		guideLayer.albedo = makeOptixImage(albedoDevice, width, height);
+		guideLayer.normal = makeOptixImage(normalDevice, width, height);
+	}
+
+	OptixDenoiserLayer layer{};
+	layer.input = colorImage;
+	layer.output = outputImage;
+
+	OptixDenoiserParams params{};
+	params.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY;
+	params.hdrIntensity = intensityDevice;
+	params.blendFactor = 0.0f;
+
+	if (ok)
+		ok = optixOk(optixDenoiserInvoke(denoiser, nullptr, &params, state, sizes.stateSizeInBytes, &guideLayer,
+			&layer, 1, 0, 0, scratch, sizes.withoutOverlapScratchSizeInBytes), "optixDenoiserInvoke()");
+
+	if (ok)
+	{
+		output.resize(pixelCount);
+		ok = cudaOk(cudaMemcpy(output.data(), reinterpret_cast<void*>(outputDevice), byteSize, cudaMemcpyDeviceToHost),
+			"cudaMemcpy(optix denoiser readback)");
+	}
+
+	if (denoiser)
+		optixDenoiserDestroy(denoiser);
+	if (state) cudaFree(reinterpret_cast<void*>(state));
+	if (scratch) cudaFree(reinterpret_cast<void*>(scratch));
+	if (colorDevice) cudaFree(reinterpret_cast<void*>(colorDevice));
+	if (outputDevice) cudaFree(reinterpret_cast<void*>(outputDevice));
+	if (intensityDevice) cudaFree(reinterpret_cast<void*>(intensityDevice));
+	if (albedoDevice) cudaFree(reinterpret_cast<void*>(albedoDevice));
+	if (normalDevice) cudaFree(reinterpret_cast<void*>(normalDevice));
+
+	return ok;
+}
+#endif // MODELVIEWER_HAVE_OPTIX
 
 RtDenoiser::RtDenoiser(DenoiserDevicePreference preference) : _impl(std::make_unique<Impl>())
 {
@@ -161,6 +365,40 @@ void RtDenoiser::initializeDevice()
 	// call this again to switch devices mid-session.
 	_impl->device = oidn::DeviceRef();
 	_impl->deviceValid = false;
+	_impl->useNativeOptixDenoiser = false;
+#ifdef MODELVIEWER_HAVE_OPTIX
+	if (_impl->optixContext)
+	{
+		optixDeviceContextDestroy(_impl->optixContext);
+		_impl->optixContext = nullptr;
+	}
+#endif
+
+	// OptiX: NVIDIA's own AI denoiser, a completely different API from OIDN
+	// above - see DenoiserDevicePreference::OptiX's doc comment. Deliberately
+	// no fallback to OIDN here, matching GPU's own explicit-choice philosophy.
+	if (_impl->preference == DenoiserDevicePreference::OptiX)
+	{
+#ifdef MODELVIEWER_HAVE_OPTIX
+		if (initializeOptixDenoiserContext(_impl->optixContext))
+		{
+			_impl->deviceValid = true;
+			_impl->useNativeOptixDenoiser = true;
+		}
+		else
+		{
+			_impl->optixContext = nullptr;
+			qWarning() << "RtDenoiser: OptiX denoiser requested but its CUDA/OptiX context could not be initialized"
+				<< "- not falling back to OIDN (OptiX was explicitly requested); path-traced frames will use the"
+				<< "built-in bilateral fallback denoiser instead.";
+		}
+#else
+		qWarning() << "RtDenoiser: OptiX denoiser requested but this build has no OptiX SDK"
+			<< "(MODELVIEWER_HAVE_OPTIX not defined) - not falling back to OIDN; path-traced frames will use the"
+			<< "built-in bilateral fallback denoiser instead.";
+#endif
+		return;
+	}
 
 	// CPU-only: skip CUDA entirely, matching DenoiserDevicePreference::CPU's
 	// contract.
@@ -189,14 +427,26 @@ void RtDenoiser::initializeDevice()
 				<< " requested); path-traced frames will use the built-in bilateral fallback denoiser instead.";
 		}
 	}
-	// Auto (default): try CUDA first - a plain denoising speedup on an
-	// NVIDIA GPU, entirely independent of this app's CPU Embree ray tracing.
-	// Requires only a working NVIDIA driver at runtime, not the CUDA Toolkit
-	// (see the vcpkg overlay port comment) - falls through to CPU (logging
-	// why) on any machine without a suitable NVIDIA GPU/driver, exactly like
-	// OIDN's own documented device-selection guidance.
+	// Auto (default): try native OptiX first - generally the best quality/
+	// performance on an RTX GPU, and (unlike the OIDN devices below) entirely
+	// independent of which render engine actually produced the frame, since
+	// RtDenoiser owns its own standalone OptixDeviceContext (see Impl::
+	// optixContext's doc comment) rather than reusing the path tracer's.
+	// Falls through to OIDN CUDA, then OIDN CPU, exactly like OIDN's own
+	// documented device-selection guidance, on any machine without OptiX/a
+	// suitable NVIDIA GPU-driver.
+#ifdef MODELVIEWER_HAVE_OPTIX
+	else if (initializeOptixDenoiserContext(_impl->optixContext))
+	{
+		_impl->deviceValid = true;
+		_impl->useNativeOptixDenoiser = true;
+	}
+#endif
 	else
 	{
+#ifdef MODELVIEWER_HAVE_OPTIX
+		_impl->optixContext = nullptr;
+#endif
 		std::string cudaFailureReason;
 		if (tryInitDevice(oidn::DeviceType::CUDA, _impl->device, &cudaFailureReason))
 		{
@@ -226,6 +476,8 @@ void RtDenoiser::initializeDevice()
 			qWarning() << "RtDenoiser: OIDN failed to initialize on the requested device(s)"
 				<< "- path-traced frames will use a lower-quality built-in bilateral fallback denoiser instead.";
 	}
+	else if (_impl->useNativeOptixDenoiser)
+		qInfo() << "RtDenoiser: using native OptiX denoiser for path-traced frame denoising.";
 	else
 		qInfo() << "RtDenoiser: using OIDN" << activeDeviceName() << "device for path-traced frame denoising.";
 }
@@ -245,6 +497,8 @@ DenoiserDevicePreference RtDenoiser::devicePreference() const
 
 const char* RtDenoiser::activeDeviceName() const
 {
+	if (_impl->useNativeOptixDenoiser)
+		return "OptiX";
 	if (!_impl->deviceValid)
 		return "none (bilateral fallback)";
 	return _impl->isSharedMemoryDevice ? "CPU" : "CUDA";
@@ -258,6 +512,29 @@ bool RtDenoiser::denoise(const std::vector<glm::vec3>& input, int width, int hei
 	    input.size() != static_cast<size_t>(width) * static_cast<size_t>(height))
 	{
 		output = input;
+		return false;
+	}
+
+	if (_impl->useNativeOptixDenoiser)
+	{
+#ifdef MODELVIEWER_HAVE_OPTIX
+		QElapsedTimer optixTimer;
+		optixTimer.start();
+		if (denoiseWithOptix(input, width, height, output, albedo, normal))
+		{
+			qInfo() << "RtDenoiser: OptiX native denoise of" << width << "x" << height
+				<< "took" << optixTimer.elapsed() << "ms";
+			return true;
+		}
+		static bool loggedOptixFailureOnce = false;
+		if (!loggedOptixFailureOnce)
+		{
+			qWarning() << "RtDenoiser: OptiX native denoiser failed - falling back to the built-in bilateral"
+				<< "denoiser (logged once).";
+			loggedOptixFailureOnce = true;
+		}
+#endif
+		bilateralFallbackDenoise(input, width, height, output, sampleCount);
 		return false;
 	}
 

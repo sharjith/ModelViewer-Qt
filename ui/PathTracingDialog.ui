@@ -37,12 +37,17 @@
           <widget class="QComboBox" name="comboBoxRenderEngine">
            <item>
             <property name="text">
-             <string>CPU (Embree)</string>
+             <string>Auto</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>GPU (OptiX)</string>
+             <string>Embree (CPU)</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>OptiX (GPU)</string>
             </property>
            </item>
           </widget>
