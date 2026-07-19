@@ -9614,6 +9614,13 @@ void ViewportWidget::resetAnimationPose(const QString& sourceFile)
 		clearAnimatedMeshVisibilityState(sourceFile);
 	}
 
+	// Same reasoning as applyAnimationPose()'s identical call - resetting to
+	// bind pose/default material/visible-again is just as real a content
+	// change as animating away from it, and this function is what
+	// applyAnimationPose() itself calls (then returns immediately) whenever
+	// clipIndex < 0, so without this call here a PT session would never
+	// learn a "reset" happened at all.
+	notifyPathTracedSceneMutated();
 	update();
 }
 
@@ -9669,20 +9676,18 @@ void ViewportWidget::updateAnimatedMeshState(const QString& sourceFile,
 	for (SceneNode* child : fileNode->children)
 		applyToMeshes(child);
 
-	// Every mutation above (setSceneRenderTransformFast()'s rigid node
-	// transform, setJointPalette()'s per-frame skinning pose) feeds directly
-	// into RtSceneBuilder::convertGeometry()'s next flatten pass, but nothing
-	// here previously told the path tracer that had happened - a PT session
-	// left running while an animation played kept showing whatever pose was
-	// baked into its last-built snapshot, visually at odds with the raster
-	// mesh now actively moving underneath/behind it. notifyPathTracedSceneMutated()
-	// falls back to the live raster feed immediately and restarts the settle
-	// countdown - called every tick during active playback, so PT simply
-	// defers to raster for the whole animation (the countdown keeps getting
-	// reset) and only rebuilds once the pose actually stops changing, exactly
-	// like the existing camera-interaction pattern already relies on to avoid
-	// a full scene rebuild on every single frame of continuous movement.
-	notifyPathTracedSceneMutated();
+	// Mutations above (setSceneRenderTransformFast()'s rigid node transform,
+	// setJointPalette()'s per-frame skinning pose) feed directly into
+	// RtSceneBuilder::convertGeometry()'s next flatten pass - PT invalidation
+	// for these, and for every OTHER animation-driven mutation this same
+	// tick may also apply (morph weights, KHR_animation_pointer material/UV
+	// changes, node visibility, light transforms, camera), is now handled
+	// once at the end of applyAnimationPose()/resetAnimationPose() instead
+	// of narrowly here (this function's own hasNodeAnimations||hasSkinning
+	// guard above previously meant a pointer-only or morph-only clip - no
+	// node/skinning channels at all - never invalidated PT, even though
+	// applyAnimatedMaterialChanges()/applyMorphTargetWeights() etc. were
+	// still visibly changing the raster mesh underneath it).
 }
 
 void ViewportWidget::applyNodeTransformsToMeshes(
@@ -9888,6 +9893,19 @@ void ViewportWidget::applyAnimationPose(const QString& sourceFile, int clipIndex
 	applyAnimatedCamera(sourceFile, runtime, mutableSample);
 	if (animationAffectsShadowCasters)
 		_renderCtrl.setShadowMapNeedsInitialization(true);
+
+	// Covers every category the calls above may have just changed - node/
+	// skinning transforms, morph target weights, KHR_animation_pointer
+	// material/UV-transform values, node visibility, light transforms/
+	// visibility, camera parameters - falling back to the live raster feed
+	// immediately and restarting the settle countdown (see
+	// notifyPathTracedSceneMutated()'s own doc comment) so a PT session left
+	// running during playback defers to raster for the whole animation and
+	// only rebuilds once every animated property actually stops changing.
+	// Called unconditionally (not gated on which specific channels this clip
+	// has) since this function already only runs when a clip is genuinely
+	// being sampled/applied.
+	notifyPathTracedSceneMutated();
 	update();
 }
 
