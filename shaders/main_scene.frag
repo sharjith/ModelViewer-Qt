@@ -3234,7 +3234,11 @@ vec3 composeLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in Layer
 
 vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params)
 {
-	if (!useIBL || !envMapEnabled || length(params.sheenColor) <= 0.0)
+	// envMapEnabled deliberately NOT checked here - that flag is the legacy
+	// floor/ground ADS reflection toggle (shadeBlinnPhong()'s own separate
+	// "ADS reflection with exposure" block), unrelated to this KHR PBR path's
+	// IBL lighting - useIBL alone is the real IBL master switch.
+	if (!useIBL || length(params.sheenColor) <= 0.0)
 	{
 		return vec3(0.0);
 	}
@@ -3502,12 +3506,12 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 		f_diffuse = mix(f_diffuse, diffuseTransmissionIBL, params.diffuseTransmissionFactor);
 	}
 
-	if (!envMapEnabled)
-	{
-		diffuseIBLOut = f_diffuse * params.ambientOcclusion;
-		return;
-	}
-
+	// envMapEnabled deliberately NOT checked here - see evaluateSheenIBL()'s
+	// identical doc comment. Always takes the full specular-reflection path
+	// below (folding f_diffuse into the combined diffuseIBLOut=0/
+	// specularIBLOut=mix(...) split-sum result near the end of this
+	// function) rather than the cheaper diffuse-only fallback this branch
+	// used to take whenever the unrelated floor/ground toggle was off.
 	vec3 R = reflect(frame.I, frame.N);
 	R = normalize(envMapRotationMatrix * R);
 	vec3 Rprefilter = toPrefilterDirection(R);
@@ -3623,7 +3627,8 @@ vec3 evaluateClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, in
 
 vec3 evaluateClearcoatIBL(in SurfaceFrame frame, in MaterialParams params)
 {
-	if (params.clearcoat <= 0.0 || !useIBL || !envMapEnabled)
+	// envMapEnabled deliberately NOT checked here - see evaluateSheenIBL()'s doc comment.
+	if (params.clearcoat <= 0.0 || !useIBL)
 	{
 		return vec3(0.0);
 	}
@@ -4036,7 +4041,8 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 		iblSheenScaling = 1.0 - sheenStrength * min(E_charlie, E_sheen);
 	}
 
-	if (useIBL && envMapEnabled && length(params.sheenColor) > 0.0)
+	// envMapEnabled deliberately NOT checked here - see evaluateSheenIBL()'s doc comment.
+	if (useIBL && length(params.sheenColor) > 0.0)
 	{
 		layers.sheenIBL = evaluateSheenIBL(frame, params);
 	}

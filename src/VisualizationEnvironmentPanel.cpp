@@ -250,8 +250,15 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	bool gammaEnabled = ui->checkBoxGammaCorrection->isChecked();
 	bool skyBoxHDRIEnabled = skyBoxEnabled && ui->checkBoxSkyBoxHDRI->isChecked();
 	bool floorTextureEnabled = floorEnabled && ui->checkBoxFloorTexture->isChecked();
+	bool adsMode = _viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
 
-	// Skybox dependencies	
+	// Environment Mapping (ADS) - legacy shadeBlinnPhong() reflection term
+	// only, unrelated to Environment IBL's KHR PBR lighting (see
+	// evaluateSheenIBL()'s doc comment in main_scene.frag) - only meaningful
+	// while ADS is the active shading model.
+	ui->checkBoxEnvMapping->setEnabled(adsMode);
+
+	// Skybox dependencies
 	ui->labelSkyBoxBlur->setEnabled(skyBoxEnabled);
 	ui->sliderSkyBoxBlur->setEnabled(skyBoxEnabled);
 	ui->labelSkyBoxBlurValue->setEnabled(skyBoxEnabled);

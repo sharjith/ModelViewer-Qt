@@ -589,6 +589,16 @@
            </widget>
           </item>
           <item>
+           <widget class="QCheckBox" name="checkBoxEnvMapping">
+            <property name="toolTip">
+             <string>Legacy ADS (Blinn-Phong) reflection term - only meaningful in ADS shading mode. Unrelated to Environment IBL, which lights PBR materials in both ADS and PBR modes.</string>
+            </property>
+            <property name="text">
+             <string>Environment Mapping (ADS)</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QGroupBox" name="groupBoxShadows">
             <property name="title">
              <string>Shadows</string>
@@ -762,13 +772,6 @@
                 <widget class="QCheckBox" name="checkBoxReflections">
                  <property name="text">
                   <string>Reflections</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QCheckBox" name="checkBoxEnvMapping">
-                 <property name="text">
-                  <string>Environment Mapping</string>
                  </property>
                 </widget>
                </item>
