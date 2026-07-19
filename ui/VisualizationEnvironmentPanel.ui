@@ -247,6 +247,22 @@
                 </property>
                </widget>
               </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="labelLightPosXValue">
+                <property name="minimumSize">
+                 <size>
+                  <width>56</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>0.00</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
               <item row="1" column="0">
                <widget class="QLabel" name="labelLightY">
                 <property name="text">
@@ -270,6 +286,22 @@
                 </property>
                </widget>
               </item>
+              <item row="1" column="2">
+               <widget class="QLabel" name="labelLightPosYValue">
+                <property name="minimumSize">
+                 <size>
+                  <width>56</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>0.00</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
               <item row="2" column="0">
                <widget class="QLabel" name="labelLightZ">
                 <property name="text">
@@ -290,6 +322,22 @@
                 </property>
                 <property name="orientation">
                  <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+               </widget>
+              </item>
+              <item row="2" column="2">
+               <widget class="QLabel" name="labelLightPosZValue">
+                <property name="minimumSize">
+                 <size>
+                  <width>56</width>
+                  <height>0</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string>0.00</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignVCenter</set>
                 </property>
                </widget>
               </item>

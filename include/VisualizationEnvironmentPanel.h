@@ -177,6 +177,38 @@ private:
 	qreal   _lightTreeDragStartY   = 0.0;
 	int     _lightTreeDragStartH   = 0;
 
+	// sliderLightPosX/Y/Z used to treat one integer slider tick as one whole
+	// world-space unit of light offset (the slider's own int min/max WAS the
+	// offset value, no conversion at all) - fine for typically-scaled models,
+	// but a tiny glTF/GLB (bounding sphere radius a fraction like 0.05-0.1)
+	// made updateLightPositionRanges()'s static_cast<int>(range) truncate
+	// to 0, collapsing the slider's min/max to the same value and making it
+	// completely dead - and even short of that collapse, one-unit-per-tick
+	// is far too coarse a step for a model that small. Each axis's slider
+	// now always spans a FIXED integer tick count (kLightSliderSteps below,
+	// in VisualizationEnvironmentPanel.cpp) regardless of model scale, with
+	// the actual real-world min value and per-tick step size recorded here -
+	// see sliderTickToOffset()/offsetToSliderTick(). This also fixes the
+	// opposite, previously-unnoticed problem for very LARGE models, which
+	// got the same overly-coarse one-unit-per-tick granularity at the other
+	// extreme.
+	struct LightAxisSliderMapping
+	{
+		float floatMin = -1.0f;
+		float unitsPerTick = 1.0f;
+	};
+	LightAxisSliderMapping _lightPosXMapping;
+	LightAxisSliderMapping _lightPosYMapping;
+	LightAxisSliderMapping _lightPosZMapping;
+
+	float sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const;
+	int offsetToSliderTick(const LightAxisSliderMapping& mapping, float offsetValue) const;
+
+	// Refreshes labelLightPosXValue/YValue/ZValue from the sliders' current
+	// tick + mapping state - called after any slider move (user drag or
+	// programmatic setValue()) so the numeric readout never goes stale.
+	void updateLightPositionValueLabels();
+
 protected:
 	bool eventFilter(QObject* watched, QEvent* event) override;
 };

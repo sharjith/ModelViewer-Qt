@@ -17,6 +17,16 @@
 #include <QMouseEvent>
 #include <QTreeWidget>
 
+#include <algorithm>
+#include <cmath>
+
+namespace
+{
+	// Fixed slider tick resolution for the Default Light Position sliders -
+	// see LightAxisSliderMapping's doc comment in the header.
+	constexpr int kLightSliderSteps = 1000;
+}
+
 VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 	: QWidget(parent),
 	_modelViewer(nullptr),
@@ -337,21 +347,29 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	ui->sliderLightPosY->blockSignals(true);
 	ui->sliderLightPosZ->blockSignals(true);
 
+	// (max+min)/2 is still the right midpoint tick regardless of model scale
+	// (the slider's int range is now always [0, kLightSliderSteps] - see
+	// LightAxisSliderMapping's doc comment in the header), but the Z default
+	// below is expressed in real-world offset units, not ticks, so it needs
+	// offsetToSliderTick() rather than a direct setValue().
 	ui->sliderLightPosX->setValue((ui->sliderLightPosX->maximum() + ui->sliderLightPosX->minimum()) / 2);
 	ui->sliderLightPosY->setValue((ui->sliderLightPosY->maximum() + ui->sliderLightPosY->minimum()) / 2);
 
-	float range = _viewportWidget->getBoundingSphere().getRadius() * 4.0f;
-	ui->sliderLightPosZ->setValue(static_cast<int>((-range / 3 + range / 2) / 2));
+	const float range = _viewportWidget->getBoundingSphere().getRadius() * 4.0f;
+	const float defaultZOffset = (-range / 3.0f + range / 2.0f) / 2.0f;
+	ui->sliderLightPosZ->setValue(offsetToSliderTick(_lightPosZMapping, defaultZOffset));
 
 	ui->sliderLightPosX->blockSignals(false);
 	ui->sliderLightPosY->blockSignals(false);
 	ui->sliderLightPosZ->blockSignals(false);
 
+	updateLightPositionValueLabels();
+
 	// Manually update light offset
 	_viewportWidget->setLightOffset(QVector3D(
-		static_cast<float>(ui->sliderLightPosX->value()),
-		static_cast<float>(ui->sliderLightPosY->value()),
-		static_cast<float>(ui->sliderLightPosZ->value())));
+		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
+		sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
+		sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
 
 	// Set lighting checkboxes - block signals during set
 	ui->checkBoxDefaultLights->blockSignals(true);
@@ -384,9 +402,10 @@ void VisualizationEnvironmentPanel::onLightPosXChanged(int value)
 		return;
 
 	_viewportWidget->setLightOffset(QVector3D(
-		static_cast<float>(ui->sliderLightPosX->value()),
-		static_cast<float>(ui->sliderLightPosY->value()),
-		static_cast<float>(ui->sliderLightPosZ->value())));
+		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
+		sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
+		sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
+	updateLightPositionValueLabels();
 	_viewportWidget->updateView();
 }
 
@@ -396,9 +415,10 @@ void VisualizationEnvironmentPanel::onLightPosYChanged(int value)
 		return;
 
 	_viewportWidget->setLightOffset(QVector3D(
-		static_cast<float>(ui->sliderLightPosX->value()),
-		static_cast<float>(ui->sliderLightPosY->value()),
-		static_cast<float>(ui->sliderLightPosZ->value())));
+		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
+		sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
+		sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
+	updateLightPositionValueLabels();
 	_viewportWidget->updateView();
 }
 
@@ -408,9 +428,10 @@ void VisualizationEnvironmentPanel::onLightPosZChanged(int value)
 		return;
 
 	_viewportWidget->setLightOffset(QVector3D(
-		static_cast<float>(ui->sliderLightPosX->value()),
-		static_cast<float>(ui->sliderLightPosY->value()),
-		static_cast<float>(ui->sliderLightPosZ->value())));
+		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
+		sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
+		sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
+	updateLightPositionValueLabels();
 	_viewportWidget->updateView();
 }
 
@@ -1110,33 +1131,62 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 	if (!ui)
 		return;
 
-	// Update X slider
-	ui->sliderLightPosX->blockSignals(true);
-	ui->sliderLightPosX->setRange(static_cast<int>(-range), static_cast<int>(range - offset));
-	ui->sliderLightPosX->setValue((ui->sliderLightPosX->maximum() + ui->sliderLightPosX->minimum()) / 2);
-	ui->sliderLightPosX->blockSignals(false);
+	// X/Y span [-range, range-offset]; Z spans [-range/3, range/2] - the
+	// same real-world float ranges this function has always used, just no
+	// longer cast directly onto the slider's own int min/max (see
+	// LightAxisSliderMapping's doc comment in the header for why - a tiny
+	// model's range/offset are both well under 1.0, which used to truncate
+	// to a dead 0..0 slider). Each slider always gets kLightSliderSteps
+	// ticks of resolution regardless of how small or large that float range
+	// actually is.
+	auto configureAxis = [](QSlider* slider, LightAxisSliderMapping& mapping, float floatMin, float floatMax)
+	{
+		mapping.floatMin = floatMin;
+		mapping.unitsPerTick = (floatMax - floatMin) / static_cast<float>(kLightSliderSteps);
+		slider->blockSignals(true);
+		slider->setRange(0, kLightSliderSteps);
+		slider->setValue(kLightSliderSteps / 2); // same real-world midpoint the old (max+min)/2 reset to
+		slider->blockSignals(false);
+	};
 
-	// Update Y slider
-	ui->sliderLightPosY->blockSignals(true);
-	ui->sliderLightPosY->setRange(static_cast<int>(-range), static_cast<int>(range - offset));
-	ui->sliderLightPosY->setValue((ui->sliderLightPosY->maximum() + ui->sliderLightPosY->minimum()) / 2);
-	ui->sliderLightPosY->blockSignals(false);
+	configureAxis(ui->sliderLightPosX, _lightPosXMapping, -range, range - offset);
+	configureAxis(ui->sliderLightPosY, _lightPosYMapping, -range, range - offset);
+	configureAxis(ui->sliderLightPosZ, _lightPosZMapping, -range / 3.0f, range / 2.0f);
 
-	// Update Z slider
-	ui->sliderLightPosZ->blockSignals(true);
-	ui->sliderLightPosZ->setRange(static_cast<int>(-range / 3), static_cast<int>(range / 2));
-	ui->sliderLightPosZ->setValue((ui->sliderLightPosZ->maximum() + ui->sliderLightPosZ->minimum()) / 2);
-	ui->sliderLightPosZ->blockSignals(false);
+	updateLightPositionValueLabels();
 
 	// Manually trigger light offset update
 	if (_viewportWidget)
 	{
 		_viewportWidget->setLightOffset(QVector3D(
-			static_cast<float>(ui->sliderLightPosX->value()),
-			static_cast<float>(ui->sliderLightPosY->value()),
-			static_cast<float>(ui->sliderLightPosZ->value())));
+			sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
+			sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
+			sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
 		_viewportWidget->updateView();
 	}
+}
+
+float VisualizationEnvironmentPanel::sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const
+{
+	return mapping.floatMin + static_cast<float>(tick) * mapping.unitsPerTick;
+}
+
+int VisualizationEnvironmentPanel::offsetToSliderTick(const LightAxisSliderMapping& mapping, float offsetValue) const
+{
+	if (mapping.unitsPerTick <= 0.0f)
+		return 0;
+	const int tick = static_cast<int>(std::lround((offsetValue - mapping.floatMin) / mapping.unitsPerTick));
+	return std::clamp(tick, 0, kLightSliderSteps);
+}
+
+void VisualizationEnvironmentPanel::updateLightPositionValueLabels()
+{
+	if (!ui)
+		return;
+
+	ui->labelLightPosXValue->setText(QString::number(sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()), 'f', 2));
+	ui->labelLightPosYValue->setText(QString::number(sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()), 'f', 2));
+	ui->labelLightPosZValue->setText(QString::number(sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value()), 'f', 2));
 }
 
 void VisualizationEnvironmentPanel::setDetached(bool detached)
@@ -1165,17 +1215,13 @@ void VisualizationEnvironmentPanel::restoreDefaultLightOffset(const QVector3D& o
 	if (!ui || !_viewportWidget)
 		return;
 
-	// Clamp to the current slider range so a stale saved value doesn't
-	// produce a slider stuck against the wall after the range was re-scaled.
-	const int x = qBound(ui->sliderLightPosX->minimum(),
-	                      static_cast<int>(offset.x()),
-	                      ui->sliderLightPosX->maximum());
-	const int y = qBound(ui->sliderLightPosY->minimum(),
-	                      static_cast<int>(offset.y()),
-	                      ui->sliderLightPosY->maximum());
-	const int z = qBound(ui->sliderLightPosZ->minimum(),
-	                      static_cast<int>(offset.z()),
-	                      ui->sliderLightPosZ->maximum());
+	// offsetToSliderTick() already clamps to [0, kLightSliderSteps] - covers
+	// the same "stale saved value after the range was re-scaled" case the
+	// old qBound() calls handled, just in tick space instead of raw offset
+	// units now that a tick no longer equals one world-space unit.
+	const int x = offsetToSliderTick(_lightPosXMapping, offset.x());
+	const int y = offsetToSliderTick(_lightPosYMapping, offset.y());
+	const int z = offsetToSliderTick(_lightPosZMapping, offset.z());
 
 	ui->sliderLightPosX->blockSignals(true);
 	ui->sliderLightPosY->blockSignals(true);
@@ -1187,7 +1233,10 @@ void VisualizationEnvironmentPanel::restoreDefaultLightOffset(const QVector3D& o
 	ui->sliderLightPosY->blockSignals(false);
 	ui->sliderLightPosZ->blockSignals(false);
 
-	_viewportWidget->setLightOffset(QVector3D(static_cast<float>(x),
-	                                    static_cast<float>(y),
-	                                    static_cast<float>(z)));
+	updateLightPositionValueLabels();
+
+	_viewportWidget->setLightOffset(QVector3D(
+		sliderTickToOffset(_lightPosXMapping, x),
+		sliderTickToOffset(_lightPosYMapping, y),
+		sliderTickToOffset(_lightPosZMapping, z)));
 }
