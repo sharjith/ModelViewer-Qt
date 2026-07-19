@@ -264,6 +264,28 @@ namespace
 bool RtDenoiser::denoiseWithOptix(const std::vector<glm::vec3>& input, int width, int height,
 	std::vector<glm::vec3>& output, const std::vector<glm::vec3>* albedo, const std::vector<glm::vec3>* normal)
 {
+	// CUDA's "current context" is per-OS-thread state, but this function can
+	// be called from any of several different threads depending on which
+	// engine is active: the main/GUI thread (offline render path), the GPU
+	// (OptiX) path tracer's own worker thread, or the CPU (Embree) path
+	// tracer's worker thread. _impl->optixContext was created once, on
+	// whichever thread happened to call setDevicePreference()/initializeDevice()
+	// (typically the main thread) - a later call from a DIFFERENT thread that
+	// has never made any CUDA call before has no context attached to it at
+	// all yet, and optixDenoiserCreate() below fails immediately with
+	// CUDA_ERROR_INVALID_CONTEXT (201) in that case. The GPU engine's worker
+	// thread happens to dodge this by accident (RtOptixSceneTracer::renderScene()
+	// already made plenty of its own CUDA calls on that same thread earlier in
+	// the same iteration, which attaches a context as a side effect) - the CPU
+	// engine's worker thread never touches CUDA otherwise, so this was the
+	// first CUDA call on that thread and always failed. cudaFree(0) is this
+	// codebase's established idiom (see RtOptixContext.cpp/RtOptixSceneTracer.cpp)
+	// for forcing the primary context to exist AND be current on the CALLING
+	// thread - cheap/idempotent if already attached, so safe to call
+	// unconditionally on every invocation regardless of which thread this is.
+	if (!cudaOk(cudaFree(0), "cudaFree(0)"))
+		return false;
+
 	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
 	const size_t byteSize = pixelCount * sizeof(float3);
 	const bool haveGuides = albedo && normal && albedo->size() == pixelCount && normal->size() == pixelCount;
