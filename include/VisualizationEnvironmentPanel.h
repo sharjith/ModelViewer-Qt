@@ -48,6 +48,15 @@ public:
 	// Clamps to the current slider range so stale values are handled gracefully.
 	void restoreDefaultLightOffset(const QVector3D& offset);
 
+	// Re-syncs checkBoxShadowMapping/checkBoxSelfShadows to match the
+	// viewport's actual current state without re-emitting toggled() (which
+	// would just call back into onShadowMappingStateChanged()/
+	// onSelfShadowsChanged() and redundantly re-apply the same value) -
+	// lets PathTracingDialog's own Shadows/Self Shadows checkboxes (a
+	// convenience mirror of this same viewport-wide state) push a change
+	// back to this panel when the user toggles them there instead of here.
+	void syncShadowCheckboxes(bool shadowsEnabled, bool selfShadowsEnabled);
+
 	bool isDetached() { return _detached; }
 	void setDetached(bool detached);
 

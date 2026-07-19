@@ -12696,6 +12696,7 @@ void ViewportWidget::loadPathTracingSettingsFromDisk()
 	_ptFireflyClampThreshold = settings.value("pathtracing/fireflyClamp", _ptFireflyClampThreshold).toFloat();
 	_ptMaxTransmissionBounces = settings.value("pathtracing/maxTransmissionBounces", _ptMaxTransmissionBounces).toInt();
 	_ptRussianRouletteStartDepth = settings.value("pathtracing/russianRouletteDepth", _ptRussianRouletteStartDepth).toInt();
+	_ptMaxShadowRayHits = settings.value("pathtracing/maxShadowRayHits", _ptMaxShadowRayHits).toInt();
 	_ptEnvImportanceSamplingEnabled = settings.value("pathtracing/envImportanceSampling", _ptEnvImportanceSamplingEnabled).toBool();
 	_ptDenoiserDevicePreference = static_cast<DenoiserDevicePreference>(
 		settings.value("pathtracing/denoiserDevicePreference", static_cast<int>(_ptDenoiserDevicePreference)).toInt());
@@ -12957,6 +12958,7 @@ void ViewportWidget::startPathTracedSession()
 		settings.maxTransmissionBounces             = _ptMaxTransmissionBounces;
 		settings.russianRouletteStartDepth          = _ptRussianRouletteStartDepth;
 		settings.enableEnvironmentImportanceSampling = _ptEnvImportanceSamplingEnabled;
+		settings.maxShadowRayHits                   = _ptMaxShadowRayHits;
 		_rtSession.setTracerSettings(settings);
 	}
 	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
@@ -13075,6 +13077,7 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 	settings.maxTransmissionBounces              = _ptMaxTransmissionBounces;
 	settings.russianRouletteStartDepth           = _ptRussianRouletteStartDepth;
 	settings.enableEnvironmentImportanceSampling = _ptEnvImportanceSamplingEnabled;
+	settings.maxShadowRayHits                    = _ptMaxShadowRayHits;
 	tracer.setSettings(settings);
 
 	RtFrameAccumulator accumulator;

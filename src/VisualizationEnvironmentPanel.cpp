@@ -721,6 +721,23 @@ void VisualizationEnvironmentPanel::onSelfShadowsChanged(bool checked)
 	_viewportWidget->updateView();
 }
 
+void VisualizationEnvironmentPanel::syncShadowCheckboxes(bool shadowsEnabled, bool selfShadowsEnabled)
+{
+	if (shadowsEnabled != ui->checkBoxShadowMapping->isChecked())
+	{
+		ui->checkBoxShadowMapping->blockSignals(true);
+		ui->checkBoxShadowMapping->setChecked(shadowsEnabled);
+		ui->checkBoxShadowMapping->blockSignals(false);
+	}
+	if (selfShadowsEnabled != ui->checkBoxSelfShadows->isChecked())
+	{
+		ui->checkBoxSelfShadows->blockSignals(true);
+		ui->checkBoxSelfShadows->setChecked(selfShadowsEnabled);
+		ui->checkBoxSelfShadows->blockSignals(false);
+	}
+	updateControlDependencies(); // keeps checkBoxSelfShadows/labelShadowQuality/comboBoxShadowQuality's enabled state matching checkBoxShadowMapping, same as onShadowMappingStateChanged()
+}
+
 void VisualizationEnvironmentPanel::onShadowQualityChanged(int index)
 {
 	if (!_viewportWidget)

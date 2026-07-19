@@ -62,7 +62,10 @@ private slots:
 	void onFireflyClampChanged(double value);
 	void onMaxTransmissionBouncesChanged(int value);
 	void onRussianRouletteDepthChanged(int value);
+	void onMaxShadowRayHitsChanged(int value);
 	void onEnvImportanceSamplingToggled(bool checked);
+	void onShadowsToggled(bool checked);
+	void onSelfShadowsToggled(bool checked);
 	void onRenderClicked();
 	void onStopClicked();
 	void onExportClicked();
@@ -91,6 +94,13 @@ private:
 	void updateResolutionWarning(); // shows/hides labelResolutionWarning + adjustSize() on change, mirrors labelOrthoThinWallWarning's pattern
 	void populateResolutionPresets();
 	void syncResolutionPresetFromSpinboxes(); // selects the matching preset (or "Custom") after a manual width/height edit
+
+	// Enables/disables spinBoxMaxShadowRayHits (and its label) based on
+	// whether the CPU (Embree) engine is the one actually active right now -
+	// see CpuPathTracer::Settings::maxShadowRayHits' doc comment for why this
+	// setting has no effect at all on the OptiX (GPU) engine. Called from the
+	// constructor and whenever comboBoxRenderEngine changes.
+	void updateMaxShadowRayHitsEnabled();
 
 	// Populates the Diagnostics tab from ViewportWidget::pathTracingDiagnostics().
 	// Called from onProgressTimer() but gated there on the Diagnostics tab

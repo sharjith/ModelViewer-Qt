@@ -2330,11 +2330,11 @@ namespace
 	// through transmissive hits rather than refracting - an approximation
 	// for volumetric surfaces that real reference renderers (DS included,
 	// per this app's own research) also don't fully solve for shadow rays.
-	glm::vec3 traceShadowRay(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot, RtRay ray, Rng& rng)
+	glm::vec3 traceShadowRay(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot, RtRay ray, Rng& rng,
+		int maxShadowRayHits)
 	{
 		glm::vec3 transmittance(1.0f);
-		constexpr int kMaxShadowRayHits = 8;
-		for (int i = 0; i < kMaxShadowRayHits; ++i)
+		for (int i = 0; i < maxShadowRayHits; ++i)
 		{
 			const RtHit hit = scene.intersect(ray);
 			if (!hit.hit)
@@ -3230,7 +3230,7 @@ namespace
 						backShadowRay.tFar = lightDistance - 2.0f * eps;
 						backShadowRay.mask = shadowRayMask;
 						const glm::vec3 backTransmittance = snapshot.shadowsEnabled
-							? traceShadowRay(scene, snapshot, backShadowRay, rng)
+							? traceShadowRay(scene, snapshot, backShadowRay, rng, settings.maxShadowRayHits)
 							: glm::vec3(1.0f);
 
 						if (kDebugVisualizeShadowTransmittance && isPrimaryHitForShadowDebug && light.range >= 0.0f)
@@ -3268,7 +3268,7 @@ namespace
 				shadowRay.tFar = lightDistance - 2.0f * eps;
 				shadowRay.mask = shadowRayMask;
 				glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
-					? traceShadowRay(scene, snapshot, shadowRay, rng)
+					? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
 					: glm::vec3(1.0f);
 
 				if (kDebugVisualizeShadowTransmittance && isPrimaryHitForShadowDebug && light.range >= 0.0f)
@@ -3367,7 +3367,7 @@ namespace
 					envShadowRay.tFar = 1e6f; // environment is "at infinity" - no light-distance limit
 					envShadowRay.mask = shadowRayMask;
 					const glm::vec3 envTransmittance = snapshot.shadowsEnabled
-						? traceShadowRay(scene, snapshot, envShadowRay, rng)
+						? traceShadowRay(scene, snapshot, envShadowRay, rng, settings.maxShadowRayHits)
 						: glm::vec3(1.0f);
 
 					if (envTransmittance != glm::vec3(0.0f))

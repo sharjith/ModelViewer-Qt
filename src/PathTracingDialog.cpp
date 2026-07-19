@@ -3,6 +3,7 @@
 
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
+#include "VisualizationEnvironmentPanel.h"
 #include "RtTonemap.h"
 
 #include <QTimer>
@@ -180,9 +181,18 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 		ui->doubleSpinBoxFireflyClamp->setValue(static_cast<double>(viewport->pathTracingFireflyClampThreshold()));
 		ui->spinBoxMaxTransmissionBounces->setValue(viewport->pathTracingMaxTransmissionBounces());
 		ui->spinBoxRussianRouletteDepth->setValue(viewport->pathTracingRussianRouletteStartDepth());
+		ui->spinBoxMaxShadowRayHits->setValue(viewport->pathTracingMaxShadowRayHits());
 		ui->checkBoxEnvImportanceSampling->setChecked(viewport->pathTracingEnvImportanceSamplingEnabled());
+		// Shadows/Self Shadows are NOT owned by this dialog (or persisted via
+		// its "pathtracing/*" QSettings keys) - they're the same viewport-wide
+		// toggles the main Environment panel already controls. This is just a
+		// convenience mirror, kept in sync with whichever panel changed them
+		// last via onProgressTimer()'s poll (see its own comment).
+		ui->checkBoxShadows->setChecked(viewport->areShadowsEnabled());
+		ui->checkBoxSelfShadows->setChecked(viewport->areSelfShadowsEnabled());
 		ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
 		ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(viewport->pathTracingEnginePreference()));
+		updateMaxShadowRayHitsEnabled();
 
 		// Export resolution defaults fresh to the CURRENT viewport size every
 		// time the dialog opens (not persisted via QSettings like the other
@@ -204,7 +214,10 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 	connect(ui->doubleSpinBoxFireflyClamp, &QDoubleSpinBox::valueChanged, this, &PathTracingDialog::onFireflyClampChanged);
 	connect(ui->spinBoxMaxTransmissionBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxTransmissionBouncesChanged);
 	connect(ui->spinBoxRussianRouletteDepth, &QSpinBox::valueChanged, this, &PathTracingDialog::onRussianRouletteDepthChanged);
+	connect(ui->spinBoxMaxShadowRayHits, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxShadowRayHitsChanged);
 	connect(ui->checkBoxEnvImportanceSampling, &QCheckBox::toggled, this, &PathTracingDialog::onEnvImportanceSamplingToggled);
+	connect(ui->checkBoxShadows, &QCheckBox::toggled, this, &PathTracingDialog::onShadowsToggled);
+	connect(ui->checkBoxSelfShadows, &QCheckBox::toggled, this, &PathTracingDialog::onSelfShadowsToggled);
 	connect(ui->pushButtonRender, &QPushButton::clicked, this, &PathTracingDialog::onRenderClicked);
 	connect(ui->pushButtonStop, &QPushButton::clicked, this, &PathTracingDialog::onStopClicked);
 	connect(ui->pushButtonExport, &QPushButton::clicked, this, &PathTracingDialog::onExportClicked);
@@ -297,6 +310,7 @@ void PathTracingDialog::saveSettings()
 	settings.setValue("pathtracing/fireflyClamp", viewport->pathTracingFireflyClampThreshold());
 	settings.setValue("pathtracing/maxTransmissionBounces", viewport->pathTracingMaxTransmissionBounces());
 	settings.setValue("pathtracing/russianRouletteDepth", viewport->pathTracingRussianRouletteStartDepth());
+	settings.setValue("pathtracing/maxShadowRayHits", viewport->pathTracingMaxShadowRayHits());
 	settings.setValue("pathtracing/envImportanceSampling", viewport->pathTracingEnvImportanceSamplingEnabled());
 	settings.setValue("pathtracing/denoiserDevicePreference", static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
 	settings.setValue("pathtracing/enginePreference", static_cast<int>(viewport->pathTracingEnginePreference()));
@@ -331,6 +345,7 @@ void PathTracingDialog::onRenderEngineChanged(int index)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->setPathTracingEnginePreference(static_cast<RtPathTracingEnginePreference>(index));
+	updateMaxShadowRayHitsEnabled();
 }
 
 void PathTracingDialog::onFireflyClampChanged(double value)
@@ -351,10 +366,37 @@ void PathTracingDialog::onRussianRouletteDepthChanged(int value)
 		viewport->setPathTracingRussianRouletteStartDepth(value);
 }
 
+void PathTracingDialog::onMaxShadowRayHitsChanged(int value)
+{
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->setPathTracingMaxShadowRayHits(value);
+}
+
 void PathTracingDialog::onEnvImportanceSamplingToggled(bool checked)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->setPathTracingEnvImportanceSamplingEnabled(checked);
+}
+
+void PathTracingDialog::onShadowsToggled(bool checked)
+{
+	// Not a "pathtracing/*" setting of this dialog's own - see the
+	// constructor's identical comment on checkBoxShadows/checkBoxSelfShadows.
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->showShadows(checked);
+	// Push the change back to the main Environment panel's own checkboxes too -
+	// onProgressTimer()'s poll only pulls FROM the viewport into this dialog,
+	// it doesn't know to also push into that other, unrelated panel.
+	if (_modelViewer && _modelViewer->visualizationEnvironmentPanel)
+		_modelViewer->visualizationEnvironmentPanel->syncShadowCheckboxes(checked, ui->checkBoxSelfShadows->isChecked());
+}
+
+void PathTracingDialog::onSelfShadowsToggled(bool checked)
+{
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->showSelfShadows(checked);
+	if (_modelViewer && _modelViewer->visualizationEnvironmentPanel)
+		_modelViewer->visualizationEnvironmentPanel->syncShadowCheckboxes(ui->checkBoxShadows->isChecked(), checked);
 }
 
 void PathTracingDialog::onRenderClicked()
@@ -658,7 +700,10 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	ui->doubleSpinBoxFireflyClamp->setValue(3.0);
 	ui->spinBoxMaxTransmissionBounces->setValue(32);
 	ui->spinBoxRussianRouletteDepth->setValue(3);
+	ui->spinBoxMaxShadowRayHits->setValue(8);
 	ui->checkBoxEnvImportanceSampling->setChecked(true);
+	// Shadows/Self Shadows deliberately NOT reset here - not this dialog's
+	// own setting (see checkBoxShadows/checkBoxSelfShadows' doc comment).
 	ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(DenoiserDevicePreference::Auto));
 	ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(RtPathTracingEnginePreference::Auto));
 	// Each setValue()/setChecked() above already emitted its usual
@@ -753,6 +798,17 @@ void PathTracingDialog::syncResolutionPresetFromSpinboxes()
 	ui->comboBoxResolutionPreset->blockSignals(false);
 }
 
+void PathTracingDialog::updateMaxShadowRayHitsEnabled()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	const bool cpuActive = viewport->effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::CPU;
+	ui->labelMaxShadowRayHits->setEnabled(cpuActive);
+	ui->spinBoxMaxShadowRayHits->setEnabled(cpuActive);
+}
+
 void PathTracingDialog::updateResolutionWarning()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
@@ -842,6 +898,27 @@ void PathTracingDialog::onProgressTimer()
 	{
 		ui->labelOrthoThinWallWarning->setVisible(orthoWarningActive);
 		adjustSize();
+	}
+
+	// checkBoxShadows/checkBoxSelfShadows mirror viewport-wide state this
+	// dialog doesn't own (see their doc comment) - the main Environment panel
+	// can change it while this dialog is open, so re-sync every poll rather
+	// than only reading it once at construction. blockSignals() avoids
+	// re-entering onShadowsToggled()/onSelfShadowsToggled() and redundantly
+	// re-applying the same value back to the viewport every 200ms.
+	const bool shadowsEnabled = viewport->areShadowsEnabled();
+	if (shadowsEnabled != ui->checkBoxShadows->isChecked())
+	{
+		ui->checkBoxShadows->blockSignals(true);
+		ui->checkBoxShadows->setChecked(shadowsEnabled);
+		ui->checkBoxShadows->blockSignals(false);
+	}
+	const bool selfShadowsEnabled = viewport->areSelfShadowsEnabled();
+	if (selfShadowsEnabled != ui->checkBoxSelfShadows->isChecked())
+	{
+		ui->checkBoxSelfShadows->blockSignals(true);
+		ui->checkBoxSelfShadows->setChecked(selfShadowsEnabled);
+		ui->checkBoxSelfShadows->blockSignals(false);
 	}
 
 	// Re-checked every poll (not just on spinbox edits) since resizing the

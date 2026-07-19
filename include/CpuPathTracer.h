@@ -88,6 +88,19 @@ public:
 		// much the feature is actually helping on a given scene.
 		bool enableEnvironmentImportanceSampling = true;
 
+		// Caps how many consecutive transmissive/masked surfaces a single
+		// shadow ray walks through (traceShadowRay()'s bounded loop) before
+		// giving up and treating the light as occluded - matters for
+		// physically-plausible tinted shadows through several stacked panes
+		// of glass. GPU (OptiX) has no equivalent cap - its any-hit shader
+		// walks transmissive hits within a single optixTrace() call rather
+		// than a bounded host-side loop, and adding a matching limit there
+		// would mean spending one of the pipeline's fully-allocated 20
+		// payload registers, so this is CPU-only for now (see
+		// PathTracingDialog's Advanced tab, disabled while the GPU engine is
+		// active).
+		int maxShadowRayHits = 8;
+
 		// Debug-visualization toggles used to live here as Settings fields,
 		// but flipping a bool in a widely-included header like this one
 		// forced a full rebuild of every translation unit that includes
