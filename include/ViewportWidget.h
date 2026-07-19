@@ -133,6 +133,17 @@ public:
 	QVector<QUuid> duplicateObjects(const std::vector<int>& ids);
 
 	void updateFloorPlane();
+	// Extracted from updateFloorPlane() so setLightOffset() can also call it
+	// directly - the persistent PunctualLights fallback light (distinct from
+	// buildPathTracedSnapshot()'s own freshly-recomputed "keyLight"; see that
+	// function's doc comment) is otherwise only ever refreshed when
+	// updateFloorPlane() itself runs (scene load/resize/bounding-box change),
+	// leaving it stale at the OLD light-offset position after a slider drag
+	// while buildPathTracedSnapshot() still appends a second, correctly-
+	// positioned keyLight on top - two point lights, casting two visibly
+	// different shadow directions in CPU/GPU path tracing, neither of which
+	// is what raster's own single, always-live shadow shows.
+	void refreshFallbackLight();
 	void updateBoundingSphere();
 
 	void updateBoundingBox();
@@ -861,8 +872,25 @@ public slots:
 	bool isGammaCorrectionEnabled() const { return _renderCtrl.gammaCorrection(); }
 	HDRToneMapMode getHDRToneMappingMode() const { return _renderCtrl.toneMappingMode(); }
 	void showLights(bool showLights);
-	void useDefaultLights(bool useDefaultLights) { _renderCtrl.setUseDefaultLights(useDefaultLights); update(); }
-	void usePunctualLights(bool usePunctualLights) { _renderCtrl.setUsePunctualLights(usePunctualLights); update(); }
+	// notifyPathTracedSceneMutated() (NOT just resetPathTracedIdleTimer() -
+	// see that function's own doc comment): both feed buildPathTracedSnapshot()'s
+	// light list fresh on every call, which is enough for CPU (RtPathTracingSession::
+	// start() unconditionally rebuilds its Embree scene every restart), but
+	// RtOptixPathTracingSession::start() only re-uploads its lights buffer
+	// (inside buildScene()) when snapshot->revisionId actually changed - a
+	// bare idle-timer restart with the SAME revision reuses the GPU's stale
+	// lights buffer. Bumping the revision forces both engines to pick up the
+	// new light set. Toggling either previously only triggered a raster
+	// update(), leaving a path-traced session showing a stale frame with the
+	// old light set until some unrelated event (camera move, etc.) happened
+	// to restart it.
+	// refreshFallbackLight() re-evaluates the persistent PunctualLights
+	// fallback entry against the new useDefaultLights() value (see its own
+	// doc comment) - without this call, toggling the checkbox never
+	// created/cleared that entry at all, only ever affecting
+	// buildPathTracedSnapshot()'s separately-recomputed keyLight.
+	void useDefaultLights(bool useDefaultLights) { _renderCtrl.setUseDefaultLights(useDefaultLights); refreshFallbackLight(); notifyPathTracedSceneMutated(); update(); }
+	void usePunctualLights(bool usePunctualLights) { _renderCtrl.setUsePunctualLights(usePunctualLights); notifyPathTracedSceneMutated(); update(); }
 
 	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
 	// sync the hasPunctualLights / lightCount shader uniforms in one call.

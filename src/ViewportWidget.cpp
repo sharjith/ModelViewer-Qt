@@ -1544,6 +1544,23 @@ void ViewportWidget::setLightOffset(const QVector3D& offset)
 {
 	_renderCtrl.setLightOffset(offset);
 	_renderCtrl.setShadowMapNeedsInitialization(true);
+
+	// refreshFallbackLight() re-positions the PERSISTENT PunctualLights
+	// fallback light (see its own doc comment in ViewportWidget.h) - without
+	// this it stays frozen at whatever position was last set by
+	// updateFloorPlane() (scene load/resize/etc.), so buildPathTracedSnapshot()
+	// would pick up its stale position via punctualLights()->getLights() AND
+	// append a second, freshly-positioned keyLight on top - two lights
+	// casting two different shadow directions in CPU/GPU path tracing that
+	// don't match raster's single, always-live shadow.
+	refreshFallbackLight();
+
+	// effectiveWorldLightPosition() (fed from this offset) becomes that
+	// keyLight's position in buildPathTracedSnapshot() - baked into the
+	// lights buffer GPU's revision-gated buildScene() only re-uploads on a
+	// scene mutation, same bug class as useDefaultLights()/usePunctualLights()
+	// (see their doc comment in ViewportWidget.h).
+	notifyPathTracedSceneMutated();
 }
 
 QVector4D ViewportWidget::getDefaultLightColor() const
@@ -1557,6 +1574,11 @@ void ViewportWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 	_renderCtrl.fgShader()->bind();
 	syncDefaultLightColorUniforms();
 	_renderCtrl.fgShader()->release();
+
+	// _diffuseLight (fed from this color) becomes the fallback key light's
+	// color in buildPathTracedSnapshot() - same reasoning as setLightOffset()
+	// right above.
+	notifyPathTracedSceneMutated();
 }
 
 void ViewportWidget::syncCameraWorldUp()
@@ -2449,10 +2471,25 @@ void ViewportWidget::updateFloorPlane()
 		applyFloorPlaneMaterialSettings();
 	}
 
-	// Create fallback light if no punctual lights are available.
+	refreshFallbackLight();
+
+	updateClippingPlane();
+}
+
+void ViewportWidget::refreshFallbackLight()
+{
+	// Create fallback light if no punctual lights are available. Also
+	// gated on useDefaultLights() (previously wasn't) - this persistent
+	// PunctualLights fallback entry is what the "Default Lights" checkbox is
+	// actually understood to mean by the user, same as the separately-
+	// recomputed keyLight in buildPathTracedSnapshot(); without this check,
+	// disabling Default Lights still left this real, inverse-square-
+	// attenuated light in place, so both raster's multi-light shading path
+	// and CPU/GPU path tracing kept casting its shadow regardless of the
+	// toggle.
 	if (_animCtrl.originalParsedLights().empty())
 	{
-		if (shouldUseFallbackLightForVisibleScene())
+		if (_renderCtrl.useDefaultLights() && shouldUseFallbackLightForVisibleScene())
 		{
 			const QVector3D fallbackLightPos = effectiveWorldLightPosition();
 
@@ -2490,8 +2527,6 @@ void ViewportWidget::updateFloorPlane()
 			syncPunctualLightUniforms(0, false);
 		}
 	}
-
-	updateClippingPlane();
 }
 
 void ViewportWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
@@ -12616,6 +12651,14 @@ void ViewportWidget::applyEnabledLightList(const std::vector<GPULight>& enabledL
 	_renderCtrl.punctualLights()->setLights(enabledLights);
 	syncPunctualLightUniforms(static_cast<int>(enabledLights.size()),
 	                          !enabledLights.empty());
+
+	// Per-light enable/disable checkbox toggles reach here (see
+	// VisualizationEnvironmentPanel::onPunctualLightItemChanged()) - must be
+	// notifyPathTracedSceneMutated(), not just resetPathTracedIdleTimer(): see
+	// useDefaultLights()/usePunctualLights()'s doc comment in ViewportWidget.h
+	// for why a bare idle-timer restart alone isn't enough to make the GPU
+	// (OptiX) session actually re-upload its stale lights buffer.
+	notifyPathTracedSceneMutated();
 }
 
 
@@ -12716,8 +12759,16 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 		return nullptr;
 
 	std::vector<GPULight> lights = _renderCtrl.punctualLights()->getLights();
-	const bool addRasterDefaultLight = _renderCtrl.useDefaultLights() || lights.empty();
-	if (addRasterDefaultLight)
+	// Honors the Default Lights toggle literally - no "|| lights.empty()"
+	// safety net to avoid an all-black render when everything is disabled.
+	// An earlier version had that fallback here (misleadingly named
+	// addRasterDefaultLight despite this being the PT-only snapshot builder -
+	// raster's own useDefaultLights GL uniform has no such fallback), which
+	// meant explicitly turning Default Lights off only worked if at least
+	// one punctual light was also enabled at the same time; disabling
+	// everything silently re-lit the path-traced scene anyway, contradicting
+	// what the toggle visibly showed.
+	if (_renderCtrl.useDefaultLights())
 	{
 		// Raster's built-in lightSource is not a KHR_lights_punctual point
 		// light: it uses a positional direction per fragment
