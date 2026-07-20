@@ -13,8 +13,7 @@
 #include <Quantity_Color.hxx>
 #include <TDF_Label.hxx>
 #include <TDataStd_Name.hxx>
-#include <TDF_LabelDataMap.hxx>
-#include <TDF_LabelSequence.hxx>
+#include "OcctDeprecatedAliases.h"
 #include <XCAFDoc_Location.hxx>
 #include <XCAFApp_Application.hxx>
 #include <QObject>

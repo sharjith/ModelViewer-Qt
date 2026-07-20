@@ -12,7 +12,7 @@
 #include <STEPCAFControl_Reader.hxx>
 #include <TCollection_ExtendedString.hxx>
 #include <TDF_Label.hxx>
-#include <TDF_LabelSequence.hxx>
+#include "OcctDeprecatedAliases.h"
 #include <TDF_Tool.hxx>
 #include <TDocStd_Document.hxx>
 #include <TopoDS_Compound.hxx>

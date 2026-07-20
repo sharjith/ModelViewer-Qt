@@ -4,8 +4,7 @@
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Solid.hxx>
 #include <TopoDS_Face.hxx>
-#include <TopTools_IndexedMapOfShape.hxx>
-#include <TopTools_HSequenceOfShape.hxx>
+#include "OcctDeprecatedAliases.h"
 #include <STEPCAFControl_Reader.hxx>
 #include <assimp/mesh.h>
 #include <assimp/scene.h>

@@ -1,6 +1,6 @@
 #include "RtEmbreeScene.h"
 
-#include <embree3/rtcore.h>
+#include <embree4/rtcore.h>
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
@@ -114,8 +114,12 @@ RtHit RtEmbreeScene::intersect(const RtRay& ray) const
 	RtHit result;
 	if (!_topScene) return result;
 
-	RTCIntersectContext context;
-	rtcInitIntersectContext(&context);
+	RTCRayQueryContext context;
+	rtcInitRayQueryContext(&context);
+
+	RTCIntersectArguments args;
+	rtcInitIntersectArguments(&args);
+	args.context = &context;
 
 	RTCRayHit rayhit;
 	rayhit.ray.org_x = ray.origin.x;
@@ -141,7 +145,7 @@ RtHit RtEmbreeScene::intersect(const RtRay& ray) const
 	rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
 	rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
 
-	rtcIntersect1(_topScene, &context, &rayhit);
+	rtcIntersect1(_topScene, &rayhit, &args);
 
 	if (rayhit.hit.geomID == RTC_INVALID_GEOMETRY_ID || rayhit.hit.instID[0] == RTC_INVALID_GEOMETRY_ID)
 		return result;
@@ -242,8 +246,12 @@ bool RtEmbreeScene::occluded(const RtRay& ray) const
 {
 	if (!_topScene) return false;
 
-	RTCIntersectContext context;
-	rtcInitIntersectContext(&context);
+	RTCRayQueryContext context;
+	rtcInitRayQueryContext(&context);
+
+	RTCOccludedArguments args;
+	rtcInitOccludedArguments(&args);
+	args.context = &context;
 
 	RTCRay r;
 	r.org_x = ray.origin.x;
@@ -258,7 +266,7 @@ bool RtEmbreeScene::occluded(const RtRay& ray) const
 	r.flags = 0;
 	r.time  = 0.0f;
 
-	rtcOccluded1(_topScene, &context, &r);
+	rtcOccluded1(_topScene, &r, &args);
 
 	// Embree convention: occluded rays have tfar set to -inf.
 	return r.tfar < 0.0f;

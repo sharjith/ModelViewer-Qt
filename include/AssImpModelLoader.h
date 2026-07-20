@@ -26,7 +26,6 @@
 #include <QString>
 #include <Quantity_Color.hxx>
 #include <TDataStd_Name.hxx>
-#include <TDF_LabelSequence.hxx>
 #include <TDF_Tool.hxx>
 #include <TopLoc_Location.hxx>
 #include <TopoDS_Shape.hxx>

@@ -8,7 +8,7 @@ find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)
 find_package(meshoptimizer REQUIRED)
 find_package(basisu CONFIG REQUIRED)
-find_package(embree 3 CONFIG REQUIRED)
+find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
 
@@ -136,24 +136,103 @@ endif()
 
 # ============================================================================
 # Function to deploy image format plugins
+#
+# Extra arguments (ARGN) name additional runtime DLLs this specific plugin
+# depends on that vcpkg's automatic "applocal" DLL deployment never sees -
+# that mechanism only scans ModelViewer.exe's own direct import table, but an
+# imageformats plugin is a separate binary loaded at runtime via
+# QPluginLoader, so a dependency ONLY that plugin needs (e.g. qjpeg.dll's
+# dependency on libjpeg-turbo's jpeg62.dll - qjpeg is the one Qt plugin here
+# that isn't otherwise linked by anything in this project) is invisible to
+# it. These come from vcpkg's own bin/ (not the Qt plugins tree) and are
+# copied next to ModelViewer.exe itself (NOT into plugins/imageformats/
+# alongside the plugin) - Windows does not reliably resolve a plugin DLL's
+# own imports against its own plugin subdirectory, but the app's own
+# directory is always on the standard DLL search path.
 # ============================================================================
 function(deploy_image_plugin TARGET_NAME PLUGIN_NAME)
     if(NOT DEFINED QT_VCPKG_PLUGINS_DIR)
         return()
     endif()
-    
+
     # Plugin file with appropriate suffix
     set(PLUGIN_FILE "${PLUGIN_NAME}${DEBUG_SUFFIX}.dll")
     set(PLUGIN_SOURCE "${QT_VCPKG_PLUGINS_DIR}/imageformats/${PLUGIN_FILE}")
-    
+
     if(EXISTS "${PLUGIN_SOURCE}")
         add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E make_directory 
+            COMMAND ${CMAKE_COMMAND} -E make_directory
                 "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins/imageformats"
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "${PLUGIN_SOURCE}"
                 "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins/imageformats/${PLUGIN_FILE}"
             COMMENT "Copying image format plugin: ${PLUGIN_FILE}"
+            VERBATIM
+        )
+        message(STATUS "Will deploy plugin: ${PLUGIN_FILE}")
+    else()
+        message(WARNING "Plugin not found: ${PLUGIN_SOURCE}")
+    endif()
+
+    if(ARGN AND DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        if(CMAKE_BUILD_TYPE MATCHES "Debug")
+            set(PLUGIN_DEP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
+        else()
+            set(PLUGIN_DEP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+        endif()
+
+        foreach(PLUGIN_DEP ${ARGN})
+            set(PLUGIN_DEP_SOURCE "${PLUGIN_DEP_BIN_DIR}/${PLUGIN_DEP}")
+            if(EXISTS "${PLUGIN_DEP_SOURCE}")
+                # Next to the exe (NOT plugins/imageformats/) - Windows
+                # doesn't reliably resolve a plugin DLL's own imports against
+                # its own directory here, but the app directory is always on
+                # the standard DLL search path, so that's where this needs
+                # to land.
+                add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${PLUGIN_DEP_SOURCE}"
+                        "$<TARGET_FILE_DIR:${TARGET_NAME}>/${PLUGIN_DEP}"
+                    COMMENT "Copying ${PLUGIN_NAME} dependency: ${PLUGIN_DEP}"
+                    VERBATIM
+                )
+                message(STATUS "Will deploy plugin dependency: ${PLUGIN_DEP}")
+            else()
+                message(WARNING "Plugin dependency not found: ${PLUGIN_DEP_SOURCE}")
+            endif()
+        endforeach()
+    endif()
+endfunction()
+
+# ============================================================================
+# Function to deploy the Qt platform plugin (qwindows.dll) - without this,
+# the app has NO platform plugin at all in its own build output directory
+# and fails to launch outright ("This application failed to start because no
+# Qt platform plugin could be initialized") - qt.conf (below) points Qt's
+# plugin search path at "../plugins" relative to the exe, but nothing here
+# previously copied anything into plugins/platforms/, only plugins/imageformats/.
+# This apparently went unnoticed for a long time because some now-removed
+# build output happened to already have a platforms/ folder sitting around
+# from a much earlier one-off deployment - a full vcpkg-triggered
+# reconfigure/clean (as when bumping the vcpkg baseline) wipes that
+# untracked leftover, which is what actually surfaced this gap.
+# ============================================================================
+function(deploy_platform_plugin TARGET_NAME PLUGIN_NAME)
+    if(NOT DEFINED QT_VCPKG_PLUGINS_DIR)
+        return()
+    endif()
+
+    set(PLUGIN_FILE "${PLUGIN_NAME}${DEBUG_SUFFIX}.dll")
+    set(PLUGIN_SOURCE "${QT_VCPKG_PLUGINS_DIR}/platforms/${PLUGIN_FILE}")
+
+    if(EXISTS "${PLUGIN_SOURCE}")
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins/platforms"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PLUGIN_SOURCE}"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins/platforms/${PLUGIN_FILE}"
+            COMMENT "Copying platform plugin: ${PLUGIN_FILE}"
             VERBATIM
         )
         message(STATUS "Will deploy plugin: ${PLUGIN_FILE}")
@@ -392,11 +471,25 @@ endif()
 # Deploy image format plugins - MUST BE AFTER add_executable()
 # ============================================================================
 deploy_image_plugin(ModelViewer "qwebp")
-deploy_image_plugin(ModelViewer "qjpeg")
+deploy_image_plugin(ModelViewer "qjpeg" "jpeg62.dll")
 deploy_image_plugin(ModelViewer "qgif")
 deploy_image_plugin(ModelViewer "qico")
 deploy_image_plugin(ModelViewer "qtiff")
 deploy_image_plugin(ModelViewer "qwbmp")
+deploy_image_plugin(ModelViewer "qicns")
+deploy_image_plugin(ModelViewer "qtga")
+# JPEG-2000 (via the "jasper" vcpkg feature just enabled on qtimageformats) -
+# plugin/runtime-DLL names are best guesses (jasper's own vcpkg port doesn't
+# document its output DLL name) - both calls degrade to a harmless "not
+# found" warning if wrong, same as every other deploy_image_plugin() call;
+# check the "Available plugins:" listing this file already prints during
+# configure and correct the names here if needed.
+deploy_image_plugin(ModelViewer "qjp2" "jasper.dll")
+
+# ============================================================================
+# Deploy the Qt platform plugin - required for the app to launch at all
+# ============================================================================
+deploy_platform_plugin(ModelViewer "qwindows")
 
 # ============================================================================
 # Deploy WebP libraries and their dependencies (optional, non-fatal) Windows only
@@ -474,7 +567,7 @@ if(WIN32)
         endif()
 
         set(RAYTRACING_RUNTIME_DLLS
-            "embree3.dll"
+            "embree4.dll"
             "tbb12.dll"
             "tbbbind.dll"
             "tbbbind_2_0.dll"
@@ -703,6 +796,18 @@ if(WIN32)
     # mismatch was the actual cause of OIDN reporting "unsupported device
     # type: CPU" only in installed/packaged builds - the DLL exists, it just
     # was never deployed there. Install them explicitly here too.
+    #
+    # Same underlying problem for jpeg62.dll/jasper.dll: qjpeg.dll/qjp2.dll
+    # are Qt PLUGINS (loaded via QPluginLoader, not linked by ModelViewer.exe
+    # itself), so their own dependency on these libs is just as invisible to
+    # RUNTIME_DEPENDENCIES' binary scan of ModelViewer.exe. The install(DIRECTORY
+    # ... plugins ...) rule below only installs the plugins/ subfolder from
+    # the build tree - it does NOT pick up deploy_image_plugin()'s ARGN-extra-
+    # dependency copies, which land next to the built exe (build tree root),
+    # not inside plugins/imageformats/. Install them explicitly here too, into
+    # CMAKE_INSTALL_BINDIR (where ModelViewer.exe itself is installed), for the
+    # same "next to the exe, not next to the plugin" reason those copies
+    # target the build tree's exe directory rather than plugins/imageformats/.
     if(DEFINED RT_BIN_DIR)
         install(FILES
             "${RT_BIN_DIR}/OpenImageDenoise_device_cpu.dll"
@@ -710,6 +815,8 @@ if(WIN32)
             "${RT_BIN_DIR}/tbbbind.dll"
             "${RT_BIN_DIR}/tbbbind_2_0.dll"
             "${RT_BIN_DIR}/tbbbind_2_5.dll"
+            "${RT_BIN_DIR}/jpeg62.dll"
+            "${RT_BIN_DIR}/jasper.dll"
             DESTINATION "${CMAKE_INSTALL_BINDIR}"
             OPTIONAL
         )

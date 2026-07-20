@@ -3,7 +3,7 @@
 #include "IGESCAFControl_Reader.hxx"
 #include "IGESControl_Controller.hxx"
 #include "MainWindow.h"
-#include "TDF_LabelSequence.hxx"
+#include "OcctDeprecatedAliases.h"
 #include "TDF_Tool.hxx"
 #include "TDocStd_Document.hxx"
 #include "XCAFApp_Application.hxx"
