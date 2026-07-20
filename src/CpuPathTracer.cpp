@@ -35,6 +35,29 @@ namespace
 	// are landing on the floor almost everywhere" (dense self-occlusion) from
 	// "something else is dimming this." See tracePixel()'s NEE loop.
 	constexpr bool kDebugVisualizeShadowTransmittance = false;
+	// Post-loop heat-ramp of KHR_materials_volume_scatter's scatterBounces
+	// counter (see tracePixel()'s free-flight walk) - scaled against a
+	// small fixed cap distinct from kVolumeScatterFreeBudget, chosen purely
+	// for a useful visualization range.
+	constexpr bool kDebugVisualizeVolumeScatterBounces = false;
+
+	// KHR_materials_volume_scatter free-flight random-walk constants,
+	// matching NVIDIA's vk_gltf_renderer reference exactly
+	// (pathtrace_functions.h.slang:39-43) - see this feature's plan doc.
+	constexpr float kVolumeMinScatter = 0.001f;
+	constexpr float kVolumeRandFloor = 1.0e-10f;
+	constexpr int kVolumeScatterFreeBudget = 64;
+	constexpr float kVolumeRrFloor = 0.001f;
+	constexpr float kVolumeRrCap = 0.95f;
+	// No scatterAnisotropy field exists anywhere in this codebase's
+	// material pipeline yet (Material.h, glTF import/export) - hardcoded
+	// isotropic (g=0) for v1; sampleHenyeyGreenstein()/henyeyGreensteinPdf()
+	// are written generally so a future anisotropy factor needs no rewrite.
+	constexpr float kVolumeScatterAnisotropy = 0.0f;
+	// Visualization-only cap for kDebugVisualizeVolumeScatterBounces - NOT
+	// the same as kVolumeScatterFreeBudget, just a range that's actually
+	// useful to look at.
+	constexpr float kVolumeScatterDebugRampCap = 32.0f;
 
 	// xorshift32 - fast, small, good enough for Monte Carlo path tracing noise
 	// (not for cryptography). Seeded per-pixel-per-pass so successive
@@ -560,11 +583,12 @@ namespace
 		float     attenuationDistance = std::numeric_limits<float>::infinity();
 		float     dispersion          = 0.0f;
 
-		// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s doc
-		// comment. multiScatterColor is the authored multiscatterColorFactor,
-		// consumed directly as Burley normalized diffusion's target albedo
-		// `A` (no per-event conversion). hasVolumeScattering mirrors
-		// hasVolume's presence-gate role above.
+		// KHR_materials_volume_scatter - multiScatterColor is the authored
+		// multiscatterColorFactor, consumed by computeVolumeScatterCoefficients()/
+		// multiToSingleScatterAlbedo() (see calculateVolumeAttenuation()'s
+		// neighboring helpers) to derive the free-flight random walk's
+		// scattering coefficient. hasVolumeScattering mirrors hasVolume's
+		// presence-gate role above.
 		glm::vec3 multiScatterColor   = glm::vec3(1.0f);
 		bool      hasVolumeScattering = false;
 
@@ -1331,6 +1355,79 @@ namespace
 		return glm::pow(attenuationColor, glm::vec3(distance / attenuationDistance));
 	}
 
+	// Kulla-Conty single-scatter albedo recovery from a target multi-scatter
+	// albedo (Kulla & Conty Estevez 2017), ported verbatim from NVIDIA's
+	// vk_gltf_renderer reference implementation
+	// (gltf_material_eval.h.slang:125-129's multiToSingleScatterAlbedo()) -
+	// same polynomial, same per-channel application, so this codebase's
+	// random walk converges toward the same appearance as that reference.
+	glm::vec3 multiToSingleScatterAlbedo(const glm::vec3& rhoMs)
+	{
+		const glm::vec3 t = glm::vec3(4.09712f) + 4.20863f * rhoMs
+			- glm::sqrt(glm::vec3(9.59217f) + 41.6808f * rhoMs + 17.7126f * rhoMs * rhoMs);
+		return glm::vec3(1.0f) - t * t;
+	}
+
+	// KHR_materials_volume_scatter's per-channel extinction/scatter
+	// coefficients for the free-flight random walk (see tracePixel()'s
+	// hitBackface/hasVolumeScattering gate). Mirrors NVIDIA's
+	// vk_gltf_renderer exactly (gltf_material_eval.h.slang:318-320):
+	// attenuationColor/attenuationDistance give an "absorption-only"
+	// coefficient (the same formula as calculateVolumeAttenuation()'s own
+	// sigma_t, just not yet exponentiated over a distance), and the
+	// scattering coefficient is ADDED on top of it (not split out of it) -
+	// so a volume_scatter material's real extinction ends up higher than
+	// attenuationColor alone would suggest. This is a deliberate divergence
+	// from the previous closed-form BSSRDF's sigma_t usage, needed to match
+	// NVIDIA's reference hue (see this feature's plan doc for the full
+	// reasoning - our BSSRDF's blue/cyan vs. NVIDIA's green result).
+	void computeVolumeScatterCoefficients(const glm::vec3& attenuationColor, float attenuationDistance,
+		const glm::vec3& multiScatterColor, glm::vec3& outExtinction, glm::vec3& outScatterCoeff)
+	{
+		const glm::vec3 clampedAtten = glm::max(attenuationColor, glm::vec3(0.001f));
+		const float safeDistance = std::max(attenuationDistance, 0.001f);
+		const glm::vec3 absCoeff = -glm::log(clampedAtten) / safeDistance;
+		const glm::vec3 singleScatterAlbedo = glm::clamp(multiToSingleScatterAlbedo(multiScatterColor), glm::vec3(0.0f), glm::vec3(1.0f));
+		outScatterCoeff = absCoeff * singleScatterAlbedo;
+		outExtinction = absCoeff + outScatterCoeff;
+	}
+
+	// Henyey-Greenstein phase-function sampling/pdf (standard formula, e.g.
+	// PBRT's HenyeyGreenstein - not proprietary). wi is the ray's incoming
+	// travel direction (NOT negated - matches NVIDIA's own convention,
+	// pathtrace_functions.h.slang:623-627); cosTheta is measured between wi
+	// and the sampled outgoing direction, so g>0 biases toward continuing
+	// forward (dot near 1). g=0 (isotropic) degenerates exactly to uniform-
+	// sphere sampling - KHR_materials_volume_scatter has no anisotropy
+	// factor anywhere in this codebase's material pipeline yet (confirmed:
+	// no scatterAnisotropy field in Material.h or the glTF importer), so
+	// every call site below passes g=0.0f for now. Kept general so a future
+	// anisotropy factor doesn't need another rewrite.
+	glm::vec3 sampleHenyeyGreenstein(const glm::vec3& wi, float g, float u1, float u2)
+	{
+		float cosTheta;
+		if (std::abs(g) < 1e-3f)
+		{
+			cosTheta = 1.0f - 2.0f * u1;
+		}
+		else
+		{
+			const float sqrTerm = (1.0f - g * g) / (1.0f + g - 2.0f * g * u1);
+			cosTheta = (1.0f + g * g - sqrTerm * sqrTerm) / (2.0f * g);
+		}
+		const float sinTheta = std::sqrt(std::max(0.0f, 1.0f - cosTheta * cosTheta));
+		const float phi = 2.0f * kPi * u2;
+		glm::vec3 t, b;
+		buildOrthonormalBasis(wi, t, b);
+		return glm::normalize(t * (sinTheta * std::cos(phi)) + b * (sinTheta * std::sin(phi)) + wi * cosTheta);
+	}
+
+	float henyeyGreensteinPdf(float cosTheta, float g)
+	{
+		const float denom = std::max(1.0f + g * g - 2.0f * g * cosTheta, 1e-6f);
+		return (1.0f - g * g) / (4.0f * kPi * denom * std::sqrt(denom));
+	}
+
 	// hasAniso/anisoT/anisoB/at/ab mirror sampleBSDFBounce()'s anisotropic
 	// parameters (see tracePixel()'s per-hit computation) - when hasAniso is
 	// false this reduces to the plain isotropic Cook-Torrance path exactly
@@ -1913,180 +2010,10 @@ namespace
 		return coatProb * coatPdf + specProbScaled * specPdf + diffuseProb * cosinePdf;
 	}
 
-	// KHR_materials_volume_scatter, BSSRDF diffusion-profile importance
-	// sampling (Christensen & Burley 2015 "normalized diffusion", building
-	// on Jensen et al. 2001's dipole theory; sampling algorithm per King et
-	// al. 2013, as surveyed by the "ReSTIR Subsurface Scattering for
-	// Real-Time Path Tracing" paper - Werner/Schussler/Dachsbacher 2024 -
-	// this feature's own plan doc has the full citation trail). Supersedes
-	// an earlier genuine free-flight random-walk implementation: that
-	// approach was high-variance and slow to converge (confirmed via a
-	// debug visualization showing near-total Russian-roulette termination
-	// in dense regions before a walk could find a valid exit), and the
-	// cited paper confirms real random walks are considered impractical
-	// even by real-time-adjacent 2024 research - this closed-form
-	// importance-sampled substitute is the field's standard technique.
-	//
-	// Given the primary hit x1, this directly SAMPLES a probable entry
-	// point x2 elsewhere on the surface (no simulated scattering events)
-	// using a closed-form radial diffusion profile, per channel (R=0,G=1,
-	// B=2), following Christensen & Burley 2015 Eq. 6:
-	//   sigma_t = -ln(attenuationColor)/attenuationDistance   (same formula
-	//             as calculateVolumeAttenuation() elsewhere in this file)
-	//   l = 1/sigma_t                                  (mean free path)
-	//   A = multiScatterColor[channel]                 (authored target
-	//       albedo, used directly - no per-event conversion, unlike the
-	//       removed random walk's Kulla-Conty remap)
-	//   s = 1.9 - A + 3.5*(A-0.8)^2                     (shape parameter)
-	//   d = l / s                                       (diffusion scale)
-	//   Rd(r) = A*(exp(-r/d) + exp(-r/(3d))) / (8*pi*d*r)   (area-density
-	//           profile - integrates to 1 over the disk with its own
-	//           2*pi*r Jacobian, i.e. this IS the pdf-per-unit-area)
-	//   P(r) = 1 - 0.25*exp(-r/d) - 0.75*exp(-r/(3d))   (CDF, inverted
-	//          below by bisection - matches this file's other bisection-
-	//          based inversions, e.g. computeDiffuseFresnelReflectance())
-	//
-	// Restricted to the PRIMARY hit only (mirrors the cited paper's own
-	// scoping decision to bound cost) - tracePixel() only calls this at
-	// bounce==0, transmissionDepth==0; any later hit on a translucent
-	// surface falls back to ordinary diffuse_transmission shading.
-	//
-	// Follows PBRT's TabulatedBSSRDF::Sample_Sp/Pdf_Sp structure (the
-	// standard reference implementation of this exact technique): pick one
-	// of x1's 3 local axes (normal/tangent/bitangent, uniform 1/3 each -
-	// simplified from PBRT's {.5,.25,.25} weighting per this feature's own
-	// plan) and one spectral channel (uniform 1/3) to SAMPLE a disk point
-	// and probe-trace it onto the real surface; then evaluate a COMBINED
-	// pdf that MIS-sums over all 3 axes and all 3 channels (since the same
-	// x2 could in principle have been reached via any of them), each axis's
-	// contribution weighted by |dot(axis, x2's normal)| - the standard
-	// projected-radius correction for curved geometry. v1 takes the
-	// CLOSEST probe intersection only (skips the paper's multi-intersection
-	// MIS optimization - a correctness/perf tradeoff explicitly deferred by
-	// this feature's plan, not required for a first working version).
-	// shadingNormal is x1's FACEFORWARD-CORRECTED shading normal (tracePixel()'s
-	// local `N`, already flipped to face the ray on a backface hit) - NOT
-	// hit1.normal directly. Using the raw, possibly inward-facing mesh
-	// normal here (an earlier version of this function did exactly that)
-	// sends the sampling frame's whole disk-and-probe construction the
-	// WRONG way on any backface hit, causing a spike of spurious probe
-	// failures - rare on smooth convex regions (a skull's dome), but common
-	// on thin/concave/complex geometry (teeth, mandible interior) where
-	// backface hits are frequent. GPU's __closesthit__ch() already computes
-	// and uses its own equivalent corrected worldNormal here - this brings
-	// CPU in line with it exactly.
-	bool sampleBSSRDFEntryPoint(const RtEmbreeScene& scene, const RtHit& hit1, const glm::vec3& shadingNormal,
-		const SurfaceParams& surf, Rng& rng, RtHit& outEntryHit, glm::vec3& outThroughput)
-	{
-		glm::vec3 axes[3];
-		axes[0] = shadingNormal;
-		buildOrthonormalBasis(shadingNormal, axes[1], axes[2]);
-
-		auto sigmaTFor = [&](int c) {
-			const float ac = c == 0 ? surf.attenuationColor.r : c == 1 ? surf.attenuationColor.g : surf.attenuationColor.b;
-			if (surf.attenuationDistance <= 0.0f)
-				return 1.0f; // degenerate - matches calculateVolumeAttenuation()'s own <=0 gate
-			return -std::log(std::max(ac, 1e-6f)) / surf.attenuationDistance;
-		};
-		auto albedoFor = [&](int c) {
-			return std::clamp(c == 0 ? surf.multiScatterColor.r : c == 1 ? surf.multiScatterColor.g : surf.multiScatterColor.b, 0.0f, 1.0f);
-		};
-		auto diffusionScaleFor = [&](int c) {
-			const float A = albedoFor(c);
-			const float s = 1.9f - A + 3.5f * (A - 0.8f) * (A - 0.8f);
-			const float l = 1.0f / std::max(sigmaTFor(c), 1e-6f);
-			return l / std::max(s, 1e-4f);
-		};
-		auto cdf = [](float r, float d) {
-			if (r <= 0.0f || d <= 0.0f) return 0.0f;
-			return 1.0f - 0.25f * std::exp(-r / d) - 0.75f * std::exp(-r / (3.0f * d));
-		};
-		auto invertCdf = [&](float d, float xi) {
-			float lo = 0.0f, hi = std::max(d, 1e-6f);
-			while (cdf(hi, d) < xi && hi < d * 1.0e6f)
-				hi *= 2.0f;
-			for (int i = 0; i < 30; ++i)
-			{
-				const float mid = 0.5f * (lo + hi);
-				if (cdf(mid, d) < xi) lo = mid; else hi = mid;
-			}
-			return 0.5f * (lo + hi);
-		};
-		// Normalized-diffusion area-density profile itself (see this
-		// function's doc comment) - used both for the throughput numerator
-		// (evaluated at the real 3D distance) and, at a per-axis PROJECTED
-		// radius, for the combined MIS pdf below - mirroring PBRT's
-		// Sr()/Pdf_Sr() split exactly.
-		auto Rd = [](float r, float A, float d) {
-			if (r <= 1e-6f || d <= 0.0f) return 0.0f;
-			return A * (std::exp(-r / d) + std::exp(-r / (3.0f * d))) / (8.0f * kPi * d * r);
-		};
-
-		const int channel = std::min(2, static_cast<int>(rng.next01() * 3.0f));
-		const int axis = std::min(2, static_cast<int>(rng.next01() * 3.0f));
-		const float d = diffusionScaleFor(channel);
-		if (d <= 0.0f)
-			return false;
-
-		const float r = invertCdf(d, rng.next01());
-		const float rMax = invertCdf(d, 0.999f);
-		if (!(r < rMax))
-			return false;
-
-		const glm::vec3& probeAxis = axes[axis];
-		const glm::vec3& diskU = axes[(axis + 1) % 3];
-		const glm::vec3& diskV = axes[(axis + 2) % 3];
-
-		const float phi = rng.next01() * 2.0f * kPi;
-		const float probeHeight = std::sqrt(std::max(rMax * rMax - r * r, 0.0f));
-		const glm::vec3 diskPoint = hit1.position + r * std::cos(phi) * diskU + r * std::sin(phi) * diskV;
-		const glm::vec3 probeOrigin = diskPoint + probeAxis * probeHeight;
-
-		RtRay probeRay;
-		probeRay.origin = probeOrigin;
-		probeRay.direction = -probeAxis;
-		probeRay.tNear = 1e-4f;
-		probeRay.tFar = 2.0f * probeHeight + 1e-3f;
-
-		const RtHit hit2 = scene.intersect(probeRay);
-		if (!hit2.hit || hit2.materialIndex != hit1.materialIndex)
-			return false; // v1 doesn't handle cross-material entry points - see this feature's plan
-
-		const glm::vec3 delta = hit2.position - hit1.position;
-		const float actualR = glm::length(delta);
-		if (actualR >= rMax || actualR <= 1e-6f)
-			return false;
-
-		// Combined MIS pdf over all 3 (axis, channel) sampling strategies
-		// that could have produced this x2 - see this function's doc
-		// comment. rProj[axis] is delta's length projected onto the plane
-		// PERPENDICULAR to that axis (i.e. with that axis's own component
-		// removed), matching how the disk point was originally constructed
-		// for whichever axis actually got sampled.
-		float combinedPdf = 0.0f;
-		for (int a = 0; a < 3; ++a)
-		{
-			const float alongAxis = glm::dot(delta, axes[a]);
-			const float rProj = std::sqrt(std::max(actualR * actualR - alongAxis * alongAxis, 0.0f));
-			const float cosTerm = std::abs(glm::dot(axes[a], hit2.normal));
-			for (int c = 0; c < 3; ++c)
-				combinedPdf += Rd(rProj, albedoFor(c), diffusionScaleFor(c)) * cosTerm * (1.0f / 3.0f) * (1.0f / 3.0f);
-		}
-		if (!(combinedPdf > 0.0f))
-			return false;
-
-		// Throughput uses the REAL 3D distance (not a projected radius) -
-		// the profile itself is a function of true distance, only the pdf's
-		// per-axis bookkeeping needs the projected form.
-		const glm::vec3 RdSpectral(
-			Rd(actualR, albedoFor(0), diffusionScaleFor(0)),
-			Rd(actualR, albedoFor(1), diffusionScaleFor(1)),
-			Rd(actualR, albedoFor(2), diffusionScaleFor(2)));
-
-		outThroughput = surf.diffuseTransmissionColor * RdSpectral / combinedPdf;
-		outEntryHit = hit2;
-		return true;
-	}
+	// KHR_materials_volume_scatter's genuine free-flight random walk lives
+	// further down in tracePixel() (see the hitBackface/hasVolumeScattering
+	// gate) - see this feature's plan doc for why the closed-form BSSRDF
+	// diffusion-profile approach that used to live here was replaced.
 
 	// Stochastically samples one bounce direction from the BSDF (cosine-
 	// weighted diffuse lobe or GGX specular lobe), returning the throughput
@@ -2444,6 +2371,81 @@ namespace
 		return glm::vec3(0.0f); // exceeded the hit budget - conservatively treat as blocked
 	}
 
+	// KHR_materials_volume_scatter's free-flight random walk NEE (see
+	// tracePixel()'s hitBackface/hasVolumeScattering gate) - next-event
+	// estimation from a volume-INTERIOR scatter vertex, mirroring the
+	// ordinary surface NEE blocks above but with the Henyey-Greenstein
+	// phase function replacing the BRDF and no NdotL/surface-cosine term
+	// (there is no surface normal at a scatter point - the phase
+	// function's own normalization already accounts for the full sphere
+	// integral). wi is the ray's incoming travel direction at the scatter
+	// point (matches sampleHenyeyGreenstein()'s convention). Punctual
+	// lights use the same "delta-direction, no extra pdf division"
+	// convention as evaluatePunctualLight()'s existing surface NEE use
+	// (see that block above); the environment term MIS-combines the
+	// env-sampling pdf against the phase pdf, mirroring the surface
+	// environment-NEE block's balance-heuristic weighting exactly.
+	// No self-shadow-instance mask exclusion is needed here (that toggle
+	// exists so a surface doesn't shadow itself - a scatter point in open
+	// space isn't on any instance's own geometry), so shadow rays here
+	// always use the default all-bits mask.
+	glm::vec3 sampleVolumeScatterNEE(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
+		const RtEnvironmentSampler& envSampler, const CpuPathTracer::Settings& settings,
+		const glm::vec3& scatterPos, const glm::vec3& wi, const glm::vec3& throughput, Rng& rng)
+	{
+		glm::vec3 result(0.0f);
+
+		for (const RtLight& light : snapshot.lights)
+		{
+			glm::vec3 lightDir, lightIntensity;
+			float lightDistance;
+			evaluatePunctualLight(light, scatterPos, lightDir, lightIntensity, lightDistance);
+			if (lightIntensity == glm::vec3(0.0f))
+				continue;
+
+			RtRay shadowRay;
+			shadowRay.origin = scatterPos;
+			shadowRay.direction = lightDir;
+			shadowRay.tFar = lightDistance;
+			glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
+				? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
+				: glm::vec3(1.0f);
+			if (light.range < 0.0f)
+				shadowTransmittance = glm::max(shadowTransmittance, glm::vec3(0.15f)); // matches surface NEE's default-light floor
+			if (shadowTransmittance == glm::vec3(0.0f))
+				continue;
+
+			const float phasePdf = henyeyGreensteinPdf(glm::dot(wi, lightDir), kVolumeScatterAnisotropy);
+			result += throughput * phasePdf * lightIntensity * shadowTransmittance;
+		}
+
+		if (settings.enableEnvironmentImportanceSampling && envSampler.isValid())
+		{
+			glm::vec3 envDir;
+			float envPdf;
+			envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
+			if (envPdf > 0.0f)
+			{
+				RtRay envShadowRay;
+				envShadowRay.origin = scatterPos;
+				envShadowRay.direction = envDir;
+				envShadowRay.tFar = 1e6f; // environment is "at infinity" - no light-distance limit
+				const glm::vec3 envTransmittance = snapshot.shadowsEnabled
+					? traceShadowRay(scene, snapshot, envShadowRay, rng, settings.maxShadowRayHits)
+					: glm::vec3(1.0f);
+				if (envTransmittance != glm::vec3(0.0f))
+				{
+					const float phasePdf = henyeyGreensteinPdf(glm::dot(wi, envDir), kVolumeScatterAnisotropy);
+					const float misWeight = phasePdf / (phasePdf + envPdf); // balance heuristic vs. the phase-sampled bounce's own MIS half (see the miss branch above using lastBsdfSamplePdf)
+					const glm::vec3 envRadiance = sampleEnvironmentMiss(snapshot.environment, envDir) * envTransmittance;
+					result += throughput * (misWeight / envPdf) * phasePdf * envRadiance;
+				}
+			}
+		}
+
+		return result;
+	}
+
 	// Above this roughness, a transmissive surface's true appearance is
 	// meant to be diffused/frosted (see tracePixel()'s sqrt(roughness)-
 	// weighted diffuse-transmission blend), not a sharp undeviated view of
@@ -2671,23 +2673,24 @@ namespace
 		int bounce = 0;
 		int transmissionDepth = 0;
 
-		// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s doc
-		// comment. When that function substitutes a BSSRDF-sampled entry
-		// point for the ordinary diffuse_transmission lobe, the resulting
-		// RtHit (already fully populated by the probe ray's own
-		// scene.intersect() call - UVs, tangent frame, material index, all
-		// of it) is stashed here so the NEXT loop iteration uses it
-		// directly as "the hit" instead of re-tracing `ray` (which by then
-		// only holds a placeholder direction - see that call site).
-		bool hasPendingHit = false;
-		RtHit pendingHit;
+		// KHR_materials_volume_scatter's free-flight random walk (see the
+		// hitBackface/surf.hasVolumeScattering gate below) counts its
+		// scatter events separately from both bounce and transmissionDepth -
+		// it never eats into the ordinary surface-bounce or transmission-
+		// bounce budgets, matching NVIDIA's vk_gltf_renderer reference
+		// (VOLUME_FREE_BUDGET, see this feature's plan doc). Free (no
+		// Russian roulette) until kVolumeScatterFreeBudget, then RR - this
+		// is the single most important fix vs. this codebase's earlier
+		// random-walk attempt, which applied RR every step and killed
+		// nearly every walk in dense regions before it could converge.
+		int scatterBounces = 0;
+
 		while (true)
 		{
 			if (bounce > settings.maxBounces)
 				break; // matches the original "for (bounce=0; bounce<=maxBounces;...)" loop's exact termination point
 
-			const RtHit hit = hasPendingHit ? pendingHit : scene.intersect(ray);
-			hasPendingHit = false;
+			const RtHit hit = scene.intersect(ray);
 			if (!hit.hit)
 			{
 				if (!primaryHitResolved)
@@ -2806,8 +2809,78 @@ namespace
 			// non-nested transmissive volumes - matching both reference
 			// implementations, neither of which tracks a nested-medium
 			// stack either (see the transmission handling below).
+			//
+			// KHR_materials_volume_scatter genuine free-flight random walk
+			// (mirrors NVIDIA's vk_gltf_renderer exactly - see this feature's
+			// plan doc): when the medium ALSO carries volume-scatter data,
+			// replace the deterministic full-segment Beer's-law multiply
+			// with a stochastic per-segment scatter-or-absorb test, using
+			// this segment's real traveled distance (since prevHitPos) as
+			// the free-flight bound. A scatter event never reaches this
+			// hit's surface at all - it redirects the ray from a point
+			// partway along the segment and `continue`s the loop, skipping
+			// every bit of this iteration's surface shading below (alpha
+			// test, BSDF lobes, NEE) since evaluateSurface() already ran
+			// (needed to know surf.hasVolumeScattering) but nothing else
+			// has yet. No absorption-only case falls through to the
+			// unmodified surface-shading code path below exactly as before.
+			const float segmentDistance = glm::length(hit.position - prevHitPos);
+			bool volumeScattered = false;
 			if (hitBackface && surf.hasVolume)
-				throughput *= calculateVolumeAttenuation(surf.attenuationColor, surf.attenuationDistance, glm::length(hit.position - prevHitPos));
+			{
+				if (surf.hasVolumeScattering)
+				{
+					glm::vec3 extinction, scatterCoeff;
+					computeVolumeScatterCoefficients(surf.attenuationColor, surf.attenuationDistance, surf.multiScatterColor, extinction, scatterCoeff);
+					const float maxScatter = std::max({ scatterCoeff.r, scatterCoeff.g, scatterCoeff.b });
+					if (maxScatter > kVolumeMinScatter)
+					{
+						const float maxExtinction = std::max({ extinction.r, extinction.g, extinction.b });
+						const float scatterDist = -std::log(std::max(rng.next01(), kVolumeRandFloor)) / maxExtinction;
+						if (scatterDist < segmentDistance)
+						{
+							throughput *= glm::vec3(1.0f) - (extinction - scatterCoeff) / maxExtinction;
+
+							const glm::vec3 scatterPos = ray.origin + ray.direction * scatterDist;
+							const glm::vec3 wi = ray.direction;
+							const float u1 = rng.next01();
+							const float u2 = rng.next01();
+							const glm::vec3 newDir = sampleHenyeyGreenstein(wi, kVolumeScatterAnisotropy, u1, u2);
+
+							radiance += sampleVolumeScatterNEE(scene, snapshot, envSampler, settings, scatterPos, wi, throughput, rng);
+
+							ray.origin = scatterPos;
+							ray.direction = newDir;
+							lastBsdfSamplePdf = henyeyGreensteinPdf(glm::dot(wi, newDir), kVolumeScatterAnisotropy);
+							prevHitPos = scatterPos;
+
+							++scatterBounces;
+							if (scatterBounces >= kVolumeScatterFreeBudget)
+							{
+								const float rrPcont = std::clamp(std::max({ throughput.r, throughput.g, throughput.b }) + kVolumeRrFloor, 0.0f, kVolumeRrCap);
+								if (rng.next01() >= rrPcont)
+									break;
+								throughput /= rrPcont;
+							}
+							volumeScattered = true;
+						}
+						else
+						{
+							throughput *= glm::exp(segmentDistance * (glm::vec3(maxExtinction) - extinction));
+						}
+					}
+					else
+					{
+						throughput *= calculateVolumeAttenuation(surf.attenuationColor, surf.attenuationDistance, segmentDistance);
+					}
+				}
+				else
+				{
+					throughput *= calculateVolumeAttenuation(surf.attenuationColor, surf.attenuationDistance, segmentDistance);
+				}
+			}
+			if (volumeScattered)
+				continue;
 			prevHitPos = hit.position;
 
 			glm::vec3 N = hit.normal;
@@ -3759,37 +3832,18 @@ namespace
 			if (!sampleBSDFBounce(N, Ncoat, V, surf, clearcoatBlend, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, rng, bounceDir, bounceThroughput, lastBounceEnvRoughness, &transmittedDiffuse))
 				break;
 
-			// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s
-			// doc comment. Supersedes the ordinary diffuse_transmission
-			// back-hemisphere lobe sampleBSDFBounce() just picked
-			// (bounceDir/bounceThroughput, discarded below - not applied to
-			// throughput) for materials that ALSO carry volume-scatter
-			// data: instead of a single cosine-weighted transmitted ray,
-			// jump straight to a BSSRDF-importance-sampled entry point
-			// elsewhere on the surface and resume ordinary (opaque) shading
-			// from there next iteration, via pendingHit.
-			if (transmittedDiffuse && surf.hasVolumeScattering && bounce == 0 && transmissionDepth == 0)
-			{
-				glm::vec3 bssrdfWeight;
-				const bool bssrdfOk = sampleBSSRDFEntryPoint(scene, hit, N, surf, rng, pendingHit, bssrdfWeight);
-				if (!bssrdfOk)
-					break; // no valid entry point found - terminate rather than falling back to the walk-era approximation
-
-				throughput *= bssrdfWeight;
-				if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
-					break;
-
-				hasPendingHit = true;
-				// Placeholder: arriving from outside, front face - see
-				// hitBackface's doc comment above (this keeps next
-				// iteration's Beer-Lambert absorption gate correctly off,
-				// since sampleBSSRDFEntryPoint()'s Rd() weight already
-				// accounts for the light transport between x1 and x2).
-				ray.direction = -pendingHit.normal;
-				lastBsdfSamplePdf = 0.0f;
-				++bounce; // spend one bounce budget unit on the substitution - also keeps bounce==0-gated primary-only logic (ortho V, texture LOD) from misfiring on the entry point next iteration
-				continue;
-			}
+			// KHR_materials_volume_scatter: entry into the medium is just the
+			// ordinary diffuse_transmission back-hemisphere lobe
+			// sampleBSDFBounce() already picked above (bounceDir/
+			// bounceThroughput, unmodified) - no special-casing needed here.
+			// The genuine free-flight random walk happens on SUBSEQUENT hits,
+			// at the hitBackface/surf.hasVolumeScattering gate further up
+			// this loop, which decides per-segment whether the ray scatters
+			// before reaching the next surface. (transmittedDiffuse is kept
+			// as a local for symmetry with sampleBSDFBounce()'s signature but
+			// no longer branches on it here - see this feature's plan doc for
+			// why the previous BSSRDF-substitution approach that lived here
+			// was replaced.)
 
 			// Stash this bounce's combined sampling pdf for the miss branch
 			// at the top of the next iteration (see lastBsdfSamplePdf's
@@ -3860,6 +3914,23 @@ namespace
 		{
 			const float t = std::clamp(static_cast<float>(transmissionDepth) /
 				static_cast<float>(std::max(1, settings.maxTransmissionBounces)), 0.0f, 1.0f);
+			if (t < 0.25f)
+				return glm::mix(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), t / 0.25f);
+			if (t < 0.5f)
+				return glm::mix(glm::vec3(0.0f, 0.0f, 1.0f), glm::vec3(0.0f, 1.0f, 0.0f), (t - 0.25f) / 0.25f);
+			if (t < 0.75f)
+				return glm::mix(glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 0.0f), (t - 0.5f) / 0.25f);
+			return glm::mix(glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), (t - 0.75f) / 0.25f);
+		}
+
+		// kDebugVisualizeVolumeScatterBounces - same heat-ramp pattern as
+		// kDebugVisualizeTransmissionBounceCount above, over scatterBounces'
+		// final value, normalized against kVolumeScatterDebugRampCap (a
+		// separate, smaller cap than kVolumeScatterFreeBudget - chosen purely
+		// for a visually useful range).
+		if (kDebugVisualizeVolumeScatterBounces && scatterBounces > 0)
+		{
+			const float t = std::clamp(static_cast<float>(scatterBounces) / kVolumeScatterDebugRampCap, 0.0f, 1.0f);
 			if (t < 0.25f)
 				return glm::mix(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f), t / 0.25f);
 			if (t < 0.5f)
