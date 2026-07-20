@@ -120,6 +120,15 @@ namespace
 	// see __closesthit__ch()'s use site for what each channel means.
 	constexpr bool kDebugVisualizeClearcoat = false;
 
+	// Post-loop heat-ramp of KHR_materials_volume_scatter's scatterBounces
+	// counter, mirroring CpuPathTracer.cpp's identical
+	// kDebugVisualizeVolumeScatterBounces exactly - lives in __raygen__rg()
+	// (not __closesthit__ch(), unlike kDebugVisualizeClearcoat above) since
+	// scatterBounces is accumulated across the whole bounce loop, not known
+	// within a single closest-hit invocation.
+	constexpr bool kDebugVisualizeVolumeScatterBounces = false;
+	constexpr float kVolumeScatterDebugRampCap = 32.0f;
+
 	__forceinline__ __device__ float3 operator+(const float3& a, const float3& b)
 	{
 		return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -207,42 +216,6 @@ namespace
 		return incident * eta - normal * (eta * NdotI + sqrtf(k));
 	}
 
-	// Standard octahedral unit-vector encoding (Meyer et al. 2010) - packs a
-	// normalized direction into 2 floats. Used ONLY to smuggle the KHR_
-	// materials_volume_scatter primary hit's real shading normal through two
-	// payload registers (hitDistance/bsdfPdf) that are otherwise unused/
-	// discarded for a hitFlag==4 (explicit-continuation-origin) result - see
-	// __closesthit__ch()'s sampleBSSRDFEntryPoint() call site and
-	// traceBouncePath()'s outGuideNormal for why this is needed: payload_4-6
-	// (normally worldNormal) is already fully committed to carrying the
-	// BSSRDF-sampled ENTRY point's POSITION for that case, and there are no
-	// spare payload slots (the pipeline is compiled with a fixed
-	// numPayloadValues=20, all otherwise in active use) - expanding that
-	// count would touch every optixTrace() call site, whereas this reuses
-	// two registers whose OUTPUT value is already a discarded/constant 0 for
-	// this exact case, at the cost of just this encode/decode pair.
-	__forceinline__ __device__ float2 encodeOctahedralNormal(const float3& n)
-	{
-		const float invL1 = 1.0f / (fabsf(n.x) + fabsf(n.y) + fabsf(n.z));
-		float2 p = make_float2(n.x * invL1, n.y * invL1);
-		if (n.z < 0.0f)
-		{
-			const float px = (1.0f - fabsf(p.y)) * (p.x >= 0.0f ? 1.0f : -1.0f);
-			const float py = (1.0f - fabsf(p.x)) * (p.y >= 0.0f ? 1.0f : -1.0f);
-			p = make_float2(px, py);
-		}
-		return p;
-	}
-
-	__forceinline__ __device__ float3 decodeOctahedralNormal(const float2& p)
-	{
-		float3 n = make_float3(p.x, p.y, 1.0f - fabsf(p.x) - fabsf(p.y));
-		const float t = fmaxf(-n.z, 0.0f);
-		n.x += (n.x >= 0.0f) ? -t : t;
-		n.y += (n.y >= 0.0f) ? -t : t;
-		return normalizeF3(n);
-	}
-
 	// KHR_materials_volume - Beer-Lambert absorption over the real traced
 	// distance a ray travelled through the medium since its previous hit,
 	// ported from CpuPathTracer::calculateVolumeAttenuation() verbatim.
@@ -257,6 +230,66 @@ namespace
 		const float t = distance / attenuationDistance;
 		return make_float3(powf(attenuationColor.x, t), powf(attenuationColor.y, t), powf(attenuationColor.z, t));
 	}
+
+	// Kulla-Conty single-scatter albedo recovery from a target multi-scatter
+	// albedo (Kulla & Conty Estevez 2017), ported verbatim from NVIDIA's
+	// vk_gltf_renderer reference implementation
+	// (gltf_material_eval.h.slang:125-129's multiToSingleScatterAlbedo()) -
+	// mirrors CpuPathTracer.cpp's identical function exactly.
+	__forceinline__ __device__ float3 multiToSingleScatterAlbedo(const float3& rhoMs)
+	{
+		const float3 t = make_float3(
+			4.09712f + 4.20863f * rhoMs.x - sqrtf(9.59217f + 41.6808f * rhoMs.x + 17.7126f * rhoMs.x * rhoMs.x),
+			4.09712f + 4.20863f * rhoMs.y - sqrtf(9.59217f + 41.6808f * rhoMs.y + 17.7126f * rhoMs.y * rhoMs.y),
+			4.09712f + 4.20863f * rhoMs.z - sqrtf(9.59217f + 41.6808f * rhoMs.z + 17.7126f * rhoMs.z * rhoMs.z));
+		return make_float3(1.0f - t.x * t.x, 1.0f - t.y * t.y, 1.0f - t.z * t.z);
+	}
+
+	// KHR_materials_volume_scatter's per-channel extinction/scatter
+	// coefficients for the free-flight random walk - mirrors
+	// CpuPathTracer.cpp's computeVolumeScatterCoefficients() exactly
+	// (same additive extinction=absorption+scattering composition, needed
+	// to match NVIDIA's reference hue - see this feature's plan doc).
+	__forceinline__ __device__ void computeVolumeScatterCoefficients(const float3& attenuationColor, float attenuationDistance,
+		const float3& multiScatterColor, float3& outExtinction, float3& outScatterCoeff)
+	{
+		const float3 clampedAtten = make_float3(fmaxf(attenuationColor.x, 0.001f), fmaxf(attenuationColor.y, 0.001f), fmaxf(attenuationColor.z, 0.001f));
+		const float safeDistance = fmaxf(attenuationDistance, 0.001f);
+		const float3 absCoeff = make_float3(-logf(clampedAtten.x) / safeDistance, -logf(clampedAtten.y) / safeDistance, -logf(clampedAtten.z) / safeDistance);
+		const float3 rawSingleAlbedo = multiToSingleScatterAlbedo(multiScatterColor);
+		const float3 singleScatterAlbedo = make_float3(
+			fminf(fmaxf(rawSingleAlbedo.x, 0.0f), 1.0f),
+			fminf(fmaxf(rawSingleAlbedo.y, 0.0f), 1.0f),
+			fminf(fmaxf(rawSingleAlbedo.z, 0.0f), 1.0f));
+		outScatterCoeff = make_float3(absCoeff.x * singleScatterAlbedo.x, absCoeff.y * singleScatterAlbedo.y, absCoeff.z * singleScatterAlbedo.z);
+		outExtinction = absCoeff + outScatterCoeff;
+	}
+
+	// Henyey-Greenstein phase-function sampling/pdf - see sampleHenyeyGreenstein()'s
+	// definition further down (after buildOrthonormalBasis(), which it needs)
+	// for the full doc comment.
+	__forceinline__ __device__ float3 sampleHenyeyGreenstein(const float3& wi, float g, float u1, float u2);
+	__forceinline__ __device__ float henyeyGreensteinPdf(float cosTheta, float g)
+	{
+		const float denom = fmaxf(1.0f + g * g - 2.0f * g * cosTheta, 1e-6f);
+		return (1.0f - g * g) / (4.0f * kPi * denom * sqrtf(denom));
+	}
+
+	// No anisotropy factor exists yet - see sampleHenyeyGreenstein()'s doc
+	// comment.
+	constexpr float kVolumeScatterAnisotropy = 0.0f;
+	constexpr float kVolumeMinScatter = 0.001f;
+	constexpr float kVolumeRandFloor = 1.0e-10f;
+	constexpr int kVolumeScatterFreeBudget = 64;
+	constexpr float kVolumeRrFloor = 0.001f;
+	constexpr float kVolumeRrCap = 0.95f;
+	// Distinguishes a hit reached via the volume-scatter free-flight walk's
+	// scatter-event redirect (an explicit-origin continuation, hitFlag==4 -
+	// see __closesthit__ch()'s hitBackface/hasVolumeScattering gate) from
+	// every other escapeRoughness/hitFlag value. Only matters if THIS
+	// redirected ray then escapes straight to the environment without
+	// hitting real geometry first - see __miss__ms()'s use of it.
+	constexpr float kVolumeScatterEscapeSentinel = -7.0f;
 
 	// Scale-relative self-intersection epsilon, matching CpuPathTracer.cpp's
 	// selfIntersectionEpsilon() exactly (a fixed world-space constant is
@@ -1115,6 +1148,37 @@ namespace
 		B = make_float3(b, sign + N.y * N.y * a, -N.y);
 	}
 
+	// Henyey-Greenstein phase-function sampling - mirrors CpuPathTracer.cpp's
+	// identical sampleHenyeyGreenstein() exactly (standard formula, e.g.
+	// PBRT's HenyeyGreenstein - not proprietary). wi is the ray's incoming
+	// travel direction (NOT negated); cosTheta is measured between wi and
+	// the sampled outgoing direction, so g>0 biases toward continuing
+	// forward (dot near 1). g=0 (isotropic) degenerates exactly to uniform-
+	// sphere sampling - every call site passes g=0.0f for now (no
+	// scatterAnisotropy field exists anywhere in this codebase's material
+	// pipeline yet). Defined here (after buildOrthonormalBasis(), which it
+	// needs) rather than alongside its henyeyGreensteinPdf()/
+	// computeVolumeScatterCoefficients() siblings further up - see this
+	// function's forward declaration there.
+	__forceinline__ __device__ float3 sampleHenyeyGreenstein(const float3& wi, float g, float u1, float u2)
+	{
+		float cosTheta;
+		if (fabsf(g) < 1e-3f)
+		{
+			cosTheta = 1.0f - 2.0f * u1;
+		}
+		else
+		{
+			const float sqrTerm = (1.0f - g * g) / (1.0f + g - 2.0f * g * u1);
+			cosTheta = (1.0f + g * g - sqrTerm * sqrTerm) / (2.0f * g);
+		}
+		const float sinTheta = sqrtf(fmaxf(0.0f, 1.0f - cosTheta * cosTheta));
+		const float phi = 2.0f * kPi * u2;
+		float3 t, b;
+		buildOrthonormalBasis(wi, t, b);
+		return normalizeF3(t * (sinTheta * cosf(phi)) + b * (sinTheta * sinf(phi)) + wi * cosTheta);
+	}
+
 	// Cosine-weighted hemisphere sample in tangent space (Z-up) - the
 	// standard importance sampler for a Lambertian diffuse lobe, whose
 	// pdf(L)=NdotL/pi exactly cancels the BRDF's own NdotL/pi term, leaving
@@ -1580,20 +1644,18 @@ namespace
 		outGuideAlbedo = make_float3(__uint_as_float(p14), __uint_as_float(p15), __uint_as_float(p16));
 		outEscapeRoughness = __uint_as_float(p17);
 		outNextBsdfPdf = __uint_as_float(p19);
-		// outWorldNormal (p4-6) is repurposed to carry the KHR_materials_
-		// volume_scatter BSSRDF-sampled entry POSITION when outHitFlag==4 (see
-		// __closesthit__ch()'s hasExplicitContinuationOrigin) - the entry
-		// surface's REAL shading normal for OIDN's guide-normal buffer is
-		// instead octahedral-encoded into p7/p18 for exactly that case (see
-		// encodeOctahedralNormal()'s doc comment for why THESE two slots
-		// specifically - p19/previousBsdfPdf looks similarly "free" at
-		// first glance but is NOT, since its value threads forward into
-		// the next bounce's real MIS weighting; that was a real, once-
-		// shipped bug here). For every other hit flag, outWorldNormal
-		// already IS the real normal, so this is just a pass-through - see
-		// __raygen__rg()'s guide-buffer capture, which uses this instead
-		// of outWorldNormal directly now.
-		outGuideNormal = (outHitFlag == 4u) ? decodeOctahedralNormal(make_float2(outHitDistance, __uint_as_float(p18))) : outWorldNormal;
+		// outWorldNormal (p4-6) is repurposed to carry KHR_materials_
+		// volume_scatter's free-flight-walk scatter POSITION when
+		// outHitFlag==4 (see __closesthit__ch()'s hasExplicitContinuationOrigin) -
+		// no octahedral-normal smuggling is needed for this case (unlike the
+		// old BSSRDF redirect this replaces): a scatter vertex has no
+		// surface normal at all, and OIDN's guide-normal buffer is only
+		// ever captured on the primary hit (bounce==0/transmissionDepth==0
+		// in __raygen__rg()), which a scatter continuation can only reach
+		// in the degenerate case of the camera starting inside a volume-
+		// scatter medium - an accepted v1 gap, matching this feature's plan
+		// doc.
+		outGuideNormal = outWorldNormal;
 	}
 
 	// RGB transmittance shadow query - reuses the same pipeline/SBT as the
@@ -1637,200 +1699,85 @@ namespace
 		return make_float3(__uint_as_float(trX), __uint_as_float(trY), __uint_as_float(trZ));
 	}
 
-	constexpr float kVolumeProbeSentinel = -5.0f;
-
-	// Marks a hit reached via sampleBSSRDFEntryPoint()'s redirect (the
-	// escapeRoughness this hit's own traceBouncePath() call receives as
-	// INPUT, distinct from the ordinary -2.0f diffuse-lobe sentinel) - lets
-	// this hit's own V/N computation below force self-consistency with
-	// CpuPathTracer::tracePixel()'s equivalent (see that computation's doc
-	// comment for why this matters: CPU's redirect reuses a cached RtHit
-	// directly, so its "arrival direction" and shading normal are trivially
-	// the same value by construction; GPU's redirect instead fires a REAL
-	// ray to physically land back on the entry point - needing the FLAT
-	// geometric normal for that re-trace to be numerically robust - so
-	// without this override, V (derived from that flat incoming direction)
-	// and worldNormal (freshly interpolated SMOOTH normal at wherever the
-	// re-trace actually lands) subtly disagree here on every single bounce
-	// following a redirect, compounding across the many forced interior
-	// bounces a diffuseTransmissionFactor==1 material produces).
-	constexpr float kBssrdfContinuationSentinel = -6.0f;
-
-	__forceinline__ __device__ bool traceVolumeProbe(const float3& origin, const float3& direction,
-		float& outDistance, float3& outGeometricNormal, unsigned int& rngSeed)
+	// KHR_materials_volume_scatter's free-flight random walk NEE (see
+	// __closesthit__ch()'s hitBackface/hasVolumeScattering gate) - next-
+	// event estimation from a volume-INTERIOR scatter vertex, mirroring
+	// CpuPathTracer.cpp's sampleVolumeScatterNEE() exactly: the Henyey-
+	// Greenstein phase function replaces the BRDF and there is no NdotL/
+	// surface-cosine term (no surface normal exists at a scatter point -
+	// the phase function's own normalization already accounts for the full
+	// sphere integral). wi is the ray's incoming travel direction at the
+	// scatter point. Punctual lights use the same "delta-direction, no
+	// extra pdf division" convention __closesthit__ch()'s ordinary surface
+	// NEE loop already uses; the environment term MIS-combines the env-
+	// sampling pdf against the phase pdf, mirroring that surface NEE
+	// block's balance-heuristic weighting exactly. No self-shadow-instance
+	// mask exclusion is needed (that toggle exists so a surface doesn't
+	// shadow itself - a scatter point in open space isn't on any
+	// instance's own geometry), so sourceInstanceId is passed through
+	// mainly so traceShadowRay()'s signature is satisfied uniformly - it
+	// only matters when params.selfShadowsEnabled==0, which can never
+	// self-exclude a non-existent "own instance" for a scatter vertex
+	// anyway.
+	__forceinline__ __device__ float3 sampleVolumeScatterNEE(const float3& scatterPos, const float3& wi,
+		const float3& throughput, unsigned int sourceInstanceId, unsigned int rngState)
 	{
-		unsigned int hit = 0u;
-		unsigned int dist = 0u;
-		unsigned int nx = 0u, ny = 0u, nz = 0u;
-		unsigned int seed = rngSeed;
-		unsigned int p5 = 0u, p6 = 0u, p7 = 0u, p8 = 0u, p9 = 0u;
-		unsigned int p10 = 0u, p11 = 0u, p12 = 0u, p13 = 0u, p14 = 0u, p15 = 0u, p16 = 0u;
-		unsigned int p17 = seed;
-		unsigned int p18 = __float_as_uint(kVolumeProbeSentinel);
-		unsigned int p19 = 0u;
-		optixTrace(
-			params.handle,
-			origin,
-			direction,
-			1e-4f,
-			1e16f,
-			0.0f,
-			OptixVisibilityMask(255),
-			OPTIX_RAY_FLAG_NONE,
-			0,
-			1,
-			0,
-			hit, dist, nx, ny, nz, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19);
-		rngSeed = p17;
-		if (hit == 0u)
-			return false;
-		outDistance = __uint_as_float(dist);
-		outGeometricNormal = make_float3(__uint_as_float(nx), __uint_as_float(ny), __uint_as_float(nz));
-		return true;
-	}
+		float3 result = make_float3(0.0f, 0.0f, 0.0f);
 
-	// KHR_materials_volume_scatter, BSSRDF diffusion-profile importance
-	// sampling - mirrors CpuPathTracer::sampleBSSRDFEntryPoint() EXACTLY
-	// (same named intermediates, same formulas, same probe-and-combine
-	// structure - see that function's doc comment for the full physical
-	// model/citation trail and this feature's CPU/GPU-parity requirement).
-	// Supersedes the earlier free-flight random-walk implementation
-	// (traceVolumeScatterWalk(), removed) for the same reasons documented
-	// on the CPU side. Reuses traceVolumeProbe() UNCHANGED as the single
-	// geometry probe a BSSRDF-IS sample needs - no loop, no Russian
-	// roulette, no octahedral-normal payload workaround required.
-	__forceinline__ __device__ float bssrdfSigmaT(const float3& attenuationColor, float attenuationDistance, int channel)
-	{
-		if (attenuationDistance <= 0.0f)
-			return 1.0f; // degenerate - matches calculateVolumeAttenuation()'s own <=0 gate
-		const float ac = channel == 0 ? attenuationColor.x : (channel == 1 ? attenuationColor.y : attenuationColor.z);
-		return -logf(fmaxf(ac, 1e-6f)) / attenuationDistance;
-	}
-
-	__forceinline__ __device__ float bssrdfAlbedo(const float3& multiScatterColor, int channel)
-	{
-		const float a = channel == 0 ? multiScatterColor.x : (channel == 1 ? multiScatterColor.y : multiScatterColor.z);
-		return fminf(fmaxf(a, 0.0f), 1.0f);
-	}
-
-	__forceinline__ __device__ float bssrdfDiffusionScale(const float3& attenuationColor, float attenuationDistance,
-		const float3& multiScatterColor, int channel)
-	{
-		const float A = bssrdfAlbedo(multiScatterColor, channel);
-		const float s = 1.9f - A + 3.5f * (A - 0.8f) * (A - 0.8f);
-		const float l = 1.0f / fmaxf(bssrdfSigmaT(attenuationColor, attenuationDistance, channel), 1e-6f);
-		return l / fmaxf(s, 1e-4f);
-	}
-
-	__forceinline__ __device__ float bssrdfCdf(float r, float d)
-	{
-		if (r <= 0.0f || d <= 0.0f) return 0.0f;
-		return 1.0f - 0.25f * expf(-r / d) - 0.75f * expf(-r / (3.0f * d));
-	}
-
-	__forceinline__ __device__ float bssrdfInvertCdf(float d, float xi)
-	{
-		float lo = 0.0f, hi = fmaxf(d, 1e-6f);
-		while (bssrdfCdf(hi, d) < xi && hi < d * 1.0e6f)
-			hi *= 2.0f;
-		for (int i = 0; i < 30; ++i)
+		for (unsigned int i = 0; i < params.lightCount; ++i)
 		{
-			const float mid = 0.5f * (lo + hi);
-			if (bssrdfCdf(mid, d) < xi) lo = mid; else hi = mid;
+			float3 lightDir, lightIntensity;
+			float lightDistance;
+			evaluatePunctualLight(params.lights[i], scatterPos, lightDir, lightIntensity, lightDistance);
+			if (lightIntensity.x <= 0.0f && lightIntensity.y <= 0.0f && lightIntensity.z <= 0.0f)
+				continue;
+
+			rngState = pcgHash(rngState ^ (i * 0x9E3779B9u));
+			const float shadowMaxDistance = fminf(lightDistance, 1e16f);
+			float3 shadowTransmittance = params.shadowsEnabled != 0
+				? traceShadowRay(scatterPos, lightDir, shadowMaxDistance, sourceInstanceId, rngState)
+				: make_float3(1.0f, 1.0f, 1.0f);
+			if (params.lights[i].range < 0.0f)
+				shadowTransmittance = make_float3(fmaxf(shadowTransmittance.x, 0.15f), fmaxf(shadowTransmittance.y, 0.15f), fmaxf(shadowTransmittance.z, 0.15f));
+			if (shadowTransmittance.x <= 0.0f && shadowTransmittance.y <= 0.0f && shadowTransmittance.z <= 0.0f)
+				continue;
+
+			const float phasePdf = henyeyGreensteinPdf(dot3(wi, lightDir), kVolumeScatterAnisotropy);
+			result = result + throughput * phasePdf * lightIntensity * shadowTransmittance;
 		}
-		return 0.5f * (lo + hi);
-	}
 
-	// Normalized-diffusion area-density profile - used both for the
-	// throughput numerator (at the real 3D distance) and, at a per-axis
-	// PROJECTED radius, for the combined MIS pdf below.
-	__forceinline__ __device__ float bssrdfRd(float r, float A, float d)
-	{
-		if (r <= 1e-6f || d <= 0.0f) return 0.0f;
-		return A * (expf(-r / d) + expf(-r / (3.0f * d))) / (8.0f * kPi * d * r);
-	}
-
-	// Restricted to the PRIMARY hit only - see CPU's identical doc comment
-	// and __closesthit__ch()'s use site. v1 takes the CLOSEST probe
-	// intersection only (matching CPU), and - unlike CPU - doesn't verify
-	// the probe hit shares the origin hit's material index:
-	// traceVolumeProbe() doesn't currently report one, and this feature's
-	// only real test asset (ScatteringSkull.gltf) is single-material, so
-	// this is a deliberately accepted v1 gap for multi-material meshes, not
-	// an oversight.
-	__forceinline__ __device__ bool sampleBSSRDFEntryPoint(const float3& worldPos, const float3& worldNormal,
-		const float3& attenuationColor, float attenuationDistance, const float3& multiScatterColor,
-		unsigned int& rngSeed, float3& outEntryPos, float3& outEntryNormal, float3& outThroughput)
-	{
-		float3 axes[3];
-		axes[0] = worldNormal;
-		buildOrthonormalBasis(worldNormal, axes[1], axes[2]);
-
-		rngSeed = pcgHash(rngSeed);
-		const int channel = min(2, static_cast<int>(hashToUnitFloat(rngSeed) * 3.0f));
-		rngSeed = pcgHash(rngSeed);
-		const int axis = min(2, static_cast<int>(hashToUnitFloat(rngSeed) * 3.0f));
-
-		const float d = bssrdfDiffusionScale(attenuationColor, attenuationDistance, multiScatterColor, channel);
-		if (d <= 0.0f)
-			return false;
-
-		rngSeed = pcgHash(rngSeed);
-		const float r = bssrdfInvertCdf(d, hashToUnitFloat(rngSeed));
-		const float rMax = bssrdfInvertCdf(d, 0.999f);
-		if (!(r < rMax))
-			return false;
-
-		const float3 probeAxis = axes[axis];
-		const float3 diskU = axes[(axis + 1) % 3];
-		const float3 diskV = axes[(axis + 2) % 3];
-
-		rngSeed = pcgHash(rngSeed);
-		const float phi = hashToUnitFloat(rngSeed) * 2.0f * kPi;
-		const float probeHeight = sqrtf(fmaxf(rMax * rMax - r * r, 0.0f));
-		const float3 diskPoint = worldPos + diskU * (r * cosf(phi)) + diskV * (r * sinf(phi));
-		const float3 probeOrigin = diskPoint + probeAxis * probeHeight;
-
-		float probeDistance = 0.0f;
-		float3 probeNormal = make_float3(0.0f, 1.0f, 0.0f);
-		if (!traceVolumeProbe(probeOrigin, probeAxis * -1.0f, probeDistance, probeNormal, rngSeed))
-			return false;
-
-		const float3 entryPos = probeOrigin + (probeAxis * -1.0f) * probeDistance;
-		const float3 delta = entryPos - worldPos;
-		const float actualR = length3(delta);
-		if (actualR >= rMax || actualR <= 1e-6f)
-			return false;
-
-		// Combined MIS pdf over all 3 (axis, channel) sampling strategies
-		// that could have produced this entry point - see this function's
-		// doc comment. rProj[a] is delta's length projected onto the plane
-		// PERPENDICULAR to axis a (that axis's own component removed).
-		float combinedPdf = 0.0f;
-		for (int a = 0; a < 3; ++a)
+		if (params.enableEnvironmentImportanceSampling != 0
+			&& params.environment.envTotalWeight > 0.0f
+			&& params.environment.envFlatCdf != nullptr
+			&& params.environment.envTexelPdf != nullptr)
 		{
-			const float alongAxis = dot3(delta, axes[a]);
-			const float rProj = sqrtf(fmaxf(actualR * actualR - alongAxis * alongAxis, 0.0f));
-			const float cosTerm = fabsf(dot3(axes[a], probeNormal));
-			for (int c = 0; c < 3; ++c)
-				combinedPdf += bssrdfRd(rProj, bssrdfAlbedo(multiScatterColor, c),
-					bssrdfDiffusionScale(attenuationColor, attenuationDistance, multiScatterColor, c)) * cosTerm * (1.0f / 9.0f);
+			rngState = pcgHash(rngState ^ 0x6D2B79F5u);
+			const float eu0 = hashToUnitFloat(rngState);
+			rngState = pcgHash(rngState);
+			const float eu1 = hashToUnitFloat(rngState);
+			rngState = pcgHash(rngState);
+			const float eu2 = hashToUnitFloat(rngState);
+
+			float3 envDir;
+			float envPdf;
+			envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
+			if (envPdf > 0.0f)
+			{
+				rngState = pcgHash(rngState);
+				const float3 envTransmittance = params.shadowsEnabled != 0
+					? traceShadowRay(scatterPos, envDir, 1e16f, sourceInstanceId, rngState)
+					: make_float3(1.0f, 1.0f, 1.0f);
+				if (envTransmittance.x > 0.0f || envTransmittance.y > 0.0f || envTransmittance.z > 0.0f)
+				{
+					const float phasePdf = henyeyGreensteinPdf(dot3(wi, envDir), kVolumeScatterAnisotropy);
+					const float misWeight = phasePdf / (phasePdf + envPdf); // balance heuristic vs. the phase-sampled bounce's own MIS half - see __miss__ms()'s previousBsdfPdf weighting
+					const float3 envRadiance = sampleEnvironmentRaw(params.environment, envDir) * envTransmittance;
+					result = result + throughput * (misWeight / envPdf) * phasePdf * envRadiance;
+				}
+			}
 		}
-		if (!(combinedPdf > 0.0f))
-			return false;
 
-		// Throughput uses the REAL 3D distance (not a projected radius) -
-		// the profile itself is a function of true distance, only the
-		// pdf's per-axis bookkeeping needs the projected form.
-		const float3 RdSpectral = make_float3(
-			bssrdfRd(actualR, bssrdfAlbedo(multiScatterColor, 0), bssrdfDiffusionScale(attenuationColor, attenuationDistance, multiScatterColor, 0)),
-			bssrdfRd(actualR, bssrdfAlbedo(multiScatterColor, 1), bssrdfDiffusionScale(attenuationColor, attenuationDistance, multiScatterColor, 1)),
-			bssrdfRd(actualR, bssrdfAlbedo(multiScatterColor, 2), bssrdfDiffusionScale(attenuationColor, attenuationDistance, multiScatterColor, 2)));
-
-		outThroughput = RdSpectral * (1.0f / combinedPdf);
-		outEntryPos = entryPos;
-		outEntryNormal = probeNormal;
-		return true;
+		return result;
 	}
 }
 
@@ -1908,6 +1855,13 @@ extern "C" __global__ void __raygen__rg()
 		// RtOptixSceneParams.h's doc comment on that field).
 		unsigned int bounce = 0;
 		unsigned int transmissionDepth = 0;
+		// KHR_materials_volume_scatter's free-flight random walk counts its
+		// scatter events separately from both bounce and transmissionDepth -
+		// mirrors CpuPathTracer::tracePixel()'s identical scatterBounces
+		// counter exactly (see this feature's plan doc). Free (no Russian
+		// roulette) until kVolumeScatterFreeBudget, then RR - see this
+		// loop's hitFlag==4 branch below.
+		unsigned int scatterBounces = 0;
 		// Inclusive (<=), matching CpuPathTracer::tracePixel()'s documented
 		// "for (bounce=0; bounce<=maxBounces;...)" termination point exactly -
 		// this loop previously used < maxBounces, running one fewer real
@@ -1955,7 +1909,20 @@ extern "C" __global__ void __raygen__rg()
 			// long TIR chain with genuinely low throughput (e.g. from
 			// attenuationColor absorption) still gets a chance to terminate
 			// early rather than only ever stopping via maxTransmissionBounces.
-			if (bounce + transmissionDepth >= params.russianRouletteStartDepth)
+			// Skipped for a volume-scatter continuation (hitFlag==4) - that
+			// case has its own, SEPARATE free-budget/RR policy below
+			// (kVolumeScatterFreeBudget scatter events run free before RR
+			// starts), matching CpuPathTracer::tracePixel()'s identical
+			// scatter-continue-bypasses-the-ordinary-RR-check structure
+			// exactly. Applying the ordinary combined bounce+transmissionDepth
+			// RR check here too would re-introduce this feature's own
+			// previously-fixed bug: bounce/transmissionDepth stay flat during
+			// a scatter streak, so once they cross russianRouletteStartDepth
+			// (typically already true by the time a ray has bounced its way
+			// into the medium), EVERY subsequent scatter event would also be
+			// probabilistically killed here - exactly the "RR every step"
+			// failure mode the free-flight walk was redesigned to avoid.
+			if (hitFlag != 4u && bounce + transmissionDepth >= params.russianRouletteStartDepth)
 			{
 				const float continueProb = fminf(fmaxf(fmaxf(throughput.x, fmaxf(throughput.y, throughput.z)), 0.05f), 1.0f);
 				rngState = pcgHash(rngState ^ 0xA5A5A5A5u);
@@ -1994,16 +1961,46 @@ extern "C" __global__ void __raygen__rg()
 				if (transmissionDepth >= params.maxTransmissionBounces)
 					break; // exhausted the transmission budget - a rare edge case (an extremely narrow TIR escape cone), matching CPU's identical exhaustion handling
 			}
-			else if (hitFlag == 4u && escapeRoughness == -3.0f)
+			else if (hitFlag == 4u)
 			{
-				++transmissionDepth;
-				if (transmissionDepth >= params.maxTransmissionBounces)
-					break;
+				// KHR_materials_volume_scatter's free-flight walk - see this
+				// counter's declaration above and CpuPathTracer::tracePixel()'s
+				// identical policy: free (no RR at all) for the first
+				// kVolumeScatterFreeBudget scatter events, then RR with the
+				// same floor/cap NVIDIA's vk_gltf_renderer reference uses.
+				++scatterBounces;
+				if (scatterBounces >= kVolumeScatterFreeBudget)
+				{
+					const float rrPcont = fminf(fmaxf(fmaxf(throughput.x, fmaxf(throughput.y, throughput.z)) + kVolumeRrFloor, 0.0f), kVolumeRrCap);
+					rngState = pcgHash(rngState ^ 0xC2B2AE3Du);
+					if (hashToUnitFloat(rngState) >= rrPcont)
+						break;
+					throughput = throughput * (1.0f / rrPcont);
+				}
 			}
 			else
 			{
 				++bounce;
 			}
+		}
+
+		// kDebugVisualizeVolumeScatterBounces - same heat-ramp pattern as
+		// CpuPathTracer.cpp's identical debug view, over scatterBounces'
+		// final value for this sample, normalized against
+		// kVolumeScatterDebugRampCap (a separate, smaller cap than
+		// kVolumeScatterFreeBudget - chosen purely for a visually useful
+		// range).
+		if (kDebugVisualizeVolumeScatterBounces && scatterBounces > 0)
+		{
+			const float t = fminf(fmaxf(static_cast<float>(scatterBounces) / kVolumeScatterDebugRampCap, 0.0f), 1.0f);
+			if (t < 0.25f)
+				sampleRadiance = lerp3(make_float3(0.0f, 0.0f, 0.0f), make_float3(0.0f, 0.0f, 1.0f), t / 0.25f);
+			else if (t < 0.5f)
+				sampleRadiance = lerp3(make_float3(0.0f, 0.0f, 1.0f), make_float3(0.0f, 1.0f, 0.0f), (t - 0.25f) / 0.25f);
+			else if (t < 0.75f)
+				sampleRadiance = lerp3(make_float3(0.0f, 1.0f, 0.0f), make_float3(1.0f, 1.0f, 0.0f), (t - 0.5f) / 0.25f);
+			else
+				sampleRadiance = lerp3(make_float3(1.0f, 1.0f, 0.0f), make_float3(1.0f, 1.0f, 1.0f), (t - 0.75f) / 0.25f);
 		}
 
 		// Firefly/outlier suppression - params.fireflyClampThreshold mirrors
@@ -2046,18 +2043,11 @@ extern "C" __global__ void __miss__ms()
 	// p18 carries the escape mode for THIS ray (see traceBouncePath()'s doc
 	// comment): -1 means primary/camera ray, -2 means a diffuse-lobe escape,
 	// -3 means a KHR_materials_transmission-branch escape (see
-	// __closesthit__ch()'s transmission branch), and >=0 means a GGX
-	// specular-lobe escape with that material roughness. kVolumeProbeSentinel
-	// (-5) marks one of sampleBSSRDFEntryPoint()'s own nested probe rays
-	// (see traceVolumeProbe()) - forcing result to exactly (0,0,0) here is
-	// what makes payload_0 read back as bit-pattern 0u (via setPayload()
-	// below), which is traceVolumeProbe()'s own "no hit" convention -
-	// this is NOT a real radiance contribution. kBssrdfContinuationSentinel
-	// (-6) marks the rare edge case where the redirect's own re-trace back
-	// onto the entry point misses entirely - falls into the generic
-	// escapeRoughness<0.0f diffuse-escape bucket below like an ordinary
-	// diffuse-lobe escape, since that's a reasonable treatment for a hit
-	// that was already known to be a diffuse-transmission surface.
+	// __closesthit__ch()'s transmission branch), kVolumeScatterEscapeSentinel
+	// (-7) marks a KHR_materials_volume_scatter free-flight-walk redirect
+	// that escaped straight to the environment without hitting real
+	// geometry first (see that sentinel's own doc comment), and >=0 means a
+	// GGX specular-lobe escape with that material roughness.
 	const float escapeRoughness = __uint_as_float(optixGetPayload_18());
 	const float previousBsdfPdf = __uint_as_float(optixGetPayload_19());
 	const float3 dir = optixGetWorldRayDirection();
@@ -2074,11 +2064,7 @@ extern "C" __global__ void __miss__ms()
 		const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
 		result = sampleEnvironmentBackground(params.environment, dir, su, sv);
 	}
-	else if (escapeRoughness == kVolumeProbeSentinel)
-	{
-		result = make_float3(0.0f, 0.0f, 0.0f);
-	}
-	else if (escapeRoughness == -3.0f)
+	else if (escapeRoughness == -3.0f || escapeRoughness == kVolumeScatterEscapeSentinel)
 	{
 		// KHR_materials_transmission-branch escape (reflect, thin-walled
 		// pass-through, or refract/TIR) - a deterministic Fresnel pick, not a
@@ -2086,7 +2072,13 @@ extern "C" __global__ void __miss__ms()
 		// unblurred map the specular-lobe escape below uses, matching
 		// CpuPathTracer::tracePixel()'s identical lastBsdfSamplePdf<=0 ->
 		// sampleEnvironmentMiss() (this backend's sampleEnvironmentRaw())
-		// treatment for this same case exactly.
+		// treatment for this same case exactly. A volume-scatter free-
+		// flight redirect's escape direction is HG-phase-sampled (roughly
+		// uniform over the sphere for the isotropic v1 default), not a
+		// cosine-weighted lobe around a surface normal, so the raw/
+		// unfiltered map is the more honest choice here too - the diffuse-
+		// lobe bucket below's cosine-weighted irradiance convolution
+		// assumes a surface normal that doesn't exist at a scatter vertex.
 		result = sampleEnvironmentRaw(params.environment, dir);
 	}
 	else if (escapeRoughness < 0.0f)
@@ -2177,7 +2169,6 @@ extern "C" __global__ void __anyhit__ah()
 	const RtOptixSceneHitGroupData* data = reinterpret_cast<const RtOptixSceneHitGroupData*>(optixGetSbtDataPointer());
 
 	const bool isShadowRayAH = (optixGetRayFlags() & OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT) != 0;
-	const bool isVolumeProbeRayAH = __uint_as_float(optixGetPayload_18()) == kVolumeProbeSentinel;
 
 	// glTF material.doubleSided==false back-face culling - a single-sided
 	// material's back face generally doesn't exist for any ray type, same
@@ -2197,8 +2188,25 @@ extern "C" __global__ void __anyhit__ah()
 	// main_scene.frag) - previously entirely unimplemented in this kernel, so
 	// every material rendered as if double-sided. Reported against glTF's
 	// own NegativeScaleTest.gltf sample.
-	const bool solidVolumeExitCandidate = !isShadowRayAH && data->hasVolume != 0 && data->transmission > 0.001f;
-	if (!isVolumeProbeRayAH && data->twoSided == 0 && !optixIsTriangleFrontFaceHit() && !solidVolumeExitCandidate)
+	//
+	// hasVolumeScattering is ALSO included here (not just transmission>
+	// 0.001f) - KHR_materials_volume_scatter's free-flight random walk
+	// (see __closesthit__ch()'s hitBackface/hasVolumeScattering gate) enters
+	// its medium via KHR_materials_diffuse_transmission's back-hemisphere
+	// lobe, not specular KHR_materials_transmission, so a volume-scatter
+	// material with NO specular transmission (e.g. ScatteringSkull.gltf,
+	// which is single-sided and diffuse_transmission-only) would otherwise
+	// have every single one of its interior/backface hits silently
+	// discarded here before ever reaching __closesthit__ch() - meaning
+	// hitBackface could NEVER become true and the walk could never run at
+	// all. This was found by adding a debug view that colors any hit where
+	// hasVolume/hasVolumeScattering read true, decoupled from hitBackface -
+	// it showed those flags correct elsewhere but never on this material's
+	// own backface hits, isolating the bug to this any-hit cull rather than
+	// the material data itself (CPU, which has no equivalent any-hit
+	// culling stage, already proved the material data correct).
+	const bool solidVolumeExitCandidate = !isShadowRayAH && data->hasVolume != 0 && (data->transmission > 0.001f || data->hasVolumeScattering != 0);
+	if (data->twoSided == 0 && !optixIsTriangleFrontFaceHit() && !solidVolumeExitCandidate)
 	{
 		optixIgnoreIntersection();
 		return;
@@ -2400,16 +2408,6 @@ extern "C" __global__ void __closesthit__ch()
 	optixGetTriangleVertexData(optixGetGASTraversableHandle(), primIdx, optixGetSbtGASIndex(), 0.0f, objectTri);
 	const float3 objectFlatNormal = cross3(objectTri[1] - objectTri[0], objectTri[2] - objectTri[0]);
 	const float3 worldFlatNormal = normalizeF3(optixTransformNormalFromObjectToWorldSpace(objectFlatNormal));
-
-	if (__uint_as_float(optixGetPayload_18()) == kVolumeProbeSentinel)
-	{
-		optixSetPayload_0(1u);
-		optixSetPayload_1(__float_as_uint(optixGetRayTmax()));
-		optixSetPayload_2(__float_as_uint(worldFlatNormal.x));
-		optixSetPayload_3(__float_as_uint(worldFlatNormal.y));
-		optixSetPayload_4(__float_as_uint(worldFlatNormal.z));
-		return;
-	}
 
 	// Faceforward against the ray, matching CpuPathTracer's own "shade the
 	// side the ray actually hit" handling for thin/backfacing geometry.
@@ -2619,19 +2617,14 @@ extern "C" __global__ void __closesthit__ch()
 	// point is at a fixed relative offset from.
 	const float primaryRaySentinel = __uint_as_float(optixGetPayload_18());
 	const bool isPrimaryOrthoHit = (params.camOrthographic != 0) && (primaryRaySentinel == -1.0f);
-	// KHR_materials_volume_scatter - a hit reached via sampleBSSRDFEntryPoint()'s
-	// redirect (kBssrdfContinuationSentinel) forces V = worldNormal directly
-	// instead of deriving it from rayDir - see that sentinel's own doc
-	// comment: CPU's redirect is trivially self-consistent (V and N come
-	// from the exact same cached value by construction), but GPU's re-trace
-	// necessarily uses the FLAT probe normal for its incoming direction
-	// while worldNormal here is the freshly-interpolated SMOOTH normal at
-	// wherever that re-trace actually landed - two different values that
-	// otherwise leave V and N subtly, systematically disagreeing on every
-	// bounce following a redirect.
-	const float3 V = primaryRaySentinel == kBssrdfContinuationSentinel
-		? worldNormal
-		: (isPrimaryOrthoHit ? normalizeF3(params.camPosition - worldPos) : normalizeF3(rayDir * -1.0f));
+	// KHR_materials_volume_scatter's free-flight walk needs no special-case
+	// here (unlike the old BSSRDF redirect this replaces): a scatter
+	// continuation's ray genuinely travels from the scatter vertex in the
+	// HG-sampled direction and lands on whatever real surface it lands on,
+	// so V = -rayDir is already correct without any override - there's no
+	// "cached hit reused as the next vertex" self-consistency concern the
+	// way BSSRDF's redirect had.
+	const float3 V = isPrimaryOrthoHit ? normalizeF3(params.camPosition - worldPos) : normalizeF3(rayDir * -1.0f);
 	const float NdotV = fmaxf(dot3(worldNormal, V), 0.0f);
 	float3 F0 = lerp3(dielectricF0, baseColor, metalness);
 	float3 F90 = lerp3(make_float3(texturedSpecularFactor, texturedSpecularFactor, texturedSpecularFactor), make_float3(1.0f, 1.0f, 1.0f), metalness);
@@ -2858,9 +2851,92 @@ extern "C" __global__ void __closesthit__ch()
 	// their assignment there), matching CPU's single throughput*=atten
 	// multiply affecting everything computed from this point onward in the
 	// same tracePixel() iteration.
-	const float3 volumeAttenuation = (hitBackface && hasVolume != 0)
-		? calculateVolumeAttenuation(attenuationColor, attenuationDistance, optixGetRayTmax())
-		: make_float3(1.0f, 1.0f, 1.0f);
+	//
+	// KHR_materials_volume_scatter genuine free-flight random walk (mirrors
+	// NVIDIA's vk_gltf_renderer exactly - see this feature's plan doc): when
+	// the medium ALSO carries volume-scatter data, replace the deterministic
+	// full-segment multiply below with a stochastic per-segment scatter-or-
+	// absorb test, using this same optixGetRayTmax() segment distance as the
+	// free-flight bound. A scatter event never reaches this hit's surface at
+	// all - it writes its OWN complete payload set (reusing the same
+	// explicit-origin continuation mechanism the old BSSRDF redirect used,
+	// hitFlag==4) and returns immediately, skipping every bit of this
+	// function's surface shading below (NEE loop, BSDF lobes, emissive).
+	float3 volumeAttenuation = make_float3(1.0f, 1.0f, 1.0f);
+	if (hitBackface && hasVolume != 0)
+	{
+		if (hasVolumeScattering != 0)
+		{
+			float3 extinction, scatterCoeff;
+			computeVolumeScatterCoefficients(attenuationColor, attenuationDistance, multiScatterColor, extinction, scatterCoeff);
+			const float maxScatter = fmaxf(scatterCoeff.x, fmaxf(scatterCoeff.y, scatterCoeff.z));
+			if (maxScatter > kVolumeMinScatter)
+			{
+				const float maxExtinction = fmaxf(extinction.x, fmaxf(extinction.y, extinction.z));
+				const float segmentDistance = optixGetRayTmax();
+				unsigned int rngState = optixGetPayload_17();
+				rngState = pcgHash(rngState);
+				const float scatterDist = -logf(fmaxf(hashToUnitFloat(rngState), kVolumeRandFloor)) / maxExtinction;
+				if (scatterDist < segmentDistance)
+				{
+					const float3 scatterThroughput = make_float3(1.0f, 1.0f, 1.0f) - (extinction - scatterCoeff) * (1.0f / maxExtinction);
+					const float3 scatterPos = rayOrigin + rayDir * scatterDist;
+					const float3 wi = rayDir;
+
+					rngState = pcgHash(rngState);
+					const float u1 = hashToUnitFloat(rngState);
+					rngState = pcgHash(rngState);
+					const float u2 = hashToUnitFloat(rngState);
+					const float3 newDir = sampleHenyeyGreenstein(wi, kVolumeScatterAnisotropy, u1, u2);
+					const float phasePdf = henyeyGreensteinPdf(dot3(wi, newDir), kVolumeScatterAnisotropy);
+
+					rngState = pcgHash(rngState);
+					const float3 neeRadiance = sampleVolumeScatterNEE(scatterPos, wi, scatterThroughput, instanceId, rngState);
+
+					setPayload(neeRadiance);
+					optixSetPayload_3(4u); // explicit-origin continuation - see traceBouncePath()'s and __raygen__rg()'s hitFlag==4 handling
+					optixSetPayload_4(__float_as_uint(scatterPos.x));
+					optixSetPayload_5(__float_as_uint(scatterPos.y));
+					optixSetPayload_6(__float_as_uint(scatterPos.z));
+					optixSetPayload_7(__float_as_uint(segmentDistance)); // unread for hitFlag==4 (see traceBouncePath()'s doc comment), kept for consistency
+					optixSetPayload_8(__float_as_uint(newDir.x));
+					optixSetPayload_9(__float_as_uint(newDir.y));
+					optixSetPayload_10(__float_as_uint(newDir.z));
+					optixSetPayload_11(__float_as_uint(scatterThroughput.x));
+					optixSetPayload_12(__float_as_uint(scatterThroughput.y));
+					optixSetPayload_13(__float_as_uint(scatterThroughput.z));
+					// Guide albedo/normal for OIDN are only ever consumed at
+					// the primary hit (bounce==0/transmissionDepth==0 in
+					// __raygen__rg()) - a scatter continuation can only reach
+					// that in the degenerate case of the camera starting
+					// inside a volume-scatter medium, an accepted v1 gap (see
+					// this feature's plan doc). baseColor is a reasonable
+					// placeholder for the ordinary case.
+					optixSetPayload_14(__float_as_uint(baseColor.x));
+					optixSetPayload_15(__float_as_uint(baseColor.y));
+					optixSetPayload_16(__float_as_uint(baseColor.z));
+					optixSetPayload_17(__float_as_uint(kVolumeScatterEscapeSentinel));
+					optixSetPayload_19(__float_as_uint(phasePdf));
+					return;
+				}
+				else
+				{
+					volumeAttenuation = make_float3(
+						expf(segmentDistance * (maxExtinction - extinction.x)),
+						expf(segmentDistance * (maxExtinction - extinction.y)),
+						expf(segmentDistance * (maxExtinction - extinction.z)));
+				}
+			}
+			else
+			{
+				volumeAttenuation = calculateVolumeAttenuation(attenuationColor, attenuationDistance, optixGetRayTmax());
+			}
+		}
+		else
+		{
+			volumeAttenuation = calculateVolumeAttenuation(attenuationColor, attenuationDistance, optixGetRayTmax());
+		}
+	}
 
 	float3 radiance = emissive;
 	if (NdotV > 0.0f)
@@ -3194,9 +3270,7 @@ extern "C" __global__ void __closesthit__ch()
 	float outEscapeRoughness = -2.0f; // diffuse-lobe sentinel by default
 	float outBsdfPdf = 0.0f;
 	bool hasContinuation = false;
-	bool hasExplicitContinuationOrigin = false;
 	bool hasPrecomputedBsdfPdf = false;
-	float3 explicitContinuationOrigin = worldPos;
 
 	// KHR_materials_transmission - bypasses the general multi-lobe
 	// stochastic BSDF sampling below ENTIRELY for transmissive materials,
@@ -3589,60 +3663,16 @@ extern "C" __global__ void __closesthit__ch()
 			}
 			outEscapeRoughness = -2.0f;
 			hasContinuation = true;
-			// KHR_materials_volume_scatter - see sampleBSSRDFEntryPoint()'s
-			// doc comment. Supersedes this diffuse-transmission back-
-			// hemisphere lobe (throughputWeight/nextDirection just computed
-			// above, discarded below) for materials that ALSO carry volume-
-			// scatter data, mirroring CpuPathTracer::tracePixel()'s
-			// identical redirect exactly - including its restriction to the
-			// PRIMARY hit only (primaryRaySentinel==-1.0f is this backend's
-			// equivalent of CPU's bounce==0 && transmissionDepth==0 gate -
-			// see its own doc comment).
-			if (transmitDiffuse && hasVolume != 0 && hasVolumeScattering != 0 && primaryRaySentinel == -1.0f)
-			{
-				float3 entryPos, entryNormal, bssrdfWeight;
-				unsigned int bssrdfRng = rngState;
-				const bool bssrdfOk = sampleBSSRDFEntryPoint(worldPos, worldNormal, attenuationColor, attenuationDistance, multiScatterColor,
-					bssrdfRng, entryPos, entryNormal, bssrdfWeight);
-				if (bssrdfOk)
-				{
-					// diffuseTransmissionColor tint - matches CpuPathTracer::
-					// sampleBSSRDFEntryPoint()'s identical multiply (applied
-					// INSIDE that function there; kept at the call site here
-					// since sampleBSSRDFEntryPoint() itself has no notion of
-					// diffuseTransmissionColor). Missing this made GPU's
-					// BSSRDF contribution scaled up by 1/diffuseTransmission-
-					// Color relative to CPU - systematically brighter and
-					// washing out the intended darkening pattern.
-					throughputWeight = diffuseTransmissionColor * bssrdfWeight;
-					// Arriving from outside, front face - matches CPU's
-					// identical `ray.direction = -entryNormal` (keeps the
-					// NEXT full traceBouncePath() call's own hitBackface-
-					// equivalent reasoning sane at the entry point).
-					nextDirection = entryNormal * -1.0f;
-					explicitContinuationOrigin = entryPos;
-					hasExplicitContinuationOrigin = true;
-					// lastBsdfSamplePdf=0 (full weight, no MIS) - matches
-					// CPU exactly: this substitution isn't a real BSDF-lobe
-					// sample the environment-escape MIS weighting could be
-					// compared against.
-					outBsdfPdf = 0.0f;
-					hasPrecomputedBsdfPdf = true;
-					// Distinguishes this continuation from an ordinary
-					// diffuse-lobe bounce (-2.0f) so the NEXT hit's own V/N
-					// computation can force self-consistency with CPU - see
-					// kBssrdfContinuationSentinel's doc comment.
-					outEscapeRoughness = kBssrdfContinuationSentinel;
-				}
-				else
-				{
-					// No valid entry point found - terminate rather than
-					// falling back to the walk-era approximation, matching
-					// CPU exactly.
-					hasContinuation = false;
-					throughputWeight = make_float3(0.0f, 0.0f, 0.0f);
-				}
-			}
+			// KHR_materials_volume_scatter: entry into the medium is just
+			// the ordinary diffuse_transmission back-hemisphere lobe
+			// computed above (throughputWeight/nextDirection, unmodified) -
+			// no special-casing needed here. The genuine free-flight random
+			// walk happens on SUBSEQUENT hits, at the hitBackface/
+			// hasVolumeScattering gate further up this function, which
+			// decides per-segment whether the ray scatters before reaching
+			// the next surface. See this feature's plan doc for why the
+			// BSSRDF-substitution approach that used to live here was
+			// replaced.
 		}
 
 		// outEscapeRoughness==0.0f is an EXACT literal only ever written by
@@ -3698,56 +3728,18 @@ extern "C" __global__ void __closesthit__ch()
 	// KHR_materials_transmission continuation that instead counts against
 	// its own, separate (and much larger) transmission-bounce budget - see
 	// __raygen__rg()'s transmissionDepth handling, 4 = explicit-origin
-	// continuation (used by KHR_materials_volume_scatter's BSSRDF entry-
-	// point substitution - see sampleBSSRDFEntryPoint() - whose continuation
-	// point is a sampled point elsewhere on the surface, not this surface
-	// ray's own hit). 2 = hit but dead-end (no continuation - e.g. the rare
-	// below-surface VNDF sample),
-	// 0 = miss (written by __miss__ms() only). The raygen loop continues on
-	// 1, 3, or 4, and counts any non-zero hit flag as "primary ray hit
-	// geometry" for the alpha/hit-fraction channel - a dead-end hit is still
-	// a hit.
-	optixSetPayload_3(hasContinuation ? (hasExplicitContinuationOrigin ? 4u : (isTransmissionBounce ? 3u : 1u)) : 2u);
-	const float3 continuationPayload = hasExplicitContinuationOrigin ? explicitContinuationOrigin : worldNormal;
-	optixSetPayload_4(__float_as_uint(continuationPayload.x));
-	optixSetPayload_5(__float_as_uint(continuationPayload.y));
-	optixSetPayload_6(__float_as_uint(continuationPayload.z));
-	// hasExplicitContinuationOrigin (hitFlag==4) already commits payload_4-6
-	// to the BSSRDF-sampled entry POSITION above, discarding this hit's own
-	// real worldNormal entirely from the raygen loop's perspective - but that
-	// normal is exactly what __raygen__rg()'s guide-buffer capture (on
-	// bounce==0/transmissionDepth==0) needs for OIDN. payload_7/18
-	// (hitDistance/the incoming escape-mode-classification slot) are BOTH
-	// genuinely unread by traceBouncePath()'s OWN output parsing for this
-	// exact case - raygen ignores hitDistance when hitFlag==4 (it uses
-	// payload_4-6 directly instead of curOrigin+curDirection*hitDistance),
-	// and payload_18 is never read back into any out* parameter by
-	// traceBouncePath() at all (only __miss__ms() reads it directly, which
-	// never runs for a genuine hit) - see encodeOctahedralNormal()'s own
-	// doc comment for why reusing them here, rather than expanding the
-	// pipeline's fixed payload count, is the lower-risk fix. See
-	// traceBouncePath()'s outGuideNormal for the decode side.
-	//
-	// payload_19 (bsdfPdf) was tried here FIRST and is NOT safe - unlike
-	// payload_7/18, its value is threaded forward as the NEXT bounce
-	// iteration's previousBsdfPdf input (__raygen__rg()'s "previousBsdfPdf
-	// = nextBsdfPdf"), which real MIS weighting in __miss__ms() reads for
-	// whatever THAT next ray hits - repurposing it here corrupted MIS
-	// weighting for the bounce immediately following a volume-scatter
-	// entry-point substitution, producing patchy, incorrect brightness that
-	// had nothing to do with the substitution itself. A reminder that "this
-	// output value is discardable for hitFlag==4" is NOT the same as "this
-	// slot is never read by anything downstream."
-	if (hasExplicitContinuationOrigin)
-	{
-		const float2 encodedGuideNormal = encodeOctahedralNormal(worldNormal);
-		optixSetPayload_7(__float_as_uint(encodedGuideNormal.x));
-		optixSetPayload_18(__float_as_uint(encodedGuideNormal.y));
-	}
-	else
-	{
-		optixSetPayload_7(__float_as_uint(optixGetRayTmax()));
-	}
+	// continuation, written directly by KHR_materials_volume_scatter's
+	// free-flight walk's scatter-event branch above (which returns before
+	// reaching this point) - never produced from here. 2 = hit but dead-end
+	// (no continuation - e.g. the rare below-surface VNDF sample), 0 = miss
+	// (written by __miss__ms() only). The raygen loop continues on 1, 3, or
+	// 4, and counts any non-zero hit flag as "primary ray hit geometry" for
+	// the alpha/hit-fraction channel - a dead-end hit is still a hit.
+	optixSetPayload_3(hasContinuation ? (isTransmissionBounce ? 3u : 1u) : 2u);
+	optixSetPayload_4(__float_as_uint(worldNormal.x));
+	optixSetPayload_5(__float_as_uint(worldNormal.y));
+	optixSetPayload_6(__float_as_uint(worldNormal.z));
+	optixSetPayload_7(__float_as_uint(optixGetRayTmax()));
 	optixSetPayload_8(__float_as_uint(nextDirection.x));
 	optixSetPayload_9(__float_as_uint(nextDirection.y));
 	optixSetPayload_10(__float_as_uint(nextDirection.z));
