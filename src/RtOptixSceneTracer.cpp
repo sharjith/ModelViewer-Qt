@@ -1606,6 +1606,7 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
 	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
 	unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
+	unsigned int maxVolumeScatterBounces,
 	std::vector<glm::vec3>& outImageLinearRgb, std::vector<glm::vec3>& outAlbedo, std::vector<glm::vec3>& outNormal,
 	std::vector<float>& outAlpha)
 {
@@ -1688,6 +1689,7 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1;
 	params.fireflyClampThreshold = fireflyClampThreshold > 0.0f ? fireflyClampThreshold : 0.01f;
 	params.russianRouletteStartDepth = russianRouletteStartDepth > 0 ? russianRouletteStartDepth : 1;
+	params.maxVolumeScatterBounces = maxVolumeScatterBounces > 0 ? maxVolumeScatterBounces : 1;
 
 	params.handle = _impl->iasHandle;
 

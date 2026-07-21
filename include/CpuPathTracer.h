@@ -101,6 +101,16 @@ public:
 		// active).
 		int maxShadowRayHits = 8;
 
+		// KHR_materials_volume_scatter's free-flight random walk (see
+		// tracePixel()'s hitBackface/hasVolumeScattering gate) tracks its own,
+		// separate scatter-event budget - like maxTransmissionBounces above,
+		// this never eats into the ordinary maxBounces budget. Runs entirely
+		// free (no Russian roulette) up to this count, then RR kicks in -
+		// matches NVIDIA's vk_gltf_renderer reference (VOLUME_FREE_BUDGET).
+		// Lower this to trade SSS quality for speed on volume-scatter-heavy
+		// scenes (e.g. ScatteringSkull.gltf) without touching maxBounces.
+		int maxVolumeScatterBounces = 64;
+
 		// Debug-visualization toggles used to live here as Settings fields,
 		// but flipping a bool in a widely-included header like this one
 		// forced a full rebuild of every translation unit that includes

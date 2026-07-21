@@ -182,6 +182,7 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 		ui->spinBoxMaxTransmissionBounces->setValue(viewport->pathTracingMaxTransmissionBounces());
 		ui->spinBoxRussianRouletteDepth->setValue(viewport->pathTracingRussianRouletteStartDepth());
 		ui->spinBoxMaxShadowRayHits->setValue(viewport->pathTracingMaxShadowRayHits());
+		ui->spinBoxMaxVolumeScatterBounces->setValue(viewport->pathTracingMaxVolumeScatterBounces());
 		ui->checkBoxEnvImportanceSampling->setChecked(viewport->pathTracingEnvImportanceSamplingEnabled());
 		// Shadows/Self Shadows are NOT owned by this dialog (or persisted via
 		// its "pathtracing/*" QSettings keys) - they're the same viewport-wide
@@ -215,6 +216,7 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 	connect(ui->spinBoxMaxTransmissionBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxTransmissionBouncesChanged);
 	connect(ui->spinBoxRussianRouletteDepth, &QSpinBox::valueChanged, this, &PathTracingDialog::onRussianRouletteDepthChanged);
 	connect(ui->spinBoxMaxShadowRayHits, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxShadowRayHitsChanged);
+	connect(ui->spinBoxMaxVolumeScatterBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxVolumeScatterBouncesChanged);
 	connect(ui->checkBoxEnvImportanceSampling, &QCheckBox::toggled, this, &PathTracingDialog::onEnvImportanceSamplingToggled);
 	connect(ui->checkBoxShadows, &QCheckBox::toggled, this, &PathTracingDialog::onShadowsToggled);
 	connect(ui->checkBoxSelfShadows, &QCheckBox::toggled, this, &PathTracingDialog::onSelfShadowsToggled);
@@ -311,6 +313,7 @@ void PathTracingDialog::saveSettings()
 	settings.setValue("pathtracing/maxTransmissionBounces", viewport->pathTracingMaxTransmissionBounces());
 	settings.setValue("pathtracing/russianRouletteDepth", viewport->pathTracingRussianRouletteStartDepth());
 	settings.setValue("pathtracing/maxShadowRayHits", viewport->pathTracingMaxShadowRayHits());
+	settings.setValue("pathtracing/maxVolumeScatterBounces", viewport->pathTracingMaxVolumeScatterBounces());
 	settings.setValue("pathtracing/envImportanceSampling", viewport->pathTracingEnvImportanceSamplingEnabled());
 	settings.setValue("pathtracing/denoiserDevicePreference", static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
 	settings.setValue("pathtracing/enginePreference", static_cast<int>(viewport->pathTracingEnginePreference()));
@@ -370,6 +373,12 @@ void PathTracingDialog::onMaxShadowRayHitsChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->setPathTracingMaxShadowRayHits(value);
+}
+
+void PathTracingDialog::onMaxVolumeScatterBouncesChanged(int value)
+{
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->setPathTracingMaxVolumeScatterBounces(value);
 }
 
 void PathTracingDialog::onEnvImportanceSamplingToggled(bool checked)
@@ -701,6 +710,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	ui->spinBoxMaxTransmissionBounces->setValue(32);
 	ui->spinBoxRussianRouletteDepth->setValue(3);
 	ui->spinBoxMaxShadowRayHits->setValue(8);
+	ui->spinBoxMaxVolumeScatterBounces->setValue(64);
 	ui->checkBoxEnvImportanceSampling->setChecked(true);
 	// Shadows/Self Shadows deliberately NOT reset here - not this dialog's
 	// own setting (see checkBoxShadows/checkBoxSelfShadows' doc comment).

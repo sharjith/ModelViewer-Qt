@@ -63,6 +63,7 @@ private slots:
 	void onMaxTransmissionBouncesChanged(int value);
 	void onRussianRouletteDepthChanged(int value);
 	void onMaxShadowRayHitsChanged(int value);
+	void onMaxVolumeScatterBouncesChanged(int value);
 	void onEnvImportanceSamplingToggled(bool checked);
 	void onShadowsToggled(bool checked);
 	void onSelfShadowsToggled(bool checked);

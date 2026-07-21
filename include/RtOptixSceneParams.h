@@ -247,6 +247,12 @@ struct RtOptixSceneParams
 	float fireflyClampThreshold;
 	unsigned int russianRouletteStartDepth;
 
+	// Mirrors CpuPathTracer::Settings::maxVolumeScatterBounces - see
+	// RtOptixScene.cu's __raygen__rg() hitFlag==4 branch (KHR_materials_
+	// volume_scatter's free-flight random walk's own, separate scatter-
+	// event budget - free/no-RR up to this count, then RR).
+	unsigned int maxVolumeScatterBounces;
+
 	OptixTraversableHandle handle;
 };
 

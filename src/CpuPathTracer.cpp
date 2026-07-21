@@ -37,16 +37,19 @@ namespace
 	constexpr bool kDebugVisualizeShadowTransmittance = false;
 	// Post-loop heat-ramp of KHR_materials_volume_scatter's scatterBounces
 	// counter (see tracePixel()'s free-flight walk) - scaled against a
-	// small fixed cap distinct from kVolumeScatterFreeBudget, chosen purely
-	// for a useful visualization range.
+	// small fixed cap distinct from settings.maxVolumeScatterBounces, chosen
+	// purely for a useful visualization range.
 	constexpr bool kDebugVisualizeVolumeScatterBounces = false;
 
 	// KHR_materials_volume_scatter free-flight random-walk constants,
 	// matching NVIDIA's vk_gltf_renderer reference exactly
 	// (pathtrace_functions.h.slang:39-43) - see this feature's plan doc.
+	// The free-budget scatter-bounce count itself (VOLUME_FREE_BUDGET there)
+	// is user-adjustable - see CpuPathTracer::Settings::maxVolumeScatterBounces -
+	// rather than a fixed constant here, since it's the main SSS-quality-vs-
+	// render-time knob for volume-scatter-heavy scenes.
 	constexpr float kVolumeMinScatter = 0.001f;
 	constexpr float kVolumeRandFloor = 1.0e-10f;
-	constexpr int kVolumeScatterFreeBudget = 64;
 	constexpr float kVolumeRrFloor = 0.001f;
 	constexpr float kVolumeRrCap = 0.95f;
 	// No scatterAnisotropy field exists anywhere in this codebase's
@@ -55,8 +58,8 @@ namespace
 	// are written generally so a future anisotropy factor needs no rewrite.
 	constexpr float kVolumeScatterAnisotropy = 0.0f;
 	// Visualization-only cap for kDebugVisualizeVolumeScatterBounces - NOT
-	// the same as kVolumeScatterFreeBudget, just a range that's actually
-	// useful to look at.
+	// the same as settings.maxVolumeScatterBounces, just a range that's
+	// actually useful to look at.
 	constexpr float kVolumeScatterDebugRampCap = 32.0f;
 
 	// xorshift32 - fast, small, good enough for Monte Carlo path tracing noise
@@ -2679,7 +2682,7 @@ namespace
 		// it never eats into the ordinary surface-bounce or transmission-
 		// bounce budgets, matching NVIDIA's vk_gltf_renderer reference
 		// (VOLUME_FREE_BUDGET, see this feature's plan doc). Free (no
-		// Russian roulette) until kVolumeScatterFreeBudget, then RR - this
+		// Russian roulette) until settings.maxVolumeScatterBounces, then RR - this
 		// is the single most important fix vs. this codebase's earlier
 		// random-walk attempt, which applied RR every step and killed
 		// nearly every walk in dense regions before it could converge.
@@ -2855,7 +2858,7 @@ namespace
 							prevHitPos = scatterPos;
 
 							++scatterBounces;
-							if (scatterBounces >= kVolumeScatterFreeBudget)
+							if (scatterBounces >= std::max(1, settings.maxVolumeScatterBounces))
 							{
 								const float rrPcont = std::clamp(std::max({ throughput.r, throughput.g, throughput.b }) + kVolumeRrFloor, 0.0f, kVolumeRrCap);
 								if (rng.next01() >= rrPcont)
@@ -3926,7 +3929,7 @@ namespace
 		// kDebugVisualizeVolumeScatterBounces - same heat-ramp pattern as
 		// kDebugVisualizeTransmissionBounceCount above, over scatterBounces'
 		// final value, normalized against kVolumeScatterDebugRampCap (a
-		// separate, smaller cap than kVolumeScatterFreeBudget - chosen purely
+		// separate, smaller cap than settings.maxVolumeScatterBounces - chosen purely
 		// for a visually useful range).
 		if (kDebugVisualizeVolumeScatterBounces && scatterBounces > 0)
 		{

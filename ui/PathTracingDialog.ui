@@ -365,6 +365,29 @@
            </property>
           </widget>
          </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="labelMaxVolumeScatterBounces">
+           <property name="text">
+            <string>Max Volume Scatter Bounces</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QSpinBox" name="spinBoxMaxVolumeScatterBounces">
+           <property name="toolTip">
+            <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Caps how many free (no Russian roulette) scatter events KHR_materials_volume_scatter's subsurface-scattering random walk runs before it starts probabilistically terminating.&lt;/p&gt;&lt;p&gt;Lower this to trade SSS quality for render speed on volume-scatter-heavy scenes; has no effect on scenes without such materials.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>256</number>
+           </property>
+           <property name="value">
+            <number>64</number>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item>

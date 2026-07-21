@@ -280,7 +280,6 @@ namespace
 	constexpr float kVolumeScatterAnisotropy = 0.0f;
 	constexpr float kVolumeMinScatter = 0.001f;
 	constexpr float kVolumeRandFloor = 1.0e-10f;
-	constexpr int kVolumeScatterFreeBudget = 64;
 	constexpr float kVolumeRrFloor = 0.001f;
 	constexpr float kVolumeRrCap = 0.95f;
 	// Distinguishes a hit reached via the volume-scatter free-flight walk's
@@ -1859,7 +1858,7 @@ extern "C" __global__ void __raygen__rg()
 		// scatter events separately from both bounce and transmissionDepth -
 		// mirrors CpuPathTracer::tracePixel()'s identical scatterBounces
 		// counter exactly (see this feature's plan doc). Free (no Russian
-		// roulette) until kVolumeScatterFreeBudget, then RR - see this
+		// roulette) until params.maxVolumeScatterBounces, then RR - see this
 		// loop's hitFlag==4 branch below.
 		unsigned int scatterBounces = 0;
 		// Inclusive (<=), matching CpuPathTracer::tracePixel()'s documented
@@ -1911,7 +1910,7 @@ extern "C" __global__ void __raygen__rg()
 			// early rather than only ever stopping via maxTransmissionBounces.
 			// Skipped for a volume-scatter continuation (hitFlag==4) - that
 			// case has its own, SEPARATE free-budget/RR policy below
-			// (kVolumeScatterFreeBudget scatter events run free before RR
+			// (params.maxVolumeScatterBounces scatter events run free before RR
 			// starts), matching CpuPathTracer::tracePixel()'s identical
 			// scatter-continue-bypasses-the-ordinary-RR-check structure
 			// exactly. Applying the ordinary combined bounce+transmissionDepth
@@ -1966,10 +1965,10 @@ extern "C" __global__ void __raygen__rg()
 				// KHR_materials_volume_scatter's free-flight walk - see this
 				// counter's declaration above and CpuPathTracer::tracePixel()'s
 				// identical policy: free (no RR at all) for the first
-				// kVolumeScatterFreeBudget scatter events, then RR with the
-				// same floor/cap NVIDIA's vk_gltf_renderer reference uses.
+				// params.maxVolumeScatterBounces scatter events, then RR with
+				// the same floor/cap NVIDIA's vk_gltf_renderer reference uses.
 				++scatterBounces;
-				if (scatterBounces >= kVolumeScatterFreeBudget)
+				if (scatterBounces >= max(params.maxVolumeScatterBounces, 1u))
 				{
 					const float rrPcont = fminf(fmaxf(fmaxf(throughput.x, fmaxf(throughput.y, throughput.z)) + kVolumeRrFloor, 0.0f), kVolumeRrCap);
 					rngState = pcgHash(rngState ^ 0xC2B2AE3Du);
@@ -1988,7 +1987,7 @@ extern "C" __global__ void __raygen__rg()
 		// CpuPathTracer.cpp's identical debug view, over scatterBounces'
 		// final value for this sample, normalized against
 		// kVolumeScatterDebugRampCap (a separate, smaller cap than
-		// kVolumeScatterFreeBudget - chosen purely for a visually useful
+		// params.maxVolumeScatterBounces - chosen purely for a visually useful
 		// range).
 		if (kDebugVisualizeVolumeScatterBounces && scatterBounces > 0)
 		{

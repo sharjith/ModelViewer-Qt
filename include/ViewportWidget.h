@@ -441,6 +441,10 @@ public:
 	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
 	void setPathTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
 	void setPathTracingRussianRouletteStartDepth(int depth) { _ptRussianRouletteStartDepth = std::max(1, depth); }
+	// KHR_materials_volume_scatter's free-flight random walk's own, separate
+	// scatter-event budget - see CpuPathTracer::Settings::maxVolumeScatterBounces's
+	// doc comment.
+	void setPathTracingMaxVolumeScatterBounces(int maxBounces) { _ptMaxVolumeScatterBounces = std::max(1, maxBounces); }
 	// CPU (Embree) only - see CpuPathTracer::Settings::maxShadowRayHits' doc
 	// comment for why GPU (OptiX) has no equivalent setting.
 	void setPathTracingMaxShadowRayHits(int hits) { _ptMaxShadowRayHits = std::max(1, hits); }
@@ -450,6 +454,7 @@ public:
 	int pathTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
 	int pathTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
 	int pathTracingMaxShadowRayHits() const { return _ptMaxShadowRayHits; }
+	int pathTracingMaxVolumeScatterBounces() const { return _ptMaxVolumeScatterBounces; }
 
 	// Applies the user's persisted PT settings (QSettings "pathtracing/*"
 	// keys - same keys PathTracingDialog::saveSettings() writes) on top of
@@ -1322,6 +1327,7 @@ private:
 	float    _ptFireflyClampThreshold = 3.0f;
 	int      _ptMaxTransmissionBounces = 32;
 	int      _ptRussianRouletteStartDepth = 3;
+	int      _ptMaxVolumeScatterBounces = 64;
 	int      _ptMaxShadowRayHits = 8; // CPU (Embree) only - matches CpuPathTracer::Settings::maxShadowRayHits' default
 	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
 	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::Auto;

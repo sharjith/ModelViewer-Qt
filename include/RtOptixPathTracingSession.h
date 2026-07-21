@@ -94,6 +94,12 @@ public:
 	void setRussianRouletteStartDepth(uint32_t depth) { _russianRouletteStartDepth = depth > 0 ? depth : 1; }
 	uint32_t russianRouletteStartDepth() const { return _russianRouletteStartDepth; }
 
+	// Mirrors CpuPathTracer::Settings::maxVolumeScatterBounces exactly (same
+	// default) - KHR_materials_volume_scatter's free-flight random walk's own,
+	// separate scatter-event budget.
+	void setMaxVolumeScatterBounces(uint32_t maxVolumeScatterBounces) { _maxVolumeScatterBounces = maxVolumeScatterBounces > 0 ? maxVolumeScatterBounces : 1; }
+	uint32_t maxVolumeScatterBounces() const { return _maxVolumeScatterBounces; }
+
 	// Chunk size (samples per pixel gathered per background-thread pass,
 	// i.e. per RtOptixSceneTracer::renderScene() call) - smaller values give
 	// more frequent progress-bar/preview updates at the cost of more
@@ -170,6 +176,7 @@ private:
 	uint32_t _maxTransmissionBounces = 32;
 	float _fireflyClampThreshold = 3.0f;
 	uint32_t _russianRouletteStartDepth = 3;
+	uint32_t _maxVolumeScatterBounces = 64;
 	uint32_t _samplesPerChunk = 1;
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
 

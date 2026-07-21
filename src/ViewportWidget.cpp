@@ -12714,6 +12714,7 @@ void ViewportWidget::loadPathTracingSettingsFromDisk()
 	_ptFireflyClampThreshold = settings.value("pathtracing/fireflyClamp", _ptFireflyClampThreshold).toFloat();
 	_ptMaxTransmissionBounces = settings.value("pathtracing/maxTransmissionBounces", _ptMaxTransmissionBounces).toInt();
 	_ptRussianRouletteStartDepth = settings.value("pathtracing/russianRouletteDepth", _ptRussianRouletteStartDepth).toInt();
+	_ptMaxVolumeScatterBounces = settings.value("pathtracing/maxVolumeScatterBounces", _ptMaxVolumeScatterBounces).toInt();
 	_ptMaxShadowRayHits = settings.value("pathtracing/maxShadowRayHits", _ptMaxShadowRayHits).toInt();
 	_ptEnvImportanceSamplingEnabled = settings.value("pathtracing/envImportanceSampling", _ptEnvImportanceSamplingEnabled).toBool();
 	_ptDenoiserDevicePreference = static_cast<DenoiserDevicePreference>(
@@ -12977,6 +12978,7 @@ void ViewportWidget::startPathTracedSession()
 		settings.russianRouletteStartDepth          = _ptRussianRouletteStartDepth;
 		settings.enableEnvironmentImportanceSampling = _ptEnvImportanceSamplingEnabled;
 		settings.maxShadowRayHits                   = _ptMaxShadowRayHits;
+		settings.maxVolumeScatterBounces             = _ptMaxVolumeScatterBounces;
 		_rtSession.setTracerSettings(settings);
 	}
 	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
@@ -13019,6 +13021,7 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 	_ptOptixSession.setMaxTransmissionBounces(static_cast<uint32_t>(std::max(_ptMaxTransmissionBounces, 1)));
 	_ptOptixSession.setFireflyClampThreshold(_ptFireflyClampThreshold);
 	_ptOptixSession.setRussianRouletteStartDepth(static_cast<uint32_t>(std::max(_ptRussianRouletteStartDepth, 1)));
+	_ptOptixSession.setMaxVolumeScatterBounces(static_cast<uint32_t>(std::max(_ptMaxVolumeScatterBounces, 1)));
 	_ptOptixSession.setDenoiserEnabled(_ptDenoiserEnabled);
 	_ptOptixSession.setDenoiserDevicePreference(_ptDenoiserDevicePreference);
 	if (!_ptOptixSession.start(snapshot))
@@ -13096,6 +13099,7 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 	settings.russianRouletteStartDepth           = _ptRussianRouletteStartDepth;
 	settings.enableEnvironmentImportanceSampling = _ptEnvImportanceSamplingEnabled;
 	settings.maxShadowRayHits                    = _ptMaxShadowRayHits;
+	settings.maxVolumeScatterBounces              = _ptMaxVolumeScatterBounces;
 	tracer.setSettings(settings);
 
 	RtFrameAccumulator accumulator;
@@ -13209,6 +13213,7 @@ bool ViewportWidget::renderPathTracedOfflineGpu(int width, int height, const RtS
 			snapshot.shadowsEnabled, snapshot.selfShadowsEnabled, _ptEnvImportanceSamplingEnabled,
 			static_cast<unsigned int>(std::max(_ptMaxTransmissionBounces, 1)), _ptFireflyClampThreshold,
 			static_cast<unsigned int>(std::max(_ptRussianRouletteStartDepth, 1)),
+			static_cast<unsigned int>(std::max(_ptMaxVolumeScatterBounces, 1)),
 			chunkFrame, chunkAlbedo, chunkNormal, chunkAlpha))
 			return false;
 		if (chunkFrame.size() != pixelCount)
