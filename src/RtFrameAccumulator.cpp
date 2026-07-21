@@ -12,7 +12,7 @@ void RtFrameAccumulator::resize(int width, int height)
 	_sum.assign(static_cast<size_t>(std::max(0, width)) * static_cast<size_t>(std::max(0, height)), glm::vec3(0.0f));
 	_albedoSum.assign(_sum.size(), glm::vec3(0.0f));
 	_normalSum.assign(_sum.size(), glm::vec3(0.0f));
-	_hitCounts.assign(_sum.size(), 0u);
+	_hitCounts.assign(_sum.size(), 0.0f);
 	_sampleCount = 0;
 }
 
@@ -21,12 +21,12 @@ void RtFrameAccumulator::reset()
 	std::fill(_sum.begin(), _sum.end(), glm::vec3(0.0f));
 	std::fill(_albedoSum.begin(), _albedoSum.end(), glm::vec3(0.0f));
 	std::fill(_normalSum.begin(), _normalSum.end(), glm::vec3(0.0f));
-	std::fill(_hitCounts.begin(), _hitCounts.end(), 0u);
+	std::fill(_hitCounts.begin(), _hitCounts.end(), 0.0f);
 	_sampleCount = 0;
 }
 
 void RtFrameAccumulator::accumulate(const std::vector<glm::vec3>& sampleRadiance,
-	const std::vector<uint8_t>* primaryHitMask,
+	const std::vector<float>* primaryHitMask,
 	const std::vector<glm::vec3>* primaryAlbedo,
 	const std::vector<glm::vec3>* primaryNormal)
 {

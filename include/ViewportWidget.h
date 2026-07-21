@@ -197,6 +197,8 @@ public:
 	void blurSkyBox(bool blur) { setSkyBoxBlurPercent(blur ? 100 : 0); }
 	void setSkyBoxBlurPercent(int percent) { _renderCtrl.setSkyBoxBlurPercent(std::clamp(percent, 0, 100)); update(); }
 	void showReflections(bool show);
+	void showShadowCatcher(bool show);
+	void setShadowCatcherDarkness(float darkness);
 	void setGroundMode(GroundMode mode);
 	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
 	void showFloor(bool show) { setGroundMode(show ? GroundMode::Floor : GroundMode::None); }
@@ -753,6 +755,8 @@ public:
 	float getPerspFOV()  const { return _viewCtrl.FOV(); }
 	float getSkyBoxZRotationDegrees() const { return _renderCtrl.skyBoxZRotation(); }
 	bool areReflectionsEnabled() const { return _renderCtrl.reflectionsEnabled(); }
+	bool isShadowCatcherEnabled() const { return _renderCtrl.shadowCatcherEnabled(); }
+	float shadowCatcherDarkness() const { return _renderCtrl.shadowCatcherDarkness(); }
 	bool isFloorTextureShown() const { return _renderCtrl.floorTextureDisplayed(); }
 	bool areShadowsEnabled() const { return _renderCtrl.shadowsEnabled(); }
 	bool areSelfShadowsEnabled() const { return _renderCtrl.selfShadowsEnabled(); }

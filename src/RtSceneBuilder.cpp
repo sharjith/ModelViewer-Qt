@@ -473,9 +473,24 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	return rt;
 }
 
-RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled, TextureDedupCache& dedupCache)
+RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled,
+	bool shadowCatcherEnabled, float shadowCatcherDarkness, const QVector3D& shadowCatcherBaseColor,
+	float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache)
 {
 	RtMaterial rt;
+	// Shadow-catcher floor mode (path tracer only) - see RtMaterial::
+	// isShadowCatcher's doc comment. Set here, unconditionally of the rest
+	// of this function's normal material conversion below (which still runs
+	// so rt.baseColor/roughness/etc. stay populated for the non-shadow-
+	// catcher fallback both tracers use if this flag is off - the shadow-
+	// catcher gate itself never reads them, since it always substitutes
+	// background radiance instead, and its continuation bounce reads the
+	// independent shadowCatcherBaseColor/Metalness/Roughness below instead).
+	rt.isShadowCatcher       = shadowCatcherEnabled;
+	rt.shadowCatcherDarkness = shadowCatcherDarkness;
+	rt.shadowCatcherBaseColor = glm::vec3(shadowCatcherBaseColor.x(), shadowCatcherBaseColor.y(), shadowCatcherBaseColor.z());
+	rt.shadowCatcherMetalness = shadowCatcherMetalness;
+	rt.shadowCatcherRoughness = shadowCatcherRoughness;
 	rt.baseColor         = toGlm(material.albedoColor());
 	rt.metalness         = material.metalness();
 	if (reflectionsEnabled)
@@ -521,6 +536,20 @@ RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, con
 	return rt;
 }
 
+void RtSceneBuilder::fillInfinitePlane(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache)
+{
+	if (!floor.floorMesh)
+		return; // floor material not created yet (e.g. before the viewport's first layout pass)
+
+	snapshot.infinitePlane.enabled         = true;
+	snapshot.infinitePlane.cameraUpAxisZUp = floor.cameraUpAxisZUp;
+	snapshot.infinitePlane.height          = floor.planeLevel;
+	snapshot.infinitePlane.material = convertFloorMaterial(
+		runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled,
+		floor.shadowCatcherEnabled, floor.shadowCatcherDarkness, floor.shadowCatcherBaseColor,
+		floor.shadowCatcherMetalness, floor.shadowCatcherRoughness, dedupCache);
+}
+
 void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache)
 {
 	if (!floor.floorMesh)
@@ -537,40 +566,24 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 	// along whichever axis happens to be shorter (e.g. a long, narrow model).
 	constexpr float kMarginFactor = 1.3f;
 	const BoundingBox& bbox = floor.sceneBoundingBox;
-	// U is always the X extent (both up-axis conventions keep X as the first
-	// floor axis - see Plane.cpp's XZ_YNormal vs XY_ZNormal); V is whichever
-	// axis is the *other* floor axis for the current up-axis convention.
 	const float extentU = static_cast<float>(bbox.getXSize());
 	const float extentV = floor.cameraUpAxisZUp ? static_cast<float>(bbox.getYSize()) : static_cast<float>(bbox.getZSize());
 	const float halfExtent = (std::max)(extentU, extentV) * 0.5f * kMarginFactor;
-	// Degenerate/zero-size bounding box (e.g. nothing loaded yet) - fall back
-	// to a small nominal floor rather than a zero-area (invisible) quad.
 	const float safeHalfU = halfExtent > 1e-4f ? halfExtent : 1.0f;
 	const float safeHalfV = safeHalfU;
 
 	const float cx = floor.center.x();
 	const float cu2 = floor.cameraUpAxisZUp ? floor.center.y() : floor.center.z();
 
-	// Scale repeat counts so each tile comes out the same physical
-	// world-space size as raster's, rather than reusing raster's repeat
-	// count verbatim (which would stretch each tile to cover this quad's
-	// smaller side length, making them look larger/fewer) or using a flat
-	// 0..1 UV (no tiling at all).
-	const float ptSideLength = 2.0f * safeHalfU; // square floor - same for U and V
+	const float ptSideLength = 2.0f * safeHalfU;
 	const float sizeRatio = floor.rasterFloorExtent > 1e-4f ? (ptSideLength / floor.rasterFloorExtent) : 1.0f;
 	const float effectiveRepeatS = floor.texRepeatS * sizeRatio;
 	const float effectiveRepeatT = floor.texRepeatT * sizeRatio;
 
 	RtMeshGeometry geom;
 	geom.vertices.resize(4);
-	// Plane's own convention (see Plane.cpp buildMesh()): XZ_YNormal (Y-up)
-	// uses (x, zlevel, z); XY_ZNormal (Z-up) uses (x, y, zlevel). Normal sign
-	// is irrelevant either way - tracePixel() already flips the shading
-	// normal to face whichever side a ray actually hits.
 	for (int corner = 0; corner < 4; ++corner)
 	{
-		// Corner order: (-U,-V), (+U,-V), (+U,+V), (-U,+V) - a simple
-		// quad fan, winding doesn't matter since Embree/our BVH don't cull.
 		const float su = (corner == 1 || corner == 2) ? 1.0f : -1.0f;
 		const float sv = (corner == 2 || corner == 3) ? 1.0f : -1.0f;
 		const float u = cx + su * safeHalfU;
@@ -595,12 +608,13 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 
 	const uint32_t index = static_cast<uint32_t>(snapshot.meshes.size());
 	snapshot.meshes.push_back(std::move(geom));
-	snapshot.materials.push_back(convertFloorMaterial(runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled, dedupCache));
+	snapshot.materials.push_back(snapshot.infinitePlane.material);
 
 	RtInstance instance;
 	instance.meshIndex     = index;
 	instance.materialIndex = index;
-	instance.localToWorld  = glm::mat4(1.0f); // vertices already built in absolute world space above
+	instance.localToWorld  = glm::mat4(1.0f);
+	snapshot.infinitePlane.instanceIndex = static_cast<uint32_t>(snapshot.instances.size());
 	snapshot.instances.push_back(instance);
 }
 
@@ -663,7 +677,16 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	}
 
 	if (floor && floor->groundMode == GroundMode::Floor)
-		addFloorInstance(*snapshot, runtime, *floor, dedupCache);
+	{
+		fillInfinitePlane(*snapshot, runtime, *floor, dedupCache);
+		// Shadow-catcher PT mode should behave like NVIDIA's analytic
+		// infinite plane, not like a finite fallback quad. Keeping the mesh
+		// proxy here is what creates the hard rectangular footprint visible
+		// in the user's screenshot, because primary rays can still hit that
+		// geometry instead of an unbounded plane/miss-equivalent.
+		if (!floor->shadowCatcherEnabled)
+			addFloorInstance(*snapshot, runtime, *floor, dedupCache);
+	}
 
 	snapshot->lights.reserve(lights.size());
 	for (const GPULight& light : lights)

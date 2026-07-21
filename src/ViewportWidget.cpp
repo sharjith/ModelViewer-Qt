@@ -3540,6 +3540,25 @@ void ViewportWidget::showReflections(bool show)
 	notifyPathTracedSceneMutated();
 }
 
+// Path-tracer-only "shadow catcher" floor mode - no raster shader uniform
+// to set (raster's floor has no equivalent), so this is simpler than
+// showReflections() - just update the render-controller state and
+// invalidate the current PT accumulation (toggling this changes the
+// floor's baked material - see RtSceneBuilder::convertFloorMaterial()).
+void ViewportWidget::showShadowCatcher(bool show)
+{
+	_renderCtrl.setShadowCatcherEnabled(show);
+	update();
+	notifyPathTracedSceneMutated();
+}
+
+void ViewportWidget::setShadowCatcherDarkness(float darkness)
+{
+	_renderCtrl.setShadowCatcherDarkness(darkness);
+	update();
+	notifyPathTracedSceneMutated();
+}
+
 void ViewportWidget::setGroundMode(GroundMode mode)
 {
 	if (_renderCtrl.groundMode() == mode)
@@ -12892,6 +12911,8 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 	floorParams.texRepeatS       = _renderCtrl.floorTexRepeatS();
 	floorParams.texRepeatT       = _renderCtrl.floorTexRepeatT();
 	floorParams.reflectionsEnabled = _renderCtrl.reflectionsEnabled();
+	floorParams.shadowCatcherEnabled = _renderCtrl.shadowCatcherEnabled();
+	floorParams.shadowCatcherDarkness = _renderCtrl.shadowCatcherDarkness();
 
 	// Recomputed from the OUTPUT resolution rather than reusing the
 	// camera's own configured aspect - for the interactive session these
@@ -13115,7 +13136,7 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 		}
 
 		std::vector<glm::vec3> passResult;
-		std::vector<uint8_t> hitMask;
+		std::vector<float> hitMask;
 		std::vector<glm::vec3> albedoResult, normalResult;
 		tracer.renderPass(embreeScene, *snapshot, envSampler, width, height, sample, passResult,
 			&_ptOfflineCancelRequested, &hitMask, &albedoResult, &normalResult);
@@ -13153,11 +13174,11 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 		// pure environment-miss pixel, so left to its own devices it
 		// over-smooths sharp background/skybox detail into a blurred
 		// prefilter-map look).
-		const std::vector<uint32_t>& hitCounts = accumulator.hitCounts();
+		const std::vector<float>& hitCounts = accumulator.hitCounts();
 		if (hitCounts.size() == denoised.size())
 		{
 			for (size_t i = 0; i < denoised.size(); ++i)
-				if (hitCounts[i] == 0)
+				if (hitCounts[i] <= 0.0f)
 					denoised[i] = resolved[i];
 		}
 

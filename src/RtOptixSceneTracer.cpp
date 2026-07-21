@@ -161,6 +161,12 @@ struct RtOptixSceneTracer::Impl
 	OptixTraversableHandle iasHandle = 0;
 	CUdeviceptr lightsBuffer = 0;
 	unsigned int lightCount = 0;
+	bool infinitePlaneEnabled = false;
+	bool infinitePlaneCameraUpAxisZUp = false;
+	float infinitePlaneHeight = 0.0f;
+	bool infinitePlaneIsShadowCatcher = false;
+	float infinitePlaneShadowCatcherDarkness = 0.5f;
+	glm::vec3 infinitePlaneBaseColor = glm::vec3(0.8f);
 
 	// Every material texture buffer uploaded this buildScene() call (baseColor/
 	// metallic/roughness/normal/emissive rgba8 arrays) - kept alive for the
@@ -768,6 +774,12 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 	_impl->ensureSheenAlbedoLut(); // process-constant, baked once - see its own doc comment
 	_impl->freeSceneBuffers();
+	_impl->infinitePlaneEnabled = snapshot.infinitePlane.enabled;
+	_impl->infinitePlaneCameraUpAxisZUp = snapshot.infinitePlane.cameraUpAxisZUp;
+	_impl->infinitePlaneHeight = snapshot.infinitePlane.height;
+	_impl->infinitePlaneIsShadowCatcher = snapshot.infinitePlane.material.isShadowCatcher;
+	_impl->infinitePlaneShadowCatcherDarkness = snapshot.infinitePlane.material.shadowCatcherDarkness;
+	_impl->infinitePlaneBaseColor = snapshot.infinitePlane.material.baseColor;
 
 	// --- One GAS per unique mesh - mirrors RtEmbreeScene::build()'s BLAS
 	// loop exactly, just building an OptiX GAS instead of an Embree scene. ---
@@ -1220,6 +1232,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.dispersion = mat.dispersion;
 			hgSbt.data.multiScatterColor = make_float3(mat.multiScatterColor.x, mat.multiScatterColor.y, mat.multiScatterColor.z);
 			hgSbt.data.hasVolumeScattering = mat.hasVolumeScattering ? 1 : 0;
+			hgSbt.data.isShadowCatcher = mat.isShadowCatcher ? 1 : 0;
+			hgSbt.data.shadowCatcherDarkness = mat.shadowCatcherDarkness;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
 			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
@@ -1284,6 +1298,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.dispersion = 0.0f;
 			hgSbt.data.multiScatterColor = make_float3(1.0f, 1.0f, 1.0f);
 			hgSbt.data.hasVolumeScattering = 0;
+			hgSbt.data.isShadowCatcher = 0;
+			hgSbt.data.shadowCatcherDarkness = 0.5f;
 
 			hgSbt.data.baseColorTexture.width = 0;
 			hgSbt.data.metallicTexture.width = 0;
@@ -1680,6 +1696,15 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 	params.environment.envFlatCdf = reinterpret_cast<const float*>(_impl->envFlatCdfBuffer);
 	params.environment.envTexelPdf = reinterpret_cast<const float*>(_impl->envTexelPdfBuffer);
 	params.environment.envTotalWeight = _impl->envTotalWeight;
+	params.infinitePlaneEnabled = _impl->infinitePlaneEnabled ? 1 : 0;
+	params.infinitePlaneCameraUpAxisZUp = _impl->infinitePlaneCameraUpAxisZUp ? 1 : 0;
+	params.infinitePlaneHeight = _impl->infinitePlaneHeight;
+	params.infinitePlaneIsShadowCatcher = _impl->infinitePlaneIsShadowCatcher ? 1 : 0;
+	params.infinitePlaneShadowCatcherDarkness = _impl->infinitePlaneShadowCatcherDarkness;
+	params.infinitePlaneBaseColor = make_float3(
+		_impl->infinitePlaneBaseColor.r,
+		_impl->infinitePlaneBaseColor.g,
+		_impl->infinitePlaneBaseColor.b);
 	params.sheenAlbedoLUT = reinterpret_cast<const float*>(_impl->sheenAlbedoLutBuffer);
 	params.sheenCharlieLUT = reinterpret_cast<const float*>(_impl->sheenCharlieLutBuffer);
 	params.sheenAlbedoLUTSize = _impl->sheenAlbedoLutBuffer ? Impl::kSheenAlbedoLutSize : 0;

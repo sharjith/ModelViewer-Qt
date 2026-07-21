@@ -203,6 +203,15 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(_viewportWidget, &ViewportWidget::cameraUpAxisChanged,
 	        this, &VisualizationEnvironmentPanel::updateSkyBoxRotationLabels);
 	updateSkyBoxRotationLabels(_viewportWidget->isCameraUpAxisZUp());
+
+	// updateControlDependencies() reads getRenderingMode() (checkBoxEnvMapping's
+	// adsMode gate, checkBoxShadowCatcher's pathTracedMode gate) - without this
+	// connection, switching rendering mode via any control OTHER than this
+	// panel's own (e.g. a toolbar/menu selector) never re-evaluates those
+	// gates, leaving them stuck at whatever they were computed as when this
+	// panel was last touched.
+	connect(_viewportWidget, &ViewportWidget::renderingModeChanged,
+	        this, &VisualizationEnvironmentPanel::updateControlDependencies);
 	connect(ui->checkBoxSkyBox, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxStateChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxHDRIChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
@@ -223,6 +232,8 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->radioButtonGroundGrid, &QRadioButton::toggled, this, &VisualizationEnvironmentPanel::onGroundModeChanged);
 	connect(ui->checkBoxFloorTexture, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onFloorTextureStateChanged);
 	connect(ui->checkBoxReflections, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onReflectionsChanged);
+	connect(ui->checkBoxShadowCatcher, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onShadowCatcherChanged);
+	connect(ui->doubleSpinBoxShadowDarkness, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onShadowDarknessChanged);
 	connect(ui->checkBoxEnvMapping, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onEnvMappingChanged);
 	connect(ui->doubleSpinBoxFloorOffset, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onFloorOffsetChanged);
 	connect(ui->doubleSpinBoxRepeatS, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onRepeatSChanged);
@@ -261,6 +272,16 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	bool skyBoxHDRIEnabled = skyBoxEnabled && ui->checkBoxSkyBoxHDRI->isChecked();
 	bool floorTextureEnabled = floorEnabled && ui->checkBoxFloorTexture->isChecked();
 	bool adsMode = _viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
+	// NOT RenderingMode::PATH_TRACED - ModelViewer::onRenderingModeSelected()'s
+	// "PathTraced" branch deliberately keeps getRenderingMode() at
+	// PHYSICALLY_BASED_RENDERING (so the live PBR raster feed keeps showing
+	// while the camera moves) and layers path tracing on top via the
+	// SEPARATE _pathTracedArmed flag instead - see ViewportWidget::
+	// armPathTracedRenderingMode()'s doc comment. getRenderingMode()==
+	// PATH_TRACED is essentially only ever set by the viewerState-restore
+	// path (ModelViewer.cpp), never by live interaction, so gating on it
+	// left this checkbox permanently disabled during normal use.
+	bool pathTracedMode = _viewportWidget && _viewportWidget->isPathTracedRenderingModeArmed();
 
 	// Environment Mapping (ADS) - legacy shadeBlinnPhong() reflection term
 	// only, unrelated to Environment IBL's KHR PBR lighting (see
@@ -280,6 +301,18 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
 	ui->checkBoxFloorTexture->setEnabled(floorEnabled);
+	// Shadow Catcher (path tracer only, see RtMaterial::isShadowCatcher's
+	// doc comment) - raster's floor has no equivalent substitution
+	// mechanism, so the control is meaningless outside path-traced mode.
+	// Deliberately NOT cross-disabling checkBoxReflections/checkBoxFloorTexture
+	// while this is checked - they simply have no visible effect on the
+	// shadow-catcher floor (its material is a flat override, see
+	// convertFloorMaterial()), matching the toolTip's own explanation.
+	bool shadowCatcherEnabled = floorEnabled && pathTracedMode;
+	ui->checkBoxShadowCatcher->setEnabled(shadowCatcherEnabled);
+	bool shadowDarknessEnabled = shadowCatcherEnabled && ui->checkBoxShadowCatcher->isChecked();
+	ui->labelShadowDarkness->setEnabled(shadowDarknessEnabled);
+	ui->doubleSpinBoxShadowDarkness->setEnabled(shadowDarknessEnabled);
 	ui->labelFloorOffset->setEnabled(groundEnabled);
 	ui->doubleSpinBoxFloorOffset->setEnabled(groundEnabled);
 	ui->labelRepeatS->setEnabled(floorTextureEnabled);
@@ -811,6 +844,25 @@ void VisualizationEnvironmentPanel::onReflectionsChanged(bool checked)
 		return;
 
 	_viewportWidget->showReflections(checked);
+	_viewportWidget->updateView();
+}
+
+void VisualizationEnvironmentPanel::onShadowCatcherChanged(bool checked)
+{
+	if (!_viewportWidget)
+		return;
+
+	_viewportWidget->showShadowCatcher(checked);
+	updateControlDependencies();
+	_viewportWidget->updateView();
+}
+
+void VisualizationEnvironmentPanel::onShadowDarknessChanged(double value)
+{
+	if (!_viewportWidget)
+		return;
+
+	_viewportWidget->setShadowCatcherDarkness(static_cast<float>(value));
 	_viewportWidget->updateView();
 }
 

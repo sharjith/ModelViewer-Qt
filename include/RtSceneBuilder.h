@@ -20,17 +20,12 @@ class Camera;
 class Material;
 struct GPULight;
 
-// Everything RtSceneBuilder needs to add a floor instance, gathered in one
-// place rather than as a long parameter list on build(). floorMesh is only
-// consulted for its Material (see convertFloorMaterial()) - its actual
-// geometry/extent is NOT reused: the raster floor's extent is an aesthetic
-// "fade to background" area (_floorSize * floorSizeFactor, ~5x the scene
-// bounding box by default - see ViewportWidget::updateFloorGeometry()), far
-// larger than path tracing needs. A ray tracer gets no visual benefit from
-// that oversized area (nothing beyond the model ever casts/receives a
-// shadow there) and pays real BVH/intersection cost for it, so the
-// path-traced floor is instead built here as a fresh, small quad sized just
-// beyond sceneBoundingBox.
+// Everything RtSceneBuilder needs to populate the path tracer's analytic
+// infinite plane, gathered in one place rather than as a long parameter list
+// on build(). floorMesh is only consulted for its Material (see
+// convertFloorMaterial()) - unlike the raster floor there is no PT mesh or
+// extent to build here, just a procedurally intersected plane with a
+// material/shadow-catcher description.
 struct RtFloorParams
 {
 	const RenderableMesh* floorMesh = nullptr; // material source only
@@ -42,11 +37,9 @@ struct RtFloorParams
 
 	// Raster's actual floor side length (CoordinateSystemHelper::
 	// groundPlaneExtent()) and its texRepeatS/T (SceneRenderController::
-	// floorTexRepeatS()/T()) - needed to scale UVs so individual tiles come
-	// out the same physical world-space size on the path-traced floor's much
-	// smaller quad, rather than either reusing raster's repeat count verbatim
-	// (which would make tiles look larger/fewer here) or a flat 0..1 UV
-	// (no tiling at all).
+	// floorTexRepeatS()/T()) - still needed by the temporary GPU mesh-backed
+	// fallback so it preserves existing floor tiling until OptiX moves to the
+	// shared analytic infinite plane too.
 	float rasterFloorExtent = 0.0f;
 	float texRepeatS        = 1.0f;
 	float texRepeatT        = 1.0f;
@@ -59,6 +52,22 @@ struct RtFloorParams
 	// that override is skipped so the floor falls back to its actual
 	// material roughness (no visible reflection), matching raster's toggle.
 	bool reflectionsEnabled = true;
+
+	// Mirrors the Visualization panel's "Shadow Catcher" checkbox/darkness
+	// slider plus its Color/Metallic/Roughness controls
+	// (SceneRenderController::shadowCatcherEnabled()/Darkness()/BaseColor()/
+	// Metalness()/Roughness()) - see RtMaterial::isShadowCatcher's doc
+	// comment for what these drive. Only meaningful for the path tracer;
+	// raster has no equivalent. BaseColor/Metalness/Roughness default to
+	// NVIDIA's own vk_gltf_renderer defaults (mid-grey, non-metal, medium
+	// roughness) for the same reason theirs do - a plausible, unremarkable
+	// default GI contributor while the shadow-catcher continuation bounce
+	// is active.
+	bool shadowCatcherEnabled    = false;
+	float shadowCatcherDarkness = 0.5f;
+	QVector3D shadowCatcherBaseColor = QVector3D(0.5f, 0.5f, 0.5f);
+	float shadowCatcherMetalness = 0.0f;
+	float shadowCatcherRoughness = 0.5f;
 };
 
 // Fixed (glTF-spec-mandated, not user-configurable) channel packing for a
@@ -106,15 +115,14 @@ public:
 	// environment map loaded") - passed in rather than read from
 	// SceneRenderController directly to keep this builder decoupled from
 	// that (large, GL-heavy) header.
-	// floor (see RtFloorParams) adds the app's ground plane as one extra ray-
-	// traced instance when floor->groundMode == GroundMode::Floor - the
-	// raster path relies on a shadow-map pass for floor shadows/AO, which
-	// doesn't apply in path-traced mode; giving the floor real geometry
-	// instead means it picks up correct ray-traced shadows/reflections for
-	// free via the same NEE/bounce machinery every other mesh already uses.
-	// floor may be nullptr (no floor instance added) or floor->floorMesh may
-	// be nullptr (material unavailable, e.g. before the viewport's first
-	// layout pass has created it) - both are silently skipped.
+	// floor (see RtFloorParams) populates the path tracer's analytic infinite
+	// plane when floor->groundMode == GroundMode::Floor. The raster path still
+	// owns the visible finite floor/grid meshes; path tracing consumes only
+	// the plane height/material/shadow-catcher description and intersects it
+	// procedurally at render time. floor may be nullptr (no infinite plane) or
+	// floor->floorMesh may be nullptr (material unavailable, e.g. before the
+	// viewport's first layout pass has created it) - both are silently
+	// skipped.
 	// shadowsEnabled/selfShadowsEnabled mirror the Visualization panel's
 	// "Shadows"/"Self Shadows" checkboxes (SceneRenderController::
 	// shadowsEnabled()/selfShadowsEnabled()) - see RtSceneSnapshot.h's
@@ -210,15 +218,18 @@ private:
 	// physically-grounded lever available to make the *real* GGX specular
 	// lobe visibly reflective without introducing a second, fake reflection
 	// mechanism into the tracer.
-	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled, TextureDedupCache& dedupCache);
+	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled,
+		bool shadowCatcherEnabled, float shadowCatcherDarkness, const QVector3D& shadowCatcherBaseColor,
+		float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache);
 
-	// Builds a fresh, minimal 4-vertex/2-triangle quad sized just beyond
-	// floor.sceneBoundingBox (see RtFloorParams) rather than reusing
-	// floor.floorMesh's actual (much larger, aesthetic-fade-out) geometry -
-	// a flat floor gets no shading-quality benefit from being subdivided for
-	// ray tracing (unlike rasterization, intersection math doesn't care how
-	// many triangles a flat plane is cut into), so there's no reason to pay
-	// for the raster extent's far larger surface area/BVH footprint here.
+	// Fills the PT-only analytic infinite plane description from the app's
+	// current floor controls/material. CPU uses this directly; GPU keeps the
+	// existing mesh-backed fallback until its own analytic-plane port lands.
+	static void fillInfinitePlane(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache);
+
+	// Existing mesh-backed PT floor path, retained temporarily so the OptiX
+	// backend keeps its current behavior until it is ported to the analytic
+	// infinite plane as well.
 	static void addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache);
 
 	// Takes the owning SceneMesh and the SceneRuntime, not just the Material,

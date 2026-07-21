@@ -108,6 +108,8 @@ __constant__ RtOptixSceneParams params;
 namespace
 {
 	constexpr float kPi = 3.14159265f;
+	__forceinline__ __device__ float3 traceShadowRay(const float3& origin, const float3& direction, float maxDistance,
+		unsigned int sourceInstanceId, unsigned int rngSeed, bool forceSelfExclude);
 
 	// Debug-visualization toggle, mirroring CpuPathTracer.cpp's identical
 	// kDebugVisualizeClearcoat (and its own file-top doc comment on the
@@ -1655,6 +1657,107 @@ namespace
 		// scatter medium - an accepted v1 gap, matching this feature's plan
 		// doc.
 		outGuideNormal = outWorldNormal;
+
+		// CPU parity for NVIDIA-style analytic infinite-plane shadow
+		// catcher: when enabled, the plane competes with BVH geometry by
+		// distance instead of existing as a finite proxy mesh. This is the
+		// piece that removes the hard rectangular slab footprint.
+		if (params.infinitePlaneEnabled != 0 && params.infinitePlaneIsShadowCatcher != 0)
+		{
+			const float3 planeNormal = params.infinitePlaneCameraUpAxisZUp != 0
+				? make_float3(0.0f, 0.0f, 1.0f)
+				: make_float3(0.0f, 1.0f, 0.0f);
+			const float originUp = params.infinitePlaneCameraUpAxisZUp != 0 ? origin.z : origin.y;
+			const float dirUp = params.infinitePlaneCameraUpAxisZUp != 0 ? direction.z : direction.y;
+			const float eps = selfIntersectionEpsilon(origin);
+			if (originUp > params.infinitePlaneHeight + eps && fabsf(dirUp) > 1e-6f)
+			{
+				const float tPlane = (params.infinitePlaneHeight - originUp) / dirUp;
+				const bool planeBeatsScene = tPlane > eps && tPlane < 1e16f
+					&& (outHitFlag == 0u || tPlane <= outHitDistance);
+				if (planeBeatsScene)
+				{
+					const float3 planePos = origin + direction * tPlane;
+					float3 litSum = make_float3(0.0f, 0.0f, 0.0f);
+					float3 unshadowedSum = make_float3(0.0f, 0.0f, 0.0f);
+					unsigned int catcherRng = rngSeed;
+					for (unsigned int i = 0; i < params.lightCount; ++i)
+					{
+						float3 lightDir, lightIntensity;
+						float lightDistance;
+						evaluatePunctualLight(params.lights[i], planePos, lightDir, lightIntensity, lightDistance);
+						if (lightIntensity.x <= 0.0f && lightIntensity.y <= 0.0f && lightIntensity.z <= 0.0f)
+							continue;
+						const float NdotL = dot3(planeNormal, lightDir);
+						if (NdotL <= 0.0f)
+							continue;
+						const float3 weighted = lightIntensity * NdotL;
+						unshadowedSum = unshadowedSum + weighted;
+
+						catcherRng = pcgHash(catcherRng ^ (i * 0x9E3779B9u));
+						const float3 shadowOrigin = planePos + planeNormal * eps;
+						const float shadowMaxDistance = fminf(lightDistance, 1e16f);
+						const float3 shadowTransmittance = params.shadowsEnabled != 0
+							? traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
+							: make_float3(1.0f, 1.0f, 1.0f);
+						litSum = litSum + weighted * shadowTransmittance;
+					}
+
+					const float3 shadowFactor = make_float3(
+						unshadowedSum.x > 1e-6f ? fminf(fmaxf(litSum.x / unshadowedSum.x, 0.0f), 1.0f) : 1.0f,
+						unshadowedSum.y > 1e-6f ? fminf(fmaxf(litSum.y / unshadowedSum.y, 0.0f), 1.0f) : 1.0f,
+						unshadowedSum.z > 1e-6f ? fminf(fmaxf(litSum.z / unshadowedSum.z, 0.0f), 1.0f) : 1.0f);
+
+					float3 envColor;
+					if (escapeRoughness == -1.0f)
+					{
+						const uint3 idx = optixGetLaunchIndex();
+						const uint3 dimLaunch = optixGetLaunchDimensions();
+						const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
+						const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
+						envColor = sampleEnvironmentBackground(params.environment, direction, su, sv);
+					}
+					else
+					{
+						const float envPdfAtRay = (previousBsdfPdf > 0.0f && params.enableEnvironmentImportanceSampling != 0)
+							? envSamplerPdf(params.environment, direction) : 0.0f;
+						const float misWeight = (previousBsdfPdf > 0.0f && envPdfAtRay > 0.0f)
+							? (previousBsdfPdf / (previousBsdfPdf + envPdfAtRay)) : 1.0f;
+						envColor = sampleEnvironmentRaw(params.environment, direction) * misWeight;
+					}
+
+					const float shadowStrength = fminf(fmaxf(params.infinitePlaneShadowCatcherDarkness, 0.0f), 1.0f);
+					const float3 shadowMix = make_float3(
+						1.0f + (shadowFactor.x - 1.0f) * shadowStrength,
+						1.0f + (shadowFactor.y - 1.0f) * shadowStrength,
+						1.0f + (shadowFactor.z - 1.0f) * shadowStrength);
+					const float3 resultColor = envColor * shadowMix;
+					const float shadowVisibility = 1.0f - fminf(fmaxf(
+						0.2126f * shadowFactor.x + 0.7152f * shadowFactor.y + 0.0722f * shadowFactor.z,
+						0.0f), 1.0f);
+					const float shadowOpacity = fminf(fmaxf(shadowVisibility * shadowStrength, 0.0f), 1.0f);
+
+					outRadiance = resultColor;
+					outWorldNormal = planeNormal;
+					outHitDistance = tPlane;
+					outNextDirection = make_float3(0.0f, 0.0f, 0.0f);
+					outThroughputWeight = make_float3(0.0f, 0.0f, 0.0f);
+					outGuideAlbedo = params.infinitePlaneBaseColor;
+					outGuideNormal = planeNormal;
+					outNextBsdfPdf = 0.0f;
+					if (shadowOpacity <= 1e-3f)
+					{
+						outHitFlag = 0u;
+						outEscapeRoughness = 0.0f;
+					}
+					else
+					{
+						outHitFlag = 2u;
+						outEscapeRoughness = shadowOpacity;
+					}
+				}
+			}
+		}
 	}
 
 	// RGB transmittance shadow query - reuses the same pipeline/SBT as the
@@ -1666,13 +1769,19 @@ namespace
 	// against the source instance when self-shadows are disabled; payload 3
 	// is an RNG seed __anyhit__ah() reads/advances; payloads 4-6 carry a
 	// running RGB transmittance through transmissive any-hit pass-throughs.
+	// forceSelfExclude (default false, matching every existing call site's
+	// prior behavior exactly): when true, ALWAYS excludes sourceInstanceId
+	// from this ray's occlusion test regardless of params.selfShadowsEnabled -
+	// used by the shadow-catcher floor's own shadow-ray test, where the
+	// source is always a single flat quad that can never legitimately
+	// self-shadow (see __closesthit__ch()'s isShadowCatcher gate).
 	__forceinline__ __device__ float3 traceShadowRay(const float3& origin, const float3& direction, float maxDistance,
-		unsigned int sourceInstanceId, unsigned int rngSeed)
+		unsigned int sourceInstanceId, unsigned int rngSeed, bool forceSelfExclude = false)
 	{
 		const float eps = selfIntersectionEpsilon(origin);
 		unsigned int occluded = 0u;
 		unsigned int selfInstanceId = sourceInstanceId;
-		unsigned int selfShadowsEnabled = params.selfShadowsEnabled != 0 ? 1u : 0u;
+		unsigned int selfShadowsEnabled = (!forceSelfExclude && params.selfShadowsEnabled != 0) ? 1u : 0u;
 		unsigned int alphaRngSeed = rngSeed;
 		unsigned int trX = __float_as_uint(1.0f);
 		unsigned int trY = __float_as_uint(1.0f);
@@ -1890,7 +1999,9 @@ extern "C" __global__ void __raygen__rg()
 				// visible directly on the primary ray - exactly the common
 				// case for that asset.
 				sampleNormal = guideNormal;
-				if (hitFlag != 0u) // 1/2/3/4 (hit, any kind) - either way the primary ray hit geometry
+				if (hitFlag == 2u)
+					accumulatedHits += fminf(fmaxf(nextEscapeRoughness, 0.0f), 1.0f);
+				else if (hitFlag != 0u) // 1/3/4 (hit, any kind) - the primary ray hit geometry opaquely
 					accumulatedHits += 1.0f;
 			}
 
@@ -2836,6 +2947,142 @@ extern "C" __global__ void __closesthit__ch()
 	const float dispersion = data->dispersion;
 	const int hasVolumeScattering = data->hasVolumeScattering;
 	const float3 multiScatterColor = data->multiScatterColor;
+
+	// KHR shadow-catcher floor mode (path tracer only) - the background
+	// here is a real environment map/skybox (confirmed), so NVIDIA's
+	// original env-radiance-substitution approach is the right model - the
+	// floor's own material is never meant to be seen. History: an earlier
+	// version of this block ALSO folded in a stochastic ambient/IBL-
+	// occlusion ray (reasoning that a punctual-light-only shadowFactor
+	// misses IBL contact darkening) - but the user confirmed the punctual-
+	// light-only shadow shape below was ALREADY correct/well-shaped; the
+	// actual (now-fixed, see below) bug was that unshadowed regions weren't
+	// blending to true invisibility. Adding AO on top instead made the
+	// ENTIRE quad read as occluded (a single hemisphere sample bounded to a
+	// radius large enough to cover the whole floor's footprint has real
+	// odds of still grazing the model's own body from almost anywhere on
+	// that footprint), turning the whole patch into a uniform shadow
+	// instead of a localized one - so removed again; shadowFactor is
+	// punctual-lights only, matching what was already confirmed to look
+	// right. Separately: the "shadowed" branch used to ALSO spend a whole
+	// extra cosine-weighted GI bounce off a flat override material, which
+	// could pick up bounce light (e.g. off the model's own bright/white
+	// paint) that a genuine background pixel never would, visibly
+	// brightening/color-shifting the quad relative to its true
+	// surroundings - removed entirely; a shadow-catcher hit now always
+	// terminates with a single substituted/darkened radiance value, exactly
+	// mirroring a real miss with zero extra bounces.
+	if (data->isShadowCatcher != 0)
+	{
+		// shadowFactor: same lit/fullyLit-ratio generalization CPU uses,
+		// reusing the existing per-light evaluatePunctualLight()/
+		// traceShadowRay() pattern (see the NEE loop further below).
+		float3 litSum = make_float3(0.0f, 0.0f, 0.0f);
+		float3 unshadowedSum = make_float3(0.0f, 0.0f, 0.0f);
+		unsigned int catcherRng = optixGetPayload_17();
+		for (unsigned int i = 0; i < params.lightCount; ++i)
+		{
+			float3 lightDir, lightIntensity;
+			float lightDistance;
+			evaluatePunctualLight(params.lights[i], worldPos, lightDir, lightIntensity, lightDistance);
+			if (lightIntensity.x <= 0.0f && lightIntensity.y <= 0.0f && lightIntensity.z <= 0.0f)
+				continue;
+			const float NdotL = dot3(worldNormal, lightDir);
+			if (NdotL <= 0.0f)
+				continue;
+			const float3 weighted = lightIntensity * NdotL;
+			unshadowedSum = unshadowedSum + weighted;
+
+			catcherRng = pcgHash(catcherRng ^ (i * 0x9E3779B9u));
+			const float3 shadowOrigin = worldPos + worldNormal * selfIntersectionEpsilon(worldPos);
+			const float shadowMaxDistance = fminf(lightDistance, 1e16f);
+			// forceSelfExclude=true - see traceShadowRay()'s doc comment:
+			// a single flat quad can never legitimately self-shadow, so any
+			// self-hit here can only be numerical/grazing-angle noise, which
+			// would otherwise stop shadowFactor from ever reading EXACTLY
+			// (1,1,1) in genuinely-unoccluded areas, permanently preventing
+			// them from qualifying as "essentially invisible" below.
+			const float3 shadowTransmittance = params.shadowsEnabled != 0
+				? traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, instanceId, catcherRng, true)
+				: make_float3(1.0f, 1.0f, 1.0f);
+			litSum = litSum + weighted * shadowTransmittance;
+		}
+		const float3 shadowFactor = make_float3(
+			unshadowedSum.x > 1e-6f ? fminf(fmaxf(litSum.x / unshadowedSum.x, 0.0f), 1.0f) : 1.0f,
+			unshadowedSum.y > 1e-6f ? fminf(fmaxf(litSum.y / unshadowedSum.y, 0.0f), 1.0f) : 1.0f,
+			unshadowedSum.z > 1e-6f ? fminf(fmaxf(litSum.z / unshadowedSum.z, 0.0f), 1.0f) : 1.0f);
+
+		// Background radiance in the ray's CURRENT direction - mirrors
+		// __miss__ms()'s own dual convention exactly (pixel-perfect skybox
+		// lookup at the primary hit, MIS-weighted lookup for later bounces)
+		// so an unshadowed floor hit is indistinguishable from a genuine
+		// miss at this same bounce depth.
+		float3 envColor;
+		if (primaryRaySentinel == -1.0f)
+		{
+			const uint3 idx = optixGetLaunchIndex();
+			const uint3 dimLaunch = optixGetLaunchDimensions();
+			const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
+			const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
+			envColor = sampleEnvironmentBackground(params.environment, rayDir, su, sv);
+		}
+		else
+		{
+			const float previousBsdfPdfFloor = __uint_as_float(optixGetPayload_19());
+			const float envPdfAtRayFloor = (previousBsdfPdfFloor > 0.0f && params.enableEnvironmentImportanceSampling != 0)
+				? envSamplerPdf(params.environment, rayDir) : 0.0f;
+			const float misWeightFloor = (previousBsdfPdfFloor > 0.0f && envPdfAtRayFloor > 0.0f)
+				? (previousBsdfPdfFloor / (previousBsdfPdfFloor + envPdfAtRayFloor)) : 1.0f;
+			envColor = sampleEnvironmentRaw(params.environment, rayDir) * misWeightFloor;
+		}
+
+		// Blend toward the shadowed solution instead of subtracting past it:
+		// with this tracer's harder shadowFactor estimator, the old
+		// subtractive formula produced an opaque black slab. Here the user
+		// darkness slider acts as shadow strength: 0 = invisible catcher,
+		// 1 = full shadowFactor attenuation.
+		const float shadowStrength = fminf(fmaxf(data->shadowCatcherDarkness, 0.0f), 1.0f);
+		const float3 shadowMix = make_float3(
+			1.0f + (shadowFactor.x - 1.0f) * shadowStrength,
+			1.0f + (shadowFactor.y - 1.0f) * shadowStrength,
+			1.0f + (shadowFactor.z - 1.0f) * shadowStrength);
+		const float3 shadowedRadiance = envColor * shadowMix;
+		const float shadowVisibility = 1.0f - fminf(fmaxf(
+			0.2126f * shadowFactor.x + 0.7152f * shadowFactor.y + 0.0722f * shadowFactor.z,
+			0.0f), 1.0f);
+		const float shadowOpacity = fminf(fmaxf(shadowVisibility * shadowStrength, 0.0f), 1.0f);
+
+		setPayload(shadowedRadiance);
+		const bool essentiallyInvisible = shadowOpacity <= 1e-3f;
+		if (essentiallyInvisible)
+		{
+			// hitFlag=0: identical to a genuine miss - __raygen__rg()'s
+			// accumulatedHits (this pixel's alpha) does NOT increment, so
+			// raster's own background shows through untouched here.
+			optixSetPayload_3(0u);
+			optixSetPayload_4(0u); optixSetPayload_5(0u); optixSetPayload_6(0u);
+			optixSetPayload_14(0u); optixSetPayload_15(0u); optixSetPayload_16(0u);
+		}
+		else
+		{
+			// hitFlag=2: a terminal shadow-catcher hit. Unlike an ordinary
+			// opaque primary hit, raygen uses payload 17 as a FRACTIONAL
+			// coverage/alpha for this special case, so weak contact-darkening
+			// stays subtly blended with the raster background instead of
+			// turning the whole catcher quad into an opaque slab.
+			optixSetPayload_3(2u);
+			optixSetPayload_4(__float_as_uint(worldNormal.x));
+			optixSetPayload_5(__float_as_uint(worldNormal.y));
+			optixSetPayload_6(__float_as_uint(worldNormal.z));
+			optixSetPayload_7(__float_as_uint(optixGetRayTmax()));
+			optixSetPayload_14(__float_as_uint(baseColor.x));
+			optixSetPayload_15(__float_as_uint(baseColor.y));
+			optixSetPayload_16(__float_as_uint(baseColor.z));
+			optixSetPayload_17(__float_as_uint(shadowOpacity));
+		}
+		optixSetPayload_19(0u);
+		return;
+	}
 
 	// Beer-Lambert absorption over the real distance traveled since the
 	// previous hit - only on a back-face hit of a material that actually

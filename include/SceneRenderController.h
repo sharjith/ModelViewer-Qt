@@ -354,6 +354,13 @@ public:
     bool       reflectionsEnabled()      const { return _reflectionsEnabled; }
     void       setReflectionsEnabled(bool v)   { _reflectionsEnabled = v; }
 
+    // Path-tracer-only "shadow catcher" floor mode - see RtMaterial::
+    // isShadowCatcher's doc comment. No raster equivalent.
+    bool       shadowCatcherEnabled()      const { return _shadowCatcherEnabled; }
+    void       setShadowCatcherEnabled(bool v)   { _shadowCatcherEnabled = v; }
+    float      shadowCatcherDarkness()     const { return _shadowCatcherDarkness; }
+    void       setShadowCatcherDarkness(float v) { _shadowCatcherDarkness = v; }
+
     GroundMode groundMode()              const { return _groundMode; }
     void       setGroundMode(GroundMode m)     { _groundMode = m; }
 
@@ -687,6 +694,8 @@ private:
     bool         _shadowsEnabled                     = false;
     bool         _selfShadowsEnabled                 = false;
     bool         _reflectionsEnabled                 = false;
+    bool         _shadowCatcherEnabled                = false;
+    float        _shadowCatcherDarkness               = 0.5f;
     GroundMode   _groundMode                         = GroundMode::None;
     bool         _floorTextureDisplayed              = false;
     bool         _skyBoxEnabled                      = false;

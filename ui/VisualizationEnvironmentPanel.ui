@@ -826,6 +826,56 @@
               </layout>
              </item>
              <item>
+              <layout class="QHBoxLayout" name="shadowCatcherLayout">
+               <item>
+                <widget class="QCheckBox" name="checkBoxShadowCatcher">
+                 <property name="toolTip">
+                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Path tracer only: makes the floor invisible except for the model's shadow/contact darkening, as if the model were sitting directly on the environment's own ground.&lt;/p&gt;&lt;p&gt;Overrides floor color/texture/reflections while active.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                 </property>
+                 <property name="text">
+                  <string>Shadow Catcher (Path Traced)</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="shadowDarknessLayout">
+               <item>
+                <widget class="QLabel" name="labelShadowDarkness">
+                 <property name="text">
+                  <string>Shadow Darkness</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxShadowDarkness">
+                 <property name="maximumSize">
+                  <size>
+                   <width>80</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                 <property name="decimals">
+                  <number>2</number>
+                 </property>
+                 <property name="minimum">
+                  <double>0.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>1.000000000000000</double>
+                 </property>
+                 <property name="singleStep">
+                  <double>0.050000000000000</double>
+                 </property>
+                 <property name="value">
+                  <double>0.500000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
               <layout class="QHBoxLayout" name="floorTextureLayout">
                <item>
                 <widget class="QCheckBox" name="checkBoxFloorTexture">

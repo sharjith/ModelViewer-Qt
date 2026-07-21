@@ -93,7 +93,7 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 	       _accumulator.sampleCount() < _maxSamples)
 	{
 		std::vector<glm::vec3> passResult;
-		std::vector<uint8_t> hitMask;
+		std::vector<float> hitMask;
 		std::vector<glm::vec3> albedoResult, normalResult;
 		_tracer.renderPass(_embreeScene, *snapshot, _envSampler, _width, _height, sampleSeed++, passResult,
 			&_cancelRequested, &hitMask, &albedoResult, &normalResult);
@@ -143,16 +143,16 @@ void RtPathTracingSession::publishLatest(bool finalDenoise)
 	// texture lookup that only varies (very slightly, from AA jitter) across
 	// passes, so the raw accumulated average is already clean. Restore it
 	// wherever a pixel's primary ray has never once hit geometry.
-	const std::vector<uint32_t>& hitCounts = _accumulator.hitCounts();
+	const std::vector<float>& hitCounts = _accumulator.hitCounts();
 	std::vector<float> alpha(presented.size(), 1.0f);
 	if (hitCounts.size() == presented.size())
 	{
 		for (size_t i = 0; i < presented.size(); ++i)
 		{
-			if (hitCounts[i] == 0)
+			if (hitCounts[i] <= 0.0f)
 				presented[i] = resolved[i];
 			alpha[i] = sampleCount > 0
-				? std::clamp(static_cast<float>(hitCounts[i]) / static_cast<float>(sampleCount), 0.0f, 1.0f)
+				? std::clamp(hitCounts[i] / static_cast<float>(sampleCount), 0.0f, 1.0f)
 				: 0.0f;
 		}
 	}

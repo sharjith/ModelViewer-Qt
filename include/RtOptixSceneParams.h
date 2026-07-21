@@ -205,6 +205,18 @@ struct RtOptixSceneParams
 
 	RtOptixEnvironment environment;
 
+	// Minimal analytic infinite-plane payload for shadow-catcher PT mode.
+	// CPU already carries the richer RtInfinitePlane in RtSceneSnapshot;
+	// OptiX only needs these scalar/material fields to reproduce the same
+	// "invisible plane that darkens the environment" behavior without
+	// injecting a finite proxy quad into the BVH.
+	int infinitePlaneEnabled;
+	int infinitePlaneCameraUpAxisZUp;
+	float infinitePlaneHeight;
+	int infinitePlaneIsShadowCatcher;
+	float infinitePlaneShadowCatcherDarkness;
+	float3 infinitePlaneBaseColor;
+
 	// KHR_materials_sheen directional-albedo LUTs. sheenAlbedoLUT mirrors
 	// raster's sheenELUT.r/new roughness² convention for direct-light base
 	// dampening; sheenCharlieLUT mirrors raster's charlieLUT.b/legacy roughness
@@ -503,6 +515,15 @@ struct RtOptixSceneHitGroupData
 	// albedo `A` - no per-event conversion (see RtSceneBuilder.cpp).
 	float3 multiScatterColor;
 	int hasVolumeScattering; // bool as int
+
+	// Shadow-catcher floor mode (path tracer only) - mirrors
+	// RtMaterial::isShadowCatcher and its neighboring fields exactly - see
+	// that struct's doc comment.
+	int isShadowCatcher; // bool as int
+	float shadowCatcherDarkness;
+	float3 shadowCatcherBaseColor;
+	float shadowCatcherMetalness;
+	float shadowCatcherRoughness;
 
 	RtOptixTexture baseColorTexture;
 	RtOptixTexture metallicTexture;

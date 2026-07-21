@@ -353,6 +353,43 @@ struct RtMaterial
 	glm::vec3 multiScatterColor    = glm::vec3(1.0f);
 	bool      hasVolumeScattering  = false;
 
+	// Shadow-catcher floor mode (path tracer only) - set ONLY by
+	// RtSceneBuilder::convertFloorMaterial()/fillInfinitePlane() for the
+	// synthetic infinite-plane instance (see RtSceneBuilder.h's
+	// RtFloorParams::shadowCatcherEnabled), never by ordinary glTF material
+	// conversion.
+	//
+	// Ported from NVIDIA's vk_gltf_renderer handleShadowCatcher()
+	// (pathtrace_functions.h.slang:499-554): the floor's real baseColor/
+	// texture/roughness/metalness is NEVER shown - when true,
+	// CpuPathTracer::tracePixel()'s/RtOptixScene.cu's isShadowCatcher gate
+	// substitutes background/environment radiance instead, making an
+	// UNSHADOWED hit pixel-identical to a genuine ray-miss (hence
+	// invisible), and a SHADOWED hit a physically-plausible partial-
+	// occlusion darkening (shadowFactor, from the ordinary per-light NEE
+	// occlusion test) blended toward the background by shadowCatcherDarkness.
+	// A shadowed (non-invisible) hit then continues the path as an ordinary
+	// BSDF bounce off shadowCatcherBaseColor/Metalness/Roughness - a flat,
+	// independent material, NEVER the floor's real one - exactly mirroring
+	// NVIDIA's own `bsdfSampleSimple(sampleData, pbrMat); return true`
+	// continuation (pathtrace_functions.h.slang:537-553): per that source,
+	// these three fields do NOT affect the darkening amount itself
+	// (shadowCatcherDarkness alone drives that) - they only govern how
+	// much/what color of extra indirect (GI) light this "floor" picks up
+	// and reflects on the NEXT bounce, the same role any ordinary opaque
+	// surface's material plays. (History: an earlier version of this
+	// feature also had this continuation bounce, removed after suspecting
+	// it caused a visible brightening/patch artifact - the artifact's real
+	// causes turned out to be elsewhere entirely: an unbounded/mis-scoped
+	// ambient-occlusion ray and shadow-acne self-intersection noise on the
+	// flat plane, both fixed separately - so the continuation bounce was
+	// safe to restore once those were understood.)
+	bool      isShadowCatcher          = false;
+	float     shadowCatcherDarkness    = 0.5f;
+	glm::vec3 shadowCatcherBaseColor   = glm::vec3(0.5f);
+	float     shadowCatcherMetalness   = 0.0f;
+	float     shadowCatcherRoughness   = 0.5f;
+
 	// KHR_materials_diffuse_transmission - a translucent DIFFUSE material
 	// (leaves, paper, thin curtains), distinct from KHR_materials_
 	// transmission's specular/refractive glass model: light landing on the
@@ -436,6 +473,22 @@ struct RtCamera
 	bool  orthographic    = false;
 	float tanHalfFovY     = 0.4142f; // perspective only (~45 deg)
 	float orthoHalfHeight = 1.0f;    // orthographic only, world units
+};
+
+// Path-tracer-only analytic ground plane. Unlike the raster floor, this is
+// not backed by mesh geometry or any GL resource - CPU/GPU tracers intersect
+// it procedurally using world-space ray/plane math, which keeps it truly
+// infinite and decoupled from the raster floor's finite quad extent/depth
+// biasing. The first pass intentionally mirrors the current floor/shadow-
+// catcher controls so PT behavior stays familiar while the implementation
+// stops depending on synthetic floor mesh triangles.
+struct RtInfinitePlane
+{
+	bool      enabled               = false;
+	bool      cameraUpAxisZUp       = false;
+	float     height                = 0.0f;
+	uint32_t  instanceIndex         = std::numeric_limits<uint32_t>::max();
+	RtMaterial material;
 };
 
 // CPU-resident copy of the scene's environment cubemap, read back face-by-face
@@ -550,6 +603,7 @@ struct RtSceneSnapshot
 	std::vector<RtLight>        lights;
 	RtCamera                    camera;
 	RtEnvironment                environment;
+	RtInfinitePlane             infinitePlane;
 
 	// Visualization panel's "Shadows"/"Self Shadows" checkboxes - mirrors
 	// SceneRenderController::shadowsEnabled()/selfShadowsEnabled(), which

@@ -4879,6 +4879,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			viewerState[QStringLiteral("floorTextureShown")].toBool(_viewportWidget->isFloorTextureShown()));
 		_viewportWidget->showReflections(
 			viewerState[QStringLiteral("reflectionsEnabled")].toBool(_viewportWidget->areReflectionsEnabled()));
+		_viewportWidget->showShadowCatcher(
+			viewerState[QStringLiteral("shadowCatcherEnabled")].toBool(_viewportWidget->isShadowCatcherEnabled()));
+		_viewportWidget->setShadowCatcherDarkness(static_cast<float>(
+			viewerState[QStringLiteral("shadowCatcherDarkness")].toDouble(static_cast<double>(_viewportWidget->shadowCatcherDarkness()))));
 		_viewportWidget->showShadows(
 			viewerState[QStringLiteral("shadowsEnabled")].toBool(_viewportWidget->areShadowsEnabled()));
 		_viewportWidget->showSelfShadows(
@@ -5056,6 +5060,8 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
 	viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
 	viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
+	viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
+	viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
 	viewerState.insert(QStringLiteral("shadowsEnabled"), _viewportWidget->areShadowsEnabled());
 	viewerState.insert(QStringLiteral("selfShadowsEnabled"), _viewportWidget->areSelfShadowsEnabled());
 	viewerState.insert(QStringLiteral("environmentEnabled"), _viewportWidget->isEnvironmentMapEnabled());
@@ -5311,6 +5317,13 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 	// Update toolbar button to reflect the new rendering mode
 	_viewportWidget->getViewToolbar()->updateRenderingModeButton(mode);
 	updateControls();
+	// Explicit call (not just relying on ViewportWidget::renderingModeChanged) -
+	// the "PathTraced" branch above calls armPathTracedRenderingMode() AFTER
+	// setRenderingMode(), so a signal fired from setRenderingMode() would
+	// re-evaluate checkBoxShadowCatcher's isPathTracedRenderingModeArmed()
+	// gate one step too early or on the previous state. This call happens
+	// after every branch's arm/disarm has already run, so it's always correct.
+	visualizationEnvironmentPanel->updateControlDependencies();
 	_viewportWidget->update();
 }
 

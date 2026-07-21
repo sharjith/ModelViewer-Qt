@@ -2552,7 +2552,7 @@ namespace
 	glm::vec3 tracePixel(const RtEmbreeScene& scene, const RtSceneSnapshot& snapshot,
 		const RtEnvironmentSampler& envSampler,
 		const CpuPathTracer::Settings& settings, int px, int py, int width, int height, uint32_t rngSeed,
-		bool* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
+		float* outPrimaryHit = nullptr, glm::vec3* outPrimaryAlbedo = nullptr, glm::vec3* outPrimaryNormal = nullptr)
 	{
 		Rng rng(hashCombine(hashCombine(static_cast<uint32_t>(px), static_cast<uint32_t>(py) * 9781u), rngSeed));
 
@@ -2693,13 +2693,48 @@ namespace
 			if (bounce > settings.maxBounces)
 				break; // matches the original "for (bounce=0; bounce<=maxBounces;...)" loop's exact termination point
 
-			const RtHit hit = scene.intersect(ray);
+			const RtHit meshHit = scene.intersect(ray);
+			RtHit hit = meshHit;
+			bool hitInfinitePlane = false;
+			if (snapshot.infinitePlane.enabled
+				&& (snapshot.infinitePlane.material.isShadowCatcher
+					|| !snapshot.infinitePlane.material.baseColorTexture))
+			{
+				const glm::vec3 planeNormal = snapshot.infinitePlane.cameraUpAxisZUp
+					? glm::vec3(0.0f, 0.0f, 1.0f)
+					: glm::vec3(0.0f, 1.0f, 0.0f);
+				const float originUp = snapshot.infinitePlane.cameraUpAxisZUp ? ray.origin.z : ray.origin.y;
+				const float dirUp = snapshot.infinitePlane.cameraUpAxisZUp ? ray.direction.z : ray.direction.y;
+				if (originUp > snapshot.infinitePlane.height + ray.tNear && std::abs(dirUp) > 1e-6f)
+				{
+					const float tPlane = (snapshot.infinitePlane.height - originUp) / dirUp;
+					if (tPlane > ray.tNear && tPlane < ray.tFar
+						&& (!meshHit.hit || tPlane <= meshHit.distance))
+					{
+						hitInfinitePlane = true;
+						hit.hit = true;
+						hit.distance = tPlane;
+						hit.position = ray.origin + ray.direction * tPlane;
+						hit.normal = planeNormal;
+						hit.geometricNormal = planeNormal;
+						hit.tangent = glm::vec3(1.0f, 0.0f, 0.0f);
+						hit.bitangent = snapshot.infinitePlane.cameraUpAxisZUp
+							? glm::vec3(0.0f, 1.0f, 0.0f)
+							: glm::vec3(0.0f, 0.0f, 1.0f);
+						hit.vertexColor = glm::vec4(1.0f);
+						hit.instanceIndex = snapshot.infinitePlane.instanceIndex;
+						hit.materialIndex = std::numeric_limits<uint32_t>::max();
+						hit.uvAreaPerWorldArea = 0.0f;
+					}
+				}
+			}
+
 			if (!hit.hit)
 			{
 				if (!primaryHitResolved)
 				{
 					if (outPrimaryHit)
-						*outPrimaryHit = false;
+						*outPrimaryHit = 0.0f;
 					const glm::vec2 screenUv(
 						(static_cast<float>(px) + 0.5f) / static_cast<float>(width),
 						1.0f - (static_cast<float>(py) + 0.5f) / static_cast<float>(height));
@@ -2739,10 +2774,12 @@ namespace
 			if (kDebugVisualizeUV)
 				return glm::vec3(hit.texCoords[0].x, hit.texCoords[0].y, 0.0f);
 
-			if (hit.materialIndex >= snapshot.materials.size())
+			if (!hitInfinitePlane && hit.materialIndex >= snapshot.materials.size())
 				break;
 
-			const RtMaterial& mat = snapshot.materials[hit.materialIndex];
+			const RtMaterial& mat = hitInfinitePlane
+				? snapshot.infinitePlane.material
+				: snapshot.materials[hit.materialIndex];
 
 			// Camera pixel footprint at this hit, converted to this hit's own
 			// UV space via hit.uvAreaPerWorldArea (see its doc comment) -
@@ -2957,9 +2994,172 @@ namespace
 			// occlusion against every OTHER instance but can't shadow
 			// itself. When on (the default), the mask is all-bits-set - no
 			// behavior change from before this was wired up.
-			const uint32_t shadowRayMask = snapshot.selfShadowsEnabled
+			const bool hasSelfMaskableInstance = hit.instanceIndex != std::numeric_limits<uint32_t>::max();
+			const uint32_t shadowRayMask = (snapshot.selfShadowsEnabled || !hasSelfMaskableInstance)
 				? 0xFFFFFFFFu
 				: ~(1u << (hit.instanceIndex % 32u));
+
+			// KHR shadow-catcher floor mode (path tracer only) - the
+			// background here is a real environment map/skybox (confirmed),
+			// so NVIDIA's original env-radiance-substitution approach is the
+			// right model - the floor's own material is never meant to be
+			// seen. History: an earlier version of this block ALSO folded in
+			// a stochastic ambient/IBL-occlusion ray (reasoning that a
+			// punctual-light-only shadowFactor misses IBL contact
+			// darkening) - but the user confirmed the punctual-light-only
+			// shadow shape below was ALREADY correct/well-shaped; the actual
+			// (now-fixed, see below) bug was that unshadowed regions weren't
+			// blending to true invisibility. Adding AO on top instead made
+			// the ENTIRE quad read as occluded (a single hemisphere sample
+			// bounded to a radius large enough to cover the whole floor's
+			// footprint has real odds of still grazing the model's own body
+			// from almost anywhere on that footprint), turning the whole
+			// patch into a uniform shadow instead of a localized one - so
+			// removed again; shadowFactor is punctual-lights only, matching
+			// what was already confirmed to look right. Separately: the
+			// "shadowed" branch used to ALSO spend a whole extra cosine-
+			// weighted GI bounce off a flat override material, which could
+			// pick up bounce light (e.g. off the model's own bright/white
+			// paint) that a genuine background pixel never would, visibly
+			// brightening/color-shifting the quad relative to its true
+			// surroundings - removed entirely; a shadow-catcher hit now
+			// always terminates with a single substituted/darkened radiance
+			// value, exactly mirroring a real miss with zero extra bounces.
+			if (mat.isShadowCatcher)
+			{
+				// shadowFactor: NVIDIA samples ONE light stochastically and
+				// gets a single occluded-vs-not test per channel. This
+				// tracer's NEE convention instead deterministically sums
+				// every enabled light's contribution each hit, so
+				// shadowFactor here is the ratio of (the real, shadow-ray-
+				// tested light sum) to (the same sum with occlusion forced
+				// off) - the direct generalization of NVIDIA's single-light
+				// shadowFactor to N lights, reusing the existing per-light
+				// evaluatePunctualLight()/traceShadowRay() pattern (see the
+				// NEE loop further below) rather than a second light-
+				// sampling path.
+				// Always exclude the floor's OWN instance from its
+				// shadow-catcher shadow-ray test, regardless of the global
+				// Self Shadows toggle - a single flat quad can never
+				// legitimately self-shadow, so any self-hit here can only
+				// be numerical/grazing-angle noise (a low-angle light
+				// combined with the ray-offset epsilon), which would
+				// otherwise stop shadowFactor from ever reading EXACTLY
+				// (1,1,1) in genuinely-unoccluded areas, permanently
+				// preventing them from ever qualifying as "essentially
+				// invisible" below - i.e. the floor would never truly
+				// disappear anywhere, only ever get very-slightly-darkened
+				// and composited at full (opaque) alpha instead.
+				const uint32_t shadowCatcherRayMask = hasSelfMaskableInstance
+					? (shadowRayMask & ~(1u << (hit.instanceIndex % 32u)))
+					: shadowRayMask;
+
+				glm::vec3 litSum(0.0f);
+				glm::vec3 unshadowedSum(0.0f);
+				for (const RtLight& light : snapshot.lights)
+				{
+					glm::vec3 lightDir, lightIntensity;
+					float lightDistance;
+					evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
+					if (lightIntensity == glm::vec3(0.0f))
+						continue;
+					const float NdotL = glm::dot(N, lightDir);
+					if (NdotL <= 0.0f)
+						continue;
+					const glm::vec3 weighted = lightIntensity * NdotL;
+					unshadowedSum += weighted;
+
+					RtRay shadowRay;
+					shadowRay.origin = hit.position + Ng * eps;
+					shadowRay.direction = lightDir;
+					shadowRay.tFar = lightDistance - 2.0f * eps;
+					shadowRay.mask = shadowCatcherRayMask;
+					const glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
+						? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
+						: glm::vec3(1.0f);
+					litSum += weighted * shadowTransmittance;
+				}
+				const glm::vec3 shadowFactor(
+					unshadowedSum.r > 1e-6f ? std::clamp(litSum.r / unshadowedSum.r, 0.0f, 1.0f) : 1.0f,
+					unshadowedSum.g > 1e-6f ? std::clamp(litSum.g / unshadowedSum.g, 0.0f, 1.0f) : 1.0f,
+					unshadowedSum.b > 1e-6f ? std::clamp(litSum.b / unshadowedSum.b, 0.0f, 1.0f) : 1.0f);
+
+				// Background radiance in the ray's CURRENT direction -
+				// mirrors the real miss branch's own dual convention exactly
+				// (pixel-perfect skybox lookup at the primary hit, MIS-
+				// weighted lookup for later bounces) so an unshadowed hit is
+				// indistinguishable from a genuine miss at this same bounce
+				// depth.
+				glm::vec3 envColor;
+				if (!primaryHitResolved)
+				{
+					const glm::vec2 screenUv(
+						(static_cast<float>(px) + 0.5f) / static_cast<float>(width),
+						1.0f - (static_cast<float>(py) + 0.5f) / static_cast<float>(height));
+					envColor = sampleEnvironmentBackground(snapshot.environment, ray.direction, screenUv);
+				}
+				else
+				{
+					const float envPdfAtRayFloor = (settings.enableEnvironmentImportanceSampling && envSampler.isValid())
+						? envSampler.pdf(ray.direction) : 0.0f;
+					const float misWeightFloor = (lastBsdfSamplePdf > 0.0f && envPdfAtRayFloor > 0.0f)
+						? (lastBsdfSamplePdf / (lastBsdfSamplePdf + envPdfAtRayFloor))
+						: 1.0f;
+					envColor = ((lastBsdfSamplePdf <= 0.0f)
+						? sampleEnvironmentMiss(snapshot.environment, ray.direction)
+						: (lastBounceEnvRoughness < 0.0f
+							? sampleEnvironmentDiffuse(snapshot.environment, ray.direction)
+							: sampleEnvironmentMiss(snapshot.environment, ray.direction))) * misWeightFloor;
+				}
+
+				// The previous subtractive formula matched one branch of the
+				// NVIDIA shader literally, but with our harder/binary-ish
+				// shadowFactor estimator it collapsed full-shadow regions to an
+				// opaque black slab. What we actually need for this app's
+				// visual target is a darkness slider that BLENDS the background
+				// toward the shadowed solution rather than subtracting past it:
+				// 0 = fully invisible catcher, 1 = full shadowFactor
+				// attenuation, and intermediate values stay subtle.
+				const float shadowStrength = std::clamp(mat.shadowCatcherDarkness, 0.0f, 1.0f);
+				const glm::vec3 shadowMix = glm::mix(glm::vec3(1.0f), shadowFactor, shadowStrength);
+				const glm::vec3 resultColor = envColor * shadowMix;
+
+				const float shadowVisibility = 1.0f - std::clamp(
+					0.2126f * shadowFactor.r + 0.7152f * shadowFactor.g + 0.0722f * shadowFactor.b,
+					0.0f, 1.0f);
+				const float shadowOpacity = std::clamp(shadowVisibility * shadowStrength, 0.0f, 1.0f);
+				const bool essentiallyInvisible = shadowOpacity <= 1e-3f;
+				if (!primaryHitResolved)
+				{
+					if (outPrimaryHit)
+						*outPrimaryHit = shadowOpacity;
+					if (!essentiallyInvisible)
+					{
+						if (outPrimaryAlbedo)
+							*outPrimaryAlbedo = surf.baseColor;
+						if (outPrimaryNormal)
+							*outPrimaryNormal = N;
+					}
+				}
+				radiance += throughput * lastHitAO * resultColor;
+				break;
+
+				// History: a version of this block continued the path as an
+				// ordinary BSDF bounce off shadowCatcherBaseColor/Metalness/
+				// Roughness here, mirroring NVIDIA's handleShadowCatcher()
+				// `bsdfSampleSimple(sampleData, pbrMat); ... return true`
+				// continuation (pathtrace_functions.h.slang:537-553) - the
+				// mechanism that makes those three fields visually meaningful
+				// in NVIDIA's own renderer. Reverted: it visibly worsened this
+				// app's result (confirmed by the user) even with the
+				// unrelated bugs (self-shadow noise, unbounded/mis-scoped AO)
+				// that caused the EARLIER "visible patch" regression already
+				// fixed - so whatever's driving this app's specific
+				// degradation is a separate, still-unidentified issue, not
+				// simply "restore the NVIDIA-faithful mechanism now that
+				// those bugs are gone." Metalness/Roughness/BaseColor
+				// currently have NO effect while Shadow Catcher is active.
+			}
 
 			// glTF material.doubleSided==false back-face culling - previously
 			// unimplemented in this tracer entirely (every material rendered
@@ -3072,7 +3272,7 @@ namespace
 			if (!primaryHitResolved)
 			{
 				if (outPrimaryHit)
-					*outPrimaryHit = true;
+					*outPrimaryHit = 1.0f;
 
 				// OIDN denoiser guide buffers (albedo/normal) - see
 				// RtDenoiser::denoise()'s doc comment. Non-transmissive hits
@@ -3969,7 +4169,7 @@ void CpuPathTracer::renderPass(
 	uint32_t sampleSeed,
 	std::vector<glm::vec3>& outRadiance,
 	const std::atomic<bool>* cancelFlag,
-	std::vector<uint8_t>* outPrimaryHitMask,
+	std::vector<float>* outPrimaryHitMask,
 	std::vector<glm::vec3>* outPrimaryAlbedo,
 	std::vector<glm::vec3>* outPrimaryNormal) const
 {
@@ -3984,7 +4184,7 @@ void CpuPathTracer::renderPass(
 
 	outRadiance.assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
 	if (outPrimaryHitMask)
-		outPrimaryHitMask->assign(static_cast<size_t>(width) * height, 0);
+		outPrimaryHitMask->assign(static_cast<size_t>(width) * height, 0.0f);
 	if (outPrimaryAlbedo)
 		outPrimaryAlbedo->assign(static_cast<size_t>(width) * height, glm::vec3(0.0f));
 	if (outPrimaryNormal)
@@ -4010,7 +4210,7 @@ void CpuPathTracer::renderPass(
 
 			for (int x = 0; x < width; ++x)
 			{
-				bool primaryHit = false;
+				float primaryHit = 0.0f;
 				glm::vec3 primaryAlbedo(0.0f), primaryNormal(0.0f);
 				outRadiance[static_cast<size_t>(y) * width + x] =
 					tracePixel(scene, snapshot, envSampler, _settings, x, y, width, height, sampleSeed,
@@ -4018,7 +4218,7 @@ void CpuPathTracer::renderPass(
 						outPrimaryAlbedo ? &primaryAlbedo : nullptr,
 						outPrimaryNormal ? &primaryNormal : nullptr);
 				if (outPrimaryHitMask)
-					(*outPrimaryHitMask)[static_cast<size_t>(y) * width + x] = primaryHit ? 1 : 0;
+					(*outPrimaryHitMask)[static_cast<size_t>(y) * width + x] = primaryHit;
 				if (outPrimaryAlbedo)
 					(*outPrimaryAlbedo)[static_cast<size_t>(y) * width + x] = primaryAlbedo;
 				if (outPrimaryNormal)

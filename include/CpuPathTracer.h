@@ -139,8 +139,9 @@ public:
 	// outRadiance is only partially filled and must be discarded by the
 	// caller, not accumulated.
 	// outPrimaryHitMask, if non-null, is resized to width*height and filled
-	// with 1 where the primary (camera) ray hit scene geometry and 0 where it
-	// escaped straight to the environment/background - see
+	// with the primary ray's effective coverage/alpha for this sample
+	// (normally 1 for a real opaque geometry hit, 0 for a pure miss, and a
+	// fractional value for path-traced shadow-catcher compositing) - see
 	// RtFrameAccumulator's hit-count tracking for why this matters (OIDN's
 	// beauty-only denoise pass has no guide buffers to tell it a smooth
 	// environment texture isn't noise, and over-blurs it - background pixels
@@ -164,7 +165,7 @@ public:
 		uint32_t sampleSeed,
 		std::vector<glm::vec3>& outRadiance,
 		const std::atomic<bool>* cancelFlag = nullptr,
-		std::vector<uint8_t>* outPrimaryHitMask = nullptr,
+		std::vector<float>* outPrimaryHitMask = nullptr,
 		std::vector<glm::vec3>* outPrimaryAlbedo = nullptr,
 		std::vector<glm::vec3>* outPrimaryNormal = nullptr) const;
 
