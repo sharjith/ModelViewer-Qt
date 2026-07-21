@@ -101,8 +101,10 @@ public slots:
 	void onGroundModeChanged();
 	void onFloorTextureStateChanged(bool checked);
 	void onReflectionsChanged(bool checked);
-	void onShadowCatcherChanged(bool checked);
 	void onShadowDarknessChanged(double value);
+	void onShadowCatcherColorClicked();
+	void onShadowCatcherMetallicChanged(double value);
+	void onShadowCatcherRoughnessChanged(double value);
 	void onEnvMappingChanged(bool checked);
 	void onFloorOffsetChanged(double value);
 	void onRepeatSChanged(double value);

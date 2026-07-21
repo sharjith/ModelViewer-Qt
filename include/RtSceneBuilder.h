@@ -53,16 +53,20 @@ struct RtFloorParams
 	// material roughness (no visible reflection), matching raster's toggle.
 	bool reflectionsEnabled = true;
 
-	// Mirrors the Visualization panel's "Shadow Catcher" checkbox/darkness
-	// slider plus its Color/Metallic/Roughness controls
-	// (SceneRenderController::shadowCatcherEnabled()/Darkness()/BaseColor()/
-	// Metalness()/Roughness()) - see RtMaterial::isShadowCatcher's doc
-	// comment for what these drive. Only meaningful for the path tracer;
-	// raster has no equivalent. BaseColor/Metalness/Roughness default to
-	// NVIDIA's own vk_gltf_renderer defaults (mid-grey, non-metal, medium
-	// roughness) for the same reason theirs do - a plausible, unremarkable
-	// default GI contributor while the shadow-catcher continuation bounce
-	// is active.
+	// shadowCatcherEnabled mirrors GroundMode::InfinitePlane being selected
+	// (its own radio button in the Visualization panel's Ground section,
+	// mutually exclusive with None/Floor/Grid) - ViewportWidget derives this
+	// bool from the selected GroundMode at the PT-snapshot-build call site;
+	// RtSceneBuilder itself only ever sees "Floor mode + this bool", never
+	// the InfinitePlane enum value. Darkness/BaseColor/Metalness/Roughness
+	// mirror SceneRenderController::shadowCatcherDarkness()/BaseColor()/
+	// Metalness()/Roughness() (the panel's Shadow Catcher Settings group) -
+	// see RtMaterial::isShadowCatcher's doc comment for what these drive.
+	// Only meaningful for the path tracer; raster has no equivalent.
+	// BaseColor/Metalness/Roughness default to NVIDIA's own vk_gltf_renderer
+	// defaults (mid-grey, non-metal, medium roughness) for the same reason
+	// theirs do - a plausible, unremarkable default GI contributor while the
+	// shadow-catcher continuation bounce is active.
 	bool shadowCatcherEnabled    = false;
 	float shadowCatcherDarkness = 0.5f;
 	QVector3D shadowCatcherBaseColor = QVector3D(0.5f, 0.5f, 0.5f);

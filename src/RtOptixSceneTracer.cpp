@@ -166,7 +166,9 @@ struct RtOptixSceneTracer::Impl
 	float infinitePlaneHeight = 0.0f;
 	bool infinitePlaneIsShadowCatcher = false;
 	float infinitePlaneShadowCatcherDarkness = 0.5f;
-	glm::vec3 infinitePlaneBaseColor = glm::vec3(0.8f);
+	glm::vec3 infinitePlaneBaseColor = glm::vec3(0.5f);
+	float infinitePlaneMetalness = 0.0f;
+	float infinitePlaneRoughness = 0.5f;
 
 	// Every material texture buffer uploaded this buildScene() call (baseColor/
 	// metallic/roughness/normal/emissive rgba8 arrays) - kept alive for the
@@ -779,7 +781,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	_impl->infinitePlaneHeight = snapshot.infinitePlane.height;
 	_impl->infinitePlaneIsShadowCatcher = snapshot.infinitePlane.material.isShadowCatcher;
 	_impl->infinitePlaneShadowCatcherDarkness = snapshot.infinitePlane.material.shadowCatcherDarkness;
-	_impl->infinitePlaneBaseColor = snapshot.infinitePlane.material.baseColor;
+	// shadowCatcherBaseColor/Metalness/Roughness - the independent flat
+	// material NVIDIA's own infinitePlane* fields represent (never the
+	// floor's real baseColor/metalness) - see RtMaterial::isShadowCatcher's
+	// doc comment.
+	_impl->infinitePlaneBaseColor = snapshot.infinitePlane.material.shadowCatcherBaseColor;
+	_impl->infinitePlaneMetalness = snapshot.infinitePlane.material.shadowCatcherMetalness;
+	_impl->infinitePlaneRoughness = snapshot.infinitePlane.material.shadowCatcherRoughness;
 
 	// --- One GAS per unique mesh - mirrors RtEmbreeScene::build()'s BLAS
 	// loop exactly, just building an OptiX GAS instead of an Embree scene. ---
@@ -1705,6 +1713,8 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 		_impl->infinitePlaneBaseColor.r,
 		_impl->infinitePlaneBaseColor.g,
 		_impl->infinitePlaneBaseColor.b);
+	params.infinitePlaneMetalness = _impl->infinitePlaneMetalness;
+	params.infinitePlaneRoughness = _impl->infinitePlaneRoughness;
 	params.sheenAlbedoLUT = reinterpret_cast<const float*>(_impl->sheenAlbedoLutBuffer);
 	params.sheenCharlieLUT = reinterpret_cast<const float*>(_impl->sheenCharlieLutBuffer);
 	params.sheenAlbedoLUTSize = _impl->sheenAlbedoLutBuffer ? Impl::kSheenAlbedoLutSize : 0;

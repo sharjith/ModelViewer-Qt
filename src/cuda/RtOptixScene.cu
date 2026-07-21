@@ -1678,35 +1678,83 @@ namespace
 				if (planeBeatsScene)
 				{
 					const float3 planePos = origin + direction * tPlane;
-					float3 litSum = make_float3(0.0f, 0.0f, 0.0f);
-					float3 unshadowedSum = make_float3(0.0f, 0.0f, 0.0f);
+
+					// Faithful port of NVIDIA's getDirectLightingTechniqueProbabilities()/
+					// sampleLights() stochastic technique pick (pathtrace_functions.h.
+					// slang:357-464) - see CpuPathTracer::tracePixel()'s identical
+					// isShadowCatcher gate for the full write-up of why this (not a
+					// deterministic sum over every light, this file's earlier
+					// approach) is what actually localizes the darkening near the
+					// model instead of spreading a hard directional-light shadow
+					// across the whole ground: 50% chance a uniformly-random
+					// punctual light, 50% chance an environment-importance-sampled
+					// direction (proportional weights if only one technique is
+					// available), then ONE shadow ray against whichever direction
+					// was picked.
 					unsigned int catcherRng = rngSeed;
-					for (unsigned int i = 0; i < params.lightCount; ++i)
+					const bool haveLights = params.lightCount > 0;
+					const bool haveEnv = params.environment.envFlatCdf != nullptr && params.environment.envTotalWeight > 0.0f;
+					float lightTechWeight = haveLights ? 0.5f : 0.0f;
+					float envTechWeight = haveEnv ? 0.5f : 0.0f;
+					const float totalTechWeight = lightTechWeight + envTechWeight;
+
+					float3 shadowFactor = make_float3(1.0f, 1.0f, 1.0f);
+					if (totalTechWeight > 0.0f)
 					{
-						float3 lightDir, lightIntensity;
-						float lightDistance;
-						evaluatePunctualLight(params.lights[i], planePos, lightDir, lightIntensity, lightDistance);
-						if (lightIntensity.x <= 0.0f && lightIntensity.y <= 0.0f && lightIntensity.z <= 0.0f)
-							continue;
-						const float NdotL = dot3(planeNormal, lightDir);
-						if (NdotL <= 0.0f)
-							continue;
-						const float3 weighted = lightIntensity * NdotL;
-						unshadowedSum = unshadowedSum + weighted;
+						lightTechWeight /= totalTechWeight;
+						envTechWeight /= totalTechWeight;
 
-						catcherRng = pcgHash(catcherRng ^ (i * 0x9E3779B9u));
-						const float3 shadowOrigin = planePos + planeNormal * eps;
-						const float shadowMaxDistance = fminf(lightDistance, 1e16f);
-						const float3 shadowTransmittance = params.shadowsEnabled != 0
-							? traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
-							: make_float3(1.0f, 1.0f, 1.0f);
-						litSum = litSum + weighted * shadowTransmittance;
+						catcherRng = pcgHash(catcherRng ^ 0x2545F491u);
+						const bool sampleLightTech = hashToUnitFloat(catcherRng) < lightTechWeight;
+
+						float3 sampleDir = make_float3(0.0f, 0.0f, 0.0f);
+						float sampleDistance = 1e16f; // environment/unbounded default
+						bool haveSampleDir = false;
+
+						if (sampleLightTech)
+						{
+							catcherRng = pcgHash(catcherRng);
+							const unsigned int lightIndex = min(
+								static_cast<unsigned int>(hashToUnitFloat(catcherRng) * static_cast<float>(params.lightCount)),
+								params.lightCount - 1);
+							float3 lightDir, lightIntensity;
+							float lightDistance;
+							evaluatePunctualLight(params.lights[lightIndex], planePos, lightDir, lightIntensity, lightDistance);
+							if (lightIntensity.x > 0.0f || lightIntensity.y > 0.0f || lightIntensity.z > 0.0f)
+							{
+								sampleDir = lightDir;
+								sampleDistance = lightDistance;
+								haveSampleDir = true;
+							}
+						}
+						else
+						{
+							catcherRng = pcgHash(catcherRng);
+							const float eu0 = hashToUnitFloat(catcherRng);
+							catcherRng = pcgHash(catcherRng);
+							const float eu1 = hashToUnitFloat(catcherRng);
+							catcherRng = pcgHash(catcherRng);
+							const float eu2 = hashToUnitFloat(catcherRng);
+							float3 envDir;
+							float envPdf;
+							envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
+							if (envPdf > 0.0f)
+							{
+								sampleDir = envDir;
+								haveSampleDir = true;
+							}
+						}
+
+						if (haveSampleDir && dot3(sampleDir, planeNormal) > 0.0f)
+						{
+							catcherRng = pcgHash(catcherRng);
+							const float3 shadowOrigin = planePos + planeNormal * eps;
+							const float shadowMaxDistance = fminf(sampleDistance, 1e16f);
+							shadowFactor = params.shadowsEnabled != 0
+								? traceShadowRay(shadowOrigin, sampleDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
+								: make_float3(1.0f, 1.0f, 1.0f);
+						}
 					}
-
-					const float3 shadowFactor = make_float3(
-						unshadowedSum.x > 1e-6f ? fminf(fmaxf(litSum.x / unshadowedSum.x, 0.0f), 1.0f) : 1.0f,
-						unshadowedSum.y > 1e-6f ? fminf(fmaxf(litSum.y / unshadowedSum.y, 0.0f), 1.0f) : 1.0f,
-						unshadowedSum.z > 1e-6f ? fminf(fmaxf(litSum.z / unshadowedSum.z, 0.0f), 1.0f) : 1.0f);
 
 					float3 envColor;
 					if (escapeRoughness == -1.0f)
@@ -1726,34 +1774,130 @@ namespace
 						envColor = sampleEnvironmentRaw(params.environment, direction) * misWeight;
 					}
 
+					// Literal port of handleShadowCatcher()'s own branch split
+					// (pathtrace_functions.h.slang:527-535) - see CPU's identical
+					// isShadowCatcher gate for the full doc comment.
+					const bool fullyLit = shadowFactor.x >= 1.0f && shadowFactor.y >= 1.0f && shadowFactor.z >= 1.0f;
 					const float shadowStrength = fminf(fmaxf(params.infinitePlaneShadowCatcherDarkness, 0.0f), 1.0f);
-					const float3 shadowMix = make_float3(
-						1.0f + (shadowFactor.x - 1.0f) * shadowStrength,
-						1.0f + (shadowFactor.y - 1.0f) * shadowStrength,
-						1.0f + (shadowFactor.z - 1.0f) * shadowStrength);
-					const float3 resultColor = envColor * shadowMix;
-					const float shadowVisibility = 1.0f - fminf(fmaxf(
-						0.2126f * shadowFactor.x + 0.7152f * shadowFactor.y + 0.0722f * shadowFactor.z,
-						0.0f), 1.0f);
-					const float shadowOpacity = fminf(fmaxf(shadowVisibility * shadowStrength, 0.0f), 1.0f);
+					const float3 resultColor = fullyLit
+						? envColor
+						: envColor * shadowFactor - envColor * (make_float3(1.0f, 1.0f, 1.0f) - shadowFactor) * shadowStrength;
 
 					outRadiance = resultColor;
 					outWorldNormal = planeNormal;
 					outHitDistance = tPlane;
-					outNextDirection = make_float3(0.0f, 0.0f, 0.0f);
-					outThroughputWeight = make_float3(0.0f, 0.0f, 0.0f);
 					outGuideAlbedo = params.infinitePlaneBaseColor;
 					outGuideNormal = planeNormal;
-					outNextBsdfPdf = 0.0f;
-					if (shadowOpacity <= 1e-3f)
+
+					if (fullyLit)
 					{
 						outHitFlag = 0u;
+						outNextDirection = make_float3(0.0f, 0.0f, 0.0f);
+						outThroughputWeight = make_float3(0.0f, 0.0f, 0.0f);
 						outEscapeRoughness = 0.0f;
+						outNextBsdfPdf = 0.0f;
 					}
 					else
 					{
-						outHitFlag = 2u;
-						outEscapeRoughness = shadowOpacity;
+						// Continue the path as an ordinary BSDF bounce off the
+						// shadow-catcher's own flat material (infinitePlaneBaseColor/
+						// Metalness/Roughness) - mirrors NVIDIA's
+						// `bsdfSampleSimple(sampleData, pbrMat); ... return true`
+						// continuation exactly (pathtrace_functions.h.slang:537-553).
+						// A simplified diffuse/GGX-specular mixture (this flat
+						// material has no clearcoat/sheen/anisotropy to mix in),
+						// since traceBouncePath() runs outside __closesthit__ch()
+						// and can't reuse that shader's own inline BSDF-sampling
+						// code directly.
+						catcherRng = pcgHash(catcherRng ^ 0x5BD1E995u);
+						const float u1 = hashToUnitFloat(catcherRng);
+						catcherRng = pcgHash(catcherRng);
+						const float u2 = hashToUnitFloat(catcherRng);
+						catcherRng = pcgHash(catcherRng);
+						const float lobeXi = hashToUnitFloat(catcherRng);
+
+						const float metalness = fminf(fmaxf(params.infinitePlaneMetalness, 0.0f), 1.0f);
+						const float roughness = fminf(fmaxf(params.infinitePlaneRoughness, 0.0001f), 1.0f);
+						const float3 dielectricF0 = make_float3(0.04f, 0.04f, 0.04f);
+						const float3 F0 = lerp3(dielectricF0, params.infinitePlaneBaseColor, metalness);
+						const float specProb = fminf(fmaxf(fmaxf(F0.x, fmaxf(F0.y, F0.z)), 0.04f), 0.96f);
+
+						const float3 V = direction * -1.0f;
+						float3 T, B;
+						buildOrthonormalBasis(planeNormal, T, B);
+
+						float3 nextDir = make_float3(0.0f, 0.0f, 0.0f);
+						float3 bounceThroughput = make_float3(0.0f, 0.0f, 0.0f);
+						float bounceEscapeRoughness = -2.0f; // diffuse-lobe sentinel, matches __closesthit__ch()'s convention
+						bool haveBounce = false;
+
+						if (lobeXi < specProb)
+						{
+							const float alpha = roughness * roughness;
+							if (roughness <= 0.01f)
+							{
+								const float3 L = reflectF3(V * -1.0f, planeNormal);
+								if (dot3(planeNormal, L) > 0.0f)
+								{
+									const float NdotV = fmaxf(dot3(planeNormal, V), 1e-4f);
+									const float3 F = fresnelSchlick(NdotV, F0, make_float3(1.0f, 1.0f, 1.0f));
+									nextDir = L;
+									bounceThroughput = F * (1.0f / specProb);
+									bounceEscapeRoughness = 0.0f;
+									haveBounce = true;
+								}
+							}
+							else
+							{
+								const float NdotV0 = fmaxf(dot3(planeNormal, V), 1e-4f);
+								const float3 Ve = make_float3(dot3(V, T), dot3(V, B), NdotV0);
+								const float3 Hlocal = sampleGGXVNDF(Ve, alpha, alpha, u1, u2);
+								const float3 Hworld = normalizeF3(T * Hlocal.x + B * Hlocal.y + planeNormal * Hlocal.z);
+								const float3 L = reflectF3(V * -1.0f, Hworld);
+								const float NdotL = dot3(planeNormal, L);
+								if (NdotL > 0.0f)
+								{
+									const float NdotV = fmaxf(dot3(planeNormal, V), 1e-4f);
+									const float VdotH = fmaxf(dot3(V, Hworld), 0.0f);
+									const float G1v = smithG1GGX(NdotV, alpha);
+									const float G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
+									const float3 F = fresnelSchlick(VdotH, F0, make_float3(1.0f, 1.0f, 1.0f));
+									nextDir = L;
+									bounceThroughput = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / specProb);
+									bounceEscapeRoughness = roughness;
+									haveBounce = true;
+								}
+							}
+						}
+						else
+						{
+							const float diffuseProb = fmaxf(1.0f - specProb, 1e-4f);
+							const float3 localDir = cosineSampleHemisphere(u1, u2);
+							nextDir = normalizeF3(T * localDir.x + B * localDir.y + planeNormal * localDir.z);
+							const float NdotV = fmaxf(dot3(planeNormal, V), 1e-4f);
+							const float3 Fview = fresnelSchlick(NdotV, F0, make_float3(1.0f, 1.0f, 1.0f));
+							const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
+							bounceThroughput = kD * params.infinitePlaneBaseColor * (1.0f / diffuseProb);
+							bounceEscapeRoughness = -2.0f;
+							haveBounce = true;
+						}
+
+						if (haveBounce)
+						{
+							outHitFlag = 1u;
+							outNextDirection = nextDir;
+							outThroughputWeight = bounceThroughput;
+							outEscapeRoughness = bounceEscapeRoughness;
+							outNextBsdfPdf = 0.0f; // no MIS - matches the alpha-pass-through/transmission convention
+						}
+						else
+						{
+							outHitFlag = 2u;
+							outNextDirection = make_float3(0.0f, 0.0f, 0.0f);
+							outThroughputWeight = make_float3(0.0f, 0.0f, 0.0f);
+							outEscapeRoughness = 1.0f; // fully opaque alpha - a real (if bounce-less) shadowed hit
+							outNextBsdfPdf = 0.0f;
+						}
 					}
 				}
 			}

@@ -4873,16 +4873,42 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}
 		_viewportWidget->setRenderingMode(static_cast<RenderingMode>(
 			viewerState[QStringLiteral("renderingMode")].toInt(static_cast<int>(_viewportWidget->getRenderingMode()))));
-		_viewportWidget->setGroundMode(static_cast<GroundMode>(
-			viewerState[QStringLiteral("groundMode")].toInt(static_cast<int>(_viewportWidget->groundMode()))));
+		{
+			GroundMode loadedGroundMode = static_cast<GroundMode>(
+				viewerState[QStringLiteral("groundMode")].toInt(static_cast<int>(_viewportWidget->groundMode())));
+			// Migration: documents saved before GroundMode::InfinitePlane
+			// existed persisted "shadow catcher" as a separate bool layered
+			// on top of GroundMode::Floor (Visualization panel's old
+			// checkBoxShadowCatcher) instead of its own ground mode - fold
+			// that combination into the new dedicated mode so old documents
+			// keep opening with the same effective look.
+			if (loadedGroundMode == GroundMode::Floor
+				&& viewerState[QStringLiteral("shadowCatcherEnabled")].toBool(false))
+				loadedGroundMode = GroundMode::InfinitePlane;
+			_viewportWidget->setGroundMode(loadedGroundMode);
+		}
 		_viewportWidget->showFloorTexture(
 			viewerState[QStringLiteral("floorTextureShown")].toBool(_viewportWidget->isFloorTextureShown()));
 		_viewportWidget->showReflections(
 			viewerState[QStringLiteral("reflectionsEnabled")].toBool(_viewportWidget->areReflectionsEnabled()));
-		_viewportWidget->showShadowCatcher(
-			viewerState[QStringLiteral("shadowCatcherEnabled")].toBool(_viewportWidget->isShadowCatcherEnabled()));
 		_viewportWidget->setShadowCatcherDarkness(static_cast<float>(
 			viewerState[QStringLiteral("shadowCatcherDarkness")].toDouble(static_cast<double>(_viewportWidget->shadowCatcherDarkness()))));
+		{
+			const QJsonArray catcherColorArr = viewerState[QStringLiteral("shadowCatcherBaseColor")].toArray();
+			QVector3D catcherColor = _viewportWidget->shadowCatcherBaseColor();
+			if (catcherColorArr.size() >= 3)
+			{
+				catcherColor = QVector3D(
+					static_cast<float>(catcherColorArr[0].toDouble()),
+					static_cast<float>(catcherColorArr[1].toDouble()),
+					static_cast<float>(catcherColorArr[2].toDouble()));
+			}
+			_viewportWidget->setShadowCatcherBaseColor(catcherColor);
+		}
+		_viewportWidget->setShadowCatcherMetalness(static_cast<float>(
+			viewerState[QStringLiteral("shadowCatcherMetalness")].toDouble(static_cast<double>(_viewportWidget->shadowCatcherMetalness()))));
+		_viewportWidget->setShadowCatcherRoughness(static_cast<float>(
+			viewerState[QStringLiteral("shadowCatcherRoughness")].toDouble(static_cast<double>(_viewportWidget->shadowCatcherRoughness()))));
 		_viewportWidget->showShadows(
 			viewerState[QStringLiteral("shadowsEnabled")].toBool(_viewportWidget->areShadowsEnabled()));
 		_viewportWidget->showSelfShadows(
@@ -5062,6 +5088,13 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
 	viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
 	viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
+	{
+		const QVector3D catcherColor = _viewportWidget->shadowCatcherBaseColor();
+		viewerState.insert(QStringLiteral("shadowCatcherBaseColor"),
+			QJsonArray{ static_cast<double>(catcherColor.x()), static_cast<double>(catcherColor.y()), static_cast<double>(catcherColor.z()) });
+	}
+	viewerState.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(_viewportWidget->shadowCatcherMetalness()));
+	viewerState.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(_viewportWidget->shadowCatcherRoughness()));
 	viewerState.insert(QStringLiteral("shadowsEnabled"), _viewportWidget->areShadowsEnabled());
 	viewerState.insert(QStringLiteral("selfShadowsEnabled"), _viewportWidget->areSelfShadowsEnabled());
 	viewerState.insert(QStringLiteral("environmentEnabled"), _viewportWidget->isEnvironmentMapEnabled());
@@ -5320,7 +5353,7 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 	// Explicit call (not just relying on ViewportWidget::renderingModeChanged) -
 	// the "PathTraced" branch above calls armPathTracedRenderingMode() AFTER
 	// setRenderingMode(), so a signal fired from setRenderingMode() would
-	// re-evaluate checkBoxShadowCatcher's isPathTracedRenderingModeArmed()
+	// re-evaluate radioButtonGroundInfinitePlane's isPathTracedRenderingModeArmed()
 	// gate one step too early or on the previous state. This call happens
 	// after every branch's arm/disarm has already run, so it's always correct.
 	visualizationEnvironmentPanel->updateControlDependencies();

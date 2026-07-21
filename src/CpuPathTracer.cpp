@@ -2999,45 +2999,32 @@ namespace
 				? 0xFFFFFFFFu
 				: ~(1u << (hit.instanceIndex % 32u));
 
-			// KHR shadow-catcher floor mode (path tracer only) - the
-			// background here is a real environment map/skybox (confirmed),
-			// so NVIDIA's original env-radiance-substitution approach is the
-			// right model - the floor's own material is never meant to be
-			// seen. History: an earlier version of this block ALSO folded in
-			// a stochastic ambient/IBL-occlusion ray (reasoning that a
-			// punctual-light-only shadowFactor misses IBL contact
-			// darkening) - but the user confirmed the punctual-light-only
-			// shadow shape below was ALREADY correct/well-shaped; the actual
-			// (now-fixed, see below) bug was that unshadowed regions weren't
-			// blending to true invisibility. Adding AO on top instead made
-			// the ENTIRE quad read as occluded (a single hemisphere sample
-			// bounded to a radius large enough to cover the whole floor's
-			// footprint has real odds of still grazing the model's own body
-			// from almost anywhere on that footprint), turning the whole
-			// patch into a uniform shadow instead of a localized one - so
-			// removed again; shadowFactor is punctual-lights only, matching
-			// what was already confirmed to look right. Separately: the
-			// "shadowed" branch used to ALSO spend a whole extra cosine-
-			// weighted GI bounce off a flat override material, which could
-			// pick up bounce light (e.g. off the model's own bright/white
-			// paint) that a genuine background pixel never would, visibly
-			// brightening/color-shifting the quad relative to its true
-			// surroundings - removed entirely; a shadow-catcher hit now
-			// always terminates with a single substituted/darkened radiance
-			// value, exactly mirroring a real miss with zero extra bounces.
+			// KHR shadow-catcher floor mode (path tracer only) - a faithful
+			// port of NVIDIA's vk_gltf_renderer handleShadowCatcher()
+			// (pathtrace_functions.h.slang:499-554), including the ONE
+			// piece earlier versions of this block substituted with a
+			// same-looking-but-not-equivalent approximation: the occlusion
+			// test itself. NVIDIA's sampleLights() (pathtrace_functions.h.
+			// slang:357-464) picks a SINGLE direction stochastically from a
+			// unified pool - 50% chance a uniformly-random punctual light,
+			// 50% chance an environment-importance-sampled direction
+			// (getDirectLightingTechniqueProbabilities(), confirmed from
+			// the actual source) - and traces exactly one shadow ray
+			// against THAT direction. This tracer's ordinary NEE instead
+			// deterministically sums every light's contribution every hit;
+			// reusing that convention here (an earlier version's approach)
+			// silently drops the environment-occlusion half entirely, which
+			// is the actual reason the shadow read as a full, long, hard-
+			// edged cast (a directional light's shadow has no proximity-
+			// based falloff) instead of NVIDIA's soft, contact-localized
+			// look (environment-sampled directions are occluded almost
+			// nowhere except very close to the model, so accumulating many
+			// stochastic samples naturally fades the darkening out with
+			// distance) - and why later re-adding NVIDIA's continuation
+			// bounce on top of that mismatch visibly worsened the result
+			// instead of looking subtle like NVIDIA's own.
 			if (mat.isShadowCatcher)
 			{
-				// shadowFactor: NVIDIA samples ONE light stochastically and
-				// gets a single occluded-vs-not test per channel. This
-				// tracer's NEE convention instead deterministically sums
-				// every enabled light's contribution each hit, so
-				// shadowFactor here is the ratio of (the real, shadow-ray-
-				// tested light sum) to (the same sum with occlusion forced
-				// off) - the direct generalization of NVIDIA's single-light
-				// shadowFactor to N lights, reusing the existing per-light
-				// evaluatePunctualLight()/traceShadowRay() pattern (see the
-				// NEE loop further below) rather than a second light-
-				// sampling path.
 				// Always exclude the floor's OWN instance from its
 				// shadow-catcher shadow-ray test, regardless of the global
 				// Self Shadows toggle - a single flat quad can never
@@ -3054,35 +3041,63 @@ namespace
 					? (shadowRayMask & ~(1u << (hit.instanceIndex % 32u)))
 					: shadowRayMask;
 
-				glm::vec3 litSum(0.0f);
-				glm::vec3 unshadowedSum(0.0f);
-				for (const RtLight& light : snapshot.lights)
-				{
-					glm::vec3 lightDir, lightIntensity;
-					float lightDistance;
-					evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
-					if (lightIntensity == glm::vec3(0.0f))
-						continue;
-					const float NdotL = glm::dot(N, lightDir);
-					if (NdotL <= 0.0f)
-						continue;
-					const glm::vec3 weighted = lightIntensity * NdotL;
-					unshadowedSum += weighted;
+				const bool haveLights = !snapshot.lights.empty();
+				const bool haveEnv = envSampler.isValid();
+				float lightTechWeight = haveLights ? 0.5f : 0.0f;
+				float envTechWeight = haveEnv ? 0.5f : 0.0f;
+				const float totalTechWeight = lightTechWeight + envTechWeight;
 
-					RtRay shadowRay;
-					shadowRay.origin = hit.position + Ng * eps;
-					shadowRay.direction = lightDir;
-					shadowRay.tFar = lightDistance - 2.0f * eps;
-					shadowRay.mask = shadowCatcherRayMask;
-					const glm::vec3 shadowTransmittance = snapshot.shadowsEnabled
-						? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
-						: glm::vec3(1.0f);
-					litSum += weighted * shadowTransmittance;
+				glm::vec3 shadowFactor(1.0f);
+				if (totalTechWeight > 0.0f)
+				{
+					lightTechWeight /= totalTechWeight;
+					envTechWeight /= totalTechWeight;
+
+					const bool sampleLightTech = rng.next01() < lightTechWeight;
+					glm::vec3 sampleDir(0.0f);
+					float sampleDistance = 1e6f; // environment/unbounded default
+					bool haveSampleDir = false;
+
+					if (sampleLightTech)
+					{
+						const size_t lightIndex = (std::min)(
+							static_cast<size_t>(rng.next01() * static_cast<float>(snapshot.lights.size())),
+							snapshot.lights.size() - 1);
+						const RtLight& light = snapshot.lights[lightIndex];
+						glm::vec3 lightDir, lightIntensity;
+						float lightDistance;
+						evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
+						if (lightIntensity != glm::vec3(0.0f))
+						{
+							sampleDir = lightDir;
+							sampleDistance = lightDistance;
+							haveSampleDir = true;
+						}
+					}
+					else
+					{
+						glm::vec3 envDir;
+						float envPdf;
+						envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
+						if (envPdf > 0.0f)
+						{
+							sampleDir = envDir;
+							haveSampleDir = true;
+						}
+					}
+
+					if (haveSampleDir && glm::dot(sampleDir, N) > 0.0f)
+					{
+						RtRay shadowRay;
+						shadowRay.origin = hit.position + Ng * eps;
+						shadowRay.direction = sampleDir;
+						shadowRay.tFar = (std::max)(sampleDistance - 2.0f * eps, eps);
+						shadowRay.mask = shadowCatcherRayMask;
+						shadowFactor = snapshot.shadowsEnabled
+							? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
+							: glm::vec3(1.0f);
+					}
 				}
-				const glm::vec3 shadowFactor(
-					unshadowedSum.r > 1e-6f ? std::clamp(litSum.r / unshadowedSum.r, 0.0f, 1.0f) : 1.0f,
-					unshadowedSum.g > 1e-6f ? std::clamp(litSum.g / unshadowedSum.g, 0.0f, 1.0f) : 1.0f,
-					unshadowedSum.b > 1e-6f ? std::clamp(litSum.b / unshadowedSum.b, 0.0f, 1.0f) : 1.0f);
 
 				// Background radiance in the ray's CURRENT direction -
 				// mirrors the real miss branch's own dual convention exactly
@@ -3112,53 +3127,73 @@ namespace
 							: sampleEnvironmentMiss(snapshot.environment, ray.direction))) * misWeightFloor;
 				}
 
-				// The previous subtractive formula matched one branch of the
-				// NVIDIA shader literally, but with our harder/binary-ish
-				// shadowFactor estimator it collapsed full-shadow regions to an
-				// opaque black slab. What we actually need for this app's
-				// visual target is a darkness slider that BLENDS the background
-				// toward the shadowed solution rather than subtracting past it:
-				// 0 = fully invisible catcher, 1 = full shadowFactor
-				// attenuation, and intermediate values stay subtle.
+				// Literal port of handleShadowCatcher()'s own branch split
+				// (pathtrace_functions.h.slang:527-535): fully-lit (all three
+				// channels read EXACTLY 1 - this sample's stochastic
+				// direction was genuinely unoccluded) substitutes envColor
+				// alone and terminates identically to a real miss; otherwise
+				// the subtractive envColor*shadowFactor - envColor*(1-
+				// shadowFactor)*darkenAmount split (physically-plausible
+				// partial occlusion minus the user's artistic darkening
+				// dial), then continues the path.
+				const bool fullyLit = shadowFactor.r >= 1.0f && shadowFactor.g >= 1.0f && shadowFactor.b >= 1.0f;
 				const float shadowStrength = std::clamp(mat.shadowCatcherDarkness, 0.0f, 1.0f);
-				const glm::vec3 shadowMix = glm::mix(glm::vec3(1.0f), shadowFactor, shadowStrength);
-				const glm::vec3 resultColor = envColor * shadowMix;
+				const glm::vec3 resultColor = fullyLit
+					? envColor
+					: envColor * shadowFactor - envColor * (glm::vec3(1.0f) - shadowFactor) * shadowStrength;
 
-				const float shadowVisibility = 1.0f - std::clamp(
-					0.2126f * shadowFactor.r + 0.7152f * shadowFactor.g + 0.0722f * shadowFactor.b,
-					0.0f, 1.0f);
-				const float shadowOpacity = std::clamp(shadowVisibility * shadowStrength, 0.0f, 1.0f);
-				const bool essentiallyInvisible = shadowOpacity <= 1e-3f;
 				if (!primaryHitResolved)
 				{
 					if (outPrimaryHit)
-						*outPrimaryHit = shadowOpacity;
-					if (!essentiallyInvisible)
+						*outPrimaryHit = fullyLit ? 0.0f : 1.0f;
+					if (!fullyLit)
 					{
 						if (outPrimaryAlbedo)
-							*outPrimaryAlbedo = surf.baseColor;
+							*outPrimaryAlbedo = mat.shadowCatcherBaseColor;
 						if (outPrimaryNormal)
 							*outPrimaryNormal = N;
 					}
 				}
 				radiance += throughput * lastHitAO * resultColor;
-				break;
+				if (fullyLit)
+					break;
 
-				// History: a version of this block continued the path as an
-				// ordinary BSDF bounce off shadowCatcherBaseColor/Metalness/
-				// Roughness here, mirroring NVIDIA's handleShadowCatcher()
+				// Continue the path as an ordinary BSDF bounce off the
+				// shadow-catcher's own flat material (shadowCatcherBaseColor/
+				// Metalness/Roughness) - mirrors NVIDIA's
 				// `bsdfSampleSimple(sampleData, pbrMat); ... return true`
-				// continuation (pathtrace_functions.h.slang:537-553) - the
-				// mechanism that makes those three fields visually meaningful
-				// in NVIDIA's own renderer. Reverted: it visibly worsened this
-				// app's result (confirmed by the user) even with the
-				// unrelated bugs (self-shadow noise, unbounded/mis-scoped AO)
-				// that caused the EARLIER "visible patch" regression already
-				// fixed - so whatever's driving this app's specific
-				// degradation is a separate, still-unidentified issue, not
-				// simply "restore the NVIDIA-faithful mechanism now that
-				// those bugs are gone." Metalness/Roughness/BaseColor
-				// currently have NO effect while Shadow Catcher is active.
+				// continuation exactly (pathtrace_functions.h.slang:537-553).
+				// Restored now that shadowFactor itself is computed the same
+				// way NVIDIA's is (single stochastic light-or-environment
+				// direction, not a deterministic sum over every light) - the
+				// earlier attempt at this bounce visibly worsened the result
+				// specifically because it amplified the OLD shadowFactor's
+				// too-broad "shadowed" region, not because the bounce itself
+				// is wrong.
+				SurfaceParams catcherSurf;
+				catcherSurf.baseColor = mat.shadowCatcherBaseColor;
+				catcherSurf.metalness = std::clamp(mat.shadowCatcherMetalness, 0.0f, 1.0f);
+				catcherSurf.roughness = std::clamp(mat.shadowCatcherRoughness, 0.0001f, 1.0f);
+				computeF0F90(mat, catcherSurf.baseColor, catcherSurf.metalness, 1.0f, glm::vec3(1.0f),
+					catcherSurf.F0, catcherSurf.F90, catcherSurf.directF0, catcherSurf.dielectricF0, catcherSurf.dielectricDirectF0);
+
+				glm::vec3 catcherDir, catcherThroughput;
+				float catcherEnvRoughness = -1.0f;
+				const float catcherAlpha = catcherSurf.roughness * catcherSurf.roughness;
+				if (!sampleBSDFBounce(N, N, V, catcherSurf, glm::vec3(0.0f), false,
+						glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), catcherAlpha, catcherAlpha,
+						rng, catcherDir, catcherThroughput, catcherEnvRoughness))
+					break;
+
+				throughput *= catcherThroughput;
+				if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
+					break;
+				ray.origin = hit.position + Ng * eps;
+				ray.direction = catcherDir;
+				lastBounceEnvRoughness = catcherEnvRoughness;
+				lastBsdfSamplePdf = 0.0f; // no MIS - matches the alpha-pass-through/transmission convention
+				++bounce;
+				continue;
 			}
 
 			// glTF material.doubleSided==false back-face culling - previously

@@ -355,11 +355,25 @@ public:
     void       setReflectionsEnabled(bool v)   { _reflectionsEnabled = v; }
 
     // Path-tracer-only "shadow catcher" floor mode - see RtMaterial::
-    // isShadowCatcher's doc comment. No raster equivalent.
-    bool       shadowCatcherEnabled()      const { return _shadowCatcherEnabled; }
-    void       setShadowCatcherEnabled(bool v)   { _shadowCatcherEnabled = v; }
+    // isShadowCatcher's doc comment. No raster equivalent. Enablement itself
+    // is no longer a separate stored flag here - it's implied by
+    // GroundMode::InfinitePlane being selected (its own radio button in the
+    // Visualization panel's Ground section) - see groundMode() below and
+    // ViewportWidget's PT-snapshot-build call site for the translation.
     float      shadowCatcherDarkness()     const { return _shadowCatcherDarkness; }
     void       setShadowCatcherDarkness(float v) { _shadowCatcherDarkness = v; }
+
+    // Flat material the shadow-catcher's continuation bounce shades with -
+    // mirrors NVIDIA's independent infinitePlaneBaseColor/Metallic/Roughness
+    // exactly (never the real floor material's baseColor/metalness) - see
+    // RtMaterial::isShadowCatcher's doc comment. Defaults match NVIDIA's own
+    // (mid-grey, non-metal, medium roughness).
+    QVector3D  shadowCatcherBaseColor()      const { return _shadowCatcherBaseColor; }
+    void       setShadowCatcherBaseColor(const QVector3D& v) { _shadowCatcherBaseColor = v; }
+    float      shadowCatcherMetalness()      const { return _shadowCatcherMetalness; }
+    void       setShadowCatcherMetalness(float v)  { _shadowCatcherMetalness = v; }
+    float      shadowCatcherRoughness()      const { return _shadowCatcherRoughness; }
+    void       setShadowCatcherRoughness(float v)  { _shadowCatcherRoughness = v; }
 
     GroundMode groundMode()              const { return _groundMode; }
     void       setGroundMode(GroundMode m)     { _groundMode = m; }
@@ -694,8 +708,10 @@ private:
     bool         _shadowsEnabled                     = false;
     bool         _selfShadowsEnabled                 = false;
     bool         _reflectionsEnabled                 = false;
-    bool         _shadowCatcherEnabled                = false;
     float        _shadowCatcherDarkness               = 0.5f;
+    QVector3D    _shadowCatcherBaseColor              = QVector3D(0.5f, 0.5f, 0.5f);
+    float        _shadowCatcherMetalness              = 0.0f;
+    float        _shadowCatcherRoughness              = 0.5f;
     GroundMode   _groundMode                         = GroundMode::None;
     bool         _floorTextureDisplayed              = false;
     bool         _skyBoxEnabled                      = false;

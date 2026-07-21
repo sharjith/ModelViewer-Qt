@@ -3540,21 +3540,30 @@ void ViewportWidget::showReflections(bool show)
 	notifyPathTracedSceneMutated();
 }
 
-// Path-tracer-only "shadow catcher" floor mode - no raster shader uniform
-// to set (raster's floor has no equivalent), so this is simpler than
-// showReflections() - just update the render-controller state and
-// invalidate the current PT accumulation (toggling this changes the
-// floor's baked material - see RtSceneBuilder::convertFloorMaterial()).
-void ViewportWidget::showShadowCatcher(bool show)
+void ViewportWidget::setShadowCatcherDarkness(float darkness)
 {
-	_renderCtrl.setShadowCatcherEnabled(show);
+	_renderCtrl.setShadowCatcherDarkness(darkness);
 	update();
 	notifyPathTracedSceneMutated();
 }
 
-void ViewportWidget::setShadowCatcherDarkness(float darkness)
+void ViewportWidget::setShadowCatcherBaseColor(const QVector3D& color)
 {
-	_renderCtrl.setShadowCatcherDarkness(darkness);
+	_renderCtrl.setShadowCatcherBaseColor(color);
+	update();
+	notifyPathTracedSceneMutated();
+}
+
+void ViewportWidget::setShadowCatcherMetalness(float metalness)
+{
+	_renderCtrl.setShadowCatcherMetalness(metalness);
+	update();
+	notifyPathTracedSceneMutated();
+}
+
+void ViewportWidget::setShadowCatcherRoughness(float roughness)
+{
+	_renderCtrl.setShadowCatcherRoughness(roughness);
 	update();
 	notifyPathTracedSceneMutated();
 }
@@ -12900,9 +12909,20 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 		srgbToLinearApprox(static_cast<float>(botColor.blueF())));
 	environment.fallbackGradientStyle = _renderCtrl.gradientStyle();
 
+	// GroundMode::InfinitePlane is a UI-only concept (its own radio button,
+	// mutually exclusive with None/Floor/Grid) - RtSceneBuilder itself only
+	// knows "Floor mode" + "shadow catcher on/off" (exactly today's
+	// Floor+checkbox combination), so it's translated here rather than
+	// threaded through the PT engine as a distinct case. Raster has no
+	// equivalent for this mode at all (see ViewportWidget's ground-drawing
+	// if/else-if chain, which simply draws nothing when groundMode is
+	// neither Floor nor Grid), matching the fact that shadow-catcher
+	// substitution only ever applies to the path-traced render.
+	const bool infinitePlaneMode = _renderCtrl.groundMode() == GroundMode::InfinitePlane;
+
 	RtFloorParams floorParams;
 	floorParams.floorMesh        = _floorPlane;
-	floorParams.groundMode       = _renderCtrl.groundMode();
+	floorParams.groundMode       = infinitePlaneMode ? GroundMode::Floor : _renderCtrl.groundMode();
 	floorParams.sceneBoundingBox = _viewCtrl.boundingBox();
 	floorParams.center           = _floorCenter;
 	floorParams.planeLevel       = _floorPlaneZ;
@@ -12911,8 +12931,11 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 	floorParams.texRepeatS       = _renderCtrl.floorTexRepeatS();
 	floorParams.texRepeatT       = _renderCtrl.floorTexRepeatT();
 	floorParams.reflectionsEnabled = _renderCtrl.reflectionsEnabled();
-	floorParams.shadowCatcherEnabled = _renderCtrl.shadowCatcherEnabled();
+	floorParams.shadowCatcherEnabled = infinitePlaneMode;
 	floorParams.shadowCatcherDarkness = _renderCtrl.shadowCatcherDarkness();
+	floorParams.shadowCatcherBaseColor = _renderCtrl.shadowCatcherBaseColor();
+	floorParams.shadowCatcherMetalness = _renderCtrl.shadowCatcherMetalness();
+	floorParams.shadowCatcherRoughness = _renderCtrl.shadowCatcherRoughness();
 
 	// Recomputed from the OUTPUT resolution rather than reusing the
 	// camera's own configured aspect - for the interactive session these

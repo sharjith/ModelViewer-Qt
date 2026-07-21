@@ -216,6 +216,8 @@ struct RtOptixSceneParams
 	int infinitePlaneIsShadowCatcher;
 	float infinitePlaneShadowCatcherDarkness;
 	float3 infinitePlaneBaseColor;
+	float infinitePlaneMetalness;
+	float infinitePlaneRoughness;
 
 	// KHR_materials_sheen directional-albedo LUTs. sheenAlbedoLUT mirrors
 	// raster's sheenELUT.r/new roughness² convention for direct-light base

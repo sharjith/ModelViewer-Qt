@@ -22,7 +22,16 @@ enum class HatchPattern           { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTA
 enum class DebugOverlayMode  { BoundingBox, VertexNormals, FaceNormals };
 enum class HDRToneMapMode    { KhronosPbrNeutral, ACES_Narkowicz, ACES_Hill,
                                AECS_Hill_Exposure_Boost, Uncharted2ToneMapping, Reinhard };
-enum class GroundMode        { None = 0, Floor = 1, Grid = 2 };
+// InfinitePlane: path-tracer-only shadow-catcher ground - mutually exclusive
+// with Floor/Grid via its own radio button (Visualization panel's Ground
+// section), only selectable while Path Traced rendering is armed. Raster has
+// no equivalent (ViewportWidget's ground-drawing if/else-if chain simply
+// draws nothing for this value, same as it would for an unhandled case) -
+// selecting it is translated to "Floor mode + shadow-catcher shading" at the
+// PT snapshot-build call site (see ViewportWidget::buildPathTracedSnapshot()
+// / wherever RtFloorParams is populated), so RtSceneBuilder/the PT engines
+// never need to know this enum value exists at all.
+enum class GroundMode        { None = 0, Floor = 1, Grid = 2, InfinitePlane = 3 };
 
 // Viewport enumerations (also extracted here to avoid circular includes from
 // ViewportInteractionController.h; ViewportWidget.h replaces its inline definitions
