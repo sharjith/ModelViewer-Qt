@@ -618,6 +618,36 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 	snapshot.instances.push_back(instance);
 }
 
+RtCamera RtSceneBuilder::buildCamera(const Camera& camera, float aspectRatio)
+{
+	RtCamera rtCamera;
+
+	// Mirrors the raster camera convention (view vector = normalize(cameraPos
+	// - fragPos), see main_scene.frag) so primary rays align with what's on
+	// screen - see Camera.h/getRenderPosition() for why that getter specifically.
+	rtCamera.position    = toGlm(camera.getRenderPosition());
+	rtCamera.forward     = toGlm(camera.getViewDir());
+	rtCamera.right       = toGlm(camera.getRightVector());
+	rtCamera.up          = toGlm(camera.getUpVector());
+	rtCamera.aspectRatio = aspectRatio;
+
+	// Read the vertical scale factor straight out of the projection matrix
+	// (element [1][1] of both a standard OpenGL perspective matrix - where it
+	// equals 1/tan(fovY/2) - and a symmetric ortho matrix - where it equals
+	// 2/(top-bottom), i.e. 1/halfHeight) rather than recomputing it from
+	// Camera::getFOV()/getAspectRatio() - see RtCamera's comment for why.
+	rtCamera.orthographic = (camera.getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC);
+	const QMatrix4x4 proj = camera.getProjectionMatrix();
+	const float p11 = proj(1, 1);
+	const float verticalScale = (std::abs(p11) > 1e-8f) ? (1.0f / p11) : 1.0f;
+	if (rtCamera.orthographic)
+		rtCamera.orthoHalfHeight = verticalScale;
+	else
+		rtCamera.tanHalfFovY = verticalScale;
+
+	return rtCamera;
+}
+
 std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	const SceneRuntime& runtime,
 	const Camera& camera,
@@ -703,28 +733,7 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 		snapshot->lights.push_back(rl);
 	}
 
-	// Mirrors the raster camera convention (view vector = normalize(cameraPos
-	// - fragPos), see main_scene.frag) so primary rays align with what's on
-	// screen - see Camera.h/getRenderPosition() for why that getter specifically.
-	snapshot->camera.position    = toGlm(camera.getRenderPosition());
-	snapshot->camera.forward     = toGlm(camera.getViewDir());
-	snapshot->camera.right       = toGlm(camera.getRightVector());
-	snapshot->camera.up          = toGlm(camera.getUpVector());
-	snapshot->camera.aspectRatio = aspectRatio;
-
-	// Read the vertical scale factor straight out of the projection matrix
-	// (element [1][1] of both a standard OpenGL perspective matrix - where it
-	// equals 1/tan(fovY/2) - and a symmetric ortho matrix - where it equals
-	// 2/(top-bottom), i.e. 1/halfHeight) rather than recomputing it from
-	// Camera::getFOV()/getAspectRatio() - see RtCamera's comment for why.
-	snapshot->camera.orthographic = (camera.getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC);
-	const QMatrix4x4 proj = camera.getProjectionMatrix();
-	const float p11 = proj(1, 1);
-	const float verticalScale = (std::abs(p11) > 1e-8f) ? (1.0f / p11) : 1.0f;
-	if (snapshot->camera.orthographic)
-		snapshot->camera.orthoHalfHeight = verticalScale;
-	else
-		snapshot->camera.tanHalfFovY = verticalScale;
+	snapshot->camera = buildCamera(camera, aspectRatio);
 
 	if (environment)
 		snapshot->environment = *environment;

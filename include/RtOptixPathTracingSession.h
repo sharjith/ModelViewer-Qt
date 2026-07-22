@@ -39,6 +39,31 @@
 // class existed (building a real GAS/IAS is heavier than Embree's own BVH
 // build, worth skipping on pure camera movement).
 //
+// ViewportWidget now calls start() with one of TWO different setting
+// profiles depending on whether the camera is actively moving or settled -
+// a reduced-quality "interactive" profile (low maxSamples/maxBounces,
+// denoiser off, setStayAliveAtConvergence(true)) while dragging, and the
+// full user-configured profile once idle (see ViewportWidget::
+// startInteractivePathTracedGpuSession()/startOptixTestPathTracedSession()).
+// This class itself remains completely unaware of that distinction - it
+// just receives different set*() values before each start() call, same as
+// any other setting change.
+//
+// Only the FIRST interactive tick of a drag (or a mid-drag resolution
+// change) actually calls start() - every subsequent tick instead calls the
+// much cheaper updateCamera(), which hands the still-running worker thread
+// a new camera pose in place (see workerLoop()'s _cameraGeneration check)
+// without a thread respawn, a GAS/IAS touch, or (on the ViewportWidget side)
+// rebuilding the whole scene snapshot. That snapshot rebuild - not the
+// thread respawn itself, and not the actual 1-2 SPP trace - is the real cost
+// a naive "just call start() again on every tick" approach pays for
+// (ViewportWidget::buildPathTracedSnapshot() does a synchronous GPU
+// environment-cubemap readback on every call), which is what updateCamera()
+// exists to let interactive dragging skip entirely. setStayAliveAtConvergence()
+// is what keeps the worker thread available to receive those updates instead
+// of exiting once it converges at the (deliberately tiny) interactive sample
+// count - see its own doc comment.
+//
 // Also owns an RtDenoiser, run once the final chunk reaches maxSamples() -
 // same "denoise only on the last pass" contract as RtPathTracingSession's
 // own publishLatest(finalDenoise) (see RtDenoiser::denoise()'s doc comment
@@ -108,6 +133,20 @@ public:
 	// the target.
 	void setSamplesPerChunk(uint32_t samplesPerChunk) { _samplesPerChunk = samplesPerChunk > 0 ? samplesPerChunk : 1; }
 
+	// When true, workerLoop() never exits on its own once sampleCount reaches
+	// maxSamples() - it idles (checking for cancellation/a new updateCamera()
+	// call) instead of letting _running go false. Takes effect on the next
+	// start() call. ViewportWidget sets this before starting the interactive
+	// session (see startInteractivePathTracedGpuSession()) so the worker
+	// thread survives being fully converged at its (deliberately tiny)
+	// interactive sample count, ready to immediately service the next
+	// updateCamera() call instead of needing a full stop()/start() respawn -
+	// see updateCamera()'s own doc comment for why that respawn is the thing
+	// this whole mechanism exists to avoid. Left false (default) for the
+	// normal settled/full-quality session, which should still exit its
+	// worker thread once done, as before.
+	void setStayAliveAtConvergence(bool enabled) { _stayAliveAtConvergence = enabled; }
+
 	// When false, the published frame never gets the final OIDN pass even
 	// once maxSamples() is reached - the raw progressive accumulation is
 	// published as-is instead. Mirrors RtPathTracingSession::
@@ -128,6 +167,21 @@ public:
 	// unavailable, buildScene() failed) - accumulation simply won't start
 	// on failure.
 	bool start(std::shared_ptr<const RtSceneSnapshot> snapshot);
+
+	// Cheap alternative to a full stop()+start() respawn for a camera-only
+	// move while a (stayAliveAtConvergence) session is already running: hands
+	// the live worker thread a new camera pose without touching the thread
+	// itself, the GAS/IAS, or the snapshot - it just resets the worker's own
+	// in-progress accumulation the next time it notices the pose changed (see
+	// workerLoop()'s _cameraGeneration check). This is what actually removes
+	// the per-drag-tick overhead a respawn pays for - most of which is not
+	// this class's own thread-join/relaunch cost but the CALLER's snapshot-
+	// rebuild cost (ViewportWidget::buildPathTracedSnapshot() does a
+	// synchronous GPU environment-cubemap readback on every call) that a
+	// camera-only update has no reason to redo. Returns false (no-op) if no
+	// session is currently running - callers should fall back to a real
+	// start() in that case (first tick of a new interactive burst).
+	bool updateCamera(const RtCamera& camera);
 
 	// Cancels any in-flight pass and joins the worker thread. Safe to call even if not currently running.
 	void stop();
@@ -179,6 +233,7 @@ private:
 	uint32_t _maxVolumeScatterBounces = 64;
 	uint32_t _samplesPerChunk = 1;
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
+	bool _stayAliveAtConvergence = false;
 
 	mutable std::mutex _snapshotMutex;
 	std::shared_ptr<const RtSceneSnapshot> _snapshot;
@@ -188,6 +243,14 @@ private:
 	std::atomic<bool>     _cancelRequested{ false };
 	std::atomic<bool>     _running{ false };
 	std::atomic<uint32_t> _publishedSampleCount{ 0 };
+
+	// Camera-only live-update channel - see updateCamera()'s doc comment.
+	// Distinct from _generation (which gates a hard start()/stop() respawn):
+	// bumping this alone never touches the thread, only tells workerLoop() to
+	// swap in a new camera pose and reset its local accumulation in place.
+	mutable std::mutex    _cameraMutex;
+	RtCamera              _pendingCamera;
+	std::atomic<uint64_t> _cameraGeneration{ 0 };
 
 	mutable std::mutex     _publishMutex;
 	std::vector<glm::vec3> _publishedFrame;

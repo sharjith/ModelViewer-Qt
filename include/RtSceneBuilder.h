@@ -131,6 +131,12 @@ public:
 	// "Shadows"/"Self Shadows" checkboxes (SceneRenderController::
 	// shadowsEnabled()/selfShadowsEnabled()) - see RtSceneSnapshot.h's
 	// fields of the same name for what they control.
+	// Extracted from build()'s own camera-conversion code so a camera-only
+	// update (see RtOptixPathTracingSession::updateCamera()) can build a fresh
+	// RtCamera without paying for a full build() call (geometry/material/
+	// environment-cubemap capture etc, all irrelevant to a pure camera move).
+	static RtCamera buildCamera(const Camera& camera, float aspectRatio);
+
 	static std::shared_ptr<RtSceneSnapshot> build(
 		const SceneRuntime& runtime,
 		const Camera& camera,

@@ -84,7 +84,7 @@ void RtPresenter::upload(const std::vector<glm::vec3>& rgb, int width, int heigh
 	_hasFrame = true;
 }
 
-void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGamma, float iblExposure, int toneMapMode)
+void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGamma, float iblExposure, int toneMapMode, bool forceOpaque)
 {
 	if (!_hasFrame || !_shader || _vao == 0)
 		return;
@@ -92,7 +92,14 @@ void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGa
 	const GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	// See this method's header doc comment for forceOpaque's purpose -
+	// GL_ONE/GL_ZERO is a plain overwrite (this frame's alpha channel never
+	// factors in), vs the normal GL_SRC_ALPHA/GL_ONE_MINUS_SRC_ALPHA blend
+	// that lets raster show through this frame's own alpha=0 "miss" pixels.
+	if (forceOpaque)
+		glBlendFunc(GL_ONE, GL_ZERO);
+	else
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	_shader->bind();
 	_shader->setUniformValue("resolution", QVector2D(static_cast<float>(_texWidth), static_cast<float>(_texHeight)));

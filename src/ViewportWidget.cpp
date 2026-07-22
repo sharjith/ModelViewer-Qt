@@ -37,6 +37,7 @@
 #include <iostream>
 #include <QCryptographicHash>
 #include <QOpenGLContext>
+#include <QDateTime>
 #include <QElapsedTimer>
 #include <QMessageBox>
 #include <QPainter>
@@ -52,6 +53,43 @@
 
 constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
+
+// GPU/OptiX-only interactive-preview preset - see ViewportWidget::
+// startInteractivePathTracedGpuSession()'s doc comment. Deliberately hard-
+// coded (not user-configurable via PathTracingDialog) for the first cut of
+// this feature: conservative enough to stay responsive on a wide range of
+// RTX GPUs, revisit as a tunable/adaptive setting only if real-world testing
+// shows these defaults are wrong for a given scene/GPU. maxSamples=1 means
+// the denoiser (deliberately disabled for this preset - see its own call
+// site) would fire on literally every restart if left on, which is wasted
+// work for a frame about to be replaced within one drag tick.
+constexpr uint32_t kInteractivePtMaxSamples              = 1;
+constexpr int      kInteractivePtMaxBounces              = 2;
+constexpr int      kInteractivePtMaxTransmissionBounces  = 4;
+constexpr int      kInteractivePtMaxVolumeScatterBounces = 4;
+
+// Minimum wall-clock gap between interactive-GPU-session SLOW-path restarts
+// (startInteractivePathTracedGpuSession()'s real start() call, not its
+// updateCamera() fast path) - a burst of camera-move events (mouseMoveEvent,
+// and especially onInertiaTimer() at ~60Hz) can fire far faster than a GPU
+// worker thread can usefully spawn/join/relaunch, which only happens on the
+// first tick of a drag or a mid-drag resolution change.
+constexpr qint64 kInteractiveGpuRestartMinIntervalMs = 50;
+
+// NOTE: a faster _pathTracedRefreshTimer interval during interactive
+// dragging (polling closer to a real display refresh rate, on the theory
+// that updateCamera() had made the worker fast enough for it to help) was
+// tried and reverted - it made responsiveness WORSE, not better. Each poll
+// that finds a new frame triggers a full update()/paintGL(), which
+// re-renders the raster scene (HUD, gizmos, etc.) on the SAME GPU the OptiX
+// worker thread is using; polling at ~60Hz added real GPU/CPU contention
+// against the path tracer's own kernels, which read as sluggish/"sticky"
+// input rather than smoother motion. The actual bottleneck was never the
+// poll rate - it's how long the worker takes to render one interactive
+// chunk - so a faster poll can only ever notice a new frame sooner, never
+// make one exist sooner. _pathTracedRefreshTimer stays at its original
+// 100ms interval (see its setInterval(100) call near this widget's
+// constructor) for both the interactive and settled session.
 
 static SceneNode* findSceneNodeByAiChildPath(SceneNode* root, const QVector<int>& aiChildPath)
 {
@@ -1060,6 +1098,14 @@ void ViewportWidget::resizeGL(int width, int height)
 
 	float w = (float)width;
 	float h = (float)height;
+	const qreal dpr = devicePixelRatioF();
+	const int fbWidth = std::max(1, static_cast<int>(width * dpr));
+	const int fbHeight = std::max(1, static_cast<int>(height * dpr));
+	const bool framebufferSizeChanged =
+		fbWidth != _pathTracedFramebufferWidth ||
+		fbHeight != _pathTracedFramebufferHeight;
+	_pathTracedFramebufferWidth = fbWidth;
+	_pathTracedFramebufferHeight = fbHeight;
 
 	if (_selectionManager)
 		_selectionManager->resizeFBOResources(width, height);
@@ -1094,13 +1140,13 @@ void ViewportWidget::resizeGL(int width, int height)
 	resizeTransmissionBuffer(width, height);
 	resizeSSSBuffer(width, height);
 
-	_rtSession.setResolution(width, height);
-	// A resize (including a maximized MDI subwindow being reactivated - only
-	// the active one is truly full-size, so switching genuinely resizes the
-	// newly-focused widget) invalidates the accumulation buffer's dimensions,
-	// so this restart is a real correctness requirement, not a spurious
-	// trigger - see showEvent() for the one that WAS spurious and got removed.
-	if (_pathTracedArmed)
+	_rtSession.setResolution(fbWidth, fbHeight);
+	// Only a REAL framebuffer-size change should invalidate PT
+	// accumulation. Many camera-motion code paths call resizeGL(width(),
+	// height()) manually just to refresh matrices/projection state; treating
+	// those synthetic calls as true resizes was immediately tearing down the
+	// interactive PT session and forcing raster/PBR back on screen.
+	if (_pathTracedArmed && framebufferSizeChanged)
 		resetPathTracedIdleTimer(); // old accumulation no longer matches the new resolution
 
 	update();
@@ -1160,14 +1206,37 @@ void ViewportWidget::paintGL()
 			startPathTracedSession(); // bypass the idle countdown entirely - see applicationStateChanged handler for why
 		}
 
-		// Path-traced overlay: only once the camera has actually settled
-		// (idle timer no longer counting down - see resetPathTracedIdleTimer())
-		// and a converged/converging frame has actually been published. Drawn
-		// over the just-rendered raster frame, before the viewcube/text
-		// overlay so those still read on top of the path-traced image too.
-		if (_pathTracedArmed && !_pathTracedIdleTimer->isActive() && _rtPresenter.hasFrame())
+		// While GPU interactive PT is active, opportunistically pull the most
+		// recent chunk on every paint instead of waiting solely for the
+		// 100 ms refresh timer. Short camera animations (Home/view changes)
+		// can otherwise spend most of their lifetime showing only the raster
+		// fallback simply because the presenter has not been refreshed yet.
+		if (_pathTracedArmed && _pathTracedInteractiveActive &&
+			effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+		{
+			int frameWidth = 0;
+			int frameHeight = 0;
+			uint32_t sampleCount = 0;
+			std::vector<float> alpha;
+			std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);
+			if (!frame.empty())
+				_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
+		}
+
+		// Path-traced overlay: drawn once the camera has settled (idle timer
+		// no longer counting down - see resetPathTracedIdleTimer()) AND a
+		// converged/converging frame has been published - OR, GPU/OptiX
+		// only, while _pathTracedInteractiveActive is true (a reduced-
+		// quality trace is running because the camera is actively moving -
+		// see startInteractivePathTracedGpuSession()). CPU/Embree never sets
+		// _pathTracedInteractiveActive, so this reduces to exactly the
+		// original settled-only condition for that backend. Drawn over the
+		// just-rendered raster frame, before the viewcube/text overlay so
+		// those still read on top of the path-traced image too.
+		if (_pathTracedArmed && (_pathTracedInteractiveActive || !_pathTracedIdleTimer->isActive()) && _rtPresenter.hasFrame())
 			_rtPresenter.draw(_renderCtrl.hdrToneMapping(), _renderCtrl.gammaCorrection(),
-				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()));
+				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()),
+				/*forceOpaque=*/_pathTracedInteractiveActive);
 
 		if (!_capturingCleanFrame)
 		{
@@ -1677,6 +1746,12 @@ void ViewportWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 
 void ViewportWidget::setViewMode(ViewMode mode)
 {
+	// Home / standard-view / axonometric changes are camera motion even
+	// before the first 5 ms animation tick lands. Kicking the GPU
+	// interactive PT path here avoids spending the start of the transition in
+	// raster/PBR while waiting for animateViewChange()'s first callback.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	if (!_animateViewTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
@@ -1716,6 +1791,10 @@ void ViewportWidget::setViewMode(ViewMode mode)
 
 void ViewportWidget::fitAll()
 {
+	// Fit-to-view is a camera move, not a scene mutation. Start the GPU
+	// interactive PT path as soon as the action begins rather than waiting
+	// for animateFitAll()'s first timer tick.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 
 	// Guard: do nothing if the scene has no visible meshes.
 	// Without this, computeFitViewRange() operates on degenerate bounds,
@@ -1814,6 +1893,8 @@ void ViewportWidget::fitAll()
 
 void ViewportWidget::fitAllImmediate()
 {
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return;
@@ -1854,6 +1935,11 @@ void ViewportWidget::setSelectionHighlighting(bool highlight)
 
 void ViewportWidget::beginWindowZoom()
 {
+	// Arming window zoom is the beginning of a camera-only interaction path;
+	// keep parity with mouse drag by switching GPU PT into its interactive
+	// preview profile up front.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	_viewCtrl.setWindowZoomActive(true);
 	setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 }
@@ -1988,6 +2074,8 @@ void ViewportWidget::performWindowZoom()
 
 void ViewportWidget::setProjection(ViewProjection proj)
 {
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	_viewCtrl.setProjection(proj);
 	if (!_primaryCamera || _primaryCamera->getMode() == Camera::CameraMode::Orbit)
 	{
@@ -8503,20 +8591,25 @@ void ViewportWidget::render(Camera* camera)
 	{
 		// While the path-traced overlay is actually being composited over
 		// this frame (see paintGL()'s matching _pathTracedArmed/idle-timer/
-		// hasFrame() gate), it draws its own, deliberately much smaller
-		// floor instance (RtSceneBuilder::addFloorInstance() - sized from
-		// the scene bounding box, not the raster floor's large aesthetic
-		// fade-out extent) with alpha=1 where the primary ray hit it.
-		// Elsewhere (alpha=0) the raster frame underneath still shows
-		// through by design (see RtPresenter's alpha blending, added to fix
-		// skybox/gradient background sync) - but that same mechanism was
-		// letting *this* raster floor's much larger extent bleed through
-		// around the edges of the smaller path-traced one. Skipping this
-		// raster floor draw specifically when the overlay is about to cover
-		// the primary view avoids drawing a floor that would only be
-		// visible in the gap between the two extents.
+		// _pathTracedInteractiveActive/hasFrame() gate), it draws its own,
+		// deliberately much smaller floor instance (RtSceneBuilder::
+		// addFloorInstance() - sized from the scene bounding box, not the
+		// raster floor's large aesthetic fade-out extent) with alpha=1 where
+		// the primary ray hit it. Elsewhere (alpha=0) the raster frame
+		// underneath still shows through by design (see RtPresenter's alpha
+		// blending, added to fix skybox/gradient background sync) - but that
+		// same mechanism was letting *this* raster floor's much larger
+		// extent bleed through around the edges of the smaller path-traced
+		// one. Skipping this raster floor draw specifically when the overlay
+		// is about to cover the primary view avoids drawing a floor that
+		// would only be visible in the gap between the two extents. Must
+		// match paintGL()'s gate exactly, including the GPU-interactive
+		// relaxation - otherwise every drag frame on GPU/OptiX would show
+		// both floors at once (the very bug this condition exists to avoid).
 		const bool pathTracedOverlayShowing =
-			camera == _primaryCamera && _pathTracedArmed && !_pathTracedIdleTimer->isActive() && _rtPresenter.hasFrame();
+			camera == _primaryCamera && _pathTracedArmed
+			&& (_pathTracedInteractiveActive || !_pathTracedIdleTimer->isActive())
+			&& _rtPresenter.hasFrame();
 
 		if (_renderCtrl.groundMode() == GroundMode::Floor)
 		{
@@ -10898,7 +10991,10 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 {
 	setFocus();
 	checkAndStopTimers();
-	resetPathTracedIdleTimer();
+	// A plain click (selection, gizmo activation, view-cube click, focus
+	// grab) is not camera movement and should not start the interactive PT
+	// preview. The actual orbit/pan/zoom branches trigger
+	// resetPathTracedIdleTimer(true) on first real movement instead.
 
 	// Reset inertia on new mouse press
 	_viewCtrl.clearInertiaState();
@@ -11082,14 +11178,19 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 
 void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 {
-	_viewCtrl.setMouseMovedSincePress(true);
-	_viewCtrl.setLastMouseMoveTime(e->timestamp());
 	QPoint currentPos = e->pos();
 	qint64 currentTime = e->timestamp();
 	QPoint delta = currentPos - _viewCtrl.lastMousePos();
 	float dt = (currentTime - _viewCtrl.lastMouseTime()) / 1000.0f; // seconds
+	const bool anyButtonDown = e->buttons() != Qt::NoButton;
+	if (anyButtonDown && !delta.isNull())
+	{
+		_viewCtrl.setMouseMovedSincePress(true);
+		_viewCtrl.setLastMouseMoveTime(e->timestamp());
+	}
 
 	QPoint downPoint(e->position().x(), e->position().y());
+	constexpr int kCameraDragThresholdPx = 3;
 	if (_viewCtrl.transformGizmoTranslating() && (e->buttons() & Qt::LeftButton))
 	{
 		notifyPathTracedSceneMutated();
@@ -11127,11 +11228,18 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl.viewRotating()) && !isGltfCameraActive())
 		{
-			resetPathTracedIdleTimer();
+			const QPoint rotate = _viewCtrl.leftButtonPoint() - downPoint;
+			if (rotate.manhattanLength() < kCameraDragThresholdPx)
+			{
+				_viewCtrl.setLastMousePos(currentPos);
+				_viewCtrl.setLastMouseTime(currentTime);
+				return;
+			}
+
+			resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_renderCtrl.setLowResEnabled(true);
 			setSectionCapsInteractionSuppressed(true);
-			QPoint rotate = _viewCtrl.leftButtonPoint() - downPoint;
 
 			if (_primaryCamera->getMode() == Camera::CameraMode::Orbit)
 			{
@@ -11173,9 +11281,16 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		 _primaryCamera->getMode() == Camera::CameraMode::FirstPerson) &&
 		!isGltfCameraActive())
 	{
-		resetPathTracedIdleTimer();
+		const QPoint look = _viewCtrl.rightButtonPoint() - downPoint;
+		if (look.manhattanLength() < kCameraDragThresholdPx)
+		{
+			_viewCtrl.setLastMousePos(currentPos);
+			_viewCtrl.setLastMouseTime(currentTime);
+			return;
+		}
+
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
-		QPoint look = _viewCtrl.rightButtonPoint() - downPoint;
 		_primaryCamera->getYaw()   += look.x() * 0.2f * _mouseSensitivity;
 		_primaryCamera->getPitch() += look.y() * 0.2f * _mouseSensitivity;
 
@@ -11200,7 +11315,15 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl.viewPanning())) && !isGltfCameraActive())
 	{
-		resetPathTracedIdleTimer();
+		const QPoint panDelta = downPoint - _viewCtrl.rightButtonPoint();
+		if (panDelta.manhattanLength() < kCameraDragThresholdPx)
+		{
+			_viewCtrl.setLastMousePos(currentPos);
+			_viewCtrl.setLastMouseTime(currentTime);
+			return;
+		}
+
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
@@ -11225,12 +11348,19 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl.viewZooming())) && !isGltfCameraActive())
 	{
-		resetPathTracedIdleTimer();
+		const QPoint frameDelta = downPoint - _viewCtrl.middleButtonPoint();
+		if (frameDelta.manhattanLength() < kCameraDragThresholdPx)
+		{
+			_viewCtrl.setLastMousePos(currentPos);
+			_viewCtrl.setLastMouseTime(currentTime);
+			return;
+		}
+
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
 		// Zoom — scale by actual pixel delta so slow drag = slow zoom
-		const QPoint frameDelta = downPoint - _viewCtrl.middleButtonPoint();
 		// Right/up = zoom in; left/down = zoom out (horizontal dominates if larger)
 		const float pixelDelta = std::abs(frameDelta.x()) >= std::abs(frameDelta.y())
 		    ? static_cast<float>(frameDelta.x())
@@ -11390,7 +11520,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 void ViewportWidget::wheelEvent(QWheelEvent* e)
 {
-	resetPathTracedIdleTimer();
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 
 	// Stop any ongoing inertia when wheel zooming
 	_viewCtrl.clearInertiaState();
@@ -11488,8 +11618,25 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 		key == Qt::Key_Alt ||
 		key == Qt::Key_Meta;
 
-	if (!modifierOnlyKey)
-		resetPathTracedIdleTimer();
+	// Must match every key performKeyboardNav() actually reacts to (see that
+	// function's body) - move (W/A/S/D/Q/E/arrows), look/rotate (J/L/I/K/M/N,
+	// both fly and orbit modes), and orbit zoom (X/Z). PageUp/PageDown are
+	// NOT nav keys anywhere in this codebase - deliberately excluded rather
+	// than left in as a guess.
+	const bool cameraNavKey =
+		key == Qt::Key_W || key == Qt::Key_A || key == Qt::Key_S || key == Qt::Key_D ||
+		key == Qt::Key_Q || key == Qt::Key_E ||
+		key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Left || key == Qt::Key_Right ||
+		key == Qt::Key_J || key == Qt::Key_L || key == Qt::Key_I || key == Qt::Key_K ||
+		key == Qt::Key_M || key == Qt::Key_N ||
+		key == Qt::Key_X || key == Qt::Key_Z;
+
+	// Only real navigation keys should kick the GPU interactive PT path on
+	// keydown. Broader "any non-modifier key" behavior made unrelated keys
+	// (and shortcut handling around them) wake PT even when the camera never
+	// moved at all.
+	if (!modifierOnlyKey && cameraNavKey)
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 
 	if (key == Qt::Key_Escape)
 	{
@@ -11552,6 +11699,15 @@ void ViewportWidget::performKeyboardNav()
 
 	if (_keys.empty() == false && allowGameplayModifiers)
 	{
+		// This per-frame timer callback is genuine, continuous camera
+		// movement while a nav key is held - same treatment as
+		// onInertiaTimer()'s coasting (see resetPathTracedIdleTimer()'s doc
+		// comment). keyPressEvent()'s own call (default cameraInteracting=
+		// false) only covers the initial keydown; without this, holding a
+		// nav key would let the idle timer expire mid-navigation and hard-
+		// fall-back to raster on GPU.
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 		const float sceneScale = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
 		float factor = std::max(sceneScale * 0.02f, _viewCtrl.viewRange() * 0.01f);
 		if (modifiers & Qt::ShiftModifier)
@@ -11686,6 +11842,13 @@ void ViewportWidget::performKeyboardNav()
 
 void ViewportWidget::animateViewChange()
 {
+	// This is a per-frame animation callback (Home/standard-view/axonometric
+	// transitions), genuine camera movement exactly like onInertiaTimer()'s
+	// coasting - see resetPathTracedIdleTimer()'s doc comment. Without this,
+	// GPU PT would hard-fall-back to raster for the whole animation instead
+	// of staying in the low-spp interactive trace.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
@@ -11737,6 +11900,10 @@ void ViewportWidget::animateViewChange()
 
 void ViewportWidget::animateFitAll()
 {
+	// See animateViewChange()'s identical comment - fitAll()'s per-frame
+	// animation is genuine camera movement too.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
@@ -11749,6 +11916,10 @@ void ViewportWidget::animateFitAll()
 
 void ViewportWidget::animateWindowZoom()
 {
+	// See animateViewChange()'s identical comment - the window-zoom
+	// animation is genuine camera movement too.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
@@ -11773,7 +11944,9 @@ void ViewportWidget::onInertiaTimer()
 	// Inertia keeps moving the camera after mouse-up - keep deferring the
 	// settle countdown for as long as this timer keeps firing (it stops
 	// itself once the decaying velocity drops below its own threshold below).
-	resetPathTracedIdleTimer();
+	// cameraInteracting=true: inertial coasting is genuine camera movement,
+	// same as a live drag - see resetPathTracedIdleTimer()'s doc comment.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 
 	bool active = false;
 
@@ -12583,6 +12756,8 @@ void ViewportWidget::fitBoxToScreen(const BoundingBox& box)
 
 void ViewportWidget::animateToRotation(const QQuaternion& targetRotation)
 {
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	QQuaternion curRot = QQuaternion::slerp(_viewCtrl.currentRotation(), targetRotation, _viewCtrl.advanceSlerpStep());
 
 	QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
@@ -12658,6 +12833,8 @@ void ViewportWidget::setRotations(float xRot, float yRot, float zRot)
 
 void ViewportWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
+
 	_viewCtrl.advanceSlerpStep();
 
 	// Translation
@@ -12776,18 +12953,40 @@ void ViewportWidget::disarmPathTracedRenderingMode()
 	update(); // drop back to pure raster immediately
 }
 
-void ViewportWidget::resetPathTracedIdleTimer()
+void ViewportWidget::resetPathTracedIdleTimer(bool cameraInteracting)
 {
 	if (!_pathTracedArmed)
 		return;
 
+	// GPU/OptiX only: a genuine camera-move event (not a scene mutation -
+	// see this method's header doc comment for the full list of call sites
+	// that pass cameraInteracting=true) stays in path tracing instead of
+	// falling back to raster, at reduced quality - see
+	// startInteractivePathTracedGpuSession(). CPU/Embree has no hardware RT
+	// acceleration to make a per-frame interactive trace realistic, so it
+	// always falls through to the original behavior below regardless of this
+	// flag.
+	if (cameraInteracting && effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+	{
+		_lastCameraInteractionMs = QDateTime::currentMSecsSinceEpoch(); // see onPathTracedIdleTimeout()'s doc comment
+		_rtSession.stop(); // still never run CPU and GPU sessions at once
+		startInteractivePathTracedGpuSession();
+		_pathTracedIdleTimer->start(); // (re)start the single-shot countdown to the next settle
+		return;
+	}
+
 	// Any camera-affecting event cancels an in-flight/converged trace so the
 	// live PBR raster feed shows immediately (RtPathTracingSession::stop()
 	// returns within about one scanline's tracing time - see CpuPathTracer's
-	// cancelFlag - so this is not a UI stall).
+	// cancelFlag - so this is not a UI stall). This is also where a scene
+	// mutation (notifyPathTracedSceneMutated(), cameraInteracting=false)
+	// always ends up regardless of backend - a material/light/geometry edit
+	// invalidates shading correctness in a way camera movement doesn't, so it
+	// must never keep showing a (now possibly wrong) in-progress frame.
 	_rtSession.stop();
 	_ptOptixSession.stop();
 	_rtPresenter.invalidate();
+	_pathTracedInteractiveActive = false;
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->stop();
 	update();
@@ -12797,8 +12996,44 @@ void ViewportWidget::resetPathTracedIdleTimer()
 
 void ViewportWidget::onPathTracedIdleTimeout()
 {
-	if (_pathTracedArmed)
-		startPathTracedSession();
+	if (!_pathTracedArmed)
+		return;
+
+	// Cross-check against real wall-clock time since the last genuine camera
+	// interaction (see _lastCameraInteractionMs's doc comment) before
+	// treating this as a real settle. Qt's QTimer can be throttled/coalesced
+	// by the OS under heavy GUI-thread load - exactly what a fast drag with
+	// GPU launches and presenter uploads competing for the event loop
+	// produces - so a firing timeout alone isn't reliable proof 450ms of
+	// genuine idleness actually passed; a spurious/premature fire here would
+	// promote to the full-quality session, which unconditionally invalidates
+	// the presenter (see startOptixTestPathTracedSession()) - a visible
+	// flash to raster mid-drag, then straight back to the interactive trace
+	// on the very next mouse-move tick. GPU/OptiX only, and only while an
+	// interactive session is actually the thing on screen - CPU/Embree's own
+	// hard-fallback-every-event path already re-invalidates unconditionally
+	// on every camera event, so there's no "stay resident and get preempted"
+	// state for a spurious fire to disturb there.
+	if (_pathTracedInteractiveActive)
+	{
+		const qint64 elapsedMs = QDateTime::currentMSecsSinceEpoch() - _lastCameraInteractionMs;
+		constexpr qint64 kMinGenuineIdleMs = 400; // a bit under the timer's own 450ms interval - see setInterval(450) above - allowing for legitimate small scheduling jitter
+		if (elapsedMs < kMinGenuineIdleMs)
+		{
+			_pathTracedIdleTimer->start(); // not actually settled yet - wait again instead of promoting/invalidating
+			return;
+		}
+	}
+
+	// GPU interactive -> settled GPU promotion should keep the last
+	// interactive PT frame visible until the first full-quality chunk
+	// publishes; invalidating the presenter here is what caused the brief
+	// fallback to raster/PBR after mouse-up.
+	_preservePtPresenterOnNextStart =
+		_pathTracedInteractiveActive &&
+		effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU;
+	_pathTracedInteractiveActive = false;
+	startPathTracedSession();
 }
 
 std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(int width, int height)
@@ -13025,8 +13260,10 @@ void ViewportWidget::startPathTracedSession()
 		settings.maxVolumeScatterBounces             = _ptMaxVolumeScatterBounces;
 		_rtSession.setTracerSettings(settings);
 	}
-	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
+	if (!_preservePtPresenterOnNextStart)
+		_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first new pass publishes
 	_rtSession.start(snapshot);
+	_preservePtPresenterOnNextStart = false;
 	_ptSessionElapsedTimer.start(); // see pathTracingElapsedMs()'s doc comment
 
 	if (_pathTracedRefreshTimer)
@@ -13036,12 +13273,14 @@ void ViewportWidget::startPathTracedSession()
 void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 {
 	_rtSession.stop(); // switching to the GPU engine - don't leave a CPU worker thread running behind it
-	_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first chunk publishes
+	if (!_preservePtPresenterOnNextStart)
+		_rtPresenter.invalidate(); // suppress the (now stale) previous frame until the first chunk publishes
 
 	if (!_ptOptixSession.isAvailable())
 	{
 		qWarning() << "startOptixTestPathTracedSession: OptiX unavailable on this machine "
 			"(see the RtOptixContext/RtOptixSceneTracer log above) - nothing to display.";
+		_preservePtPresenterOnNextStart = false;
 		update();
 		return;
 	}
@@ -13049,6 +13288,7 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
 	if (!snapshot)
 	{
+		_preservePtPresenterOnNextStart = false;
 		update();
 		return;
 	}
@@ -13068,15 +13308,117 @@ void ViewportWidget::startOptixTestPathTracedSession(int fbWidth, int fbHeight)
 	_ptOptixSession.setMaxVolumeScatterBounces(static_cast<uint32_t>(std::max(_ptMaxVolumeScatterBounces, 1)));
 	_ptOptixSession.setDenoiserEnabled(_ptDenoiserEnabled);
 	_ptOptixSession.setDenoiserDevicePreference(_ptDenoiserDevicePreference);
+	// This is the settled/full-quality profile - unlike the interactive one
+	// (startInteractivePathTracedGpuSession()), the worker thread should exit
+	// normally once it converges rather than idle waiting for camera updates.
+	_ptOptixSession.setStayAliveAtConvergence(false);
 	if (!_ptOptixSession.start(snapshot))
 	{
 		qWarning() << "startOptixTestPathTracedSession: RtOptixPathTracingSession::start() failed.";
+		_preservePtPresenterOnNextStart = false;
 		update();
 		return;
 	}
+	_preservePtPresenterOnNextStart = false;
 	_ptSessionElapsedTimer.start(); // see pathTracingElapsedMs()'s doc comment
 
 	if (_pathTracedRefreshTimer)
+		_pathTracedRefreshTimer->start();
+}
+
+// GPU/OptiX-only reduced-quality trace kicked off while the camera is
+// actively moving - see resetPathTracedIdleTimer()'s doc comment for when
+// this is called instead of the raster-fallback path. Deliberately mirrors
+// startOptixTestPathTracedSession() above rather than sharing code with it:
+// the two differ in enough places (interactive quality constants instead of
+// the user's configured settings, denoiser forced off, no presenter
+// invalidation, throttled) that a shared helper would need as many
+// parameters as it saved lines.
+void ViewportWidget::startInteractivePathTracedGpuSession()
+{
+	if (!_renderCtrl.isOpenGLInitialized() || !_primaryCamera || !_ptOptixSession.isAvailable())
+		return;
+
+	const qreal dpr = devicePixelRatioF();
+	const int fbWidth  = static_cast<int>(width()  * dpr);
+	const int fbHeight = static_cast<int>(height() * dpr);
+	if (fbWidth <= 0 || fbHeight <= 0)
+		return; // genuinely not visible right now (e.g. still minimized)
+
+	// Fast path: the interactive worker thread is already alive and idling
+	// (RtOptixPathTracingSession::setStayAliveAtConvergence(true), set below
+	// when this session is first started) - just hand it the current camera
+	// pose via updateCamera(). This is deliberately as cheap as this class
+	// can make it: no snapshot rebuild (skips buildPathTracedSnapshot()'s
+	// synchronous environment-cubemap GPU readback - the actual dominant
+	// cost of a restart, far more than the 1-2 SPP trace itself), no thread
+	// respawn, no GAS/IAS touch. Cheap enough to call unthrottled on every
+	// single mouse-move event, unlike the slow (snapshot-rebuilding) path
+	// below.
+	if (_pathTracedInteractiveActive &&
+		_ptOptixSession.isRunning() &&
+		fbWidth == _ptOptixSession.width() && fbHeight == _ptOptixSession.height())
+	{
+		const float aspectRatio = fbHeight > 0 ? static_cast<float>(fbWidth) / static_cast<float>(fbHeight) : 1.0f;
+		const RtCamera camera = RtSceneBuilder::buildCamera(*_primaryCamera, aspectRatio);
+		if (_ptOptixSession.updateCamera(camera))
+		{
+			_pathTracedInteractiveActive = true;
+			if (_pathTracedRefreshTimer && !_pathTracedRefreshTimer->isActive())
+				_pathTracedRefreshTimer->start();
+			return;
+		}
+	}
+
+	// Slow path: first tick of a new interactive burst (nothing running yet)
+	// or the viewport was resized mid-drag (fast path's resolution check
+	// above failed) - either way a real snapshot (geometry/environment/
+	// lights) and a fresh worker thread are unavoidable here. Throttled since
+	// unlike the fast path above, this is genuinely expensive.
+	const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+	if (nowMs - _lastInteractiveGpuRestartMs < kInteractiveGpuRestartMinIntervalMs)
+		return;
+	_lastInteractiveGpuRestartMs = nowMs;
+
+	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
+	if (!snapshot)
+		return;
+
+	// RtOptixPathTracingSession::start() only rebuilds the GAS/IAS when the
+	// scene actually changed - camera-only movement leaves
+	// _pathTracedSceneRevision unchanged, so this (comparatively rare, slow-
+	// path-only) restart still reuses the existing acceleration structure.
+	_ptOptixSession.setResolution(fbWidth, fbHeight);
+	_ptOptixSession.setMaxSamples(kInteractivePtMaxSamples);
+	_ptOptixSession.setMaxBounces(kInteractivePtMaxBounces);
+	_ptOptixSession.setEnvironmentImportanceSamplingEnabled(_ptEnvImportanceSamplingEnabled);
+	_ptOptixSession.setMaxTransmissionBounces(static_cast<uint32_t>(kInteractivePtMaxTransmissionBounces));
+	_ptOptixSession.setFireflyClampThreshold(_ptFireflyClampThreshold);
+	_ptOptixSession.setRussianRouletteStartDepth(static_cast<uint32_t>(std::max(_ptRussianRouletteStartDepth, 1)));
+	_ptOptixSession.setMaxVolumeScatterBounces(static_cast<uint32_t>(kInteractivePtMaxVolumeScatterBounces));
+	// Denoising a single 1-2 SPP frame that's about to be replaced within one
+	// drag tick is wasted GPU time competing with responsiveness - the raw
+	// noisy, GL_LINEAR-upscaled frame (RtPresenter's texture filtering) is
+	// the intended "reduced quality" look here, same spirit as raster's own
+	// setLowResEnabled(true) showing a blockier image while dragging.
+	_ptOptixSession.setDenoiserEnabled(false);
+	// Keeps the worker thread alive (idling) once it converges at this tiny
+	// interactive sample count instead of exiting, so the fast path above can
+	// hand it fresh camera poses without ever needing another slow-path
+	// restart until the camera actually settles (see
+	// setStayAliveAtConvergence()'s doc comment).
+	_ptOptixSession.setStayAliveAtConvergence(true);
+	if (!_ptOptixSession.start(snapshot))
+		return;
+
+	// Deliberately does NOT call _rtPresenter.invalidate() - the previous
+	// frame (whether a prior interactive chunk or the last settled result)
+	// stays visible via the presenter until this new chunk publishes and
+	// overwrites it, avoiding a flash-to-raster on every mouse-move tick.
+	_pathTracedInteractiveActive = true;
+	_ptSessionElapsedTimer.start();
+
+	if (_pathTracedRefreshTimer && !_pathTracedRefreshTimer->isActive())
 		_pathTracedRefreshTimer->start();
 }
 
