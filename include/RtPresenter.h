@@ -68,23 +68,13 @@ public:
 	// PT has converged/settled, matching whatever raster is showing right
 	// now pixel-for-pixel (see upload()'s alpha doc comment). true instead
 	// overwrites unconditionally (GL_ONE/GL_ZERO, ignoring this frame's
-	// alpha entirely) - ViewportWidget passes this while
-	// _pathTracedInteractiveActive is true: raster keeps redrawing every
-	// frame in response to live mouse movement (that's what makes camera
-	// tracking itself feel responsive), but the interactive PT frame only
-	// updates every so often (throttled, one chunk at a time - see
-	// startInteractivePathTracedGpuSession()), so blending its sparse alpha=0
-	// "miss" pixels against a continuously, independently updating raster
-	// frame underneath made the model (PT-covered, alpha=1, updating slowly)
-	// visibly stutter against a smoothly-moving background (raster showing
-	// through, alpha=0, updating every frame) - two different motion rates
-	// composited together read as broken/jerky rather than "just noisy."
-	// Forcing full opacity means the ENTIRE visible image is whatever the
-	// last interactive PT chunk rendered (a complete, self-consistent frame
-	// for its own camera pose, background included - see
-	// sampleEnvironmentBackground()'s use in the shadow-catcher/miss paths),
-	// so motion reads as one single (chunkier, but consistent) cadence
-	// instead of two mismatched ones.
+	// alpha entirely). ViewportWidget uses this only for the interactive PT
+	// path when no live raster skybox needs to remain visible. That avoids
+	// compositing a slowly-updating PT model over a separately-updating
+	// raster background, which reads as incoherent motion rather than "just
+	// noisy." When a skybox is enabled, ViewportWidget instead keeps normal
+	// alpha blending and renders that raster skybox from the same camera pose
+	// as the last published PT chunk, preserving a coherent whole frame.
 	void draw(bool hdrToneMapping, bool gammaCorrection, float screenGamma, float iblExposure, int toneMapMode, bool forceOpaque = false);
 
 	bool hasFrame() const { return _hasFrame; }

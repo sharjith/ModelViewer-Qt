@@ -49,6 +49,8 @@ bool RtOptixPathTracingSession::start(std::shared_ptr<const RtSceneSnapshot> sna
 	{
 		std::lock_guard<std::mutex> lock(_publishMutex);
 		_publishedFrame.clear();
+		_publishedAlpha.clear();
+		_publishedCamera = snapshot->camera;
 		_publishedWidth  = 0;
 		_publishedHeight = 0;
 	}
@@ -223,6 +225,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 			std::lock_guard<std::mutex> lock(_publishMutex);
 			_publishedFrame  = std::move(presented);
 			_publishedAlpha  = std::move(alpha);
+			_publishedCamera = activeCamera;
 			_publishedWidth  = width;
 			_publishedHeight = height;
 		}
@@ -233,7 +236,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 }
 
 std::vector<glm::vec3> RtOptixPathTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
-	std::vector<float>* outAlpha) const
+	std::vector<float>* outAlpha, RtCamera* outCamera) const
 {
 	std::lock_guard<std::mutex> lock(_publishMutex);
 	outWidth       = _publishedWidth;
@@ -241,5 +244,7 @@ std::vector<glm::vec3> RtOptixPathTracingSession::latestFrame(int& outWidth, int
 	outSampleCount = _publishedSampleCount.load(std::memory_order_acquire);
 	if (outAlpha)
 		*outAlpha = _publishedAlpha;
+	if (outCamera)
+		*outCamera = _publishedCamera;
 	return _publishedFrame;
 }

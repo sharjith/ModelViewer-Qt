@@ -1157,6 +1157,26 @@ void ViewportWidget::paintGL()
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
 
+	// Pull the latest interactive PT frame BEFORE the raster pass so the
+	// same published camera pose can drive both the presenter overlay and
+	// the raster skybox drawn underneath it in this paint.
+	if (_pathTracedArmed && _pathTracedInteractiveActive &&
+		effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+	{
+		int frameWidth = 0;
+		int frameHeight = 0;
+		uint32_t sampleCount = 0;
+		std::vector<float> alpha;
+		RtCamera frameCamera;
+		std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha, &frameCamera);
+		if (!frame.empty())
+		{
+			_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
+			_interactivePtPreviewCamera = frameCamera;
+			_interactivePtPreviewCameraValid = true;
+		}
+	}
+
 	const QColor& rc_top = _renderCtrl.bgTopColor();
 	const QColor& rc_bot = _renderCtrl.bgBotColor();
 	QColor topColor = !_sceneRuntime.visibleSwapped() ? rc_top : QColor::fromRgbF(1.0f - rc_top.redF(),
@@ -1206,23 +1226,6 @@ void ViewportWidget::paintGL()
 			startPathTracedSession(); // bypass the idle countdown entirely - see applicationStateChanged handler for why
 		}
 
-		// While GPU interactive PT is active, opportunistically pull the most
-		// recent chunk on every paint instead of waiting solely for the
-		// 100 ms refresh timer. Short camera animations (Home/view changes)
-		// can otherwise spend most of their lifetime showing only the raster
-		// fallback simply because the presenter has not been refreshed yet.
-		if (_pathTracedArmed && _pathTracedInteractiveActive &&
-			effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
-		{
-			int frameWidth = 0;
-			int frameHeight = 0;
-			uint32_t sampleCount = 0;
-			std::vector<float> alpha;
-			std::vector<glm::vec3> frame = _ptOptixSession.latestFrame(frameWidth, frameHeight, sampleCount, &alpha);
-			if (!frame.empty())
-				_rtPresenter.upload(frame, frameWidth, frameHeight, &alpha);
-		}
-
 		// Path-traced overlay: drawn once the camera has settled (idle timer
 		// no longer counting down - see resetPathTracedIdleTimer()) AND a
 		// converged/converging frame has been published - OR, GPU/OptiX
@@ -1234,9 +1237,18 @@ void ViewportWidget::paintGL()
 		// just-rendered raster frame, before the viewcube/text overlay so
 		// those still read on top of the path-traced image too.
 		if (_pathTracedArmed && (_pathTracedInteractiveActive || !_pathTracedIdleTimer->isActive()) && _rtPresenter.hasFrame())
+		{
+			// Interactive PT's force-opaque mode avoids the "PT model over a
+			// separately-updating raster background" mismatch, but it also
+			// hides the real raster skybox behind whatever RGB happens to live
+			// in PT's alpha=0 background pixels. Keep normal alpha blending
+			// whenever the skybox is enabled so the live skybox remains visible
+			// during mouse motion.
+			const bool forceOpaqueInteractive = _pathTracedInteractiveActive && !_renderCtrl.skyBoxEnabled();
 			_rtPresenter.draw(_renderCtrl.hdrToneMapping(), _renderCtrl.gammaCorrection(),
 				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()),
-				/*forceOpaque=*/_pathTracedInteractiveActive);
+				/*forceOpaque=*/forceOpaqueInteractive);
+		}
 
 		if (!_capturingCleanFrame)
 		{
@@ -1737,6 +1749,16 @@ void ViewportWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 	recalculateVisibleSceneStats(false);
 	_renderCtrl.setShadowMapNeedsInitialization(true);
 	initializeViewCubeLabels();
+
+	// PT's own analytic floor plane (RtFloorParams::cameraUpAxisZUp, baked
+	// into the GAS at buildScene() time - see RtSceneBuilder::
+	// fillInfinitePlane()) only gets rebuilt when the scene REVISION bumps;
+	// updateFloorPlane() above only refreshes the RASTER floor mesh. Without
+	// this, PT keeps showing the floor at its old orientation/position until
+	// some unrelated scene edit happens to bump the revision - this is also
+	// a real camera rotation (rotateCurrentCameraAroundWorldX()) that PT
+	// needs to know about regardless of the floor.
+	notifyPathTracedSceneMutated();
 
 	if (syncToolbar && _viewToolbar)
 		_viewToolbar->setCameraUpAxisZUp(zUp);
@@ -5096,7 +5118,7 @@ void ViewportWidget::drawGrid()
 	glDisable(GL_BLEND);
 }
 
-void ViewportWidget::drawSkyBox()
+void ViewportWidget::drawSkyBox(const QMatrix4x4* overrideViewMatrix)
 {
 	_skyBox->setProg(_renderCtrl.skyBoxShader());
 	_renderCtrl.skyBoxShader()->bind();
@@ -5106,7 +5128,7 @@ void ViewportWidget::drawSkyBox()
 	_renderCtrl.skyBoxShader()->setUniformValue("skybox", 1);
 	QMatrix4x4 projection;
 	projection.perspective(_renderCtrl.skyBoxFOV(), (float)width() / (float)height(), 0.1f, 100.0f);
-	QMatrix4x4 view = _viewCtrl.viewMatrix();
+	QMatrix4x4 view = overrideViewMatrix ? *overrideViewMatrix : _viewCtrl.viewMatrix();
 	// Remove translation
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 model;
@@ -8542,12 +8564,52 @@ void ViewportWidget::render(Camera* camera)
 		RenderableMesh::currentRuntimeBoundsRevision(),
 		[this](const SceneMesh* mesh) { return isMeshAnimationVisible(mesh); });
 
+	// While an interactive PT frame is being composited for the primary
+	// view, keep the raster skybox (drawn from the PT frame's own published
+	// camera pose when available) but suppress raster mesh passes
+	// underneath. That preserves a coherent background without letting a
+	// newer raster model show under an older PT chunk.
+	const bool interactivePtOverlayShowing =
+		camera == _primaryCamera &&
+		_pathTracedArmed &&
+		_pathTracedInteractiveActive &&
+		_rtPresenter.hasFrame();
+	QMatrix4x4 interactivePtSkyboxView;
+	const QMatrix4x4* skyboxViewOverride = nullptr;
+	if (interactivePtOverlayShowing && _interactivePtPreviewCameraValid)
+	{
+		// Deliberately NOT QMatrix4x4::lookAt(eye, eye+forward, up) - lookAt()
+		// silently RE-DERIVES its own "side" vector as cross(forward, up),
+		// discarding whatever this camera's OWN stored right vector actually
+		// is. RtOptixScene.cu's raygen program uses camForward/camRight/camUp
+		// directly, as independently-stored vectors (see RtSceneBuilder::
+		// buildCamera()) - and Camera::rotateX()/rotateY() update _upVector
+		// and _rightVector in a slightly inconsistent order (rotateY derives
+		// the new right from an up that was orthogonalized against the
+		// PRE-yaw view direction), so right can drift measurably away from
+		// cross(forward, up) over a sustained drag. Reconstructing the
+		// skybox's basis via lookAt() ignores that drift and shows a "clean"
+		// orientation instead of the actual (possibly skewed) one the PT
+		// model was rendered with - the two visibly diverge the longer a
+		// drag continues. Building the view matrix directly from this
+		// camera's own forward/right/up as rows guarantees the skybox uses
+		// the EXACT SAME basis OptiX did for this frame, drift and all.
+		const glm::vec3& f = _interactivePtPreviewCamera.forward;
+		const glm::vec3& r = _interactivePtPreviewCamera.right;
+		const glm::vec3& u = _interactivePtPreviewCamera.up;
+		interactivePtSkyboxView.setToIdentity();
+		interactivePtSkyboxView(0, 0) = r.x; interactivePtSkyboxView(0, 1) = r.y; interactivePtSkyboxView(0, 2) = r.z;
+		interactivePtSkyboxView(1, 0) = u.x; interactivePtSkyboxView(1, 1) = u.y; interactivePtSkyboxView(1, 2) = u.z;
+		interactivePtSkyboxView(2, 0) = -f.x; interactivePtSkyboxView(2, 1) = -f.y; interactivePtSkyboxView(2, 2) = -f.z;
+		skyboxViewOverride = &interactivePtSkyboxView;
+	}
+
 	// --- 1) Skybox ---
 	if (_renderCtrl.skyBoxEnabled())
 	{
 		glDisable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);
-		drawSkyBox();
+		drawSkyBox(skyboxViewOverride);
 		glEnable(GL_DEPTH_TEST);
 		glDepthMask(GL_TRUE);
 	}
@@ -8559,21 +8621,25 @@ void ViewportWidget::render(Camera* camera)
 	glBindTexture(GL_TEXTURE_2D, _renderCtrl.sssDepthTexture() != 0 ? _renderCtrl.sssDepthTexture() : _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0);
 
-	_renderCtrl.fgShader()->bind();
-	RenderableMesh::recordProgramBindCall(true);
-	setCommonUniforms(_renderCtrl.fgShader(), camera);	
+	if (!interactivePtOverlayShowing)
 	{
-		QElapsedTimer opaqueTimer;
-		if (profileRendering)
-			opaqueTimer.start();
-		drawMeshesWithClipping(_renderCtrl.fgShader(), false); // opaque pass
-		if (profileRendering)
-			RenderableMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
+		_renderCtrl.fgShader()->bind();
+		RenderableMesh::recordProgramBindCall(true);
+		setCommonUniforms(_renderCtrl.fgShader(), camera);	
+		{
+			QElapsedTimer opaqueTimer;
+			if (profileRendering)
+				opaqueTimer.start();
+			drawMeshesWithClipping(_renderCtrl.fgShader(), false); // opaque pass
+			if (profileRendering)
+				RenderableMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
+		}
+		_renderCtrl.fgShader()->release();
 	}
-	_renderCtrl.fgShader()->release();
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
-	if (_renderCtrl.cappingEnabled() &&
+	if (!interactivePtOverlayShowing &&
+		_renderCtrl.cappingEnabled() &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
 		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled()))
 	{
@@ -8647,18 +8713,21 @@ void ViewportWidget::render(Camera* camera)
 	}
 
 	// --- 4) Transparent meshes (with clipping) ---
-	_renderCtrl.fgShader()->bind();
-	RenderableMesh::recordProgramBindCall(true);
-	setCommonUniforms(_renderCtrl.fgShader(), camera);
+	if (!interactivePtOverlayShowing)
 	{
-		QElapsedTimer transparentTimer;
-		if (profileRendering)
-			transparentTimer.start();
-		drawMeshesWithClipping(_renderCtrl.fgShader(), true); // transparent pass
-		if (profileRendering)
-			RenderableMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
+		_renderCtrl.fgShader()->bind();
+		RenderableMesh::recordProgramBindCall(true);
+		setCommonUniforms(_renderCtrl.fgShader(), camera);
+		{
+			QElapsedTimer transparentTimer;
+			if (profileRendering)
+				transparentTimer.start();
+			drawMeshesWithClipping(_renderCtrl.fgShader(), true); // transparent pass
+			if (profileRendering)
+				RenderableMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
+		}
+		_renderCtrl.fgShader()->release();
 	}
-	_renderCtrl.fgShader()->release();
 
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
@@ -10982,6 +11051,7 @@ void ViewportWidget::hideEvent(QHideEvent* event)
 		_rtSession.stop();
 		_ptOptixSession.stop();
 		_rtPresenter.invalidate();
+		_interactivePtPreviewCameraValid = false;
 	}
 
 	QOpenGLWidget::hideEvent(event);
@@ -12950,6 +13020,7 @@ void ViewportWidget::disarmPathTracedRenderingMode()
 	_rtSession.stop();
 	_ptOptixSession.stop();
 	_rtPresenter.invalidate();
+	_interactivePtPreviewCameraValid = false;
 	update(); // drop back to pure raster immediately
 }
 
@@ -12986,6 +13057,7 @@ void ViewportWidget::resetPathTracedIdleTimer(bool cameraInteracting)
 	_rtSession.stop();
 	_ptOptixSession.stop();
 	_rtPresenter.invalidate();
+	_interactivePtPreviewCameraValid = false;
 	_pathTracedInteractiveActive = false;
 	if (_pathTracedRefreshTimer)
 		_pathTracedRefreshTimer->stop();

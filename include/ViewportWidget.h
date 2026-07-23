@@ -1086,7 +1086,7 @@ private:
 	void drawSectionCapping();
 	void drawFloor(const bool& drawReflection = true);
 	void drawGrid();
-	void drawSkyBox();
+	void drawSkyBox(const QMatrix4x4* overrideViewMatrix = nullptr);
 	void drawVertexNormals();
 	void drawFaceNormals();
 	void drawBoundingBoxOverlay();
@@ -1335,6 +1335,8 @@ private:
 	int      _pathTracedFramebufferWidth = 0;
 	int      _pathTracedFramebufferHeight = 0;
 	bool     _preservePtPresenterOnNextStart = false;
+	RtCamera _interactivePtPreviewCamera;
+	bool     _interactivePtPreviewCameraValid = false;
 
 	// True while _ptOptixSession is running the reduced-quality interactive
 	// trace kicked off by camera movement (see resetPathTracedIdleTimer()),

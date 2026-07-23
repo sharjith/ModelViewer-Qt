@@ -197,9 +197,13 @@ public:
 	// the per-pixel primary-hit fraction (0 = pure background), which
 	// RtPresenter alpha-blends so raster's own sharp skybox/gradient shows
 	// through behind the path-traced geometry - the same alpha-composited-
-	// background contract as RtPathTracingSession::latestFrame().
+	// background contract as RtPathTracingSession::latestFrame(). outCamera
+	// (if non-null) receives the exact camera pose this published frame was
+	// rendered with; ViewportWidget uses that during interactive PT so the
+	// raster skybox can be drawn from the same pose as the last PT chunk
+	// instead of from the newer live mouse camera.
 	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
-		std::vector<float>* outAlpha = nullptr) const;
+		std::vector<float>* outAlpha = nullptr, RtCamera* outCamera = nullptr) const;
 
 	// Diagnostics tab accessor (PathTracingDialog) - read-only access to the
 	// owned tracer's own diagnostics accessors (hasHardwareRT()/deviceName()/
@@ -255,6 +259,7 @@ private:
 	mutable std::mutex     _publishMutex;
 	std::vector<glm::vec3> _publishedFrame;
 	std::vector<float>     _publishedAlpha;
+	RtCamera               _publishedCamera;
 	int _publishedWidth  = 0;
 	int _publishedHeight = 0;
 };

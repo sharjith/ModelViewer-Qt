@@ -1488,7 +1488,13 @@ namespace
 			return sampleFallbackBackgroundGradient(env, su, sv);
 
 		const float3 sampleDir = undoSkyboxRotation(direction, env.cameraUpAxisZUp != 0, env.skyBoxZRotationDegrees);
-		return env.faceSize > 0 ? sampleCubemapFaces(env.faces, env.faceSize, sampleDir) : flatGradientMiss(direction);
+		// faceSize<=0 means "skybox on but no HDRI actually loaded" - falls
+		// back to the user's configured gradient, matching CpuPathTracer::
+		// sampleEnvironmentBackground()'s identical fix (see its comment for
+		// why flatGradientMiss()'s hardcoded placeholder sky here was
+		// invisible under normal alpha blending but became visibly wrong
+		// once RtPresenter::draw()'s forceOpaque path exposed it directly).
+		return env.faceSize > 0 ? sampleCubemapFaces(env.faces, env.faceSize, sampleDir) : sampleFallbackBackgroundGradient(env, su, sv);
 	}
 
 	// Fixed swizzle needed ONLY on top of undoSkyboxRotation() when sampling

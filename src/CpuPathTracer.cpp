@@ -1117,9 +1117,20 @@ namespace
 		// comment; the final present/tonemap stage applies it once to the
 		// whole frame, so pre-multiplying it here would double it up for
 		// every background/env-visible pixel.
+		//
+		// faceSize<=0 here means "skybox toggled on but no HDRI actually
+		// loaded/captured" - falls back to the user's configured gradient
+		// (sampleFallbackBackgroundGradient(), same as the !showBackground
+		// branch above), NOT flatGradientMiss()'s hardcoded placeholder sky.
+		// Using flatGradientMiss() here was invisible under normal alpha-
+		// blended PT display (the real raster gradient showed through this
+		// alpha=0 background pixel regardless of what this function
+		// returned) but became visibly wrong once RtPresenter::draw()'s
+		// forceOpaque path started using this function's return value
+		// directly - see that parameter's doc comment.
 		return environment.faceSize > 0
 			? sampleCubemapFaces(environment.faces, environment.faceSize, sampleDir)
-			: flatGradientMiss(direction);
+			: sampleFallbackBackgroundGradient(environment, screenUv);
 	}
 
 	// Ported verbatim from evaluatePunctualLight() in main_scene.frag so
