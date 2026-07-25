@@ -140,8 +140,42 @@ struct RtDenoiser::Impl
 	// owns its own CUDA/OptiX device state.
 	OptixDeviceContext optixContext = nullptr;
 
+	// Cached device-resident denoiser handle + its state/scratch buffers -
+	// see denoiseDeviceWithOptix()'s doc comment for why this path (unlike
+	// the host-vector denoiseWithOptix() above, called once per full render)
+	// must NOT create/destroy a fresh OptixDenoiser on every call: it's
+	// invoked on every interactive tick, and both the repeated
+	// optixDenoiserCreate()/optixDenoiserSetup() GPU work AND OptiX's own
+	// internal log callback (the DISKCACHE/DENOISER lines) fire every single
+	// time otherwise, flooding the log during any drag. Rebuilt only when
+	// resolution or guide-buffer availability actually changes (see
+	// deviceDenoiserWidth/Height/HasGuides below).
+	OptixDenoiser deviceDenoiser = nullptr;
+	CUdeviceptr deviceDenoiserState = 0, deviceDenoiserScratch = 0, deviceDenoiserIntensity = 0;
+	size_t deviceDenoiserStateSize = 0, deviceDenoiserScratchSize = 0;
+	int deviceDenoiserWidth = 0, deviceDenoiserHeight = 0;
+	bool deviceDenoiserHasGuides = false;
+
+	void releaseDeviceDenoiser()
+	{
+		if (deviceDenoiser)
+		{
+			optixDenoiserDestroy(deviceDenoiser);
+			deviceDenoiser = nullptr;
+		}
+		if (deviceDenoiserState)    { cudaFree(reinterpret_cast<void*>(deviceDenoiserState));    deviceDenoiserState = 0; }
+		if (deviceDenoiserScratch)  { cudaFree(reinterpret_cast<void*>(deviceDenoiserScratch));  deviceDenoiserScratch = 0; }
+		if (deviceDenoiserIntensity){ cudaFree(reinterpret_cast<void*>(deviceDenoiserIntensity)); deviceDenoiserIntensity = 0; }
+		deviceDenoiserStateSize = 0;
+		deviceDenoiserScratchSize = 0;
+		deviceDenoiserWidth = 0;
+		deviceDenoiserHeight = 0;
+		deviceDenoiserHasGuides = false;
+	}
+
 	~Impl()
 	{
+		releaseDeviceDenoiser();
 		if (optixContext)
 			optixDeviceContextDestroy(optixContext);
 	}
@@ -381,7 +415,142 @@ bool RtDenoiser::denoiseWithOptix(const std::vector<glm::vec3>& input, int width
 
 	return ok;
 }
+
+// Device-resident sibling of denoiseWithOptix() above - conceptually the same
+// create -> computeMemoryResources -> setup -> computeIntensity -> invoke
+// sequence, but color/albedo/normal/output all point at CALLER-owned device
+// memory directly instead of this function's own cudaMalloc'd + cudaMemcpy'd
+// staging buffers, so there is no host round-trip and no color/albedo/normal
+// copy at all (colorImage/outputImage alias the caller's own persistent
+// accumulation/"presented" buffers). Color uses FLOAT4 (RGBA) here, unlike
+// denoiseWithOptix()'s FLOAT3 - InteractivePtRenderer's accumulation buffer
+// carries the hit-fraction alpha in .w (see RtOptixSceneParams::image's doc
+// comment), and OPTIX_DENOISER_ALPHA_MODE_COPY passes that channel through
+// unmodified rather than having the denoiser treat it as real opacity.
+//
+// UNLIKE denoiseWithOptix() (called once per full render), this is called on
+// every interactive tick - so the denoiser handle plus its state/scratch/
+// intensity buffers are cached in _impl (Impl::deviceDenoiser and friends)
+// and only rebuilt when resolution or guide-buffer availability actually
+// changes, rather than create/destroy every call. Doing the create/destroy
+// every call (the first version of this method, mirroring denoiseWithOptix()'s
+// pattern) both repeated real GPU work every tick AND made OptiX's own
+// internal log callback re-log its "using cuda device"/"layers created"
+// diagnostics every tick too, flooding the console during any drag.
+bool RtDenoiser::denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* dNormal, int width, int height,
+	void* dOutputRGBA)
+{
+	if (!cudaOk(cudaFree(0), "cudaFree(0)")) // see denoiseWithOptix()'s identical call for why this is needed every time
+		return false;
+
+	const bool haveGuides = dAlbedo && dNormal;
+
+	if (!_impl->deviceDenoiser || _impl->deviceDenoiserWidth != width || _impl->deviceDenoiserHeight != height ||
+		_impl->deviceDenoiserHasGuides != haveGuides)
+	{
+		_impl->releaseDeviceDenoiser();
+
+		OptixDenoiserOptions denoiserOptions{};
+		denoiserOptions.guideAlbedo = haveGuides ? 1u : 0u;
+		denoiserOptions.guideNormal = haveGuides ? 1u : 0u;
+#if OPTIX_VERSION >= 80000
+		denoiserOptions.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY; // see this method's doc comment
+#endif
+
+		bool ok = optixOk(optixDenoiserCreate(_impl->optixContext, OPTIX_DENOISER_MODEL_KIND_HDR, &denoiserOptions,
+			&_impl->deviceDenoiser), "optixDenoiserCreate() (device-resident)");
+
+		OptixDenoiserSizes sizes{};
+		if (ok)
+			ok = optixOk(optixDenoiserComputeMemoryResources(_impl->deviceDenoiser, static_cast<unsigned int>(width),
+				static_cast<unsigned int>(height), &sizes), "optixDenoiserComputeMemoryResources() (device-resident)");
+
+		if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&_impl->deviceDenoiserState), sizes.stateSizeInBytes), "cudaMalloc(device-resident denoiser state)");
+		if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&_impl->deviceDenoiserScratch), sizes.withoutOverlapScratchSizeInBytes), "cudaMalloc(device-resident denoiser scratch)");
+		if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&_impl->deviceDenoiserIntensity), sizeof(float)), "cudaMalloc(device-resident denoiser intensity)");
+
+		if (ok)
+			ok = optixOk(optixDenoiserSetup(_impl->deviceDenoiser, nullptr, static_cast<unsigned int>(width), static_cast<unsigned int>(height),
+				_impl->deviceDenoiserState, sizes.stateSizeInBytes, _impl->deviceDenoiserScratch, sizes.withoutOverlapScratchSizeInBytes),
+				"optixDenoiserSetup() (device-resident)");
+
+		if (!ok)
+		{
+			_impl->releaseDeviceDenoiser();
+			return false;
+		}
+
+		_impl->deviceDenoiserStateSize = sizes.stateSizeInBytes;
+		_impl->deviceDenoiserScratchSize = sizes.withoutOverlapScratchSizeInBytes;
+		_impl->deviceDenoiserWidth = width;
+		_impl->deviceDenoiserHeight = height;
+		_impl->deviceDenoiserHasGuides = haveGuides;
+	}
+
+	OptixImage2D colorImage{};
+	colorImage.data = reinterpret_cast<CUdeviceptr>(dColorRGBA);
+	colorImage.width = static_cast<unsigned int>(width);
+	colorImage.height = static_cast<unsigned int>(height);
+	colorImage.rowStrideInBytes = static_cast<unsigned int>(width) * sizeof(float4);
+	colorImage.pixelStrideInBytes = sizeof(float4);
+	colorImage.format = OPTIX_PIXEL_FORMAT_FLOAT4;
+
+	OptixImage2D outputImage = colorImage;
+	outputImage.data = reinterpret_cast<CUdeviceptr>(dOutputRGBA);
+
+	OptixDenoiserGuideLayer guideLayer{};
+	if (haveGuides)
+	{
+		guideLayer.albedo = makeOptixImage(reinterpret_cast<CUdeviceptr>(dAlbedo), width, height);
+		guideLayer.normal = makeOptixImage(reinterpret_cast<CUdeviceptr>(dNormal), width, height);
+	}
+
+	OptixDenoiserLayer layer{};
+	layer.input = colorImage;
+	layer.output = outputImage;
+
+	bool ok = optixOk(optixDenoiserComputeIntensity(_impl->deviceDenoiser, nullptr, &colorImage, _impl->deviceDenoiserIntensity,
+		_impl->deviceDenoiserScratch, _impl->deviceDenoiserScratchSize), "optixDenoiserComputeIntensity() (device-resident)");
+
+	OptixDenoiserParams params{};
+#if OPTIX_VERSION < 80000
+	params.denoiseAlpha = OPTIX_DENOISER_ALPHA_MODE_COPY; // see this method's doc comment
+#endif
+	params.hdrIntensity = _impl->deviceDenoiserIntensity;
+	params.blendFactor = 0.0f;
+
+	if (ok)
+		ok = optixOk(optixDenoiserInvoke(_impl->deviceDenoiser, nullptr, &params, _impl->deviceDenoiserState, _impl->deviceDenoiserStateSize,
+			&guideLayer, &layer, 1, 0, 0, _impl->deviceDenoiserScratch, _impl->deviceDenoiserScratchSize), "optixDenoiserInvoke() (device-resident)");
+
+	// This call (and computeIntensity/setup above) runs on the default stream
+	// (nullptr), asynchronously - unlike denoiseWithOptix()'s std::vector API,
+	// there is no cudaMemcpy(...DeviceToHost) afterward whose own implicit
+	// synchronization would guarantee dOutputRGBA is actually finished before
+	// this function returns. The caller (InteractivePtRenderer::tick())
+	// treats dOutputRGBA as immediately presentable once this call returns
+	// true, so an explicit sync here is required for correctness, not just
+	// tidiness.
+	if (ok)
+		ok = cudaOk(cudaStreamSynchronize(nullptr), "cudaStreamSynchronize() (device-resident)");
+
+	return ok;
+}
 #endif // MODELVIEWER_HAVE_OPTIX
+
+bool RtDenoiser::denoiseDevice(void* dColorRGBA, void* dAlbedo, void* dNormal, int width, int height,
+	void* dOutputRGBA, uint32_t sampleCount)
+{
+	(void)sampleCount; // no fallback tier here (see this method's header doc comment) - nothing tapers on sample count
+	if (width <= 0 || height <= 0 || !dColorRGBA || !dOutputRGBA)
+		return false;
+
+#ifdef MODELVIEWER_HAVE_OPTIX
+	if (_impl->useNativeOptixDenoiser)
+		return denoiseDeviceWithOptix(dColorRGBA, dAlbedo, dNormal, width, height, dOutputRGBA);
+#endif
+	return false;
+}
 
 RtDenoiser::RtDenoiser(DenoiserDevicePreference preference) : _impl(std::make_unique<Impl>())
 {
@@ -400,6 +569,11 @@ void RtDenoiser::initializeDevice()
 	_impl->deviceValid = false;
 	_impl->useNativeOptixDenoiser = false;
 #ifdef MODELVIEWER_HAVE_OPTIX
+	// The cached device-resident denoiser (if any) was created against the
+	// OLD optixContext about to be destroyed below - releasing it first
+	// avoids leaving a dangling handle tied to a context that no longer
+	// exists (see Impl::deviceDenoiser's own doc comment).
+	_impl->releaseDeviceDenoiser();
 	if (_impl->optixContext)
 	{
 		optixDeviceContextDestroy(_impl->optixContext);

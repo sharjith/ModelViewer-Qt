@@ -1626,6 +1626,135 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	return true;
 }
 
+// Shared by renderScene() (settled/CPU-readback path) and
+// renderSceneToDevice() (interactive/GPU-resident path, see
+// RtOptixPathTracingSession's persistent device buffer) - builds the launch
+// params from the tracer's built scene + the caller's camera/environment/
+// quality settings, uploads them, and runs one optixLaunch(). Callers own
+// dImageRGBA/dAlbedo/dNormal (already sized width*height, of the types the
+// RtOptixSceneParams fields expect - float4/float3/float3 respectively) and
+// are responsible for freeing them; this function only reads/writes through
+// the pointers it's given. Declared taking void* in the header (which must
+// also compile in the no-CUDA/OptiX stub build), cast to the real CUDA
+// vector types here.
+void RtOptixSceneTracer::buildRenderParamsInto(void* paramsOut, const RtCamera& camera, const RtEnvironment& environment,
+	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
+	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
+	unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
+	unsigned int maxVolumeScatterBounces, unsigned int previousSampleCount,
+	void* dImageRGBA, void* dAlbedo_, void* dNormal_) const
+{
+	Impl* impl = _impl.get();
+	float3* dAlbedo = static_cast<float3*>(dAlbedo_);
+	float3* dNormal = static_cast<float3*>(dNormal_);
+
+	RtOptixSceneParams& params = *reinterpret_cast<RtOptixSceneParams*>(paramsOut);
+	params = RtOptixSceneParams{};
+	params.image = static_cast<float4*>(dImageRGBA);
+	params.albedoImage = dAlbedo;
+	params.normalImage = dNormal;
+	params.imageWidth = static_cast<unsigned int>(width);
+	params.imageHeight = static_cast<unsigned int>(height);
+	params.camPosition = make_float3(camera.position.x, camera.position.y, camera.position.z);
+	params.camForward = make_float3(camera.forward.x, camera.forward.y, camera.forward.z);
+	params.camRight = make_float3(camera.right.x, camera.right.y, camera.right.z);
+	params.camUp = make_float3(camera.up.x, camera.up.y, camera.up.z);
+	params.camAspectRatio = camera.aspectRatio;
+	params.camOrthographic = camera.orthographic ? 1 : 0;
+	params.camTanHalfFovY = camera.tanHalfFovY;
+	params.camOrthoHalfHeight = camera.orthoHalfHeight;
+	params.lights = reinterpret_cast<const RtOptixLight*>(impl->lightsBuffer);
+	params.lightCount = impl->lightCount;
+	params.shadowsEnabled = shadowsEnabled ? 1 : 0;
+	params.selfShadowsEnabled = selfShadowsEnabled ? 1 : 0;
+	params.enableEnvironmentImportanceSampling = enableEnvironmentImportanceSampling ? 1 : 0;
+
+	// Heavy texel data (face/mip device pointers) comes from the revision-
+	// gated buildScene() upload; the cheap scalars come fresh from THIS
+	// call's snapshot environment, so lightweight setting changes (exposure,
+	// fallback gradient colors, skybox visibility/rotation...) take effect
+	// on the next restart without a scene-revision bump - see
+	// Impl::envFaceBuffers' doc comment.
+	for (int face = 0; face < 6; ++face)
+		params.environment.faces[face] = reinterpret_cast<float3*>(impl->envFaceBuffers[face]);
+	params.environment.faceSize = impl->envFaceSize;
+	for (int face = 0; face < 6; ++face)
+		params.environment.irradianceFaces[face] = reinterpret_cast<float3*>(impl->irradianceFaceBuffers[face]);
+	params.environment.irradianceFaceSize = impl->irradianceFaceSize;
+	params.environment.showBackground = environment.showBackground ? 1 : 0;
+	params.environment.fallbackTopColor = make_float3(environment.fallbackTopColor.x, environment.fallbackTopColor.y, environment.fallbackTopColor.z);
+	params.environment.fallbackBottomColor = make_float3(environment.fallbackBottomColor.x, environment.fallbackBottomColor.y, environment.fallbackBottomColor.z);
+	params.environment.fallbackGradientStyle = environment.fallbackGradientStyle;
+	params.environment.cameraUpAxisZUp = environment.cameraUpAxisZUp ? 1 : 0;
+	params.environment.skyBoxZRotationDegrees = environment.skyBoxZRotationDegrees;
+	params.environment.envMapExposure = environment.envMapExposure;
+	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(impl->prefilterMipsBuffer);
+	params.environment.prefilterMipCount = impl->prefilterMipCount;
+	params.environment.sheenPrefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(impl->sheenPrefilterMipsBuffer);
+	params.environment.sheenPrefilterMipCount = impl->sheenPrefilterMipCount;
+	params.environment.envFlatCdf = reinterpret_cast<const float*>(impl->envFlatCdfBuffer);
+	params.environment.envTexelPdf = reinterpret_cast<const float*>(impl->envTexelPdfBuffer);
+	params.environment.envTotalWeight = impl->envTotalWeight;
+	params.infinitePlaneEnabled = impl->infinitePlaneEnabled ? 1 : 0;
+	params.infinitePlaneCameraUpAxisZUp = impl->infinitePlaneCameraUpAxisZUp ? 1 : 0;
+	params.infinitePlaneHeight = impl->infinitePlaneHeight;
+	params.infinitePlaneIsShadowCatcher = impl->infinitePlaneIsShadowCatcher ? 1 : 0;
+	params.infinitePlaneShadowCatcherDarkness = impl->infinitePlaneShadowCatcherDarkness;
+	params.infinitePlaneBaseColor = make_float3(
+		impl->infinitePlaneBaseColor.r,
+		impl->infinitePlaneBaseColor.g,
+		impl->infinitePlaneBaseColor.b);
+	params.infinitePlaneMetalness = impl->infinitePlaneMetalness;
+	params.infinitePlaneRoughness = impl->infinitePlaneRoughness;
+	params.sheenAlbedoLUT = reinterpret_cast<const float*>(impl->sheenAlbedoLutBuffer);
+	params.sheenCharlieLUT = reinterpret_cast<const float*>(impl->sheenCharlieLutBuffer);
+	params.sheenAlbedoLUTSize = impl->sheenAlbedoLutBuffer ? RtOptixSceneTracer::Impl::kSheenAlbedoLutSize : 0;
+	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
+	params.sampleOffset = sampleOffset;
+	params.previousSampleCount = previousSampleCount;
+	params.maxBounces = maxBounces > 0 ? maxBounces : 1;
+	params.maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1;
+	params.fireflyClampThreshold = fireflyClampThreshold > 0.0f ? fireflyClampThreshold : 0.01f;
+	params.russianRouletteStartDepth = russianRouletteStartDepth > 0 ? russianRouletteStartDepth : 1;
+	params.maxVolumeScatterBounces = maxVolumeScatterBounces > 0 ? maxVolumeScatterBounces : 1;
+
+	params.handle = impl->iasHandle;
+}
+
+bool RtOptixSceneTracer::launchOptixSceneRender(const RtCamera& camera, const RtEnvironment& environment,
+	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
+	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
+	unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
+	unsigned int maxVolumeScatterBounces,
+	void* dImageRGBA, void* dAlbedo_, void* dNormal_)
+{
+	Impl* impl = _impl.get();
+
+	RtOptixSceneParams params{};
+	// 0 = fresh start, no accumulation to blend against - renderScene()/
+	// renderSceneToDevice() (the settled/offline synchronous path) never do
+	// persistent GPU-resident accumulation across launches, unlike
+	// submitSceneRenderToDevice()'s callers.
+	buildRenderParamsInto(&params, camera, environment, width, height, samplesPerPixel, sampleOffset,
+		maxBounces, shadowsEnabled, selfShadowsEnabled, enableEnvironmentImportanceSampling,
+		maxTransmissionBounces, fireflyClampThreshold, russianRouletteStartDepth, maxVolumeScatterBounces, 0,
+		dImageRGBA, dAlbedo_, dNormal_);
+
+	CUdeviceptr dParams = 0;
+	bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dParams), sizeof(RtOptixSceneParams)), "cudaMalloc(params)");
+	if (ok)
+		ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(dParams), &params, sizeof(RtOptixSceneParams), cudaMemcpyHostToDevice), "cudaMemcpy(params)");
+
+	if (ok)
+		ok = optixCheck(optixLaunch(impl->pipeline, nullptr, dParams, sizeof(RtOptixSceneParams), &impl->sbt,
+			static_cast<unsigned int>(width), static_cast<unsigned int>(height), 1), "optixLaunch()");
+	if (ok)
+		ok = cudaCheck(cudaDeviceSynchronize(), "cudaDeviceSynchronize()");
+
+	if (dParams) cudaFree(reinterpret_cast<void*>(dParams));
+	return ok;
+}
+
 bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment& environment,
 	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
 	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
@@ -1640,104 +1769,24 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 		return false;
 
 	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
-	CUdeviceptr dImage = 0, dAlbedo = 0, dNormal = 0, dAlpha = 0;
-	bool allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dImage), pixelCount * sizeof(float3)), "cudaMalloc(output image)");
+	CUdeviceptr dImage = 0, dAlbedo = 0, dNormal = 0;
+	bool allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dImage), pixelCount * sizeof(float4)), "cudaMalloc(output image)");
 	if (allocOk)
 		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dAlbedo), pixelCount * sizeof(float3)), "cudaMalloc(albedo guide image)");
 	if (allocOk)
 		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dNormal), pixelCount * sizeof(float3)), "cudaMalloc(normal guide image)");
-	if (allocOk)
-		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dAlpha), pixelCount * sizeof(float)), "cudaMalloc(alpha image)");
 	if (!allocOk)
 	{
-		if (dAlpha) cudaFree(reinterpret_cast<void*>(dAlpha));
 		if (dNormal) cudaFree(reinterpret_cast<void*>(dNormal));
 		if (dAlbedo) cudaFree(reinterpret_cast<void*>(dAlbedo));
 		if (dImage) cudaFree(reinterpret_cast<void*>(dImage));
 		return false;
 	}
 
-	RtOptixSceneParams params{};
-	params.image = reinterpret_cast<float3*>(dImage);
-	params.albedoImage = reinterpret_cast<float3*>(dAlbedo);
-	params.normalImage = reinterpret_cast<float3*>(dNormal);
-	params.alphaImage = reinterpret_cast<float*>(dAlpha);
-	params.imageWidth = static_cast<unsigned int>(width);
-	params.imageHeight = static_cast<unsigned int>(height);
-	params.camPosition = make_float3(camera.position.x, camera.position.y, camera.position.z);
-	params.camForward = make_float3(camera.forward.x, camera.forward.y, camera.forward.z);
-	params.camRight = make_float3(camera.right.x, camera.right.y, camera.right.z);
-	params.camUp = make_float3(camera.up.x, camera.up.y, camera.up.z);
-	params.camAspectRatio = camera.aspectRatio;
-	params.camOrthographic = camera.orthographic ? 1 : 0;
-	params.camTanHalfFovY = camera.tanHalfFovY;
-	params.camOrthoHalfHeight = camera.orthoHalfHeight;
-	params.lights = reinterpret_cast<const RtOptixLight*>(_impl->lightsBuffer);
-	params.lightCount = _impl->lightCount;
-	params.shadowsEnabled = shadowsEnabled ? 1 : 0;
-	params.selfShadowsEnabled = selfShadowsEnabled ? 1 : 0;
-	params.enableEnvironmentImportanceSampling = enableEnvironmentImportanceSampling ? 1 : 0;
-
-	// Heavy texel data (face/mip device pointers) comes from the revision-
-	// gated buildScene() upload; the cheap scalars come fresh from THIS
-	// call's snapshot environment, so lightweight setting changes (exposure,
-	// fallback gradient colors, skybox visibility/rotation...) take effect
-	// on the next restart without a scene-revision bump - see
-	// Impl::envFaceBuffers' doc comment.
-	for (int face = 0; face < 6; ++face)
-		params.environment.faces[face] = reinterpret_cast<float3*>(_impl->envFaceBuffers[face]);
-	params.environment.faceSize = _impl->envFaceSize;
-	for (int face = 0; face < 6; ++face)
-		params.environment.irradianceFaces[face] = reinterpret_cast<float3*>(_impl->irradianceFaceBuffers[face]);
-	params.environment.irradianceFaceSize = _impl->irradianceFaceSize;
-	params.environment.showBackground = environment.showBackground ? 1 : 0;
-	params.environment.fallbackTopColor = make_float3(environment.fallbackTopColor.x, environment.fallbackTopColor.y, environment.fallbackTopColor.z);
-	params.environment.fallbackBottomColor = make_float3(environment.fallbackBottomColor.x, environment.fallbackBottomColor.y, environment.fallbackBottomColor.z);
-	params.environment.fallbackGradientStyle = environment.fallbackGradientStyle;
-	params.environment.cameraUpAxisZUp = environment.cameraUpAxisZUp ? 1 : 0;
-	params.environment.skyBoxZRotationDegrees = environment.skyBoxZRotationDegrees;
-	params.environment.envMapExposure = environment.envMapExposure;
-	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->prefilterMipsBuffer);
-	params.environment.prefilterMipCount = _impl->prefilterMipCount;
-	params.environment.sheenPrefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(_impl->sheenPrefilterMipsBuffer);
-	params.environment.sheenPrefilterMipCount = _impl->sheenPrefilterMipCount;
-	params.environment.envFlatCdf = reinterpret_cast<const float*>(_impl->envFlatCdfBuffer);
-	params.environment.envTexelPdf = reinterpret_cast<const float*>(_impl->envTexelPdfBuffer);
-	params.environment.envTotalWeight = _impl->envTotalWeight;
-	params.infinitePlaneEnabled = _impl->infinitePlaneEnabled ? 1 : 0;
-	params.infinitePlaneCameraUpAxisZUp = _impl->infinitePlaneCameraUpAxisZUp ? 1 : 0;
-	params.infinitePlaneHeight = _impl->infinitePlaneHeight;
-	params.infinitePlaneIsShadowCatcher = _impl->infinitePlaneIsShadowCatcher ? 1 : 0;
-	params.infinitePlaneShadowCatcherDarkness = _impl->infinitePlaneShadowCatcherDarkness;
-	params.infinitePlaneBaseColor = make_float3(
-		_impl->infinitePlaneBaseColor.r,
-		_impl->infinitePlaneBaseColor.g,
-		_impl->infinitePlaneBaseColor.b);
-	params.infinitePlaneMetalness = _impl->infinitePlaneMetalness;
-	params.infinitePlaneRoughness = _impl->infinitePlaneRoughness;
-	params.sheenAlbedoLUT = reinterpret_cast<const float*>(_impl->sheenAlbedoLutBuffer);
-	params.sheenCharlieLUT = reinterpret_cast<const float*>(_impl->sheenCharlieLutBuffer);
-	params.sheenAlbedoLUTSize = _impl->sheenAlbedoLutBuffer ? Impl::kSheenAlbedoLutSize : 0;
-	params.samplesPerPixel = samplesPerPixel > 0 ? samplesPerPixel : 1;
-	params.sampleOffset = sampleOffset;
-	params.maxBounces = maxBounces > 0 ? maxBounces : 1;
-	params.maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1;
-	params.fireflyClampThreshold = fireflyClampThreshold > 0.0f ? fireflyClampThreshold : 0.01f;
-	params.russianRouletteStartDepth = russianRouletteStartDepth > 0 ? russianRouletteStartDepth : 1;
-	params.maxVolumeScatterBounces = maxVolumeScatterBounces > 0 ? maxVolumeScatterBounces : 1;
-
-	params.handle = _impl->iasHandle;
-
-	CUdeviceptr dParams = 0;
-	bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dParams), sizeof(RtOptixSceneParams)), "cudaMalloc(params)");
-	if (ok)
-		ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(dParams), &params, sizeof(RtOptixSceneParams), cudaMemcpyHostToDevice), "cudaMemcpy(params)");
-
-	if (ok)
-		ok = optixCheck(optixLaunch(_impl->pipeline, nullptr, dParams, sizeof(RtOptixSceneParams), &_impl->sbt,
-			static_cast<unsigned int>(width), static_cast<unsigned int>(height), 1), "optixLaunch()");
-	if (ok)
-		ok = cudaCheck(cudaDeviceSynchronize(), "cudaDeviceSynchronize()");
+	bool ok = launchOptixSceneRender(camera, environment, width, height, samplesPerPixel, sampleOffset,
+		maxBounces, shadowsEnabled, selfShadowsEnabled, enableEnvironmentImportanceSampling,
+		maxTransmissionBounces, fireflyClampThreshold, russianRouletteStartDepth, maxVolumeScatterBounces,
+		reinterpret_cast<void*>(dImage), reinterpret_cast<void*>(dAlbedo), reinterpret_cast<void*>(dNormal));
 
 	if (ok)
 	{
@@ -1745,24 +1794,34 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 		// padding/alignment mismatch - same layout assumption already made
 		// throughout this file, e.g. camPosition/camForward above), so the
 		// device buffers can be read straight into the glm::vec3 vectors.
-		outImageLinearRgb.resize(pixelCount);
+		// The combined RGBA image buffer (see RtOptixSceneParams::image's doc
+		// comment) is read back into a temporary float4 vector and unpacked
+		// into the existing separate outImageLinearRgb/outAlpha vectors so
+		// this function's public contract is unchanged for callers.
+		std::vector<float4> rgbaImage(pixelCount);
 		outAlbedo.resize(pixelCount);
 		outNormal.resize(pixelCount);
-		outAlpha.resize(pixelCount);
-		ok = cudaCheck(cudaMemcpy(outImageLinearRgb.data(), reinterpret_cast<void*>(dImage), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback image)");
+		ok = cudaCheck(cudaMemcpy(rgbaImage.data(), reinterpret_cast<void*>(dImage), pixelCount * sizeof(float4), cudaMemcpyDeviceToHost), "cudaMemcpy(readback image)");
 		if (ok)
 			ok = cudaCheck(cudaMemcpy(outAlbedo.data(), reinterpret_cast<void*>(dAlbedo), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback albedo)");
 		if (ok)
 			ok = cudaCheck(cudaMemcpy(outNormal.data(), reinterpret_cast<void*>(dNormal), pixelCount * sizeof(float3), cudaMemcpyDeviceToHost), "cudaMemcpy(readback normal)");
 		if (ok)
-			ok = cudaCheck(cudaMemcpy(outAlpha.data(), reinterpret_cast<void*>(dAlpha), pixelCount * sizeof(float), cudaMemcpyDeviceToHost), "cudaMemcpy(readback alpha)");
+		{
+			outImageLinearRgb.resize(pixelCount);
+			outAlpha.resize(pixelCount);
+			for (size_t i = 0; i < pixelCount; ++i)
+			{
+				const float4& px = rgbaImage[i];
+				outImageLinearRgb[i] = glm::vec3(px.x, px.y, px.z);
+				outAlpha[i] = px.w;
+			}
+		}
 	}
 
-	if (dParams) cudaFree(reinterpret_cast<void*>(dParams));
 	cudaFree(reinterpret_cast<void*>(dImage));
 	cudaFree(reinterpret_cast<void*>(dAlbedo));
 	cudaFree(reinterpret_cast<void*>(dNormal));
-	cudaFree(reinterpret_cast<void*>(dAlpha));
 
 	if (!ok)
 	{
@@ -1771,7 +1830,253 @@ bool RtOptixSceneTracer::renderScene(const RtCamera& camera, const RtEnvironment
 		outNormal.clear();
 		outAlpha.clear();
 	}
+
 	return ok;
+}
+
+bool RtOptixSceneTracer::renderSceneToDevice(const RtCamera& camera, const RtEnvironment& environment,
+	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
+	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
+	unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
+	unsigned int maxVolumeScatterBounces,
+	void* deviceImageRGBA)
+{
+	if (!_impl->valid || _impl->iasHandle == 0 || width <= 0 || height <= 0 || !deviceImageRGBA)
+		return false;
+
+	// Interactive/GPU-resident path (see RtOptixPathTracingSession's
+	// persistent ping-pong device buffers): deviceImageRGBA is a
+	// caller-owned, already-allocated device pointer sized
+	// width*height*sizeof(float4) - this call writes straight into it, with
+	// no per-chunk cudaMalloc/cudaMemcpy(DeviceToHost)/cudaFree for the beauty
+	// image at all, eliminating the readback that dominates renderScene()'s
+	// per-chunk latency. Albedo/normal guide buffers are still computed (the kernel writes them
+	// unconditionally) but into scratch device memory that's freed
+	// immediately after the launch and never read back - they're denoiser
+	// guide buffers, unused on the interactive path (denoiser is off there),
+	// so paying their launch-time cost but skipping their readback is a
+	// deliberate, low-risk simplification, not a correctness compromise.
+
+	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+	CUdeviceptr dAlbedo = 0, dNormal = 0;
+	bool allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dAlbedo), pixelCount * sizeof(float3)), "cudaMalloc(albedo guide image)");
+	if (allocOk)
+		allocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&dNormal), pixelCount * sizeof(float3)), "cudaMalloc(normal guide image)");
+	if (!allocOk)
+	{
+		if (dNormal) cudaFree(reinterpret_cast<void*>(dNormal));
+		if (dAlbedo) cudaFree(reinterpret_cast<void*>(dAlbedo));
+		return false;
+	}
+
+	const bool ok = launchOptixSceneRender(camera, environment, width, height, samplesPerPixel, sampleOffset,
+		maxBounces, shadowsEnabled, selfShadowsEnabled, enableEnvironmentImportanceSampling,
+		maxTransmissionBounces, fireflyClampThreshold, russianRouletteStartDepth, maxVolumeScatterBounces,
+		deviceImageRGBA, reinterpret_cast<void*>(dAlbedo), reinterpret_cast<void*>(dNormal));
+
+	cudaFree(reinterpret_cast<void*>(dAlbedo));
+	cudaFree(reinterpret_cast<void*>(dNormal));
+
+	return ok;
+}
+
+void* RtOptixSceneTracer::allocateDeviceRGBABuffer(int width, int height) const
+{
+	if (width <= 0 || height <= 0)
+		return nullptr;
+	const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(float4);
+	void* devicePtr = nullptr;
+	if (!cudaCheck(cudaMalloc(&devicePtr, bytes), "cudaMalloc(interactive device RGBA buffer)"))
+		return nullptr;
+	return devicePtr;
+}
+
+void RtOptixSceneTracer::freeDeviceRGBABuffer(void* devicePtr) const
+{
+	if (devicePtr)
+		cudaFree(devicePtr);
+}
+
+bool RtOptixSceneTracer::readbackDeviceRGBABuffer(void* devicePtr, int width, int height,
+	std::vector<glm::vec3>& outImageLinearRgb, std::vector<float>& outAlpha) const
+{
+	if (!devicePtr || width <= 0 || height <= 0)
+		return false;
+
+	const size_t pixelCount = static_cast<size_t>(width) * static_cast<size_t>(height);
+	std::vector<float4> rgbaImage(pixelCount);
+	if (!cudaCheck(cudaMemcpy(rgbaImage.data(), devicePtr, pixelCount * sizeof(float4), cudaMemcpyDeviceToHost),
+			"cudaMemcpy(fallback readback of interactive device RGBA buffer)"))
+		return false;
+
+	outImageLinearRgb.resize(pixelCount);
+	outAlpha.resize(pixelCount);
+	for (size_t i = 0; i < pixelCount; ++i)
+	{
+		const float4& px = rgbaImage[i];
+		outImageLinearRgb[i] = glm::vec3(px.x, px.y, px.z);
+		outAlpha[i] = px.w;
+	}
+	return true;
+}
+
+void* RtOptixSceneTracer::createStream() const
+{
+	cudaStream_t stream = nullptr;
+	if (!cudaCheck(cudaStreamCreate(&stream), "cudaStreamCreate(interactive PT stream)"))
+		return nullptr;
+	return stream;
+}
+
+void RtOptixSceneTracer::destroyStream(void* stream) const
+{
+	if (stream)
+		cudaStreamDestroy(static_cast<cudaStream_t>(stream));
+}
+
+void* RtOptixSceneTracer::createEvent() const
+{
+	// cudaEventDisableTiming would be cheaper, but InteractivePtRenderer's
+	// adaptive-budget design (Phase D) wants each event's measured GPU time
+	// via cudaEventElapsedTime() - see setInteractiveBudget()'s doc comment
+	// in InteractivePtRenderer.h - so timing stays enabled here.
+	cudaEvent_t event = nullptr;
+	if (!cudaCheck(cudaEventCreate(&event), "cudaEventCreate(interactive PT completion event)"))
+		return nullptr;
+	return event;
+}
+
+void RtOptixSceneTracer::destroyEvent(void* event) const
+{
+	if (event)
+		cudaEventDestroy(static_cast<cudaEvent_t>(event));
+}
+
+bool RtOptixSceneTracer::isEventComplete(void* event) const
+{
+	if (!event)
+		return false;
+	// cudaEventQuery() never blocks - returns cudaSuccess (event fired),
+	// cudaErrorNotReady (still in flight), or a real error. Deliberately NOT
+	// cudaEventSynchronize()/cudaStreamSynchronize() - either of those would
+	// block the calling thread until completion, exactly what this API
+	// exists to let callers avoid (see this method's header doc comment).
+	const cudaError_t status = cudaEventQuery(static_cast<cudaEvent_t>(event));
+	return status == cudaSuccess;
+}
+
+float RtOptixSceneTracer::elapsedEventTimeMs(void* startEvent, void* endEvent) const
+{
+	if (!startEvent || !endEvent)
+		return -1.0f;
+	float ms = 0.0f;
+	// cudaEventElapsedTime() itself requires both events to have already
+	// completed (it returns cudaErrorNotReady otherwise) - callers are
+	// expected to have already confirmed that via isEventComplete(), same
+	// precondition as the rest of this non-blocking API.
+	if (!cudaCheck(cudaEventElapsedTime(&ms, static_cast<cudaEvent_t>(startEvent), static_cast<cudaEvent_t>(endEvent)),
+			"cudaEventElapsedTime(interactive PT launch timing)"))
+		return -1.0f;
+	return ms;
+}
+
+void* RtOptixSceneTracer::allocateParamsScratchBuffer() const
+{
+	void* devicePtr = nullptr;
+	if (!cudaCheck(cudaMalloc(&devicePtr, sizeof(RtOptixSceneParams)), "cudaMalloc(interactive params scratch buffer)"))
+		return nullptr;
+	return devicePtr;
+}
+
+void* RtOptixSceneTracer::allocateGuideScratchBuffer(int width, int height) const
+{
+	if (width <= 0 || height <= 0)
+		return nullptr;
+	const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(float3);
+	void* devicePtr = nullptr;
+	if (!cudaCheck(cudaMalloc(&devicePtr, bytes), "cudaMalloc(interactive guide scratch buffer)"))
+		return nullptr;
+	return devicePtr;
+}
+
+void RtOptixSceneTracer::freeScratchBuffer(void* devicePtr) const
+{
+	if (devicePtr)
+		cudaFree(devicePtr);
+}
+
+void* RtOptixSceneTracer::allocateParamsHostStagingBuffer() const
+{
+	// cudaHostAlloc (default flags) gives page-locked host memory -
+	// required for cudaMemcpyAsync() to actually behave asynchronously
+	// (stream-ordered, no implicit blocking/legacy-default-stream fallback)
+	// - see submitSceneRenderToDevice()'s doc comment for why an ordinary
+	// pageable buffer (stack-local or new'd) doesn't satisfy that.
+	void* hostPtr = nullptr;
+	if (!cudaCheck(cudaHostAlloc(&hostPtr, sizeof(RtOptixSceneParams), cudaHostAllocDefault), "cudaHostAlloc(params host staging)"))
+		return nullptr;
+	return hostPtr;
+}
+
+void RtOptixSceneTracer::freeParamsHostStagingBuffer(void* hostPtr) const
+{
+	if (hostPtr)
+		cudaFreeHost(hostPtr);
+}
+
+bool RtOptixSceneTracer::submitSceneRenderToDevice(const RtCamera& camera, const RtEnvironment& environment,
+	int width, int height, unsigned int samplesPerPixel, unsigned int sampleOffset,
+	unsigned int maxBounces, bool shadowsEnabled, bool selfShadowsEnabled, bool enableEnvironmentImportanceSampling,
+	unsigned int maxTransmissionBounces, float fireflyClampThreshold, unsigned int russianRouletteStartDepth,
+	unsigned int maxVolumeScatterBounces, unsigned int previousSampleCount,
+	void* deviceImageRGBA, void* hostParamsStaging, void* dParamsScratch, void* dAlbedoScratch, void* dNormalScratch,
+	void* stream, void* startEvent, void* completionEvent)
+{
+	if (!_impl->valid || _impl->iasHandle == 0 || width <= 0 || height <= 0 ||
+		!deviceImageRGBA || !hostParamsStaging || !dParamsScratch || !dAlbedoScratch || !dNormalScratch || !completionEvent)
+		return false;
+
+	// The launch params struct is built directly into hostParamsStaging (a
+	// caller-owned PINNED host buffer, NOT a stack-local - see
+	// allocateParamsHostStagingBuffer()'s doc comment) and then uploaded via
+	// cudaMemcpyAsync() on `stream`, stream-ordered like the launch itself -
+	// deliberately NOT a plain synchronous cudaMemcpy(): that call uses
+	// legacy default-stream semantics (implicitly synchronizing against
+	// every other stream in the context) even with no explicit
+	// cudaDeviceSynchronize() following it, which would silently serialize
+	// this "non-blocking" submission against unrelated GPU work - exactly
+	// the stall this whole API exists to avoid, just moved one call earlier.
+	buildRenderParamsInto(hostParamsStaging, camera, environment, width, height, samplesPerPixel, sampleOffset,
+		maxBounces, shadowsEnabled, selfShadowsEnabled, enableEnvironmentImportanceSampling,
+		maxTransmissionBounces, fireflyClampThreshold, russianRouletteStartDepth, maxVolumeScatterBounces, previousSampleCount,
+		deviceImageRGBA, dAlbedoScratch, dNormalScratch);
+
+	cudaStream_t cudaStream = static_cast<cudaStream_t>(stream);
+	if (!cudaCheck(cudaMemcpyAsync(dParamsScratch, hostParamsStaging, sizeof(RtOptixSceneParams), cudaMemcpyHostToDevice, cudaStream),
+			"cudaMemcpyAsync(params)"))
+		return false;
+
+	// Recorded immediately before the launch (not before the params upload
+	// above) so elapsedEventTimeMs(startEvent, completionEvent) measures the
+	// launch itself, not the (already-cheap, ~0.05-0.09ms) params copy.
+	if (startEvent && !cudaCheck(cudaEventRecord(static_cast<cudaEvent_t>(startEvent), cudaStream), "cudaEventRecord(async start)"))
+		return false;
+
+	if (!optixCheck(optixLaunch(_impl->pipeline, cudaStream, reinterpret_cast<CUdeviceptr>(dParamsScratch),
+			sizeof(RtOptixSceneParams), &_impl->sbt,
+			static_cast<unsigned int>(width), static_cast<unsigned int>(height), 1), "optixLaunch() (async)"))
+		return false;
+
+	// Records completionEvent on the SAME stream right after the launch -
+	// isEventComplete(completionEvent) becomes true only once every prior
+	// operation enqueued on this stream (i.e. this launch) has actually
+	// finished on the device. No cudaDeviceSynchronize()/cudaStreamSynchronize()
+	// call anywhere in this function - this call returns as soon as the
+	// launch and event record are ENQUEUED, not when they complete.
+	if (!cudaCheck(cudaEventRecord(static_cast<cudaEvent_t>(completionEvent), cudaStream), "cudaEventRecord(async completion)"))
+		return false;
+
+	return true;
 }
 
 #else // !MODELVIEWER_HAVE_OPTIX
@@ -1821,7 +2126,94 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot&)
 	return false;
 }
 
-bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, unsigned int, float, unsigned int, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
+bool RtOptixSceneTracer::renderScene(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, unsigned int, float, unsigned int, unsigned int, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<glm::vec3>&, std::vector<float>&)
+{
+	return false;
+}
+
+bool RtOptixSceneTracer::renderSceneToDevice(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, unsigned int, float, unsigned int, unsigned int, void*)
+{
+	return false;
+}
+
+bool RtOptixSceneTracer::launchOptixSceneRender(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int, unsigned int, bool, bool, bool, unsigned int, float, unsigned int, unsigned int, void*, void*, void*)
+{
+	return false;
+}
+
+void* RtOptixSceneTracer::allocateDeviceRGBABuffer(int, int) const
+{
+	return nullptr;
+}
+
+void RtOptixSceneTracer::freeDeviceRGBABuffer(void*) const
+{
+}
+
+bool RtOptixSceneTracer::readbackDeviceRGBABuffer(void*, int, int, std::vector<glm::vec3>&, std::vector<float>&) const
+{
+	return false;
+}
+
+void RtOptixSceneTracer::buildRenderParamsInto(void*, const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int,
+	unsigned int, bool, bool, bool, unsigned int, float, unsigned int, unsigned int, unsigned int, void*, void*, void*) const
+{
+}
+
+void* RtOptixSceneTracer::createStream() const
+{
+	return nullptr;
+}
+
+void RtOptixSceneTracer::destroyStream(void*) const
+{
+}
+
+void* RtOptixSceneTracer::createEvent() const
+{
+	return nullptr;
+}
+
+void RtOptixSceneTracer::destroyEvent(void*) const
+{
+}
+
+bool RtOptixSceneTracer::isEventComplete(void*) const
+{
+	return false;
+}
+
+float RtOptixSceneTracer::elapsedEventTimeMs(void*, void*) const
+{
+	return -1.0f;
+}
+
+void* RtOptixSceneTracer::allocateParamsScratchBuffer() const
+{
+	return nullptr;
+}
+
+void* RtOptixSceneTracer::allocateGuideScratchBuffer(int, int) const
+{
+	return nullptr;
+}
+
+void RtOptixSceneTracer::freeScratchBuffer(void*) const
+{
+}
+
+void* RtOptixSceneTracer::allocateParamsHostStagingBuffer() const
+{
+	return nullptr;
+}
+
+void RtOptixSceneTracer::freeParamsHostStagingBuffer(void*) const
+{
+}
+
+bool RtOptixSceneTracer::submitSceneRenderToDevice(const RtCamera&, const RtEnvironment&, int, int, unsigned int, unsigned int,
+	unsigned int, bool, bool, bool, unsigned int, float, unsigned int, unsigned int, unsigned int,
+	void*, void*, void*, void*, void*, void*, void*, void*)
 {
 	return false;
 }

@@ -2056,7 +2056,7 @@ extern "C" __global__ void __raygen__rg()
 	float3 accumulated = make_float3(0.0f, 0.0f, 0.0f);
 	float3 accumulatedAlbedo = make_float3(0.0f, 0.0f, 0.0f);
 	float3 accumulatedNormal = make_float3(0.0f, 0.0f, 0.0f);
-	float accumulatedHits = 0.0f; // primary-hit count -> alpha/hit-fraction, see params.alphaImage's doc comment
+	float accumulatedHits = 0.0f; // primary-hit count -> alpha/hit-fraction, see params.image's doc comment (.w component)
 	for (unsigned int s = 0; s < spp; ++s)
 	{
 		const unsigned int globalSampleIndex = params.sampleOffset + s;
@@ -2285,10 +2285,42 @@ extern "C" __global__ void __raygen__rg()
 	}
 
 	const float invSpp = 1.0f / static_cast<float>(spp);
-	params.image[pixelIndex]       = accumulated * invSpp;
-	params.albedoImage[pixelIndex] = accumulatedAlbedo * invSpp;
-	params.normalImage[pixelIndex] = accumulatedNormal * invSpp;
-	params.alphaImage[pixelIndex]  = accumulatedHits * invSpp;
+	const float3 thisLaunchColor  = accumulated * invSpp;
+	const float  thisLaunchHits   = accumulatedHits * invSpp;
+	const float3 thisLaunchAlbedo = accumulatedAlbedo * invSpp;
+	const float3 thisLaunchNormal = accumulatedNormal * invSpp;
+
+	if (params.previousSampleCount > 0)
+	{
+		// Blend this launch's own average into whatever's ALREADY in the
+		// output buffers via an incremental running mean, instead of
+		// overwriting - see RtOptixSceneParams::previousSampleCount's doc
+		// comment for why this lives here rather than being combined on the
+		// host after a readback.
+		const float4 prevImage  = params.image[pixelIndex];
+		const float3 prevColor  = make_float3(prevImage.x, prevImage.y, prevImage.z);
+		const float  prevHits   = prevImage.w;
+		const float3 prevAlbedo = params.albedoImage[pixelIndex];
+		const float3 prevNormal = params.normalImage[pixelIndex];
+
+		const float newCount    = static_cast<float>(params.previousSampleCount) + static_cast<float>(spp);
+		const float chunkWeight = static_cast<float>(spp) / newCount;
+
+		const float3 blendedColor  = prevColor  + (thisLaunchColor  - prevColor)  * chunkWeight;
+		const float  blendedHits   = prevHits   + (thisLaunchHits   - prevHits)   * chunkWeight;
+		const float3 blendedAlbedo = prevAlbedo + (thisLaunchAlbedo - prevAlbedo) * chunkWeight;
+		const float3 blendedNormal = prevNormal + (thisLaunchNormal - prevNormal) * chunkWeight;
+
+		params.image[pixelIndex]       = make_float4(blendedColor.x, blendedColor.y, blendedColor.z, blendedHits);
+		params.albedoImage[pixelIndex] = blendedAlbedo;
+		params.normalImage[pixelIndex] = blendedNormal;
+	}
+	else
+	{
+		params.image[pixelIndex]       = make_float4(thisLaunchColor.x, thisLaunchColor.y, thisLaunchColor.z, thisLaunchHits);
+		params.albedoImage[pixelIndex] = thisLaunchAlbedo;
+		params.normalImage[pixelIndex] = thisLaunchNormal;
+	}
 }
 
 extern "C" __global__ void __miss__ms()

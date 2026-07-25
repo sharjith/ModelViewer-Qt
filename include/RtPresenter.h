@@ -45,6 +45,26 @@ public:
 	void upload(const std::vector<glm::vec3>& rgb, int width, int height,
 		const std::vector<float>* alpha = nullptr);
 
+	// GPU-resident variant of upload(), for the interactive/CUDA-GL-interop
+	// presentation path (see RtOptixPathTracingSession::latestDeviceFrame()'s
+	// doc comment) - deviceRgba is a CUDA device pointer already holding
+	// width*height linear-HDR float4 RGBA (.w = alpha, same layout upload()
+	// packs on the CPU side). Copies it straight into the display texture via
+	// a CUDA-registered Pixel Buffer Object (cudaGraphicsGLRegisterBuffer +
+	// one device-to-device cudaMemcpy), with no host round-trip at all -
+	// eliminating the readback that otherwise dominates interactive-session
+	// per-chunk latency. Lazily creates/registers the PBO on first call (and
+	// re-registers it if width/height changed, mirroring upload()'s own
+	// _texWidth/_texHeight reallocate-on-mismatch pattern); must be called
+	// with a current GL context. Returns false - doing nothing to the
+	// currently-displayed frame - if CUDA-GL interop isn't available at all
+	// (no CUDA/OptiX toolchain in this build) or a driver-level registration/
+	// copy ever fails (logged once, then this method keeps returning false
+	// for the rest of this RtPresenter's lifetime rather than retrying every
+	// frame); callers should fall back to the CPU-vector upload() path in
+	// that case, not skip presenting a frame entirely.
+	bool uploadFromDevice(void* deviceRgba, int width, int height);
+
 	// Draws the uploaded frame as a fullscreen triangle over the current
 	// viewport/FBO (tonemap + gamma applied in the shader). No-op if nothing
 	// has been uploaded yet or initialize() failed.
@@ -93,4 +113,14 @@ private:
 	int _texWidth   = 0;
 	int _texHeight  = 0;
 	bool _hasFrame  = false;
+
+	// CUDA-GL interop state for uploadFromDevice() - see its doc comment.
+	// _interopCudaResource is a cudaGraphicsResource_t, kept as void* here so
+	// this header doesn't need a CUDA include (mirrors RtOptixSceneTracer.h's
+	// same void*-in-header pattern for its own device-pointer-facing API).
+	GLuint _interopPbo = 0;
+	int _interopPboWidth  = 0;
+	int _interopPboHeight = 0;
+	void* _interopCudaResource = nullptr;
+	bool _interopUnavailable = false; // sticky once true - see uploadFromDevice()'s doc comment
 };

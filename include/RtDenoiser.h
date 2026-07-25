@@ -113,6 +113,29 @@ public:
 	// not used internally.
 	const char* activeDeviceName() const;
 
+	// Device-resident counterpart of denoise() for InteractivePtRenderer's
+	// continuous accumulator - operates entirely on existing CUDA device
+	// pointers (the SAME persistent buffers that renderer already accumulates
+	// into), with no host round-trip at all, unlike denoise()'s std::vector
+	// API. dColorRGBA/dOutputRGBA are float4 (RGBA, matching
+	// RtOptixSceneParams::image's layout) - alpha (the primary-hit
+	// compositing mask, not real geometric opacity) is copied through
+	// unmodified rather than denoised. dAlbedo/dNormal are float3 guide
+	// buffers, both required together or both null (matching denoise()'s own
+	// albedo/normal contract). Writes the denoised result into dOutputRGBA, a
+	// SEPARATE buffer from dColorRGBA - the caller's own raw accumulation
+	// keeps refining underneath, exactly like RtPathTracingSession's "denoise
+	// a copy" pattern, just invoked periodically instead of once at the end.
+	//
+	// Only implemented for the native OptiX denoiser - the interactive GPU-PT
+	// accumulator only exists at all when OptiX is available, so there is no
+	// OIDN-CUDA/CPU/bilateral fallback tier here (unlike denoise()). Returns
+	// false (leaving dOutputRGBA untouched) if this instance isn't using the
+	// native OptiX denoiser - callers should keep presenting the raw
+	// accumulation in that case, not treat this as blocking presentation.
+	bool denoiseDevice(void* dColorRGBA, void* dAlbedo, void* dNormal, int width, int height,
+		void* dOutputRGBA, uint32_t sampleCount = 1);
+
 	// Re-runs device selection under a new preference (see
 	// DenoiserDevicePreference's doc comment) - releases whichever OIDN
 	// device is currently held (if any) and tries again from scratch. Safe
@@ -135,6 +158,12 @@ private:
 	bool denoiseWithOptix(const std::vector<glm::vec3>& input, int width, int height,
 		std::vector<glm::vec3>& output,
 		const std::vector<glm::vec3>* albedo, const std::vector<glm::vec3>* normal);
+
+	// Device-resident counterpart of denoiseWithOptix() - see denoiseDevice()'s
+	// doc comment. Same "only defined/called under MODELVIEWER_HAVE_OPTIX"
+	// contract as denoiseWithOptix() above.
+	bool denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* dNormal, int width, int height,
+		void* dOutputRGBA);
 
 	struct Impl;
 	std::unique_ptr<Impl> _impl;

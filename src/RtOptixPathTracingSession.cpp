@@ -1,8 +1,6 @@
 #include "RtOptixPathTracingSession.h"
 
 #include <algorithm>
-#include <chrono>
-#include <thread>
 
 #include <QDebug>
 
@@ -55,25 +53,11 @@ bool RtOptixPathTracingSession::start(std::shared_ptr<const RtSceneSnapshot> sna
 		_publishedHeight = 0;
 	}
 	_publishedSampleCount.store(0, std::memory_order_release);
-	_cameraGeneration.store(0, std::memory_order_release);
 
 	const uint64_t myGeneration = ++_generation;
 	_cancelRequested.store(false, std::memory_order_release);
 	_running.store(true, std::memory_order_release);
 	_worker = std::thread(&RtOptixPathTracingSession::workerLoop, this, myGeneration);
-	return true;
-}
-
-bool RtOptixPathTracingSession::updateCamera(const RtCamera& camera)
-{
-	if (!_running.load(std::memory_order_acquire))
-		return false;
-
-	{
-		std::lock_guard<std::mutex> lock(_cameraMutex);
-		_pendingCamera = camera;
-	}
-	_cameraGeneration.fetch_add(1, std::memory_order_release);
 	return true;
 }
 
@@ -114,49 +98,13 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 	std::vector<double>     runningMeanAlpha(pixelCount, 0.0);
 	uint32_t sampleCount = 0;
 
-	// activeCamera starts as the snapshot's own camera and can be swapped in
-	// place by updateCamera() (see lastSeenCameraGeneration check below) -
-	// snapshot->camera itself is never touched again after this point, since
-	// the snapshot is shared (const) and may be read by other things.
-	RtCamera activeCamera = snapshot->camera;
-	uint64_t lastSeenCameraGeneration = _cameraGeneration.load(std::memory_order_acquire);
+	const RtCamera& activeCamera = snapshot->camera;
 
 	while (!_cancelRequested.load(std::memory_order_acquire) &&
 	       _generation.load(std::memory_order_acquire) == myGeneration)
 	{
-		const uint64_t currentCameraGeneration = _cameraGeneration.load(std::memory_order_acquire);
-		if (currentCameraGeneration != lastSeenCameraGeneration)
-		{
-			{
-				std::lock_guard<std::mutex> lock(_cameraMutex);
-				activeCamera = _pendingCamera;
-			}
-			lastSeenCameraGeneration = currentCameraGeneration;
-
-			// A new camera pose invalidates every sample gathered so far for
-			// the old pose - reset accumulation in place rather than
-			// respawning the thread (that respawn, and the caller-side
-			// snapshot rebuild it usually comes bundled with, is exactly the
-			// per-drag-tick overhead this mechanism exists to avoid).
-			std::fill(runningMean.begin(), runningMean.end(), glm::dvec3(0.0));
-			std::fill(runningMeanAlbedo.begin(), runningMeanAlbedo.end(), glm::dvec3(0.0));
-			std::fill(runningMeanNormal.begin(), runningMeanNormal.end(), glm::dvec3(0.0));
-			std::fill(runningMeanAlpha.begin(), runningMeanAlpha.end(), 0.0);
-			sampleCount = 0;
-			_publishedSampleCount.store(0, std::memory_order_release);
-		}
-
 		if (sampleCount >= _maxSamples)
-		{
-			// Fully converged for the active camera pose. A plain (non-
-			// stayAliveAtConvergence) session just exits here, as before -
-			// the interactive session instead idles, ready to react the
-			// instant updateCamera() bumps _cameraGeneration again.
-			if (!_stayAliveAtConvergence)
-				break;
-			std::this_thread::sleep_for(std::chrono::milliseconds(5));
-			continue;
-		}
+			break; // fully converged - this (settled-only) session exits its worker thread once done
 
 		const uint32_t chunkSpp = std::min(_samplesPerChunk, _maxSamples - sampleCount);
 

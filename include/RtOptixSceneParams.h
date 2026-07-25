@@ -159,7 +159,27 @@ struct RtOptixSceneParams
 	// together would have been mathematically wrong (gamma encoding doesn't
 	// commute with averaging) once progressive multi-launch accumulation
 	// was added.
-	float3* image;
+	//
+	// .w carries the per-pixel primary-hit fraction (hits/spp for this
+	// launch's samples) - mirrors RtFrameAccumulator::hitCounts()/
+	// RtPathTracingSession's published alpha exactly. RtPresenter alpha-
+	// blends the path-traced frame over the already-rendered raster, so 0
+	// here (pure background) lets raster's own sharp skybox/gradient show
+	// through instead of this kernel's traced background - the SAME "alpha-
+	// composited background" design the CPU session uses (see
+	// RtPathTracingSession::publishLatest()); without it the GPU frame
+	// rendered fully opaque, covering the raster skybox, which is why
+	// enabling the Sky Box checkbox showed no skybox in GPU mode while CPU
+	// mode (alpha-composited) showed it fine. RGB and alpha used to be two
+	// separate buffers (`image` as float3 + a standalone `alphaImage`) -
+	// merged into one float4 write so the interactive/GPU-resident
+	// presentation path (RtOptixPathTracingSession's persistent device
+	// buffer, consumed via CUDA-GL interop with no CPU readback) can treat
+	// this as a single RGBA texture with no separate combine step, matching
+	// NVIDIA's own RTXPT reference sample's output-buffer convention
+	// (declare the render target RGBA from the start, write all 4 channels
+	// in one store) rather than bolting on a dedicated interleave kernel.
+	float4* image;
 	// OIDN guide (auxiliary feature) buffers - primary-hit base color/
 	// world-space shading normal, chunk-averaged the same way `image` is,
 	// zeroed wherever the primary ray never hits geometry. Mirrors
@@ -170,17 +190,6 @@ struct RtOptixSceneParams
 	// mirror-bounce term).
 	float3* albedoImage;
 	float3* normalImage;
-	// Per-pixel primary-hit fraction (hits/spp for this launch's samples) -
-	// mirrors RtFrameAccumulator::hitCounts()/RtPathTracingSession's
-	// published alpha exactly. RtPresenter alpha-blends the path-traced
-	// frame over the already-rendered raster, so 0 here (pure background)
-	// lets raster's own sharp skybox/gradient show through instead of this
-	// kernel's traced background - the SAME "alpha-composited background"
-	// design the CPU session uses (see RtPathTracingSession::publishLatest());
-	// without it the GPU frame rendered fully opaque, covering the raster
-	// skybox, which is why enabling the Sky Box checkbox showed no skybox
-	// in GPU mode while CPU mode (alpha-composited) showed it fine.
-	float* alphaImage;
 	unsigned int imageWidth;
 	unsigned int imageHeight;
 
@@ -242,6 +251,23 @@ struct RtOptixSceneParams
 	// sample 0 and chunk N sample 0 reuse the exact same RNG seed and the
 	// accumulation never actually refines.
 	unsigned int sampleOffset;
+
+	// How many samples are ALREADY baked into params.image[pixelIndex]/
+	// albedoImage/normalImage from previous launches (0 = fresh start, no
+	// prior data - the kernel just writes this launch's own average, the
+	// original/unchanged behavior every other caller of this struct still
+	// gets). When nonzero, the raygen program's final write becomes an
+	// in-kernel running-mean blend against the EXISTING buffer contents
+	// instead of an overwrite - newMean = oldMean + (thisLaunchMean -
+	// oldMean) * thisLaunchSpp / (previousSampleCount + thisLaunchSpp), the
+	// same incremental-mean formula RtOptixPathTracingSession::workerLoop()
+	// already does on the CPU side, just moved into the kernel so combining
+	// many small launches into one progressively-refining image needs no
+	// host round-trip at all. Callers that want persistent GPU-resident
+	// accumulation across launches (see InteractivePtRenderer) own tracking
+	// this count themselves and reset it to 0 whenever the camera/scene
+	// changes enough to invalidate the existing accumulation.
+	unsigned int previousSampleCount;
 
 	// Maximum path length (primary hit + subsequent bounces) the raygen loop
 	// in RtOptixScene.cu will trace per sample before giving up - mirrors
