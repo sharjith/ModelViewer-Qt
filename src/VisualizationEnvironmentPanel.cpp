@@ -19,12 +19,50 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace
 {
 	// Fixed slider tick resolution for the Default Light Position sliders -
 	// see LightAxisSliderMapping's doc comment in the header.
 	constexpr int kLightSliderSteps = 1000;
+
+	// Mirrors ViewportWidget::setSkyBoxZRotation(int)'s own fixed 4-way
+	// table (X+/X-/Y-Z+/Y-Z-) - kept in sync with that function's angles[]
+	// array by convention rather than a shared constant, since one lives in
+	// the viewport (the authoritative rotation-application code) and the
+	// other here (the UI's own preset-to-angle bookkeeping for combining
+	// with the fine offset slider).
+	constexpr float kSkyBoxRotationPresetAngles[4] = { 0.0f, 180.0f, 90.0f, 270.0f };
+
+	// Finds whichever of the 4 preset angles above is closest to `degrees`
+	// (wrapping correctly across the 0/360 boundary) and the signed residual
+	// offset needed to reach `degrees` from it - always within [-45, 45]
+	// since the presets are spaced exactly 90 degrees apart. Used both to
+	// combine the combo+slider into a single angle (applySkyBoxRotation())
+	// and to decompose a single saved angle back into the two controls
+	// (VisualizationEnvironmentPanel::restoreSkyBoxRotationDegrees()).
+	void nearestSkyBoxRotationPreset(float degrees, int& outIndex, float& outOffset)
+	{
+		outIndex = 0;
+		float bestDelta = 0.0f;
+		float bestAbsDelta = std::numeric_limits<float>::max();
+		for (int i = 0; i < 4; ++i)
+		{
+			// Wrap the raw difference into (-180, 180] before comparing, so
+			// e.g. 350 degrees correctly reads as "-10 from the 0 preset",
+			// not "+350 from it" or a spurious match against 270.
+			float delta = std::fmod(degrees - kSkyBoxRotationPresetAngles[i] + 540.0f, 360.0f) - 180.0f;
+			const float absDelta = std::abs(delta);
+			if (absDelta < bestAbsDelta)
+			{
+				bestAbsDelta = absDelta;
+				bestDelta = delta;
+				outIndex = i;
+			}
+		}
+		outOffset = bestDelta;
+	}
 }
 
 VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
@@ -219,7 +257,8 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
 	connect(ui->sliderSkyBoxBlur, QOverload<int>::of(&QSlider::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxBlurChanged);
 	connect(ui->doubleSpinBoxSkyBoxFOV, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxFOVChanged);
-	connect(ui->comboBoxSkyBoxRotation, QOverload<int>::of(&QComboBox::currentIndexChanged), _viewportWidget, &ViewportWidget::setSkyBoxZRotation);
+	connect(ui->comboBoxSkyBoxRotation, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onSkyBoxRotationPresetChanged);
+	connect(ui->sliderSkyBoxRotationFine, QOverload<int>::of(&QSlider::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxRotationFineChanged);
 	connect(ui->comboBoxSkyBoxMaps, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onSkyBoxMapsChanged);
 	connect(ui->pushButtonSkyBoxTex, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onSkyBoxTextureClicked);
 
@@ -303,6 +342,8 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);
 	ui->labelSkyBoxRotation->setEnabled(skyBoxEnabled);
 	ui->comboBoxSkyBoxRotation->setEnabled(skyBoxEnabled);
+	ui->sliderSkyBoxRotationFine->setEnabled(skyBoxEnabled);
+	ui->labelSkyBoxRotationFineValue->setEnabled(skyBoxEnabled);
 	
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
@@ -736,6 +777,78 @@ void VisualizationEnvironmentPanel::onSkyBoxFOVChanged(double value)
 	_viewportWidget->updateView();
 }
 
+void VisualizationEnvironmentPanel::onSkyBoxRotationPresetChanged(int index)
+{
+	Q_UNUSED(index);
+	if (!ui)
+		return;
+
+	// A newly-chosen preset starts at exactly its own axis angle - reset the
+	// fine offset back to 0 rather than carrying over an adjustment that was
+	// only meaningful relative to the PREVIOUS preset. blockSignals() so this
+	// doesn't recurse into onSkyBoxRotationFineChanged() (which would just
+	// re-apply the same result a second time, harmlessly, but there's no
+	// reason to); applySkyBoxRotation() below applies the real (now-reset)
+	// combined angle regardless of whether the slider's own valueChanged
+	// fired.
+	ui->sliderSkyBoxRotationFine->blockSignals(true);
+	ui->sliderSkyBoxRotationFine->setValue(0);
+	ui->sliderSkyBoxRotationFine->blockSignals(false);
+	ui->labelSkyBoxRotationFineValue->setText(QStringLiteral("0°"));
+
+	applySkyBoxRotation();
+}
+
+void VisualizationEnvironmentPanel::onSkyBoxRotationFineChanged(int offsetDegrees)
+{
+	if (ui)
+		ui->labelSkyBoxRotationFineValue->setText(QString("%1%2°").arg(offsetDegrees > 0 ? QStringLiteral("+") : QString()).arg(offsetDegrees));
+
+	applySkyBoxRotation();
+}
+
+void VisualizationEnvironmentPanel::applySkyBoxRotation()
+{
+	if (!ui || !_viewportWidget)
+		return;
+
+	const int presetIndex = ui->comboBoxSkyBoxRotation->currentIndex();
+	const float presetAngle = kSkyBoxRotationPresetAngles[presetIndex >= 0 && presetIndex < 4 ? presetIndex : 0];
+	const float degrees = presetAngle + static_cast<float>(ui->sliderSkyBoxRotationFine->value());
+
+	_viewportWidget->setSkyBoxZRotationDegrees(degrees);
+	_viewportWidget->updateView();
+
+	if (_previewWidget)
+		_previewWidget->update();
+}
+
+void VisualizationEnvironmentPanel::restoreSkyBoxRotationDegrees(float degrees)
+{
+	if (!ui || !_viewportWidget)
+		return;
+
+	int presetIndex = 0;
+	float offset = 0.0f;
+	nearestSkyBoxRotationPreset(degrees, presetIndex, offset);
+	const int offsetTicks = qRound(offset);
+
+	ui->comboBoxSkyBoxRotation->blockSignals(true);
+	ui->sliderSkyBoxRotationFine->blockSignals(true);
+	ui->comboBoxSkyBoxRotation->setCurrentIndex(presetIndex);
+	ui->sliderSkyBoxRotationFine->setValue(offsetTicks);
+	ui->comboBoxSkyBoxRotation->blockSignals(false);
+	ui->sliderSkyBoxRotationFine->blockSignals(false);
+	ui->labelSkyBoxRotationFineValue->setText(QString("%1%2°").arg(offsetTicks > 0 ? QStringLiteral("+") : QString()).arg(offsetTicks));
+
+	// Apply the EXACT saved angle, not presetAngle + rounded-to-integer
+	// offsetTicks - the UI only has integer-degree resolution, but the
+	// viewport itself shouldn't lose the saved value's fractional precision
+	// (if any) just because of that display-rounding.
+	_viewportWidget->setSkyBoxZRotationDegrees(degrees);
+	_viewportWidget->updateView();
+}
+
 void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 {
 	if (!_viewportWidget || !ui)
@@ -1051,6 +1164,12 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 	ui->doubleSpinBoxSkyBoxFOV->setValue(45.0);
 	ui->sliderSkyBoxBlur->setValue(0);
 	ui->comboBoxSkyBoxRotation->setCurrentIndex(0);
+	ui->sliderSkyBoxRotationFine->setValue(0);
+	// setCurrentIndex(0)/setValue(0) above are no-ops (no valueChanged/
+	// currentIndexChanged signal) if either control was ALREADY at its
+	// default - applySkyBoxRotation() here guarantees the 0-degree result
+	// actually reaches the viewport regardless of prior state.
+	applySkyBoxRotation();
 	ui->comboBoxShadowQuality->setCurrentIndex(1);
 	ui->doubleSpinBoxFloorOffset->setValue(0.0);
 	ui->doubleSpinBoxRepeatS->setValue(1.0);

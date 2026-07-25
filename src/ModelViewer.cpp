@@ -4975,21 +4975,15 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 		const double skyBoxZRotation = viewerState[QStringLiteral("skyBoxZRotationDegrees")]
 			.toDouble(_viewportWidget->getSkyBoxZRotationDegrees());
-		const struct { double angle; int index; } rotationMap[] = {
-			{0.0, 0}, {180.0, 1}, {90.0, 2}, {270.0, 3}
-		};
-		int bestIndex = 0;
-		double bestDelta = std::numeric_limits<double>::max();
-		for (const auto& entry : rotationMap)
-		{
-			const double delta = std::abs(entry.angle - skyBoxZRotation);
-			if (delta < bestDelta)
-			{
-				bestDelta = delta;
-				bestIndex = entry.index;
-			}
-		}
-		_viewportWidget->setSkyBoxZRotation(bestIndex);
+		// Decomposes the saved angle back into the panel's preset combo +
+		// fine offset slider (now that the rotation control is a preset PLUS
+		// a +/-45 degree slider, not just the 4 fixed presets alone) and
+		// applies it - see VisualizationEnvironmentPanel::restoreSkyBoxRotationDegrees()'s
+		// doc comment. This also fixes a pre-existing gap where this call
+		// site applied the rotation directly to the viewport without ever
+		// updating comboBoxSkyBoxRotation's displayed selection, leaving the
+		// panel showing a stale/default preset after a viewerState load.
+		visualizationEnvironmentPanel->restoreSkyBoxRotationDegrees(static_cast<float>(skyBoxZRotation));
 
 		const QJsonArray bgTop = viewerState[QStringLiteral("bgTopColor")].toArray();
 		if (bgTop.size() == 4)

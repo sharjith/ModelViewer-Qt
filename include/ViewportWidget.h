@@ -918,6 +918,15 @@ public slots:
 	void setSkyBoxFOV(double fov) { _renderCtrl.setSkyBoxFOV(static_cast<float>(fov)); update(); }
 	void setPerspFOV(int fovDegrees);
 	void setSkyBoxZRotation(int index);
+	// Direct continuous-angle setter - VisualizationEnvironmentPanel's fine
+	// rotation slider combines a preset axis angle (still driven through
+	// setSkyBoxZRotation(int)'s fixed 4-way table) with a +/-45 degree
+	// offset, and needs to apply the COMBINED result directly rather than
+	// snapping to one of the 4 presets. Does exactly what
+	// setSkyBoxZRotation(int)'s body does, just parameterized on the raw
+	// angle instead of a table index - see that method for why (skybox view
+	// matrix rebuild + camera-grade PT restart).
+	void setSkyBoxZRotationDegrees(float degrees);
 	void setSkyBoxTextureHDRI(bool hdrSet) { _renderCtrl.setSkyBoxTextureHDRI(hdrSet); update(); }
 	void enableHDRToneMapping(bool hdrToneMapping) { _renderCtrl.setHdrToneMapping(hdrToneMapping); update(); }
 	void enableGammaCorrection(bool gammaCorrection) { _renderCtrl.setGammaCorrection(gammaCorrection); update(); }

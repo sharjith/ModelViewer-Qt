@@ -57,6 +57,14 @@ public:
 	// back to this panel when the user toggles them there instead of here.
 	void syncShadowCheckboxes(bool shadowsEnabled, bool selfShadowsEnabled);
 
+	// Restores the skybox rotation combo (preset axis) + fine slider (+/-45
+	// degree offset around it) from a single saved angle (e.g. on viewerState
+	// load) and applies it to the viewport. degrees can be any value - the
+	// nearest of the 4 preset axes (0/90/180/270, spaced exactly 90 degrees
+	// apart) is picked and the residual becomes the slider's offset, which by
+	// construction always falls within the slider's +/-45 range.
+	void restoreSkyBoxRotationDegrees(float degrees);
+
 	bool isDetached() { return _detached; }
 	void setDetached(bool detached);
 
@@ -89,6 +97,13 @@ public slots:
 	void onSkyBoxHDRIChanged(bool checked);
 	void onSkyBoxBlurChanged(int value);
 	void onSkyBoxFOVChanged(double value);
+	// Preset axis combo (X+/X-/Y or Z +/-) - resets the fine offset slider
+	// back to 0 degrees whenever a new preset is chosen (an accumulated
+	// offset from the PREVIOUS preset wouldn't mean anything relative to a
+	// different axis), then applies the combined angle.
+	void onSkyBoxRotationPresetChanged(int index);
+	// Fine +/-45 degree offset around whichever preset is currently selected.
+	void onSkyBoxRotationFineChanged(int offsetDegrees);
 	void onSkyBoxMapsChanged(int index);
 	void onSkyBoxTextureClicked();
 
@@ -155,6 +170,13 @@ private:
 	// Build one file-level parent item + its light children.
 	QTreeWidgetItem* makeLightFileItem(const QString& sourceFile) const;
 	QTreeWidgetItem* makeLightLeafItem(const GltfLightEntry& entry, int lightIndex) const;
+
+	// Combines comboBoxSkyBoxRotation's current preset (one of the 4 fixed
+	// axis angles) with sliderSkyBoxRotationFine's current +/-45 degree
+	// offset and applies the result to the viewport - the single place both
+	// onSkyBoxRotationPresetChanged()/onSkyBoxRotationFineChanged() funnel
+	// through, so the two controls can never disagree about how they combine.
+	void applySkyBoxRotation();
 
 	// State management - moved from ModelViewer
 	int _skyBoxLDRIIndex;

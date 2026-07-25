@@ -14142,7 +14142,12 @@ void ViewportWidget::setSkyBoxZRotation(int index)
 	// Map combo index to Y-axis rotation angle (OpenGL Y = world Z-up)
 	// X+ → 0°, X- → 180°, Y-Z+ → 90°, Y+ → 270°
 	static constexpr float angles[] = { 0.0f, 180.0f, 90.0f, 270.0f };
-	_renderCtrl.setSkyBoxZRotation(angles[index % 4]);
+	setSkyBoxZRotationDegrees(angles[index % 4]);
+}
+
+void ViewportWidget::setSkyBoxZRotationDegrees(float degrees)
+{
+	_renderCtrl.setSkyBoxZRotation(degrees);
 	updateEnvMapRotationMatrix();
 	update();
 	// Camera-grade restart only (was notifyPathTracedSceneMutated,
