@@ -328,6 +328,12 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	sample->packingInvert  = packingInvert;
 	sample->packingScale   = packingScale;
 	sample->packingBias    = packingBias;
+	// Same value as `key.imageCacheKey` above (computed from the PRE-format-
+	// conversion source img) - see RtTextureSample::imageCacheKey's own doc
+	// comment for why this needs to survive past this function, unlike the
+	// rest of TextureDedupKey which only ever mattered within this one
+	// build() call.
+	sample->imageCacheKey = key.imageCacheKey;
 
 	buildMipChain(*sample);
 	dedupCache.emplace(key, sample);

@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <string>
 #include <unordered_map>
@@ -170,14 +171,115 @@ struct RtOptixSceneTracer::Impl
 	float infinitePlaneMetalness = 0.0f;
 	float infinitePlaneRoughness = 0.5f;
 
-	// Every material texture buffer uploaded this buildScene() call (baseColor/
-	// metallic/roughness/normal/emissive rgba8 arrays) - kept alive for the
-	// scene's lifetime and freed in freeSceneBuffers(), same pattern as the
-	// environment face buffers below. Deduplicated per-RtTextureSample (by
-	// pointer identity) at upload time so multiple materials/instances sharing
-	// the same texture object don't re-upload identical bytes - see
-	// buildScene()'s uploadTexture() lambda.
-	std::vector<CUdeviceptr> textureBuffers;
+	// Persistent, content-keyed cache of uploaded material textures (base
+	// rgba8 + mip pyramid) - unlike the GAS/IAS/lights/environment buffers
+	// below, this SURVIVES across buildScene() calls (see freeSceneBuffers()'s
+	// includeTextureCache parameter). Keyed on RtTextureSample::imageCacheKey
+	// plus every baked-in uv/wrap/packing parameter (mirrors RtSceneBuilder's
+	// own private TextureDedupKey) - see RtTextureSample::imageCacheKey's doc
+	// comment for why raw RtTextureSample pointer/object identity can't be
+	// used here instead: RtSceneBuilder::build() allocates a brand-new
+	// RtTextureSample for every texture on every single snapshot build,
+	// whether or not the underlying image actually changed, so pointer
+	// identity only ever matched textures shared WITHIN one build - never
+	// across two separate ones. A texture unchanged since the last
+	// buildScene() call is now recognized by content key and reused with NO
+	// new cudaMalloc/cudaMemcpy at all.
+	struct TextureUploadEntry
+	{
+		CUdeviceptr baseRgba8 = 0;
+		std::vector<CUdeviceptr> mipBuffers; // per-level buffers actually allocated (excludes any level reusing baseRgba8 - see buildScene()'s uploadMaterialTexture() lambda)
+		CUdeviceptr mipArrayDevice = 0;
+		int mipCount = 0;
+		// Mark-and-sweep flag for evictUnusedTextures() - set whenever this
+		// build's uploadMaterialTexture() resolves to this entry (whether a
+		// fresh upload or a reuse), cleared again once a sweep confirms it's
+		// still wanted; an entry left false at sweep time wasn't referenced
+		// by this snapshot at all (removed/replaced material, or the source
+		// image changed enough that its key moved on) and gets freed.
+		bool touchedThisBuild = false;
+	};
+	struct TextureUploadKey
+	{
+		int64_t imageCacheKey = 0;
+		float uvScaleX = 1.0f, uvScaleY = 1.0f;
+		float uvOffsetX = 0.0f, uvOffsetY = 0.0f;
+		float uvRotation = 0.0f;
+		int texCoordIndex = 0;
+		unsigned int wrapS = 0, wrapT = 0;
+		int packingChannel = -1;
+		bool packingInvert = false;
+		float packingScale = 1.0f;
+		float packingBias = 0.0f;
+
+		bool operator==(const TextureUploadKey& o) const
+		{
+			return imageCacheKey == o.imageCacheKey &&
+				uvScaleX == o.uvScaleX && uvScaleY == o.uvScaleY &&
+				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
+				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
+				wrapS == o.wrapS && wrapT == o.wrapT &&
+				packingChannel == o.packingChannel && packingInvert == o.packingInvert &&
+				packingScale == o.packingScale && packingBias == o.packingBias;
+		}
+	};
+	struct TextureUploadKeyHash
+	{
+		size_t operator()(const TextureUploadKey& k) const
+		{
+			size_t h = std::hash<int64_t>{}(k.imageCacheKey);
+			auto mix = [&h](size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); };
+			mix(std::hash<float>{}(k.uvScaleX));
+			mix(std::hash<float>{}(k.uvScaleY));
+			mix(std::hash<float>{}(k.uvOffsetX));
+			mix(std::hash<float>{}(k.uvOffsetY));
+			mix(std::hash<float>{}(k.uvRotation));
+			mix(std::hash<int>{}(k.texCoordIndex));
+			mix(std::hash<unsigned int>{}(k.wrapS));
+			mix(std::hash<unsigned int>{}(k.wrapT));
+			mix(std::hash<int>{}(k.packingChannel));
+			mix(std::hash<bool>{}(k.packingInvert));
+			mix(std::hash<float>{}(k.packingScale));
+			mix(std::hash<float>{}(k.packingBias));
+			return h;
+		}
+	};
+	std::unordered_map<TextureUploadKey, TextureUploadEntry, TextureUploadKeyHash> persistentTextureCache;
+
+	static void freeTextureEntry(TextureUploadEntry& entry)
+	{
+		if (entry.baseRgba8) cudaFree(reinterpret_cast<void*>(entry.baseRgba8));
+		for (CUdeviceptr mipBuf : entry.mipBuffers)
+			if (mipBuf) cudaFree(reinterpret_cast<void*>(mipBuf));
+		if (entry.mipArrayDevice) cudaFree(reinterpret_cast<void*>(entry.mipArrayDevice));
+	}
+
+	// Mark-and-sweep eviction - called once, at the end of a SUCCESSFUL
+	// buildScene(), after every texture the new snapshot actually references
+	// has already been resolved (and its cache entry marked touchedThisBuild
+	// by uploadMaterialTexture()). Anything left unmarked is freed instead of
+	// kept forever, so an edited/reloaded/removed texture's old VRAM buffer
+	// doesn't leak for the rest of the session.
+	void evictUnusedTextures()
+	{
+		int evicted = 0;
+		for (auto it = persistentTextureCache.begin(); it != persistentTextureCache.end(); )
+		{
+			if (it->second.touchedThisBuild)
+			{
+				it->second.touchedThisBuild = false; // reset for the next build's marking pass
+				++it;
+			}
+			else
+			{
+				freeTextureEntry(it->second);
+				it = persistentTextureCache.erase(it);
+				++evicted;
+			}
+		}
+		if (evicted > 0)
+			qInfo() << "RtOptixSceneTracer::evictUnusedTextures: freed" << evicted << "texture(s) no longer referenced.";
+	}
 
 	// Environment cubemap (raw/mip-0) face buffers. ONLY the heavy texel
 	// data lives here (uploaded at revision-gated buildScene() time) - the
@@ -259,16 +361,24 @@ struct RtOptixSceneTracer::Impl
 
 	void ensureSheenAlbedoLut();
 
-	void freeSceneBuffers()
+	// includeTextureCache: false (default, used at the top of every
+	// buildScene() call) leaves persistentTextureCache untouched - that's the
+	// whole point of it being persistent (see its own doc comment); a fresh
+	// build's uploadMaterialTexture() calls will reuse whatever's still
+	// resident and evictUnusedTextures() sweeps anything genuinely stale
+	// AFTER the new snapshot's textures have all been resolved, not here.
+	// true (only ~Impl(), i.e. the whole tracer/document being torn down)
+	// also frees every cached texture and clears the cache, since there's no
+	// future buildScene() call left to reuse them.
+	void freeSceneBuffers(bool includeTextureCache = false)
 	{
 		// Diagnostic only - lets a document-open/close cycle be read directly
 		// off the log to confirm GPU scene teardown is actually happening
 		// (called unconditionally at the START of every buildScene(), and
 		// again from ~Impl() when the whole tracer/document is destroyed -
 		// see that destructor's own log line for distinguishing the two).
-		if (!meshGasEntries.empty() || !textureBuffers.empty())
-			qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << meshGasEntries.size()
-				<< "mesh GAS entries and" << textureBuffers.size() << "texture buffers.";
+		if (!meshGasEntries.empty())
+			qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << meshGasEntries.size() << "mesh GAS entries.";
 
 		for (MeshGas& gas : meshGasEntries)
 		{
@@ -282,9 +392,14 @@ struct RtOptixSceneTracer::Impl
 		}
 		meshGasEntries.clear();
 
-		for (CUdeviceptr& texBuf : textureBuffers)
-			if (texBuf) cudaFree(reinterpret_cast<void*>(texBuf));
-		textureBuffers.clear();
+		if (includeTextureCache)
+		{
+			if (!persistentTextureCache.empty())
+				qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << persistentTextureCache.size() << "cached texture(s) (final teardown).";
+			for (auto& [key, entry] : persistentTextureCache)
+				freeTextureEntry(entry);
+			persistentTextureCache.clear();
+		}
 
 		if (instancesBuffer) cudaFree(reinterpret_cast<void*>(instancesBuffer));
 		instancesBuffer = 0;
@@ -346,7 +461,7 @@ struct RtOptixSceneTracer::Impl
 		// actually released, not just their owning RtOptixSceneTracer/
 		// RtOptixPathTracingSession going out of scope in C++ terms.
 		qInfo() << "RtOptixSceneTracer: tracer destroyed - releasing pipeline/module/device context.";
-		freeSceneBuffers();
+		freeSceneBuffers(/*includeTextureCache=*/true);
 		if (sheenAlbedoLutBuffer) cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
 		if (sheenCharlieLutBuffer) cudaFree(reinterpret_cast<void*>(sheenCharlieLutBuffer));
 		if (raygenRecord) cudaFree(reinterpret_cast<void*>(raygenRecord));
@@ -923,43 +1038,52 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	std::vector<HitGroupSbtRecord> hitgroupRecordsHost;
 	hitgroupRecordsHost.reserve(snapshot.instances.size());
 
-	// Uploads (and caches, by RtTextureSample pointer identity) one material
-	// texture's rgba8 bytes to the device, populating an RtOptixTexture with
-	// the resulting pointer plus its KHR_texture_transform/wrap/channel-
-	// packing metadata copied verbatim - mirrors RtTextureSample's fields
-	// exactly (see RtOptixSceneParams.h's RtOptixTexture doc comment).
-	// Multiple materials/instances referencing the SAME RtTextureSample
-	// object (a shared texture) upload its bytes only once.
-	std::unordered_map<const RtTextureSample*, CUdeviceptr> textureCache;
-
-	// Uploaded mip pyramid for one RtTextureSample (device array of
-	// RtOptixTextureMipLevel entries, each pointing at its own uploaded
-	// rgba8 buffer) - deduplicated by RtTextureSample pointer identity like
-	// textureCache above. mipArrayDevice==0 means "no mips uploaded" (either
-	// the source RtTextureSample::mips was empty, or an upload failed) - out.
-	// mips/mipCount then stay nullptr/0, and RtOptixScene.cu's
-	// sampleTexture2D() falls back to base-level-only sampling.
-	struct MipCacheEntry { CUdeviceptr mipArrayDevice; int mipCount; };
-	std::unordered_map<const RtTextureSample*, MipCacheEntry> textureMipCache;
-
 	// Diagnostics only (logged once at the end of this function, see the
 	// "scene built" qInfo() below) - lets a report like "GPU performance
 	// degrades as more documents get loaded" be read directly off the log
 	// instead of re-derived from scratch each time: dedupedTextureRefs high
-	// relative to uniqueTextures confirms the RtSceneBuilder/upload dedup
-	// above is actually doing its job on a given scene, and textureBytes/
-	// mipBytes give a concrete per-buildScene() VRAM figure to compare
-	// across documents or over a session.
+	// relative to uniqueTextures confirms the dedup (now spanning both THIS
+	// build's own shared textures AND anything reused from the PREVIOUS
+	// build - see Impl::persistentTextureCache's doc comment) is actually
+	// doing its job on a given scene, and textureBytes/mipBytes give a
+	// concrete "how much NEW VRAM did this rebuild actually need" figure to
+	// compare across documents or over a session.
 	struct TextureUploadStats
 	{
-		int uniqueTextures = 0;      // distinct RtTextureSample pointers actually uploaded (cache miss)
-		int dedupedTextureRefs = 0;  // requests that hit an already-uploaded texture (cache hit)
-		size_t textureBytes = 0;     // total base-level rgba8 bytes uploaded to VRAM
+		int uniqueTextures = 0;      // genuinely new uploads this call (cache miss - new or changed texture)
+		int dedupedTextureRefs = 0;  // requests reused from the cache, whether shared within this build or carried over from the last one
+		size_t textureBytes = 0;     // total base-level rgba8 bytes uploaded to VRAM (new uploads only)
 		int mipLevelsUploaded = 0;   // mip levels uploaded as new buffers (excludes reused level 0)
 		int mipLevelsReused = 0;     // level-0 mips that reused the base buffer instead of a new upload
 		size_t mipBytes = 0;         // total mip-level bytes uploaded (excludes reused level 0)
 	} textureStats;
 
+	// Populates every RtOptixTexture field EXCEPT rgba8/mips/mipCount, which
+	// differ between the cache-hit and cache-miss paths below - factored out
+	// so those two paths don't have to duplicate this list.
+	auto populateTextureTransformFields = [](const RtTextureSample& tex, RtOptixTexture& out)
+	{
+		out.width = tex.width;
+		out.height = tex.height;
+		out.texCoordIndex = std::clamp(tex.texCoordIndex, 0, 3);
+		out.uvScale = make_float2(tex.uvScale.x, tex.uvScale.y);
+		out.uvOffset = make_float2(tex.uvOffset.x, tex.uvOffset.y);
+		out.uvRotation = tex.uvRotation;
+		out.packingChannel = tex.packingChannel;
+		out.packingInvert = tex.packingInvert ? 1 : 0;
+		out.packingScale = tex.packingScale;
+		out.packingBias = tex.packingBias;
+		out.wrapS = tex.wrapS;
+		out.wrapT = tex.wrapT;
+	};
+
+	// Uploads (or reuses, from Impl::persistentTextureCache - see its own doc
+	// comment for why content identity, not RtTextureSample object identity,
+	// is what makes cross-buildScene()-call reuse possible) one material
+	// texture's rgba8 bytes to the device, populating an RtOptixTexture with
+	// the resulting pointer plus its KHR_texture_transform/wrap/channel-
+	// packing metadata copied verbatim - mirrors RtTextureSample's fields
+	// exactly (see RtOptixSceneParams.h's RtOptixTexture doc comment).
 	auto uploadMaterialTexture = [&](const std::shared_ptr<RtTextureSample>& tex, RtOptixTexture& out) -> void
 	{
 		out.rgba8 = nullptr;
@@ -971,42 +1095,49 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			tex->rgba8.size() != static_cast<size_t>(tex->width) * tex->height * 4)
 			return;
 
-		CUdeviceptr deviceRgba8 = 0;
-		auto cached = textureCache.find(tex.get());
-		if (cached != textureCache.end())
+		Impl::TextureUploadKey key;
+		key.imageCacheKey  = tex->imageCacheKey;
+		key.uvScaleX       = tex->uvScale.x;
+		key.uvScaleY       = tex->uvScale.y;
+		key.uvOffsetX      = tex->uvOffset.x;
+		key.uvOffsetY      = tex->uvOffset.y;
+		key.uvRotation     = tex->uvRotation;
+		key.texCoordIndex  = tex->texCoordIndex;
+		key.wrapS          = tex->wrapS;
+		key.wrapT          = tex->wrapT;
+		key.packingChannel = tex->packingChannel;
+		key.packingInvert  = tex->packingInvert;
+		key.packingScale   = tex->packingScale;
+		key.packingBias    = tex->packingBias;
+
+		if (const auto cached = _impl->persistentTextureCache.find(key); cached != _impl->persistentTextureCache.end())
 		{
-			deviceRgba8 = cached->second;
+			// Same source image + same baked-in uv/wrap/packing params as a
+			// texture already resident - either shared by another material
+			// within THIS build, or carried over unchanged from the PREVIOUS
+			// one. Either way, no new device work at all.
+			cached->second.touchedThisBuild = true;
 			++textureStats.dedupedTextureRefs;
-		}
-		else
-		{
-			const size_t bytes = tex->rgba8.size();
-			if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&deviceRgba8), bytes), "cudaMalloc(material texture)"))
-				return;
-			if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(deviceRgba8), tex->rgba8.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture)"))
-			{
-				cudaFree(reinterpret_cast<void*>(deviceRgba8));
-				return;
-			}
-			_impl->textureBuffers.push_back(deviceRgba8);
-			textureCache.emplace(tex.get(), deviceRgba8);
-			++textureStats.uniqueTextures;
-			textureStats.textureBytes += bytes;
+
+			populateTextureTransformFields(*tex, out);
+			out.rgba8 = reinterpret_cast<const uchar4*>(cached->second.baseRgba8);
+			out.mips = reinterpret_cast<const RtOptixTextureMipLevel*>(cached->second.mipArrayDevice);
+			out.mipCount = cached->second.mipCount;
+			return;
 		}
 
-		out.rgba8 = reinterpret_cast<const uchar4*>(deviceRgba8);
-		out.width = tex->width;
-		out.height = tex->height;
-		out.texCoordIndex = std::clamp(tex->texCoordIndex, 0, 3);
-		out.uvScale = make_float2(tex->uvScale.x, tex->uvScale.y);
-		out.uvOffset = make_float2(tex->uvOffset.x, tex->uvOffset.y);
-		out.uvRotation = tex->uvRotation;
-		out.packingChannel = tex->packingChannel;
-		out.packingInvert = tex->packingInvert ? 1 : 0;
-		out.packingScale = tex->packingScale;
-		out.packingBias = tex->packingBias;
-		out.wrapS = tex->wrapS;
-		out.wrapT = tex->wrapT;
+		// Cache miss - genuinely new (or changed since last build) texture.
+		CUdeviceptr deviceRgba8 = 0;
+		const size_t bytes = tex->rgba8.size();
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&deviceRgba8), bytes), "cudaMalloc(material texture)"))
+			return;
+		if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(deviceRgba8), tex->rgba8.data(), bytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture)"))
+		{
+			cudaFree(reinterpret_cast<void*>(deviceRgba8));
+			return;
+		}
+		++textureStats.uniqueTextures;
+		textureStats.textureBytes += bytes;
 
 		// Box-filter mip pyramid (RtTextureSample::mips, built once on the
 		// host by RtSceneBuilder::buildMipChain()) - each level's rgba8
@@ -1014,14 +1145,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		// {devicePtr,width,height} entries uploaded once, mirroring
 		// RtOptixEnvironment::prefilterMips' own per-level-array upload
 		// pattern. See RtOptixTexture::mips' doc comment for the consumer.
-		auto mipCached = textureMipCache.find(tex.get());
-		if (mipCached != textureMipCache.end())
-		{
-			out.mips = reinterpret_cast<const RtOptixTextureMipLevel*>(mipCached->second.mipArrayDevice);
-			out.mipCount = mipCached->second.mipCount;
-			return;
-		}
-
+		std::vector<CUdeviceptr> localMipBuffers;
 		CUdeviceptr mipArrayDevice = 0;
 		int mipCount = 0;
 		if (!tex->mips.empty())
@@ -1039,15 +1163,6 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			int localMipLevelsUploaded = 0;
 			int localMipLevelsReused = 0;
 			size_t localMipBytes = 0;
-			// Marks where THIS texture's per-level mip buffers start within
-			// textureBuffers (excludes the base deviceRgba8 buffer, pushed
-			// earlier, and any reused mip-0 entry, which never pushes here) -
-			// if the loop below bails partway through, everything from this
-			// index onward is freed immediately rather than left allocated
-			// until the next buildScene()/destructor (see BuildFailureGuard's
-			// doc comment above for why immediate release matters on a
-			// failure path).
-			const size_t mipBuffersStartIndex = _impl->textureBuffers.size();
 			for (const RtTextureMipLevel& mip : tex->mips)
 			{
 				if (mip.width <= 0 || mip.height <= 0 ||
@@ -1094,7 +1209,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 				}
 				++localMipLevelsUploaded;
 				localMipBytes += mipBytes;
-				_impl->textureBuffers.push_back(deviceMipRgba8);
+				localMipBuffers.push_back(deviceMipRgba8);
 
 				RtOptixTextureMipLevel entry{};
 				entry.rgba8 = reinterpret_cast<const uchar4*>(deviceMipRgba8);
@@ -1109,18 +1224,15 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 				const bool mallocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipArrayDevice), arrayBytes), "cudaMalloc(material texture mip array)");
 				if (mallocOk && cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipArrayDevice), mipsHost.data(), arrayBytes, cudaMemcpyHostToDevice), "cudaMemcpy(material texture mip array)"))
 				{
-					_impl->textureBuffers.push_back(mipArrayDevice);
 					mipCount = static_cast<int>(mipsHost.size());
 				}
 				else
 				{
 					// mallocOk but the memcpy failed: mipArrayDevice is a real,
-					// still-live allocation that was never pushed onto
-					// textureBuffers (only a successful upload gets tracked
-					// there for freeSceneBuffers() to free later) - free it
-					// here directly or it's orphaned with no remaining pointer
-					// to reach it. If mallocOk is false, mipArrayDevice is
-					// already 0 and cudaFree(nullptr) is a harmless no-op.
+					// still-live allocation - free it here directly or it's
+					// orphaned with no remaining pointer to reach it. If
+					// mallocOk is false, mipArrayDevice is already 0 and
+					// cudaFree(nullptr) is a harmless no-op.
 					if (mallocOk)
 						cudaFree(reinterpret_cast<void*>(mipArrayDevice));
 					mipArrayDevice = 0;
@@ -1141,19 +1253,26 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			{
 				// Either the per-level loop failed partway (ok==false) or it
 				// finished but the final array malloc/memcpy above failed -
-				// either way, out.mips/mipCount stay null/0 (base-only
-				// sampling fallback) and every per-level buffer this
-				// texture's loop uploaded is now unreferenced. Free them
-				// immediately rather than leaving them allocated until the
-				// next buildScene()/destructor - see BuildFailureGuard's doc
-				// comment above for why immediate release matters here.
-				for (size_t i = mipBuffersStartIndex; i < _impl->textureBuffers.size(); ++i)
-					if (_impl->textureBuffers[i]) cudaFree(reinterpret_cast<void*>(_impl->textureBuffers[i]));
-				_impl->textureBuffers.resize(mipBuffersStartIndex);
+				// out.mips/mipCount stay null/0 (base-only sampling fallback)
+				// and every per-level buffer this texture's loop uploaded is
+				// now unreferenced - free them immediately rather than
+				// stashing them in the persistent cache entry below.
+				for (CUdeviceptr mipBuf : localMipBuffers)
+					if (mipBuf) cudaFree(reinterpret_cast<void*>(mipBuf));
+				localMipBuffers.clear();
 			}
 		}
 
-		textureMipCache.emplace(tex.get(), MipCacheEntry{ mipArrayDevice, mipCount });
+		Impl::TextureUploadEntry entry;
+		entry.baseRgba8 = deviceRgba8;
+		entry.mipBuffers = std::move(localMipBuffers);
+		entry.mipArrayDevice = mipArrayDevice;
+		entry.mipCount = mipCount;
+		entry.touchedThisBuild = true;
+		_impl->persistentTextureCache.emplace(key, std::move(entry));
+
+		populateTextureTransformFields(*tex, out);
+		out.rgba8 = reinterpret_cast<const uchar4*>(deviceRgba8);
 		out.mips = reinterpret_cast<const RtOptixTextureMipLevel*>(mipArrayDevice);
 		out.mipCount = mipCount;
 	};
@@ -1622,6 +1741,14 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		<< textureStats.dedupedTextureRefs << "refs deduped," << (textureStats.textureBytes / 1024 / 1024) << "MB base,"
 		<< textureStats.mipLevelsUploaded << "mip levels uploaded (" << (textureStats.mipBytes / 1024 / 1024) << "MB ),"
 		<< textureStats.mipLevelsReused << "mip-0 levels reused (0 MB extra).";
+
+	// Every texture this snapshot actually references has now been resolved
+	// (and its persistentTextureCache entry marked touched, whether reused or
+	// freshly uploaded above) - safe to sweep anything left unmarked (a
+	// texture from the previous build that this one no longer references at
+	// all) now, before declaring the build itself successful.
+	_impl->evictUnusedTextures();
+
 	succeeded = true;
 	return true;
 }

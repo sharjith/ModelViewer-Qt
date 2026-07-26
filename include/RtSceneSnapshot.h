@@ -119,6 +119,24 @@ struct RtTextureSample
 	// is assumed unconditionally - this was a real, previously-unhandled gap.
 	unsigned int wrapS = 0x2901; // GL_REPEAT
 	unsigned int wrapT = 0x2901; // GL_REPEAT
+
+	// QImage::cacheKey() of the SOURCE image this sample was decoded from
+	// (RtSceneBuilder::extractTextureSample()'s own within-build dedup key
+	// already uses this same value - see TextureDedupKey - just never carried
+	// it onto the baked-out RtTextureSample itself before). Every
+	// RtSceneBuilder::build() call allocates a brand-new RtTextureSample
+	// object for every texture regardless of whether the underlying image
+	// actually changed, so raw pointer/object identity is USELESS as a
+	// texture-reuse key across two separate snapshots (only within the one
+	// build() call that produced them) - this field is what lets
+	// RtOptixSceneTracer recognize "this is the same source texture as last
+	// build" across snapshots and skip re-uploading it to a fresh device
+	// buffer. 0 is a valid (if statistically near-impossible to collide)
+	// QImage cache key, not a reserved "absent" sentinel - RtOptixSceneTracer
+	// combines this with the uv/wrap/packing fields above for its own cache
+	// key, mirroring TextureDedupKey's full field set, so a same-image-
+	// different-transform texture still gets its own cache entry.
+	int64_t imageCacheKey = 0;
 };
 
 // v1 shading vocabulary: diffuse + metallic-roughness + emissive + basic
