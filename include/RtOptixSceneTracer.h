@@ -54,14 +54,24 @@ public:
 	// meshes/instances - mirrors RtEmbreeScene::build()'s contract. Callers
 	// (InteractivePtRenderer::ensureSceneResources(), RtOptixPathTracingSession::
 	// start()) already skip calling this at all when the snapshot's revisionId
-	// hasn't changed, but every ACTUAL call still unconditionally rebuilds the
-	// GAS/IAS from scratch - no revision-check fast path *within* this
-	// function yet (see RtEmbreeScene's own revisionId()/RtFrameAccumulator's
-	// handling for the pattern a later phase could adopt here, e.g. a dirty-
-	// ratio rebuild-vs-refit split). Material TEXTURES are the one piece that
-	// already persists across calls independently of all this - see
-	// Impl::persistentTextureCache's doc comment. Returns false if OptiX
-	// isn't available or the build failed.
+	// hasn't changed. Every ACTUAL call still walks every mesh/instance, but
+	// three pieces persist across calls independently rather than being
+	// unconditionally rebuilt from scratch each time: material TEXTURES (see
+	// Impl::persistentTextureCache's doc comment), mesh GAS (see
+	// Impl::persistentGasCache's doc comment - a mesh whose content hash
+	// hasn't changed since the last build reuses its already-built GAS with
+	// no new device work; one whose vertex/index COUNT is unchanged but
+	// whose content hash moved - a skinned/morphed pose update - REFITS its
+	// existing GAS in place, OPTIX_BUILD_OPERATION_UPDATE, instead of a full
+	// rebuild), and the IAS itself, which refits in place the same way
+	// whenever its TOPOLOGY - instance count and each instance's GAS
+	// assignment - hasn't changed (see the GAS/IAS sections' own doc
+	// comments in the .cpp). A material-only edit or a single object's
+	// transform move in an otherwise unchanged scene now pays close to none
+	// of this function's cost, and actively playing a skinned/morphed
+	// animation pays only a refit per animating mesh per frame rather than a
+	// full GAS rebuild.
+	// Returns false if OptiX isn't available or the build failed.
 	bool buildScene(const RtSceneSnapshot& snapshot);
 
 	// Renders the current scene (from the last successful buildScene() call)

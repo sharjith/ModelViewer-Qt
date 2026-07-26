@@ -60,6 +60,40 @@ struct RtMeshGeometry
 {
 	std::vector<RtVertex> vertices;
 	std::vector<uint32_t> indices; // triangle list, 3 indices per triangle
+
+	// Stable per-object identity - a hash of the owning SceneMesh's OWN QUuid
+	// (Drawable::uuid(), the same one SceneMeshRecord/SceneRuntime's
+	// _meshStore carries alongside the mesh pointer - see
+	// RtSceneBuilder::build()'s loop for the exact call site) - plus a
+	// content hash of the FINAL (post-skinning/morph) vertex+index data,
+	// computed once per RtSceneBuilder::build() call. Together these let
+	// RtOptixSceneTracer recognize a mesh unchanged since its last
+	// buildScene() call (same id, same hash) and reuse its already-uploaded
+	// GAS with no new device work - mirrors RtTextureSample::imageCacheKey's
+	// identical reasoning: object identity alone isn't enough for a skinned/
+	// morphed mesh, since sourceObjectId stays the same across every
+	// animation frame while the vertex data itself changes: contentHash is
+	// what actually detects that.
+	//
+	// Deliberately NOT SceneRuntime::currentVisibleObjectIds()'s positional
+	// index (a prior version of this field used that instead, directly) -
+	// that index is just this mesh's current slot in _meshStore, which
+	// SceneRuntime::removeMeshAt()/restoreDetachedMesh() erase()/insert()
+	// shift for every OTHER mesh later in the vector on every delete/undo-
+	// restore. A single unrelated object's delete-then-undo elsewhere in the
+	// scene was observed (via a real session log) spuriously cache-missing
+	// ~2/3 of an otherwise fully static ~150-mesh scene's GAS entries, purely
+	// because their positional "identity" shifted - not because their
+	// geometry changed at all. The mesh's own QUuid has no such issue: it's
+	// stable for the mesh's whole lifetime regardless of what else in the
+	// scene is added, removed, or reordered.
+	//
+	// 0/0 (the default) never matches a real cache entry (0 is a possible
+	// qHash(QUuid) result in principle, but combined with a genuinely-
+	// computed hash of empty vertex/index data it still only ever matches an
+	// equally-empty mesh).
+	uint32_t sourceObjectId = 0;
+	uint64_t contentHash = 0;
 };
 
 // CPU-resident RGBA8 pixel buffer copied out of a Material::Texture's QImage

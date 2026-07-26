@@ -141,9 +141,15 @@ struct RtOptixSceneTracer::Impl
 	double lastIasBuildMs = 0.0;
 	uint64_t lastTriangleCount = 0;
 
-	// One entry per snapshot mesh (GAS) - kept alive for the lifetime of the
-	// built scene since the closest-hit shader dereferences positions/indices
-	// directly, and the IAS's OptixInstance array references each handle.
+	// One entry per snapshot mesh (GAS), THIS build's positional list only -
+	// kept alive for the lifetime of the built scene since the closest-hit
+	// shader dereferences positions/indices directly, and the IAS's
+	// OptixInstance array references each handle. Does NOT own the device
+	// buffers below (persistentGasCache does - see its own doc comment) -
+	// just a per-build, positionally-indexed copy of whichever cache entry
+	// (hit or miss) resolved to each snapshot mesh, exactly mirroring how
+	// uploadMaterialTexture()'s RtOptixTexture outputs point at
+	// persistentTextureCache-owned buffers without owning them either.
 	struct MeshGas
 	{
 		CUdeviceptr positions = 0;
@@ -157,9 +163,110 @@ struct RtOptixSceneTracer::Impl
 	};
 	std::vector<MeshGas> meshGasEntries;
 
+	// Persistent cache of built mesh GAS (bottom-level acceleration
+	// structures), keyed on RtMeshGeometry::sourceObjectId alone (a stable
+	// per-mesh identity - see that field's own doc comment, RtSceneSnapshot.h)
+	// - mirrors persistentTextureCache/evictUnusedTextures() exactly (see
+	// that struct's doc comment), just for mesh geometry instead of textures.
+	// SURVIVES across buildScene() calls (see freeSceneBuffers()'s
+	// includePersistentCaches parameter) so a mesh whose geometry hasn't
+	// actually changed since the last build - the common case for a
+	// material/light/single-object edit in an otherwise-static large
+	// assembly - needs no new cudaMalloc/cudaMemcpy/optixAccelBuild() at all.
+	//
+	// contentHash/vertexCount/indexCount are carried IN the entry (rather
+	// than baked into the map key, as an earlier version of this cache did)
+	// specifically so a MISS (contentHash changed - e.g. a skinned/morphed
+	// mesh's pose advanced) can still be resolved against its own PREVIOUS
+	// entry by sourceObjectId: if vertexCount/indexCount are unchanged
+	// (topology-preserving deformation - skinning/morph moves positions/
+	// normals/tangents but never changes triangle connectivity), buildScene()
+	// REFITS (OPTIX_BUILD_OPERATION_UPDATE) the existing device buffers/GAS
+	// in place instead of freeing and rebuilding from scratch - much cheaper,
+	// and the dominant cost during actual skinned-animation playback (a
+	// content-hash miss is otherwise expected and correct there, since the
+	// pose genuinely differs every frame - see this cache's own hit/miss
+	// logic in buildScene() for the full three-way hit/refit/rebuild split).
+	struct MeshGasEntry
+	{
+		uint64_t contentHash = 0;
+		uint32_t vertexCount = 0;
+		uint32_t indexCount = 0;
+		CUdeviceptr positions = 0;
+		CUdeviceptr indices = 0;
+		CUdeviceptr normals = 0;
+		CUdeviceptr texCoords = 0;
+		CUdeviceptr tangents = 0;
+		CUdeviceptr vertexColors = 0;
+		CUdeviceptr gasOutputBuffer = 0;
+		OptixTraversableHandle handle = 0;
+		// Mark-and-sweep flag for evictUnusedGas() - same convention as
+		// TextureUploadEntry::touchedThisBuild.
+		bool touchedThisBuild = false;
+	};
+	std::unordered_map<uint32_t, MeshGasEntry> persistentGasCache;
+
+	static void freeGasEntry(MeshGasEntry& entry)
+	{
+		if (entry.positions) cudaFree(reinterpret_cast<void*>(entry.positions));
+		if (entry.normals) cudaFree(reinterpret_cast<void*>(entry.normals));
+		if (entry.texCoords) cudaFree(reinterpret_cast<void*>(entry.texCoords));
+		if (entry.tangents) cudaFree(reinterpret_cast<void*>(entry.tangents));
+		if (entry.vertexColors) cudaFree(reinterpret_cast<void*>(entry.vertexColors));
+		if (entry.indices) cudaFree(reinterpret_cast<void*>(entry.indices));
+		if (entry.gasOutputBuffer) cudaFree(reinterpret_cast<void*>(entry.gasOutputBuffer));
+	}
+
+	// Mark-and-sweep eviction - called once, at the end of a SUCCESSFUL
+	// buildScene(), after every mesh the new snapshot actually references has
+	// already been resolved (and its cache entry marked touchedThisBuild by
+	// the GAS loop below, whether a fresh build or a reuse). Anything left
+	// unmarked wasn't referenced by this snapshot at all (removed mesh, or a
+	// skinned/morphed mesh whose content hash moved on) and gets freed
+	// instead of kept forever - mirrors evictUnusedTextures() exactly.
+	void evictUnusedGas()
+	{
+		int evicted = 0;
+		for (auto it = persistentGasCache.begin(); it != persistentGasCache.end(); )
+		{
+			if (it->second.touchedThisBuild)
+			{
+				it->second.touchedThisBuild = false; // reset for the next build's marking pass
+				++it;
+			}
+			else
+			{
+				freeGasEntry(it->second);
+				it = persistentGasCache.erase(it);
+				++evicted;
+			}
+		}
+		if (evicted > 0)
+			qInfo() << "RtOptixSceneTracer::evictUnusedGas: freed" << evicted << "mesh GAS entry/entries no longer referenced.";
+	}
+
+	// instancesBuffer/iasOutputBuffer are NOT unconditionally freed at the
+	// top of every buildScene() call the way most other buffers below are -
+	// see buildScene()'s IAS section for why: when the IAS's TOPOLOGY hasn't
+	// changed since the last build (same instance count, same per-instance
+	// GAS handle - i.e. no mesh added/removed/swapped, only transforms
+	// and/or materials differ), both buffers are reused in place via
+	// OPTIX_BUILD_OPERATION_UPDATE (a refit) instead of a full rebuild - see
+	// lastIasInstanceHandles below. Only freed when a full rebuild is
+	// actually chosen (topology changed, so the buffers may need a different
+	// size) or on final teardown (~Impl()).
 	CUdeviceptr instancesBuffer = 0;
 	CUdeviceptr iasOutputBuffer = 0;
 	OptixTraversableHandle iasHandle = 0;
+
+	// Ordered per-instance GAS handle sequence from the LAST successful IAS
+	// build (index i == the OptixInstance built for snapshot.instances[i]) -
+	// the topology fingerprint buildScene() diffs the NEW instance list
+	// against to decide refit-vs-rebuild. Empty means "no valid previous
+	// build to refit against" (first build ever, or the last one used a full
+	// rebuild for some other reason) - always forces a full rebuild.
+	std::vector<OptixTraversableHandle> lastIasInstanceHandles;
+
 	CUdeviceptr lightsBuffer = 0;
 	unsigned int lightCount = 0;
 	bool infinitePlaneEnabled = false;
@@ -361,51 +468,52 @@ struct RtOptixSceneTracer::Impl
 
 	void ensureSheenAlbedoLut();
 
-	// includeTextureCache: false (default, used at the top of every
-	// buildScene() call) leaves persistentTextureCache untouched - that's the
-	// whole point of it being persistent (see its own doc comment); a fresh
-	// build's uploadMaterialTexture() calls will reuse whatever's still
-	// resident and evictUnusedTextures() sweeps anything genuinely stale
-	// AFTER the new snapshot's textures have all been resolved, not here.
-	// true (only ~Impl(), i.e. the whole tracer/document being torn down)
-	// also frees every cached texture and clears the cache, since there's no
+	// includePersistentCaches: false (default, used at the top of every
+	// buildScene() call) leaves persistentTextureCache/persistentGasCache
+	// untouched - that's the whole point of them being persistent (see their
+	// own doc comments); a fresh build's uploadMaterialTexture()/GAS-loop
+	// lookups reuse whatever's still resident, and evictUnusedTextures()/
+	// evictUnusedGas() sweep anything genuinely stale AFTER the new
+	// snapshot's meshes/textures have all been resolved, not here. true
+	// (only ~Impl(), i.e. the whole tracer/document being torn down) also
+	// frees every cached texture/GAS and clears both caches, since there's no
 	// future buildScene() call left to reuse them.
-	void freeSceneBuffers(bool includeTextureCache = false)
+	void freeSceneBuffers(bool includePersistentCaches = false)
 	{
-		// Diagnostic only - lets a document-open/close cycle be read directly
-		// off the log to confirm GPU scene teardown is actually happening
-		// (called unconditionally at the START of every buildScene(), and
-		// again from ~Impl() when the whole tracer/document is destroyed -
-		// see that destructor's own log line for distinguishing the two).
-		if (!meshGasEntries.empty())
-			qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << meshGasEntries.size() << "mesh GAS entries.";
-
-		for (MeshGas& gas : meshGasEntries)
-		{
-			if (gas.positions) cudaFree(reinterpret_cast<void*>(gas.positions));
-			if (gas.normals) cudaFree(reinterpret_cast<void*>(gas.normals));
-			if (gas.texCoords) cudaFree(reinterpret_cast<void*>(gas.texCoords));
-			if (gas.tangents) cudaFree(reinterpret_cast<void*>(gas.tangents));
-			if (gas.vertexColors) cudaFree(reinterpret_cast<void*>(gas.vertexColors));
-			if (gas.indices) cudaFree(reinterpret_cast<void*>(gas.indices));
-			if (gas.gasOutputBuffer) cudaFree(reinterpret_cast<void*>(gas.gasOutputBuffer));
-		}
+		// meshGasEntries itself is just THIS build's transient, positionally-
+		// indexed list of pointers into persistentGasCache entries (see its
+		// own doc comment) - it doesn't own the device buffers, so clearing
+		// it never frees anything; only evictUnusedGas()/the
+		// includePersistentCaches branch below actually do.
 		meshGasEntries.clear();
 
-		if (includeTextureCache)
+		if (includePersistentCaches)
 		{
+			if (!persistentGasCache.empty())
+				qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << persistentGasCache.size() << "cached mesh GAS entr(y/ies) (final teardown).";
+			for (auto& [key, entry] : persistentGasCache)
+				freeGasEntry(entry);
+			persistentGasCache.clear();
+
 			if (!persistentTextureCache.empty())
 				qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << persistentTextureCache.size() << "cached texture(s) (final teardown).";
 			for (auto& [key, entry] : persistentTextureCache)
 				freeTextureEntry(entry);
 			persistentTextureCache.clear();
+
+			// Final teardown only - see instancesBuffer/iasOutputBuffer's own
+			// doc comment for why these are NOT unconditionally freed here
+			// the way they used to be (a mid-session buildScene() call frees
+			// them explicitly itself, only when actually choosing a full
+			// rebuild - see that section).
+			if (instancesBuffer) cudaFree(reinterpret_cast<void*>(instancesBuffer));
+			instancesBuffer = 0;
+			if (iasOutputBuffer) cudaFree(reinterpret_cast<void*>(iasOutputBuffer));
+			iasOutputBuffer = 0;
+			iasHandle = 0;
+			lastIasInstanceHandles.clear();
 		}
 
-		if (instancesBuffer) cudaFree(reinterpret_cast<void*>(instancesBuffer));
-		instancesBuffer = 0;
-		if (iasOutputBuffer) cudaFree(reinterpret_cast<void*>(iasOutputBuffer));
-		iasOutputBuffer = 0;
-		iasHandle = 0;
 		if (lightsBuffer) cudaFree(reinterpret_cast<void*>(lightsBuffer));
 		lightsBuffer = 0;
 		lightCount = 0;
@@ -461,7 +569,7 @@ struct RtOptixSceneTracer::Impl
 		// actually released, not just their owning RtOptixSceneTracer/
 		// RtOptixPathTracingSession going out of scope in C++ terms.
 		qInfo() << "RtOptixSceneTracer: tracer destroyed - releasing pipeline/module/device context.";
-		freeSceneBuffers(/*includeTextureCache=*/true);
+		freeSceneBuffers(/*includePersistentCaches=*/true);
 		if (sheenAlbedoLutBuffer) cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
 		if (sheenCharlieLutBuffer) cudaFree(reinterpret_cast<void*>(sheenCharlieLutBuffer));
 		if (raygenRecord) cudaFree(reinterpret_cast<void*>(raygenRecord));
@@ -875,12 +983,17 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// before reaching the success point at the bottom (there are ~15 early
 	// `return false;` sites below, for bad geometry/CUDA allocation failures/
 	// etc. - not worth annotating each one individually). Without this, a
-	// build that fails partway through leaves its already-uploaded GAS/
-	// texture/environment buffers allocated until the NEXT buildScene() call
-	// (whose own freeSceneBuffers() at the top would eventually reach them)
-	// or the tracer's destruction - exactly backwards for a failure that may
-	// itself be OOM-triggered, which should shed memory pressure immediately
-	// instead of compounding it.
+	// build that fails partway through leaves its already-uploaded
+	// environment/lights/instance buffers allocated until the NEXT
+	// buildScene() call (whose own freeSceneBuffers() at the top would
+	// eventually reach them) or the tracer's destruction - exactly backwards
+	// for a failure that may itself be OOM-triggered, which should shed
+	// memory pressure immediately instead of compounding it. GAS/texture
+	// buffers are handled separately now (see persistentGasCache/
+	// persistentTextureCache's own doc comments) - a mesh/texture that
+	// already succeeded before a LATER failure elsewhere in this same
+	// attempt stays cached rather than being torn down by this guard, since
+	// there's no reason to redo work that already succeeded.
 	bool succeeded = false;
 	struct BuildFailureGuard
 	{
@@ -905,10 +1018,16 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	_impl->infinitePlaneRoughness = snapshot.infinitePlane.material.shadowCatcherRoughness;
 
 	// --- One GAS per unique mesh - mirrors RtEmbreeScene::build()'s BLAS
-	// loop exactly, just building an OptiX GAS instead of an Embree scene. ---
+	// loop exactly, just building an OptiX GAS instead of an Embree scene.
+	// Content-keyed against Impl::persistentGasCache first (see that
+	// member's doc comment) - a mesh unchanged since the last buildScene()
+	// call reuses its already-uploaded/built GAS with zero new device work. ---
 	_impl->meshGasEntries.reserve(snapshot.meshes.size());
 	_impl->lastGasBuildMs = 0.0;
 	_impl->lastTriangleCount = 0;
+	int gasCacheHits = 0;
+	int gasRefits = 0;
+	int gasCacheMisses = 0;
 	for (const RtMeshGeometry& mesh : snapshot.meshes)
 	{
 		Impl::MeshGas gas;
@@ -918,6 +1037,48 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			_impl->meshGasEntries.push_back(gas); // empty mesh - handle stays 0, referenced by no instance normally
 			continue;
 		}
+
+		auto cachedIt = _impl->persistentGasCache.find(mesh.sourceObjectId);
+		bool haveCachedEntry = cachedIt != _impl->persistentGasCache.end();
+
+		if (haveCachedEntry && cachedIt->second.contentHash == mesh.contentHash)
+		{
+			// Same source object + same content hash as a GAS already built -
+			// either this is the first duplicate reference within THIS build
+			// (identical geometry reused by another instance - rare in this
+			// codebase's 1:1 mesh model, see RtSceneSnapshot.h's own comment
+			// on deferred instance-sharing) or, far more commonly, carried
+			// over unchanged from the PREVIOUS build. Either way, no new
+			// device work at all.
+			cachedIt->second.touchedThisBuild = true;
+			++gasCacheHits;
+			_impl->lastTriangleCount += mesh.indices.size() / 3;
+			gas.positions = cachedIt->second.positions;
+			gas.indices = cachedIt->second.indices;
+			gas.normals = cachedIt->second.normals;
+			gas.texCoords = cachedIt->second.texCoords;
+			gas.tangents = cachedIt->second.tangents;
+			gas.vertexColors = cachedIt->second.vertexColors;
+			gas.gasOutputBuffer = cachedIt->second.gasOutputBuffer;
+			gas.handle = cachedIt->second.handle;
+			_impl->meshGasEntries.push_back(gas);
+			continue;
+		}
+
+		// MISS - content hash differs (or this is a genuinely new object).
+		// REFIT-eligible if there's a previous entry for this same object
+		// whose vertex/index COUNT is unchanged - topology-preserving
+		// deformation (skinning/morph moves positions/normals/tangents, never
+		// triangle connectivity) - so its existing device buffers can be
+		// overwritten and the GAS updated in place (OPTIX_BUILD_OPERATION_
+		// UPDATE) instead of freed and rebuilt from scratch. This is the
+		// dominant cost during actual skinned-animation playback (confirmed
+		// via a real session log: BrainStem.glb's ~59 skinned meshes each
+		// missed and paid a FULL rebuild on every single animation tick
+		// before this refit path existed).
+		const bool refitEligible = haveCachedEntry &&
+			cachedIt->second.vertexCount == static_cast<uint32_t>(mesh.vertices.size()) &&
+			cachedIt->second.indexCount == static_cast<uint32_t>(mesh.indices.size());
 
 		std::vector<float3> positions(mesh.vertices.size());
 		std::vector<float3> normals(mesh.vertices.size());
@@ -957,79 +1118,224 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float3);
 		const size_t indicesBytes = mesh.indices.size() * sizeof(uint32_t); // uint3[] and uint32_t[3*N] share the same binary layout
 
-		bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.positions), positionsBytes), "cudaMalloc(mesh positions)");
-		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions)");
-		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.normals), normalsBytes), "cudaMalloc(mesh normals)");
-		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals)");
-		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.texCoords), texCoordsBytes), "cudaMalloc(mesh texCoords)");
-		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), texCoords.data(), texCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords)");
-		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.tangents), tangentsBytes), "cudaMalloc(mesh tangents)");
-		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.tangents), tangents.data(), tangentsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh tangents)");
-		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.vertexColors), vertexColorsBytes), "cudaMalloc(mesh vertexColors)");
-		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), vertexColors.data(), vertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors)");
-		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.indices), indicesBytes), "cudaMalloc(mesh indices)");
-		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.indices), mesh.indices.data(), indicesBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh indices)");
-		if (!ok)
+		bool refitSucceeded = false;
+		if (refitEligible)
 		{
-			_impl->meshGasEntries.push_back(gas);
-			continue;
-		}
+			// Reuse the existing device buffers/handle in place - vertex/
+			// index COUNT is unchanged (checked above), so their byte sizes
+			// match exactly; only their CONTENTS need updating. Indices are
+			// NOT re-uploaded - topology-preserving deformation never
+			// changes triangle connectivity, so the index buffer's content
+			// is already correct and unchanged.
+			gas.positions = cachedIt->second.positions;
+			gas.normals = cachedIt->second.normals;
+			gas.texCoords = cachedIt->second.texCoords;
+			gas.tangents = cachedIt->second.tangents;
+			gas.vertexColors = cachedIt->second.vertexColors;
+			gas.indices = cachedIt->second.indices;
+			gas.gasOutputBuffer = cachedIt->second.gasOutputBuffer;
 
-		OptixAccelBuildOptions accelOptions{};
-		// ALLOW_RANDOM_VERTEX_ACCESS is required for __closesthit__ch()'s
-		// optixGetTriangleVertexData() call (texture-footprint/LOD
-		// computation - see its call site's doc comment) to legally read a
-		// hit triangle's object-space vertex positions back out of this GAS.
-		accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS;
-		accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+			bool ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions, GAS refit)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals, GAS refit)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), texCoords.data(), texCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords, GAS refit)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.tangents), tangents.data(), tangentsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh tangents, GAS refit)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), vertexColors.data(), vertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors, GAS refit)");
 
-		const uint32_t triangleInputFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
-		OptixBuildInput triangleInput{};
-		triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
-		triangleInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
-		triangleInput.triangleArray.numVertices = static_cast<uint32_t>(positions.size());
-		triangleInput.triangleArray.vertexBuffers = &gas.positions;
-		triangleInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
-		triangleInput.triangleArray.numIndexTriplets = static_cast<uint32_t>(mesh.indices.size() / 3);
-		triangleInput.triangleArray.indexBuffer = gas.indices;
-		triangleInput.triangleArray.flags = triangleInputFlags;
-		triangleInput.triangleArray.numSbtRecords = 1;
-
-		OptixAccelBufferSizes gasBufferSizes{};
-		if (!optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage()"))
-		{
-			_impl->meshGasEntries.push_back(gas);
-			continue;
-		}
-
-		CUdeviceptr tempBuffer = 0;
-		ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempSizeInBytes), "cudaMalloc(gas temp)");
-		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.gasOutputBuffer), gasBufferSizes.outputSizeInBytes), "cudaMalloc(gas output)");
-		if (ok)
-		{
-			// Diagnostics tab timing only - optixAccelBuild() itself queues
-			// onto the default stream, so this timer's end (the cudaFree()
-			// right below, which - like every other synchronization-free
-			// readback in this file - relies on the legacy default stream's
-			// implicit blocking semantics) is what actually makes it
-			// measure real GPU build time rather than just host-side launch
-			// overhead.
-			QElapsedTimer gasTimer;
-			gasTimer.start();
-			ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
-				tempBuffer, gasBufferSizes.tempSizeInBytes,
-				gas.gasOutputBuffer, gasBufferSizes.outputSizeInBytes,
-				&gas.handle, nullptr, 0), "optixAccelBuild(GAS)");
-			if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
-			tempBuffer = 0;
-			_impl->lastGasBuildMs += static_cast<double>(gasTimer.nsecsElapsed()) / 1.0e6;
 			if (ok)
-				_impl->lastTriangleCount += mesh.indices.size() / 3;
+			{
+				OptixAccelBuildOptions accelOptions{};
+				accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+				accelOptions.operation = OPTIX_BUILD_OPERATION_UPDATE;
+
+				const uint32_t triangleInputFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+				OptixBuildInput triangleInput{};
+				triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+				triangleInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+				triangleInput.triangleArray.numVertices = static_cast<uint32_t>(positions.size());
+				triangleInput.triangleArray.vertexBuffers = &gas.positions;
+				triangleInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+				triangleInput.triangleArray.numIndexTriplets = static_cast<uint32_t>(mesh.indices.size() / 3);
+				triangleInput.triangleArray.indexBuffer = gas.indices;
+				triangleInput.triangleArray.flags = triangleInputFlags;
+				triangleInput.triangleArray.numSbtRecords = 1;
+
+				OptixAccelBufferSizes gasBufferSizes{};
+				ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage(GAS refit)");
+				if (ok)
+				{
+					CUdeviceptr tempBuffer = 0;
+					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempUpdateSizeInBytes), "cudaMalloc(gas refit temp)");
+					if (ok)
+					{
+						QElapsedTimer gasTimer;
+						gasTimer.start();
+						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
+							tempBuffer, gasBufferSizes.tempUpdateSizeInBytes,
+							gas.gasOutputBuffer, gasBufferSizes.outputSizeInBytes,
+							&gas.handle, nullptr, 0), "optixAccelBuild(GAS refit)");
+						_impl->lastGasBuildMs += static_cast<double>(gasTimer.nsecsElapsed()) / 1.0e6;
+						if (ok)
+							_impl->lastTriangleCount += mesh.indices.size() / 3;
+					}
+					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
+				}
+			}
+
+			if (ok)
+			{
+				refitSucceeded = true;
+				++gasRefits;
+				cachedIt->second.contentHash = mesh.contentHash;
+				cachedIt->second.handle = gas.handle;
+				cachedIt->second.touchedThisBuild = true;
+				_impl->meshGasEntries.push_back(gas);
+				continue;
+			}
+
+			// Refit failed partway through (bad memcpy/
+			// optixAccelComputeMemoryUsage/optixAccelBuild) - the buffers may
+			// now hold a mix of old/new content and gas.handle is
+			// unreliable. They're still owned by persistentGasCache (not
+			// leaked), but this entry can no longer be trusted - erase it
+			// (freeing its buffers) and fall through to a genuine full
+			// rebuild below, exactly as if refit had never been attempted.
+			Impl::freeGasEntry(cachedIt->second);
+			_impl->persistentGasCache.erase(cachedIt);
+			haveCachedEntry = false;
+			gas = Impl::MeshGas{};
 		}
-		if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer)); // only reached if a malloc above failed
+		else if (haveCachedEntry)
+		{
+			// Same object, but vertex/index COUNT changed (topology itself
+			// changed, not just a deformation) - the old entry's buffers are
+			// the wrong size to refit into; free them before the full
+			// rebuild below allocates fresh ones sized for the NEW geometry.
+			Impl::freeGasEntry(cachedIt->second);
+			_impl->persistentGasCache.erase(cachedIt);
+			haveCachedEntry = false;
+		}
+
+		if (!refitSucceeded)
+		{
+			++gasCacheMisses;
+
+			bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.positions), positionsBytes), "cudaMalloc(mesh positions)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions)");
+			if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.normals), normalsBytes), "cudaMalloc(mesh normals)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals)");
+			if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.texCoords), texCoordsBytes), "cudaMalloc(mesh texCoords)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), texCoords.data(), texCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords)");
+			if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.tangents), tangentsBytes), "cudaMalloc(mesh tangents)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.tangents), tangents.data(), tangentsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh tangents)");
+			if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.vertexColors), vertexColorsBytes), "cudaMalloc(mesh vertexColors)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), vertexColors.data(), vertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors)");
+			if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.indices), indicesBytes), "cudaMalloc(mesh indices)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.indices), mesh.indices.data(), indicesBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh indices)");
+
+			if (ok)
+			{
+				OptixAccelBuildOptions accelOptions{};
+				// ALLOW_RANDOM_VERTEX_ACCESS is required for __closesthit__ch()'s
+				// optixGetTriangleVertexData() call (texture-footprint/LOD
+				// computation - see its call site's doc comment) to legally
+				// read a hit triangle's object-space vertex positions back
+				// out of this GAS. ALLOW_UPDATE unconditionally too (a small,
+				// standard OptiX cost) - required up front for ANY future
+				// buildScene() call to legally refit against THIS GAS (e.g.
+				// the next skinned/morphed pose change), even though THIS
+				// particular call is itself a full build.
+				accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+				accelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+
+				const uint32_t triangleInputFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+				OptixBuildInput triangleInput{};
+				triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+				triangleInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+				triangleInput.triangleArray.numVertices = static_cast<uint32_t>(positions.size());
+				triangleInput.triangleArray.vertexBuffers = &gas.positions;
+				triangleInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+				triangleInput.triangleArray.numIndexTriplets = static_cast<uint32_t>(mesh.indices.size() / 3);
+				triangleInput.triangleArray.indexBuffer = gas.indices;
+				triangleInput.triangleArray.flags = triangleInputFlags;
+				triangleInput.triangleArray.numSbtRecords = 1;
+
+				OptixAccelBufferSizes gasBufferSizes{};
+				ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage()");
+				if (ok)
+				{
+					CUdeviceptr tempBuffer = 0;
+					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempSizeInBytes), "cudaMalloc(gas temp)");
+					if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.gasOutputBuffer), gasBufferSizes.outputSizeInBytes), "cudaMalloc(gas output)");
+					if (ok)
+					{
+						// Diagnostics tab timing only - optixAccelBuild() itself
+						// queues onto the default stream, so this timer's end
+						// (the cudaFree() right below, which - like every other
+						// synchronization-free readback in this file - relies on
+						// the legacy default stream's implicit blocking
+						// semantics) is what actually makes it measure real GPU
+						// build time rather than just host-side launch overhead.
+						QElapsedTimer gasTimer;
+						gasTimer.start();
+						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
+							tempBuffer, gasBufferSizes.tempSizeInBytes,
+							gas.gasOutputBuffer, gasBufferSizes.outputSizeInBytes,
+							&gas.handle, nullptr, 0), "optixAccelBuild(GAS)");
+						_impl->lastGasBuildMs += static_cast<double>(gasTimer.nsecsElapsed()) / 1.0e6;
+						if (ok)
+							_impl->lastTriangleCount += mesh.indices.size() / 3;
+					}
+					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
+				}
+			}
+
+			if (gas.handle != 0)
+			{
+				// Genuinely new (or topology-changed) GAS - hand ownership of
+				// every device buffer to persistentGasCache so it survives
+				// past this buildScene() call (see that member's doc
+				// comment); THIS build's meshGasEntries entry below is just a
+				// non-owning copy of the same pointers/handle.
+				Impl::MeshGasEntry entry;
+				entry.contentHash = mesh.contentHash;
+				entry.vertexCount = static_cast<uint32_t>(mesh.vertices.size());
+				entry.indexCount = static_cast<uint32_t>(mesh.indices.size());
+				entry.positions = gas.positions;
+				entry.indices = gas.indices;
+				entry.normals = gas.normals;
+				entry.texCoords = gas.texCoords;
+				entry.tangents = gas.tangents;
+				entry.vertexColors = gas.vertexColors;
+				entry.gasOutputBuffer = gas.gasOutputBuffer;
+				entry.handle = gas.handle;
+				entry.touchedThisBuild = true;
+				_impl->persistentGasCache[mesh.sourceObjectId] = entry;
+			}
+			else
+			{
+				// Failed partway through (bad malloc/optixAccelComputeMemoryUsage/
+				// optixAccelBuild) - whatever WAS allocated above never made it
+				// into persistentGasCache, so nothing else will ever free it;
+				// free it here instead of leaking it. meshGasEntries.clear() no
+				// longer frees anything now that ownership lives in the
+				// persistent cache (see freeSceneBuffers()), so this failure
+				// path can't rely on that safety net the way it implicitly used
+				// to.
+				if (gas.positions) cudaFree(reinterpret_cast<void*>(gas.positions));
+				if (gas.normals) cudaFree(reinterpret_cast<void*>(gas.normals));
+				if (gas.texCoords) cudaFree(reinterpret_cast<void*>(gas.texCoords));
+				if (gas.tangents) cudaFree(reinterpret_cast<void*>(gas.tangents));
+				if (gas.vertexColors) cudaFree(reinterpret_cast<void*>(gas.vertexColors));
+				if (gas.indices) cudaFree(reinterpret_cast<void*>(gas.indices));
+				if (gas.gasOutputBuffer) cudaFree(reinterpret_cast<void*>(gas.gasOutputBuffer));
+				gas = Impl::MeshGas{}; // all-zero - meshGasEntries must not hold pointers to memory just freed above
+			}
+		}
 
 		_impl->meshGasEntries.push_back(gas);
 	}
+	if (gasCacheHits > 0 || gasRefits > 0 || gasCacheMisses > 0)
+		qInfo() << "RtOptixSceneTracer::buildScene: GAS -" << gasCacheHits << "cache hit(s)," << gasRefits << "refit," << gasCacheMisses << "rebuilt.";
 
 	// --- IAS: one OptixInstance per RtInstance, applying its world transform
 	// - mirrors RtEmbreeScene::build()'s TLAS loop. ---
@@ -1461,9 +1767,43 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		return false;
 	}
 
+	// Refit (OPTIX_BUILD_OPERATION_UPDATE) instead of a full rebuild when the
+	// TOPOLOGY - instance count and each instance's underlying GAS handle -
+	// is unchanged since the last successful build (see
+	// Impl::lastIasInstanceHandles' doc comment): a material-only edit or a
+	// transform-only move never changes which mesh each instance points at,
+	// only the transform values (and material data, decoupled from the IAS
+	// itself - see this block's own doc comment above the instance loop) -
+	// refitting against unchanged handles (and possibly unchanged transforms
+	// too, e.g. a material-only edit) is a valid, cheap no-op update, not a
+	// special case to detect separately.
+	bool iasRefit = !_impl->lastIasInstanceHandles.empty() &&
+		_impl->lastIasInstanceHandles.size() == instances.size() &&
+		_impl->instancesBuffer != 0 && _impl->iasOutputBuffer != 0;
+	if (iasRefit)
+	{
+		for (size_t i = 0; i < instances.size(); ++i)
+		{
+			if (instances[i].traversableHandle != _impl->lastIasInstanceHandles[i])
+			{
+				iasRefit = false;
+				break;
+			}
+		}
+	}
+
 	const size_t instancesBytes = instances.size() * sizeof(OptixInstance);
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->instancesBuffer), instancesBytes), "cudaMalloc(instances)"))
-		return false;
+	if (!iasRefit)
+	{
+		// Full rebuild - topology changed (or no valid previous build exists
+		// to refit against) - the old buffer may be the wrong size for this
+		// instance count, so free and reallocate rather than risk reusing a
+		// stale size.
+		if (_impl->instancesBuffer) cudaFree(reinterpret_cast<void*>(_impl->instancesBuffer));
+		_impl->instancesBuffer = 0;
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->instancesBuffer), instancesBytes), "cudaMalloc(instances)"))
+			return false;
+	}
 	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->instancesBuffer), instances.data(), instancesBytes, cudaMemcpyHostToDevice), "cudaMemcpy(instances)"))
 		return false;
 
@@ -1473,21 +1813,36 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	instanceInput.instanceArray.numInstances = static_cast<unsigned int>(instances.size());
 
 	OptixAccelBuildOptions iasAccelOptions{};
-	iasAccelOptions.buildFlags = OPTIX_BUILD_FLAG_NONE;
-	iasAccelOptions.operation = OPTIX_BUILD_OPERATION_BUILD;
+	// ALLOW_UPDATE unconditionally now (a small, standard OptiX memory/build-
+	// time cost) - required up front for ANY future buildScene() call to
+	// legally refit against THIS build, even when THIS particular call is
+	// itself a full rebuild.
+	iasAccelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+	iasAccelOptions.operation = iasRefit ? OPTIX_BUILD_OPERATION_UPDATE : OPTIX_BUILD_OPERATION_BUILD;
 
 	OptixAccelBufferSizes iasBufferSizes{};
 	if (!optixCheck(optixAccelComputeMemoryUsage(_impl->context, &iasAccelOptions, &instanceInput, 1, &iasBufferSizes), "optixAccelComputeMemoryUsage(IAS)"))
 		return false;
 
-	CUdeviceptr iasTempBuffer = 0;
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&iasTempBuffer), iasBufferSizes.tempSizeInBytes), "cudaMalloc(ias temp)"))
-		return false;
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->iasOutputBuffer), iasBufferSizes.outputSizeInBytes), "cudaMalloc(ias output)"))
+	if (!iasRefit)
 	{
-		cudaFree(reinterpret_cast<void*>(iasTempBuffer));
-		return false;
+		// Output buffer size depends only on instance count/flags (stable
+		// across an update), so a refit reuses the existing one untouched -
+		// only a full rebuild (topology changed) needs a fresh allocation.
+		if (_impl->iasOutputBuffer) cudaFree(reinterpret_cast<void*>(_impl->iasOutputBuffer));
+		_impl->iasOutputBuffer = 0;
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->iasOutputBuffer), iasBufferSizes.outputSizeInBytes), "cudaMalloc(ias output)"))
+			return false;
 	}
+
+	// tempUpdateSizeInBytes (valid whenever ALLOW_UPDATE is set, regardless
+	// of which operation is actually chosen) is typically much smaller than
+	// a full build's tempSizeInBytes - using the matching one for whichever
+	// operation this call actually performs.
+	const size_t iasTempBytes = iasRefit ? iasBufferSizes.tempUpdateSizeInBytes : iasBufferSizes.tempSizeInBytes;
+	CUdeviceptr iasTempBuffer = 0;
+	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&iasTempBuffer), iasTempBytes), "cudaMalloc(ias temp)"))
+		return false;
 
 	// Diagnostics tab timing only - see the matching GAS-build timer's doc
 	// comment above for why the cudaFree() right below is what makes this
@@ -1495,13 +1850,20 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	QElapsedTimer iasTimer;
 	iasTimer.start();
 	const bool iasBuilt = optixCheck(optixAccelBuild(_impl->context, 0, &iasAccelOptions, &instanceInput, 1,
-		iasTempBuffer, iasBufferSizes.tempSizeInBytes,
+		iasTempBuffer, iasTempBytes,
 		_impl->iasOutputBuffer, iasBufferSizes.outputSizeInBytes,
-		&_impl->iasHandle, nullptr, 0), "optixAccelBuild(IAS)");
+		&_impl->iasHandle, nullptr, 0), iasRefit ? "optixAccelBuild(IAS refit)" : "optixAccelBuild(IAS)");
 	cudaFree(reinterpret_cast<void*>(iasTempBuffer));
 	_impl->lastIasBuildMs = static_cast<double>(iasTimer.nsecsElapsed()) / 1.0e6;
 	if (!iasBuilt)
 		return false;
+	qInfo() << "RtOptixSceneTracer::buildScene: IAS -" << (iasRefit ? "refit" : "full rebuild") << "(" << instances.size() << "instances).";
+
+	// Record this build's topology so the NEXT buildScene() call can decide
+	// refit-vs-rebuild against it.
+	_impl->lastIasInstanceHandles.resize(instances.size());
+	for (size_t i = 0; i < instances.size(); ++i)
+		_impl->lastIasInstanceHandles[i] = instances[i].traversableHandle;
 
 	// --- Hitgroup SBT records (one per instance) ---
 	const size_t hitgroupBytes = hitgroupRecordsHost.size() * sizeof(HitGroupSbtRecord);
@@ -1748,6 +2110,9 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// texture from the previous build that this one no longer references at
 	// all) now, before declaring the build itself successful.
 	_impl->evictUnusedTextures();
+	// Same reasoning, for persistentGasCache - every mesh's GAS entry was
+	// already marked touched (hit or miss) by the GAS loop above.
+	_impl->evictUnusedGas();
 
 	succeeded = true;
 	return true;

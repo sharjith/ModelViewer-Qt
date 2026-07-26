@@ -17,6 +17,26 @@
 
 namespace
 {
+	// FNV-1a over raw bytes - not cross-platform/cross-run stable (nor does it
+	// need to be: RtOptixSceneTracer::Impl::persistentGasCache that consumes
+	// this only ever compares hashes computed within the SAME running
+	// process), just fast and deterministic call to call so a mesh's content
+	// hash changes if and only if its vertex/index data actually does - see
+	// RtMeshGeometry::contentHash's doc comment (RtSceneSnapshot.h) for why
+	// this, not sourceObjectId alone, is what detects a skinned/morphed
+	// mesh's pose actually changing between two builds.
+	inline uint64_t fnv1aHash(const void* data, size_t size, uint64_t seed = 1469598103934665603ULL)
+	{
+		const unsigned char* bytes = static_cast<const unsigned char*>(data);
+		uint64_t hash = seed;
+		for (size_t i = 0; i < size; ++i)
+		{
+			hash ^= bytes[i];
+			hash *= 1099511628211ULL;
+		}
+		return hash;
+	}
+
 	inline glm::vec3 toGlm(const QVector3D& v) { return glm::vec3(v.x(), v.y(), v.z()); }
 
 	inline glm::mat4 toGlm(const QMatrix4x4& m)
@@ -612,6 +632,19 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 	}
 	geom.indices = { 0, 1, 2, 0, 2, 3 };
 
+	// Reserved id, never a real SceneRuntime object id (those come from
+	// currentVisibleObjectIds(), small non-negative indices) - this quad is
+	// synthetic, regenerated fresh from floor params on every build() call,
+	// so it needs its own stable identity distinct from mesh index 0 to
+	// avoid RtOptixSceneTracer::Impl::persistentGasCache colliding a real
+	// mesh's cache entry with the floor's (or vice versa). contentHash is
+	// still computed for real below - the floor's vertex data changes
+	// whenever the scene bounding box/repeat/center do, and that must be
+	// caught the same way any other mesh's content change is.
+	geom.sourceObjectId = 0xFFFFFFFFu;
+	geom.contentHash = fnv1aHash(geom.indices.data(), geom.indices.size() * sizeof(uint32_t));
+	geom.contentHash = fnv1aHash(geom.vertices.data(), geom.vertices.size() * sizeof(RtVertex), geom.contentHash);
+
 	const uint32_t index = static_cast<uint32_t>(snapshot.meshes.size());
 	snapshot.meshes.push_back(std::move(geom));
 	snapshot.materials.push_back(snapshot.infinitePlane.material);
@@ -702,7 +735,28 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 
 		const uint32_t index = static_cast<uint32_t>(snapshot->meshes.size());
 
-		snapshot->meshes.push_back(convertGeometry(mesh));
+		RtMeshGeometry geometry = convertGeometry(mesh);
+		// mesh->uuid() (Drawable::uuid(), same stable QUuid SceneMeshRecord
+		// carries alongside this same pointer in _meshStore) - NOT `id`
+		// itself. `id` is a positional index into _meshStore
+		// (SceneRuntime::meshAt()), and SceneRuntime::removeMeshAt()/
+		// restoreDetachedMesh() erase()/insert() that vector directly,
+		// shifting every LATER mesh's index by one - so a single delete or
+		// undo-restore elsewhere in the scene would otherwise change most
+		// OTHER meshes' "identity" too, even though nothing about their own
+		// geometry changed (confirmed via a real log: undoing a 3-object
+		// delete in a ~150-mesh scene spuriously cache-missed ~100 unrelated
+		// meshes in RtOptixSceneTracer::Impl::persistentGasCache). The UUID
+		// is genuinely stable across the mesh's whole lifetime regardless of
+		// what else in the scene is added/removed/reordered.
+		geometry.sourceObjectId = static_cast<uint32_t>(qHash(mesh->uuid()));
+		// Hashed over the FINAL (post-skinning/morph) buffers convertGeometry()
+		// just produced, not the SceneMesh's own bind-pose data - see
+		// RtMeshGeometry::contentHash's doc comment for why that distinction
+		// is correctness-critical, not just a convenience.
+		geometry.contentHash = fnv1aHash(geometry.indices.data(), geometry.indices.size() * sizeof(uint32_t));
+		geometry.contentHash = fnv1aHash(geometry.vertices.data(), geometry.vertices.size() * sizeof(RtVertex), geometry.contentHash);
+		snapshot->meshes.push_back(std::move(geometry));
 		snapshot->materials.push_back(convertMaterial(mesh, runtime, dedupCache));
 
 		RtInstance instance;
