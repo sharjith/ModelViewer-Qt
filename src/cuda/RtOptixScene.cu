@@ -121,6 +121,20 @@ namespace
 	// see __closesthit__ch()'s use site for what each channel means.
 	constexpr bool kDebugVisualizeClearcoat = false;
 
+	// Debug-visualization toggle, mirroring CpuPathTracer.cpp's identical
+	// kDebugVisualizeShadowTransmittance exactly - false-colors the primary
+	// hit's raw front-hemisphere shadow-ray transmittance (summed across
+	// every REAL scene light, i.e. params.lights[i].range >= 0.0f - the
+	// app's own always-on default/fallback light is deliberately excluded,
+	// same reason as CPU: it dominated the sum to near-white everywhere and
+	// masked what a single small, close-range point light is actually
+	// doing), BEFORE the default light's 0.15 floor clamp (moot anyway since
+	// that light is excluded). KHR_materials_diffuse_transmission's back-
+	// hemisphere NEE term contributes its own backShadowTransmittance the
+	// same way. See __closesthit__ch()'s NEE loop for the accumulation
+	// sites and the loop's closing brace for where it's substituted in.
+	constexpr bool kDebugVisualizeShadowTransmittance = false;
+
 	// Post-loop heat-ramp of KHR_materials_volume_scatter's scatterBounces
 	// counter, mirroring CpuPathTracer.cpp's identical
 	// kDebugVisualizeVolumeScatterBounces exactly - lives in __raygen__rg()
@@ -3365,6 +3379,11 @@ extern "C" __global__ void __closesthit__ch()
 		}
 	}
 
+	// kDebugVisualizeShadowTransmittance - x < 0.0f means "nothing captured
+	// yet" (no real light contributed), same sentinel convention as
+	// debugClearcoatColor's GPU counterpart above.
+	float3 debugShadowTransmittanceColor = make_float3(-1.0f, -1.0f, -1.0f);
+
 	float3 radiance = emissive;
 	if (NdotV > 0.0f)
 	{
@@ -3401,6 +3420,12 @@ extern "C" __global__ void __closesthit__ch()
 					const float3 backShadowTransmittance = params.shadowsEnabled != 0
 						? traceShadowRay(backShadowOrigin, lightDir, backShadowMaxDistance, instanceId, backShadowRngSeed)
 						: make_float3(1.0f, 1.0f, 1.0f);
+					if (kDebugVisualizeShadowTransmittance && primaryRaySentinel == -1.0f && params.lights[i].range >= 0.0f)
+					{
+						if (debugShadowTransmittanceColor.x < 0.0f)
+							debugShadowTransmittanceColor = make_float3(0.0f, 0.0f, 0.0f);
+						debugShadowTransmittanceColor = debugShadowTransmittanceColor + backShadowTransmittance;
+					}
 					if (backShadowTransmittance.x > 0.0f || backShadowTransmittance.y > 0.0f || backShadowTransmittance.z > 0.0f)
 					{
 						float3 diffuseBTDF = diffuseTransmissionColor * (1.0f / kPi) * fabsf(rawNdotL) * diffuseTransmissionFactor;
@@ -3422,6 +3447,12 @@ extern "C" __global__ void __closesthit__ch()
 			float3 shadowTransmittance = params.shadowsEnabled != 0
 				? traceShadowRay(shadowOrigin, lightDir, shadowMaxDistance, instanceId, shadowRngSeed)
 				: make_float3(1.0f, 1.0f, 1.0f);
+			if (kDebugVisualizeShadowTransmittance && primaryRaySentinel == -1.0f && params.lights[i].range >= 0.0f)
+			{
+				if (debugShadowTransmittanceColor.x < 0.0f)
+					debugShadowTransmittanceColor = make_float3(0.0f, 0.0f, 0.0f);
+				debugShadowTransmittanceColor = debugShadowTransmittanceColor + shadowTransmittance;
+			}
 			if (params.lights[i].range < 0.0f)
 			{
 				// Raster clamps the app/default light's shadow factor to 0.85,
@@ -3577,6 +3608,23 @@ extern "C" __global__ void __closesthit__ch()
 			if (sheenColor.x > 0.0f || sheenColor.y > 0.0f || sheenColor.z > 0.0f)
 				radiance = radiance + calculateSheen(worldNormal, V, lightDir, sheenColor, sheenRoughness) * shadowedLightIntensity;
 		}
+	}
+
+	// kDebugVisualizeShadowTransmittance - false-colors the primary hit only,
+	// mirroring CpuPathTracer::tracePixel()'s identical substitution-for-the-
+	// whole-function-return exactly (see that function's final return
+	// block). Written directly into the radiance payload and hitFlag forced
+	// to 0 (the same value __miss__ms() uses for "escaped, no continuation")
+	// so the raygen loop's `if (hitFlag == 0u) break;` stops this sample
+	// immediately after - no later bounce ever dilutes this pixel's debug
+	// color, same guarantee kDebugVisualizeClearcoat's early return gives.
+	if (kDebugVisualizeShadowTransmittance && primaryRaySentinel == -1.0f && debugShadowTransmittanceColor.x >= 0.0f)
+	{
+		optixSetPayload_0(__float_as_uint(debugShadowTransmittanceColor.x));
+		optixSetPayload_1(__float_as_uint(debugShadowTransmittanceColor.y));
+		optixSetPayload_2(__float_as_uint(debugShadowTransmittanceColor.z));
+		optixSetPayload_3(0u);
+		return;
 	}
 
 	// Environment NEE - direct importance sampling of the HDRI with balance-
