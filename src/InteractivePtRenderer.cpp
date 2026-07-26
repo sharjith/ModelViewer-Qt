@@ -135,6 +135,7 @@ bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtS
 		}
 		_builtRevision = snapshot->revisionId;
 		_skipNextTimingSample = true; // see this class's own doc comment - the next launch's timing won't be representative
+		_smoothedFrameTimeMs = -1.0f; // stale average from before the rebuild is as unrepresentative as the skipped reading itself
 		// A rebuilt scene invalidates whatever's already accumulated - same
 		// reasoning as a camera pose change (see tick()).
 		_accumulationCameraValid = false;
@@ -253,36 +254,54 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 					// First launch after a resolution/scene change - not
 					// representative (warm-up cost), see this class's own
 					// doc comment on _skipNextTimingSample. Consume the skip
-					// without acting on this one reading.
+					// without acting on this one reading, and without folding
+					// it into the smoothed average either (that average is
+					// reset to uninitialized alongside this flag - see
+					// applyInternalResolution()/ensureSceneResources() - so
+					// there's nothing to fold it into yet regardless).
 					_skipNextTimingSample = false;
-				}
-				else if (ms > _targetFrameTimeMs * kResolutionScaleDownThreshold)
-				{
-					_consecutiveUnderBudget = 0;
-					if (_resolutionScale > kMinResolutionScale && ++_consecutiveOverBudget >= kConsecutiveSamplesRequired)
-					{
-						_pendingResolutionScale = std::max(kMinResolutionScale, _resolutionScale * kResolutionScaleStep);
-						_consecutiveOverBudget = 0;
-					}
-				}
-				else if (ms < _targetFrameTimeMs * kResolutionScaleUpThreshold)
-				{
-					_consecutiveOverBudget = 0;
-					if (_resolutionScale < 1.0f && ++_consecutiveUnderBudget >= kConsecutiveSamplesRequired)
-					{
-						_pendingResolutionScale = std::min(1.0f, _resolutionScale / kResolutionScaleStep);
-						_consecutiveUnderBudget = 0;
-					}
 				}
 				else
 				{
-					// Neither clearly over nor clearly under - a genuinely
-					// mixed/borderline signal breaks any streak in progress
-					// rather than letting stale old counts from before this
-					// reading eventually trigger a change they no longer
-					// reflect.
-					_consecutiveOverBudget = 0;
-					_consecutiveUnderBudget = 0;
+					// EMA smoothing of the timing signal - see
+					// _smoothedFrameTimeMs's doc comment for why this, not
+					// each launch's raw (noisy) ms, is what the threshold
+					// comparisons and kConsecutiveSamplesRequired below
+					// actually act on. First real reading after a reset seeds
+					// the average directly (no slow ramp-up bias from
+					// blending against an arbitrary starting value).
+					_smoothedFrameTimeMs = (_smoothedFrameTimeMs < 0.0f)
+						? ms
+						: _smoothedFrameTimeMs + (ms - _smoothedFrameTimeMs) * kFrameTimeSmoothingAlpha;
+
+					if (_smoothedFrameTimeMs > _targetFrameTimeMs * kResolutionScaleDownThreshold)
+					{
+						_consecutiveUnderBudget = 0;
+						if (_resolutionScale > kMinResolutionScale && ++_consecutiveOverBudget >= kConsecutiveSamplesRequired)
+						{
+							_pendingResolutionScale = std::max(kMinResolutionScale, _resolutionScale * kResolutionScaleStep);
+							_consecutiveOverBudget = 0;
+						}
+					}
+					else if (_smoothedFrameTimeMs < _targetFrameTimeMs * kResolutionScaleUpThreshold)
+					{
+						_consecutiveOverBudget = 0;
+						if (_resolutionScale < 1.0f && ++_consecutiveUnderBudget >= kConsecutiveSamplesRequired)
+						{
+							_pendingResolutionScale = std::min(1.0f, _resolutionScale / kResolutionScaleStep);
+							_consecutiveUnderBudget = 0;
+						}
+					}
+					else
+					{
+						// Neither clearly over nor clearly under - a genuinely
+						// mixed/borderline signal breaks any streak in progress
+						// rather than letting stale old counts from before this
+						// reading eventually trigger a change they no longer
+						// reflect.
+						_consecutiveOverBudget = 0;
+						_consecutiveUnderBudget = 0;
+					}
 				}
 			}
 		}
@@ -441,6 +460,7 @@ void InteractivePtRenderer::applyInternalResolution()
 	_width = newWidth;
 	_height = newHeight;
 	_skipNextTimingSample = true; // see this class's own doc comment - a fresh resolution's first launch isn't representative
+	_smoothedFrameTimeMs = -1.0f; // stale average from before the resolution change is as unrepresentative as the skipped reading itself
 	_consecutiveOverBudget = 0;
 	_consecutiveUnderBudget = 0;
 
@@ -513,6 +533,7 @@ void InteractivePtRenderer::releaseResources()
 	_resolutionScale = 1.0f; // fresh start next time - don't carry over a scale reduced under a previous session's load
 	_pendingResolutionScale = 1.0f;
 	_skipNextTimingSample = false;
+	_smoothedFrameTimeMs = -1.0f;
 	_consecutiveOverBudget = 0;
 	_consecutiveUnderBudget = 0;
 }

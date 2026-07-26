@@ -339,6 +339,23 @@ private:
 	int _consecutiveOverBudget  = 0;
 	int _consecutiveUnderBudget = 0;
 
+	// Exponential moving average of elapsedEventTimeMs() readings - the
+	// signal the threshold comparisons above and kConsecutiveSamplesRequired
+	// actually act on, instead of each launch's raw (noisy) timing directly.
+	// A single launch's GPU time already jitters meaningfully call to call
+	// (driver scheduling, other GPU work, thermal/clock variance) even when
+	// the scene's true steady-state cost hasn't changed - smoothing that out
+	// first means the consecutive-samples counter above is counting genuine
+	// trend readings, not just however many noisy spikes happened to land on
+	// the same side of a threshold in a row. Cheap (one lerp per completed
+	// launch) and strictly additive to the existing hysteresis, not a
+	// replacement for it. -1.0f means "uninitialized" (see tick()'s use
+	// site) - reset alongside _skipNextTimingSample wherever that's set,
+	// since a stale average from before a resolution/scene change is exactly
+	// as unrepresentative as the raw skipped reading itself.
+	static constexpr float kFrameTimeSmoothingAlpha = 0.25f; // weight given to each NEW reading; higher = faster to react, lower = smoother
+	float _smoothedFrameTimeMs = -1.0f;
+
 	// Set whenever a resolution/scene change just happened (see
 	// applyInternalResolution()/ensureSceneResources()) - the FIRST launch
 	// afterward often costs meaningfully more than steady-state (OptiX
