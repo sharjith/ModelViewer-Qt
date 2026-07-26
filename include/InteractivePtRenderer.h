@@ -209,6 +209,16 @@ public:
 	// resolution actually being used under load.
 	int width() const { return _requestedWidth; }
 	int height() const { return _requestedHeight; }
+	int renderWidth() const { return _width; }
+	int renderHeight() const { return _height; }
+
+	// Progress/diagnostics helpers for UI consumers (PathTracingDialog) - the
+	// sample count of the most recently displayable interactive frame, or if
+	// nothing has published yet the current in-flight slot's own count. This
+	// deliberately mirrors the "what is the live interactive renderer doing
+	// right now?" question, not a settled-session worker model.
+	uint32_t currentSampleCount() const;
+	uint32_t maxSampleCount() const { return _maxAccumulatedSamples; }
 
 	// Tears down both slots' GPU resources (stream, events, host staging,
 	// scratch/output buffers). Unlike resize(), this DOES drain first (waits

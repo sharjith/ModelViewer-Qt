@@ -661,13 +661,29 @@ void PathTracingDialog::onExportClicked()
 	}
 	else if (exportExr)
 	{
-		// Fast path, EXR: reuse the raw linear buffer already converged in
-		// the live viewport - RtPathTracingSession::latestFrame(), read
-		// BEFORE RtPresenter's tonemap/gamma pass ever touches it. Downscaled
-		// if the requested resolution is smaller than what's already there
-		// (never upscaled - that goes through the offline branch above).
+		// Fast path, EXR: reuse the live viewport's raw linear buffer before
+		// RtPresenter's tonemap/gamma pass ever touches it. Depending on what
+		// is currently driving PT, that may come from the CPU session, the
+		// settled GPU session, or the interactive GPU renderer's latest
+		// completed device frame via a readback. Downscaled if the requested
+		// resolution is smaller than what's already there (never upscaled -
+		// that goes through the offline branch above).
 		int liveWidth = 0, liveHeight = 0;
 		std::vector<glm::vec3> linearRgb = viewport->pathTracingRawFrame(liveWidth, liveHeight);
+		if (liveWidth <= 0 || liveHeight <= 0 || linearRgb.empty())
+		{
+			// Narrow but real gap: interactive GPU PT publishes its first
+			// frame asynchronously (see InteractivePtRenderer::pollCompletedFrame()),
+			// so a frame can genuinely not exist yet for the first instant or
+			// two after a drag/orbit starts. Without this check,
+			// downscaleLinearBuffer()'s divide-by-zero guard would silently
+			// hand back an all-zero buffer that writeExrFile() happily writes
+			// as a valid (but blank) EXR - reporting "Export Complete" for an
+			// image that isn't what the user actually sees on screen.
+			QMessageBox::warning(this, tr("Export Failed"),
+				tr("No live path-traced frame is available yet. Wait a moment for rendering to produce a frame, then try again."));
+			return;
+		}
 		if (liveWidth != targetWidth || liveHeight != targetHeight)
 			linearRgb = downscaleLinearBuffer(linearRgb, liveWidth, liveHeight, targetWidth, targetHeight);
 		saveOk = writeExrFile(path, linearRgb, targetWidth, targetHeight);

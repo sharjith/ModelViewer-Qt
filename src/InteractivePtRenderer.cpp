@@ -413,6 +413,15 @@ bool InteractivePtRenderer::isFrameInFlight() const
 	return _inFlightSlot >= 0 && !_tracer.isEventComplete(_slots[_inFlightSlot].completionEvent);
 }
 
+uint32_t InteractivePtRenderer::currentSampleCount() const
+{
+	if (_readySlot >= 0)
+		return _slots[_readySlot].accumulatedSampleCount;
+	if (_inFlightSlot >= 0)
+		return _slots[_inFlightSlot].accumulatedSampleCount;
+	return 0;
+}
+
 void* InteractivePtRenderer::pollCompletedFrame(int& outWidth, int& outHeight, RtCamera& outCamera, uint64_t& outGeneration) const
 {
 	if (_readySlot < 0)

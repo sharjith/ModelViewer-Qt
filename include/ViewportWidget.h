@@ -532,6 +532,14 @@ public:
 	// progress bar/elapsed-time display works identically for both engines.
 	void pathTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
 	{
+		const bool gpu = effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU;
+		if (gpu && _pathTracedInteractiveActive)
+		{
+			outCurrentSamples = _interactivePtRenderer.currentSampleCount();
+			outTargetSamples  = _interactivePtRenderer.maxSampleCount();
+			outRunning        = _interactivePtRenderer.isFrameInFlight() || outCurrentSamples < outTargetSamples;
+			return;
+		}
 		if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 		{
 			outCurrentSamples = _ptOptixSession.currentSampleCount();
@@ -582,19 +590,23 @@ public:
 	{
 		PathTracingDiagnostics d;
 		const bool gpu = effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU;
+		const bool interactiveGpu = gpu && _pathTracedInteractiveActive;
 		d.gpuEngineActive = gpu;
 		d.rendererName    = gpu ? QStringLiteral("OptiX (GPU)") : QStringLiteral("Embree (CPU)");
-		d.gpuDeviceName   = QString::fromLatin1(_ptOptixSession.tracer().deviceName());
-		d.traversalKnown  = gpu && _ptOptixSession.tracer().isAvailable();
-		d.hasHardwareRT   = _ptOptixSession.tracer().hasHardwareRT();
-		d.denoiserName    = QString::fromLatin1(gpu ? _ptOptixSession.activeDenoiserName() : _rtSession.activeDenoiserName());
-		d.width           = gpu ? _ptOptixSession.width()  : _rtSession.width();
-		d.height          = gpu ? _ptOptixSession.height() : _rtSession.height();
+		const RtOptixSceneTracer& gpuTracer = interactiveGpu ? _interactivePtTracer : _ptOptixSession.tracer();
+		d.gpuDeviceName   = QString::fromLatin1(gpuTracer.deviceName());
+		d.traversalKnown  = gpu && gpuTracer.isAvailable();
+		d.hasHardwareRT   = gpuTracer.hasHardwareRT();
+		d.denoiserName    = QString::fromLatin1(
+			gpu ? (interactiveGpu ? _interactivePtRenderer.activeDenoiserName() : _ptOptixSession.activeDenoiserName())
+			    : _rtSession.activeDenoiserName());
+		d.width           = gpu ? (interactiveGpu ? _interactivePtRenderer.renderWidth() : _ptOptixSession.width())  : _rtSession.width();
+		d.height          = gpu ? (interactiveGpu ? _interactivePtRenderer.renderHeight() : _ptOptixSession.height()) : _rtSession.height();
 		d.triangleCountKnown = gpu;
-		d.triangleCount   = gpu ? _ptOptixSession.tracer().lastTriangleCount() : 0;
+		d.triangleCount   = gpu ? gpuTracer.lastTriangleCount() : 0;
 		d.buildTimesKnown = gpu;
-		d.gasBuildMs      = gpu ? _ptOptixSession.tracer().lastGasBuildMs() : 0.0;
-		d.iasBuildMs      = gpu ? _ptOptixSession.tracer().lastIasBuildMs() : 0.0;
+		d.gasBuildMs      = gpu ? gpuTracer.lastGasBuildMs() : 0.0;
+		d.iasBuildMs      = gpu ? gpuTracer.lastIasBuildMs() : 0.0;
 		bool running = false;
 		pathTracingProgress(d.currentSamples, d.targetSamples, running);
 		return d;
@@ -645,25 +657,35 @@ public:
 			: _rtSession.isRunning();
 	}
 
-	// Raw linear HDR frame (un-tonemapped, optionally OIDN-denoised) - see
-	// RtPathTracingSession::latestFrame(). Used by PathTracingDialog's EXR
-	// export, which needs true linear radiance data rather than the
-	// tonemapped/gamma-encoded 8-bit framebuffer captureCleanPathTracedImage()
-	// returns - RtPresenter's tonemap only ever happens at PRESENT time in
-	// the display shader, never mutating what latestFrame() itself holds.
-	// Must branch on _ptEnginePreference the same way pathTracedSessionRunning()
-	// above does - an earlier version always read _rtSession regardless of
-	// which engine was actually live, so a fast-path EXR export while the
-	// GPU engine was selected silently pulled from _rtSession's own EMPTY
-	// buffer (never started, since GPU mode means _rtSession.stop() was
-	// called and it never ran) - an all-zero buffer writes out as solid
-	// black, not a crash or an obvious error, which is what made this easy
-	// to miss.
+	// Raw linear HDR frame (un-tonemapped, optionally denoised) for fast EXR
+	// export. In CPU mode this comes from _rtSession.latestFrame(); in settled
+	// GPU mode from _ptOptixSession.latestFrame(); and while live interactive
+	// GPU PT is active from InteractivePtRenderer's latest completed device
+	// frame, read back on demand through _interactivePtTracer. RtPresenter's
+	// tonemap only happens at PRESENT time in the display shader, so none of
+	// these paths mutate the underlying linear radiance buffer.
 	std::vector<glm::vec3> pathTracingRawFrame(int& outWidth, int& outHeight) const
 	{
 		uint32_t sampleCount = 0;
 		if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+		{
+			if (_pathTracedInteractiveActive)
+			{
+				RtCamera frameCamera;
+				uint64_t generation = 0;
+				if (void* deviceFrame = _interactivePtRenderer.pollCompletedFrame(outWidth, outHeight, frameCamera, generation))
+				{
+					std::vector<glm::vec3> hostFrame;
+					std::vector<float> hostAlpha;
+					if (_interactivePtTracer.readbackDeviceRGBABuffer(deviceFrame, outWidth, outHeight, hostFrame, hostAlpha))
+						return hostFrame;
+				}
+				outWidth = 0;
+				outHeight = 0;
+				return {};
+			}
 			return _ptOptixSession.latestFrame(outWidth, outHeight, sampleCount);
+		}
 		return _rtSession.latestFrame(outWidth, outHeight, sampleCount);
 	}
 
