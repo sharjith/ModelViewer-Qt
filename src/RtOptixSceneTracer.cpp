@@ -672,7 +672,7 @@ void RtOptixSceneTracer::Impl::ensureSheenAlbedoLut()
 RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 {
 	// --- CUDA + OptiX device context (self-contained - see this class's doc
-	// comment for why, same as RtOptixTracer/Phase 1b) ---
+	// comment for why) ---
 	if (!cudaCheck(cudaFree(0), "cudaFree(0)"))
 		return;
 	if (!optixCheck(optixInit(), "optixInit()"))

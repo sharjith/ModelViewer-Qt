@@ -462,7 +462,6 @@ if(MODELVIEWER_HAVE_OPTIX)
         target_sources(ModelViewer PRIVATE "${embedded_cpp}")
     endfunction()
 
-    add_optix_kernel(RtOptixTriangle src/cuda/RtOptixTriangle.cu g_rtOptixTrianglePtx RtOptixTriangleParams.h)
     add_optix_kernel(RtOptixScene src/cuda/RtOptixScene.cu g_rtOptixScenePtx RtOptixSceneParams.h)
 endif()
 

@@ -94,8 +94,7 @@
 // KHR_materials_transmission/volume/dispersion are implemented too, using
 // the same dedicated transmission branch and separate transmission-depth
 // budget as the CPU tracer.
-// Self-contained, same style as RtOptixTriangle.cu (no dependency on the
-// OptiX SDK's bundled sutil).
+// Self-contained (no dependency on the OptiX SDK's bundled sutil).
 // ---------------------------------------------------------------------------
 #include <optix.h>
 

@@ -45,7 +45,6 @@
 #include "InteractivePtRenderer.h"
 #include "RtOptixPathTracingSession.h"
 #include "RtOptixSceneTracer.h"
-#include "RtOptixTracer.h"
 #include "RtPathTracingSession.h"
 #include "RtPresenter.h"
 
@@ -72,6 +71,21 @@ class ModelViewer;
 // ViewMode, ViewProjection, CornerAxisPosition, RenderingMode,
 // ClippingPlaneHatchMode, HatchPattern → RenderEnums.h (Phase 11/12)
 enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES };
+
+// User-facing path-tracing render-engine choice (PT settings dropdown) -
+// mirrors DenoiserDevicePreference's placement/style in RtDenoiser.h,
+// including the Auto option. Auto resolves to a concrete CPU/GPU choice via
+// ViewportWidget::effectivePathTracingEnginePreference() - see that
+// function's doc comment for how (a cheap check, not a new probe). Every
+// render-path branch reads the EFFECTIVE preference, never this raw one
+// directly, so Auto never needs handling at individual call sites - CPU and
+// GPU remain the only two real backends as far as rendering code is concerned.
+enum class RtPathTracingEnginePreference
+{
+	Auto,
+	CPU,
+	GPU
+};
 
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
