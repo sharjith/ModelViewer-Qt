@@ -1553,6 +1553,31 @@ void AssImpMeshExporter::patchGlbImageNames(
         }
 
         root["bufferViews"] = bufferViews;
+
+        // The new bufferViews above reference bytes appended past the ORIGINAL
+        // BIN chunk length (nextByteOffset now holds the true end-of-data
+        // offset, including this function's own appends) - buffers[0].byteLength
+        // must grow to match, or a spec-compliant loader rejects the file on
+        // reopen (a GLB's embedded buffer has no "uri", so a bufferView that
+        // overruns its declared byteLength surfaces as a buffer/uri error even
+        // though the real defect is this length field, not a URI). This mirrors
+        // GltfPostProcessor.cpp's injectPointerAnimationChannels()/
+        // injectMorphWeightAnimations(), which already patch buf0["byteLength"]
+        // the same way after their own binary-chunk appends.
+        if (nextByteOffset > 0)
+        {
+            QJsonArray buffers = root.value("buffers").toArray();
+            if (!buffers.isEmpty())
+            {
+                QJsonObject buf0 = buffers[0].toObject();
+                if (buf0.value("byteLength").toInt() < nextByteOffset)
+                {
+                    buf0["byteLength"] = nextByteOffset;
+                    buffers[0] = buf0;
+                    root["buffers"] = buffers;
+                }
+            }
+        }
     }
 
 

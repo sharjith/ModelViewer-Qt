@@ -4007,10 +4007,25 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             if (oldUri.isEmpty())
                 continue;
 
+            // glTF requires an image to have EITHER uri OR bufferView, never
+            // neither - only strip uri when a bufferView is already present
+            // to take over (Assimp occasionally emits both for an image it
+            // did manage to embed, which is the redundant-uri case this pass
+            // is meant to clean up). An image Assimp DIDN'T manage to embed
+            // has ONLY a uri and no bufferView at all - stripping it there
+            // left the entry with neither, which is exactly what surfaced as
+            // "images[N] should have either a URI or a bufferView and
+            // mimetype" when reopening the exported file.
+            if (!img.contains("bufferView"))
+            {
+                log(QString("  Image[%1] keeping uri '%2' - no bufferView to fall back to (not embedded by Assimp)").arg(i).arg(oldUri), logCallback);
+                continue;
+            }
+
             img.remove("uri");
             images[i] = img;
             anyFixed = true;
-            log(QString("  Image[%1] cleared embedded GLB uri '%2'").arg(i).arg(oldUri), logCallback);
+            log(QString("  Image[%1] cleared redundant uri '%2' (already has bufferView)").arg(i).arg(oldUri), logCallback);
         }
 
         if (anyFixed)
@@ -4933,6 +4948,30 @@ bool GltfPostProcessor::mergeOpacityIntoBaseColorTextures(
     if (!bufferViews.isEmpty())
         gltfJson["bufferViews"] = bufferViews;
 
+    // The bufferViews above (for the GLB path) reference bytes appended to
+    // glbPayload past whatever buffers[0].byteLength currently says -
+    // without this, the file gets written with bufferViews that overrun the
+    // declared buffer length, which a spec-compliant loader rejects on
+    // reopen (a GLB's embedded buffer has no "uri", so this surfaces as a
+    // buffer/uri-related error even though the real defect is this length
+    // field). Mirrors injectPointerAnimationChannels()/
+    // injectMorphWeightAnimations() below, which already patch this the
+    // same way after their own binary-chunk appends.
+    if (glbBinaryChunk && !glbPayload.isEmpty())
+    {
+        QJsonArray buffers = gltfJson.value("buffers").toArray();
+        if (!buffers.isEmpty())
+        {
+            QJsonObject buf0 = buffers[0].toObject();
+            if (buf0.value("byteLength").toInt() < glbPayload.size())
+            {
+                buf0["byteLength"] = glbPayload.size();
+                buffers[0] = buf0;
+                gltfJson["buffers"] = buffers;
+            }
+        }
+    }
+
     if (addedTextureTransform)
     {
         QJsonArray extensionsUsed = gltfJson.value("extensionsUsed").toArray();
@@ -5026,9 +5065,13 @@ bool GltfPostProcessor::injectPointerAnimationChannels(
                                            : static_cast<int>(buffers.size());
     // Byte offset into *this* buffer where our data starts.
     // For GLB mode: use the actual binary chunk data size (excluding the 8-byte chunk header),
-    // NOT buffers[0].byteLength. Assimp packs image data into the binary chunk BEYOND
-    // buffers[0].byteLength, so using byteLength as the base offset would place new accessor
-    // data in the middle of the image data rather than at the end of the binary chunk.
+    // NOT buffers[0].byteLength - kept as a defensive fallback even though the two known
+    // causes of byteLength lagging the real chunk size (patchGlbImageNames() in
+    // AssImpMeshExporter.cpp and mergeOpacityIntoBaseColorTextures() above, both of which
+    // append extra image bytes to the binary chunk) now patch byteLength themselves. If
+    // either of those regresses again, trusting byteLength here would place new accessor
+    // data in the middle of already-written image data rather than at the true end of the
+    // binary chunk.
     int byteOffsetBase = glbBinaryChunk
                        ? (glbBinaryChunk->size() >= 8 ? glbBinaryChunk->size() - 8 : 0)
                        : 0;
