@@ -137,6 +137,62 @@ struct RtMeshGeometry
 	std::vector<glm::vec4> jointWeights;
 	std::vector<glm::mat4> jointPalette;
 	uint64_t baseContentHash = 0;
+
+	// GPU-morph enrichment - same shape/intent as the skinning enrichment
+	// above, populated by RtSceneBuilder::convertGeometry() ONLY when the
+	// source mesh has morph targets (mesh->hasMorphTargets()), ADDITIONAL to
+	// (never a replacement for) the fully-baked `vertices` above.
+	//
+	// Deliberately populated from SceneMesh::baseVertices() (the mesh's TRUE
+	// unmorphed rest pose), NOT from baseSkin{Positions,Normals,Tangents}
+	// above - those remain post-morph/pre-skin (whatever `vertices` held at
+	// convertGeometry-time), which is the wrong base for a morph kernel to
+	// blend from. hasMorphData and hasSkinningData are independent flags; a
+	// mesh can have neither, either, or (rare) both, though GPU-blending a
+	// mesh with BOTH is not yet implemented (see RtOptixSceneTracer's GAS
+	// loop - falls back to the CPU-bake refit path for that combination).
+	//
+	// morphTargetDeltaPositions/Normals/Tangents are flattened TARGET-MAJOR:
+	// target `t`, vertex `i` lives at index `t * vertices.size() + i` - one
+	// contiguous device buffer per attribute instead of N small ones.
+	// morphTargetCount is the number of targets (deltas' size / vertex
+	// count). morphWeights is THIS build's current per-target weight array
+	// (small, changes every animation tick the mesh is morph-animated -
+	// mirrors jointPalette's role above).
+	//
+	// morphBaseContentHash is hashed over the rest-pose arrays + delta
+	// arrays + indices ONLY (never morphWeights) - the identity a persistent
+	// GPU rest-pose buffer cache needs, exactly mirroring how baseContentHash
+	// excludes jointPalette above.
+	//
+	// morphTargetHas{Position,Normal,Tangent}Deltas (length morphTargetCount)
+	// mirror SceneMesh::applyMorphWeights()'s own per-attribute, per-target
+	// size checks (a target's delta array is either fully present, sized to
+	// match the vertex count, or entirely absent - never partial): the
+	// flattened delta buffers above are zero-padded for a "false" entry so
+	// the layout stays rectangular, but the GPU kernel must still consult
+	// these flags rather than trust a zero delta at face value, to
+	// correctly replicate the CPU reference's normalChanged/tangentChanged
+	// bookkeeping, which gates whether tangent handedness gets recomputed
+	// each launch (see RtOptixMorph.cu's doc comment - unlike skinning,
+	// there is no separate precomputed handedness field here: the device
+	// tangent buffer's existing .w is simply read back and preserved when
+	// this frame's blend doesn't touch normal/tangent, seeded correctly by
+	// whichever full/CPU-bake build wrote it before the GPU path first
+	// engages for this mesh).
+	bool hasMorphData = false;
+	std::vector<glm::vec3> baseMorphPositions;
+	std::vector<glm::vec3> baseMorphNormals;
+	std::vector<glm::vec3> baseMorphTangents;
+	std::vector<glm::vec3> morphTargetDeltaPositions;
+	std::vector<glm::vec3> morphTargetDeltaNormals;
+	std::vector<glm::vec3> morphTargetDeltaTangents;
+	std::vector<uint8_t>   morphTargetHasPositionDeltas;
+	std::vector<uint8_t>   morphTargetHasNormalDeltas;
+	std::vector<uint8_t>   morphTargetHasTangentDeltas;
+	uint32_t morphTargetCount = 0;
+	std::vector<float> morphWeights;
+	uint64_t morphBaseContentHash = 0;
 };
 
 // CPU-resident RGBA8 pixel buffer copied out of a Material::Texture's QImage

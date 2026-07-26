@@ -169,6 +169,67 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 		geom.jointPalette = jointPalette;
 	}
 
+	// GPU-morph enrichment (see RtMeshGeometry::hasMorphData's doc comment,
+	// RtSceneSnapshot.h) - captured alongside the existing CPU bake below,
+	// never instead of it. Sourced from SceneMesh::baseVertices() (the TRUE
+	// unmorphed rest pose), NOT `verts` above (which is already morphed).
+	geom.hasMorphData = mesh->hasMorphTargets();
+	if (geom.hasMorphData)
+	{
+		const std::vector<Vertex> baseVerts = mesh->baseVertices();
+		const QVector<MorphTargetData>& morphTargets = mesh->getMorphTargets();
+		geom.morphTargetCount = static_cast<uint32_t>(morphTargets.size());
+
+		geom.baseMorphPositions.reserve(baseVerts.size());
+		geom.baseMorphNormals.reserve(baseVerts.size());
+		geom.baseMorphTangents.reserve(baseVerts.size());
+		for (const Vertex& bv : baseVerts)
+		{
+			geom.baseMorphPositions.push_back(bv.Position);
+			geom.baseMorphNormals.push_back(bv.Normal);
+			geom.baseMorphTangents.push_back(bv.Tangent);
+		}
+
+		// Flattened target-major (target * vertexCount + i) - see
+		// RtMeshGeometry's doc comment. A target's delta array is either
+		// fully present (exact size match) or entirely absent - never
+		// partial, mirroring SceneMesh::applyMorphWeights()'s own
+		// per-attribute size checks exactly - tracked via the has*Deltas
+		// flags below (NOT inferred from zero-padding, which would be
+		// indistinguishable from a legitimately-authored zero delta).
+		const size_t vertexCount = baseVerts.size();
+		geom.morphTargetDeltaPositions.reserve(static_cast<size_t>(geom.morphTargetCount) * vertexCount);
+		geom.morphTargetDeltaNormals.reserve(static_cast<size_t>(geom.morphTargetCount) * vertexCount);
+		geom.morphTargetDeltaTangents.reserve(static_cast<size_t>(geom.morphTargetCount) * vertexCount);
+		geom.morphTargetHasPositionDeltas.reserve(morphTargets.size());
+		geom.morphTargetHasNormalDeltas.reserve(morphTargets.size());
+		geom.morphTargetHasTangentDeltas.reserve(morphTargets.size());
+		for (const MorphTargetData& target : morphTargets)
+		{
+			const bool hasPos = target.positionDeltas.size() == vertexCount;
+			const bool hasNorm = target.normalDeltas.size() == vertexCount;
+			const bool hasTan = target.tangentDeltas.size() == vertexCount;
+			geom.morphTargetHasPositionDeltas.push_back(hasPos ? 1 : 0);
+			geom.morphTargetHasNormalDeltas.push_back(hasNorm ? 1 : 0);
+			geom.morphTargetHasTangentDeltas.push_back(hasTan ? 1 : 0);
+			for (size_t i = 0; i < vertexCount; ++i)
+				geom.morphTargetDeltaPositions.push_back(hasPos ? target.positionDeltas[i] : glm::vec3(0.0f));
+			for (size_t i = 0; i < vertexCount; ++i)
+				geom.morphTargetDeltaNormals.push_back(hasNorm ? target.normalDeltas[i] : glm::vec3(0.0f));
+			for (size_t i = 0; i < vertexCount; ++i)
+				geom.morphTargetDeltaTangents.push_back(hasTan ? target.tangentDeltas[i] : glm::vec3(0.0f));
+		}
+
+		// Current per-target weights (small, changes every animation tick -
+		// mirrors jointPalette's role for skinning). Already resized/clamped
+		// to morphTargets.size() by SceneMesh::applyMorphWeights().
+		const QVector<float>& weightsQt = mesh->animationState().currentMorphWeights();
+		geom.morphWeights.reserve(static_cast<size_t>(weightsQt.size()));
+		for (float w : weightsQt)
+			geom.morphWeights.push_back(w);
+		geom.morphWeights.resize(geom.morphTargetCount, 0.0f);
+	}
+
 	geom.vertices.reserve(verts.size());
 	for (const Vertex& v : verts)
 	{
@@ -251,6 +312,23 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 		hash = fnv1aHash(geom.jointIndices.data(), geom.jointIndices.size() * sizeof(glm::vec4), hash);
 		hash = fnv1aHash(geom.jointWeights.data(), geom.jointWeights.size() * sizeof(glm::vec4), hash);
 		geom.baseContentHash = hash;
+	}
+
+	if (geom.hasMorphData)
+	{
+		// See RtMeshGeometry::morphBaseContentHash's doc comment - hashed
+		// over the rest-pose arrays + delta arrays + indices ONLY,
+		// deliberately excluding morphWeights (which changes every
+		// animation tick, unlike everything else this identity needs to
+		// stay stable across).
+		uint64_t hash = fnv1aHash(geom.indices.data(), geom.indices.size() * sizeof(uint32_t));
+		hash = fnv1aHash(geom.baseMorphPositions.data(), geom.baseMorphPositions.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.baseMorphNormals.data(), geom.baseMorphNormals.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.baseMorphTangents.data(), geom.baseMorphTangents.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.morphTargetDeltaPositions.data(), geom.morphTargetDeltaPositions.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.morphTargetDeltaNormals.data(), geom.morphTargetDeltaNormals.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.morphTargetDeltaTangents.data(), geom.morphTargetDeltaTangents.size() * sizeof(glm::vec3), hash);
+		geom.morphBaseContentHash = hash;
 	}
 
 	return geom;

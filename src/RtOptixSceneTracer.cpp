@@ -18,6 +18,7 @@
 #include "RtOptixEmbeddedPtx.h"
 #include "RtOptixSceneParams.h"
 #include "RtOptixSkinningParams.h"
+#include "RtOptixMorphParams.h"
 #include "PathUtils.h"
 
 #include <QDir>
@@ -667,6 +668,88 @@ struct RtOptixSceneTracer::Impl
 	// treating this exactly like a failed CPU-bake refit - see call site).
 	bool updateSkinBase(const RtMeshGeometry& mesh, CUdeviceptr outPositions, CUdeviceptr outNormals, CUdeviceptr outTangents);
 
+	// GPU morph-blending compute kernel module/function (see RtOptixMorph.cu's
+	// doc comment) - same lazy-load convention as skinningModule above, kept
+	// entirely separate since most scenes have no morph-target mesh at all.
+	CUmodule morphModule = nullptr;
+	CUfunction morphFunction = nullptr;
+	bool morphModuleLoadAttempted = false;
+	bool ensureMorphModuleLoaded();
+
+	// Persistent cache of GPU-morph REST-POSE base data - mirrors
+	// persistentSkinBaseCache exactly in shape/lifecycle, keyed on
+	// RtMeshGeometry::morphBaseContentHash (the rest-pose + delta identity,
+	// changes rarely) instead of the per-frame morphWeights. Holds the
+	// device-resident rest-pose position/normal/tangent + flattened
+	// per-target delta buffers (+ presence flags), uploaded ONCE per
+	// rest-pose identity and reused every frame that identity is still
+	// current - RtOptixMorph.cu's kernel reads these plus a small per-build
+	// weights upload and writes the blended result directly into the SAME
+	// device position/normal/tangent buffers the mesh's GAS (refit) already
+	// owns.
+	struct MorphBaseEntry
+	{
+		uint64_t contentHash = 0; // this entry's own morphBaseContentHash - bookkeeping symmetry with persistentSkinBaseCache, not load-bearing (the map key already encodes it)
+		CUdeviceptr basePositions = 0;
+		CUdeviceptr baseNormals = 0;
+		CUdeviceptr baseTangents = 0;
+		CUdeviceptr deltaPositions = 0;
+		CUdeviceptr deltaNormals = 0;
+		CUdeviceptr deltaTangents = 0;
+		CUdeviceptr hasPositionDeltas = 0;
+		CUdeviceptr hasNormalDeltas = 0;
+		CUdeviceptr hasTangentDeltas = 0;
+		bool touchedThisBuild = false;
+	};
+	std::unordered_map<uint32_t, MorphBaseEntry> persistentMorphBaseCache;
+
+	static void freeMorphBaseEntry(MorphBaseEntry& entry)
+	{
+		if (entry.basePositions) cudaFree(reinterpret_cast<void*>(entry.basePositions));
+		if (entry.baseNormals) cudaFree(reinterpret_cast<void*>(entry.baseNormals));
+		if (entry.baseTangents) cudaFree(reinterpret_cast<void*>(entry.baseTangents));
+		if (entry.deltaPositions) cudaFree(reinterpret_cast<void*>(entry.deltaPositions));
+		if (entry.deltaNormals) cudaFree(reinterpret_cast<void*>(entry.deltaNormals));
+		if (entry.deltaTangents) cudaFree(reinterpret_cast<void*>(entry.deltaTangents));
+		if (entry.hasPositionDeltas) cudaFree(reinterpret_cast<void*>(entry.hasPositionDeltas));
+		if (entry.hasNormalDeltas) cudaFree(reinterpret_cast<void*>(entry.hasNormalDeltas));
+		if (entry.hasTangentDeltas) cudaFree(reinterpret_cast<void*>(entry.hasTangentDeltas));
+	}
+
+	// Mark-and-sweep eviction, same convention as evictUnusedSkinBase() -
+	// called once, at the end of a successful buildScene().
+	void evictUnusedMorphBase()
+	{
+		int evicted = 0;
+		for (auto it = persistentMorphBaseCache.begin(); it != persistentMorphBaseCache.end(); )
+		{
+			if (it->second.touchedThisBuild)
+			{
+				it->second.touchedThisBuild = false;
+				++it;
+			}
+			else
+			{
+				freeMorphBaseEntry(it->second);
+				it = persistentMorphBaseCache.erase(it);
+				++evicted;
+			}
+		}
+		if (evicted > 0)
+			qInfo() << "RtOptixSceneTracer::evictUnusedMorphBase: freed" << evicted << "morph-base entr(y/ies) no longer referenced.";
+	}
+
+	// Ensures persistentMorphBaseCache has an up-to-date entry for this mesh
+	// (uploading rest-pose position/normal/tangent + flattened delta/presence
+	// buffers fresh only if missing or the rest pose itself changed - see
+	// RtMeshGeometry::morphBaseContentHash's doc comment), uploads this
+	// build's (small) weights array, then launches RtOptixMorph.cu's kernel
+	// writing the blended result directly into outPositions/outNormals/
+	// outTangents (the mesh's own GAS position/normal/tangent buffers).
+	// Returns false on any failure (caller falls back to the CPU-bake refit
+	// path - see call site).
+	bool updateMorphBase(const RtMeshGeometry& mesh, CUdeviceptr outPositions, CUdeviceptr outNormals, CUdeviceptr outTangents);
+
 	// KHR_materials_sheen's directional-albedo LUT (RtOptixSceneParams::
 	// sheenAlbedoLUT) - a process-constant table (depends on nothing but the
 	// Charlie BRDF), so it's baked and uploaded ONCE (lazily, on the first
@@ -716,6 +799,12 @@ struct RtOptixSceneTracer::Impl
 			for (auto& [key, entry] : persistentSkinBaseCache)
 				freeSkinBaseEntry(entry);
 			persistentSkinBaseCache.clear();
+
+			if (!persistentMorphBaseCache.empty())
+				qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << persistentMorphBaseCache.size() << "cached morph-base entr(y/ies) (final teardown).";
+			for (auto& [key, entry] : persistentMorphBaseCache)
+				freeMorphBaseEntry(entry);
+			persistentMorphBaseCache.clear();
 
 			// Final teardown only - see instancesBuffer/iasOutputBuffer's own
 			// doc comment for why these are NOT unconditionally freed here
@@ -767,6 +856,7 @@ struct RtOptixSceneTracer::Impl
 		if (context) optixDeviceContextDestroy(context);
 
 		if (skinningModule) cuModuleUnload(skinningModule);
+		if (morphModule) cuModuleUnload(morphModule);
 	}
 };
 
@@ -1040,6 +1130,129 @@ bool RtOptixSceneTracer::Impl::updateSkinBase(const RtMeshGeometry& mesh, CUdevi
 	}
 
 	cudaFree(reinterpret_cast<void*>(paletteDevice));
+	return ok;
+}
+
+bool RtOptixSceneTracer::Impl::ensureMorphModuleLoaded()
+{
+	if (morphModule && morphFunction)
+		return true;
+	if (morphModuleLoadAttempted)
+		return false; // already tried and failed - never retried
+	morphModuleLoadAttempted = true;
+
+	if (!cuCheck(cuModuleLoadDataEx(&morphModule, g_rtOptixMorphPtx, 0, nullptr, nullptr), "cuModuleLoadDataEx(RtOptixMorph)"))
+	{
+		morphModule = nullptr;
+		return false;
+	}
+	if (!cuCheck(cuModuleGetFunction(&morphFunction, morphModule, "morphVertices"), "cuModuleGetFunction(morphVertices)"))
+	{
+		cuModuleUnload(morphModule);
+		morphModule = nullptr;
+		morphFunction = nullptr;
+		return false;
+	}
+	return true;
+}
+
+bool RtOptixSceneTracer::Impl::updateMorphBase(const RtMeshGeometry& mesh, CUdeviceptr outPositions, CUdeviceptr outNormals, CUdeviceptr outTangents)
+{
+	if (!ensureMorphModuleLoaded())
+		return false;
+
+	const uint32_t vertexCount = static_cast<uint32_t>(mesh.baseMorphPositions.size());
+	if (vertexCount == 0 || mesh.morphTargetCount == 0 || mesh.morphWeights.empty())
+		return false; // nothing meaningful to blend this build
+
+	auto cachedIt = persistentMorphBaseCache.find(mesh.sourceObjectId);
+	if (cachedIt == persistentMorphBaseCache.end() || cachedIt->second.contentHash != mesh.morphBaseContentHash)
+	{
+		// Missing, or the rest pose/deltas themselves changed (mesh
+		// reload/edit) - rare, most builds hit the "already resident"
+		// branch below instead.
+		MorphBaseEntry entry;
+		entry.contentHash = mesh.morphBaseContentHash;
+
+		const size_t posBytes = mesh.baseMorphPositions.size() * sizeof(glm::vec3);
+		const size_t deltaBytes = mesh.morphTargetDeltaPositions.size() * sizeof(glm::vec3);
+		const size_t flagBytes = static_cast<size_t>(mesh.morphTargetCount) * sizeof(uint8_t);
+
+		bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.basePositions), posBytes), "cudaMalloc(morph base positions)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.basePositions), mesh.baseMorphPositions.data(), posBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph base positions)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.baseNormals), posBytes), "cudaMalloc(morph base normals)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.baseNormals), mesh.baseMorphNormals.data(), posBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph base normals)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.baseTangents), posBytes), "cudaMalloc(morph base tangents)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.baseTangents), mesh.baseMorphTangents.data(), posBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph base tangents)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.deltaPositions), deltaBytes), "cudaMalloc(morph delta positions)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.deltaPositions), mesh.morphTargetDeltaPositions.data(), deltaBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph delta positions)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.deltaNormals), deltaBytes), "cudaMalloc(morph delta normals)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.deltaNormals), mesh.morphTargetDeltaNormals.data(), deltaBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph delta normals)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.deltaTangents), deltaBytes), "cudaMalloc(morph delta tangents)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.deltaTangents), mesh.morphTargetDeltaTangents.data(), deltaBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph delta tangents)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.hasPositionDeltas), flagBytes), "cudaMalloc(morph has-position-deltas)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.hasPositionDeltas), mesh.morphTargetHasPositionDeltas.data(), flagBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph has-position-deltas)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.hasNormalDeltas), flagBytes), "cudaMalloc(morph has-normal-deltas)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.hasNormalDeltas), mesh.morphTargetHasNormalDeltas.data(), flagBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph has-normal-deltas)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.hasTangentDeltas), flagBytes), "cudaMalloc(morph has-tangent-deltas)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.hasTangentDeltas), mesh.morphTargetHasTangentDeltas.data(), flagBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph has-tangent-deltas)");
+
+		if (!ok)
+		{
+			freeMorphBaseEntry(entry);
+			return false;
+		}
+
+		if (cachedIt != persistentMorphBaseCache.end())
+			freeMorphBaseEntry(cachedIt->second); // replacing a stale rest pose - free the old buffers first
+		persistentMorphBaseCache[mesh.sourceObjectId] = entry;
+		cachedIt = persistentMorphBaseCache.find(mesh.sourceObjectId);
+	}
+	cachedIt->second.touchedThisBuild = true;
+
+	// This build's weights array - small, changes every animation tick
+	// (unlike everything else here) - a transient upload, freed right after
+	// the launch below (same legacy-default-stream implicit blocking
+	// reasoning updateSkinBase() above already relies on).
+	CUdeviceptr weightsDevice = 0;
+	const size_t weightsBytes = mesh.morphWeights.size() * sizeof(float);
+	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&weightsDevice), weightsBytes), "cudaMalloc(morph weights)"))
+		return false;
+	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(weightsDevice), mesh.morphWeights.data(), weightsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph weights)"))
+	{
+		cudaFree(reinterpret_cast<void*>(weightsDevice));
+		return false;
+	}
+
+	RtOptixMorphParams hostParams{};
+	hostParams.basePositions = reinterpret_cast<const float3*>(cachedIt->second.basePositions);
+	hostParams.baseNormals = reinterpret_cast<const float3*>(cachedIt->second.baseNormals);
+	hostParams.baseTangents = reinterpret_cast<const float3*>(cachedIt->second.baseTangents);
+	hostParams.deltaPositions = reinterpret_cast<const float3*>(cachedIt->second.deltaPositions);
+	hostParams.deltaNormals = reinterpret_cast<const float3*>(cachedIt->second.deltaNormals);
+	hostParams.deltaTangents = reinterpret_cast<const float3*>(cachedIt->second.deltaTangents);
+	hostParams.hasPositionDeltas = reinterpret_cast<const unsigned char*>(cachedIt->second.hasPositionDeltas);
+	hostParams.hasNormalDeltas = reinterpret_cast<const unsigned char*>(cachedIt->second.hasNormalDeltas);
+	hostParams.hasTangentDeltas = reinterpret_cast<const unsigned char*>(cachedIt->second.hasTangentDeltas);
+	hostParams.weights = reinterpret_cast<const float*>(weightsDevice);
+	hostParams.morphTargetCount = mesh.morphTargetCount;
+	hostParams.vertexCount = vertexCount;
+	hostParams.outPositions = reinterpret_cast<float3*>(outPositions);
+	hostParams.outNormals = reinterpret_cast<float3*>(outNormals);
+	hostParams.outTangents = reinterpret_cast<float4*>(outTangents);
+
+	CUdeviceptr paramsDevicePtr = 0;
+	size_t paramsSize = 0;
+	bool ok = cuCheck(cuModuleGetGlobal(&paramsDevicePtr, &paramsSize, morphModule, "params"), "cuModuleGetGlobal(morph params)");
+	if (ok) ok = cuCheck(cuMemcpyHtoD(paramsDevicePtr, &hostParams, sizeof(hostParams)), "cuMemcpyHtoD(morph params)");
+	if (ok)
+	{
+		constexpr unsigned int kBlockSize = 256;
+		const unsigned int gridSize = (vertexCount + kBlockSize - 1) / kBlockSize;
+		ok = cuCheck(cuLaunchKernel(morphFunction, gridSize, 1, 1, kBlockSize, 1, 1, 0, nullptr, nullptr, nullptr), "cuLaunchKernel(morphVertices)");
+	}
+
+	cudaFree(reinterpret_cast<void*>(weightsDevice));
 	return ok;
 }
 
@@ -1336,6 +1549,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	int gasCacheHits = 0;
 	int gasRefits = 0;
 	int gasGpuSkinUpdates = 0; // subset of gasRefits actually handled by RtOptixSkinning.cu's device blend instead of a CPU-bake-and-memcpy
+	int gasGpuMorphUpdates = 0; // subset of gasRefits actually handled by RtOptixMorph.cu's device blend instead of a CPU-bake-and-memcpy
 	int gasCacheMisses = 0;
 	for (const RtMeshGeometry& mesh : snapshot.meshes)
 	{
@@ -1469,6 +1683,84 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			}
 			// updateSkinBase() unavailable/failed - fall through to the slow
 			// (CPU-bake) path below, same as any other refit-eligible mesh.
+		}
+
+		// GPU-morph fast path - same rationale as the GPU-skin path above,
+		// scoped to MORPH-ONLY meshes (hasSkinningData == false): a mesh
+		// animated by BOTH skinning and morphing at once would need the
+		// morph kernel's output chained as the skin kernel's input (the
+		// "rest pose" the skin kernel consumes would then change every
+		// frame morphing does, breaking the skin-base cache's "upload once"
+		// assumption) - a distinct chaining problem, not attempted here.
+		// Such meshes keep falling through to the CPU-bake path below
+		// exactly as they did before GPU-morph blending existed at all -
+		// no regression, just no speedup for that combination.
+		if (refitEligible && !refitSucceeded && mesh.hasMorphData && !mesh.hasSkinningData)
+		{
+			gas.positions = cachedIt->second.positions;
+			gas.normals = cachedIt->second.normals;
+			gas.texCoords = cachedIt->second.texCoords;
+			gas.tangents = cachedIt->second.tangents;
+			gas.vertexColors = cachedIt->second.vertexColors;
+			gas.indices = cachedIt->second.indices;
+			gas.gasOutputBuffer = cachedIt->second.gasOutputBuffer;
+
+			if (_impl->updateMorphBase(mesh, gas.positions, gas.normals, gas.tangents))
+			{
+				OptixAccelBuildOptions accelOptions{};
+				accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+				accelOptions.operation = OPTIX_BUILD_OPERATION_UPDATE;
+
+				const uint32_t triangleInputFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+				OptixBuildInput triangleInput{};
+				triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+				triangleInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+				triangleInput.triangleArray.numVertices = static_cast<uint32_t>(mesh.vertices.size());
+				triangleInput.triangleArray.vertexBuffers = &gas.positions;
+				triangleInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+				triangleInput.triangleArray.numIndexTriplets = static_cast<uint32_t>(mesh.indices.size() / 3);
+				triangleInput.triangleArray.indexBuffer = gas.indices;
+				triangleInput.triangleArray.flags = triangleInputFlags;
+				triangleInput.triangleArray.numSbtRecords = 1;
+
+				OptixAccelBufferSizes gasBufferSizes{};
+				bool ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage(GAS GPU-morph refit)");
+				if (ok)
+				{
+					CUdeviceptr tempBuffer = 0;
+					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempUpdateSizeInBytes), "cudaMalloc(gas GPU-morph refit temp)");
+					if (ok)
+					{
+						QElapsedTimer gasTimer;
+						gasTimer.start();
+						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
+							tempBuffer, gasBufferSizes.tempUpdateSizeInBytes,
+							gas.gasOutputBuffer, gasBufferSizes.outputSizeInBytes,
+							&gas.handle, nullptr, 0), "optixAccelBuild(GAS GPU-morph refit)");
+						_impl->lastGasBuildMs += static_cast<double>(gasTimer.nsecsElapsed()) / 1.0e6;
+						if (ok)
+							_impl->lastTriangleCount += mesh.indices.size() / 3;
+					}
+					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
+				}
+
+				if (ok)
+				{
+					++gasGpuMorphUpdates;
+					refitSucceeded = true;
+					++gasRefits;
+					cachedIt->second.contentHash = mesh.contentHash;
+					cachedIt->second.handle = gas.handle;
+					cachedIt->second.touchedThisBuild = true;
+					_impl->meshGasEntries.push_back(gas);
+					continue;
+				}
+				// GPU-morph update succeeded but the accel build itself
+				// failed - fall through to the slow path below, same as the
+				// GPU-skin path's identical case above.
+			}
+			// updateMorphBase() unavailable/failed - fall through to the
+			// slow (CPU-bake) path below.
 		}
 
 		std::vector<float3> positions(mesh.vertices.size());
@@ -2549,6 +2841,12 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// bind-pose entry was already marked touched by updateSkinBase() above
 	// (called from the GAS loop's refit branch for hasSkinningData meshes).
 	_impl->evictUnusedSkinBase();
+
+	// Same reasoning again, for persistentMorphBaseCache - every morph-only
+	// mesh's rest-pose entry was already marked touched by updateMorphBase()
+	// above (called from the GAS loop's refit branch for hasMorphData
+	// meshes with hasSkinningData == false).
+	_impl->evictUnusedMorphBase();
 
 	succeeded = true;
 	return true;

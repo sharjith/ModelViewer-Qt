@@ -1490,6 +1490,11 @@ vector<Vertex> SceneMesh::vertices() const
     return _vertices;
 }
 
+vector<Vertex> SceneMesh::baseVertices() const
+{
+    return _baseVertices;
+}
+
 vector<unsigned int> SceneMesh::indices() const
 {
     return _indices;

@@ -481,6 +481,9 @@ if(MODELVIEWER_HAVE_OPTIX)
     # embedded PTX below actually gets loaded/run (cuModuleLoadDataEx()/
     # cuLaunchKernel(), not optixLaunch()).
     add_optix_kernel(RtOptixSkinning src/cuda/RtOptixSkinning.cu g_rtOptixSkinningPtx RtOptixSkinningParams.h)
+    # Same story as RtOptixSkinning above, for GPU morph-target blending
+    # instead of skeletal skinning - see RtOptixMorph.cu's own doc comment.
+    add_optix_kernel(RtOptixMorph src/cuda/RtOptixMorph.cu g_rtOptixMorphPtx RtOptixMorphParams.h)
 endif()
 
 

@@ -28,6 +28,12 @@ public:
 
     std::vector<Vertex> vertices() const;
 
+    // True unmorphed rest pose, snapshotted once at load (see applyMorphWeights()'s
+    // own doc comment) - distinct from vertices(), which reflects the current
+    // morph-blended (but not yet skinned) pose. Needed by RtSceneBuilder to feed
+    // GPU morph-blending its bind-pose input.
+    std::vector<Vertex> baseVertices() const;
+
     std::vector<unsigned int> indices() const;
 
     std::vector<Material::Texture> textures() const;

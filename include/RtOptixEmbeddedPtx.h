@@ -13,3 +13,8 @@ extern const char* const g_rtOptixScenePtx;
 // cuLaunchKernel()) rather than optixLaunch() - see RtOptixSceneTracer's
 // skin-base cache doc comment for the consumer.
 extern const char* const g_rtOptixSkinningPtx;
+
+// Same story as g_rtOptixSkinningPtx above, for GPU morph-target blending
+// (see src/cuda/RtOptixMorph.cu) - see RtOptixSceneTracer's persistent
+// morph-base cache doc comment for the consumer.
+extern const char* const g_rtOptixMorphPtx;
