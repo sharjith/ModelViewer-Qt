@@ -418,7 +418,17 @@ endif()
 if(MODELVIEWER_HAVE_OPTIX)
     target_compile_definitions(ModelViewer PRIVATE MODELVIEWER_HAVE_OPTIX)
     target_include_directories(ModelViewer PRIVATE ${OPTIX_INCLUDE_DIR})
-    target_link_libraries(ModelViewer PRIVATE CUDA::cudart)
+    # CUDA::cuda_driver (the Driver API - cuModuleLoadDataEx()/cuLaunchKernel(),
+    # <cuda.h>) is needed alongside CUDA::cudart (the Runtime API - cudaMalloc()/
+    # cudaMemcpy(), <cuda_runtime.h>) specifically for RtOptixSkinning's PTX
+    # compute kernel below: it's compiled to raw PTX the same way OptiX kernels
+    # are (nvcc --ptx + embed, NOT a native CMake CUDA-target build - see
+    # add_optix_kernel()'s own doc comment for why), and loading/launching raw
+    # PTX at runtime is a Driver API operation regardless of how it was
+    # compiled. Both targets share the same CUDA context safely (a standard,
+    # well-supported interop pattern) - no separate context/device management
+    # needed alongside the existing OptiX/cudart usage elsewhere in this file.
+    target_link_libraries(ModelViewer PRIVATE CUDA::cudart CUDA::cuda_driver)
 
     # OptiX device code (src/cuda/*.cu) can't be compiled as normal CUDA
     # target sources (enable_language(CUDA)'s default flow links a device
@@ -463,6 +473,14 @@ if(MODELVIEWER_HAVE_OPTIX)
     endfunction()
 
     add_optix_kernel(RtOptixScene src/cuda/RtOptixScene.cu g_rtOptixScenePtx RtOptixSceneParams.h)
+    # Not an OptiX pipeline kernel (no raygen/closesthit/miss, no optix.h) -
+    # a plain per-vertex compute kernel (GPU skinning) that happens to reuse
+    # this same PTX-compile-and-embed machinery because it's the only kernel-
+    # code path this project already has - see RtOptixSkinning.cu's own doc
+    # comment and RtOptixSceneTracer's Driver-API launch site for how the
+    # embedded PTX below actually gets loaded/run (cuModuleLoadDataEx()/
+    # cuLaunchKernel(), not optixLaunch()).
+    add_optix_kernel(RtOptixSkinning src/cuda/RtOptixSkinning.cu g_rtOptixSkinningPtx RtOptixSkinningParams.h)
 endif()
 
 

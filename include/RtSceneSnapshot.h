@@ -94,6 +94,49 @@ struct RtMeshGeometry
 	// equally-empty mesh).
 	uint32_t sourceObjectId = 0;
 	uint64_t contentHash = 0;
+
+	// GPU-skinning enrichment - populated by RtSceneBuilder::convertGeometry()
+	// ONLY when the source mesh has skinning (mesh->hasSkinning()), ADDITIONAL
+	// to (never a replacement for) the fully-baked `vertices` above: CPU/
+	// Embree and offline export keep reading `vertices`/`indices` exactly as
+	// before and never look at these fields. They exist so
+	// RtOptixSceneTracer can blend positions/normals/tangents on the GPU
+	// (a compute kernel writing straight into the GAS's device buffers)
+	// instead of re-blending on the CPU and re-uploading the whole vertex
+	// buffer every animation frame - see that class's persistent skin-base
+	// cache doc comment for the consumer side.
+	//
+	// baseSkin{Positions,Normals,Tangents} are the BIND-POSE (unskinned)
+	// arrays, parallel to `vertices` - i.e. what `vertices` would contain if
+	// applySkinning were false. jointIndices/jointWeights are copied
+	// verbatim from Vertex::JointIndices/JointWeights (also parallel to
+	// `vertices`). tangentHandedness is precomputed ONCE here, on the
+	// bind-pose tangent/normal/bitangent (mirrors RtOptixSceneTracer's
+	// existing per-vertex handedness-sign derivation exactly) - skinning
+	// never needs to redo this: it's a topological property (sign of
+	// dot(cross(N,T), B)) invariant under any pure rotation, and joints are
+	// rigid (rotation+translation only, never non-uniform scale), so the
+	// bind-pose answer stays correct for every future pose.
+	//
+	// jointPalette is THIS build's current joint-matrix array (small, <=128
+	// entries) - changes every animation tick, unlike everything else above.
+	//
+	// baseContentHash is hashed over the BIND-POSE arrays + jointIndices/
+	// jointWeights + indices ONLY (never jointPalette) - deliberately
+	// SEPARATE from `contentHash` above (which reflects the POSED/skinned
+	// result): baseContentHash is the identity a persistent GPU bind-pose
+	// buffer cache needs, since bind-pose data changes rarely (mesh
+	// reload/edit) while the palette - and therefore `contentHash` - changes
+	// every single animation frame.
+	bool hasSkinningData = false;
+	std::vector<glm::vec3> baseSkinPositions;
+	std::vector<glm::vec3> baseSkinNormals;
+	std::vector<glm::vec3> baseSkinTangents;
+	std::vector<float>     tangentHandedness;
+	std::vector<glm::vec4> jointIndices;
+	std::vector<glm::vec4> jointWeights;
+	std::vector<glm::mat4> jointPalette;
+	uint64_t baseContentHash = 0;
 };
 
 // CPU-resident RGBA8 pixel buffer copied out of a Material::Texture's QImage

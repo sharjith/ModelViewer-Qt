@@ -1726,7 +1726,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 	// Material and textures details
 	qDebug() << "Mesh with material: " << meshName << " processed.";
-	std::cout << mat;	
 
 	AssImpMeshData meshData;
 	meshData.name = meshName;

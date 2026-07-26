@@ -152,6 +152,23 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 			jointPalette.push_back(toGlm(m));
 	}
 
+	// GPU-skinning enrichment (see RtMeshGeometry::hasSkinningData's doc
+	// comment, RtSceneSnapshot.h) - captured alongside the existing CPU bake
+	// below, never instead of it. Only meaningful when the mesh actually has
+	// skin data at all; left empty otherwise (zero extra cost for the vast
+	// majority of static meshes).
+	geom.hasSkinningData = mesh->hasSkinning();
+	if (geom.hasSkinningData)
+	{
+		geom.baseSkinPositions.reserve(verts.size());
+		geom.baseSkinNormals.reserve(verts.size());
+		geom.baseSkinTangents.reserve(verts.size());
+		geom.tangentHandedness.reserve(verts.size());
+		geom.jointIndices.reserve(verts.size());
+		geom.jointWeights.reserve(verts.size());
+		geom.jointPalette = jointPalette;
+	}
+
 	geom.vertices.reserve(verts.size());
 	for (const Vertex& v : verts)
 	{
@@ -164,6 +181,32 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 			rv.texCoords[uvSet] = v.TexCoords[uvSet];
 		if (hasVertexColors)
 			rv.color = v.Color;
+
+		if (geom.hasSkinningData)
+		{
+			geom.baseSkinPositions.push_back(rv.position);
+			geom.baseSkinNormals.push_back(rv.normal);
+			geom.baseSkinTangents.push_back(rv.tangent);
+			geom.jointIndices.push_back(glm::vec4(v.JointIndices[0], v.JointIndices[1], v.JointIndices[2], v.JointIndices[3]));
+			geom.jointWeights.push_back(glm::vec4(v.JointWeights[0], v.JointWeights[1], v.JointWeights[2], v.JointWeights[3]));
+
+			// Precomputed ONCE, on the BIND-POSE tangent/normal/bitangent -
+			// mirrors RtOptixSceneTracer's identical per-vertex handedness-
+			// sign derivation exactly (see that class's GAS-loop doc
+			// comment). Never needs recomputing per pose: it's a
+			// topological property invariant under any pure rotation, and
+			// joints here are rigid (rotation+translation only).
+			float handedness = 1.0f;
+			if (glm::length(rv.tangent) > 0.01f && glm::length(rv.bitangent) > 0.01f)
+			{
+				const glm::vec3 T = glm::normalize(rv.tangent - glm::dot(rv.tangent, rv.normal) * rv.normal);
+				const glm::vec3 importedBitangent = glm::normalize(rv.bitangent - glm::dot(rv.bitangent, rv.normal) * rv.normal);
+				const float sign = glm::sign(glm::dot(glm::cross(rv.normal, T), importedBitangent));
+				if (sign != 0.0f)
+					handedness = sign;
+			}
+			geom.tangentHandedness.push_back(handedness);
+		}
 
 		if (applySkinning)
 		{
@@ -194,6 +237,21 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 	}
 
 	geom.indices = mesh->indices();
+
+	if (geom.hasSkinningData)
+	{
+		// See RtMeshGeometry::baseContentHash's doc comment - hashed over the
+		// BIND-POSE arrays + joint indices/weights + indices ONLY, deliberately
+		// excluding jointPalette (which changes every animation tick, unlike
+		// everything else this identity needs to stay stable across).
+		uint64_t hash = fnv1aHash(geom.indices.data(), geom.indices.size() * sizeof(uint32_t));
+		hash = fnv1aHash(geom.baseSkinPositions.data(), geom.baseSkinPositions.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.baseSkinNormals.data(), geom.baseSkinNormals.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.baseSkinTangents.data(), geom.baseSkinTangents.size() * sizeof(glm::vec3), hash);
+		hash = fnv1aHash(geom.jointIndices.data(), geom.jointIndices.size() * sizeof(glm::vec4), hash);
+		hash = fnv1aHash(geom.jointWeights.data(), geom.jointWeights.size() * sizeof(glm::vec4), hash);
+		geom.baseContentHash = hash;
+	}
 
 	return geom;
 }

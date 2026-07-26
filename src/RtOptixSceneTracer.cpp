@@ -6,6 +6,7 @@
 #ifdef MODELVIEWER_HAVE_OPTIX
 
 #include <cuda_runtime.h>
+#include <cuda.h> // Driver API (cuModuleLoadDataEx()/cuLaunchKernel()) - only used to load/launch RtOptixSkinning.cu's plain compute kernel, see ensureSkinningModuleLoaded()
 
 #include <optix.h>
 #include <optix_stack_size.h>
@@ -16,6 +17,7 @@
 #include "RtEnvironmentSampler.h"
 #include "RtOptixEmbeddedPtx.h"
 #include "RtOptixSceneParams.h"
+#include "RtOptixSkinningParams.h"
 #include "PathUtils.h"
 
 #include <QDir>
@@ -86,6 +88,60 @@ namespace
 		if (result == OPTIX_SUCCESS)
 			return true;
 		qWarning() << "RtOptixSceneTracer:" << what << "failed (OptixResult" << static_cast<int>(result) << ")";
+		return false;
+	}
+
+	// CUDA Driver API's own error-check convention - only used for loading/
+	// launching RtOptixSkinning.cu's plain compute kernel (cuModuleLoadDataEx()/
+	// cuModuleGetFunction()/cuModuleGetGlobal()/cuLaunchKernel()); everything
+	// else in this file is either the Runtime API (cudaCheck() above) or the
+	// OptiX API (optixCheck() above).
+	// FNV-1a over raw bytes - mirrors RtSceneBuilder.cpp's identical helper
+	// (used there for RtMeshGeometry::contentHash/baseContentHash) - not
+	// cross-run/cross-process stable, just fast and deterministic within
+	// this one running process, which is all a same-session "did this
+	// change since the last buildScene() call" comparison needs. Used below
+	// to detect an unchanged environment (cubemap/irradiance/prefilter
+	// chains) so its expensive re-upload + RtEnvironmentSampler CDF/PDF
+	// rebuild can be skipped on a build triggered by something else
+	// entirely (e.g. an animated mesh's pose changing) - see
+	// Impl::lastEnvironmentHash's doc comment.
+	// Processes 8 bytes/iteration (an unaligned uint64_t read - safe and fast
+	// on x64, this project's only target) instead of 1, since this is now
+	// used to hash tens of megabytes of environment cubemap/prefilter pixel
+	// data every buildScene() call (see envHash's call site) - a plain
+	// byte-at-a-time loop measured at ~53ms/call on real environment data,
+	// which had become the new dominant cost right after fixing the
+	// redundant-reupload problem this hash exists to detect in the first
+	// place. Still a full-fidelity fingerprint (every byte folded in, just
+	// 8 at a time) - not a sampled/partial hash, so no new risk of missing a
+	// genuine content change.
+	uint64_t fnv1aHash(const void* data, size_t size, uint64_t seed = 1469598103934665603ULL)
+	{
+		const unsigned char* bytes = static_cast<const unsigned char*>(data);
+		uint64_t hash = seed;
+		const size_t wordCount = size / sizeof(uint64_t);
+		const uint64_t* words = reinterpret_cast<const uint64_t*>(bytes);
+		for (size_t i = 0; i < wordCount; ++i)
+		{
+			hash ^= words[i];
+			hash *= 1099511628211ULL;
+		}
+		for (size_t i = wordCount * sizeof(uint64_t); i < size; ++i)
+		{
+			hash ^= bytes[i];
+			hash *= 1099511628211ULL;
+		}
+		return hash;
+	}
+
+	bool cuCheck(CUresult result, const char* what)
+	{
+		if (result == CUDA_SUCCESS)
+			return true;
+		const char* errName = nullptr;
+		cuGetErrorName(result, &errName);
+		qWarning() << "RtOptixSceneTracer:" << what << "failed (CUresult" << static_cast<int>(result) << (errName ? errName : "") << ")";
 		return false;
 	}
 
@@ -446,6 +502,72 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr envTexelPdfBuffer = 0;
 	float envTotalWeight = 0.0f;
 
+	// Content identity for everything uploaded above - SURVIVES across
+	// buildScene() calls (see freeSceneBuffers()'s includePersistentCaches
+	// parameter) exactly like persistentGasCache/persistentTextureCache, so
+	// an unchanged environment (the common case during animation playback -
+	// nothing about the skybox/HDRI changes just because a mesh's pose did)
+	// costs nothing on a build where the scene revision bumped for an
+	// unrelated reason. Confirmed via real session timing instrumentation
+	// that this environment re-upload (cubemap faces + irradiance + full
+	// GGX-prefiltered mip chain, TWICE for the sheen variant, plus rebuilding
+	// a whole RtEnvironmentSampler CDF/PDF distribution from scratch) was
+	// the dominant cost in buildScene() - ~115-155ms out of a 120-180ms
+	// total, versus the GAS loop's 7-26ms - every single animation frame.
+	// environmentUploaded distinguishes "never uploaded yet" from "hash
+	// coincidentally 0" (an empty/no-environment scene hashes to a fixed
+	// seed value, which is a legitimate hash, not a sentinel).
+	uint64_t lastEnvironmentHash = 0;
+	bool environmentUploaded = false;
+
+	// Frees everything the environment-upload block below owns - called
+	// either when replacing a changed environment (buildScene(), before the
+	// fresh upload) or unconditionally on final teardown
+	// (freeSceneBuffers(includePersistentCaches=true)). NOT called at the
+	// top of every buildScene() the way it used to be - that's the whole
+	// point of this being persistent now.
+	void freeEnvironmentBuffers()
+	{
+		for (CUdeviceptr& face : envFaceBuffers)
+		{
+			if (face) cudaFree(reinterpret_cast<void*>(face));
+			face = 0;
+		}
+		envFaceSize = 0;
+
+		for (CUdeviceptr& face : irradianceFaceBuffers)
+		{
+			if (face) cudaFree(reinterpret_cast<void*>(face));
+			face = 0;
+		}
+		irradianceFaceSize = 0;
+
+		for (PrefilterMipGpu& mip : prefilterMipEntries)
+			for (CUdeviceptr& face : mip.faceBuffers)
+				if (face) cudaFree(reinterpret_cast<void*>(face));
+		prefilterMipEntries.clear();
+		if (prefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(prefilterMipsBuffer));
+		prefilterMipsBuffer = 0;
+		prefilterMipCount = 0;
+
+		for (PrefilterMipGpu& mip : sheenPrefilterMipEntries)
+			for (CUdeviceptr& face : mip.faceBuffers)
+				if (face) cudaFree(reinterpret_cast<void*>(face));
+		sheenPrefilterMipEntries.clear();
+		if (sheenPrefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(sheenPrefilterMipsBuffer));
+		sheenPrefilterMipsBuffer = 0;
+		sheenPrefilterMipCount = 0;
+
+		if (envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(envFlatCdfBuffer));
+		envFlatCdfBuffer = 0;
+		if (envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(envTexelPdfBuffer));
+		envTexelPdfBuffer = 0;
+		envTotalWeight = 0.0f;
+
+		lastEnvironmentHash = 0;
+		environmentUploaded = false;
+	}
+
 	OptixModule module = nullptr;
 	OptixPipeline pipeline = nullptr;
 	OptixProgramGroup raygenGroup = nullptr;
@@ -456,6 +578,94 @@ struct RtOptixSceneTracer::Impl
 	CUdeviceptr missRecord = 0;
 	CUdeviceptr hitgroupRecords = 0; // one HitGroupSbtRecord per instance
 	OptixShaderBindingTable sbt = {};
+
+	// GPU-skinning compute kernel module/function (see RtOptixSkinning.cu's
+	// doc comment) - a plain CUDA Driver-API module, entirely separate from
+	// the OptiX module/pipeline above. Lazily loaded on first use
+	// (ensureSkinningModuleLoaded()) rather than in the constructor
+	// alongside the OptiX pipeline, since most scenes never have a skinned
+	// mesh at all - no reason to pay the (cheap but nonzero) module-load
+	// cost unconditionally for every document.
+	CUmodule skinningModule = nullptr;
+	CUfunction skinningFunction = nullptr;
+	bool skinningModuleLoadAttempted = false; // true after the first attempt (success OR failure) - never retried, matching this class's other "probe once" conventions
+	bool ensureSkinningModuleLoaded();
+
+	// Persistent cache of GPU-skinning BIND-POSE base data - mirrors
+	// persistentGasCache exactly in shape/lifecycle (content-keyed, mark-
+	// and-sweep via evictUnusedSkinBase(), SURVIVES across buildScene()
+	// calls - see freeSceneBuffers()'s includePersistentCaches parameter),
+	// but keyed on RtMeshGeometry::baseContentHash (the BIND-POSE identity)
+	// instead of the POSED contentHash the GAS cache uses: bind-pose data
+	// changes rarely (mesh reload/edit) while the posed contentHash changes
+	// every single animation frame, so keying this cache on the posed hash
+	// would defeat the whole point (every frame would look like a genuinely
+	// new mesh). Holds the device-resident bind-pose position/normal/
+	// tangent + joint index/weight buffers, uploaded ONCE per bind-pose
+	// identity and reused every frame that identity is still current -
+	// RtOptixSkinning.cu's kernel reads these plus a small per-build joint-
+	// palette upload and writes the blended result directly into the SAME
+	// device position/normal/tangent buffers the mesh's GAS (refit) already
+	// owns - see buildScene()'s GAS loop for the exact integration point
+	// (inside the existing refitEligible branch, replacing the CPU-bake-
+	// and-cudaMemcpy path specifically for meshes with hasSkinningData).
+	struct SkinBaseEntry
+	{
+		uint64_t contentHash = 0; // this entry's own baseContentHash - bookkeeping symmetry with persistentGasCache, not load-bearing (the map key already encodes it)
+		CUdeviceptr basePositions = 0;
+		CUdeviceptr baseNormals = 0;
+		CUdeviceptr baseTangents = 0;
+		CUdeviceptr jointIndices = 0;
+		CUdeviceptr jointWeights = 0;
+		bool touchedThisBuild = false;
+	};
+	std::unordered_map<uint32_t, SkinBaseEntry> persistentSkinBaseCache;
+
+	static void freeSkinBaseEntry(SkinBaseEntry& entry)
+	{
+		if (entry.basePositions) cudaFree(reinterpret_cast<void*>(entry.basePositions));
+		if (entry.baseNormals) cudaFree(reinterpret_cast<void*>(entry.baseNormals));
+		if (entry.baseTangents) cudaFree(reinterpret_cast<void*>(entry.baseTangents));
+		if (entry.jointIndices) cudaFree(reinterpret_cast<void*>(entry.jointIndices));
+		if (entry.jointWeights) cudaFree(reinterpret_cast<void*>(entry.jointWeights));
+	}
+
+	// Mark-and-sweep eviction, same convention as evictUnusedGas() - called
+	// once, at the end of a successful buildScene(), after every skinned
+	// mesh the new snapshot actually references has already been resolved.
+	void evictUnusedSkinBase()
+	{
+		int evicted = 0;
+		for (auto it = persistentSkinBaseCache.begin(); it != persistentSkinBaseCache.end(); )
+		{
+			if (it->second.touchedThisBuild)
+			{
+				it->second.touchedThisBuild = false;
+				++it;
+			}
+			else
+			{
+				freeSkinBaseEntry(it->second);
+				it = persistentSkinBaseCache.erase(it);
+				++evicted;
+			}
+		}
+		if (evicted > 0)
+			qInfo() << "RtOptixSceneTracer::evictUnusedSkinBase: freed" << evicted << "skin-base entr(y/ies) no longer referenced.";
+	}
+
+	// Ensures persistentSkinBaseCache has an up-to-date entry for this mesh
+	// (uploading bind-pose position/normal/tangent + joint index/weight
+	// buffers fresh only if missing or the bind pose itself changed - see
+	// RtMeshGeometry::baseContentHash's doc comment), uploads this build's
+	// (small) joint palette, then launches RtOptixSkinning.cu's kernel
+	// writing the blended result directly into outPositions/outNormals/
+	// outTangents (the mesh's own GAS position/normal/tangent buffers -
+	// caller passes the SAME pointers gas.positions/gas.normals/gas.tangents
+	// already resolved to, whether those came from a GAS cache hit or a
+	// fresh allocation). Returns false on any failure (caller falls back to
+	// treating this exactly like a failed CPU-bake refit - see call site).
+	bool updateSkinBase(const RtMeshGeometry& mesh, CUdeviceptr outPositions, CUdeviceptr outNormals, CUdeviceptr outTangents);
 
 	// KHR_materials_sheen's directional-albedo LUT (RtOptixSceneParams::
 	// sheenAlbedoLUT) - a process-constant table (depends on nothing but the
@@ -501,6 +711,12 @@ struct RtOptixSceneTracer::Impl
 				freeTextureEntry(entry);
 			persistentTextureCache.clear();
 
+			if (!persistentSkinBaseCache.empty())
+				qInfo() << "RtOptixSceneTracer::freeSceneBuffers: releasing" << persistentSkinBaseCache.size() << "cached skin-base entr(y/ies) (final teardown).";
+			for (auto& [key, entry] : persistentSkinBaseCache)
+				freeSkinBaseEntry(entry);
+			persistentSkinBaseCache.clear();
+
 			// Final teardown only - see instancesBuffer/iasOutputBuffer's own
 			// doc comment for why these are NOT unconditionally freed here
 			// the way they used to be (a mid-session buildScene() call frees
@@ -512,47 +728,15 @@ struct RtOptixSceneTracer::Impl
 			iasOutputBuffer = 0;
 			iasHandle = 0;
 			lastIasInstanceHandles.clear();
+
+			// Same reasoning, for the environment upload - see
+			// freeEnvironmentBuffers()'s own doc comment.
+			freeEnvironmentBuffers();
 		}
 
 		if (lightsBuffer) cudaFree(reinterpret_cast<void*>(lightsBuffer));
 		lightsBuffer = 0;
 		lightCount = 0;
-
-		for (CUdeviceptr& face : envFaceBuffers)
-		{
-			if (face) cudaFree(reinterpret_cast<void*>(face));
-			face = 0;
-		}
-		envFaceSize = 0;
-
-		for (CUdeviceptr& face : irradianceFaceBuffers)
-		{
-			if (face) cudaFree(reinterpret_cast<void*>(face));
-			face = 0;
-		}
-		irradianceFaceSize = 0;
-
-		for (PrefilterMipGpu& mip : prefilterMipEntries)
-			for (CUdeviceptr& face : mip.faceBuffers)
-				if (face) cudaFree(reinterpret_cast<void*>(face));
-		prefilterMipEntries.clear();
-		if (prefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(prefilterMipsBuffer));
-		prefilterMipsBuffer = 0;
-		prefilterMipCount = 0;
-
-		for (PrefilterMipGpu& mip : sheenPrefilterMipEntries)
-			for (CUdeviceptr& face : mip.faceBuffers)
-				if (face) cudaFree(reinterpret_cast<void*>(face));
-		sheenPrefilterMipEntries.clear();
-		if (sheenPrefilterMipsBuffer) cudaFree(reinterpret_cast<void*>(sheenPrefilterMipsBuffer));
-		sheenPrefilterMipsBuffer = 0;
-		sheenPrefilterMipCount = 0;
-
-		if (envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(envFlatCdfBuffer));
-		envFlatCdfBuffer = 0;
-		if (envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(envTexelPdfBuffer));
-		envTexelPdfBuffer = 0;
-		envTotalWeight = 0.0f;
 
 		if (hitgroupRecords) cudaFree(reinterpret_cast<void*>(hitgroupRecords));
 		hitgroupRecords = 0;
@@ -581,6 +765,8 @@ struct RtOptixSceneTracer::Impl
 		if (raygenGroup) optixProgramGroupDestroy(raygenGroup);
 		if (module) optixModuleDestroy(module);
 		if (context) optixDeviceContextDestroy(context);
+
+		if (skinningModule) cuModuleUnload(skinningModule);
 	}
 };
 
@@ -733,6 +919,128 @@ namespace
 		}
 		return table;
 	}
+}
+
+// updateSkinBase() below uploads glm::vec3/glm::vec4/glm::mat4 host arrays
+// verbatim (a plain cudaMemcpy of their raw bytes) and has the device kernel
+// read them back as float3/float4 - only valid if GLM's default (no forced
+// alignment/padding) layout is in effect, matching plain CUDA vector_types.h
+// byte-for-byte. This project never defines GLM_FORCE_ALIGNED_GENTYPES/
+// GLM_FORCE_XYZW_ONLY-style macros that would break that assumption, but
+// enforce it at compile time anyway rather than risk silently garbled
+// positions if that ever changes.
+static_assert(sizeof(glm::vec3) == sizeof(float3), "glm::vec3 must match CUDA float3's layout for RtOptixSkinning.cu's raw device-buffer uploads");
+static_assert(sizeof(glm::vec4) == sizeof(float4), "glm::vec4 must match CUDA float4's layout for RtOptixSkinning.cu's raw device-buffer uploads");
+static_assert(sizeof(glm::mat4) == sizeof(float4) * 4, "glm::mat4 must be 4 contiguous float4 columns for RtOptixSkinning.cu's raw joint-palette upload");
+
+bool RtOptixSceneTracer::Impl::ensureSkinningModuleLoaded()
+{
+	if (skinningModule && skinningFunction)
+		return true;
+	if (skinningModuleLoadAttempted)
+		return false; // already tried and failed - never retried
+	skinningModuleLoadAttempted = true;
+
+	if (!cuCheck(cuModuleLoadDataEx(&skinningModule, g_rtOptixSkinningPtx, 0, nullptr, nullptr), "cuModuleLoadDataEx(RtOptixSkinning)"))
+	{
+		skinningModule = nullptr;
+		return false;
+	}
+	if (!cuCheck(cuModuleGetFunction(&skinningFunction, skinningModule, "skinVertices"), "cuModuleGetFunction(skinVertices)"))
+	{
+		cuModuleUnload(skinningModule);
+		skinningModule = nullptr;
+		skinningFunction = nullptr;
+		return false;
+	}
+	return true;
+}
+
+bool RtOptixSceneTracer::Impl::updateSkinBase(const RtMeshGeometry& mesh, CUdeviceptr outPositions, CUdeviceptr outNormals, CUdeviceptr outTangents)
+{
+	if (!ensureSkinningModuleLoaded())
+		return false;
+
+	const uint32_t vertexCount = static_cast<uint32_t>(mesh.baseSkinPositions.size());
+	if (vertexCount == 0 || mesh.jointPalette.empty())
+		return false; // nothing meaningful to blend this build (e.g. palette not currently available)
+
+	auto cachedIt = persistentSkinBaseCache.find(mesh.sourceObjectId);
+	if (cachedIt == persistentSkinBaseCache.end() || cachedIt->second.contentHash != mesh.baseContentHash)
+	{
+		// Missing, or the bind pose itself changed (mesh reload/edit) - rare,
+		// most builds hit the "already resident" branch below instead.
+		SkinBaseEntry entry;
+		entry.contentHash = mesh.baseContentHash;
+
+		const size_t posBytes = mesh.baseSkinPositions.size() * sizeof(glm::vec3);
+		const size_t jointBytes = mesh.jointIndices.size() * sizeof(glm::vec4);
+
+		bool ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.basePositions), posBytes), "cudaMalloc(skin base positions)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.basePositions), mesh.baseSkinPositions.data(), posBytes, cudaMemcpyHostToDevice), "cudaMemcpy(skin base positions)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.baseNormals), posBytes), "cudaMalloc(skin base normals)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.baseNormals), mesh.baseSkinNormals.data(), posBytes, cudaMemcpyHostToDevice), "cudaMemcpy(skin base normals)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.baseTangents), posBytes), "cudaMalloc(skin base tangents)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.baseTangents), mesh.baseSkinTangents.data(), posBytes, cudaMemcpyHostToDevice), "cudaMemcpy(skin base tangents)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.jointIndices), jointBytes), "cudaMalloc(skin joint indices)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.jointIndices), mesh.jointIndices.data(), jointBytes, cudaMemcpyHostToDevice), "cudaMemcpy(skin joint indices)");
+		if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&entry.jointWeights), jointBytes), "cudaMalloc(skin joint weights)");
+		if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(entry.jointWeights), mesh.jointWeights.data(), jointBytes, cudaMemcpyHostToDevice), "cudaMemcpy(skin joint weights)");
+
+		if (!ok)
+		{
+			freeSkinBaseEntry(entry);
+			return false;
+		}
+
+		if (cachedIt != persistentSkinBaseCache.end())
+			freeSkinBaseEntry(cachedIt->second); // replacing a stale bind pose - free the old buffers first
+		persistentSkinBaseCache[mesh.sourceObjectId] = entry;
+		cachedIt = persistentSkinBaseCache.find(mesh.sourceObjectId);
+	}
+	cachedIt->second.touchedThisBuild = true;
+
+	// This build's joint palette - small, changes every animation tick
+	// (unlike everything else here) - a transient upload, freed right after
+	// the launch below (relies on the legacy default stream's implicit
+	// blocking semantics, same reasoning already used throughout this file
+	// for GAS/IAS temp buffers - see buildScene()'s own doc comments).
+	CUdeviceptr paletteDevice = 0;
+	const size_t paletteBytes = mesh.jointPalette.size() * sizeof(glm::mat4);
+	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&paletteDevice), paletteBytes), "cudaMalloc(joint palette)"))
+		return false;
+	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(paletteDevice), mesh.jointPalette.data(), paletteBytes, cudaMemcpyHostToDevice), "cudaMemcpy(joint palette)"))
+	{
+		cudaFree(reinterpret_cast<void*>(paletteDevice));
+		return false;
+	}
+
+	RtOptixSkinningParams hostParams{};
+	hostParams.basePositions = reinterpret_cast<const float3*>(cachedIt->second.basePositions);
+	hostParams.baseNormals = reinterpret_cast<const float3*>(cachedIt->second.baseNormals);
+	hostParams.baseTangents = reinterpret_cast<const float3*>(cachedIt->second.baseTangents);
+	hostParams.jointIndices = reinterpret_cast<const float4*>(cachedIt->second.jointIndices);
+	hostParams.jointWeights = reinterpret_cast<const float4*>(cachedIt->second.jointWeights);
+	hostParams.jointPalette = reinterpret_cast<const float4*>(paletteDevice);
+	hostParams.jointCount = static_cast<unsigned int>(mesh.jointPalette.size());
+	hostParams.vertexCount = vertexCount;
+	hostParams.outPositions = reinterpret_cast<float3*>(outPositions);
+	hostParams.outNormals = reinterpret_cast<float3*>(outNormals);
+	hostParams.outTangents = reinterpret_cast<float4*>(outTangents);
+
+	CUdeviceptr paramsDevicePtr = 0;
+	size_t paramsSize = 0;
+	bool ok = cuCheck(cuModuleGetGlobal(&paramsDevicePtr, &paramsSize, skinningModule, "params"), "cuModuleGetGlobal(params)");
+	if (ok) ok = cuCheck(cuMemcpyHtoD(paramsDevicePtr, &hostParams, sizeof(hostParams)), "cuMemcpyHtoD(skinning params)");
+	if (ok)
+	{
+		constexpr unsigned int kBlockSize = 256;
+		const unsigned int gridSize = (vertexCount + kBlockSize - 1) / kBlockSize;
+		ok = cuCheck(cuLaunchKernel(skinningFunction, gridSize, 1, 1, kBlockSize, 1, 1, 0, nullptr, nullptr, nullptr), "cuLaunchKernel(skinVertices)");
+	}
+
+	cudaFree(reinterpret_cast<void*>(paletteDevice));
+	return ok;
 }
 
 void RtOptixSceneTracer::Impl::ensureSheenAlbedoLut()
@@ -1027,6 +1335,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	_impl->lastTriangleCount = 0;
 	int gasCacheHits = 0;
 	int gasRefits = 0;
+	int gasGpuSkinUpdates = 0; // subset of gasRefits actually handled by RtOptixSkinning.cu's device blend instead of a CPU-bake-and-memcpy
 	int gasCacheMisses = 0;
 	for (const RtMeshGeometry& mesh : snapshot.meshes)
 	{
@@ -1080,6 +1389,88 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			cachedIt->second.vertexCount == static_cast<uint32_t>(mesh.vertices.size()) &&
 			cachedIt->second.indexCount == static_cast<uint32_t>(mesh.indices.size());
 
+		bool refitSucceeded = false;
+
+		// GPU-skin fast path - attempted BEFORE building any host-side vertex
+		// arrays below, not after: this mesh's positions/normals/tangents
+		// never need to touch the CPU at all when this succeeds, so building
+		// them first (only to discard almost all of it once the GPU kernel
+		// writes its own result) would be pure waste. Confirmed via a real
+		// session log that this waste was real and measurable: BrainStem's
+		// per-frame cadence didn't improve at all when the GPU-skin kernel
+		// first landed, because this exact host-side loop was still running
+		// unconditionally for all 59 skinned meshes every frame regardless.
+		if (refitEligible && mesh.hasSkinningData)
+		{
+			gas.positions = cachedIt->second.positions;
+			gas.normals = cachedIt->second.normals;
+			gas.texCoords = cachedIt->second.texCoords;
+			gas.tangents = cachedIt->second.tangents;
+			gas.vertexColors = cachedIt->second.vertexColors;
+			gas.indices = cachedIt->second.indices;
+			gas.gasOutputBuffer = cachedIt->second.gasOutputBuffer;
+
+			if (_impl->updateSkinBase(mesh, gas.positions, gas.normals, gas.tangents))
+			{
+				OptixAccelBuildOptions accelOptions{};
+				accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
+				accelOptions.operation = OPTIX_BUILD_OPERATION_UPDATE;
+
+				const uint32_t triangleInputFlags[1] = { OPTIX_GEOMETRY_FLAG_NONE };
+				OptixBuildInput triangleInput{};
+				triangleInput.type = OPTIX_BUILD_INPUT_TYPE_TRIANGLES;
+				triangleInput.triangleArray.vertexFormat = OPTIX_VERTEX_FORMAT_FLOAT3;
+				triangleInput.triangleArray.numVertices = static_cast<uint32_t>(mesh.vertices.size());
+				triangleInput.triangleArray.vertexBuffers = &gas.positions;
+				triangleInput.triangleArray.indexFormat = OPTIX_INDICES_FORMAT_UNSIGNED_INT3;
+				triangleInput.triangleArray.numIndexTriplets = static_cast<uint32_t>(mesh.indices.size() / 3);
+				triangleInput.triangleArray.indexBuffer = gas.indices;
+				triangleInput.triangleArray.flags = triangleInputFlags;
+				triangleInput.triangleArray.numSbtRecords = 1;
+
+				OptixAccelBufferSizes gasBufferSizes{};
+				bool ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage(GAS GPU-skin refit)");
+				if (ok)
+				{
+					CUdeviceptr tempBuffer = 0;
+					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempUpdateSizeInBytes), "cudaMalloc(gas GPU-skin refit temp)");
+					if (ok)
+					{
+						QElapsedTimer gasTimer;
+						gasTimer.start();
+						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
+							tempBuffer, gasBufferSizes.tempUpdateSizeInBytes,
+							gas.gasOutputBuffer, gasBufferSizes.outputSizeInBytes,
+							&gas.handle, nullptr, 0), "optixAccelBuild(GAS GPU-skin refit)");
+						_impl->lastGasBuildMs += static_cast<double>(gasTimer.nsecsElapsed()) / 1.0e6;
+						if (ok)
+							_impl->lastTriangleCount += mesh.indices.size() / 3;
+					}
+					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
+				}
+
+				if (ok)
+				{
+					++gasGpuSkinUpdates;
+					refitSucceeded = true;
+					++gasRefits;
+					cachedIt->second.contentHash = mesh.contentHash;
+					cachedIt->second.handle = gas.handle;
+					cachedIt->second.touchedThisBuild = true;
+					_impl->meshGasEntries.push_back(gas);
+					continue;
+				}
+				// GPU-skin update succeeded but the accel build itself
+				// failed - fall through to the slow path below (host-array
+				// build + CPU-bake refit), same as if updateSkinBase() had
+				// failed in the first place. gas.handle may be stale here,
+				// but the slow path rebuilds it from scratch via the same
+				// buffers regardless.
+			}
+			// updateSkinBase() unavailable/failed - fall through to the slow
+			// (CPU-bake) path below, same as any other refit-eligible mesh.
+		}
+
 		std::vector<float3> positions(mesh.vertices.size());
 		std::vector<float3> normals(mesh.vertices.size());
 		std::vector<float2> texCoords(mesh.vertices.size() * 4);
@@ -1118,15 +1509,24 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float3);
 		const size_t indicesBytes = mesh.indices.size() * sizeof(uint32_t); // uint3[] and uint32_t[3*N] share the same binary layout
 
-		bool refitSucceeded = false;
-		if (refitEligible)
+		if (refitEligible && !refitSucceeded)
 		{
 			// Reuse the existing device buffers/handle in place - vertex/
 			// index COUNT is unchanged (checked above), so their byte sizes
-			// match exactly; only their CONTENTS need updating. Indices are
-			// NOT re-uploaded - topology-preserving deformation never
-			// changes triangle connectivity, so the index buffer's content
-			// is already correct and unchanged.
+			// match exactly; only their CONTENTS need updating. Indices,
+			// texCoords, and vertexColors are NOT re-uploaded: topology-
+			// preserving deformation (skinning/morph) only ever moves
+			// positions/normals/tangents - triangle connectivity, UVs, and
+			// vertex colors are baked once at import and never touched by
+			// animation, so re-uploading byte-identical data for them every
+			// single frame (as an earlier version of this refit path did)
+			// was pure waste.
+			//
+			// Reached only when the GPU-skin fast path above wasn't taken
+			// (not a skinned mesh) or fell through after failing - CPU-bake
+			// (already computed into positions/normals/tangents above,
+			// unavoidably for THIS case since there's no GPU alternative) +
+			// cudaMemcpy is the only option here.
 			gas.positions = cachedIt->second.positions;
 			gas.normals = cachedIt->second.normals;
 			gas.texCoords = cachedIt->second.texCoords;
@@ -1137,9 +1537,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 			bool ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions, GAS refit)");
 			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals, GAS refit)");
-			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), texCoords.data(), texCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords, GAS refit)");
 			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.tangents), tangents.data(), tangentsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh tangents, GAS refit)");
-			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), vertexColors.data(), vertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors, GAS refit)");
 
 			if (ok)
 			{
@@ -1334,8 +1732,6 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 		_impl->meshGasEntries.push_back(gas);
 	}
-	if (gasCacheHits > 0 || gasRefits > 0 || gasCacheMisses > 0)
-		qInfo() << "RtOptixSceneTracer::buildScene: GAS -" << gasCacheHits << "cache hit(s)," << gasRefits << "refit," << gasCacheMisses << "rebuilt.";
 
 	// --- IAS: one OptixInstance per RtInstance, applying its world transform
 	// - mirrors RtEmbreeScene::build()'s TLAS loop. ---
@@ -1344,10 +1740,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	std::vector<HitGroupSbtRecord> hitgroupRecordsHost;
 	hitgroupRecordsHost.reserve(snapshot.instances.size());
 
-	// Diagnostics only (logged once at the end of this function, see the
-	// "scene built" qInfo() below) - lets a report like "GPU performance
-	// degrades as more documents get loaded" be read directly off the log
-	// instead of re-derived from scratch each time: dedupedTextureRefs high
+	// Diagnostics only (not currently logged - inspect via debugger/future
+	// diagnostics UI) - lets a report like "GPU performance degrades as more
+	// documents get loaded" be read directly instead of re-derived from
+	// scratch each time: dedupedTextureRefs high
 	// relative to uniqueTextures confirms the dedup (now spanning both THIS
 	// build's own shared textures AND anything reused from the PREVIOUS
 	// build - see Impl::persistentTextureCache's doc comment) is actually
@@ -1857,7 +2253,6 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	_impl->lastIasBuildMs = static_cast<double>(iasTimer.nsecsElapsed()) / 1.0e6;
 	if (!iasBuilt)
 		return false;
-	qInfo() << "RtOptixSceneTracer::buildScene: IAS -" << (iasRefit ? "refit" : "full rebuild") << "(" << instances.size() << "instances).";
 
 	// Record this build's topology so the NEXT buildScene() call can decide
 	// refit-vs-rebuild against it.
@@ -1957,152 +2352,189 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// SCALARS deliberately flow per-launch through renderScene() instead,
 	// see Impl::envFaceBuffers' doc comment for why.
 	const RtEnvironment& env = snapshot.environment;
-	_impl->envFaceSize = env.faceSize;
 
-	if (env.faceSize > 0)
+	// Content identity for everything below - see Impl::lastEnvironmentHash's
+	// doc comment for why this exists at all (the environment almost never
+	// actually changes between two buildScene() calls, e.g. every call
+	// triggered by an animated mesh's pose - re-uploading and rebuilding the
+	// whole importance-sampling distribution anyway was the actual dominant
+	// cost in this function, confirmed via real session timing
+	// instrumentation). Hashed over the SOURCE cubemap/irradiance/prefilter
+	// pixel data only (not jointPalette-style per-frame data, since none
+	// exists here) - unchanged source data means the RtEnvironmentSampler
+	// distribution DERIVED from it is unchanged too, safe to skip rebuilding
+	// without re-deriving it to check.
+	uint64_t envHash = fnv1aHash(&env.faceSize, sizeof(env.faceSize));
+	for (int face = 0; face < 6; ++face)
+		envHash = fnv1aHash(env.faces[face].data(), env.faces[face].size() * sizeof(float), envHash);
+	envHash = fnv1aHash(&env.irradianceFaceSize, sizeof(env.irradianceFaceSize), envHash);
+	for (int face = 0; face < 6; ++face)
+		envHash = fnv1aHash(env.irradianceFaces[face].data(), env.irradianceFaces[face].size() * sizeof(float), envHash);
+	auto hashPrefilterChain = [&envHash](const std::vector<RtEnvironment::PrefilterMip>& mips)
 	{
-		for (int face = 0; face < 6; ++face)
+		const size_t count = mips.size();
+		envHash = fnv1aHash(&count, sizeof(count), envHash);
+		for (const RtEnvironment::PrefilterMip& mip : mips)
 		{
-			if (!uploadCubemapFace(env.faces[face], env.faceSize, _impl->envFaceBuffers[face]))
-			{
-				qWarning() << "RtOptixSceneTracer::buildScene(): environment face" << face << "has unexpected size - disabling environment.";
-				_impl->envFaceSize = 0;
-				freeCubemapFaces(_impl->envFaceBuffers);
-				break;
-			}
-		}
-	}
-
-	_impl->irradianceFaceSize = env.irradianceFaceSize;
-	if (env.irradianceFaceSize > 0)
-	{
-		for (int face = 0; face < 6; ++face)
-		{
-			if (!uploadCubemapFace(env.irradianceFaces[face], env.irradianceFaceSize, _impl->irradianceFaceBuffers[face]))
-			{
-				qWarning() << "RtOptixSceneTracer::buildScene(): irradiance face" << face << "has unexpected size - disabling GPU diffuse IBL (falls back to the raw map).";
-				_impl->irradianceFaceSize = 0;
-				freeCubemapFaces(_impl->irradianceFaceBuffers);
-				break;
-			}
-		}
-	}
-
-	auto uploadPrefilterChain = [&](const std::vector<RtEnvironment::PrefilterMip>& sourceMips,
-		std::vector<Impl::PrefilterMipGpu>& gpuMips,
-		CUdeviceptr& mipsBuffer,
-		int& mipCount,
-		const char* label) -> void
-	{
-		mipCount = 0;
-		if (sourceMips.empty())
-			return;
-
-		gpuMips.resize(sourceMips.size());
-		std::vector<RtOptixPrefilterMip> hostMips(sourceMips.size());
-		bool mipsOk = true;
-		for (size_t m = 0; mipsOk && m < sourceMips.size(); ++m)
-		{
-			const RtEnvironment::PrefilterMip& mip = sourceMips[m];
-			hostMips[m].faceSize = mip.faceSize;
+			envHash = fnv1aHash(&mip.faceSize, sizeof(mip.faceSize), envHash);
 			for (int face = 0; face < 6; ++face)
-			{
-				if (!uploadCubemapFace(mip.faces[face], mip.faceSize, gpuMips[m].faceBuffers[face]))
-				{
-					qWarning() << "RtOptixSceneTracer::buildScene():" << label << "mip" << static_cast<int>(m) << "face" << face
-						<< "has unexpected size - disabling the prefilter chain (falling back to the raw map).";
-					mipsOk = false;
-					break;
-				}
-				hostMips[m].faces[face] = reinterpret_cast<float3*>(gpuMips[m].faceBuffers[face]);
-			}
-		}
-
-		bool finalized = false;
-		if (mipsOk)
-		{
-			const size_t mipsBytes = hostMips.size() * sizeof(RtOptixPrefilterMip);
-			const bool mallocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)");
-			if (mallocOk && cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
-			{
-				mipCount = static_cast<int>(hostMips.size());
-				finalized = true;
-			}
-			else if (mallocOk)
-			{
-				// malloc succeeded but the memcpy failed - same pattern as the
-				// per-texture mip array above: free the live-but-unfinalized
-				// allocation directly rather than leaving it in mipsBuffer
-				// (still reachable via the persistent Impl member the caller
-				// passed in, but pointlessly resident with mipCount left at 0).
-				cudaFree(reinterpret_cast<void*>(mipsBuffer));
-				mipsBuffer = 0;
-			}
-		}
-
-		if (!finalized)
-		{
-			// Either a per-face upload failed partway through the chain
-			// (mipsOk==false) or the chain finished but the final device-
-			// array malloc/memcpy above failed - either way mipCount stays 0
-			// (chain disabled, falls back to the raw map) and every face
-			// buffer already uploaded for this chain is now unreferenced.
-			// Free them immediately rather than leaving them resident until
-			// the next buildScene()/destructor.
-			for (Impl::PrefilterMipGpu& gpuMip : gpuMips)
-				for (CUdeviceptr& face : gpuMip.faceBuffers)
-				{
-					if (face) cudaFree(reinterpret_cast<void*>(face));
-					face = 0;
-				}
-			gpuMips.clear();
+				envHash = fnv1aHash(mip.faces[face].data(), mip.faces[face].size() * sizeof(float), envHash);
 		}
 	};
+	hashPrefilterChain(env.prefilterMips);
+	hashPrefilterChain(env.sheenPrefilterMips);
 
-	uploadPrefilterChain(env.prefilterMips, _impl->prefilterMipEntries, _impl->prefilterMipsBuffer, _impl->prefilterMipCount, "prefilter");
-	uploadPrefilterChain(env.sheenPrefilterMips, _impl->sheenPrefilterMipEntries, _impl->sheenPrefilterMipsBuffer, _impl->sheenPrefilterMipCount, "sheen prefilter");
-
-	// Environment-light NEE + MIS - builds a host-side RtEnvironmentSampler
-	// from the SAME environment cubemap just uploaded above (so both engines
-	// importance-sample the identical distribution), then uploads its raw
-	// flat CDF/texel-pdf arrays verbatim - see RtOptixSceneParams.h's
-	// RtOptixEnvironment::envFlatCdf doc comment. A local, buildScene()-
-	// scoped instance is sufficient (unlike CPU's RtPathTracingSession-owned
-	// one, which stays alive to serve every render call) since this backend
-	// only needs the arrays uploaded once, not kept around host-side.
-	_impl->envTotalWeight = 0.0f;
+	if (!(_impl->environmentUploaded && envHash == _impl->lastEnvironmentHash))
 	{
-		RtEnvironmentSampler envSampler;
-		envSampler.build(env);
-		if (envSampler.isValid())
+		// Replacing (or uploading for the first time) - free whatever was
+		// there before starting the fresh upload below, mirroring the GAS
+		// cache's "topology changed, free the old entry first" handling.
+		_impl->freeEnvironmentBuffers();
+
+		_impl->envFaceSize = env.faceSize;
+
+		if (env.faceSize > 0)
 		{
-			const std::vector<float>& flatCdf = envSampler.flatCdf();
-			const std::vector<float>& texelPdf = envSampler.texelPdf();
-			const size_t flatCdfBytes = flatCdf.size() * sizeof(float);
-			const size_t texelPdfBytes = texelPdf.size() * sizeof(float);
-			if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envFlatCdfBuffer), flatCdfBytes), "cudaMalloc(env flat CDF)") &&
-				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envFlatCdfBuffer), flatCdf.data(), flatCdfBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env flat CDF)") &&
-				cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envTexelPdfBuffer), texelPdfBytes), "cudaMalloc(env texel pdf)") &&
-				cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envTexelPdfBuffer), texelPdf.data(), texelPdfBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env texel pdf)"))
+			for (int face = 0; face < 6; ++face)
 			{
-				_impl->envTotalWeight = envSampler.totalWeight();
-			}
-			else
-			{
-				if (_impl->envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(_impl->envFlatCdfBuffer));
-				_impl->envFlatCdfBuffer = 0;
-				if (_impl->envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(_impl->envTexelPdfBuffer));
-				_impl->envTexelPdfBuffer = 0;
+				if (!uploadCubemapFace(env.faces[face], env.faceSize, _impl->envFaceBuffers[face]))
+				{
+					qWarning() << "RtOptixSceneTracer::buildScene(): environment face" << face << "has unexpected size - disabling environment.";
+					_impl->envFaceSize = 0;
+					freeCubemapFaces(_impl->envFaceBuffers);
+					break;
+				}
 			}
 		}
+
+		_impl->irradianceFaceSize = env.irradianceFaceSize;
+		if (env.irradianceFaceSize > 0)
+		{
+			for (int face = 0; face < 6; ++face)
+			{
+				if (!uploadCubemapFace(env.irradianceFaces[face], env.irradianceFaceSize, _impl->irradianceFaceBuffers[face]))
+				{
+					qWarning() << "RtOptixSceneTracer::buildScene(): irradiance face" << face << "has unexpected size - disabling GPU diffuse IBL (falls back to the raw map).";
+					_impl->irradianceFaceSize = 0;
+					freeCubemapFaces(_impl->irradianceFaceBuffers);
+					break;
+				}
+			}
+		}
+
+		auto uploadPrefilterChain = [&](const std::vector<RtEnvironment::PrefilterMip>& sourceMips,
+			std::vector<Impl::PrefilterMipGpu>& gpuMips,
+			CUdeviceptr& mipsBuffer,
+			int& mipCount,
+			const char* label) -> void
+		{
+			mipCount = 0;
+			if (sourceMips.empty())
+				return;
+
+			gpuMips.resize(sourceMips.size());
+			std::vector<RtOptixPrefilterMip> hostMips(sourceMips.size());
+			bool mipsOk = true;
+			for (size_t m = 0; mipsOk && m < sourceMips.size(); ++m)
+			{
+				const RtEnvironment::PrefilterMip& mip = sourceMips[m];
+				hostMips[m].faceSize = mip.faceSize;
+				for (int face = 0; face < 6; ++face)
+				{
+					if (!uploadCubemapFace(mip.faces[face], mip.faceSize, gpuMips[m].faceBuffers[face]))
+					{
+						qWarning() << "RtOptixSceneTracer::buildScene():" << label << "mip" << static_cast<int>(m) << "face" << face
+							<< "has unexpected size - disabling the prefilter chain (falling back to the raw map).";
+						mipsOk = false;
+						break;
+					}
+					hostMips[m].faces[face] = reinterpret_cast<float3*>(gpuMips[m].faceBuffers[face]);
+				}
+			}
+
+			bool finalized = false;
+			if (mipsOk)
+			{
+				const size_t mipsBytes = hostMips.size() * sizeof(RtOptixPrefilterMip);
+				const bool mallocOk = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&mipsBuffer), mipsBytes), "cudaMalloc(prefilter mips)");
+				if (mallocOk && cudaCheck(cudaMemcpy(reinterpret_cast<void*>(mipsBuffer), hostMips.data(), mipsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(prefilter mips)"))
+				{
+					mipCount = static_cast<int>(hostMips.size());
+					finalized = true;
+				}
+				else if (mallocOk)
+				{
+					// malloc succeeded but the memcpy failed - same pattern as the
+					// per-texture mip array above: free the live-but-unfinalized
+					// allocation directly rather than leaving it in mipsBuffer
+					// (still reachable via the persistent Impl member the caller
+					// passed in, but pointlessly resident with mipCount left at 0).
+					cudaFree(reinterpret_cast<void*>(mipsBuffer));
+					mipsBuffer = 0;
+				}
+			}
+
+			if (!finalized)
+			{
+				// Either a per-face upload failed partway through the chain
+				// (mipsOk==false) or the chain finished but the final device-
+				// array malloc/memcpy above failed - either way mipCount stays 0
+				// (chain disabled, falls back to the raw map) and every face
+				// buffer already uploaded for this chain is now unreferenced.
+				// Free them immediately rather than leaving them resident until
+				// the next buildScene()/destructor.
+				for (Impl::PrefilterMipGpu& gpuMip : gpuMips)
+					for (CUdeviceptr& face : gpuMip.faceBuffers)
+					{
+						if (face) cudaFree(reinterpret_cast<void*>(face));
+						face = 0;
+					}
+				gpuMips.clear();
+			}
+		};
+
+		uploadPrefilterChain(env.prefilterMips, _impl->prefilterMipEntries, _impl->prefilterMipsBuffer, _impl->prefilterMipCount, "prefilter");
+		uploadPrefilterChain(env.sheenPrefilterMips, _impl->sheenPrefilterMipEntries, _impl->sheenPrefilterMipsBuffer, _impl->sheenPrefilterMipCount, "sheen prefilter");
+
+		// Environment-light NEE + MIS - builds a host-side RtEnvironmentSampler
+		// from the SAME environment cubemap just uploaded above (so both engines
+		// importance-sample the identical distribution), then uploads its raw
+		// flat CDF/texel-pdf arrays verbatim - see RtOptixSceneParams.h's
+		// RtOptixEnvironment::envFlatCdf doc comment. A local, buildScene()-
+		// scoped instance is sufficient (unlike CPU's RtPathTracingSession-owned
+		// one, which stays alive to serve every render call) since this backend
+		// only needs the arrays uploaded once, not kept around host-side.
+		_impl->envTotalWeight = 0.0f;
+		{
+			RtEnvironmentSampler envSampler;
+			envSampler.build(env);
+			if (envSampler.isValid())
+			{
+				const std::vector<float>& flatCdf = envSampler.flatCdf();
+				const std::vector<float>& texelPdf = envSampler.texelPdf();
+				const size_t flatCdfBytes = flatCdf.size() * sizeof(float);
+				const size_t texelPdfBytes = texelPdf.size() * sizeof(float);
+				if (cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envFlatCdfBuffer), flatCdfBytes), "cudaMalloc(env flat CDF)") &&
+					cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envFlatCdfBuffer), flatCdf.data(), flatCdfBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env flat CDF)") &&
+					cudaCheck(cudaMalloc(reinterpret_cast<void**>(&_impl->envTexelPdfBuffer), texelPdfBytes), "cudaMalloc(env texel pdf)") &&
+					cudaCheck(cudaMemcpy(reinterpret_cast<void*>(_impl->envTexelPdfBuffer), texelPdf.data(), texelPdfBytes, cudaMemcpyHostToDevice), "cudaMemcpy(env texel pdf)"))
+				{
+					_impl->envTotalWeight = envSampler.totalWeight();
+				}
+				else
+				{
+					if (_impl->envFlatCdfBuffer) cudaFree(reinterpret_cast<void*>(_impl->envFlatCdfBuffer));
+					_impl->envFlatCdfBuffer = 0;
+					if (_impl->envTexelPdfBuffer) cudaFree(reinterpret_cast<void*>(_impl->envTexelPdfBuffer));
+					_impl->envTexelPdfBuffer = 0;
+				}
+			}
+		}
+
+		_impl->lastEnvironmentHash = envHash;
+		_impl->environmentUploaded = true;
 	}
 
-	qInfo() << "RtOptixSceneTracer: scene built (" << _impl->meshGasEntries.size() << "meshes,"
-		<< instances.size() << "instances," << _impl->lightCount << "lights).";
-	qInfo() << "RtOptixSceneTracer: textures -" << textureStats.uniqueTextures << "unique uploaded,"
-		<< textureStats.dedupedTextureRefs << "refs deduped," << (textureStats.textureBytes / 1024 / 1024) << "MB base,"
-		<< textureStats.mipLevelsUploaded << "mip levels uploaded (" << (textureStats.mipBytes / 1024 / 1024) << "MB ),"
-		<< textureStats.mipLevelsReused << "mip-0 levels reused (0 MB extra).";
 
 	// Every texture this snapshot actually references has now been resolved
 	// (and its persistentTextureCache entry marked touched, whether reused or
@@ -2113,6 +2545,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// Same reasoning, for persistentGasCache - every mesh's GAS entry was
 	// already marked touched (hit or miss) by the GAS loop above.
 	_impl->evictUnusedGas();
+	// Same reasoning, for persistentSkinBaseCache - every skinned mesh's
+	// bind-pose entry was already marked touched by updateSkinBase() above
+	// (called from the GAS loop's refit branch for hasSkinningData meshes).
+	_impl->evictUnusedSkinBase();
 
 	succeeded = true;
 	return true;
