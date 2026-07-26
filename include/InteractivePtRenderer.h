@@ -53,16 +53,24 @@ class RtOptixSceneTracer;
 // contributing to the SAME conceptual image (see _accumulationCamera), not
 // two independent "latest result" buffers.
 //
-// Denoising: see setProgressiveDenoiseEnabled() - runs periodically, on a
-// device-resident copy, once enough samples have accumulated, rather than
-// once at the very end (there is no "the very end" anymore - the camera
+// Denoising: see setDenoiserEnabled() - runs on EVERY published launch, into
+// a separate device-resident copy (never gated on a minimum accumulated-
+// sample count - the native OptiX denoiser is robust even at 1 spp, and
+// there is no "the very end" to wait for anymore anyway, since the camera
 // might never fully stop).
 // ---------------------------------------------------------------------------
 class InteractivePtRenderer
 {
 public:
-	// tracer must outlive this object - not owned (ViewportWidget already
-	// owns one RtOptixSceneTracer shared with the settled GPU PT path).
+	// tracer must outlive this object - not owned. Deliberately a SEPARATE
+	// RtOptixSceneTracer instance from the settled GPU PT path's own
+	// (_ptOptixSession's tracer) - each keeps its own independent GAS/IAS/
+	// texture-cache state (see RtOptixSceneTracer::Impl::persistentTextureCache's
+	// doc comment for why sharing one instance across both would be actively
+	// wrong: the two sessions are torn down/rebuilt on different triggers and
+	// neither should invalidate the other's resident scene). ViewportWidget
+	// owns this tracer instance (_interactivePtTracer) and constructs it
+	// before this renderer for that reason.
 	explicit InteractivePtRenderer(RtOptixSceneTracer& tracer);
 	~InteractivePtRenderer(); // drains any in-flight launch before freeing resources - see releaseResources()
 

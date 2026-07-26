@@ -9,20 +9,23 @@
 // ---------------------------------------------------------------------------
 // RtOptixSceneTracer
 //
-// Phase 2a of the GPU (OptiX) path tracer backend - see RtOptixSceneParams.h's
-// doc comment for exactly what this does and doesn't render yet (real
-// geometry/instancing/camera, flat-normal-as-color shading, no materials/
-// lights/bounces). Builds a real two-level acceleration structure (GAS per
-// RtMeshGeometry, IAS with one OptixInstance per RtInstance) mirroring
-// RtEmbreeScene's BLAS/TLAS structure.
+// GPU (OptiX) path tracer backend - the RtEmbreeScene/CpuPathTracer
+// counterpart, now at full material/lighting parity with the CPU engine
+// (see RtOptixSceneParams.h's doc comment for the complete feature list:
+// metallic-roughness Cook-Torrance + all supported KHR material extensions,
+// shadow rays, environment-light NEE/MIS, mip-mapped textures, etc.). Builds
+// a real two-level acceleration structure (GAS per RtMeshGeometry, IAS with
+// one OptixInstance per RtInstance) mirroring RtEmbreeScene's BLAS/TLAS
+// structure, plus uploads/caches every material texture - see buildScene()'s
+// own doc comment for what does and doesn't persist across rebuilds.
 //
-// Deliberately self-contained (owns its own CUDA/OptiX device context) same
-// as RtOptixTracer (Phase 1b) - see that class's doc comment for why. Will
-// be consolidated once real material/lighting rendering replaces both test
-// paths.
+// Deliberately self-contained - owns its own CUDA/OptiX device context
+// rather than sharing one with any other GPU-facing piece in this codebase
+// (RtDenoiser, InteractivePtRenderer's own tracer instance, etc. all do the
+// same) - see RtDenoiser.cpp's Impl::optixContext doc comment for the same
+// reasoning spelled out in more depth.
 //
-// Compiles to an inert stub when built without the CUDA/OptiX toolchain,
-// same pattern as RtOptixContext/RtOptixTracer.
+// Compiles to an inert stub when built without the CUDA/OptiX toolchain.
 // ---------------------------------------------------------------------------
 class RtOptixSceneTracer
 {
@@ -48,11 +51,17 @@ public:
 	uint64_t lastTriangleCount() const;
 
 	// (Re)builds the GPU acceleration structure from this snapshot's
-	// meshes/instances - mirrors RtEmbreeScene::build()'s contract. Always
-	// rebuilds unconditionally (no revision-check fast path yet - see
-	// RtEmbreeScene's own revisionId()/RtFrameAccumulator's handling for the
-	// pattern a later phase should adopt here). Returns false if OptiX isn't
-	// available or the build failed.
+	// meshes/instances - mirrors RtEmbreeScene::build()'s contract. Callers
+	// (InteractivePtRenderer::ensureSceneResources(), RtOptixPathTracingSession::
+	// start()) already skip calling this at all when the snapshot's revisionId
+	// hasn't changed, but every ACTUAL call still unconditionally rebuilds the
+	// GAS/IAS from scratch - no revision-check fast path *within* this
+	// function yet (see RtEmbreeScene's own revisionId()/RtFrameAccumulator's
+	// handling for the pattern a later phase could adopt here, e.g. a dirty-
+	// ratio rebuild-vs-refit split). Material TEXTURES are the one piece that
+	// already persists across calls independently of all this - see
+	// Impl::persistentTextureCache's doc comment. Returns false if OptiX
+	// isn't available or the build failed.
 	bool buildScene(const RtSceneSnapshot& snapshot);
 
 	// Renders the current scene (from the last successful buildScene() call)

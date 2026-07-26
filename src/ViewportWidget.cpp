@@ -14080,13 +14080,17 @@ void ViewportWidget::onPathTracedRefreshTimer()
 	// the presenter texture exclusively - paintGL()'s own interactive-pull
 	// block (tick()/pollCompletedFrame()) uploads it every paint. Pulling
 	// _ptOptixSession's (settled-only, see its own doc comment) latestFrame()
-	// here too, unconditionally, races that: if a settled session happened to
-	// publish a chunk before being cancelled (e.g. a brief idle-timeout
-	// promotion mid-drag that the very next mouse-move event immediately
-	// reverted), this timer would keep re-uploading that stale, frozen-camera
-	// frame on its own cadence, fighting the interactive uploads and making
-	// the on-screen pose visibly hop back and forth between the two. Only the
-	// settled session may publish to the presenter here.
+	// here too, unconditionally, would race that: _ptOptixSession is reached
+	// via PathTracingDialog's Render button or the app-reactivation/self-
+	// healing watchdog restart paths, both of which correctly clear
+	// _pathTracedInteractiveActive before starting it (see
+	// startOptixTestPathTracedSession()'s own doc comment for why that
+	// teardown matters) - but if that ever regressed and both ended up
+	// "active" at once, this timer would keep re-uploading _ptOptixSession's
+	// frames on its own cadence, fighting the interactive accumulator's own
+	// per-paint uploads and making the on-screen pose visibly hop back and
+	// forth between the two. Only the settled session may publish to the
+	// presenter here.
 	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU && !_pathTracedInteractiveActive)
 	{
 		std::vector<float> alpha;

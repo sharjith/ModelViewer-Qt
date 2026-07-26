@@ -195,7 +195,6 @@ private:
 	uint32_t _maxVolumeScatterBounces = 64;
 	uint32_t _samplesPerChunk = 1;
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
-	bool _stayAliveAtConvergence = false;
 
 	mutable std::mutex _snapshotMutex;
 	std::shared_ptr<const RtSceneSnapshot> _snapshot;
