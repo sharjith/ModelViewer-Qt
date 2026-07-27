@@ -418,6 +418,12 @@ public:
 	// special case, so nothing scene-mutation-specific needs to happen here
 	// beyond the revision bump.
 	void notifyPathTracedSceneMutated();
+	// Animation playback/scrubbing is also a scene mutation, but for the GPU
+	// backend we want to drive the live interactive PT path with those new
+	// revisions instead of unconditionally dropping to raster/PBR. Falls back
+	// to notifyPathTracedSceneMutated()'s original teardown behavior if the
+	// interactive GPU path can't be restarted/refreshed.
+	void notifyPathTracedAnimationMutated();
 
 	// User-adjustable PT quality settings (PathTracingDialog) - stored here
 	// rather than pushed straight into _rtSession/CpuPathTracer::Settings so
@@ -1580,7 +1586,11 @@ private:
 	// comment for why that distinction matters (buildPathTracedSnapshot()'s
 	// synchronous environment-cubemap GPU readback, not the trace itself, was
 	// the real per-tick cost a naive always-restart approach used to pay).
-	void startInteractivePathTracedGpuSession();
+	// forceSceneRefresh=true is the animation path: if an interactive PT
+	// session is ALREADY live at the current resolution, rebuilds (or queues,
+	// if a launch is still in flight) a NEW scene snapshot against that SAME
+	// renderer instance instead of tearing it down and starting over.
+	void startInteractivePathTracedGpuSession(bool forceSceneRefresh = false);
 
 	// Called unconditionally from the END of startInteractivePathTracedGpuSession()'s
 	// slow path - i.e. every time that path runs, regardless of which caller
@@ -1693,7 +1703,8 @@ private:
 	// viewport frames correctly instead of stretching the same framing.
 	// Also updates _ptOrthoThinWallWarningActive as a side effect (see its
 	// doc comment) - both callers want this detection to run.
-	std::shared_ptr<const RtSceneSnapshot> buildPathTracedSnapshot(int width, int height);
+	std::shared_ptr<const RtSceneSnapshot> buildPathTracedSnapshot(int width, int height,
+		const RtEnvironment* reusedEnvironment = nullptr);
 
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;

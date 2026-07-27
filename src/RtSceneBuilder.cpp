@@ -361,8 +361,29 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	// Tier 2: Material's own internal per-TextureType array - the glTF/
 	// import path's storage.
 	const Material::Texture& materialLevelTex = material.texture(static_cast<Material::TextureType>(textureType));
+	bool usingMaterialLevelTex = false;
 	if (!texPtr && !materialLevelTex.imageData.isNull())
+	{
 		texPtr = &materialLevelTex;
+		usingMaterialLevelTex = true;
+	}
+
+	// The Tier 2/3 UV transform (scale/offset/rotation/texCoordIndex) is
+	// read from Material::textureTransform(), NOT texPtr->scale/offset/
+	// rotation/texCoordIndex or materialLevelTex's own copies of those same
+	// fields. Material keeps two separate stores for this: the generic
+	// per-type Texture struct in _textures[] (what texPtr/materialLevelTex
+	// point into, baked in once at import and never touched again) and a
+	// dedicated named transform member per texture slot (_normalTexTransform
+	// etc.) that raster's own uniform-setting code reads and that
+	// KHR_animation_pointer texture-transform animation actually mutates at
+	// runtime (AnimationRuntimeController::applyTexturePointerValue()).
+	// Reading the former meant a pointer-animated UV rotation/offset/scale
+	// updated correctly on screen in raster but the path tracer's snapshot
+	// silently kept using whatever value the file was authored with,
+	// forever - confirmed against glTF-Sample-Assets' PotOfCoalsAnimation-
+	// Pointer.gltf, whose HeatDome material never appeared to rotate in PT.
+	const Material::TextureTransform liveTransform = material.textureTransform(static_cast<Material::TextureType>(textureType));
 
 	QImage img;
 	glm::vec2 uvScale(1.0f), uvOffset(0.0f);
@@ -372,13 +393,27 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 
 	if (texPtr)
 	{
-		img            = texPtr->imageData;
-		uvScale        = texPtr->scale;
-		uvOffset       = texPtr->offset;
-		uvRotation     = texPtr->rotation;
-		texCoordIndex  = texPtr->texCoordIndex;
-		wrapS          = static_cast<unsigned int>(texPtr->wrapS);
-		wrapT          = static_cast<unsigned int>(texPtr->wrapT);
+		img = texPtr->imageData;
+		if (usingMaterialLevelTex)
+		{
+			uvScale       = glm::vec2(liveTransform.texScale.x(), liveTransform.texScale.y());
+			uvOffset      = glm::vec2(liveTransform.texOffset.x(), liveTransform.texOffset.y());
+			uvRotation    = liveTransform.texRotation;
+			texCoordIndex = liveTransform.texCoord;
+		}
+		else
+		{
+			// Tier 1 (mesh-level texture list) has no animated-transform
+			// counterpart - imported glTF materials don't use this tier at
+			// all (see the comment above), so there is nothing stale to
+			// correct for here.
+			uvScale       = texPtr->scale;
+			uvOffset      = texPtr->offset;
+			uvRotation    = texPtr->rotation;
+			texCoordIndex = texPtr->texCoordIndex;
+		}
+		wrapS = static_cast<unsigned int>(texPtr->wrapS);
+		wrapT = static_cast<unsigned int>(texPtr->wrapT);
 	}
 	else if (!materialMapPath.isEmpty())
 	{
@@ -387,16 +422,17 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 		// (ViewportWidget::resolveMaterialTextures()/getOrLoadTextureCached())
 		// only ever writes a GL texture id onto the Material/Texture objects
 		// themselves; the actual decoded pixels only exist here. Sampler/
-		// transform metadata still comes from materialLevelTex (or its
-		// defaults above), since the cache entry itself carries none.
+		// transform metadata still comes from the live per-type transform
+		// (see above) rather than materialLevelTex, since the cache entry
+		// itself carries none.
 		const auto it = runtime.texCache().find(materialMapPath);
 		if (it != runtime.texCache().end() && !it->second.image.isNull())
 		{
 			img           = it->second.image;
-			uvScale       = materialLevelTex.scale;
-			uvOffset      = materialLevelTex.offset;
-			uvRotation    = materialLevelTex.rotation;
-			texCoordIndex = materialLevelTex.texCoordIndex;
+			uvScale       = glm::vec2(liveTransform.texScale.x(), liveTransform.texScale.y());
+			uvOffset      = glm::vec2(liveTransform.texOffset.x(), liveTransform.texOffset.y());
+			uvRotation    = liveTransform.texRotation;
+			texCoordIndex = liveTransform.texCoord;
 			wrapS         = static_cast<unsigned int>(materialLevelTex.wrapS);
 			wrapT         = static_cast<unsigned int>(materialLevelTex.wrapT);
 		}

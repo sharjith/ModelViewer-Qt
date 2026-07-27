@@ -155,6 +155,40 @@ Material::Texture& Material::texture(TextureType type)
 	return _textures[static_cast<size_t>(type)];
 }
 
+Material::TextureTransform Material::textureTransform(TextureType type) const
+{
+	switch (type)
+	{
+	case TextureType::Albedo:                   return _albedoTexTransform;
+	case TextureType::Metallic:                 return _metallicTexTransform;
+	case TextureType::Roughness:                return _roughnessTexTransform;
+	case TextureType::Normal:                   return _normalTexTransform;
+	case TextureType::AmbientOcclusion:         return _occlusionTexTransform;
+	case TextureType::Opacity:                  return _opacityTexTransform;
+	case TextureType::Emissive:                 return _emissiveTexTransform;
+	case TextureType::Height:                   return _heightTexTransform;
+	case TextureType::Transmission:              return _transmissionTexTransform;
+	case TextureType::IOR:                      return _iorTexTransform;
+	case TextureType::SheenColor:                return _sheenColorTexTransform;
+	case TextureType::SheenRoughness:            return _sheenRoughnessTexTransform;
+	case TextureType::ClearcoatColor:            return _clearcoatColorTexTransform;
+	case TextureType::ClearcoatRoughness:        return _clearcoatRoughnessTexTransform;
+	case TextureType::ClearcoatNormal:           return _clearcoatNormalTexTransform;
+	case TextureType::Iridescence:                return _iridescenceTexTransform;
+	case TextureType::IridescenceThickness:      return _iridescenceThicknessTexTransform;
+	case TextureType::SpecularFactor:            return _specularFactorTexTransform;
+	case TextureType::SpecularColor:             return _specularColorTexTransform;
+	case TextureType::Anisotropy:                return _anisotropyTexTransform;
+	case TextureType::DiffuseTransmission:       return _diffuseTransmissionTexTransform;
+	case TextureType::DiffuseTransmissionColor:  return _diffuseTransmissionColorTexTransform;
+	case TextureType::Thickness:                 return _thicknessTexTransform;
+	case TextureType::Diffuse:                   return _diffuseTexTransform;
+	case TextureType::SpecularGlossiness:        return _specularGlossinessTexTransform;
+	case TextureType::Count:
+	default:                                     return TextureTransform();
+	}
+}
+
 // ============================================================================
 // TextureType to String Helper
 // ============================================================================

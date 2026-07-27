@@ -162,6 +162,21 @@ public:
 	/// @return Friendly name (e.g., "Metallic", "Roughness", etc.)
 	static QString textureTypeToString(TextureType type);
 
+	// Returns the LIVE per-type UV transform (texCoord/scale/offset/rotation)
+	// - the same storage the named accessors below (normalTexRotation(),
+	// setNormalTexRotation(), etc.) and raster's own uniform-setting code
+	// (RenderableMesh.cpp) read and write, and the same storage
+	// KHR_animation_pointer texture-transform animation actually mutates
+	// (AnimationRuntimeController::applyTexturePointerValue()). Deliberately
+	// NOT texture(type).rotation/offset/scale/texCoordIndex - those live in
+	// a SEPARATE, never-animated copy inside the generic per-type Texture
+	// struct (_textures[]), which only ever reflects whatever was baked in
+	// at import time. RtSceneBuilder::extractTextureSample() must read this
+	// accessor instead of texture(type)'s own transform fields, or a
+	// pointer-animated texture transform silently never reaches the path
+	// tracer even though it updates correctly on screen in raster.
+	TextureTransform textureTransform(TextureType type) const;
+
 	/// Helper: Convert friendly string name to TextureType enum
 	/// @param name The friendly name
 	/// @return TextureType enum value, or TextureType::Count if not found

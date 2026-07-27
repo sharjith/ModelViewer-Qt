@@ -703,6 +703,48 @@ struct RtOptixSceneTracer::Impl
 	};
 	std::unordered_map<uint32_t, MorphBaseEntry> persistentMorphBaseCache;
 
+	// Small-but-hot per-frame animation inputs (joint palettes, morph
+	// weights) and the temporary OptiX accel scratch used by the repeated
+	// refit/build calls below were still being cudaMalloc/cudaFree'd on the
+	// animation hot path every tick. Reuse them across buildScene() calls so
+	// animated PT pays the upload/compute cost, not allocator churn.
+	struct ReusableDeviceBuffer
+	{
+		CUdeviceptr ptr = 0;
+		size_t      bytes = 0;
+	};
+	ReusableDeviceBuffer skinJointPaletteBuffer;
+	ReusableDeviceBuffer morphWeightsBuffer;
+	ReusableDeviceBuffer accelScratchBuffer;
+
+	bool ensureReusableDeviceBuffer(ReusableDeviceBuffer& buffer, size_t requiredBytes, const char* label)
+	{
+		if (requiredBytes == 0)
+			return true;
+		if (buffer.ptr != 0 && buffer.bytes >= requiredBytes)
+			return true;
+
+		if (buffer.ptr != 0)
+		{
+			cudaFree(reinterpret_cast<void*>(buffer.ptr));
+			buffer.ptr = 0;
+			buffer.bytes = 0;
+		}
+
+		if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&buffer.ptr), requiredBytes), label))
+			return false;
+		buffer.bytes = requiredBytes;
+		return true;
+	}
+
+	static void freeReusableDeviceBuffer(ReusableDeviceBuffer& buffer)
+	{
+		if (buffer.ptr)
+			cudaFree(reinterpret_cast<void*>(buffer.ptr));
+		buffer.ptr = 0;
+		buffer.bytes = 0;
+	}
+
 	static void freeMorphBaseEntry(MorphBaseEntry& entry)
 	{
 		if (entry.basePositions) cudaFree(reinterpret_cast<void*>(entry.basePositions));
@@ -817,6 +859,10 @@ struct RtOptixSceneTracer::Impl
 			iasOutputBuffer = 0;
 			iasHandle = 0;
 			lastIasInstanceHandles.clear();
+
+			freeReusableDeviceBuffer(skinJointPaletteBuffer);
+			freeReusableDeviceBuffer(morphWeightsBuffer);
+			freeReusableDeviceBuffer(accelScratchBuffer);
 
 			// Same reasoning, for the environment upload - see
 			// freeEnvironmentBuffers()'s own doc comment.
@@ -1091,19 +1137,14 @@ bool RtOptixSceneTracer::Impl::updateSkinBase(const RtMeshGeometry& mesh, CUdevi
 	cachedIt->second.touchedThisBuild = true;
 
 	// This build's joint palette - small, changes every animation tick
-	// (unlike everything else here) - a transient upload, freed right after
-	// the launch below (relies on the legacy default stream's implicit
-	// blocking semantics, same reasoning already used throughout this file
-	// for GAS/IAS temp buffers - see buildScene()'s own doc comments).
-	CUdeviceptr paletteDevice = 0;
+	// (unlike everything else here). Keep one reusable device buffer sized
+	// to the largest palette seen so far instead of reallocating every mesh
+	// on every animation frame.
 	const size_t paletteBytes = mesh.jointPalette.size() * sizeof(glm::mat4);
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&paletteDevice), paletteBytes), "cudaMalloc(joint palette)"))
+	if (!ensureReusableDeviceBuffer(skinJointPaletteBuffer, paletteBytes, "cudaMalloc(reusable joint palette buffer)"))
 		return false;
-	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(paletteDevice), mesh.jointPalette.data(), paletteBytes, cudaMemcpyHostToDevice), "cudaMemcpy(joint palette)"))
-	{
-		cudaFree(reinterpret_cast<void*>(paletteDevice));
+	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(skinJointPaletteBuffer.ptr), mesh.jointPalette.data(), paletteBytes, cudaMemcpyHostToDevice), "cudaMemcpy(joint palette)"))
 		return false;
-	}
 
 	RtOptixSkinningParams hostParams{};
 	hostParams.basePositions = reinterpret_cast<const float3*>(cachedIt->second.basePositions);
@@ -1111,7 +1152,7 @@ bool RtOptixSceneTracer::Impl::updateSkinBase(const RtMeshGeometry& mesh, CUdevi
 	hostParams.baseTangents = reinterpret_cast<const float3*>(cachedIt->second.baseTangents);
 	hostParams.jointIndices = reinterpret_cast<const float4*>(cachedIt->second.jointIndices);
 	hostParams.jointWeights = reinterpret_cast<const float4*>(cachedIt->second.jointWeights);
-	hostParams.jointPalette = reinterpret_cast<const float4*>(paletteDevice);
+	hostParams.jointPalette = reinterpret_cast<const float4*>(skinJointPaletteBuffer.ptr);
 	hostParams.jointCount = static_cast<unsigned int>(mesh.jointPalette.size());
 	hostParams.vertexCount = vertexCount;
 	hostParams.outPositions = reinterpret_cast<float3*>(outPositions);
@@ -1128,8 +1169,6 @@ bool RtOptixSceneTracer::Impl::updateSkinBase(const RtMeshGeometry& mesh, CUdevi
 		const unsigned int gridSize = (vertexCount + kBlockSize - 1) / kBlockSize;
 		ok = cuCheck(cuLaunchKernel(skinningFunction, gridSize, 1, 1, kBlockSize, 1, 1, 0, nullptr, nullptr, nullptr), "cuLaunchKernel(skinVertices)");
 	}
-
-	cudaFree(reinterpret_cast<void*>(paletteDevice));
 	return ok;
 }
 
@@ -1211,18 +1250,13 @@ bool RtOptixSceneTracer::Impl::updateMorphBase(const RtMeshGeometry& mesh, CUdev
 	cachedIt->second.touchedThisBuild = true;
 
 	// This build's weights array - small, changes every animation tick
-	// (unlike everything else here) - a transient upload, freed right after
-	// the launch below (same legacy-default-stream implicit blocking
-	// reasoning updateSkinBase() above already relies on).
-	CUdeviceptr weightsDevice = 0;
+	// (unlike everything else here). Reuse one device buffer across frames
+	// rather than reallocating for every morph mesh.
 	const size_t weightsBytes = mesh.morphWeights.size() * sizeof(float);
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&weightsDevice), weightsBytes), "cudaMalloc(morph weights)"))
+	if (!ensureReusableDeviceBuffer(morphWeightsBuffer, weightsBytes, "cudaMalloc(reusable morph weights buffer)"))
 		return false;
-	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(weightsDevice), mesh.morphWeights.data(), weightsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph weights)"))
-	{
-		cudaFree(reinterpret_cast<void*>(weightsDevice));
+	if (!cudaCheck(cudaMemcpy(reinterpret_cast<void*>(morphWeightsBuffer.ptr), mesh.morphWeights.data(), weightsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(morph weights)"))
 		return false;
-	}
 
 	RtOptixMorphParams hostParams{};
 	hostParams.basePositions = reinterpret_cast<const float3*>(cachedIt->second.basePositions);
@@ -1234,7 +1268,7 @@ bool RtOptixSceneTracer::Impl::updateMorphBase(const RtMeshGeometry& mesh, CUdev
 	hostParams.hasPositionDeltas = reinterpret_cast<const unsigned char*>(cachedIt->second.hasPositionDeltas);
 	hostParams.hasNormalDeltas = reinterpret_cast<const unsigned char*>(cachedIt->second.hasNormalDeltas);
 	hostParams.hasTangentDeltas = reinterpret_cast<const unsigned char*>(cachedIt->second.hasTangentDeltas);
-	hostParams.weights = reinterpret_cast<const float*>(weightsDevice);
+	hostParams.weights = reinterpret_cast<const float*>(morphWeightsBuffer.ptr);
 	hostParams.morphTargetCount = mesh.morphTargetCount;
 	hostParams.vertexCount = vertexCount;
 	hostParams.outPositions = reinterpret_cast<float3*>(outPositions);
@@ -1251,8 +1285,6 @@ bool RtOptixSceneTracer::Impl::updateMorphBase(const RtMeshGeometry& mesh, CUdev
 		const unsigned int gridSize = (vertexCount + kBlockSize - 1) / kBlockSize;
 		ok = cuCheck(cuLaunchKernel(morphFunction, gridSize, 1, 1, kBlockSize, 1, 1, 0, nullptr, nullptr, nullptr), "cuLaunchKernel(morphVertices)");
 	}
-
-	cudaFree(reinterpret_cast<void*>(weightsDevice));
 	return ok;
 }
 
@@ -1646,10 +1678,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 				bool ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage(GAS GPU-skin refit)");
 				if (ok)
 				{
-					CUdeviceptr tempBuffer = 0;
-					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempUpdateSizeInBytes), "cudaMalloc(gas GPU-skin refit temp)");
+					ok = _impl->ensureReusableDeviceBuffer(_impl->accelScratchBuffer, gasBufferSizes.tempUpdateSizeInBytes, "cudaMalloc(reusable GAS refit scratch)");
 					if (ok)
 					{
+						const CUdeviceptr tempBuffer = gasBufferSizes.tempUpdateSizeInBytes > 0 ? _impl->accelScratchBuffer.ptr : 0;
 						QElapsedTimer gasTimer;
 						gasTimer.start();
 						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
@@ -1660,7 +1692,6 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 						if (ok)
 							_impl->lastTriangleCount += mesh.indices.size() / 3;
 					}
-					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
 				}
 
 				if (ok)
@@ -1727,10 +1758,10 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 				bool ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage(GAS GPU-morph refit)");
 				if (ok)
 				{
-					CUdeviceptr tempBuffer = 0;
-					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempUpdateSizeInBytes), "cudaMalloc(gas GPU-morph refit temp)");
+					ok = _impl->ensureReusableDeviceBuffer(_impl->accelScratchBuffer, gasBufferSizes.tempUpdateSizeInBytes, "cudaMalloc(reusable GAS refit scratch)");
 					if (ok)
 					{
+						const CUdeviceptr tempBuffer = gasBufferSizes.tempUpdateSizeInBytes > 0 ? _impl->accelScratchBuffer.ptr : 0;
 						QElapsedTimer gasTimer;
 						gasTimer.start();
 						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
@@ -1741,7 +1772,6 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 						if (ok)
 							_impl->lastTriangleCount += mesh.indices.size() / 3;
 					}
-					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
 				}
 
 				if (ok)
@@ -1953,18 +1983,16 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 				ok = optixCheck(optixAccelComputeMemoryUsage(_impl->context, &accelOptions, &triangleInput, 1, &gasBufferSizes), "optixAccelComputeMemoryUsage()");
 				if (ok)
 				{
-					CUdeviceptr tempBuffer = 0;
-					ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&tempBuffer), gasBufferSizes.tempSizeInBytes), "cudaMalloc(gas temp)");
+					ok = _impl->ensureReusableDeviceBuffer(_impl->accelScratchBuffer, gasBufferSizes.tempSizeInBytes, "cudaMalloc(reusable GAS build scratch)");
 					if (ok) ok = cudaCheck(cudaMalloc(reinterpret_cast<void**>(&gas.gasOutputBuffer), gasBufferSizes.outputSizeInBytes), "cudaMalloc(gas output)");
 					if (ok)
 					{
-						// Diagnostics tab timing only - optixAccelBuild() itself
-						// queues onto the default stream, so this timer's end
-						// (the cudaFree() right below, which - like every other
-						// synchronization-free readback in this file - relies on
-						// the legacy default stream's implicit blocking
-						// semantics) is what actually makes it measure real GPU
-						// build time rather than just host-side launch overhead.
+						const CUdeviceptr tempBuffer = gasBufferSizes.tempSizeInBytes > 0 ? _impl->accelScratchBuffer.ptr : 0;
+						// Diagnostics tab timing only - this still measures the
+						// host-side enqueue cost of the build, not a fence-backed
+						// GPU duration. Keeping the behavior unchanged here is
+						// deliberate: this pass is about removing allocator churn,
+						// not redefining the diagnostics metric.
 						QElapsedTimer gasTimer;
 						gasTimer.start();
 						ok = optixCheck(optixAccelBuild(_impl->context, 0, &accelOptions, &triangleInput, 1,
@@ -1975,7 +2003,6 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 						if (ok)
 							_impl->lastTriangleCount += mesh.indices.size() / 3;
 					}
-					if (tempBuffer) cudaFree(reinterpret_cast<void*>(tempBuffer));
 				}
 			}
 
@@ -2528,20 +2555,18 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 	// a full build's tempSizeInBytes - using the matching one for whichever
 	// operation this call actually performs.
 	const size_t iasTempBytes = iasRefit ? iasBufferSizes.tempUpdateSizeInBytes : iasBufferSizes.tempSizeInBytes;
-	CUdeviceptr iasTempBuffer = 0;
-	if (!cudaCheck(cudaMalloc(reinterpret_cast<void**>(&iasTempBuffer), iasTempBytes), "cudaMalloc(ias temp)"))
+	if (!_impl->ensureReusableDeviceBuffer(_impl->accelScratchBuffer, iasTempBytes, "cudaMalloc(reusable IAS scratch)"))
 		return false;
+	const CUdeviceptr iasTempBuffer = iasTempBytes > 0 ? _impl->accelScratchBuffer.ptr : 0;
 
-	// Diagnostics tab timing only - see the matching GAS-build timer's doc
-	// comment above for why the cudaFree() right below is what makes this
-	// measure real GPU build time, not just launch overhead.
+	// Diagnostics tab timing only - same enqueue-cost metric as the GAS path
+	// above. This optimization pass keeps that metric unchanged.
 	QElapsedTimer iasTimer;
 	iasTimer.start();
 	const bool iasBuilt = optixCheck(optixAccelBuild(_impl->context, 0, &iasAccelOptions, &instanceInput, 1,
 		iasTempBuffer, iasTempBytes,
 		_impl->iasOutputBuffer, iasBufferSizes.outputSizeInBytes,
 		&_impl->iasHandle, nullptr, 0), iasRefit ? "optixAccelBuild(IAS refit)" : "optixAccelBuild(IAS)");
-	cudaFree(reinterpret_cast<void*>(iasTempBuffer));
 	_impl->lastIasBuildMs = static_cast<double>(iasTimer.nsecsElapsed()) / 1.0e6;
 	if (!iasBuilt)
 		return false;

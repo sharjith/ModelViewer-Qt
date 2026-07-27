@@ -9915,8 +9915,10 @@ void ViewportWidget::resetAnimationPose(const QString& sourceFile)
 	// change as animating away from it, and this function is what
 	// applyAnimationPose() itself calls (then returns immediately) whenever
 	// clipIndex < 0, so without this call here a PT session would never
-	// learn a "reset" happened at all.
-	notifyPathTracedSceneMutated();
+	// learn a "reset" happened at all. But unlike an arbitrary scene edit,
+	// this is still part of the animation system, so GPU PT should try to
+	// stay live instead of dropping straight to raster/PBR.
+	notifyPathTracedAnimationMutated();
 	update();
 }
 
@@ -10193,15 +10195,14 @@ void ViewportWidget::applyAnimationPose(const QString& sourceFile, int clipIndex
 	// Covers every category the calls above may have just changed - node/
 	// skinning transforms, morph target weights, KHR_animation_pointer
 	// material/UV-transform values, node visibility, light transforms/
-	// visibility, camera parameters - falling back to the live raster feed
-	// immediately and restarting the settle countdown (see
-	// notifyPathTracedSceneMutated()'s own doc comment) so a PT session left
-	// running during playback defers to raster for the whole animation and
-	// only rebuilds once every animated property actually stops changing.
+	// visibility, camera parameters. Unlike a generic scene edit, animation
+	// playback is now allowed to keep the interactive GPU PT path live by
+	// rebuilding that renderer against the new scene revision, instead of
+	// unconditionally dropping to raster/PBR for the whole clip.
 	// Called unconditionally (not gated on which specific channels this clip
 	// has) since this function already only runs when a clip is genuinely
 	// being sampled/applied.
-	notifyPathTracedSceneMutated();
+	notifyPathTracedAnimationMutated();
 	update();
 }
 
@@ -13247,6 +13248,38 @@ void ViewportWidget::notifyPathTracedSceneMutated()
 	resetPathTracedIdleTimer();
 }
 
+void ViewportWidget::notifyPathTracedAnimationMutated()
+{
+	++_pathTracedSceneRevision;
+
+	if (!_pathTracedArmed)
+		return;
+
+	// Animation is a real scene mutation (new geometry/material/light/camera
+	// state every tick), so it must bump the scene revision exactly like any
+	// other content change. But for the GPU backend, the whole point of the
+	// animation-to-GPU work is to let those revised snapshots keep rendering
+	// through the live interactive PT path instead of unconditionally dropping
+	// to raster/PBR for the duration of playback.
+	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+	{
+		_rtSession.stop();
+		_ptOptixSession.stop();
+		// Unlike ordinary scene edits, animation keeps a persistent
+		// InteractivePtRenderer alive and just feeds it newer scene snapshots.
+		// If a launch is already in flight, ensureSceneResources() queues the
+		// newest snapshot revision and tick() applies it as soon as that
+		// launch completes; no viewport-side teardown/restart cycle anymore.
+		startInteractivePathTracedGpuSession(/*forceSceneRefresh=*/true);
+		if (_pathTracedInteractiveActive)
+			return;
+	}
+
+	// CPU/Embree, OptiX unavailable, or a throttled/failed interactive GPU
+	// restart all fall back to the original safe invalidation path.
+	resetPathTracedIdleTimer();
+}
+
 // Tears down whichever GPU PT session(s) are currently active/converging -
 // shared by resetPathTracedIdleTimer()'s hard-invalidate branch, hideEvent(),
 // and disarmPathTracedRenderingMode(). These three used to each reimplement
@@ -13405,7 +13438,8 @@ void ViewportWidget::onPathTracedIdleTimeout()
 	startPathTracedSession();
 }
 
-std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(int width, int height)
+std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(int width, int height,
+	const RtEnvironment* reusedEnvironment)
 {
 	if (!_primaryCamera)
 		return nullptr;
@@ -13448,41 +13482,52 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 		lights.push_back(keyLight);
 	}
 
-	// captureEnvironmentCubemapCPU() does a synchronous GPU readback
-	// (glGetTexImage) - needs this widget's context current, which isn't
-	// guaranteed here since this function can run off the idle QTimer rather
-	// than from within paintGL().
-	makeCurrent();
 	RtEnvironment environment;
-	_renderCtrl.captureEnvironmentCubemapCPU(environment.faces, environment.faceSize);
-	_renderCtrl.captureIrradianceCubemapCPU(environment.irradianceFaces, environment.irradianceFaceSize);
+	if (reusedEnvironment)
 	{
-		std::vector<SceneRenderController::PrefilterMipCPU> prefilterMips;
-		if (_renderCtrl.capturePrefilterCubemapCPU(prefilterMips))
+		// Animation-driven PT updates need a fresh geometry/material snapshot,
+		// but the HDR environment texels/IBL mips almost never change from
+		// tick to tick. Reusing them avoids the synchronous cubemap readbacks
+		// below on every animation frame.
+		environment = *reusedEnvironment;
+	}
+	else
+	{
+		// captureEnvironmentCubemapCPU() does a synchronous GPU readback
+		// (glGetTexImage) - needs this widget's context current, which isn't
+		// guaranteed here since this function can run off the idle QTimer rather
+		// than from within paintGL().
+		makeCurrent();
+		_renderCtrl.captureEnvironmentCubemapCPU(environment.faces, environment.faceSize);
+		_renderCtrl.captureIrradianceCubemapCPU(environment.irradianceFaces, environment.irradianceFaceSize);
 		{
-			environment.prefilterMips.reserve(prefilterMips.size());
-			for (SceneRenderController::PrefilterMipCPU& mip : prefilterMips)
+			std::vector<SceneRenderController::PrefilterMipCPU> prefilterMips;
+			if (_renderCtrl.capturePrefilterCubemapCPU(prefilterMips))
 			{
-				RtEnvironment::PrefilterMip rtMip;
-				rtMip.faceSize = mip.faceSize;
-				for (int i = 0; i < 6; ++i)
-					rtMip.faces[i] = std::move(mip.faces[i]);
-				environment.prefilterMips.push_back(std::move(rtMip));
+				environment.prefilterMips.reserve(prefilterMips.size());
+				for (SceneRenderController::PrefilterMipCPU& mip : prefilterMips)
+				{
+					RtEnvironment::PrefilterMip rtMip;
+					rtMip.faceSize = mip.faceSize;
+					for (int i = 0; i < 6; ++i)
+						rtMip.faces[i] = std::move(mip.faces[i]);
+					environment.prefilterMips.push_back(std::move(rtMip));
+				}
 			}
 		}
-	}
-	{
-		std::vector<SceneRenderController::PrefilterMipCPU> sheenPrefilterMips;
-		if (_renderCtrl.captureSheenPrefilterCubemapCPU(sheenPrefilterMips))
 		{
-			environment.sheenPrefilterMips.reserve(sheenPrefilterMips.size());
-			for (SceneRenderController::PrefilterMipCPU& mip : sheenPrefilterMips)
+			std::vector<SceneRenderController::PrefilterMipCPU> sheenPrefilterMips;
+			if (_renderCtrl.captureSheenPrefilterCubemapCPU(sheenPrefilterMips))
 			{
-				RtEnvironment::PrefilterMip rtMip;
-				rtMip.faceSize = mip.faceSize;
-				for (int i = 0; i < 6; ++i)
-					rtMip.faces[i] = std::move(mip.faces[i]);
-				environment.sheenPrefilterMips.push_back(std::move(rtMip));
+				environment.sheenPrefilterMips.reserve(sheenPrefilterMips.size());
+				for (SceneRenderController::PrefilterMipCPU& mip : sheenPrefilterMips)
+				{
+					RtEnvironment::PrefilterMip rtMip;
+					rtMip.faceSize = mip.faceSize;
+					for (int i = 0; i < 6; ++i)
+						rtMip.faces[i] = std::move(mip.faces[i]);
+					environment.sheenPrefilterMips.push_back(std::move(rtMip));
+				}
 			}
 		}
 	}
@@ -13743,7 +13788,7 @@ void ViewportWidget::stopInteractivePtRenderer()
 // _interactivePtRenderer (a same-frame, non-blocking-submission renderer -
 // see that class's own doc comment), never _ptOptixSession, which is now
 // used exclusively for the settled/full-quality session.
-void ViewportWidget::startInteractivePathTracedGpuSession()
+void ViewportWidget::startInteractivePathTracedGpuSession(bool forceSceneRefresh)
 {
 	if (!_renderCtrl.isOpenGLInitialized() || !_primaryCamera || !_ptOptixSession.isAvailable())
 		return;
@@ -13757,16 +13802,42 @@ void ViewportWidget::startInteractivePathTracedGpuSession()
 	if (_pathTracedInteractiveActive &&
 		fbWidth == _interactivePtRenderer.width() && fbHeight == _interactivePtRenderer.height())
 	{
-		// Fast path: already at this resolution - just hand over the
-		// current camera pose (cheap: no snapshot rebuild, no resize, no
-		// GPU work happens here - tick() in paintGL() is what actually
-		// submits).
 		const float aspectRatio = fbHeight > 0 ? static_cast<float>(fbWidth) / static_cast<float>(fbHeight) : 1.0f;
 		const RtCamera camera = RtSceneBuilder::buildCamera(*_primaryCamera, aspectRatio);
+		if (!forceSceneRefresh)
+		{
+			// Fast path: already at this resolution - just hand over the
+			// current camera pose (cheap: no snapshot rebuild, no resize, no
+			// GPU work happens here - tick() in paintGL() is what actually
+			// submits).
+			_interactivePtRenderer.updateCamera(camera);
+			_pathTracedInteractiveActive = true;
+			if (_pathTracedRefreshTimer && !_pathTracedRefreshTimer->isActive())
+				_pathTracedRefreshTimer->start();
+			return;
+		}
+
+		// Animation-driven scene revision on an already-live interactive
+		// session: rebuild/queue the NEW snapshot against the same renderer
+		// instance instead of tearing it down and starting over.
+		const RtEnvironment* reusedEnvironment =
+			_interactivePtRendererSnapshot ? &_interactivePtRendererSnapshot->environment : nullptr;
+		auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight, reusedEnvironment);
+		if (!snapshot)
+			return;
+		if (!_interactivePtRenderer.ensureSceneResources(snapshot))
+			return;
+		_interactivePtRendererSnapshot = snapshot;
 		_interactivePtRenderer.updateCamera(camera);
 		_pathTracedInteractiveActive = true;
 		if (_pathTracedRefreshTimer && !_pathTracedRefreshTimer->isActive())
 			_pathTracedRefreshTimer->start();
+		if (_interactivePtRendererSnapshot)
+		{
+			_interactivePtRenderer.tick(_interactivePtRendererSnapshot->environment,
+				_interactivePtRendererSnapshot->shadowsEnabled, _interactivePtRendererSnapshot->selfShadowsEnabled,
+				_ptEnvImportanceSamplingEnabled);
+		}
 		return;
 	}
 
@@ -13774,14 +13845,24 @@ void ViewportWidget::startInteractivePathTracedGpuSession()
 	// after ANY teardown - a scene mutation, a scripted view animation, a
 	// real resize, hiding/showing this widget's MDI document, ...) or a
 	// mid-drag resolution change - real snapshot (geometry/environment/
-	// lights) and GAS/IAS rebuild unavoidable here. Throttled since unlike the
-	// fast path above, this is genuinely expensive.
-	const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
-	if (nowMs - _lastInteractiveGpuRestartMs < kInteractiveGpuRestartMinIntervalMs)
-		return;
-	_lastInteractiveGpuRestartMs = nowMs;
+	// lights) and GAS/IAS rebuild unavoidable here. Ordinary interaction-
+	// driven restarts stay throttled since unlike the fast path above, this is
+	// genuinely expensive. Forced scene-refresh callers (animation playback)
+	// deliberately BYPASS that throttle: showing a stale PT snapshot while the
+	// mode still claims PT is active is worse than paying the rebuild cost,
+	// and pointer/material animations in particular have no geometric motion to
+	// mask a stale frame.
+	if (!forceSceneRefresh)
+	{
+		const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+		if (nowMs - _lastInteractiveGpuRestartMs < kInteractiveGpuRestartMinIntervalMs)
+			return;
+		_lastInteractiveGpuRestartMs = nowMs;
+	}
 
-	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight);
+	const RtEnvironment* reusedEnvironment =
+		(forceSceneRefresh && _interactivePtRendererSnapshot) ? &_interactivePtRendererSnapshot->environment : nullptr;
+	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight, reusedEnvironment);
 	if (!snapshot)
 		return;
 
@@ -13832,28 +13913,19 @@ void ViewportWidget::startInteractivePathTracedGpuSession()
 	if (_pathTracedRefreshTimer && !_pathTracedRefreshTimer->isActive())
 		_pathTracedRefreshTimer->start();
 
-	// Every slow-path rebuild pays the first launch's one-time GAS/IAS-build-
-	// plus-pipeline-warmup cost synchronously, right here, before returning
-	// to whichever caller triggered it - unconditionally, not just when the
-	// caller happens to be armPathTracedRenderingMode() or the debounced
-	// onPathTracedResumeWarmUpTimeout(). This method can also be reached
-	// directly from a genuine mouse-move/wheel event (resetPathTracedIdleTimer(true))
-	// whenever the interactive accumulator needs resuming after ANY teardown
-	// - if the user starts dragging before the debounced warm-up gets a
-	// chance to fire first, THIS is the path that actually runs, and it used
-	// to skip the warm-up entirely, submitting the first launch asynchronously
-	// from paintGL()'s tick() instead. That raced the user's own drag exactly
-	// like the original bug: the eventual publish showed a camera pose
-	// captured back when the rebuild started while the still-live raster
-	// skybox/mesh had kept tracking the mouse the whole time - intermittent
-	// (only when quick enough to beat the debounce), but a real, unfixed gap.
-	// Calling this here, unconditionally, closes it for every caller at once:
-	// a short synchronous pause (same bounded wait as before) is an honest
-	// "please wait a moment" the user can attribute to the rebuild that just
-	// happened, whereas a positional snap once the async launch eventually
-	// completes reads as a bug. See warmUpInteractivePathTracedGpuSession()'s
-	// own doc comment for the actual mechanism.
-	warmUpInteractivePathTracedGpuSession();
+	// User-driven camera interaction still pays the one-time warm-up cost
+	// synchronously to avoid the stale-pose snap the original design had at
+	// drag start. Animation-driven forced scene refreshes intentionally skip
+	// this: doing rebuild + warm-up directly on every animation tick starves
+	// playback and makes the clip appear stuck. Instead, submit exactly one
+	// fresh asynchronous launch now and let the normal non-blocking
+	// tick()/publish loop carry it the rest of the way.
+	if (!forceSceneRefresh)
+		warmUpInteractivePathTracedGpuSession();
+	else if (_interactivePtRendererSnapshot)
+		_interactivePtRenderer.tick(_interactivePtRendererSnapshot->environment,
+			_interactivePtRendererSnapshot->shadowsEnabled, _interactivePtRendererSnapshot->selfShadowsEnabled,
+			_ptEnvImportanceSamplingEnabled);
 }
 
 bool ViewportWidget::renderPathTracedOffline(int width, int height,

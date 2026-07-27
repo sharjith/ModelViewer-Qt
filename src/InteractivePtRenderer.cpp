@@ -110,7 +110,7 @@ InteractivePtRenderer::~InteractivePtRenderer()
 	releaseResources();
 }
 
-bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
+bool InteractivePtRenderer::applySceneSnapshot(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
 {
 	if (!snapshot || !_tracer.isAvailable())
 		return false;
@@ -130,14 +130,21 @@ bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtS
 	{
 		if (!_tracer.buildScene(*snapshot))
 		{
-			qWarning() << "InteractivePtRenderer::ensureSceneResources: buildScene() failed.";
+			qWarning() << "InteractivePtRenderer::applySceneSnapshot: buildScene() failed.";
 			return false;
 		}
 		_builtRevision = snapshot->revisionId;
 		_skipNextTimingSample = true; // see this class's own doc comment - the next launch's timing won't be representative
 		_smoothedFrameTimeMs = -1.0f; // stale average from before the rebuild is as unrepresentative as the skipped reading itself
 		// A rebuilt scene invalidates whatever's already accumulated - same
-		// reasoning as a camera pose change (see tick()).
+		// reasoning as a camera pose change (see tick()). Deliberately does
+		// NOT clear _readySlot: a just-completed frame from the PREVIOUS
+		// revision may still be the newest displayable chunk this paint, and
+		// paintGL() polls only AFTER tick() returns. Clearing _readySlot here
+		// was making every animation-driven pending-scene apply erase the
+		// frame that had just completed moments earlier, so pollCompletedFrame()
+		// immediately returned nullptr and interactive PT appeared frozen/off
+		// throughout continuous animation.
 		_accumulationCameraValid = false;
 		_accumulatedSampleCount = 0;
 		_latestCompletedSlot = -1;
@@ -146,10 +153,31 @@ bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtS
 	return true;
 }
 
+bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
+{
+	if (!snapshot || !_tracer.isAvailable())
+		return false;
+
+	// Animation-driven updates can arrive while the previous launch is still
+	// rendering. Rebuilding the tracer right then would race the in-flight
+	// work; queue only the newest snapshot and let tick() apply it once the
+	// current launch completes.
+	if (isFrameInFlight() && (snapshot->revisionId != _builtRevision || _builtRevision == 0))
+	{
+		_pendingSceneSnapshot = snapshot;
+		return true;
+	}
+
+	return applySceneSnapshot(snapshot);
+}
+
 void InteractivePtRenderer::updateCamera(const RtCamera& camera)
 {
+	const bool poseChanged = !_pendingCameraValid || !cameraPosesMatch(_pendingCamera, camera);
 	_pendingCamera = camera;
-	_pendingCameraDirty = true;
+	_pendingCameraValid = true;
+	if (poseChanged)
+		_pendingCameraDirty = true;
 }
 
 bool InteractivePtRenderer::allocateSlot(Slot& slot, int width, int height)
@@ -363,6 +391,20 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		}
 	}
 
+	// A newer scene revision may have arrived while the last launch was in
+	// flight (e.g. skeletal/morph animation advancing). Apply it now, at the
+	// first safe point with no launch using the old tracer state anymore.
+	if (_pendingSceneSnapshot && (_pendingSceneSnapshot->revisionId != _builtRevision || _builtRevision == 0))
+	{
+		if (!applySceneSnapshot(_pendingSceneSnapshot))
+			return;
+		_pendingSceneSnapshot.reset();
+	}
+	else if (_pendingSceneSnapshot)
+	{
+		_pendingSceneSnapshot.reset();
+	}
+
 	// (b) Nothing in flight (either it never was, or (a) just freed it
 	// above) - consider submitting a new launch. Unlike the old single-shot
 	// model, this does NOT require _pendingCameraDirty - continuous
@@ -490,6 +532,7 @@ void InteractivePtRenderer::applyInternalResolution()
 	_latestCompletedSlot = -1;
 	_accumulatedSampleCount = 0;
 	_pendingCameraDirty = false;
+	_pendingCameraValid = false;
 	_accumulationCameraValid = false;
 
 	_width = newWidth;
@@ -536,6 +579,7 @@ void InteractivePtRenderer::resize(int width, int height)
 		_latestCompletedSlot = -1;
 		_accumulatedSampleCount = 0;
 		_pendingCameraDirty = false;
+		_pendingCameraValid = false;
 		_accumulationCameraValid = false;
 		_width = 0;
 		_height = 0;
@@ -563,12 +607,14 @@ void InteractivePtRenderer::releaseResources()
 	_latestCompletedSlot = -1;
 	_accumulatedSampleCount = 0;
 	_pendingCameraDirty = false;
+	_pendingCameraValid = false;
 	_accumulationCameraValid = false;
 	_requestedWidth = 0;
 	_requestedHeight = 0;
 	_width = 0;
 	_height = 0;
 	_builtRevision = 0;
+	_pendingSceneSnapshot.reset();
 	_resolutionScale = 1.0f; // fresh start next time - don't carry over a scale reduced under a previous session's load
 	_pendingResolutionScale = 1.0f;
 	_skipNextTimingSample = false;

@@ -97,7 +97,13 @@ public:
 	// Lazily creates the dedicated CUDA stream (first call only), then
 	// (re)builds the GPU acceleration structure via the owned tracer only if
 	// snapshot->revisionId changed (mirrors RtOptixPathTracingSession::
-	// start()'s identical revision-gated rebuild). Does NOT touch
+	// start()'s identical revision-gated rebuild). If a launch is currently
+	// in flight, a newer revision is QUEUED instead of being rebuilt
+	// immediately; tick() applies that pending snapshot as soon as the
+	// running launch completes, before submitting the next one. This is what
+	// lets animation keep a persistent interactive PT session alive instead
+	// of forcing ViewportWidget to tear it down/restart it every tick.
+	// Does NOT touch
 	// resolution or the per-slot device/host buffers - RtSceneSnapshot
 	// carries no width/height, so callers must ALSO call resize() (with
 	// whatever resolution they're targeting) before tick() will actually
@@ -273,6 +279,7 @@ private:
 	void freeSlot(Slot& slot);
 	void drainSlot(Slot& slot); // bounded busy-wait for an in-flight slot's event - used only by releaseResources()
 	void applyInternalResolution(); // recomputes _width/_height from _requestedWidth/_requestedHeight * _resolutionScale, reallocates both slots, resets the accumulation streak
+	bool applySceneSnapshot(const std::shared_ptr<const RtSceneSnapshot>& snapshot);
 
 	RtOptixSceneTracer& _tracer; // not owned
 	void* _stream = nullptr;     // dedicated, non-default CUDA stream
@@ -301,14 +308,18 @@ private:
 	uint32_t _accumulatedSampleCount = 0;
 
 	// Edge-triggered, not equality-compared: every updateCamera() call marks
-	// the pending pose dirty regardless of whether it actually differs from
-	// the last one - cheaper and more robust than floating-point camera-
-	// struct comparison, and a redundant resubmit for an unchanged pose is
-	// harmless (same cost as any other submission). Used only by tick()'s
-	// tail-frame publish-skip check now - see tick()'s own doc comment - NOT
-	// as a gate on whether to submit at all (continuous accumulation keeps
-	// submitting regardless, see tick()).
+	// the pending pose dirty only when it actually differs from the previous
+	// pending pose. This flag is used ONLY by tick()'s tail-frame
+	// publish-skip heuristic now - see tick()'s own doc comment - and scene-
+	// only interactive updates (skeletal/morph/material animation with a
+	// static camera) still call updateCamera() every tick to keep the
+	// renderer's current camera available. Marking those redundant same-pose
+	// calls dirty would make the publish-skip treat EVERY completed launch as
+	// stale and never advance the displayed PT frame during animation.
+	// NOT used as a gate on whether to submit at all (continuous
+	// accumulation keeps submitting regardless, see tick()).
 	RtCamera _pendingCamera;
+	bool     _pendingCameraValid = false;
 	bool     _pendingCameraDirty = false;
 
 	// The camera pose the CURRENT accumulation streak (across both slots) is
@@ -324,6 +335,7 @@ private:
 	uint64_t _generation = 0;
 
 	uint64_t _builtRevision = 0; // last snapshot->revisionId successfully passed to _tracer.buildScene()
+	std::shared_ptr<const RtSceneSnapshot> _pendingSceneSnapshot;
 
 	uint32_t _samplesPerLaunch = 1; // fixed per-launch sample count - see class/setInteractiveBudget() doc comments for why this replaced sample-count adaptation
 	uint32_t _maxBounces = 2;
