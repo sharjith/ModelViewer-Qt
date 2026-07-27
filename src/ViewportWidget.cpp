@@ -1998,8 +1998,6 @@ void ViewportWidget::fitAll()
 
 void ViewportWidget::fitAllImmediate()
 {
-	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return;
@@ -2013,6 +2011,12 @@ void ViewportWidget::fitAllImmediate()
 	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
 		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
+		// Delegates to the ANIMATED fit (fitAll()) for these modes - that
+		// path deliberately does NOT use cameraInteracting=true (see
+		// animateViewChange()'s doc comment on why an animation whose step
+		// doesn't decay toward zero would otherwise show the interactive
+		// renderer's one-tick-behind lag as a jerk at the end), so this
+		// function must not call resetPathTracedIdleTimer(true) here either.
 		fitAll();
 		return;
 	}
@@ -2023,6 +2027,10 @@ void ViewportWidget::fitAllImmediate()
 	_viewCtrl.setViewRange(_viewCtrl.viewBoundingSphereDia());
 	_primaryCamera->setViewRange(_viewCtrl.viewRange());
 	_primaryCamera->setPosition(projCenter);
+	// Genuinely immediate (non-animated) camera change - notify AFTER it's
+	// applied, not before, so the interactive PT renderer is fed the actual
+	// new pose instead of whatever the camera was before this call.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 	_viewCtrl.syncPoseAndRangeFromCamera(*_primaryCamera);
 
 	resizeGL(width(), height());
@@ -2179,8 +2187,6 @@ void ViewportWidget::performWindowZoom()
 
 void ViewportWidget::setProjection(ViewProjection proj)
 {
-	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-
 	_viewCtrl.setProjection(proj);
 	if (!_primaryCamera || _primaryCamera->getMode() == Camera::CameraMode::Orbit)
 	{
@@ -2189,6 +2195,10 @@ void ViewportWidget::setProjection(ViewProjection proj)
 			: Camera::ProjectionType::ORTHOGRAPHIC);
 	}
 	resizeGL(width(), height());
+	// Notify AFTER the projection actually changed (resizeGL() recomputes
+	// the projection matrix from it), not before - see the mouse-drag
+	// handlers' identical fix for why.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 }
 
 Camera::CameraMode ViewportWidget::cameraMode() const
@@ -11456,7 +11466,6 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 				return;
 			}
 
-			resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_renderCtrl.setLowResEnabled(true);
 			setSectionCapsInteractionSuppressed(true);
@@ -11480,7 +11489,19 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 				_primaryCamera->updateFlyView();
 			}
 
-
+			// Notify AFTER this event's own camera update above, not before -
+			// see resetPathTracedIdleTimer()'s call sites in this file for the
+			// same fix applied to every other interaction handler. Calling
+			// this first (the previous order) fed the interactive PT renderer
+			// last event's camera pose instead of this one's, so the
+			// displayed frame was always exactly one mouse-move behind the
+			// camera's actual live position - imperceptible mid-drag (the lag
+			// just chases a continuously-moving target), but visible the
+			// instant something else forces a fresh capture of the NOW-
+			// current camera (e.g. Ctrl+Shift+R while already armed), which
+			// would show the true final pose the stale accumulated frame was
+			// still missing.
+			resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 			_viewCtrl.syncRotationFromCamera(*_primaryCamera);
 			_viewCtrl.setLeftButtonPoint(downPoint);
 			setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
@@ -11509,7 +11530,6 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			return;
 		}
 
-		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
 		_primaryCamera->getYaw()   += look.x() * 0.2f * _mouseSensitivity;
 		_primaryCamera->getPitch() += look.y() * 0.2f * _mouseSensitivity;
@@ -11520,6 +11540,9 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
 
 		_primaryCamera->updateFlyView();
+		// See the LMB/Ctrl rotate handler above for why this must run AFTER
+		// the camera update, not before.
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		_viewCtrl.syncRotationFromCamera(*_primaryCamera);
 		_viewCtrl.setRightButtonPoint(downPoint);
 		setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
@@ -11543,12 +11566,14 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			return;
 		}
 
-		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
 		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _viewCtrl.rightButtonPoint()) * _mouseSensitivity;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		// See the rotate handlers above for why this must run AFTER the
+		// camera update, not before.
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 		_viewCtrl.setRightButtonPoint(downPoint);
@@ -11576,7 +11601,6 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			return;
 		}
 
-		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
@@ -11621,6 +11645,9 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
 		OP *= sign * 0.05f * _mouseSensitivity;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		// See the rotate handlers above for why this must run AFTER the
+		// camera update, not before.
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 		_viewCtrl.setLastZoomPanVector(OP); // Store for inertia
 
@@ -11740,8 +11767,6 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 void ViewportWidget::wheelEvent(QWheelEvent* e)
 {
-	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-
 	// Stop any ongoing inertia when wheel zooming
 	_viewCtrl.clearInertiaState();
 	if (_inertiaTimer && _inertiaTimer->isActive())
@@ -11765,6 +11790,13 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 		{
 			const float moveDist = _viewCtrl.viewRange() * 0.08f * std::abs(zoomStep);
 			_primaryCamera->moveForward(zoomStep > 0.0f ? moveDist : -moveDist);
+			// See the drag handlers above for why this must run AFTER the
+			// camera update, not before - and only when this event actually
+			// moved the camera (this branch's own zoomStep!=0.0f gate),
+			// unlike the removed top-of-function call which fired even when
+			// nothing changed (e.g. the isGltfCameraActive() early-return
+			// below, or a zero-magnitude wheel event).
+			resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 			_viewCtrl.setInertiaZoomVelocity(0.0f);
 			resizeGL(width(), height());
@@ -11808,6 +11840,9 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	const float rangeScale = (oldViewRange > 0.0f) ? (_viewCtrl.viewRange() / oldViewRange) : 1.0f;
 	OP *= (1.0f - rangeScale);
 	_primaryCamera->move(OP.x(), OP.y(), OP.z());
+	// See the drag handlers above for why this must run AFTER the camera
+	// update, not before.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 	// Add inertia for wheel zoom
@@ -11919,15 +11954,6 @@ void ViewportWidget::performKeyboardNav()
 
 	if (_keys.empty() == false && allowGameplayModifiers)
 	{
-		// This per-frame timer callback is genuine, continuous camera
-		// movement while a nav key is held - same treatment as
-		// onInertiaTimer()'s coasting (see resetPathTracedIdleTimer()'s doc
-		// comment). keyPressEvent()'s own call (default cameraInteracting=
-		// false) only covers the initial keydown; without this, holding a
-		// nav key would let the idle timer expire mid-navigation and hard-
-		// fall-back to raster on GPU.
-		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-
 		const float sceneScale = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
 		float factor = std::max(sceneScale * 0.02f, _viewCtrl.viewRange() * 0.01f);
 		if (modifiers & Qt::ShiftModifier)
@@ -12054,6 +12080,18 @@ void ViewportWidget::performKeyboardNav()
 			}
 		}
 
+		// This per-frame timer callback is genuine, continuous camera
+		// movement while a nav key is held - same treatment as
+		// onInertiaTimer()'s coasting (see resetPathTracedIdleTimer()'s doc
+		// comment). keyPressEvent()'s own call (default cameraInteracting=
+		// false) only covers the initial keydown; without this, holding a
+		// nav key would let the idle timer expire mid-navigation and hard-
+		// fall-back to raster on GPU. Called here, AFTER this tick's own
+		// camera movement above (not before, as this used to be positioned -
+		// see the mouse-drag handlers' identical fix for why), so the
+		// interactive PT renderer is always fed this tick's actual resulting
+		// pose instead of the previous tick's.
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		_viewCtrl.syncPoseAndRangeFromCamera(*_primaryCamera);
 		resizeGL(width(), height());
 		update();
@@ -12170,13 +12208,6 @@ void ViewportWidget::onInertiaTimer()
 	if (isGltfCameraActive())
 		return;
 
-	// Inertia keeps moving the camera after mouse-up - keep deferring the
-	// settle countdown for as long as this timer keeps firing (it stops
-	// itself once the decaying velocity drops below its own threshold below).
-	// cameraInteracting=true: inertial coasting is genuine camera movement,
-	// same as a live drag - see resetPathTracedIdleTimer()'s doc comment.
-	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-
 	bool active = false;
 
 	// --- Pan inertia ---
@@ -12258,6 +12289,22 @@ void ViewportWidget::onInertiaTimer()
 		_viewCtrl.clearInertiaState();
 		QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
 	}
+
+	// Inertia keeps moving the camera after mouse-up - keep deferring the
+	// settle countdown for as long as this timer keeps firing (it stops
+	// itself once the decaying velocity drops below its own threshold
+	// above). cameraInteracting=true: inertial coasting is genuine camera
+	// movement, same as a live drag - see resetPathTracedIdleTimer()'s doc
+	// comment. Called here, AFTER this tick's own pan/zoom/rotation blocks
+	// above (not before, as this used to be positioned) - the interactive
+	// GPU PT renderer is fed whatever camera state this call captures, so
+	// calling it before applying this tick's own movement fed it last
+	// tick's pose instead of this one's: the displayed frame was always
+	// exactly one inertia tick behind the camera's actual position, most
+	// noticeable as a residual shift in the same direction as the motion
+	// right before it stopped, once something else (e.g. re-arming path-
+	// traced mode) forced a fresh capture of the truly-current camera.
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 
 	update();
 }
