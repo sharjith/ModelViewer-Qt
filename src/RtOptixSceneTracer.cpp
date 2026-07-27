@@ -3231,6 +3231,24 @@ void RtOptixSceneTracer::freeScratchBuffer(void* devicePtr) const
 		cudaFree(devicePtr);
 }
 
+bool RtOptixSceneTracer::copyDeviceRGBABufferAsync(void* dst, const void* src, int width, int height, void* stream) const
+{
+	if (!dst || !src || width <= 0 || height <= 0)
+		return false;
+	const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(float4);
+	return cudaCheck(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice, static_cast<cudaStream_t>(stream)),
+		"cudaMemcpyAsync(interactive accumulation copy-forward, RGBA)");
+}
+
+bool RtOptixSceneTracer::copyGuideScratchBufferAsync(void* dst, const void* src, int width, int height, void* stream) const
+{
+	if (!dst || !src || width <= 0 || height <= 0)
+		return false;
+	const size_t bytes = static_cast<size_t>(width) * static_cast<size_t>(height) * sizeof(float3);
+	return cudaCheck(cudaMemcpyAsync(dst, src, bytes, cudaMemcpyDeviceToDevice, static_cast<cudaStream_t>(stream)),
+		"cudaMemcpyAsync(interactive accumulation copy-forward, guide)");
+}
+
 void* RtOptixSceneTracer::allocateParamsHostStagingBuffer() const
 {
 	// cudaHostAlloc (default flags) gives page-locked host memory -
@@ -3426,6 +3444,16 @@ void* RtOptixSceneTracer::allocateGuideScratchBuffer(int, int) const
 
 void RtOptixSceneTracer::freeScratchBuffer(void*) const
 {
+}
+
+bool RtOptixSceneTracer::copyDeviceRGBABufferAsync(void*, const void*, int, int, void*) const
+{
+	return false;
+}
+
+bool RtOptixSceneTracer::copyGuideScratchBufferAsync(void*, const void*, int, int, void*) const
+{
+	return false;
 }
 
 void* RtOptixSceneTracer::allocateParamsHostStagingBuffer() const

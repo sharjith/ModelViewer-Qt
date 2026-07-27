@@ -88,13 +88,19 @@ public:
 	// PT has converged/settled, matching whatever raster is showing right
 	// now pixel-for-pixel (see upload()'s alpha doc comment). true instead
 	// overwrites unconditionally (GL_ONE/GL_ZERO, ignoring this frame's
-	// alpha entirely). ViewportWidget uses this only for the interactive PT
-	// path when no live raster skybox needs to remain visible. That avoids
-	// compositing a slowly-updating PT model over a separately-updating
-	// raster background, which reads as incoherent motion rather than "just
-	// noisy." When a skybox is enabled, ViewportWidget instead keeps normal
-	// alpha blending and renders that raster skybox from the same camera pose
-	// as the last published PT chunk, preserving a coherent whole frame.
+	// alpha entirely). ViewportWidget always passes true for the interactive
+	// PT path, regardless of whether a skybox is enabled: that path bakes its
+	// own background into every launch (see RtOptixScene.cu's
+	// sampleEnvironmentBackground()), so it never depends on the separately-
+	// timed raster layer underneath. A conditional version of this used to
+	// keep normal alpha blending whenever a skybox was enabled, to keep a
+	// live raster skybox visible while interactive PT's own background
+	// sampling was still incomplete - but with interactive PT rendering its
+	// own background every frame, blending against raster instead just let
+	// that independently-updating raster layer show through PT's own
+	// imperfect/noisy alpha, which read as the background visibly "bleeding
+	// through" the model. Unconditional opaque avoids compositing two
+	// separately-produced images at all.
 	void draw(bool hdrToneMapping, bool gammaCorrection, float screenGamma, float iblExposure, int toneMapMode, bool forceOpaque = false);
 
 	bool hasFrame() const { return _hasFrame; }

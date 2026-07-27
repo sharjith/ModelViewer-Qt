@@ -139,6 +139,8 @@ bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtS
 		// A rebuilt scene invalidates whatever's already accumulated - same
 		// reasoning as a camera pose change (see tick()).
 		_accumulationCameraValid = false;
+		_accumulatedSampleCount = 0;
+		_latestCompletedSlot = -1;
 	}
 
 	return true;
@@ -168,7 +170,6 @@ bool InteractivePtRenderer::allocateSlot(Slot& slot, int width, int height)
 		freeSlot(slot);
 		return false;
 	}
-	slot.accumulatedSampleCount = 0;
 	slot.denoisedValid = false;
 	return true;
 }
@@ -191,7 +192,6 @@ void InteractivePtRenderer::freeSlot(Slot& slot)
 	slot.completionEvent = nullptr;
 	_tracer.freeDeviceRGBABuffer(slot.deviceDenoisedRGBA);
 	slot.deviceDenoisedRGBA = nullptr;
-	slot.accumulatedSampleCount = 0;
 	slot.denoisedValid = false;
 }
 
@@ -322,6 +322,15 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		if (_pendingCameraDirty && cameraNearlySettled(slot.submittedCamera, _pendingCamera))
 			publishThisFrame = false;
 
+		// ACCUMULATION-HISTORY bookkeeping - unconditional, regardless of
+		// publishThisFrame: this slot's buffers now hold the most recently
+		// completed state of the shared accumulation, and the NEXT
+		// submission's copy-forward must read from it even if this
+		// particular result never gets displayed (see this class's own doc
+		// comment on why _latestCompletedSlot must not be conflated with
+		// _readySlot, a purely presentation-facing decision below).
+		_latestCompletedSlot = _inFlightSlot;
+
 		if (publishThisFrame)
 		{
 			// Denoise a COPY of this slot's raw accumulation before
@@ -337,7 +346,7 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 			// codebase - never blocks presentation outright.
 			slot.denoisedValid = _denoiserEnabled &&
 				_denoiser.denoiseDevice(slot.deviceImageRGBA, slot.dAlbedoScratch, slot.dNormalScratch,
-					_width, _height, slot.deviceDenoisedRGBA, slot.accumulatedSampleCount);
+					_width, _height, slot.deviceDenoisedRGBA, _accumulatedSampleCount);
 
 			_readySlot = _inFlightSlot;
 			++_generation;
@@ -368,29 +377,48 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 	if (!slot.deviceImageRGBA)
 		return; // resources not allocated yet - see resize()
 
-	// A genuine pose (or scene) change invalidates BOTH slots' existing
-	// accumulation at once - they alternate turns contributing to what is
-	// conceptually a single accumulating image, so leaving the OTHER slot's
-	// stale count in place would let a later submission into it wrongly
-	// blend fresh samples (new pose) against old-pose data.
+	// A genuine pose (or scene) change invalidates the shared accumulation
+	// history entirely - discard it so a later submission doesn't blend
+	// fresh samples (new pose) against old-pose data.
 	const bool poseChanged = !_accumulationCameraValid || !cameraPosesMatch(_accumulationCamera, _pendingCamera);
 	if (poseChanged)
 	{
 		_accumulationCamera = _pendingCamera;
 		_accumulationCameraValid = true;
-		_slots[0].accumulatedSampleCount = 0;
-		_slots[1].accumulatedSampleCount = 0;
+		_accumulatedSampleCount = 0;
+		_latestCompletedSlot = -1;
 	}
 
-	if (slot.accumulatedSampleCount >= _maxAccumulatedSamples)
+	if (_accumulatedSampleCount >= _maxAccumulatedSamples)
 	{
-		// Fully converged for this slot at this pose - nothing more to do
-		// until the pose changes again.
+		// Fully converged at this pose - nothing more to do until the pose
+		// changes again.
 		_pendingCameraDirty = false;
 		return;
 	}
 
-	const uint32_t previousSampleCount = slot.accumulatedSampleCount;
+	// Copy the shared accumulation history FORWARD into this slot before
+	// blending a new sample into it, unless this is the very first
+	// submission ever for this streak (_latestCompletedSlot == -1, nothing
+	// to copy yet - the kernel's own previousSampleCount == 0 branch
+	// overwrites fresh instead of blending, matching that case exactly).
+	// Without this, this slot would blend its next sample against whatever
+	// STALE data it happened to hold from several submissions ago (its own
+	// last turn), producing a second, independently-diverging accumulation
+	// instead of continuing the ONE shared history - see this class's own
+	// doc comment for the full symptom this caused.
+	if (_latestCompletedSlot >= 0 && _latestCompletedSlot != submitInto)
+	{
+		const Slot& source = _slots[_latestCompletedSlot];
+		const bool copiedThisTick =
+			_tracer.copyDeviceRGBABufferAsync(slot.deviceImageRGBA, source.deviceImageRGBA, _width, _height, _stream) &&
+			_tracer.copyGuideScratchBufferAsync(slot.dAlbedoScratch, source.dAlbedoScratch, _width, _height, _stream) &&
+			_tracer.copyGuideScratchBufferAsync(slot.dNormalScratch, source.dNormalScratch, _width, _height, _stream);
+		if (!copiedThisTick)
+			return; // try again next tick() rather than launch against a half-copied/stale destination
+	}
+
+	const uint32_t previousSampleCount = _accumulatedSampleCount;
 	const bool ok = _tracer.submitSceneRenderToDevice(_pendingCamera, environment, _width, _height,
 		_samplesPerLaunch, previousSampleCount, _maxBounces, shadowsEnabled, selfShadowsEnabled, enableEnvironmentImportanceSampling,
 		_maxTransmissionBounces, _fireflyClampThreshold, _russianRouletteStartDepth, _maxVolumeScatterBounces, previousSampleCount,
@@ -400,7 +428,7 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 	if (ok)
 	{
 		slot.submittedCamera = _pendingCamera;
-		slot.accumulatedSampleCount = previousSampleCount + _samplesPerLaunch;
+		_accumulatedSampleCount = previousSampleCount + _samplesPerLaunch;
 		_inFlightSlot = submitInto;
 		_pendingCameraDirty = false;
 	}
@@ -415,11 +443,7 @@ bool InteractivePtRenderer::isFrameInFlight() const
 
 uint32_t InteractivePtRenderer::currentSampleCount() const
 {
-	if (_readySlot >= 0)
-		return _slots[_readySlot].accumulatedSampleCount;
-	if (_inFlightSlot >= 0)
-		return _slots[_inFlightSlot].accumulatedSampleCount;
-	return 0;
+	return _accumulatedSampleCount;
 }
 
 void* InteractivePtRenderer::pollCompletedFrame(int& outWidth, int& outHeight, RtCamera& outCamera, uint64_t& outGeneration) const
@@ -463,6 +487,8 @@ void InteractivePtRenderer::applyInternalResolution()
 	freeSlot(_slots[1]);
 	_readySlot = -1;
 	_inFlightSlot = -1;
+	_latestCompletedSlot = -1;
+	_accumulatedSampleCount = 0;
 	_pendingCameraDirty = false;
 	_accumulationCameraValid = false;
 
@@ -507,6 +533,8 @@ void InteractivePtRenderer::resize(int width, int height)
 		freeSlot(_slots[1]);
 		_readySlot = -1;
 		_inFlightSlot = -1;
+		_latestCompletedSlot = -1;
+		_accumulatedSampleCount = 0;
 		_pendingCameraDirty = false;
 		_accumulationCameraValid = false;
 		_width = 0;
@@ -532,6 +560,8 @@ void InteractivePtRenderer::releaseResources()
 		_stream = nullptr;
 	}
 	_readySlot = -1;
+	_latestCompletedSlot = -1;
+	_accumulatedSampleCount = 0;
 	_pendingCameraDirty = false;
 	_accumulationCameraValid = false;
 	_requestedWidth = 0;

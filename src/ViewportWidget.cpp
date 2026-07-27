@@ -54,14 +54,6 @@
 constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
 
-// GPU/OptiX-only interactive-preview preset - see ViewportWidget::
-// startInteractivePathTracedGpuSession()'s doc comment. Deliberately hard-
-// coded (not user-configurable via PathTracingDialog): conservative enough
-// to stay responsive on a wide range of RTX GPUs.
-constexpr int kInteractivePtMaxBounces              = 4;
-constexpr int kInteractivePtMaxTransmissionBounces  = 8;
-constexpr int kInteractivePtMaxVolumeScatterBounces = 8;
-
 // Continuous-accumulation budget for the interactive GPU session (see
 // InteractivePtRenderer's class doc comment) - a small FIXED per-launch
 // sample count (bounds per-launch GPU cost independent of scene complexity,
@@ -70,7 +62,21 @@ constexpr int kInteractivePtMaxVolumeScatterBounces = 8;
 // sustained GPU load - see InteractivePtRenderer::_resolutionScale's own doc
 // comment for why.
 constexpr uint32_t kInteractivePtSamplesPerLaunch       = 1;
-constexpr uint32_t kInteractivePtMaxAccumulatedSamples  = 32;
+// Raised from 32: at a fixed 1 sample/launch, 32 plateaus in ~1s of held-
+// still idle time - plenty for most materials, but a fully rough conductor
+// (roughness=1, metallic=1) has almost no diffuse "stabilizer" term and its
+// entire visible signal rides on one wide, high-variance GGX specular lobe
+// (see RtOptixScene.cu's __miss__ms() specular-lobe escape branch, which
+// deliberately samples the raw/unfiltered environment map rather than a
+// roughness-blurred one - shared, validated behavior with CpuPathTracer.cpp,
+// not something to change here), so it visibly plateaus noisy well before
+// convergence. There is no longer a "promote to a full settled session once
+// idle" fallback (see Phase 4's retirement of that mechanism), so this cap IS
+// the ceiling on how clean interactive PT gets for such a material - raising
+// it costs nothing during actual camera motion (a moving camera resets both
+// slots to 0 every pose change regardless of this cap) and only extends how
+// long accumulation keeps quietly refining once truly idle.
+constexpr uint32_t kInteractivePtMaxAccumulatedSamples  = 128;
 // ~30fps budget for the launch itself - NOT 20ms/50fps as first tried:
 // measurement ([PT-RESSCALE-DIAG], since removed) showed a real scene's
 // ordinary per-launch cost sitting at ~26-29ms, comfortably usable but just
@@ -1299,13 +1305,17 @@ void ViewportWidget::paintGL()
 		// those still read on top of the path-traced image too.
 		if (_pathTracedArmed && (_pathTracedInteractiveActive || !_pathTracedIdleTimer->isActive()) && _rtPresenter.hasFrame())
 		{
-			// Interactive PT's force-opaque mode avoids the "PT model over a
-			// separately-updating raster background" mismatch, but it also
-			// hides the real raster skybox behind whatever RGB happens to live
-			// in PT's alpha=0 background pixels. Keep normal alpha blending
-			// whenever the skybox is enabled so the live skybox remains visible
-			// during mouse motion.
-			const bool forceOpaqueInteractive = _pathTracedInteractiveActive && !_renderCtrl.skyBoxEnabled();
+			// Interactive PT should present as a self-contained frame, not as
+			// an alpha-blended model laid over a separately-rendered raster
+			// background. With rough metallic materials in early passes, that
+			// blend reads as the raster skybox/background "showing through" the
+			// noisy PT sphere far more than the settled/dialog path does.
+			//
+			// Force opaque presentation for the entire interactive frame even
+			// when a skybox is enabled: the PT frame already carries its own
+			// background RGB, and presenting it opaquely avoids mixing two
+			// independently-produced backgrounds in the same image.
+			const bool forceOpaqueInteractive = _pathTracedInteractiveActive;
 			_rtPresenter.draw(_renderCtrl.hdrToneMapping(), _renderCtrl.gammaCorrection(),
 				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()),
 				/*forceOpaque=*/forceOpaqueInteractive);
@@ -13780,14 +13790,26 @@ void ViewportWidget::startInteractivePathTracedGpuSession()
 	_interactivePtRenderer.resize(fbWidth, fbHeight);
 	// Fixed small per-launch sample count, accumulated up to a cap; only
 	// resolution scale adapts under load - see InteractivePtRenderer's class
-	// doc comment for why.
+	// doc comment for why. maxBounces/maxTransmissionBounces/
+	// maxVolumeScatterBounces used to be separate, lower, hardcoded
+	// interactive-only constants (kInteractivePtMaxBounces etc.) rather than
+	// the user's actual PathTracingDialog settings - a real, confirmed
+	// discrepancy (interactive silently capped bounces at 4 regardless of
+	// what the dialog was set to) that produces a systematic BIAS, not noise,
+	// in scenes with meaningful inter-reflection between nearby objects (e.g.
+	// a dense grid of reflective spheres) - truncating those light paths a
+	// couple of bounces early is a real, no-amount-of-samples-fixes-it energy
+	// loss, not something the accumulator/denoiser could ever converge away.
+	// Now uses the SAME live settings the settled/offline session does, so
+	// interactive PT can no longer look structurally different regardless of
+	// how long it's given to accumulate.
 	_interactivePtRenderer.setInteractiveBudget(kInteractivePtSamplesPerLaunch, kInteractivePtMaxAccumulatedSamples,
-		static_cast<uint32_t>(kInteractivePtMaxBounces),
+		static_cast<uint32_t>(std::max(_ptMaxBounces, 1)),
 		kInteractivePtTargetFrameMs, /*resolutionAdaptiveEnabled=*/true);
-	_interactivePtRenderer.setMaxTransmissionBounces(static_cast<uint32_t>(kInteractivePtMaxTransmissionBounces));
+	_interactivePtRenderer.setMaxTransmissionBounces(static_cast<uint32_t>(std::max(_ptMaxTransmissionBounces, 1)));
 	_interactivePtRenderer.setFireflyClampThreshold(_ptFireflyClampThreshold);
 	_interactivePtRenderer.setRussianRouletteStartDepth(static_cast<uint32_t>(std::max(_ptRussianRouletteStartDepth, 1)));
-	_interactivePtRenderer.setMaxVolumeScatterBounces(static_cast<uint32_t>(kInteractivePtMaxVolumeScatterBounces));
+	_interactivePtRenderer.setMaxVolumeScatterBounces(static_cast<uint32_t>(std::max(_ptMaxVolumeScatterBounces, 1)));
 	// Same PT-dialog-backed denoiser settings the settled/manual sessions use
 	// (_rtSession/_ptOptixSession) - see InteractivePtRenderer::
 	// setDenoiserEnabled()'s doc comment for why this is its own RtDenoiser

@@ -234,6 +234,29 @@ public:
 	// don't otherwise touch this section). No-op on nullptr.
 	void freeScratchBuffer(void* devicePtr) const;
 
+	// Device-to-device "copy forward" primitives for InteractivePtRenderer's
+	// two-slot ping-pong accumulator: before submitting a new launch into
+	// whichever slot ISN'T currently displayed, the caller copies the OTHER
+	// slot's already-accumulated raw buffers into it first, so both slots
+	// always represent progressive snapshots of ONE shared, growing
+	// accumulation history rather than two independent ones (see
+	// InteractivePtRenderer::tick()'s doc comment for why this matters - two
+	// slots blending samples independently, alternately displayed, was
+	// visually indistinguishable from persistent noise even once each
+	// individually reached a high sample count). Same size formulas as
+	// allocateDeviceRGBABuffer()/allocateGuideScratchBuffer() respectively.
+	// Issued on `stream` (the caller's dedicated interactive stream) - CUDA's
+	// stream-ordering guarantees this copy completes before a
+	// submitSceneRenderToDevice() launch enqueued afterward on the SAME
+	// stream reads/writes the destination, no extra synchronization needed
+	// (same reasoning submitSceneRenderToDevice()'s own async params upload
+	// already relies on). Returns false on failure/stub or bad arguments -
+	// callers should treat that as "copy didn't happen, don't submit this
+	// round" rather than silently launching against stale/uninitialized
+	// destination contents.
+	bool copyDeviceRGBABufferAsync(void* dst, const void* src, int width, int height, void* stream) const;
+	bool copyGuideScratchBufferAsync(void* dst, const void* src, int width, int height, void* stream) const;
+
 	// Allocates/frees a PINNED (page-locked) HOST buffer sized
 	// sizeof(RtOptixSceneParams) - the host-side staging buffer
 	// submitSceneRenderToDevice() writes the launch params into before an

@@ -47,11 +47,28 @@ class RtOptixSceneTracer;
 // the launch that wrote it has actually finished. Getting this wrong
 // (freeing/reusing a buffer an in-flight kernel is still reading/writing) is
 // a silent GPU memory-corruption bug, not a cosmetic one - see
-// RtOptixSceneTracer::submitSceneRenderToDevice()'s doc comment. Unlike the
-// old single-shot model, EACH slot is now itself a persistent accumulator
-// (Slot::accumulatedSampleCount) - the two slots alternate turns
-// contributing to the SAME conceptual image (see _accumulationCamera), not
-// two independent "latest result" buffers.
+// RtOptixSceneTracer::submitSceneRenderToDevice()'s doc comment.
+//
+// The two slots exist ONLY for that write-safety reason - they represent ONE
+// shared, logically-continuous accumulation history (tracked by the single
+// _accumulatedSampleCount below), NOT two independent accumulators. Before
+// submitting a new launch into whichever slot isn't currently displayed,
+// tick() copies the other slot's already-accumulated raw buffers into it
+// first (RtOptixSceneTracer::copyDeviceRGBABufferAsync()/
+// copyGuideScratchBufferAsync()), so the new sample blends into the FULL
+// prior history regardless of which physical slot happens to hold it that
+// round. An earlier version let each slot blend independently into its own
+// buffer with its own sample count - mathematically each slot was still a
+// valid accumulation, but the two were DIFFERENT noisy realizations of the
+// same pixel, and since tick() alternates which one is shown every single
+// completed launch, the display was constantly flickering between two
+// distinct noise patterns for the entire convergence ramp - reading as
+// persistent grain even once each slot individually reached a high sample
+// count. _readySlot (below) is a PRESENTATION decision (what's currently
+// shown); _latestCompletedSlot is the ACCUMULATION-HISTORY decision (what
+// the next copy-forward reads from) - the two can and do diverge (see the
+// tail-latency publish-skip in tick()), and code must not assume they're
+// always the same slot.
 //
 // Denoising: see setDenoiserEnabled() - runs on EVERY published launch, into
 // a separate device-resident copy (never gated on a minimum accumulated-
@@ -213,8 +230,8 @@ public:
 	int renderHeight() const { return _height; }
 
 	// Progress/diagnostics helpers for UI consumers (PathTracingDialog) - the
-	// sample count of the most recently displayable interactive frame, or if
-	// nothing has published yet the current in-flight slot's own count. This
+	// single shared accumulation history's sample count (_accumulatedSampleCount),
+	// unambiguous regardless of which physical slot currently holds it. This
 	// deliberately mirrors the "what is the live interactive renderer doing
 	// right now?" question, not a settled-session worker model.
 	uint32_t currentSampleCount() const;
@@ -250,15 +267,6 @@ private:
 		// deviceImageRGBA rather than presenting a stale or garbage buffer.
 		void* deviceDenoisedRGBA = nullptr;
 		bool  denoisedValid = false;
-
-		// How many samples are already blended into deviceImageRGBA/
-		// dAlbedoScratch/dNormalScratch for the CURRENT accumulation streak
-		// (see _accumulationCamera) - passed as submitSceneRenderToDevice()'s
-		// previousSampleCount on this slot's next submission, and as the RNG
-		// sampleOffset (same value serves both purposes - see
-		// RtOptixSceneParams::sampleOffset's doc comment). Reset to 0
-		// whenever the camera genuinely changes.
-		uint32_t accumulatedSampleCount = 0;
 	};
 
 	bool allocateSlot(Slot& slot, int width, int height);
@@ -271,6 +279,26 @@ private:
 	Slot  _slots[2];
 	int   _readySlot    = -1; // index holding the newest COMPLETED, not-yet-superseded result; -1 = none yet
 	int   _inFlightSlot = -1; // index of the slot with a submission still awaiting completion; -1 = none in flight
+
+	// The slot holding the most recently COMPLETED accumulation, regardless
+	// of whether it was actually published for display - this is the
+	// ACCUMULATION-HISTORY source tick() copies forward from before the next
+	// submission (see this class's own doc comment on why _readySlot alone
+	// isn't the right source: the tail-latency publish-skip heuristic can
+	// leave _readySlot one step behind a slot that already finished). Reset
+	// to -1 alongside _accumulatedSampleCount everywhere a fresh accumulation
+	// starts (pose change, scene rebuild, resolution change, teardown).
+	int _latestCompletedSlot = -1;
+
+	// The one true count of samples baked into whichever slot
+	// _latestCompletedSlot points at - passed as
+	// submitSceneRenderToDevice()'s previousSampleCount (both the RNG
+	// sampleOffset and the blend weight - see RtOptixSceneParams::
+	// sampleOffset's doc comment) on every new submission. Replaces an
+	// earlier per-slot count (see this class's own doc comment for why that
+	// was wrong). Reset to 0 whenever the camera genuinely changes or the
+	// accumulation otherwise starts over.
+	uint32_t _accumulatedSampleCount = 0;
 
 	// Edge-triggered, not equality-compared: every updateCamera() call marks
 	// the pending pose dirty regardless of whether it actually differs from
@@ -286,9 +314,8 @@ private:
 	// The camera pose the CURRENT accumulation streak (across both slots) is
 	// building up around - compared against each new _pendingCamera (see
 	// tick()) to decide "keep blending" vs "genuinely moved, start over". A
-	// pose change resets BOTH slots' accumulatedSampleCount to 0 at once,
-	// since they alternate turns contributing to what is conceptually a
-	// single accumulating image.
+	// pose change resets _accumulatedSampleCount to 0 and _latestCompletedSlot
+	// to -1 (see tick()), discarding the whole shared accumulation history.
 	RtCamera _accumulationCamera;
 	bool     _accumulationCameraValid = false;
 
