@@ -13871,9 +13871,22 @@ void ViewportWidget::startInteractivePathTracedGpuSession(bool forceSceneRefresh
 			_interactivePtRendererSnapshot ? &_interactivePtRendererSnapshot->environment : nullptr;
 		auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight, reusedEnvironment);
 		if (!snapshot)
+		{
+			// _pathTracedInteractiveActive was already true on entry to this
+			// branch (that's this branch's own condition) - leaving it true
+			// on failure would make callers like notifyPathTracedAnimationMutated()
+			// wrongly believe the refresh succeeded and skip their raster-
+			// fallback path, silently freezing the viewport on a stale
+			// pre-failure frame with no retry. Clear it so failure is visible
+			// and the normal idle-timer/fallback machinery takes back over.
+			_pathTracedInteractiveActive = false;
 			return;
+		}
 		if (!_interactivePtRenderer.ensureSceneResources(snapshot))
+		{
+			_pathTracedInteractiveActive = false;
 			return;
+		}
 		_interactivePtRendererSnapshot = snapshot;
 		_interactivePtRenderer.updateCamera(camera);
 		_pathTracedInteractiveActive = true;
@@ -13911,10 +13924,20 @@ void ViewportWidget::startInteractivePathTracedGpuSession(bool forceSceneRefresh
 		(forceSceneRefresh && _interactivePtRendererSnapshot) ? &_interactivePtRendererSnapshot->environment : nullptr;
 	auto snapshot = buildPathTracedSnapshot(fbWidth, fbHeight, reusedEnvironment);
 	if (!snapshot)
+	{
+		// Reached with _pathTracedInteractiveActive possibly still true from
+		// before (e.g. a mid-animation resolution change took this slow
+		// path) - see the fast-path branch above for why leaving it true on
+		// failure is wrong.
+		_pathTracedInteractiveActive = false;
 		return;
+	}
 
 	if (!_interactivePtRenderer.ensureSceneResources(snapshot))
+	{
+		_pathTracedInteractiveActive = false;
 		return;
+	}
 	_interactivePtRenderer.resize(fbWidth, fbHeight);
 	// Fixed small per-launch sample count, accumulated up to a cap; only
 	// resolution scale adapts under load - see InteractivePtRenderer's class
