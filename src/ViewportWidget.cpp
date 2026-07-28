@@ -13524,6 +13524,20 @@ void ViewportWidget::onPathTracedResumeWarmUpTimeout()
 	if (pathTracedSessionRunning())
 		return;
 
+	// Force this resumed session to start unsettled, regardless of whatever
+	// _cameraSettled happened to be left at by whatever session existed
+	// before the teardown that led here - InteractivePtRenderer::
+	// releaseResources() (called by that teardown) does NOT reset this flag,
+	// so without this call the resumed session could inherit a stale
+	// "settled" state and denoise immediately on its first few, barely-
+	// converged samples instead of correctly waiting through this same raw-
+	// first period the surrounding "stuck in interaction-time configuration"
+	// comment below already describes. Set BEFORE starting the session so
+	// its synchronous warm-up ticks (see startInteractivePathTracedGpuSession()'s
+	// slow path) already see the correct state on their very first denoise
+	// check, not just after this function returns.
+	_interactivePtRenderer.setCameraSettled(false);
+
 	// startInteractivePathTracedGpuSession()'s own slow path already pays the
 	// first-launch warm-up cost synchronously (see its doc comment) - no
 	// separate call needed here anymore.

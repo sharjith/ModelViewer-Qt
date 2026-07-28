@@ -254,11 +254,21 @@ public:
 	// doc comment), release the hold immediately rather than leaving a stale
 	// pre-drag frame on screen while a NEW drag is already live - responsiveness
 	// during interaction matters more here than finishing that one recovery.
+	// Also cancels any still-PENDING requestFullResolution() promotion that
+	// hadn't been consumed by tick() yet - without this, a drag starting in
+	// the narrow window right after onPathTracedIdleTimeout() queues that
+	// promotion (before the next tick() call actually applies it) could still
+	// force a full-resolution jump mid-drag, exactly the interaction-first
+	// policy this whole settle/resume split exists to enforce.
 	void setCameraSettled(bool settled)
 	{
 		_cameraSettled = settled;
 		if (!settled)
+		{
 			_holdPublishUntilConverged = false;
+			_forceFullResolutionRequested = false;
+			_pendingResolutionChangeIsForced = false;
+		}
 	}
 	bool cameraSettled() const { return _cameraSettled; }
 	void setDenoiserDevicePreference(DenoiserDevicePreference preference) { _denoiser.setDevicePreference(preference); }
