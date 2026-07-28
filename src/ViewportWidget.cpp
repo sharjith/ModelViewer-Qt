@@ -2073,13 +2073,18 @@ void ViewportWidget::fitAllImmediate()
 	_viewCtrl.setViewRange(_viewCtrl.viewBoundingSphereDia());
 	_primaryCamera->setViewRange(_viewCtrl.viewRange());
 	_primaryCamera->setPosition(projCenter);
-	// Genuinely immediate (non-animated) camera change - notify AFTER it's
-	// applied, not before, so the interactive PT renderer is fed the actual
-	// new pose instead of whatever the camera was before this call.
-	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 	_viewCtrl.syncPoseAndRangeFromCamera(*_primaryCamera);
 
+	// Genuinely immediate (non-animated) camera change - notify AFTER it's
+	// fully applied, not before, so the interactive PT renderer is fed the
+	// actual new pose instead of whatever the camera was before this call.
+	// That includes resizeGL() specifically: it's what actually rebuilds
+	// the projection matrix for the new viewRange set above (RtSceneBuilder::
+	// buildCamera() reads that matrix for tanHalfFovY/orthoHalfHeight) - see
+	// the mouse-wheel zoom handler's identical fix for why notifying before
+	// this call captures a stale zoom scale against the new position.
 	resizeGL(width(), height());
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 	update();
 	emit zoomAndPanSet();
 }
@@ -11713,9 +11718,6 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
 		OP *= sign * 0.05f * _mouseSensitivity;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
-		// See the rotate handlers above for why this must run AFTER the
-		// camera update, not before.
-		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 		_viewCtrl.setLastZoomPanVector(OP); // Store for inertia
 
@@ -11723,7 +11725,17 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_viewCtrl.setInertiaZoomVelocity(_viewCtrl.lastZoomDirection()); // +1 or -1
 		}
 
+		// resizeGL() is what actually recomputes the projection matrix for
+		// the viewRange change just applied above (setViewRange() alone only
+		// updates the stored value) - RtSceneBuilder::buildCamera() reads
+		// that matrix's own [1][1] element for tanHalfFovY/orthoHalfHeight,
+		// so notifying PT (which captures a fresh RtCamera) BEFORE this call
+		// fed it this tick's new translation against the PREVIOUS tick's
+		// stale zoom scale - translation and zoom visibly out of sync in PT
+		// for exactly one tick, unlike raster (whose own projection matrix
+		// is only ever read at actual draw time, already past this point).
 		resizeGL(width(), height());
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 
 		_viewCtrl.setMiddleButtonPoint(downPoint);
 		setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
@@ -11858,16 +11870,19 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 		{
 			const float moveDist = _viewCtrl.viewRange() * 0.08f * std::abs(zoomStep);
 			_primaryCamera->moveForward(zoomStep > 0.0f ? moveDist : -moveDist);
+			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+			_viewCtrl.setInertiaZoomVelocity(0.0f);
 			// See the drag handlers above for why this must run AFTER the
 			// camera update, not before - and only when this event actually
 			// moved the camera (this branch's own zoomStep!=0.0f gate),
 			// unlike the removed top-of-function call which fired even when
 			// nothing changed (e.g. the isGltfCameraActive() early-return
-			// below, or a zero-magnitude wheel event).
-			resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-			_viewCtrl.setInertiaZoomVelocity(0.0f);
+			// below, or a zero-magnitude wheel event). Also after resizeGL()
+			// itself - see the orbit zoom handlers' identical fix for why
+			// notifying before the projection matrix is actually rebuilt
+			// captures a stale zoom scale.
 			resizeGL(width(), height());
+			resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 			update();
 		}
 		return;
@@ -11908,9 +11923,6 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	const float rangeScale = (oldViewRange > 0.0f) ? (_viewCtrl.viewRange() / oldViewRange) : 1.0f;
 	OP *= (1.0f - rangeScale);
 	_primaryCamera->move(OP.x(), OP.y(), OP.z());
-	// See the drag handlers above for why this must run AFTER the camera
-	// update, not before.
-	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 	// Add inertia for wheel zoom
@@ -11926,7 +11938,14 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 
 	_viewCtrl.addInertiaZoomPanVelocity(OP);
 
+	// resizeGL() recomputes the projection matrix for the viewRange change
+	// applied above - RtSceneBuilder::buildCamera() reads that matrix for
+	// tanHalfFovY/orthoHalfHeight, so this must run BEFORE notifying PT (see
+	// the zoom-drag handler's identical fix for the full reasoning), or PT
+	// captures this tick's new translation against the previous tick's
+	// stale zoom scale - visibly out of sync, unlike raster.
 	resizeGL(width(), height());
+	resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 	update();
 }
 
@@ -12148,6 +12167,7 @@ void ViewportWidget::performKeyboardNav()
 			}
 		}
 
+		_viewCtrl.syncPoseAndRangeFromCamera(*_primaryCamera);
 		// This per-frame timer callback is genuine, continuous camera
 		// movement while a nav key is held - same treatment as
 		// onInertiaTimer()'s coasting (see resetPathTracedIdleTimer()'s doc
@@ -12155,13 +12175,14 @@ void ViewportWidget::performKeyboardNav()
 		// false) only covers the initial keydown; without this, holding a
 		// nav key would let the idle timer expire mid-navigation and hard-
 		// fall-back to raster on GPU. Called here, AFTER this tick's own
-		// camera movement above (not before, as this used to be positioned -
-		// see the mouse-drag handlers' identical fix for why), so the
-		// interactive PT renderer is always fed this tick's actual resulting
-		// pose instead of the previous tick's.
-		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
-		_viewCtrl.syncPoseAndRangeFromCamera(*_primaryCamera);
+		// camera movement above AND after resizeGL() (which rebuilds the
+		// projection matrix the X/Z zoom keys' viewRange change needs -
+		// see the mouse-wheel zoom handler's identical fix for why getting
+		// this order wrong feeds PT a stale zoom scale against this tick's
+		// new translation), so the interactive PT renderer is always fed
+		// this tick's actual resulting pose instead of the previous tick's.
 		resizeGL(width(), height());
+		resetPathTracedIdleTimer(/*cameraInteracting=*/true);
 		update();
 	}
 }
@@ -13499,6 +13520,16 @@ void ViewportWidget::resetPathTracedIdleTimer(bool cameraInteracting)
 		// reasoning as _rtSession.stop() just above.
 		_ptOptixSession.stop();
 		startInteractivePathTracedGpuSession();
+
+		// Camera is actively moving again - suppress denoising (see
+		// InteractivePtRenderer::setCameraSettled()'s doc comment: denoising
+		// an under-converged, rapidly-changing accumulation smears sharp CAD
+		// geometry into an ill-defined blur during motion) and (re)start the
+		// same 450ms idle timer CPU/Embree's settle handoff already used -
+		// onPathTracedIdleTimeout() flips this back to settled once the
+		// camera holds still long enough without another call landing here.
+		_interactivePtRenderer.setCameraSettled(false);
+		_pathTracedIdleTimer->start();
 		return;
 	}
 
@@ -13540,15 +13571,22 @@ void ViewportWidget::onPathTracedIdleTimeout()
 	if (!_pathTracedArmed)
 		return;
 
-	// GPU/OptiX has no separate "settled" tier to promote to anymore - the
-	// continuous interactive accumulator (see resetPathTracedIdleTimer()'s
-	// GPU branch) keeps converging on its own for as long as the camera
-	// holds still, without ever needing this idle-driven handoff. This timer
-	// only still matters for CPU/Embree, which has no interactive-quality
-	// path at all and always falls back to raster while dragging, needing an
-	// explicit "idle long enough, now start the real trace" signal.
+	// GPU/OptiX has no separate "settled" SESSION tier to promote to anymore -
+	// the continuous interactive accumulator (see resetPathTracedIdleTimer()'s
+	// GPU branch) keeps converging on its own for as long as the camera holds
+	// still, without ever needing a session handoff. This timer does, though,
+	// still gate DENOISING for GPU (see InteractivePtRenderer::
+	// setCameraSettled()'s doc comment): the camera has now held still for a
+	// full idle period without resetPathTracedIdleTimer() restarting this
+	// timer again, so it's safe to turn denoising back on. It stays enabled
+	// continuously from here (not a one-shot pass) until the next camera
+	// move flips it off again.
 	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+	{
+		_interactivePtRenderer.setCameraSettled(true);
+		update();
 		return;
+	}
 
 	startPathTracedSession();
 }

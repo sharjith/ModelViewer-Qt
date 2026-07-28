@@ -70,11 +70,15 @@ class RtOptixSceneTracer;
 // tail-latency publish-skip in tick()), and code must not assume they're
 // always the same slot.
 //
-// Denoising: see setDenoiserEnabled() - runs on EVERY published launch, into
-// a separate device-resident copy (never gated on a minimum accumulated-
-// sample count - the native OptiX denoiser is robust even at 1 spp, and
-// there is no "the very end" to wait for anymore anyway, since the camera
-// might never fully stop).
+// Denoising: see setDenoiserEnabled()/setCameraSettled() - runs on every
+// published launch ONCE THE CAMERA HAS SETTLED, into a separate device-
+// resident copy (never gated on a minimum accumulated-sample count - the
+// native OptiX denoiser is robust even at 1 spp). While the camera is still
+// actively moving, denoising is skipped and the raw accumulation is shown
+// instead - denoising an under-converged, rapidly-changing image every tick
+// smeared sharp/thin CAD geometry into an ill-defined blur during motion.
+// Once the camera holds still, denoising turns on and stays on continuously
+// (not a single final pass) for as long as it keeps holding still.
 // ---------------------------------------------------------------------------
 class InteractivePtRenderer
 {
@@ -191,16 +195,30 @@ public:
 	// setDenoiserDevicePreference() exactly, just forwarded to this class's
 	// OWN RtDenoiser instance rather than that session's (each GPU-facing
 	// piece owns its own denoiser/device state - see RtDenoiser.h's Impl::
-	// optixContext doc comment for the same pattern). When enabled, every
-	// completed launch that's about to be published (see tick()) is also
-	// denoised into a separate per-slot buffer (Slot::deviceDenoisedRGBA) via
+	// optixContext doc comment for the same pattern). When enabled AND the
+	// camera has settled (see setCameraSettled()), every completed launch
+	// that's about to be published (see tick()) is also denoised into a
+	// separate per-slot buffer (Slot::deviceDenoisedRGBA) via
 	// RtDenoiser::denoiseDevice() - pollCompletedFrame() then hands back that
 	// denoised buffer instead of the raw accumulation whenever the denoise
-	// actually succeeded that launch, so the interactive path looks the same
-	// (denoised) as a settled full-quality frame instead of showing raw
-	// Monte Carlo noise for as long as the camera keeps moving.
+	// actually succeeded that launch.
 	void setDenoiserEnabled(bool enabled) { _denoiserEnabled = enabled; }
 	bool denoiserEnabled() const { return _denoiserEnabled; }
+
+	// Gates denoising on whether the camera has stopped moving (see
+	// ViewportWidget::resetPathTracedIdleTimer()/onPathTracedIdleTimeout(),
+	// which drive this via the same 450ms idle timer CPU/Embree's settle
+	// handoff already used). While unsettled (actively dragging/orbiting),
+	// tick() skips the denoise step entirely and publishes the raw,
+	// still-noisy-but-sharp accumulation instead - denoising a CAD model's
+	// thin/sharp edges every single in-flight frame smeared them into an
+	// ill-defined blur during motion, which reads as "the geometry doesn't
+	// look right" even though it was just the denoiser doing its normal job
+	// on an under-converged image. Once settled it stays enabled continuously
+	// (not a one-shot final pass) so the image keeps improving indefinitely
+	// while the camera holds still, same as before this gating existed.
+	void setCameraSettled(bool settled) { _cameraSettled = settled; }
+	bool cameraSettled() const { return _cameraSettled; }
 	void setDenoiserDevicePreference(DenoiserDevicePreference preference) { _denoiser.setDevicePreference(preference); }
 	DenoiserDevicePreference denoiserDevicePreference() const { return _denoiser.devicePreference(); }
 	const char* activeDenoiserName() const { return _denoiser.activeDeviceName(); }
@@ -428,4 +446,11 @@ private:
 	// immediately after construction (see startInteractivePathTracedGpuSession()).
 	RtDenoiser _denoiser;
 	bool _denoiserEnabled = true;
+
+	// See setCameraSettled()'s doc comment. Defaults to true so a renderer
+	// that's never had setCameraSettled(false) called on it (e.g. an
+	// animation-only session with no camera interaction at all) still
+	// denoises as before - only ViewportWidget's GPU-interactive path
+	// actually drives this false during a drag.
+	bool _cameraSettled = true;
 };

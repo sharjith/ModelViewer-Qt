@@ -372,7 +372,13 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 			// accumulation instead (see pollCompletedFrame()), same as any
 			// other "denoiser unavailable" fallback elsewhere in this
 			// codebase - never blocks presentation outright.
-			slot.denoisedValid = _denoiserEnabled &&
+			// Skipped entirely while the camera is still moving (see
+			// setCameraSettled()'s doc comment) - denoising an under-converged,
+			// rapidly-changing accumulation every tick smeared sharp/thin CAD
+			// geometry into an ill-defined blur during motion. pollCompletedFrame()
+			// falls back to the raw (sharp but noisy) accumulation whenever
+			// denoisedValid is false, same as any other denoise-skipped case.
+			slot.denoisedValid = _denoiserEnabled && _cameraSettled &&
 				_denoiser.denoiseDevice(slot.deviceImageRGBA, slot.dAlbedoScratch, slot.dNormalScratch,
 					_width, _height, slot.deviceDenoisedRGBA, _accumulatedSampleCount);
 

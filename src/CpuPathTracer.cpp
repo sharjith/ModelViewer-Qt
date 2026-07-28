@@ -4210,13 +4210,35 @@ namespace
 			return glm::mix(glm::vec3(1.0f, 1.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f), (t - 0.75f) / 0.25f);
 		}
 
-		// Firefly/outlier suppression - see Settings::fireflyClampThreshold's
-		// doc comment. Scales the whole sample down proportionally (rather
-		// than clamping each channel independently) so an extreme-value
-		// sample is dimmed without shifting its hue.
-		const float maxChannel = std::max({ radiance.r, radiance.g, radiance.b });
-		if (maxChannel > settings.fireflyClampThreshold && maxChannel > 0.0f)
-			radiance *= (settings.fireflyClampThreshold / maxChannel);
+		// A NaN/Inf channel (rare, but reachable through certain transmission/
+		// volume/SSS edge cases - e.g. a near-zero-probability division in
+		// the Fresnel/TIR or free-flight extinction math) must be caught
+		// BEFORE the firefly clamp below, not by it: any comparison against
+		// NaN is false, so "maxChannel > threshold" silently lets a NaN
+		// sample straight through unclamped, and "threshold / NaN" would
+		// still be NaN even if it didn't. That NaN then persists forever in
+		// the running-mean accumulation buffer (a NaN blended with anything
+		// stays NaN) and corrupts the denoiser's guide/color input - the
+		// reported "denoiser sometimes hangs/goes into an infinite loop"
+		// symptom is almost certainly this: OIDN and the native OptiX
+		// denoiser were never designed to receive non-finite pixels and can
+		// behave pathologically (up to and including appearing to hang) once
+		// they do. Treat a non-finite sample as contributing nothing, same
+		// as a firefly clamp already discards excess energy.
+		if (!std::isfinite(radiance.r) || !std::isfinite(radiance.g) || !std::isfinite(radiance.b))
+		{
+			radiance = glm::vec3(0.0f);
+		}
+		else
+		{
+			// Firefly/outlier suppression - see Settings::fireflyClampThreshold's
+			// doc comment. Scales the whole sample down proportionally (rather
+			// than clamping each channel independently) so an extreme-value
+			// sample is dimmed without shifting its hue.
+			const float maxChannel = std::max({ radiance.r, radiance.g, radiance.b });
+			if (maxChannel > settings.fireflyClampThreshold && maxChannel > 0.0f)
+				radiance *= (settings.fireflyClampThreshold / maxChannel);
+		}
 
 		if (kDebugVisualizeClearcoat && debugClearcoatColor.x >= 0.0f)
 			return debugClearcoatColor;

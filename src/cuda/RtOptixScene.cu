@@ -2301,21 +2301,39 @@ extern "C" __global__ void __raygen__rg()
 				sampleRadiance = lerp3(make_float3(1.0f, 1.0f, 0.0f), make_float3(1.0f, 1.0f, 1.0f), (t - 0.75f) / 0.25f);
 		}
 
-		// Firefly/outlier suppression - params.fireflyClampThreshold mirrors
-		// CpuPathTracer::Settings::fireflyClampThreshold exactly, actually
-		// read from the dialog now instead of a hardcoded constant (used to
-		// silently ignore the user's real setting, which went unnoticed
-		// until KHR_materials_volume_scatter's random walk - a per-step
-		// MULTIPLICATIVE MIS weight compounding over up to kMaxVolume
-		// ScatterSteps iterations - made a genuinely heavy-tailed estimator,
-		// and a handful of extreme per-sample outliers were enough to wash
-		// out the whole accumulated image). Scales the whole sample down
-		// proportionally (not per-channel) so an extreme-value sample is
-		// dimmed without shifting its hue - matches CpuPathTracer.cpp's
-		// identical formula exactly.
-		const float sampleMaxChannel = fmaxf(sampleRadiance.x, fmaxf(sampleRadiance.y, sampleRadiance.z));
-		if (sampleMaxChannel > params.fireflyClampThreshold && sampleMaxChannel > 0.0f)
-			sampleRadiance = sampleRadiance * (params.fireflyClampThreshold / sampleMaxChannel);
+		// A NaN/Inf channel must be caught BEFORE the firefly clamp below,
+		// not by it - see CpuPathTracer.cpp's identical guard (the two must
+		// stay in exact parity) for the full reasoning: any comparison
+		// against NaN is false, so "sampleMaxChannel > threshold" silently
+		// lets a NaN sample straight through unclamped, and dividing by it
+		// would still yield NaN regardless. That NaN then persists forever
+		// in the running-mean accumulation buffer and corrupts the
+		// denoiser's guide/color input - almost certainly the cause of the
+		// reported "denoiser sometimes hangs" symptom, since neither OIDN
+		// nor the native OptiX denoiser were designed to receive non-finite
+		// pixels. Treat a non-finite sample as contributing nothing.
+		if (!isfinite(sampleRadiance.x) || !isfinite(sampleRadiance.y) || !isfinite(sampleRadiance.z))
+		{
+			sampleRadiance = make_float3(0.0f, 0.0f, 0.0f);
+		}
+		else
+		{
+			// Firefly/outlier suppression - params.fireflyClampThreshold mirrors
+			// CpuPathTracer::Settings::fireflyClampThreshold exactly, actually
+			// read from the dialog now instead of a hardcoded constant (used to
+			// silently ignore the user's real setting, which went unnoticed
+			// until KHR_materials_volume_scatter's random walk - a per-step
+			// MULTIPLICATIVE MIS weight compounding over up to kMaxVolume
+			// ScatterSteps iterations - made a genuinely heavy-tailed estimator,
+			// and a handful of extreme per-sample outliers were enough to wash
+			// out the whole accumulated image). Scales the whole sample down
+			// proportionally (not per-channel) so an extreme-value sample is
+			// dimmed without shifting its hue - matches CpuPathTracer.cpp's
+			// identical formula exactly.
+			const float sampleMaxChannel = fmaxf(sampleRadiance.x, fmaxf(sampleRadiance.y, sampleRadiance.z));
+			if (sampleMaxChannel > params.fireflyClampThreshold && sampleMaxChannel > 0.0f)
+				sampleRadiance = sampleRadiance * (params.fireflyClampThreshold / sampleMaxChannel);
+		}
 
 		accumulated = accumulated + sampleRadiance;
 		accumulatedAlbedo = accumulatedAlbedo + sampleAlbedo;
