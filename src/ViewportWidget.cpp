@@ -1325,6 +1325,52 @@ void ViewportWidget::paintGL()
 		{
 			drawViewCube();
 
+			// Axis trihedrons (center + corner): drawn here, after the path-
+			// traced overlay above, for the same reason the ViewCube is -
+			// interactive PT's force-opaque composite completely overwrites
+			// the raster frame underneath it, so anything only drawn during
+			// the earlier raster pass (render()/renderSingleView()) is
+			// invisible for as long as PT is displaying. Multi-view mode
+			// still draws its own per-viewport center-axis indicator inside
+			// render() instead (no single global camera to draw this one
+			// against, and no PT overlay to be wiped out by there).
+			if (!_viewCtrl.multiViewActive())
+			{
+				// While an interactive PT frame is being shown, draw both
+				// trihedrons against the SAME camera pose that frame was
+				// actually rendered with (_interactivePtPreviewCamera - see
+				// its own doc comment), not the always-current _viewCtrl
+				// matrices - same reasoning as render()'s identical
+				// interactivePtSkyboxView construction for the raster
+				// skybox. Interactive PT's own accumulation/publish lag means
+				// the displayed model can be one or more ticks behind the
+				// live camera during an active drag; drawing the axis from
+				// the live camera instead made it visibly race ahead of the
+				// still-catching-up model.
+				QMatrix4x4 interactivePtAxisView;
+				const QMatrix4x4* axisViewOverride = nullptr;
+				if (_pathTracedInteractiveActive && _interactivePtPreviewCameraValid)
+				{
+					const glm::vec3& f = _interactivePtPreviewCamera.forward;
+					const glm::vec3& r = _interactivePtPreviewCamera.right;
+					const glm::vec3& u = _interactivePtPreviewCamera.up;
+					const glm::vec3& p = _interactivePtPreviewCamera.position;
+					interactivePtAxisView.setToIdentity();
+					interactivePtAxisView(0, 0) = r.x; interactivePtAxisView(0, 1) = r.y; interactivePtAxisView(0, 2) = r.z;
+					interactivePtAxisView(0, 3) = -(r.x * p.x + r.y * p.y + r.z * p.z);
+					interactivePtAxisView(1, 0) = u.x; interactivePtAxisView(1, 1) = u.y; interactivePtAxisView(1, 2) = u.z;
+					interactivePtAxisView(1, 3) = -(u.x * p.x + u.y * p.y + u.z * p.z);
+					interactivePtAxisView(2, 0) = -f.x; interactivePtAxisView(2, 1) = -f.y; interactivePtAxisView(2, 2) = -f.z;
+					interactivePtAxisView(2, 3) = (f.x * p.x + f.y * p.y + f.z * p.z);
+					axisViewOverride = &interactivePtAxisView;
+				}
+
+				if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride())
+					drawAxis(_primaryCamera, axisViewOverride);
+				if (_viewCtrl.userShowCornerAxisOverride())
+					drawCornerAxis(_viewCtrl.cornerAxisPosition(), axisViewOverride);
+			}
+
 			// Text rendering
 			if (_sceneRuntime.meshStore().size() != 0)
 			{
@@ -4949,8 +4995,6 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 	render(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
-	if(_viewCtrl.userShowCornerAxisOverride())
-		drawCornerAxis(_viewCtrl.cornerAxisPosition());
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -6831,24 +6875,35 @@ void ViewportWidget::drawDebugOverlay(Camera* camera)
     }
 }
 
-void ViewportWidget::drawAxis(Camera* camera)
+void ViewportWidget::drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix)
 {
 	if (!camera)
 		return;
+
+	// overrideViewMatrix lets a caller draw this against the camera pose an
+	// interactive PT frame was actually rendered with (see paintGL()'s post-
+	// overlay call site), rather than the always-current _viewCtrl view/
+	// model-view matrices - same reasoning as drawSkyBox()'s identical
+	// parameter: those matrices update every frame regardless of PT's own
+	// accumulation/publish lag, so during an active drag the axis would
+	// otherwise visibly move ahead of the still-catching-up PT model instead
+	// of staying visually locked to it.
+	const QMatrix4x4& viewMat = overrideViewMatrix ? *overrideViewMatrix : _viewCtrl.viewMatrix();
+	const QMatrix4x4& modelViewMat = overrideViewMatrix ? *overrideViewMatrix : _viewCtrl.modelViewMatrix();
 
 	const float axisViewRange = std::max(camera->getViewRange(), 0.0001f);
 	float size = 15;
 	// Labels
 	QVector3D xAxis(axisViewRange / size, 0, 0);
-	xAxis = xAxis.project(_viewCtrl.modelViewMatrix(), _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
+	xAxis = xAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
 	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, axisViewRange / size, 0);
-	yAxis = yAxis.project(_viewCtrl.modelViewMatrix(), _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
+	yAxis = yAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
 	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, axisViewRange / size);
-	zAxis = zAxis.project(_viewCtrl.modelViewMatrix(), _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
+	zAxis = zAxis.project(modelViewMat, _viewCtrl.projectionMatrix(), QRect(0, 0, width(), height()));
 	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes Lines
@@ -6864,7 +6919,7 @@ void ViewportWidget::drawAxis(Camera* camera)
 	_renderCtrl.axisShader()->enableAttributeArray("vertexColor");
 	_renderCtrl.axisShader()->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
 
-	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.modelViewMatrix());
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", modelViewMat);
 	_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 
 	_renderCtrl.axisShader()->setUniformValue("renderCone", false);
@@ -6882,7 +6937,7 @@ void ViewportWidget::drawAxis(Camera* camera)
 	model.translate(axisViewRange / size, 0, 0);
 	model.rotate(90, QVector3D(0, 1.0f, 0));
 	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(1.0f, 0.0, 0.0));
-	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * model);
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", viewMat * model);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -6893,7 +6948,7 @@ void ViewportWidget::drawAxis(Camera* camera)
 	model.rotate(90, QVector3D(-1.0f, 0, 0));
 	_renderCtrl.axisShader()->bind();
 	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(0.0, 1.0f, 0.0));
-	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * model);
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", viewMat * model);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -6903,7 +6958,7 @@ void ViewportWidget::drawAxis(Camera* camera)
 	model.translate(0, 0, axisViewRange / size);
 	_renderCtrl.axisShader()->bind();
 	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(0.0, 0.0, 1.0f));
-	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl.viewMatrix() * model);
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", viewMat * model);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -7860,7 +7915,7 @@ void ViewportWidget::finishTransformGizmoRotationDrag(bool commit)
 	_viewer->updateTransformationValues();
 }
 
-void ViewportWidget::drawCornerAxis(CornerAxisPosition position)
+void ViewportWidget::drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix)
 {
 	const int axisSize = std::max(1, std::min(width(), height()) / 10);
 	int viewportX = 0;
@@ -7890,7 +7945,14 @@ void ViewportWidget::drawCornerAxis(CornerAxisPosition position)
 	// Set the viewport for the corner axis
 	glViewport(viewportX, viewportY, axisSize, axisSize);
 
-	QMatrix4x4 mat = _viewCtrl.viewMatrix();
+	// overrideRotationMatrix: same reasoning as drawAxis()'s identical
+	// parameter - lets a caller draw this against the (rotation-only) camera
+	// orientation an interactive PT frame was actually rendered with, rather
+	// than the always-current _viewCtrl.viewMatrix(), so this indicator
+	// doesn't visibly rotate ahead of a still-catching-up PT model during an
+	// active drag. Already rotation-only by construction (translation
+	// stripped below either way), matching what the caller builds.
+	QMatrix4x4 mat = overrideRotationMatrix ? *overrideRotationMatrix : _viewCtrl.viewMatrix();
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 axisProjection;
@@ -8847,7 +8909,13 @@ void ViewportWidget::render(Camera* camera)
 
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
-	if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame) drawAxis(camera);
+	// Single-view mode draws this AFTER the path-traced overlay instead (see
+	// paintGL()'s post-overlay block) so it isn't wiped out by PT's force-
+	// opaque composite - drawing it here too would just double-draw it
+	// (harmless but wasteful) for that case. Multi-view has no PT overlay to
+	// worry about and still wants its own per-viewport axis indicator here.
+	if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame && _viewCtrl.multiViewActive())
+		drawAxis(camera);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -13583,6 +13651,7 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildPathTracedSnapshot(i
 	environment.cameraUpAxisZUp = _viewCtrl.cameraUpAxisZUp();
 	environment.skyBoxZRotationDegrees = _renderCtrl.skyBoxZRotation();
 	environment.envMapExposure = _renderCtrl.envMapExposure();
+	environment.skyBoxFOV = _renderCtrl.skyBoxFOV();
 	const QColor topColor = _renderCtrl.bgTopColor();
 	const QColor botColor = _renderCtrl.bgBotColor();
 

@@ -1175,8 +1175,8 @@ private:
 	void drawFaceNormals();
 	void drawBoundingBoxOverlay();
 	void drawDebugOverlay(Camera* camera);
-	void drawAxis(Camera* camera);
-	void drawCornerAxis(CornerAxisPosition position);
+	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
+	void drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix = nullptr);
 	void drawTransformGizmo(Camera* camera);
 	void drawViewCube();
 	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);

@@ -692,6 +692,20 @@ struct RtEnvironment
 	bool  cameraUpAxisZUp          = false;
 	float skyBoxZRotationDegrees   = 0.0f;
 
+	// ViewportWidget::drawSkyBox() always renders the skybox cube through a
+	// PERSPECTIVE projection (this FOV, SceneRenderController::skyBoxFOV()),
+	// even when the scene camera itself is orthographic - a deliberate cheat
+	// so the background still reads as a varied, panoramic backdrop instead
+	// of the flat, perfectly uniform color a true orthographic camera's
+	// parallel rays would otherwise sample (every such ray shares the exact
+	// same direction, differing only in origin - see RtCamera::orthographic's
+	// use in tracePixel()/CpuPathTracer.cpp). The path tracer mirrors that
+	// same cheat for its own directly-visible background sample (bounce == 0
+	// only - see sampleEnvironmentBackground()'s call sites) rather than
+	// using the real constant orthographic ray direction, so PT's background
+	// matches raster's instead of rendering as a solid color.
+	float skyBoxFOV = 45.0f;
+
 	// SceneRenderController::envMapExposure() / Visualization panel's
 	// "Env Map Exposure" control - main_scene.frag applies this at every
 	// surface-side IBL sampling site (specular prefilter, diffuse

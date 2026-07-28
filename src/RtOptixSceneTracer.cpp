@@ -2939,6 +2939,7 @@ void RtOptixSceneTracer::buildRenderParamsInto(void* paramsOut, const RtCamera& 
 	params.environment.cameraUpAxisZUp = environment.cameraUpAxisZUp ? 1 : 0;
 	params.environment.skyBoxZRotationDegrees = environment.skyBoxZRotationDegrees;
 	params.environment.envMapExposure = environment.envMapExposure;
+	params.environment.skyBoxFOV = environment.skyBoxFOV;
 	params.environment.prefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(impl->prefilterMipsBuffer);
 	params.environment.prefilterMipCount = impl->prefilterMipCount;
 	params.environment.sheenPrefilterMips = reinterpret_cast<const RtOptixPrefilterMip*>(impl->sheenPrefilterMipsBuffer);

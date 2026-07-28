@@ -2595,6 +2595,27 @@ namespace
 				ndcY * cam.tanHalfFovY * cam.up);
 		}
 
+		// ViewportWidget::drawSkyBox() always renders the skybox through a
+		// PERSPECTIVE projection (RtEnvironment::skyBoxFOV's doc comment),
+		// even under an orthographic scene camera, so raster's background
+		// shows per-pixel directional variation a true orthographic camera's
+		// parallel rays never would. Mirror that same cheat here: the
+		// directly-visible background sample (bounce == 0 only, see
+		// sampleEnvironmentBackground()'s two call sites below) uses this
+		// synthetic perspective direction instead of the real (constant)
+		// ray.direction whenever the camera is orthographic - every other
+		// use of ray.direction (geometry intersection, bounce/reflection
+		// escapes, NEE) is untouched and stays physically correct.
+		glm::vec3 backgroundDirection = ray.direction;
+		if (cam.orthographic)
+		{
+			const float skyBoxTanHalfFovY = std::tan(glm::radians(snapshot.environment.skyBoxFOV) * 0.5f);
+			backgroundDirection = glm::normalize(
+				cam.forward +
+				ndcX * cam.aspectRatio * skyBoxTanHalfFovY * cam.right +
+				ndcY * skyBoxTanHalfFovY * cam.up);
+		}
+
 		glm::vec3 radiance(0.0f);
 		glm::vec3 throughput(1.0f);
 
@@ -2749,7 +2770,7 @@ namespace
 					const glm::vec2 screenUv(
 						(static_cast<float>(px) + 0.5f) / static_cast<float>(width),
 						1.0f - (static_cast<float>(py) + 0.5f) / static_cast<float>(height));
-					radiance += throughput * lastHitAO * sampleEnvironmentBackground(snapshot.environment, ray.direction, screenUv);
+					radiance += throughput * lastHitAO * sampleEnvironmentBackground(snapshot.environment, backgroundDirection, screenUv);
 				}
 				else
 				{
@@ -3122,7 +3143,7 @@ namespace
 					const glm::vec2 screenUv(
 						(static_cast<float>(px) + 0.5f) / static_cast<float>(width),
 						1.0f - (static_cast<float>(py) + 0.5f) / static_cast<float>(height));
-					envColor = sampleEnvironmentBackground(snapshot.environment, ray.direction, screenUv);
+					envColor = sampleEnvironmentBackground(snapshot.environment, backgroundDirection, screenUv);
 				}
 				else
 				{

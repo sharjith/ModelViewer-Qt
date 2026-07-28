@@ -118,6 +118,13 @@ struct RtOptixEnvironment
 	float skyBoxZRotationDegrees;
 	float envMapExposure;
 
+	// RtEnvironment::skyBoxFOV's doc comment - the fake perspective FOV
+	// raster's drawSkyBox() always renders the skybox cube through, mirrored
+	// here so the kernel's directly-visible background sample (bounce == 0
+	// only) matches raster instead of showing a flat solid color under an
+	// orthographic scene camera.
+	float skyBoxFOV;
+
 	// Device array of prefilterMipCount RtOptixPrefilterMip entries, ordered
 	// sharp-to-blurry exactly like RtEnvironment::prefilterMips - nullptr/0
 	// if no environment map (or its prefilter chain specifically) was
