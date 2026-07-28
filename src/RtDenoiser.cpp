@@ -156,6 +156,32 @@ struct RtDenoiser::Impl
 	int deviceDenoiserWidth = 0, deviceDenoiserHeight = 0;
 	bool deviceDenoiserHasGuides = false;
 
+	// Dedicated non-default CUDA stream for ALL of denoiseDeviceWithOptix()'s
+	// work (optixDenoiserCreate/Setup/ComputeIntensity/Invoke, plus the final
+	// sync) - created lazily on first use, held for this Impl's lifetime.
+	// Using this instead of the legacy default/NULL stream (as this code
+	// originally did) matters because the NULL stream has implicit
+	// cross-stream synchronization semantics: ANY work enqueued on it blocks
+	// every OTHER stream in the process too, including
+	// InteractivePtRenderer's own dedicated rendering stream. That coupling
+	// was a real, confirmed bug (see denoiseDeviceWithOptix()'s doc comment
+	// and its own log capture): every time InteractivePtRenderer's
+	// resolution-adaptive scaling changed the internal render resolution,
+	// this denoiser had to recreate its OptixDenoiser (a genuinely slow,
+	// cudnn-JIT-compile-backed operation, visible in the log as "using cuda
+	// device"/"layers created") - and because that recreation ran on the
+	// NULL stream, it stalled the interactive renderer's NEXT launch too
+	// (same-process cross-stream barrier), inflating that launch's own
+	// elapsedEventTimeMs() reading enough to look "over budget" and trigger
+	// ANOTHER resolution change, which recreated the denoiser YET AGAIN at
+	// the new size - a self-sustaining oscillation between two resolutions
+	// that never settled as long as the camera held still. Using our own
+	// stream removes the accidental coupling; the correctness-motivated sync
+	// after invoke (see below) still waits for THIS stream specifically, so
+	// the caller's "dOutputRGBA is ready once this returns true" contract is
+	// unchanged.
+	cudaStream_t deviceDenoiserStream = nullptr;
+
 	void releaseDeviceDenoiser()
 	{
 		if (deviceDenoiser)
@@ -176,6 +202,11 @@ struct RtDenoiser::Impl
 	~Impl()
 	{
 		releaseDeviceDenoiser();
+		if (deviceDenoiserStream)
+		{
+			cudaStreamDestroy(deviceDenoiserStream);
+			deviceDenoiserStream = nullptr;
+		}
 		if (optixContext)
 			optixDeviceContextDestroy(optixContext);
 	}
@@ -443,6 +474,14 @@ bool RtDenoiser::denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* d
 	if (!cudaOk(cudaFree(0), "cudaFree(0)")) // see denoiseWithOptix()'s identical call for why this is needed every time
 		return false;
 
+	if (!_impl->deviceDenoiserStream)
+	{
+		// See Impl::deviceDenoiserStream's doc comment for why this must NOT
+		// be the default/NULL stream.
+		if (!cudaOk(cudaStreamCreate(&_impl->deviceDenoiserStream), "cudaStreamCreate() (device-resident denoiser)"))
+			return false;
+	}
+
 	const bool haveGuides = dAlbedo && dNormal;
 
 	if (!_impl->deviceDenoiser || _impl->deviceDenoiserWidth != width || _impl->deviceDenoiserHeight != height ||
@@ -470,7 +509,7 @@ bool RtDenoiser::denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* d
 		if (ok) ok = cudaOk(cudaMalloc(reinterpret_cast<void**>(&_impl->deviceDenoiserIntensity), sizeof(float)), "cudaMalloc(device-resident denoiser intensity)");
 
 		if (ok)
-			ok = optixOk(optixDenoiserSetup(_impl->deviceDenoiser, nullptr, static_cast<unsigned int>(width), static_cast<unsigned int>(height),
+			ok = optixOk(optixDenoiserSetup(_impl->deviceDenoiser, _impl->deviceDenoiserStream, static_cast<unsigned int>(width), static_cast<unsigned int>(height),
 				_impl->deviceDenoiserState, sizes.stateSizeInBytes, _impl->deviceDenoiserScratch, sizes.withoutOverlapScratchSizeInBytes),
 				"optixDenoiserSetup() (device-resident)");
 
@@ -509,7 +548,7 @@ bool RtDenoiser::denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* d
 	layer.input = colorImage;
 	layer.output = outputImage;
 
-	bool ok = optixOk(optixDenoiserComputeIntensity(_impl->deviceDenoiser, nullptr, &colorImage, _impl->deviceDenoiserIntensity,
+	bool ok = optixOk(optixDenoiserComputeIntensity(_impl->deviceDenoiser, _impl->deviceDenoiserStream, &colorImage, _impl->deviceDenoiserIntensity,
 		_impl->deviceDenoiserScratch, _impl->deviceDenoiserScratchSize), "optixDenoiserComputeIntensity() (device-resident)");
 
 	OptixDenoiserParams params{};
@@ -520,19 +559,24 @@ bool RtDenoiser::denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* d
 	params.blendFactor = 0.0f;
 
 	if (ok)
-		ok = optixOk(optixDenoiserInvoke(_impl->deviceDenoiser, nullptr, &params, _impl->deviceDenoiserState, _impl->deviceDenoiserStateSize,
+		ok = optixOk(optixDenoiserInvoke(_impl->deviceDenoiser, _impl->deviceDenoiserStream, &params, _impl->deviceDenoiserState, _impl->deviceDenoiserStateSize,
 			&guideLayer, &layer, 1, 0, 0, _impl->deviceDenoiserScratch, _impl->deviceDenoiserScratchSize), "optixDenoiserInvoke() (device-resident)");
 
-	// This call (and computeIntensity/setup above) runs on the default stream
-	// (nullptr), asynchronously - unlike denoiseWithOptix()'s std::vector API,
-	// there is no cudaMemcpy(...DeviceToHost) afterward whose own implicit
+	// This call (and computeIntensity/setup above) runs on this denoiser's own
+	// dedicated stream (see Impl::deviceDenoiserStream's doc comment - NOT the
+	// default/NULL stream, which would implicitly serialize against every
+	// other stream in the process, including InteractivePtRenderer's own),
+	// asynchronously - unlike denoiseWithOptix()'s std::vector API, there is
+	// no cudaMemcpy(...DeviceToHost) afterward whose own implicit
 	// synchronization would guarantee dOutputRGBA is actually finished before
 	// this function returns. The caller (InteractivePtRenderer::tick())
 	// treats dOutputRGBA as immediately presentable once this call returns
 	// true, so an explicit sync here is required for correctness, not just
-	// tidiness.
+	// tidiness - synchronizing THIS stream specifically (rather than the
+	// whole device) still gives that guarantee without reintroducing the
+	// cross-stream stall this dedicated stream exists to avoid.
 	if (ok)
-		ok = cudaOk(cudaStreamSynchronize(nullptr), "cudaStreamSynchronize() (device-resident)");
+		ok = cudaOk(cudaStreamSynchronize(_impl->deviceDenoiserStream), "cudaStreamSynchronize() (device-resident)");
 
 	return ok;
 }

@@ -77,8 +77,21 @@ class RtOptixSceneTracer;
 // actively moving, denoising is skipped and the raw accumulation is shown
 // instead - denoising an under-converged, rapidly-changing image every tick
 // smeared sharp/thin CAD geometry into an ill-defined blur during motion.
-// Once the camera holds still, denoising turns on and stays on continuously
-// (not a single final pass) for as long as it keeps holding still.
+//
+// Settle promotion: ViewportWidget::onPathTracedIdleTimeout() no longer
+// hands off to a SEPARATE settled/offline session once the camera stops -
+// that caused a visible "handover flash" (a converged-but-capped image
+// suddenly replaced by a fresh, barely-converged one from an independent
+// accumulation buffer, often at a different resolution). Instead, the same
+// idle signal that flips denoising on ALSO lifts this renderer's OWN
+// sample cap (see setInteractiveBudget()) toward the dialog-configured
+// target and forces resolution back to full (see requestFullResolution()) -
+// same buffer, same running accumulation, continuously improving with no
+// discontinuity. The one exception: if resolution genuinely needs to grow
+// back to full size, that specific reallocation still resets the
+// accumulation (unavoidable - there's no valid way to upscale an in-progress
+// accumulation buffer's contents), but only when the adaptive scaler had
+// actually reduced resolution under load, not on every settle.
 // ---------------------------------------------------------------------------
 class InteractivePtRenderer
 {
@@ -190,6 +203,23 @@ public:
 	void setInteractiveBudget(uint32_t samplesPerLaunch, uint32_t maxAccumulatedSamples, uint32_t bounces,
 		float targetFrameTimeMs, bool resolutionAdaptiveEnabled);
 
+	// Requests a return to full (1.0) resolution scale, applied at the next
+	// safe-to-reallocate point in tick() - immediately if nothing is
+	// currently in flight, or once the in-flight launch completes otherwise
+	// (see tick()'s own use of _forceFullResolutionRequested; NOT simply
+	// writing _pendingResolutionScale directly here, since tick()'s
+	// completion handling unconditionally recomputes that from
+	// _resolutionScale every time a launch finishes and would silently
+	// clobber a value set from outside between ticks). Called once the
+	// camera settles (see ViewportWidget::onPathTracedIdleTimeout()) so a
+	// session that got throttled down under load during a drag returns to
+	// full resolution at rest, when responsiveness no longer matters. If the
+	// scale genuinely was reduced, this one reallocation resets the
+	// accumulation (see applyInternalResolution() - there's no way to
+	// upscale an in-progress buffer's contents), but only in that case, not
+	// on every settle.
+	void requestFullResolution() { _forceFullResolutionRequested = true; }
+
 	// Progressive denoising - see this class's own doc comment. Mirrors
 	// RtOptixPathTracingSession's identically-named setDenoiserEnabled()/
 	// setDenoiserDevicePreference() exactly, just forwarded to this class's
@@ -212,12 +242,24 @@ public:
 	// tick() skips the denoise step entirely and publishes the raw,
 	// still-noisy-but-sharp accumulation instead - denoising a CAD model's
 	// thin/sharp edges every single in-flight frame smeared them into an
-	// ill-defined blur during motion, which reads as "the geometry doesn't
-	// look right" even though it was just the denoiser doing its normal job
-	// on an under-converged image. Once settled it stays enabled continuously
-	// (not a one-shot final pass) so the image keeps improving indefinitely
-	// while the camera holds still, same as before this gating existed.
-	void setCameraSettled(bool settled) { _cameraSettled = settled; }
+	// ill-defined blur during motion. Once settled, ViewportWidget also
+	// lifts this renderer's own sample cap/resolution toward full quality
+	// (see requestFullResolution()/setInteractiveBudget()) - denoising still
+	// stays OFF through that whole climb (see tick()'s own doc comment on
+	// its denoise call for why: re-denoising every launch during the climb
+	// is wasted work that visually backslides launch to launch) and fires
+	// exactly ONCE, when the raised cap is actually reached, for a sharper
+	// final result than continuous re-denoising produced.
+	// If the camera resumes moving mid-recovery (see _holdPublishUntilConverged's
+	// doc comment), release the hold immediately rather than leaving a stale
+	// pre-drag frame on screen while a NEW drag is already live - responsiveness
+	// during interaction matters more here than finishing that one recovery.
+	void setCameraSettled(bool settled)
+	{
+		_cameraSettled = settled;
+		if (!settled)
+			_holdPublishUntilConverged = false;
+	}
 	bool cameraSettled() const { return _cameraSettled; }
 	void setDenoiserDevicePreference(DenoiserDevicePreference preference) { _denoiser.setDevicePreference(preference); }
 	DenoiserDevicePreference denoiserDevicePreference() const { return _denoiser.devicePreference(); }
@@ -378,6 +420,48 @@ private:
 	static constexpr float kMinResolutionScale = 0.25f;
 	static constexpr float kResolutionScaleStep = 0.85f; // multiplicative step down; 1/step used to step back up
 	float _pendingResolutionScale = 1.0f; // decided during (a), applied at the safe point right after (see tick())
+
+	// Set by requestFullResolution() - see that method's own doc comment for
+	// why this is a separate flag rather than writing _pendingResolutionScale
+	// directly. Consumed by tick(), which checks this BEFORE the normal
+	// per-completion "_pendingResolutionScale = _resolutionScale" reset that
+	// would otherwise silently discard an externally-requested change.
+	bool _forceFullResolutionRequested = false;
+
+	// Set alongside _pendingResolutionScale in tick()'s deferred
+	// requestFullResolution() branch, since that reallocation doesn't
+	// actually happen until the later "safe to reallocate" point - lets that
+	// later point know THIS particular reallocation was forced (settle-
+	// triggered), not a routine adaptive step, so it knows to arm
+	// _holdPublishUntilConverged. Consumed (reset to false) at that same
+	// point, right after the reallocation actually happens.
+	bool _pendingResolutionChangeIsForced = false;
+
+	// Set whenever requestFullResolution() actually triggers a reallocation
+	// (see both its call sites in tick()) - the settle-time jump back to full
+	// resolution discards whatever had accumulated at the smaller size (see
+	// applyInternalResolution()'s own doc comment), so the very next
+	// completed launch afterward is a single, barely-converged sample at the
+	// new (larger) resolution. Publishing that immediately replaced an
+	// already-reasonable, recently-displayed frame with an abrupt, visibly
+	// noisier one - confirmed via [PT-DIAG] log capture as the exact cause of
+	// a "flash" right at the settle transition.
+	//
+	// Deliberately a ONE-SHOT skip, not "hold until fully converged": an
+	// earlier version suppressed publishing for the entire recovery climb
+	// (until _maxAccumulatedSamples was reached), which did remove the flash
+	// but also hid the whole progressive noise-reduction ramp, making a drag-
+	// stop settle look like a stuck frame that suddenly popped clean - unlike
+	// a view-animation stop, which resumes at full resolution already (no
+	// reallocation needed, so this flag never engages there) and so shows
+	// that same progressive ramp uninterrupted. Skipping only the ONE
+	// worst-offender frame keeps that same progressive feel for a drag-stop
+	// too: pollCompletedFrame() stays frozen on the pre-reset frame for
+	// exactly one completed launch, then resumes normal per-launch
+	// publishing immediately after.
+	// Released early (see setCameraSettled()) if the camera starts moving
+	// again before that one skipped launch completes.
+	bool _holdPublishUntilConverged = false;
 
 	// Deliberately asymmetric hysteresis, wider than a naive symmetric band:
 	// step down only on a CLEARLY over-budget launch (>1.3x target), step up

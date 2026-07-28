@@ -62,21 +62,23 @@ constexpr float kDefaultFloorOffsetPercent = 0.0f;
 // sustained GPU load - see InteractivePtRenderer::_resolutionScale's own doc
 // comment for why.
 constexpr uint32_t kInteractivePtSamplesPerLaunch       = 1;
-// Raised from 32: at a fixed 1 sample/launch, 32 plateaus in ~1s of held-
-// still idle time - plenty for most materials, but a fully rough conductor
-// (roughness=1, metallic=1) has almost no diffuse "stabilizer" term and its
-// entire visible signal rides on one wide, high-variance GGX specular lobe
-// (see RtOptixScene.cu's __miss__ms() specular-lobe escape branch, which
-// deliberately samples the raw/unfiltered environment map rather than a
-// roughness-blurred one - shared, validated behavior with CpuPathTracer.cpp,
-// not something to change here), so it visibly plateaus noisy well before
-// convergence. There is no longer a "promote to a full settled session once
-// idle" fallback (see Phase 4's retirement of that mechanism), so this cap IS
-// the ceiling on how clean interactive PT gets for such a material - raising
-// it costs nothing during actual camera motion (a moving camera resets both
-// slots to 0 every pose change regardless of this cap) and only extends how
-// long accumulation keeps quietly refining once truly idle.
-constexpr uint32_t kInteractivePtMaxAccumulatedSamples  = 128;
+// No fixed cap constant here anymore - the interactive accumulator's sample
+// cap is always _ptMaxSamples (the user's actual dialog-configured target),
+// both while interacting and once settled (see resetPathTracedIdleTimer()'s
+// GPU branch and startInteractivePathTracedGpuSession()'s slow path). An
+// earlier version used a separate, lower, hardcoded interactive-only cap
+// (128) that got raised to _ptMaxSamples only once settled - but that meant
+// if _ptMaxSamples was ever configured BELOW 128, the accumulator could
+// already have overshot the new (lower) cap by the time settle fired,
+// leaving _accumulatedSampleCount >= _maxAccumulatedSamples with no new
+// launch left to complete and trigger the one-shot settled denoise (see
+// tick()'s own doc comment on its denoise call) - a genuine dead state, stuck
+// showing the last raw, undenoised frame forever. Using the same value
+// throughout removes that class of bug entirely, costs nothing during actual
+// camera motion (a moving camera resets accumulation to 0 on every pose
+// change regardless of the cap), and the fixed per-launch sample count
+// (kInteractivePtSamplesPerLaunch) plus resolution-adaptive scaling already
+// bound the per-frame GPU cost regardless of how high this target is.
 // ~30fps budget for the launch itself - NOT 20ms/50fps as first tried:
 // measurement ([PT-RESSCALE-DIAG], since removed) showed a real scene's
 // ordinary per-launch cost sitting at ~26-29ms, comfortably usable but just
@@ -1287,7 +1289,25 @@ void ViewportWidget::paintGL()
 		// happened, so checking here catches it unconditionally instead of
 		// depending on correctly predicting every platform-specific
 		// visibility/focus event that should have restarted it.
+		//
+		// MUST also respect _pathTracedResumeWarmUpTimer, not just
+		// _pathTracedIdleTimer: every GPU-backend teardown (a scene mutation,
+		// not a live drag - see resetPathTracedIdleTimer()'s non-interactive
+		// branch) deliberately leaves _pathTracedIdleTimer untouched for GPU
+		// and instead arms this debounced resume timer to bring the
+		// interactive accumulator back via onPathTracedResumeWarmUpTimeout().
+		// Without this check, this watchdog saw idleTimerActive==false
+		// immediately (it was never armed for GPU) and fired on the very next
+		// paintGL(), before the 400ms debounce had any chance to fire -
+		// starting the settled _ptOptixSession, which itself calls
+		// _rtPresenter.invalidate() and restarts from scratch every time it's
+		// entered. Since this watchdog re-fires every frame (nothing ever got
+		// a chance to publish a first frame before being invalidated again),
+		// this was a genuine livelock: dozens of full OptiX session
+		// start/stop cycles per second, indefinitely, until an unrelated
+		// event (e.g. a real camera drag) happened to break it.
 		if (_pathTracedArmed && !_pathTracedIdleTimer->isActive() &&
+		    !(_pathTracedResumeWarmUpTimer && _pathTracedResumeWarmUpTimer->isActive()) &&
 		    !pathTracedSessionRunning() && !_rtPresenter.hasFrame())
 		{
 			startPathTracedSession(); // bypass the idle countdown entirely - see applicationStateChanged handler for why
@@ -1323,7 +1343,38 @@ void ViewportWidget::paintGL()
 
 		if (!_capturingCleanFrame)
 		{
-			drawViewCube();
+			// While an interactive PT frame is being shown, draw the ViewCube
+			// AND both axis trihedrons against the SAME camera pose that
+			// frame was actually rendered with (_interactivePtPreviewCamera -
+			// see its own doc comment), not the always-current _viewCtrl
+			// matrices - same reasoning as render()'s identical
+			// interactivePtSkyboxView construction for the raster skybox.
+			// Interactive PT's own accumulation/publish lag means the
+			// displayed model can be one or more ticks behind the live
+			// camera during an active drag; drawing these from the live
+			// camera instead made them visibly rotate ahead of the
+			// still-catching-up model (confirmed for the ViewCube - it only
+			// ever reflects rotation, never zoom/pan, so a rotation-only lag
+			// like this is exactly what was visible).
+			QMatrix4x4 interactivePtAxisView;
+			const QMatrix4x4* axisViewOverride = nullptr;
+			if (_pathTracedInteractiveActive && _interactivePtPreviewCameraValid)
+			{
+				const glm::vec3& f = _interactivePtPreviewCamera.forward;
+				const glm::vec3& r = _interactivePtPreviewCamera.right;
+				const glm::vec3& u = _interactivePtPreviewCamera.up;
+				const glm::vec3& p = _interactivePtPreviewCamera.position;
+				interactivePtAxisView.setToIdentity();
+				interactivePtAxisView(0, 0) = r.x; interactivePtAxisView(0, 1) = r.y; interactivePtAxisView(0, 2) = r.z;
+				interactivePtAxisView(0, 3) = -(r.x * p.x + r.y * p.y + r.z * p.z);
+				interactivePtAxisView(1, 0) = u.x; interactivePtAxisView(1, 1) = u.y; interactivePtAxisView(1, 2) = u.z;
+				interactivePtAxisView(1, 3) = -(u.x * p.x + u.y * p.y + u.z * p.z);
+				interactivePtAxisView(2, 0) = -f.x; interactivePtAxisView(2, 1) = -f.y; interactivePtAxisView(2, 2) = -f.z;
+				interactivePtAxisView(2, 3) = (f.x * p.x + f.y * p.y + f.z * p.z);
+				axisViewOverride = &interactivePtAxisView;
+			}
+
+			drawViewCube(axisViewOverride);
 
 			// Axis trihedrons (center + corner): drawn here, after the path-
 			// traced overlay above, for the same reason the ViewCube is -
@@ -1336,35 +1387,6 @@ void ViewportWidget::paintGL()
 			// against, and no PT overlay to be wiped out by there).
 			if (!_viewCtrl.multiViewActive())
 			{
-				// While an interactive PT frame is being shown, draw both
-				// trihedrons against the SAME camera pose that frame was
-				// actually rendered with (_interactivePtPreviewCamera - see
-				// its own doc comment), not the always-current _viewCtrl
-				// matrices - same reasoning as render()'s identical
-				// interactivePtSkyboxView construction for the raster
-				// skybox. Interactive PT's own accumulation/publish lag means
-				// the displayed model can be one or more ticks behind the
-				// live camera during an active drag; drawing the axis from
-				// the live camera instead made it visibly race ahead of the
-				// still-catching-up model.
-				QMatrix4x4 interactivePtAxisView;
-				const QMatrix4x4* axisViewOverride = nullptr;
-				if (_pathTracedInteractiveActive && _interactivePtPreviewCameraValid)
-				{
-					const glm::vec3& f = _interactivePtPreviewCamera.forward;
-					const glm::vec3& r = _interactivePtPreviewCamera.right;
-					const glm::vec3& u = _interactivePtPreviewCamera.up;
-					const glm::vec3& p = _interactivePtPreviewCamera.position;
-					interactivePtAxisView.setToIdentity();
-					interactivePtAxisView(0, 0) = r.x; interactivePtAxisView(0, 1) = r.y; interactivePtAxisView(0, 2) = r.z;
-					interactivePtAxisView(0, 3) = -(r.x * p.x + r.y * p.y + r.z * p.z);
-					interactivePtAxisView(1, 0) = u.x; interactivePtAxisView(1, 1) = u.y; interactivePtAxisView(1, 2) = u.z;
-					interactivePtAxisView(1, 3) = -(u.x * p.x + u.y * p.y + u.z * p.z);
-					interactivePtAxisView(2, 0) = -f.x; interactivePtAxisView(2, 1) = -f.y; interactivePtAxisView(2, 2) = -f.z;
-					interactivePtAxisView(2, 3) = (f.x * p.x + f.y * p.y + f.z * p.z);
-					axisViewOverride = &interactivePtAxisView;
-				}
-
 				if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride())
 					drawAxis(_primaryCamera, axisViewOverride);
 				if (_viewCtrl.userShowCornerAxisOverride())
@@ -8122,7 +8144,8 @@ bool ViewportWidget::computeViewCubeRenderState(QRect& viewportRect,
                                           QMatrix4x4& viewMatrix,
                                           QMatrix4x4& projectionMatrix,
                                           QMatrix4x4& modelMatrix,
-                                          float& cubeScale) const
+                                          float& cubeScale,
+                                          const QMatrix4x4* overrideRotationMatrix) const
 {
 	if (!_viewCube)
 		return false;
@@ -8131,7 +8154,15 @@ bool ViewportWidget::computeViewCubeRenderState(QRect& viewportRect,
 	if (viewportRect.width() <= 0 || viewportRect.height() <= 0)
 		return false;
 
-	QMatrix4x4 viewRotation = _viewCtrl.viewMatrix();
+	// overrideRotationMatrix: same reasoning as drawCornerAxis()'s identical
+	// parameter - lets paintGL() draw this against the (rotation-only)
+	// camera orientation an interactive PT frame was actually rendered with,
+	// rather than the always-current _viewCtrl.viewMatrix(), so the cube
+	// doesn't visibly rotate ahead of a still-catching-up PT model during an
+	// active drag. Only the drawViewCube() call site passes this - picking
+	// (pickViewCubeRegionAtPixel()) always wants the LIVE camera, since a
+	// click should map to what's actually clickable right now.
+	QMatrix4x4 viewRotation = overrideRotationMatrix ? *overrideRotationMatrix : _viewCtrl.viewMatrix();
 	viewRotation.setColumn(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 	viewRotation.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 
@@ -8407,7 +8438,7 @@ void ViewportWidget::initializeViewCubeLabels()
 	glBindVertexArray(0);
 }
 
-void ViewportWidget::drawViewCube()
+void ViewportWidget::drawViewCube(const QMatrix4x4* overrideRotationMatrix)
 {
 	if (!_viewCtrl.showViewCubeOverride() || !_viewCube || !_renderCtrl.viewCubeShader())
 		return;
@@ -8417,7 +8448,7 @@ void ViewportWidget::drawViewCube()
 	QMatrix4x4 projectionMatrix;
 	QMatrix4x4 modelMatrix;
 	float cubeScale = 1.0f;
-	if (!computeViewCubeRenderState(viewportRect, viewMatrix, projectionMatrix, modelMatrix, cubeScale))
+	if (!computeViewCubeRenderState(viewportRect, viewMatrix, projectionMatrix, modelMatrix, cubeScale, overrideRotationMatrix))
 		return;
 
 	int prevViewport[4];
@@ -13455,6 +13486,30 @@ void ViewportWidget::onPathTracedResumeWarmUpTimeout()
 	if (!_pathTracedArmed || effectivePathTracingEnginePreference() != RtPathTracingEnginePreference::GPU)
 		return;
 
+	// A scripted view animation (Home/standard-view, Fit All, window-zoom -
+	// see animateViewChange()/animateFitAll()/animateWindowZoom()'s own
+	// identical doc comments) is still running. Each of THEIR per-frame
+	// callbacks already calls resetPathTracedIdleTimer(false) ->
+	// armPathTracedResumeWarmUp() every ~5ms, which normally keeps
+	// re-arming this same debounce well before it can fire - but any single
+	// late/skipped frame (OS scheduling jitter, a heavier scene, or a
+	// multi-leg animation with a brief gap between legs) lets this timer
+	// slip through mid-animation instead. Firing here mid-animation rebuilds
+	// + warms up the interactive accumulator for whatever INTERMEDIATE pose
+	// the camera happened to be at, only to have the very next animation
+	// frame immediately tear it down again via resetPathTracedIdleTimer(false) -
+	// a fully wasted GAS rebuild + synchronous warm-up cycle, visible as the
+	// interactive PT session appearing to restart/resettle multiple times
+	// before a single scripted animation finishes. Skipping this firing is
+	// safe: the animation's own next frame (imminent, ~5ms away) re-arms this
+	// same timer regardless, so the resume still correctly fires exactly
+	// once, cleanly, right after the animation actually stops calling
+	// resetPathTracedIdleTimer(false) at all.
+	if ((_animateViewTimer && _animateViewTimer->isActive()) ||
+	    (_animateFitAllTimer && _animateFitAllTimer->isActive()) ||
+	    (_animateWindowZoomTimer && _animateWindowZoomTimer->isActive()))
+		return;
+
 	// The user already resumed interaction (or a settled dialog render is
 	// running) before this timer fired - the normal mouse-move/Render-button
 	// path already restarted whatever needed restarting itself. Re-entering
@@ -13473,6 +13528,24 @@ void ViewportWidget::onPathTracedResumeWarmUpTimeout()
 	// first-launch warm-up cost synchronously (see its doc comment) - no
 	// separate call needed here anymore.
 	startInteractivePathTracedGpuSession();
+
+	// This resume happened because a scene mutation / scripted view
+	// animation just finished (that's the only way this branch's teardown +
+	// debounced resume gets reached at all - see resetPathTracedIdleTimer()'s
+	// non-interacting branch) - the camera is NOT being dragged right now.
+	// Unlike a genuine drag, which restarts _pathTracedIdleTimer itself (see
+	// resetPathTracedIdleTimer()'s GPU-interacting branch) and so naturally
+	// reaches onPathTracedIdleTimeout() 450ms later to settle, THIS resume
+	// path never touched that timer - without starting it here, the
+	// freshly-rebuilt session would be stuck indefinitely in the
+	// interaction-time configuration (resolutionAdaptiveEnabled=true, no
+	// forced full resolution, denoise never firing), with the resolution-
+	// adaptive hysteresis left free to keep stepping resolution up and down
+	// as accumulation climbs toward the cap - visible as the image quality
+	// cycling between worse and better repeatedly, with no way out short of
+	// the user dragging the camera again. Starting it here instead lets this
+	// resumed session settle exactly like a real drag would 450ms later.
+	_pathTracedIdleTimer->start();
 }
 
 void ViewportWidget::disarmPathTracedRenderingMode()
@@ -13521,14 +13594,23 @@ void ViewportWidget::resetPathTracedIdleTimer(bool cameraInteracting)
 		_ptOptixSession.stop();
 		startInteractivePathTracedGpuSession();
 
-		// Camera is actively moving again - suppress denoising (see
-		// InteractivePtRenderer::setCameraSettled()'s doc comment: denoising
-		// an under-converged, rapidly-changing accumulation smears sharp CAD
-		// geometry into an ill-defined blur during motion) and (re)start the
-		// same 450ms idle timer CPU/Embree's settle handoff already used -
-		// onPathTracedIdleTimeout() flips this back to settled once the
-		// camera holds still long enough without another call landing here.
+		// Camera is actively moving again - drop back to the normal
+		// interaction-first mode: suppress denoising (see
+		// InteractivePtRenderer::setCameraSettled()'s doc comment) and
+		// restore adaptive resolution scaling, undoing whatever
+		// onPathTracedIdleTimeout() disabled on the last settle (see that
+		// method's own doc comment for why responsiveness takes priority
+		// again the moment the camera moves). The sample cap itself
+		// (_ptMaxSamples) doesn't change - see kInteractivePtSamplesPerLaunch's
+		// doc comment for why it's the same value in both states now.
 		_interactivePtRenderer.setCameraSettled(false);
+		_interactivePtRenderer.setInteractiveBudget(kInteractivePtSamplesPerLaunch, std::max<uint32_t>(_ptMaxSamples, 1),
+			static_cast<uint32_t>(std::max(_ptMaxBounces, 1)), kInteractivePtTargetFrameMs, /*resolutionAdaptiveEnabled=*/true);
+
+		// (Re)start the same 450ms idle timer CPU/Embree's settle handoff
+		// already used - onPathTracedIdleTimeout() flips this back to
+		// settled once the camera holds still long enough without another
+		// call landing here.
 		_pathTracedIdleTimer->start();
 		return;
 	}
@@ -13571,19 +13653,37 @@ void ViewportWidget::onPathTracedIdleTimeout()
 	if (!_pathTracedArmed)
 		return;
 
-	// GPU/OptiX has no separate "settled" SESSION tier to promote to anymore -
-	// the continuous interactive accumulator (see resetPathTracedIdleTimer()'s
-	// GPU branch) keeps converging on its own for as long as the camera holds
-	// still, without ever needing a session handoff. This timer does, though,
-	// still gate DENOISING for GPU (see InteractivePtRenderer::
-	// setCameraSettled()'s doc comment): the camera has now held still for a
-	// full idle period without resetPathTracedIdleTimer() restarting this
-	// timer again, so it's safe to turn denoising back on. It stays enabled
-	// continuously from here (not a one-shot pass) until the next camera
-	// move flips it off again.
+	// GPU/OptiX: the camera has now held still for a full idle period without
+	// resetPathTracedIdleTimer() restarting this timer again. Rather than
+	// handing off to a SEPARATE settled/offline session (_ptOptixSession) -
+	// which caused a visible "handover flash" (a converged-but-capped image
+	// suddenly replaced by a fresh, barely-converged one from an independent
+	// accumulation buffer, often at a different resolution) - lift THIS SAME
+	// accumulator's own quality ceiling in place:
+	//   1. Denoising is armed (see InteractivePtRenderer::setCameraSettled()) -
+	//      it stays OFF through the sample-cap climb below and fires exactly
+	//      ONCE, when that raised cap is actually reached, rather than
+	//      re-denoising every completed launch throughout the climb.
+	//   2. Resolution is forced back to full (requestFullResolution()) and
+	//      adaptive downscaling is disabled - responsiveness no longer
+	//      matters once the camera isn't moving. If the adaptive scaler
+	//      genuinely had reduced resolution under load, this one
+	//      reallocation still resets the accumulation (unavoidable), but
+	//      only in that case, not on every settle.
+	// The sample cap itself (_ptMaxSamples) is passed here too, but doesn't
+	// actually CHANGE from the interacting state - see
+	// kInteractivePtSamplesPerLaunch's doc comment for why this is always
+	// the same value now, not a separate lower interactive-only cap.
+	// Moving the camera again (resetPathTracedIdleTimer()'s GPU branch)
+	// reverts denoising and resolution-adaptive back to the interaction-first
+	// defaults.
 	if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
 	{
 		_interactivePtRenderer.setCameraSettled(true);
+		_interactivePtRenderer.setInteractiveBudget(kInteractivePtSamplesPerLaunch,
+			std::max<uint32_t>(_ptMaxSamples, 1), static_cast<uint32_t>(std::max(_ptMaxBounces, 1)),
+			kInteractivePtTargetFrameMs, /*resolutionAdaptiveEnabled=*/false);
+		_interactivePtRenderer.requestFullResolution();
 		update();
 		return;
 	}
@@ -14061,7 +14161,7 @@ void ViewportWidget::startInteractivePathTracedGpuSession(bool forceSceneRefresh
 	// Now uses the SAME live settings the settled/offline session does, so
 	// interactive PT can no longer look structurally different regardless of
 	// how long it's given to accumulate.
-	_interactivePtRenderer.setInteractiveBudget(kInteractivePtSamplesPerLaunch, kInteractivePtMaxAccumulatedSamples,
+	_interactivePtRenderer.setInteractiveBudget(kInteractivePtSamplesPerLaunch, std::max<uint32_t>(_ptMaxSamples, 1),
 		static_cast<uint32_t>(std::max(_ptMaxBounces, 1)),
 		kInteractivePtTargetFrameMs, /*resolutionAdaptiveEnabled=*/true);
 	_interactivePtRenderer.setMaxTransmissionBounces(static_cast<uint32_t>(std::max(_ptMaxTransmissionBounces, 1)));

@@ -1178,7 +1178,7 @@ private:
 	void drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatrix = nullptr);
 	void drawCornerAxis(CornerAxisPosition position, const QMatrix4x4* overrideRotationMatrix = nullptr);
 	void drawTransformGizmo(Camera* camera);
-	void drawViewCube();
+	void drawViewCube(const QMatrix4x4* overrideRotationMatrix = nullptr);
 	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
 	BoundingSphere computeTransformGizmoSelectionSphere() const;
 	QVector3D computeTransformGizmoPivot() const;
@@ -1220,7 +1220,8 @@ private:
 	                               QMatrix4x4& viewMatrix,
 	                               QMatrix4x4& projectionMatrix,
 	                               QMatrix4x4& modelMatrix,
-	                               float& cubeScale) const;
+	                               float& cubeScale,
+	                               const QMatrix4x4* overrideRotationMatrix = nullptr) const;
 	bool pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outwardNormal, int* regionId = nullptr) const;
 	bool handleViewCubeClick(const QPoint& pixel);
 	void updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons);

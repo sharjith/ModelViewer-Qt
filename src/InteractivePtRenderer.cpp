@@ -250,6 +250,27 @@ void InteractivePtRenderer::drainSlot(Slot& slot)
 void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsEnabled, bool selfShadowsEnabled,
 	bool enableEnvironmentImportanceSampling)
 {
+	// Consume a pending requestFullResolution() request immediately if
+	// nothing is currently in flight - safe to reallocate right now, same
+	// precondition applyInternalResolution() always requires. If something
+	// IS in flight, this is instead consumed a few lines down, inside the
+	// completion-handling branch, before it would otherwise recompute
+	// _pendingResolutionScale from _resolutionScale and silently discard
+	// this request.
+	if (_forceFullResolutionRequested && _inFlightSlot < 0)
+	{
+		_forceFullResolutionRequested = false;
+		if (_resolutionScale != 1.0f)
+		{
+			_resolutionScale = 1.0f;
+			applyInternalResolution();
+			// See _holdPublishUntilConverged's doc comment - keeps whatever
+			// was last displayed on screen instead of popping to this fresh,
+			// single-sample accumulation the instant it completes.
+			_holdPublishUntilConverged = true;
+		}
+	}
+
 	// (a) Check the in-flight submission (if any) for completion first. If
 	// it just completed, fall through to (b) in this SAME call instead of
 	// returning - submitting the next launch immediately (rather than
@@ -271,9 +292,27 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		// candidate resolutions can straddle a scene's true cost and cycle
 		// forever otherwise. The change is only APPLIED a few lines down
 		// (once we know nothing is in flight), not here directly.
-		_pendingResolutionScale = _resolutionScale;
-		if (_resolutionAdaptiveEnabled)
+		//
+		// A pending requestFullResolution() request takes priority over this
+		// whole computation - see _forceFullResolutionRequested's doc
+		// comment for why this must be checked before (not folded into) the
+		// normal "_pendingResolutionScale = _resolutionScale" reset below,
+		// which would otherwise silently discard it.
+		if (_forceFullResolutionRequested)
 		{
+			_pendingResolutionScale = 1.0f;
+			_forceFullResolutionRequested = false;
+			// See _holdPublishUntilConverged's doc comment - this reallocation
+			// won't actually happen until the "safe to reallocate" point
+			// below, so the hold itself is armed there, once we know the
+			// reallocation is really about to happen.
+			_pendingResolutionChangeIsForced = true;
+		}
+		else
+		{
+			_pendingResolutionScale = _resolutionScale;
+			if (_resolutionAdaptiveEnabled)
+			{
 			const float ms = _tracer.elapsedEventTimeMs(slot.startEvent, slot.completionEvent);
 			if (ms >= 0.0f)
 			{
@@ -333,6 +372,7 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 				}
 			}
 		}
+		}
 
 		// If a fresher camera is already queued (dirty) AND it's essentially
 		// the same pose this now-completing launch was rendered with, don't
@@ -372,18 +412,52 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 			// accumulation instead (see pollCompletedFrame()), same as any
 			// other "denoiser unavailable" fallback elsewhere in this
 			// codebase - never blocks presentation outright.
+			//
 			// Skipped entirely while the camera is still moving (see
 			// setCameraSettled()'s doc comment) - denoising an under-converged,
 			// rapidly-changing accumulation every tick smeared sharp/thin CAD
 			// geometry into an ill-defined blur during motion. pollCompletedFrame()
 			// falls back to the raw (sharp but noisy) accumulation whenever
 			// denoisedValid is false, same as any other denoise-skipped case.
-			slot.denoisedValid = _denoiserEnabled && _cameraSettled &&
+			//
+			// Also skipped once settled but still ramping up: ViewportWidget
+			// raises this renderer's own sample cap/resolution toward full
+			// quality on settle (see requestFullResolution()/
+			// setInteractiveBudget()), and re-denoising every single
+			// completed launch throughout that whole climb (128 samples up
+			// to the dialog's target) is wasted GPU work that also
+			// backslides visually launch to launch as the denoiser keeps
+			// re-guessing from a still-growing sample count - a genuinely
+			// SHARPER final image comes from denoising exactly once, when
+			// _accumulatedSampleCount has actually reached the cap: the raw
+			// accumulation is shown (increasingly clean on its own as
+			// samples pile up) for the whole climb, then a single denoise
+			// pass on the fully-converged result. Since tick() stops
+			// submitting new launches once the cap is reached (see its own
+			// cap check), this condition can only become true once, on the
+			// launch that crosses the cap - a natural one-shot, no separate
+			// tracking flag needed.
+			slot.denoisedValid = _denoiserEnabled && _cameraSettled && _accumulatedSampleCount >= _maxAccumulatedSamples &&
 				_denoiser.denoiseDevice(slot.deviceImageRGBA, slot.dAlbedoScratch, slot.dNormalScratch,
 					_width, _height, slot.deviceDenoisedRGBA, _accumulatedSampleCount);
 
-			_readySlot = _inFlightSlot;
-			++_generation;
+			// See _holdPublishUntilConverged's doc comment - skips publishing
+			// ONLY this one completed launch (the freshly-reallocated,
+			// ~1-sample-accumulated result that would otherwise pop against
+			// whatever was displayed before a forced full-resolution
+			// reallocation), then resumes normal per-launch publishing
+			// immediately after - so the climb from here still reads as a
+			// smooth, progressive convergence (same as any other settle),
+			// just without that single worst-case jarring first frame.
+			if (_holdPublishUntilConverged)
+			{
+				_holdPublishUntilConverged = false;
+			}
+			else
+			{
+				_readySlot = _inFlightSlot;
+				++_generation;
+			}
 		}
 		_inFlightSlot = -1;
 
@@ -394,6 +468,11 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		{
 			_resolutionScale = _pendingResolutionScale;
 			applyInternalResolution();
+			if (_pendingResolutionChangeIsForced)
+			{
+				_pendingResolutionChangeIsForced = false;
+				_holdPublishUntilConverged = true;
+			}
 		}
 	}
 
@@ -627,4 +706,7 @@ void InteractivePtRenderer::releaseResources()
 	_smoothedFrameTimeMs = -1.0f;
 	_consecutiveOverBudget = 0;
 	_consecutiveUnderBudget = 0;
+	_forceFullResolutionRequested = false;
+	_pendingResolutionChangeIsForced = false;
+	_holdPublishUntilConverged = false;
 }
