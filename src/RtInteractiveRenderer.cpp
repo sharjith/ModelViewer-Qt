@@ -1,4 +1,4 @@
-#include "InteractivePtRenderer.h"
+﻿#include "RtInteractiveRenderer.h"
 
 #include "RtOptixSceneTracer.h"
 
@@ -101,16 +101,16 @@ bool cameraNearlySettled(const RtCamera& a, const RtCamera& b)
 }
 } // namespace
 
-InteractivePtRenderer::InteractivePtRenderer(RtOptixSceneTracer& tracer) : _tracer(tracer)
+RtInteractiveRenderer::RtInteractiveRenderer(RtOptixSceneTracer& tracer) : _tracer(tracer)
 {
 }
 
-InteractivePtRenderer::~InteractivePtRenderer()
+RtInteractiveRenderer::~RtInteractiveRenderer()
 {
 	releaseResources();
 }
 
-bool InteractivePtRenderer::applySceneSnapshot(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
+bool RtInteractiveRenderer::applySceneSnapshot(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
 {
 	if (!snapshot || !_tracer.isAvailable())
 		return false;
@@ -130,7 +130,7 @@ bool InteractivePtRenderer::applySceneSnapshot(const std::shared_ptr<const RtSce
 	{
 		if (!_tracer.buildScene(*snapshot))
 		{
-			qWarning() << "InteractivePtRenderer::applySceneSnapshot: buildScene() failed.";
+			qWarning() << "RtInteractiveRenderer::applySceneSnapshot: buildScene() failed.";
 			return false;
 		}
 		_builtRevision = snapshot->revisionId;
@@ -153,7 +153,7 @@ bool InteractivePtRenderer::applySceneSnapshot(const std::shared_ptr<const RtSce
 	return true;
 }
 
-bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
+bool RtInteractiveRenderer::ensureSceneResources(const std::shared_ptr<const RtSceneSnapshot>& snapshot)
 {
 	if (!snapshot || !_tracer.isAvailable())
 		return false;
@@ -171,7 +171,7 @@ bool InteractivePtRenderer::ensureSceneResources(const std::shared_ptr<const RtS
 	return applySceneSnapshot(snapshot);
 }
 
-void InteractivePtRenderer::updateCamera(const RtCamera& camera)
+void RtInteractiveRenderer::updateCamera(const RtCamera& camera)
 {
 	const bool poseChanged = !_pendingCameraValid || !cameraPosesMatch(_pendingCamera, camera);
 	_pendingCamera = camera;
@@ -180,7 +180,7 @@ void InteractivePtRenderer::updateCamera(const RtCamera& camera)
 		_pendingCameraDirty = true;
 }
 
-bool InteractivePtRenderer::allocateSlot(Slot& slot, int width, int height)
+bool RtInteractiveRenderer::allocateSlot(Slot& slot, int width, int height)
 {
 	slot.deviceImageRGBA    = _tracer.allocateDeviceRGBABuffer(width, height);
 	slot.hostParamsStaging  = _tracer.allocateParamsHostStagingBuffer();
@@ -202,7 +202,7 @@ bool InteractivePtRenderer::allocateSlot(Slot& slot, int width, int height)
 	return true;
 }
 
-void InteractivePtRenderer::freeSlot(Slot& slot)
+void RtInteractiveRenderer::freeSlot(Slot& slot)
 {
 	_tracer.freeDeviceRGBABuffer(slot.deviceImageRGBA);
 	slot.deviceImageRGBA = nullptr;
@@ -223,7 +223,7 @@ void InteractivePtRenderer::freeSlot(Slot& slot)
 	slot.denoisedValid = false;
 }
 
-void InteractivePtRenderer::drainSlot(Slot& slot)
+void RtInteractiveRenderer::drainSlot(Slot& slot)
 {
 	if (!slot.completionEvent)
 		return;
@@ -243,11 +243,11 @@ void InteractivePtRenderer::drainSlot(Slot& slot)
 		waitedMs += kPollIntervalMs;
 	}
 	if (waitedMs >= kMaxWaitMs)
-		qWarning() << "InteractivePtRenderer::drainSlot: timed out waiting for in-flight launch to complete - "
+		qWarning() << "RtInteractiveRenderer::drainSlot: timed out waiting for in-flight launch to complete - "
 			"freeing its resources anyway (possible GPU hang).";
 }
 
-void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsEnabled, bool selfShadowsEnabled,
+void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsEnabled, bool selfShadowsEnabled,
 	bool enableEnvironmentImportanceSampling)
 {
 	// Consume a pending requestFullResolution() request immediately if
@@ -563,17 +563,17 @@ void InteractivePtRenderer::tick(const RtEnvironment& environment, bool shadowsE
 	// simply try again with whatever the latest pending camera is by then.
 }
 
-bool InteractivePtRenderer::isFrameInFlight() const
+bool RtInteractiveRenderer::isFrameInFlight() const
 {
 	return _inFlightSlot >= 0 && !_tracer.isEventComplete(_slots[_inFlightSlot].completionEvent);
 }
 
-uint32_t InteractivePtRenderer::currentSampleCount() const
+uint32_t RtInteractiveRenderer::currentSampleCount() const
 {
 	return _accumulatedSampleCount;
 }
 
-void* InteractivePtRenderer::pollCompletedFrame(int& outWidth, int& outHeight, RtCamera& outCamera, uint64_t& outGeneration) const
+void* RtInteractiveRenderer::pollCompletedFrame(int& outWidth, int& outHeight, RtCamera& outCamera, uint64_t& outGeneration) const
 {
 	if (_readySlot < 0)
 	{
@@ -593,7 +593,7 @@ void* InteractivePtRenderer::pollCompletedFrame(int& outWidth, int& outHeight, R
 	return slot.denoisedValid ? slot.deviceDenoisedRGBA : slot.deviceImageRGBA;
 }
 
-void InteractivePtRenderer::setInteractiveBudget(uint32_t samplesPerLaunch, uint32_t maxAccumulatedSamples, uint32_t bounces,
+void RtInteractiveRenderer::setInteractiveBudget(uint32_t samplesPerLaunch, uint32_t maxAccumulatedSamples, uint32_t bounces,
 	float targetFrameTimeMs, bool resolutionAdaptiveEnabled)
 {
 	_samplesPerLaunch = samplesPerLaunch > 0 ? samplesPerLaunch : 1;
@@ -603,7 +603,7 @@ void InteractivePtRenderer::setInteractiveBudget(uint32_t samplesPerLaunch, uint
 	_resolutionAdaptiveEnabled = resolutionAdaptiveEnabled;
 }
 
-void InteractivePtRenderer::applyInternalResolution()
+void RtInteractiveRenderer::applyInternalResolution()
 {
 	const int newWidth  = std::max(1, static_cast<int>(std::lround(_requestedWidth  * _resolutionScale)));
 	const int newHeight = std::max(1, static_cast<int>(std::lround(_requestedHeight * _resolutionScale)));
@@ -629,7 +629,7 @@ void InteractivePtRenderer::applyInternalResolution()
 
 	if (!allocateSlot(_slots[0], _width, _height) || !allocateSlot(_slots[1], _width, _height))
 	{
-		qWarning() << "InteractivePtRenderer::applyInternalResolution: failed to allocate interactive slot resources at"
+		qWarning() << "RtInteractiveRenderer::applyInternalResolution: failed to allocate interactive slot resources at"
 			<< _width << "x" << _height << "- interactive GPU-resident presentation unavailable this session.";
 		freeSlot(_slots[0]);
 		freeSlot(_slots[1]);
@@ -638,7 +638,7 @@ void InteractivePtRenderer::applyInternalResolution()
 	}
 }
 
-void InteractivePtRenderer::resize(int width, int height)
+void RtInteractiveRenderer::resize(int width, int height)
 {
 	if (width == _requestedWidth && height == _requestedHeight)
 		return;
@@ -674,7 +674,7 @@ void InteractivePtRenderer::resize(int width, int height)
 	applyInternalResolution();
 }
 
-void InteractivePtRenderer::releaseResources()
+void RtInteractiveRenderer::releaseResources()
 {
 	if (_inFlightSlot >= 0)
 	{

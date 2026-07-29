@@ -1,4 +1,4 @@
-#include "RtPresenter.h"
+﻿#include "RtPresenter.h"
 
 #include <QDebug>
 #include <QVector2D>
@@ -209,7 +209,7 @@ void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGa
 	// path_traced_present.frag computes uv = gl_FragCoord.xy / resolution -
 	// gl_FragCoord is in the CURRENT GL VIEWPORT's pixel coordinates, which
 	// is NOT necessarily the same size as the uploaded texture anymore now
-	// that InteractivePtRenderer can render at a reduced internal resolution
+	// that RtInteractiveRenderer can render at a reduced internal resolution
 	// under sustained GPU load (see its _resolutionScale doc comment) while
 	// the viewport itself stays full-size. Using _texWidth/_texHeight here
 	// (this frame's own, possibly-smaller, dimensions) would make uv exceed

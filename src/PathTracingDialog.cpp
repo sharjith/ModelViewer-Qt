@@ -1,4 +1,4 @@
-#include "PathTracingDialog.h"
+﻿#include "PathTracingDialog.h"
 #include "ui_PathTracingDialog.h"
 
 #include "ModelViewer.h"
@@ -673,7 +673,7 @@ void PathTracingDialog::onExportClicked()
 		if (liveWidth <= 0 || liveHeight <= 0 || linearRgb.empty())
 		{
 			// Narrow but real gap: interactive GPU PT publishes its first
-			// frame asynchronously (see InteractivePtRenderer::pollCompletedFrame()),
+			// frame asynchronously (see RtInteractiveRenderer::pollCompletedFrame()),
 			// so a frame can genuinely not exist yet for the first instant or
 			// two after a drag/orbit starts. Without this check,
 			// downscaleLinearBuffer()'s divide-by-zero guard would silently

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -9,7 +9,7 @@
 class RtOptixSceneTracer;
 
 // ---------------------------------------------------------------------------
-// InteractivePtRenderer
+// RtInteractiveRenderer
 //
 // A same-frame, GPU-resident, CONTINUOUSLY-ACCUMULATING path tracer for the
 // viewport's interactive camera-motion path (mouse/keyboard driven). This is
@@ -93,7 +93,7 @@ class RtOptixSceneTracer;
 // accumulation buffer's contents), but only when the adaptive scaler had
 // actually reduced resolution under load, not on every settle.
 // ---------------------------------------------------------------------------
-class InteractivePtRenderer
+class RtInteractiveRenderer
 {
 public:
 	// tracer must outlive this object - not owned. Deliberately a SEPARATE
@@ -103,13 +103,13 @@ public:
 	// doc comment for why sharing one instance across both would be actively
 	// wrong: the two sessions are torn down/rebuilt on different triggers and
 	// neither should invalidate the other's resident scene). ViewportWidget
-	// owns this tracer instance (_interactivePtTracer) and constructs it
+	// owns this tracer instance (_rtInteractiveTracer) and constructs it
 	// before this renderer for that reason.
-	explicit InteractivePtRenderer(RtOptixSceneTracer& tracer);
-	~InteractivePtRenderer(); // drains any in-flight launch before freeing resources - see releaseResources()
+	explicit RtInteractiveRenderer(RtOptixSceneTracer& tracer);
+	~RtInteractiveRenderer(); // drains any in-flight launch before freeing resources - see releaseResources()
 
-	InteractivePtRenderer(const InteractivePtRenderer&) = delete;
-	InteractivePtRenderer& operator=(const InteractivePtRenderer&) = delete;
+	RtInteractiveRenderer(const RtInteractiveRenderer&) = delete;
+	RtInteractiveRenderer& operator=(const RtInteractiveRenderer&) = delete;
 
 	// Lazily creates the dedicated CUDA stream (first call only), then
 	// (re)builds the GPU acceleration structure via the owned tracer only if
@@ -236,7 +236,7 @@ public:
 	bool denoiserEnabled() const { return _denoiserEnabled; }
 
 	// Gates denoising on whether the camera has stopped moving (see
-	// ViewportWidget::resetPathTracedIdleTimer()/onPathTracedIdleTimeout(),
+	// RtInteractionController::notifyCameraInteracting()/onIdleTimerFired(),
 	// which drive this via the same 450ms idle timer CPU/Embree's settle
 	// handoff already used). While unsettled (actively dragging/orbiting),
 	// tick() skips the denoise step entirely and publishes the raw,

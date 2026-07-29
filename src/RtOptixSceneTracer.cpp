@@ -1,4 +1,4 @@
-#include "RtOptixSceneTracer.h"
+﻿#include "RtOptixSceneTracer.h"
 
 #include <QDebug>
 #include <QElapsedTimer>
@@ -3188,10 +3188,10 @@ void RtOptixSceneTracer::destroyStream(void* stream) const
 
 void* RtOptixSceneTracer::createEvent() const
 {
-	// cudaEventDisableTiming would be cheaper, but InteractivePtRenderer's
+	// cudaEventDisableTiming would be cheaper, but RtInteractiveRenderer's
 	// adaptive-budget design (Phase D) wants each event's measured GPU time
 	// via cudaEventElapsedTime() - see setInteractiveBudget()'s doc comment
-	// in InteractivePtRenderer.h - so timing stays enabled here.
+	// in RtInteractiveRenderer.h - so timing stays enabled here.
 	cudaEvent_t event = nullptr;
 	if (!cudaCheck(cudaEventCreate(&event), "cudaEventCreate(interactive PT completion event)"))
 		return nullptr;

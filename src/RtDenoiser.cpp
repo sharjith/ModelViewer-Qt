@@ -1,4 +1,4 @@
-#include "RtDenoiser.h"
+﻿#include "RtDenoiser.h"
 
 #include <OpenImageDenoise/oidn.hpp>
 
@@ -163,9 +163,9 @@ struct RtDenoiser::Impl
 	// originally did) matters because the NULL stream has implicit
 	// cross-stream synchronization semantics: ANY work enqueued on it blocks
 	// every OTHER stream in the process too, including
-	// InteractivePtRenderer's own dedicated rendering stream. That coupling
+	// RtInteractiveRenderer's own dedicated rendering stream. That coupling
 	// was a real, confirmed bug (see denoiseDeviceWithOptix()'s doc comment
-	// and its own log capture): every time InteractivePtRenderer's
+	// and its own log capture): every time RtInteractiveRenderer's
 	// resolution-adaptive scaling changed the internal render resolution,
 	// this denoiser had to recreate its OptixDenoiser (a genuinely slow,
 	// cudnn-JIT-compile-backed operation, visible in the log as "using cuda
@@ -454,7 +454,7 @@ bool RtDenoiser::denoiseWithOptix(const std::vector<glm::vec3>& input, int width
 // staging buffers, so there is no host round-trip and no color/albedo/normal
 // copy at all (colorImage/outputImage alias the caller's own persistent
 // accumulation/"presented" buffers). Color uses FLOAT4 (RGBA) here, unlike
-// denoiseWithOptix()'s FLOAT3 - InteractivePtRenderer's accumulation buffer
+// denoiseWithOptix()'s FLOAT3 - RtInteractiveRenderer's accumulation buffer
 // carries the hit-fraction alpha in .w (see RtOptixSceneParams::image's doc
 // comment), and OPTIX_DENOISER_ALPHA_MODE_COPY passes that channel through
 // unmodified rather than having the denoiser treat it as real opacity.
@@ -565,11 +565,11 @@ bool RtDenoiser::denoiseDeviceWithOptix(void* dColorRGBA, void* dAlbedo, void* d
 	// This call (and computeIntensity/setup above) runs on this denoiser's own
 	// dedicated stream (see Impl::deviceDenoiserStream's doc comment - NOT the
 	// default/NULL stream, which would implicitly serialize against every
-	// other stream in the process, including InteractivePtRenderer's own),
+	// other stream in the process, including RtInteractiveRenderer's own),
 	// asynchronously - unlike denoiseWithOptix()'s std::vector API, there is
 	// no cudaMemcpy(...DeviceToHost) afterward whose own implicit
 	// synchronization would guarantee dOutputRGBA is actually finished before
-	// this function returns. The caller (InteractivePtRenderer::tick())
+	// this function returns. The caller (RtInteractiveRenderer::tick())
 	// treats dOutputRGBA as immediately presentable once this call returns
 	// true, so an explicit sync here is required for correctness, not just
 	// tidiness - synchronizing THIS stream specifically (rather than the

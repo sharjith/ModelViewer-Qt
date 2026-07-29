@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -113,7 +113,7 @@ public:
 	// not used internally.
 	const char* activeDeviceName() const;
 
-	// Device-resident counterpart of denoise() for InteractivePtRenderer's
+	// Device-resident counterpart of denoise() for RtInteractiveRenderer's
 	// continuous accumulator - operates entirely on existing CUDA device
 	// pointers (the SAME persistent buffers that renderer already accumulates
 	// into), with no host round-trip at all, unlike denoise()'s std::vector

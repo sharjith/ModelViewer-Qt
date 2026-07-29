@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <optix_types.h> // OptixTraversableHandle
 
@@ -236,7 +236,7 @@ struct RtOptixSceneParams
 	float infinitePlaneRoughness;
 
 	// KHR_materials_sheen directional-albedo LUTs. sheenAlbedoLUT mirrors
-	// raster's sheenELUT.r/new roughness² convention for direct-light base
+	// raster's sheenELUT.r/new roughnessÂ² convention for direct-light base
 	// dampening; sheenCharlieLUT mirrors raster's charlieLUT.b/legacy roughness
 	// convention, used only as the IBL energy bound via min(charlie, sheenE).
 	// Both are process-constant row-major [roughness][NdotV] tables.
@@ -271,7 +271,7 @@ struct RtOptixSceneParams
 	// already does on the CPU side, just moved into the kernel so combining
 	// many small launches into one progressively-refining image needs no
 	// host round-trip at all. Callers that want persistent GPU-resident
-	// accumulation across launches (see InteractivePtRenderer) own tracking
+	// accumulation across launches (see RtInteractiveRenderer) own tracking
 	// this count themselves and reset it to 0 whenever the camera/scene
 	// changes enough to invalidate the existing accumulation.
 	unsigned int previousSampleCount;

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <atomic>
 #include <cstdint>
@@ -41,13 +41,13 @@
 //
 // GPU/OptiX-only: this class is now used exclusively for the SETTLED/
 // full-quality session - ViewportWidget's interactive (camera-actively-
-// moving) GPU path lives entirely in InteractivePtRenderer instead (a
+// moving) GPU path lives entirely in RtInteractiveRenderer instead (a
 // same-frame, non-blocking-submission renderer with no background worker
 // thread at all - see that class's own doc comment). That split existed
 // once as two profiles of this SAME class (a reduced-quality "interactive"
 // one via setStayAliveAtConvergence(true)/updateCamera(), and the full one
 // via a plain start()); the interactive half was retired once
-// InteractivePtRenderer was proven, since a worker-thread-publish model
+// RtInteractiveRenderer was proven, since a worker-thread-publish model
 // could never fully avoid the one-tick-behind lag a same-frame renderer
 // doesn't have in the first place (see the branch's design notes).
 //

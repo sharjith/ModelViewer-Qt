@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <cstdint>
 #include <memory>
@@ -21,7 +21,7 @@
 //
 // Deliberately self-contained - owns its own CUDA/OptiX device context
 // rather than sharing one with any other GPU-facing piece in this codebase
-// (RtDenoiser, InteractivePtRenderer's own tracer instance, etc. all do the
+// (RtDenoiser, RtInteractiveRenderer's own tracer instance, etc. all do the
 // same) - see RtDenoiser.cpp's Impl::optixContext doc comment for the same
 // reasoning spelled out in more depth.
 //
@@ -52,7 +52,7 @@ public:
 
 	// (Re)builds the GPU acceleration structure from this snapshot's
 	// meshes/instances - mirrors RtEmbreeScene::build()'s contract. Callers
-	// (InteractivePtRenderer::ensureSceneResources(), RtOptixPathTracingSession::
+	// (RtInteractiveRenderer::ensureSceneResources(), RtOptixPathTracingSession::
 	// start()) already skip calling this at all when the snapshot's revisionId
 	// hasn't changed. Every ACTUAL call still walks every mesh/instance, but
 	// three pieces persist across calls independently rather than being
@@ -164,9 +164,9 @@ public:
 		std::vector<glm::vec3>& outImageLinearRgb, std::vector<float>& outAlpha) const;
 
 	// -----------------------------------------------------------------------
-	// Non-blocking interactive submission API (InteractivePtRenderer's Phase A
+	// Non-blocking interactive submission API (RtInteractiveRenderer's Phase A
 	// groundwork - see that class's own doc comment for the full design this
-	// serves). Everything below exists so InteractivePtRenderer never has to
+	// serves). Everything below exists so RtInteractiveRenderer never has to
 	// include a CUDA header itself (same "sole CUDA/OptiX-aware boundary"
 	// role this class already plays above) and never has to block the
 	// calling thread waiting for GPU completion - unlike renderScene()/
@@ -209,7 +209,7 @@ public:
 
 	// Elapsed GPU time in milliseconds between two events previously recorded
 	// on the SAME stream, both already complete (see isEventComplete()) -
-	// wraps cudaEventElapsedTime(). Exists for InteractivePtRenderer's Phase D
+	// wraps cudaEventElapsedTime(). Exists for RtInteractiveRenderer's Phase D
 	// adaptive-budget logic: measuring actual GPU compute time per launch
 	// (via a start event recorded just before optixLaunch() and the existing
 	// completion event recorded just after - see submitSceneRenderToDevice()'s
@@ -234,13 +234,13 @@ public:
 	// don't otherwise touch this section). No-op on nullptr.
 	void freeScratchBuffer(void* devicePtr) const;
 
-	// Device-to-device "copy forward" primitives for InteractivePtRenderer's
+	// Device-to-device "copy forward" primitives for RtInteractiveRenderer's
 	// two-slot ping-pong accumulator: before submitting a new launch into
 	// whichever slot ISN'T currently displayed, the caller copies the OTHER
 	// slot's already-accumulated raw buffers into it first, so both slots
 	// always represent progressive snapshots of ONE shared, growing
 	// accumulation history rather than two independent ones (see
-	// InteractivePtRenderer::tick()'s doc comment for why this matters - two
+	// RtInteractiveRenderer::tick()'s doc comment for why this matters - two
 	// slots blending samples independently, alternately displayed, was
 	// visually indistinguishable from persistent noise even once each
 	// individually reached a high sample count). Same size formulas as
@@ -311,7 +311,7 @@ public:
 	// timing can later call elapsedEventTimeMs(startEvent, completionEvent)
 	// once both have completed. previousSampleCount (0 = fresh start) lets a
 	// caller doing persistent GPU-resident accumulation across many small
-	// launches (see InteractivePtRenderer) have the kernel blend this
+	// launches (see RtInteractiveRenderer) have the kernel blend this
 	// launch's own samples into whatever's ALREADY in deviceImageRGBA/
 	// dAlbedoScratch/dNormalScratch instead of overwriting them - see
 	// RtOptixSceneParams::previousSampleCount's own doc comment.
