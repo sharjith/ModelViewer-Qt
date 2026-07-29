@@ -13606,7 +13606,6 @@ void ViewportWidget::resetPathTracedIdleTimer(bool cameraInteracting)
 		// it isn't - defensive "never run both GPU sessions at once", same
 		// reasoning as _rtSession.stop() just above.
 		_ptOptixSession.stop();
-		startInteractivePathTracedGpuSession();
 
 		// Camera is actively moving again - drop back to the normal
 		// interaction-first mode: suppress denoising (see
@@ -13617,9 +13616,21 @@ void ViewportWidget::resetPathTracedIdleTimer(bool cameraInteracting)
 		// again the moment the camera moves). The sample cap itself
 		// (_ptMaxSamples) doesn't change - see kInteractivePtSamplesPerLaunch's
 		// doc comment for why it's the same value in both states now.
+		//
+		// MUST run before startInteractivePathTracedGpuSession() below, not
+		// after: when this resumes a torn-down session (slow path), that
+		// call synchronously runs its own warm-up ticks (see
+		// warmUpInteractivePathTracedGpuSession()), which check
+		// _cameraSettled for their own denoise decision immediately - calling
+		// this after would let those very first ticks observe whatever
+		// _cameraSettled was stale-left-at by the previous session
+		// (InteractivePtRenderer::releaseResources() does not reset it) and
+		// denoise too early, on barely-converged samples. Same ordering fix
+		// already applied to onPathTracedResumeWarmUpTimeout()'s resume path.
 		_interactivePtRenderer.setCameraSettled(false);
 		_interactivePtRenderer.setInteractiveBudget(kInteractivePtSamplesPerLaunch, std::max<uint32_t>(_ptMaxSamples, 1),
 			static_cast<uint32_t>(std::max(_ptMaxBounces, 1)), kInteractivePtTargetFrameMs, /*resolutionAdaptiveEnabled=*/true);
+		startInteractivePathTracedGpuSession();
 
 		// (Re)start the same 450ms idle timer CPU/Embree's settle handoff
 		// already used - onPathTracedIdleTimeout() flips this back to
