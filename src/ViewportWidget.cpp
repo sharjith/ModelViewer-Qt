@@ -9628,9 +9628,20 @@ void ViewportWidget::reapplyGltfCameraAfterTransform()
 		_animCtrl.activeAnimationClip() >= 0;
 	if (animationOwnsThisFile)
 	{
+		// applyAnimationPose() already notifies once, unconditionally, at its
+		// own end - see applyGltfCameraEntryTransform()'s doc comment for why
+		// this call must NOT also notify itself when that's about to happen.
 		applyAnimationPose(_animCtrl.activeAnimationFile(),
 			_animCtrl.activeAnimationClip(),
 			_animCtrl.animationCurrentTimeSeconds());
+	}
+	else
+	{
+		// Genuine one-shot jump - no animation clip will notify on this
+		// call's behalf, so this is the only place that will. No explicit
+		// update() needed - applyGltfCameraEntryTransform()'s own resizeGL()
+		// call already repaints unconditionally.
+		_rtInteractionCtrl->notifyCameraJumpNonInteractive();
 	}
 }
 
@@ -9755,10 +9766,19 @@ void ViewportWidget::activateGltfCamera(const QString& sourceFile, int cameraInd
 		_animCtrl.activeAnimationFile() == sourceFile && _animCtrl.activeAnimationClip() >= 0;
 	if (animationOwnsThisFile)
 	{
+		// applyAnimationPose() already notifies once, unconditionally, at its
+		// own end - see applyGltfCameraEntryTransform()'s doc comment for why
+		// this call must NOT also notify itself when that's about to happen.
 		applyAnimationPose(sourceFile, _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 	}
-
-	update();
+	else
+	{
+		// Genuine one-shot jump - no animation clip will notify on this
+		// call's behalf, so this is the only place that will.
+		// No explicit update() needed - applyGltfCameraEntryTransform()'s own
+		// resizeGL() call already repainted unconditionally.
+		_rtInteractionCtrl->notifyCameraJumpNonInteractive();
+	}
 }
 
 void ViewportWidget::resetToSystemCamera()
@@ -9884,8 +9904,41 @@ void ViewportWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 			: _primaryCamera->getOrbitDistance())
 		: worldPos;
 	_primaryCamera->setView(pivotPos, worldDir, worldUp, right);
-	update();
-	_rtInteractionCtrl->notifyCameraJumpNonInteractive();
+
+	// Rebuilds _viewCtrl's own cached projection matrix from _primaryCamera
+	// (Codex audit catch): this function changes projection type/FOV/view
+	// range directly on _primaryCamera, whose own _projectionMatrix is
+	// already correct the instant those setters return (Camera::setFOV()/
+	// setViewRange()/setProjectionType() each call updateProjectionMatrix()
+	// synchronously) - RtSceneBuilder::buildCamera() reads straight from that,
+	// so RT was never actually at risk. But _viewCtrl keeps its own SEPARATE
+	// cached copy (_viewCtrl.projectionMatrix(), what raster rendering
+	// actually uses), refreshed only via syncMatricesFromCamera() inside
+	// resizeGL() - without this call, raster kept showing the projection
+	// from BEFORE this camera switch until something unrelated happened to
+	// trigger the next resizeGL(). Calling it here with the unchanged
+	// width()/height() is cheap and already this codebase's convention (every
+	// scripted view-animation tick does the same).
+	resizeGL(width(), height());
+
+	// No notifyCameraJumpNonInteractive() here anymore (Codex-
+	// prompted audit catch): this function is called both as a genuine
+	// one-shot jump (activateGltfCamera(), reapplyGltfCameraAfterTransform())
+	// AND, every single frame, from applyAnimatedCamera() - itself only ever
+	// called from within applyAnimationPose()'s per-frame clip sampling,
+	// which already notifies exactly once (notifyPathTracedAnimationMutated()
+	// -> notifyContentAnimationTick(), the keep-the-interactive-session-alive
+	// path) at the end of THAT function, regardless of which channels the
+	// clip touched. This function used to unconditionally fire the "jump"
+	// notify (a hard teardown) immediately before that keep-alive attempt on
+	// every animated-camera frame, which tore the interactive session down
+	// right before the very code path that exists to keep it alive got a
+	// chance to run - so any glTF file with an animated camera silently lost
+	// the "stay interactive through playback" behavior every other animated
+	// channel already got, falling back to raster for the whole clip instead.
+	// The two genuine one-shot callers now notify for themselves (see their
+	// own call sites) only when they are NOT about to call
+	// applyAnimationPose() right after.
 }
 
 void ViewportWidget::refreshAnimationMaterialState(const QString& sourceFile)
