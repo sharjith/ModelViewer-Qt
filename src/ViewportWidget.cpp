@@ -14105,6 +14105,19 @@ bool ViewportWidget::renderPathTracedOffline(int width, int height,
 	_rtSession.stop();
 	_ptOptixSession.stop();
 	stopRtInteractiveRenderer(); // same reasoning - drains/releases the interactive PT renderer too, if it was the thing running
+	// Unlike every OTHER stopRtInteractiveRenderer() call site in this file
+	// (see e.g. disarmPathTracedRenderingMode()), this one previously left
+	// _pathTracedInteractiveActive stuck true if the interactive GPU session
+	// had been the thing running - pathTracingProgress()'s "if (gpu &&
+	// _pathTracedInteractiveActive)" branch then kept reading the just-
+	// stopped _rtInteractiveRenderer (currentSampleCount() reset to 0, but
+	// maxSampleCount() still its configured cap), so outRunning read true
+	// (0 < cap) even though nothing was actually rendering - leaving
+	// PathTracingDialog's Render/Export buttons stuck disabled and Stop
+	// stuck enabled after this offline export finished, until the user
+	// force-stopped (which happens to go through a call site that DOES
+	// reset this flag).
+	_pathTracedInteractiveActive = false;
 
 	// See pathTracingElapsedMs()'s doc comment - (re)started at the single
 	// place a render actually begins, same as startPathTracedSession()/

@@ -1385,9 +1385,24 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 		_viewportWidget->setGroundMode(realShaded ? GroundMode::Floor : GroundMode::None);
 	}
 	{
+		// Deliberately NOT gated on realShaded like the checkboxes above -
+		// this signal also fires from setDisplayMode() (Shaded/HollowMesh/
+		// MeshEdges/Wireframe/ShadedWithEdges - see ViewportWidget's
+		// _viewToolbar->displayModeSelected lambda), none of which touch
+		// realism/Path-Traced state at all, but which DO share this same
+		// displayModeChanged signal (both setDisplayMode() and
+		// setRealismEnabled() emit it). Gating default lights on realShaded
+		// meant switching to Wireframe/HollowMesh/etc. while realism
+		// happened to be off (e.g. coming from ADS) silently turned default
+		// lights off too - wrong, since only Path-Traced mode should ever
+		// disable them (see applyPathTracedGroundDefaultsOnce(), which
+		// overrides this back to off right after, for that one mode only).
+		// isPathTracedRenderingModeArmed() correctly stays false for every
+		// display-mode toggle, ADS, and PBR alike.
+		const bool pathTraced = _viewportWidget->isPathTracedRenderingModeArmed();
 		QSignalBlocker blockDefaultLights(ui->checkBoxDefaultLights);
-		ui->checkBoxDefaultLights->setChecked(realShaded);
-		_viewportWidget->useDefaultLights(realShaded);
+		ui->checkBoxDefaultLights->setChecked(!pathTraced);
+		_viewportWidget->useDefaultLights(!pathTraced);
 	}
 	ui->checkBoxSkyBoxHDRI->setChecked(ui->checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
 

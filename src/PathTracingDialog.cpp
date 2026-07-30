@@ -604,8 +604,6 @@ void PathTracingDialog::onExportClicked()
 		ui->spinBoxExportWidth->setEnabled(true);
 		ui->spinBoxExportHeight->setEnabled(true);
 		ui->pushButtonMatchViewport->setEnabled(true);
-		ui->pushButtonRender->setEnabled(true);
-		ui->pushButtonExport->setEnabled(true);
 		ui->pushButtonRestoreDefaults->setEnabled(true);
 		QApplication::restoreOverrideCursor();
 		// Freeze the display at the export's own final elapsed time, matching
@@ -614,6 +612,19 @@ void PathTracingDialog::onExportClicked()
 		// letting the next poll tick re-derive it implicitly.
 		_frozenElapsedMs = viewport->pathTracingElapsedMs();
 		_progressTimer->start();
+		// Render/Export/Stop deliberately NOT hardcoded enabled/disabled here
+		// like the controls above - this offline render ran entirely
+		// independently of whatever the interactive PT session's own actual
+		// running/converged state is (see ViewportWidget::
+		// renderPathTracedOffline()'s doc comment), so the correct button
+		// state to land on depends on that live state, not "an offline render
+		// just finished" alone. updateButtonsForState() is the single source
+		// of truth for that (also what every 200ms poll tick uses) - calling
+		// it here immediately, rather than waiting up to 200ms for the next
+		// tick, matches onExportResolutionChanged()'s identical "must reflect
+		// reality instantly" precedent instead of leaving a brief stale-button
+		// window right when the user is most likely to reach for Export next.
+		updateButtonsForState();
 
 		if (cancelled)
 		{
