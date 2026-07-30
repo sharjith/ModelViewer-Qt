@@ -584,7 +584,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("PBR"); });
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this);
-	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("PathTraced"); });
+	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("RayTraced"); });
 
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
 		this, &ModelViewer::onCustomMaterialApplied);
@@ -1799,7 +1799,7 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 	_sceneGraph->setActiveVariant(sourceFile, variantIndex);
 	_viewportWidget->refreshAnimationMaterialState(sourceFile);
 	_viewportWidget->update();
-	_viewportWidget->notifyPathTracedSceneMutated();
+	_viewportWidget->notifyRayTracedSceneMutated();
 }
 
 void ModelViewer::setupUndoStackMonitoring()
@@ -1821,11 +1821,11 @@ void ModelViewer::onUndoStackChanged()
 		return;
 
 	// Any undo/redo/push (material edits, transforms, visibility, light
-	// edits, delete/paste, ...) can change what path-traced mode should be
+	// edits, delete/paste, ...) can change what ray-traced mode should be
 	// showing - unlike raw camera interaction, none of this already flows
 	// through mousePressEvent()/wheelEvent()/etc., so it needs its own nudge
 	// back to the live raster feed + settle countdown.
-	_viewportWidget->notifyPathTracedSceneMutated();
+	_viewportWidget->notifyRayTracedSceneMutated();
 
 	const int currentIndex = _undoStack->index();
 	int currentCount = _undoStack->count();
@@ -5317,13 +5317,13 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 {
 	if (mode == "ADS")
 	{
-		_viewportWidget->disarmPathTracedRenderingMode();
+		_viewportWidget->disarmRayTracedRenderingMode();
 		_viewportWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
 		visualizationEnvironmentPanel->setPBRLightingMode(false);
 
 		// Explicitly switch Realistic rendering off - ADS is the one mode
 		// that must NOT inherit whatever Floor/InfinitePlane +
-		// shadows/reflections/env-map state PBR or Path-Traced left behind.
+		// shadows/reflections/env-map state PBR or Ray-Traced left behind.
 		// This fires onDisplayModeChanged() with realShaded=false, which
 		// (via its existing realShaded-gated defaults) forces GroundMode::
 		// None and turns shadows/reflections/env-map/default-lights off, all
@@ -5336,18 +5336,18 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 	}
 	else if (mode == "PBR")
 	{
-		_viewportWidget->disarmPathTracedRenderingMode();
+		_viewportWidget->disarmRayTracedRenderingMode();
 		_viewportWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_viewportWidget->setSkyBoxTextureHDRI(true);
 		switchToRealisticRendering();
 	}
-	else if (mode == "PathTraced")
+	else if (mode == "RayTraced")
 	{
-		// Path-traced mode shows the same PBR raster feed while interacting
+		// Ray-traced mode shows the same PBR raster feed while interacting
 		// (identical setup to selecting PBR outright) and layers in a
-		// progressively-converging path-traced image once the camera settles
-		// - see ViewportWidget::armPathTracedRenderingMode().
+		// progressively-converging ray-traced image once the camera settles
+		// - see ViewportWidget::armRayTracedRenderingMode().
 		_viewportWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_viewportWidget->setSkyBoxTextureHDRI(true);
@@ -5355,35 +5355,35 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 
 		// Mirrors onDisplayModeChanged()'s own mode-defining default (Floor +
 		// default lights on, unconditionally re-asserted on every switch into
-		// realistic shading) but for Path-Traced mode specifically:
+		// realistic shading) but for Ray-Traced mode specifically:
 		// GroundMode::InfinitePlane (the shadow-catcher floor) instead of
 		// Floor, plus default lights off - a shadow-catcher floor lit only by
 		// the flat default headlight looks wrong compared to real
-		// environment/skybox lighting. Called BEFORE armPathTracedRenderingMode()
+		// environment/skybox lighting. Called BEFORE armRayTracedRenderingMode()
 		// (not after) so the FIRST interactive PT session/snapshot it builds
 		// already reflects GroundMode::InfinitePlane - calling this after arm()
 		// meant the first snapshot got built with whatever groundMode was
 		// active before (Floor/None), and setGroundMode()'s own
-		// notifyPathTracedSceneMutated() call then had to tear that
+		// notifyRayTracedSceneMutated() call then had to tear that
 		// freshly-armed session down and rebuild it a moment later just to
 		// pick up the shadow-catcher floor, instead of getting it right the
 		// first time. radioButtonGroundInfinitePlane's own
-		// isPathTracedRenderingModeArmed()-gated enablement is still correct
+		// isRayTracedRenderingModeArmed()-gated enablement is still correct
 		// by the time this function returns - the unconditional
 		// updateControlDependencies() call at the end of this whole function
-		// re-evaluates it once armPathTracedRenderingMode() below has actually
+		// re-evaluates it once armRayTracedRenderingMode() below has actually
 		// run.
-		visualizationEnvironmentPanel->applyPathTracedGroundDefaultsOnce();
+		visualizationEnvironmentPanel->applyRayTracedGroundDefaultsOnce();
 
-		_viewportWidget->armPathTracedRenderingMode();
+		_viewportWidget->armRayTracedRenderingMode();
 	}
 	// Update toolbar button to reflect the new rendering mode
 	_viewportWidget->getViewToolbar()->updateRenderingModeButton(mode);
 	updateControls();
 	// Explicit call (not just relying on ViewportWidget::renderingModeChanged) -
-	// the "PathTraced" branch above calls armPathTracedRenderingMode() AFTER
+	// the "RayTraced" branch above calls armRayTracedRenderingMode() AFTER
 	// setRenderingMode(), so a signal fired from setRenderingMode() would
-	// re-evaluate radioButtonGroundInfinitePlane's isPathTracedRenderingModeArmed()
+	// re-evaluate radioButtonGroundInfinitePlane's isRayTracedRenderingModeArmed()
 	// gate one step too early or on the previous state. This call happens
 	// after every branch's arm/disarm has already run, so it's always correct.
 	visualizationEnvironmentPanel->updateControlDependencies();

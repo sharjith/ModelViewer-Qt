@@ -1,5 +1,5 @@
-﻿#include "PathTracingDialog.h"
-#include "ui_PathTracingDialog.h"
+﻿#include "RtRenderDialog.h"
+#include "ui_RtRenderDialog.h"
 
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
@@ -21,6 +21,9 @@
 #include <QEventLoop>
 #include <QLocale>
 #include <QStandardItemModel>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QPushButton>
 
 #include <ImfRgbaFile.h>
 #include <ImfArray.h>
@@ -103,7 +106,7 @@ namespace
 	// Box-filter (area-average) downscale of a linear HDR buffer - used by
 	// the fast export path when the requested resolution is smaller than
 	// what's already converged in the live viewport (see
-	// PathTracingDialog::onExportClicked()). Only ever called with
+	// RtRenderDialog::onExportClicked()). Only ever called with
 	// dstW<=srcW/dstH<=srcH (upscaling goes through the offline render path
 	// instead, which produces genuinely new samples at that resolution
 	// rather than fabricating detail via interpolation).
@@ -136,11 +139,11 @@ namespace
 	}
 }
 
-PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
+RtRenderDialog::RtRenderDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
 	, _modelViewer(modelViewer)
 	, _progressTimer(new QTimer(this))
-	, ui(std::make_unique<Ui::PathTracingDialog>())
+	, ui(std::make_unique<Ui::RtRenderDialog>())
 {
 	ui->setupUi(this);
 	setModal(false); // watch the viewport update live while adjusting settings
@@ -175,24 +178,24 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 		// dialog instance in this same session left behind if that load was
 		// a no-op) - ViewportWidget is the in-session source of truth this
 		// dialog reads/writes through.
-		ui->spinBoxMaxSamples->setValue(static_cast<int>(viewport->pathTracingMaxSamples()));
-		ui->spinBoxMaxBounces->setValue(viewport->pathTracingMaxBounces());
-		ui->checkBoxDenoiser->setChecked(viewport->pathTracingDenoiserEnabled());
-		ui->doubleSpinBoxFireflyClamp->setValue(static_cast<double>(viewport->pathTracingFireflyClampThreshold()));
-		ui->spinBoxMaxTransmissionBounces->setValue(viewport->pathTracingMaxTransmissionBounces());
-		ui->spinBoxRussianRouletteDepth->setValue(viewport->pathTracingRussianRouletteStartDepth());
-		ui->spinBoxMaxShadowRayHits->setValue(viewport->pathTracingMaxShadowRayHits());
-		ui->spinBoxMaxVolumeScatterBounces->setValue(viewport->pathTracingMaxVolumeScatterBounces());
-		ui->checkBoxEnvImportanceSampling->setChecked(viewport->pathTracingEnvImportanceSamplingEnabled());
+		ui->spinBoxMaxSamples->setValue(static_cast<int>(viewport->rayTracingMaxSamples()));
+		ui->spinBoxMaxBounces->setValue(viewport->rayTracingMaxBounces());
+		ui->checkBoxDenoiser->setChecked(viewport->rayTracingDenoiserEnabled());
+		ui->doubleSpinBoxFireflyClamp->setValue(static_cast<double>(viewport->rayTracingFireflyClampThreshold()));
+		ui->spinBoxMaxTransmissionBounces->setValue(viewport->rayTracingMaxTransmissionBounces());
+		ui->spinBoxRussianRouletteDepth->setValue(viewport->rayTracingRussianRouletteStartDepth());
+		ui->spinBoxMaxShadowRayHits->setValue(viewport->rayTracingMaxShadowRayHits());
+		ui->spinBoxMaxVolumeScatterBounces->setValue(viewport->rayTracingMaxVolumeScatterBounces());
+		ui->checkBoxEnvImportanceSampling->setChecked(viewport->rayTracingEnvImportanceSamplingEnabled());
 		// Shadows/Self Shadows are NOT owned by this dialog (or persisted via
-		// its "pathtracing/*" QSettings keys) - they're the same viewport-wide
+		// its "raytracing/*" QSettings keys) - they're the same viewport-wide
 		// toggles the main Environment panel already controls. This is just a
 		// convenience mirror, kept in sync with whichever panel changed them
 		// last via onProgressTimer()'s poll (see its own comment).
 		ui->checkBoxShadows->setChecked(viewport->areShadowsEnabled());
 		ui->checkBoxSelfShadows->setChecked(viewport->areSelfShadowsEnabled());
-		ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
-		ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(viewport->pathTracingEnginePreference()));
+		ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(viewport->rayTracingDenoiserDevicePreference()));
+		ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(viewport->rayTracingEnginePreference()));
 		updateMaxShadowRayHitsEnabled();
 
 		// Export resolution defaults fresh to the CURRENT viewport size every
@@ -201,36 +204,36 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 		// sized document/session wouldn't be meaningful, and "Match Viewport"
 		// is right there for whenever the user wants to reset to it anyway.
 		int viewportWidth = 0, viewportHeight = 0;
-		viewport->pathTracingViewportResolution(viewportWidth, viewportHeight);
+		viewport->rayTracingViewportResolution(viewportWidth, viewportHeight);
 		ui->spinBoxExportWidth->setValue(std::max(1, viewportWidth));
 		ui->spinBoxExportHeight->setValue(std::max(1, viewportHeight));
 		syncResolutionPresetFromSpinboxes();
 	}
 
-	connect(ui->spinBoxMaxSamples, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxSamplesChanged);
-	connect(ui->spinBoxMaxBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxBouncesChanged);
-	connect(ui->checkBoxDenoiser, &QCheckBox::toggled, this, &PathTracingDialog::onDenoiserToggled);
-	connect(ui->comboBoxDenoiserDevice, qOverload<int>(&QComboBox::currentIndexChanged), this, &PathTracingDialog::onDenoiserDeviceChanged);
-	connect(ui->comboBoxRenderEngine, qOverload<int>(&QComboBox::currentIndexChanged), this, &PathTracingDialog::onRenderEngineChanged);
-	connect(ui->doubleSpinBoxFireflyClamp, &QDoubleSpinBox::valueChanged, this, &PathTracingDialog::onFireflyClampChanged);
-	connect(ui->spinBoxMaxTransmissionBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxTransmissionBouncesChanged);
-	connect(ui->spinBoxRussianRouletteDepth, &QSpinBox::valueChanged, this, &PathTracingDialog::onRussianRouletteDepthChanged);
-	connect(ui->spinBoxMaxShadowRayHits, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxShadowRayHitsChanged);
-	connect(ui->spinBoxMaxVolumeScatterBounces, &QSpinBox::valueChanged, this, &PathTracingDialog::onMaxVolumeScatterBouncesChanged);
-	connect(ui->checkBoxEnvImportanceSampling, &QCheckBox::toggled, this, &PathTracingDialog::onEnvImportanceSamplingToggled);
-	connect(ui->checkBoxShadows, &QCheckBox::toggled, this, &PathTracingDialog::onShadowsToggled);
-	connect(ui->checkBoxSelfShadows, &QCheckBox::toggled, this, &PathTracingDialog::onSelfShadowsToggled);
-	connect(ui->pushButtonRender, &QPushButton::clicked, this, &PathTracingDialog::onRenderClicked);
-	connect(ui->pushButtonStop, &QPushButton::clicked, this, &PathTracingDialog::onStopClicked);
-	connect(ui->pushButtonExport, &QPushButton::clicked, this, &PathTracingDialog::onExportClicked);
-	connect(ui->pushButtonRestoreDefaults, &QPushButton::clicked, this, &PathTracingDialog::onRestoreDefaultsClicked);
-	connect(ui->spinBoxExportWidth, &QSpinBox::valueChanged, this, &PathTracingDialog::onExportResolutionChanged);
-	connect(ui->spinBoxExportHeight, &QSpinBox::valueChanged, this, &PathTracingDialog::onExportResolutionChanged);
-	connect(ui->pushButtonMatchViewport, &QPushButton::clicked, this, &PathTracingDialog::onMatchViewportClicked);
-	connect(ui->comboBoxResolutionPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &PathTracingDialog::onResolutionPresetSelected);
+	connect(ui->spinBoxMaxSamples, &QSpinBox::valueChanged, this, &RtRenderDialog::onMaxSamplesChanged);
+	connect(ui->spinBoxMaxBounces, &QSpinBox::valueChanged, this, &RtRenderDialog::onMaxBouncesChanged);
+	connect(ui->checkBoxDenoiser, &QCheckBox::toggled, this, &RtRenderDialog::onDenoiserToggled);
+	connect(ui->comboBoxDenoiserDevice, qOverload<int>(&QComboBox::currentIndexChanged), this, &RtRenderDialog::onDenoiserDeviceChanged);
+	connect(ui->comboBoxRenderEngine, qOverload<int>(&QComboBox::currentIndexChanged), this, &RtRenderDialog::onRenderEngineChanged);
+	connect(ui->doubleSpinBoxFireflyClamp, &QDoubleSpinBox::valueChanged, this, &RtRenderDialog::onFireflyClampChanged);
+	connect(ui->spinBoxMaxTransmissionBounces, &QSpinBox::valueChanged, this, &RtRenderDialog::onMaxTransmissionBouncesChanged);
+	connect(ui->spinBoxRussianRouletteDepth, &QSpinBox::valueChanged, this, &RtRenderDialog::onRussianRouletteDepthChanged);
+	connect(ui->spinBoxMaxShadowRayHits, &QSpinBox::valueChanged, this, &RtRenderDialog::onMaxShadowRayHitsChanged);
+	connect(ui->spinBoxMaxVolumeScatterBounces, &QSpinBox::valueChanged, this, &RtRenderDialog::onMaxVolumeScatterBouncesChanged);
+	connect(ui->checkBoxEnvImportanceSampling, &QCheckBox::toggled, this, &RtRenderDialog::onEnvImportanceSamplingToggled);
+	connect(ui->checkBoxShadows, &QCheckBox::toggled, this, &RtRenderDialog::onShadowsToggled);
+	connect(ui->checkBoxSelfShadows, &QCheckBox::toggled, this, &RtRenderDialog::onSelfShadowsToggled);
+	connect(ui->pushButtonRender, &QPushButton::clicked, this, &RtRenderDialog::onRenderClicked);
+	connect(ui->pushButtonStop, &QPushButton::clicked, this, &RtRenderDialog::onStopClicked);
+	connect(ui->pushButtonExport, &QPushButton::clicked, this, &RtRenderDialog::onExportClicked);
+	connect(ui->pushButtonRestoreDefaults, &QPushButton::clicked, this, &RtRenderDialog::onRestoreDefaultsClicked);
+	connect(ui->spinBoxExportWidth, &QSpinBox::valueChanged, this, &RtRenderDialog::onExportResolutionChanged);
+	connect(ui->spinBoxExportHeight, &QSpinBox::valueChanged, this, &RtRenderDialog::onExportResolutionChanged);
+	connect(ui->pushButtonMatchViewport, &QPushButton::clicked, this, &RtRenderDialog::onMatchViewportClicked);
+	connect(ui->comboBoxResolutionPreset, qOverload<int>(&QComboBox::currentIndexChanged), this, &RtRenderDialog::onResolutionPresetSelected);
 
 	_progressTimer->setInterval(200);
-	connect(_progressTimer, &QTimer::timeout, this, &PathTracingDialog::onProgressTimer);
+	connect(_progressTimer, &QTimer::timeout, this, &RtRenderDialog::onProgressTimer);
 	_progressTimer->start();
 
 	onProgressTimer(); // reflect whatever's already running (dialog reopened mid-render) immediately
@@ -246,13 +249,13 @@ PathTracingDialog::PathTracingDialog(ModelViewer* modelViewer, QWidget* parent)
 	if (_modelViewer)
 	{
 		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
-			connect(mdiArea, &QMdiArea::subWindowActivated, this, &PathTracingDialog::onActiveSubWindowChanged);
+			connect(mdiArea, &QMdiArea::subWindowActivated, this, &RtRenderDialog::onActiveSubWindowChanged);
 	}
 }
 
-PathTracingDialog::~PathTracingDialog() = default;
+RtRenderDialog::~RtRenderDialog() = default;
 
-void PathTracingDialog::closeEvent(QCloseEvent* event)
+void RtRenderDialog::closeEvent(QCloseEvent* event)
 {
 	// Only stop an actively-RUNNING render on close - closing while already
 	// converged/idle leaves the finished result on screen untouched (the
@@ -266,7 +269,7 @@ void PathTracingDialog::closeEvent(QCloseEvent* event)
 	uint32_t current = 0, target = 0;
 	bool running = false;
 	if (viewport)
-		viewport->pathTracingProgress(current, target, running);
+		viewport->rayTracingProgress(current, target, running);
 
 	if (running && !_stoppedByUser)
 		onStopClicked();
@@ -275,11 +278,20 @@ void PathTracingDialog::closeEvent(QCloseEvent* event)
 	QDialog::closeEvent(event);
 }
 
-void PathTracingDialog::loadSettings()
+void RtRenderDialog::loadSettings()
 {
 	QSettings settings;
 
-	const QByteArray geometry = settings.value("pathtracing/geometry", QByteArray()).toByteArray();
+	// One-time migration from the old "pathtracing/geometry" key (pre-dating
+	// the Path Tracing -> Ray Tracing terminology rename) - see
+	// ViewportWidget::loadRayTracingSettingsFromDisk()'s identical migration
+	// for the rest of this dialog's persisted settings. saveSettings() below
+	// already writes exclusively under "raytracing/geometry" from this point
+	// on, so the old key is never touched again after this first migration.
+	if (!settings.contains("raytracing/geometry") && settings.contains("pathtracing/geometry"))
+		settings.setValue("raytracing/geometry", settings.value("pathtracing/geometry"));
+
+	const QByteArray geometry = settings.value("raytracing/geometry", QByteArray()).toByteArray();
 	if (!geometry.isEmpty())
 		restoreGeometry(geometry);
 
@@ -288,108 +300,108 @@ void PathTracingDialog::loadSettings()
 		return;
 
 	// The viewport already loaded these once unconditionally at construction
-	// (see loadPathTracingSettingsFromDisk()'s doc comment - Path Tracing can
+	// (see loadRayTracingSettingsFromDisk()'s doc comment - Ray Tracing can
 	// trigger via the idle timer without this dialog ever having been
 	// opened, so that load can't depend on the dialog). Re-running it here
 	// picks up any changes made to the settings file outside this session
 	// (or a future settings-reset feature) before the UI widgets below read
 	// the viewport's values.
-	viewport->loadPathTracingSettingsFromDisk();
+	viewport->loadRayTracingSettingsFromDisk();
 }
 
-void PathTracingDialog::saveSettings()
+void RtRenderDialog::saveSettings()
 {
 	QSettings settings;
-	settings.setValue("pathtracing/geometry", saveGeometry());
+	settings.setValue("raytracing/geometry", saveGeometry());
 
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
 
-	settings.setValue("pathtracing/maxSamples", viewport->pathTracingMaxSamples());
-	settings.setValue("pathtracing/maxBounces", viewport->pathTracingMaxBounces());
-	settings.setValue("pathtracing/denoiserEnabled", viewport->pathTracingDenoiserEnabled());
-	settings.setValue("pathtracing/fireflyClamp", viewport->pathTracingFireflyClampThreshold());
-	settings.setValue("pathtracing/maxTransmissionBounces", viewport->pathTracingMaxTransmissionBounces());
-	settings.setValue("pathtracing/russianRouletteDepth", viewport->pathTracingRussianRouletteStartDepth());
-	settings.setValue("pathtracing/maxShadowRayHits", viewport->pathTracingMaxShadowRayHits());
-	settings.setValue("pathtracing/maxVolumeScatterBounces", viewport->pathTracingMaxVolumeScatterBounces());
-	settings.setValue("pathtracing/envImportanceSampling", viewport->pathTracingEnvImportanceSamplingEnabled());
-	settings.setValue("pathtracing/denoiserDevicePreference", static_cast<int>(viewport->pathTracingDenoiserDevicePreference()));
-	settings.setValue("pathtracing/enginePreference", static_cast<int>(viewport->pathTracingEnginePreference()));
+	settings.setValue("raytracing/maxSamples", viewport->rayTracingMaxSamples());
+	settings.setValue("raytracing/maxBounces", viewport->rayTracingMaxBounces());
+	settings.setValue("raytracing/denoiserEnabled", viewport->rayTracingDenoiserEnabled());
+	settings.setValue("raytracing/fireflyClamp", viewport->rayTracingFireflyClampThreshold());
+	settings.setValue("raytracing/maxTransmissionBounces", viewport->rayTracingMaxTransmissionBounces());
+	settings.setValue("raytracing/russianRouletteDepth", viewport->rayTracingRussianRouletteStartDepth());
+	settings.setValue("raytracing/maxShadowRayHits", viewport->rayTracingMaxShadowRayHits());
+	settings.setValue("raytracing/maxVolumeScatterBounces", viewport->rayTracingMaxVolumeScatterBounces());
+	settings.setValue("raytracing/envImportanceSampling", viewport->rayTracingEnvImportanceSamplingEnabled());
+	settings.setValue("raytracing/denoiserDevicePreference", static_cast<int>(viewport->rayTracingDenoiserDevicePreference()));
+	settings.setValue("raytracing/enginePreference", static_cast<int>(viewport->rayTracingEnginePreference()));
 }
 
-void PathTracingDialog::onMaxSamplesChanged(int value)
+void RtRenderDialog::onMaxSamplesChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingMaxSamples(static_cast<uint32_t>(value));
+		viewport->setRayTracingMaxSamples(static_cast<uint32_t>(value));
 	ui->progressBarSamples->setMaximum(value);
 }
 
-void PathTracingDialog::onMaxBouncesChanged(int value)
+void RtRenderDialog::onMaxBouncesChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingMaxBounces(value);
+		viewport->setRayTracingMaxBounces(value);
 }
 
-void PathTracingDialog::onDenoiserToggled(bool checked)
+void RtRenderDialog::onDenoiserToggled(bool checked)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingDenoiserEnabled(checked);
+		viewport->setRayTracingDenoiserEnabled(checked);
 }
 
-void PathTracingDialog::onDenoiserDeviceChanged(int index)
+void RtRenderDialog::onDenoiserDeviceChanged(int index)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingDenoiserDevicePreference(static_cast<DenoiserDevicePreference>(index));
+		viewport->setRayTracingDenoiserDevicePreference(static_cast<DenoiserDevicePreference>(index));
 }
 
-void PathTracingDialog::onRenderEngineChanged(int index)
+void RtRenderDialog::onRenderEngineChanged(int index)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingEnginePreference(static_cast<RtPathTracingEnginePreference>(index));
+		viewport->setRayTracingEnginePreference(static_cast<RtRayTracingEnginePreference>(index));
 	updateMaxShadowRayHitsEnabled();
 }
 
-void PathTracingDialog::onFireflyClampChanged(double value)
+void RtRenderDialog::onFireflyClampChanged(double value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingFireflyClampThreshold(static_cast<float>(value));
+		viewport->setRayTracingFireflyClampThreshold(static_cast<float>(value));
 }
 
-void PathTracingDialog::onMaxTransmissionBouncesChanged(int value)
+void RtRenderDialog::onMaxTransmissionBouncesChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingMaxTransmissionBounces(value);
+		viewport->setRayTracingMaxTransmissionBounces(value);
 }
 
-void PathTracingDialog::onRussianRouletteDepthChanged(int value)
+void RtRenderDialog::onRussianRouletteDepthChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingRussianRouletteStartDepth(value);
+		viewport->setRayTracingRussianRouletteStartDepth(value);
 }
 
-void PathTracingDialog::onMaxShadowRayHitsChanged(int value)
+void RtRenderDialog::onMaxShadowRayHitsChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingMaxShadowRayHits(value);
+		viewport->setRayTracingMaxShadowRayHits(value);
 }
 
-void PathTracingDialog::onMaxVolumeScatterBouncesChanged(int value)
+void RtRenderDialog::onMaxVolumeScatterBouncesChanged(int value)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingMaxVolumeScatterBounces(value);
+		viewport->setRayTracingMaxVolumeScatterBounces(value);
 }
 
-void PathTracingDialog::onEnvImportanceSamplingToggled(bool checked)
+void RtRenderDialog::onEnvImportanceSamplingToggled(bool checked)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
-		viewport->setPathTracingEnvImportanceSamplingEnabled(checked);
+		viewport->setRayTracingEnvImportanceSamplingEnabled(checked);
 }
 
-void PathTracingDialog::onShadowsToggled(bool checked)
+void RtRenderDialog::onShadowsToggled(bool checked)
 {
-	// Not a "pathtracing/*" setting of this dialog's own - see the
+	// Not a "raytracing/*" setting of this dialog's own - see the
 	// constructor's identical comment on checkBoxShadows/checkBoxSelfShadows.
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->showShadows(checked);
@@ -400,7 +412,7 @@ void PathTracingDialog::onShadowsToggled(bool checked)
 		_modelViewer->visualizationEnvironmentPanel->syncShadowCheckboxes(checked, ui->checkBoxSelfShadows->isChecked());
 }
 
-void PathTracingDialog::onSelfShadowsToggled(bool checked)
+void RtRenderDialog::onSelfShadowsToggled(bool checked)
 {
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->showSelfShadows(checked);
@@ -408,7 +420,7 @@ void PathTracingDialog::onSelfShadowsToggled(bool checked)
 		_modelViewer->visualizationEnvironmentPanel->syncShadowCheckboxes(ui->checkBoxShadows->isChecked(), checked);
 }
 
-void PathTracingDialog::onRenderClicked()
+void RtRenderDialog::onRenderClicked()
 {
 	if (!_modelViewer)
 		return;
@@ -417,29 +429,29 @@ void PathTracingDialog::onRenderClicked()
 	// uses (see ModelViewer::onRenderingModeSelected()) rather than calling
 	// ViewportWidget's arm methods directly, so the toolbar's active-mode
 	// indicator stays in sync with this dialog's Render/Stop state.
-	_modelViewer->onRenderingModeSelected("PathTraced");
+	_modelViewer->onRenderingModeSelected("RayTraced");
 
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
-		viewport->requestPathTracedRenderNow(); // start immediately, don't wait for the idle-settle countdown - also (re)starts ViewportWidget's own elapsed-time clock
+		viewport->requestRayTracedRenderNow(); // start immediately, don't wait for the idle-settle countdown - also (re)starts ViewportWidget's own elapsed-time clock
 	_stoppedByUser = false;
 	_frozenElapsedMs = -1;
 }
 
-void PathTracingDialog::onStopClicked()
+void RtRenderDialog::onStopClicked()
 {
 	if (!_modelViewer)
 		return;
 
 	// Repurposed as Cancel for a blocking offline export - see
 	// _offlineRenderInProgress's doc comment. There is no interactive
-	// session to stop in that case (renderPathTracedOffline() doesn't
+	// session to stop in that case (renderRayTracedOffline() doesn't
 	// start one), so the normal fall-back-to-raster behavior below doesn't
 	// apply at all here.
 	if (_offlineRenderInProgress)
 	{
 		ViewportWidget* viewport = _modelViewer->getViewportWidget();
 		if (viewport)
-			viewport->cancelPathTracedOfflineRender();
+			viewport->cancelRayTracedOfflineRender();
 		return;
 	}
 
@@ -450,7 +462,7 @@ void PathTracingDialog::onStopClicked()
 	_stoppedByUser = true; // see this flag's doc comment - display Idle/0 despite the stale published sample count
 }
 
-void PathTracingDialog::onExportClicked()
+void RtRenderDialog::onExportClicked()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
@@ -460,7 +472,7 @@ void PathTracingDialog::onExportClicked()
 	const int targetHeight = ui->spinBoxExportHeight->value();
 
 	int viewportWidth = 0, viewportHeight = 0;
-	viewport->pathTracingViewportResolution(viewportWidth, viewportHeight);
+	viewport->rayTracingViewportResolution(viewportWidth, viewportHeight);
 
 	// Only an offline render can produce genuinely NEW detail at a higher
 	// resolution - anything at or below what's already converged can just
@@ -487,8 +499,8 @@ void PathTracingDialog::onExportClicked()
 	// target the offline render is about to run to).
 	uint32_t currentSamples = 0, targetSamples = 0;
 	bool running = false;
-	viewport->pathTracingProgress(currentSamples, targetSamples, running);
-	const uint32_t sampleCountForFilename = needsOfflineRender ? viewport->pathTracingMaxSamples() : currentSamples;
+	viewport->rayTracingProgress(currentSamples, targetSamples, running);
+	const uint32_t sampleCountForFilename = needsOfflineRender ? viewport->rayTracingMaxSamples() : currentSamples;
 
 	QString docName = tr("render");
 	QString docFolder;
@@ -513,7 +525,7 @@ void PathTracingDialog::onExportClicked()
 	const QString defaultPath = QDir(defaultFolder).filePath(defaultName);
 
 	QString selectedFilter;
-	const QString path = QFileDialog::getSaveFileName(this, tr("Export Path-Traced Image"), defaultPath,
+	const QString path = QFileDialog::getSaveFileName(this, tr("Export Ray-Traced Image"), defaultPath,
 		tr("PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp);;TIFF Image (*.tif *.tiff);;OpenEXR Image (*.exr)"),
 		&selectedFilter);
 	if (path.isEmpty())
@@ -537,7 +549,7 @@ void PathTracingDialog::onExportClicked()
 	if (needsOfflineRender)
 	{
 		// Genuinely blocks this thread for the whole render (see
-		// ViewportWidget::renderPathTracedOffline()'s doc comment) - the
+		// ViewportWidget::renderRayTracedOffline()'s doc comment) - the
 		// user explicitly confirmed that tradeoff above. Stop the
 		// interactive progress poll for the duration, since
 		// QApplication::processEvents() below would otherwise let
@@ -574,7 +586,7 @@ void PathTracingDialog::onExportClicked()
 		_offlineRenderInProgress = true;
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 
-		// See ViewportWidget::renderPathTracedOffline()'s own doc comment -
+		// See ViewportWidget::renderRayTracedOffline()'s own doc comment -
 		// it (re)starts the session elapsed clock for the export itself.
 		// Reset here too so the very first progress tick below (before the
 		// clock has ticked meaningfully) doesn't briefly show a leftover
@@ -586,13 +598,13 @@ void PathTracingDialog::onExportClicked()
 
 		std::vector<glm::vec3> linearRgb;
 		bool cancelled = false;
-		const bool renderedOk = viewport->renderPathTracedOffline(targetWidth, targetHeight,
+		const bool renderedOk = viewport->renderRayTracedOffline(targetWidth, targetHeight,
 			[this, viewport](uint32_t currentSample, uint32_t maxSamples)
 			{
 				ui->progressBarSamples->setMaximum(static_cast<int>(std::max<uint32_t>(maxSamples, 1)));
 				ui->progressBarSamples->setValue(static_cast<int>(currentSample));
 				ui->labelStatus->setText(tr("Offline rendering... %1 / %2 samples (Cancel to stop)").arg(currentSample).arg(maxSamples));
-				ui->labelElapsedTime->setText(formatElapsedTime(viewport->pathTracingElapsedMs()));
+				ui->labelElapsedTime->setText(formatElapsedTime(viewport->rayTracingElapsedMs()));
 				QApplication::processEvents();
 			},
 			linearRgb, &cancelled);
@@ -610,13 +622,13 @@ void PathTracingDialog::onExportClicked()
 		// onProgressTimer()'s "freeze once the session stops being active"
 		// convention exactly, rather than leaving _frozenElapsedMs at -1 and
 		// letting the next poll tick re-derive it implicitly.
-		_frozenElapsedMs = viewport->pathTracingElapsedMs();
+		_frozenElapsedMs = viewport->rayTracingElapsedMs();
 		_progressTimer->start();
 		// Render/Export/Stop deliberately NOT hardcoded enabled/disabled here
 		// like the controls above - this offline render ran entirely
 		// independently of whatever the interactive PT session's own actual
 		// running/converged state is (see ViewportWidget::
-		// renderPathTracedOffline()'s doc comment), so the correct button
+		// renderRayTracedOffline()'s doc comment), so the correct button
 		// state to land on depends on that live state, not "an offline render
 		// just finished" alone. updateButtonsForState() is the single source
 		// of truth for that (also what every 200ms poll tick uses) - calling
@@ -640,7 +652,7 @@ void PathTracingDialog::onExportClicked()
 
 		// The offline path never touches the GPU/live framebuffer at all,
 		// so for LDR formats the linear buffer has to be tonemapped here in
-		// plain C++ (RtTonemap.h, a direct port of path_traced_present.frag)
+		// plain C++ (RtTonemap.h, a direct port of ray_traced_present.frag)
 		// using the SAME live settings the on-screen viewport uses - there's
 		// no already-tonemapped framebuffer to grab like the fast path has.
 		if (exportExr)
@@ -652,7 +664,7 @@ void PathTracingDialog::onExportClicked()
 			bool hdrToneMapping = true, gammaCorrection = true;
 			float screenGamma = 2.2f, iblExposure = 1.0f;
 			int toneMapMode = 0;
-			viewport->pathTracingToneMapSettings(hdrToneMapping, gammaCorrection, screenGamma, iblExposure, toneMapMode);
+			viewport->rayTracingToneMapSettings(hdrToneMapping, gammaCorrection, screenGamma, iblExposure, toneMapMode);
 
 			QImage image(targetWidth, targetHeight, QImage::Format_RGB888);
 			for (int y = 0; y < targetHeight; ++y)
@@ -680,7 +692,7 @@ void PathTracingDialog::onExportClicked()
 		// resolution is smaller than what's already there (never upscaled -
 		// that goes through the offline branch above).
 		int liveWidth = 0, liveHeight = 0;
-		std::vector<glm::vec3> linearRgb = viewport->pathTracingRawFrame(liveWidth, liveHeight);
+		std::vector<glm::vec3> linearRgb = viewport->rayTracingRawFrame(liveWidth, liveHeight);
 		if (liveWidth <= 0 || liveHeight <= 0 || linearRgb.empty())
 		{
 			// Narrow but real gap: interactive GPU PT publishes its first
@@ -692,7 +704,7 @@ void PathTracingDialog::onExportClicked()
 			// as a valid (but blank) EXR - reporting "Export Complete" for an
 			// image that isn't what the user actually sees on screen.
 			QMessageBox::warning(this, tr("Export Failed"),
-				tr("No live path-traced frame is available yet. Wait a moment for rendering to produce a frame, then try again."));
+				tr("No live ray-traced frame is available yet. Wait a moment for rendering to produce a frame, then try again."));
 			return;
 		}
 		if (liveWidth != targetWidth || liveHeight != targetHeight)
@@ -701,14 +713,14 @@ void PathTracingDialog::onExportClicked()
 	}
 	else
 	{
-		// Fast path, LDR: captureCleanPathTracedImage() reuses the
+		// Fast path, LDR: captureCleanRayTracedImage() reuses the
 		// viewport's own RtPresenter tonemap/gamma pipeline (guaranteed
 		// pixel-identical to what's shown on screen, not a second,
 		// possibly-diverging implementation) but with the axis triad/view
 		// cube/mesh-count HUD overlays suppressed - a plain grabFramebuffer()
 		// would capture those too, which isn't wanted in a render-to-file
 		// export.
-		QImage image = viewport->captureCleanPathTracedImage();
+		QImage image = viewport->captureCleanRayTracedImage();
 		if (image.width() != targetWidth || image.height() != targetHeight)
 			image = image.scaled(targetWidth, targetHeight, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
 		saveOk = image.save(path, ldrFormat.toUtf8().constData());
@@ -720,12 +732,25 @@ void PathTracingDialog::onExportClicked()
 		return;
 	}
 
-	QMessageBox::information(this, tr("Export Complete"), tr("Image exported successfully to:\n%1").arg(path));
+	// Extends the plain completion notice with two convenience buttons
+	// rather than adding a separate dialog/checkbox - QDesktopServices hands
+	// both off to whatever the OS/desktop environment already associates
+	// with opening a file or revealing it in a file manager, so no
+	// platform-specific path/process handling is needed here.
+	QMessageBox completeBox(QMessageBox::Information, tr("Export Complete"),
+		tr("Image exported successfully to:\n%1").arg(path), QMessageBox::Close, this);
+	QPushButton* openFileButton = completeBox.addButton(tr("Open File"), QMessageBox::ActionRole);
+	QPushButton* openFolderButton = completeBox.addButton(tr("Open Containing Folder"), QMessageBox::ActionRole);
+	completeBox.exec();
+	if (completeBox.clickedButton() == openFileButton)
+		QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+	else if (completeBox.clickedButton() == openFolderButton)
+		QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
 }
 
-void PathTracingDialog::onRestoreDefaultsClicked()
+void RtRenderDialog::onRestoreDefaultsClicked()
 {
-	// Matches CpuPathTracer::Settings/RtPathTracingSession's own struct
+	// Matches CpuPathTracer::Settings/RtRayTracingSession's own struct
 	// defaults exactly (also what the .ui's widgets are initialized to) -
 	// worth having explicitly now that every value here persists via
 	// QSettings across app restarts (see loadSettings()/saveSettings()) and
@@ -742,7 +767,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	// Shadows/Self Shadows deliberately NOT reset here - not this dialog's
 	// own setting (see checkBoxShadows/checkBoxSelfShadows' doc comment).
 	ui->comboBoxDenoiserDevice->setCurrentIndex(static_cast<int>(DenoiserDevicePreference::Auto));
-	ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(RtPathTracingEnginePreference::Auto));
+	ui->comboBoxRenderEngine->setCurrentIndex(static_cast<int>(RtRayTracingEnginePreference::Auto));
 	// Each setValue()/setChecked() above already emitted its usual
 	// valueChanged/toggled signal (unchanged from any other edit), pushing
 	// the reset value into the viewport via this dialog's existing slots -
@@ -751,7 +776,7 @@ void PathTracingDialog::onRestoreDefaultsClicked()
 	onMatchViewportClicked(); // export resolution has no fixed "default" - viewport size is the sane reset target
 }
 
-void PathTracingDialog::onExportResolutionChanged()
+void RtRenderDialog::onExportResolutionChanged()
 {
 	updateResolutionWarning();
 	// Export must become enabled the instant a resolution larger than the
@@ -762,14 +787,14 @@ void PathTracingDialog::onExportResolutionChanged()
 		syncResolutionPresetFromSpinboxes();
 }
 
-void PathTracingDialog::onMatchViewportClicked()
+void RtRenderDialog::onMatchViewportClicked()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
 
 	int viewportWidth = 0, viewportHeight = 0;
-	viewport->pathTracingViewportResolution(viewportWidth, viewportHeight);
+	viewport->rayTracingViewportResolution(viewportWidth, viewportHeight);
 	ui->spinBoxExportWidth->setValue(std::max(1, viewportWidth));
 	ui->spinBoxExportHeight->setValue(std::max(1, viewportHeight));
 	syncResolutionPresetFromSpinboxes();
@@ -784,14 +809,14 @@ void PathTracingDialog::onMatchViewportClicked()
 	updateResolutionWarning();
 }
 
-void PathTracingDialog::populateResolutionPresets()
+void RtRenderDialog::populateResolutionPresets()
 {
 	ui->comboBoxResolutionPreset->clear();
 	for (const ResolutionPreset& preset : kResolutionPresets)
 		ui->comboBoxResolutionPreset->addItem(QString::fromLatin1(preset.label));
 }
 
-void PathTracingDialog::onResolutionPresetSelected(int index)
+void RtRenderDialog::onResolutionPresetSelected(int index)
 {
 	if (index <= 0 || index >= static_cast<int>(std::size(kResolutionPresets)))
 		return; // "Custom" (index 0), or invalid - nothing to apply
@@ -810,7 +835,7 @@ void PathTracingDialog::onResolutionPresetSelected(int index)
 	updateResolutionWarning();
 }
 
-void PathTracingDialog::syncResolutionPresetFromSpinboxes()
+void RtRenderDialog::syncResolutionPresetFromSpinboxes()
 {
 	const int w = ui->spinBoxExportWidth->value();
 	const int h = ui->spinBoxExportHeight->value();
@@ -835,25 +860,25 @@ void PathTracingDialog::syncResolutionPresetFromSpinboxes()
 	ui->comboBoxResolutionPreset->blockSignals(false);
 }
 
-void PathTracingDialog::updateMaxShadowRayHitsEnabled()
+void RtRenderDialog::updateMaxShadowRayHitsEnabled()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
 
-	const bool cpuActive = viewport->effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::CPU;
+	const bool cpuActive = viewport->effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::CPU;
 	ui->labelMaxShadowRayHits->setEnabled(cpuActive);
 	ui->spinBoxMaxShadowRayHits->setEnabled(cpuActive);
 }
 
-void PathTracingDialog::updateResolutionWarning()
+void RtRenderDialog::updateResolutionWarning()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
 
 	int viewportWidth = 0, viewportHeight = 0;
-	viewport->pathTracingViewportResolution(viewportWidth, viewportHeight);
+	viewport->rayTracingViewportResolution(viewportWidth, viewportHeight);
 
 	const bool exceedsViewport = ui->spinBoxExportWidth->value() > viewportWidth
 		|| ui->spinBoxExportHeight->value() > viewportHeight;
@@ -867,7 +892,7 @@ void PathTracingDialog::updateResolutionWarning()
 	}
 }
 
-void PathTracingDialog::onProgressTimer()
+void RtRenderDialog::onProgressTimer()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
@@ -875,7 +900,7 @@ void PathTracingDialog::onProgressTimer()
 
 	uint32_t current = 0, target = 0;
 	bool running = false;
-	viewport->pathTracingProgress(current, target, running);
+	viewport->rayTracingProgress(current, target, running);
 
 	if (running)
 		_stoppedByUser = false; // real progress again - via this dialog's Render, or the camera settling/restarting on its own
@@ -895,7 +920,7 @@ void PathTracingDialog::onProgressTimer()
 	// no separate transition-detection needed, and a brand NEW session
 	// naturally overwrites the old frozen value the moment it starts
 	// publishing progress again (ViewportWidget's own session clock restarts
-	// then too - see pathTracingElapsedMs()'s doc comment). Once stopped,
+	// then too - see rayTracingElapsedMs()'s doc comment). Once stopped,
 	// just re-displays that last captured value rather than re-reading the
 	// live clock, so it does not keep advancing after the render is actually
 	// done. Hidden entirely before the first render this dialog has ever
@@ -912,7 +937,7 @@ void PathTracingDialog::onProgressTimer()
 	qint64 effectiveElapsedMs = 0;
 	if (running)
 	{
-		effectiveElapsedMs = viewport->pathTracingElapsedMs();
+		effectiveElapsedMs = viewport->rayTracingElapsedMs();
 		_frozenElapsedMs = effectiveElapsedMs;
 		ui->labelElapsedTime->setText(formatElapsedTime(effectiveElapsedMs));
 	}
@@ -922,7 +947,7 @@ void PathTracingDialog::onProgressTimer()
 		ui->labelElapsedTime->setText(formatElapsedTime(effectiveElapsedMs));
 	}
 
-	// Set once per session start (see ViewportWidget::startPathTracedSession()'s
+	// Set once per session start (see ViewportWidget::startRayTracedSession()'s
 	// doc comment) - only meaningful once at least one render has actually
 	// started, so this stays hidden before the very first Render click.
 	// adjustSize() only on an actual visibility CHANGE (not every 200ms
@@ -930,7 +955,7 @@ void PathTracingDialog::onProgressTimer()
 	// gone, but the dialog's own top-level size (persisted via QSettings/
 	// restoreGeometry()) doesn't automatically shrink to match on its own,
 	// leaving an empty gap unless told to re-fit.
-	const bool orthoWarningActive = viewport->pathTracingOrthoThinWallWarningActive();
+	const bool orthoWarningActive = viewport->rayTracingOrthoThinWallWarningActive();
 	if (orthoWarningActive != ui->labelOrthoThinWallWarning->isVisible())
 	{
 		ui->labelOrthoThinWallWarning->setVisible(orthoWarningActive);
@@ -973,7 +998,7 @@ void PathTracingDialog::onProgressTimer()
 	updateButtonsForState();
 }
 
-void PathTracingDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+void RtRenderDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 {
 	// activeSubWindow is null when the last document closes (nothing left
 	// to activate) - isOwnDocumentActive correctly comes out false there,
@@ -993,7 +1018,7 @@ void PathTracingDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 	setVisible(isOwnDocumentActive);
 }
 
-QString PathTracingDialog::formatElapsedTime(qint64 elapsedMs)
+QString RtRenderDialog::formatElapsedTime(qint64 elapsedMs)
 {
 	const qint64 totalSeconds = elapsedMs / 1000;
 	return tr("Elapsed: %1:%2")
@@ -1001,13 +1026,13 @@ QString PathTracingDialog::formatElapsedTime(qint64 elapsedMs)
 		.arg(totalSeconds % 60, 2, 10, QChar('0'));
 }
 
-void PathTracingDialog::refreshDiagnostics(qint64 effectiveElapsedMs)
+void RtRenderDialog::refreshDiagnostics(qint64 effectiveElapsedMs)
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
 
-	const ViewportWidget::PathTracingDiagnostics diag = viewport->pathTracingDiagnostics();
+	const ViewportWidget::RayTracingDiagnostics diag = viewport->rayTracingDiagnostics();
 
 	ui->labelDiagRendererValue->setText(diag.rendererName);
 	ui->labelDiagGpuValue->setText(diag.gpuDeviceName.isEmpty() ? tr("N/A") : diag.gpuDeviceName);
@@ -1043,7 +1068,7 @@ void PathTracingDialog::refreshDiagnostics(qint64 effectiveElapsedMs)
 		// continuation ray plus one shadow ray per bounce, up to this
 		// session's configured max bounce depth - good enough for a relative
 		// throughput indicator, not a precise ray count.
-		const double raysPerSample = 1.0 + 2.0 * std::max(1, viewport->pathTracingMaxBounces());
+		const double raysPerSample = 1.0 + 2.0 * std::max(1, viewport->rayTracingMaxBounces());
 		const double mraysPerSec = samplesPerSec * raysPerSample / 1.0e6;
 		ui->labelDiagMRaysPerSecValue->setText(tr("~%1").arg(mraysPerSec, 0, 'f', 0));
 	}
@@ -1056,7 +1081,7 @@ void PathTracingDialog::refreshDiagnostics(qint64 effectiveElapsedMs)
 	ui->labelDiagRenderTimeValue->setText(effectiveElapsedMs > 0 ? tr("%1 s").arg(elapsedSeconds, 0, 'f', 1) : tr("N/A"));
 }
 
-void PathTracingDialog::updateButtonsForState()
+void RtRenderDialog::updateButtonsForState()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
@@ -1064,7 +1089,7 @@ void PathTracingDialog::updateButtonsForState()
 
 	uint32_t currentSamples = 0, targetSamples = 0;
 	bool running = false;
-	viewport->pathTracingProgress(currentSamples, targetSamples, running);
+	viewport->rayTracingProgress(currentSamples, targetSamples, running);
 
 	// Export is also valid with zero converged viewport samples when the
 	// requested export resolution exceeds the viewport - onExportClicked()'s
@@ -1073,7 +1098,7 @@ void PathTracingDialog::updateButtonsForState()
 	// frame, so it has no business waiting on it. Mirrors
 	// updateResolutionWarning()'s identical exceedsViewport computation.
 	int viewportWidth = 0, viewportHeight = 0;
-	viewport->pathTracingViewportResolution(viewportWidth, viewportHeight);
+	viewport->rayTracingViewportResolution(viewportWidth, viewportHeight);
 	const bool exceedsViewport = ui->spinBoxExportWidth->value() > viewportWidth
 		|| ui->spinBoxExportHeight->value() > viewportHeight;
 

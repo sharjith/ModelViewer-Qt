@@ -82,15 +82,15 @@ namespace
 		}
 	}
 
-	// RtPathTracingSession::workerLoop() only calls denoise() once now - on
-	// the final pass, once RtPathTracingSession::maxSamples() is reached, not
-	// on every intermediate pass (see RtPathTracingSession.cpp's finalDenoise
+	// RtRayTracingSession::workerLoop() only calls denoise() once now - on
+	// the final pass, once RtRayTracingSession::maxSamples() is reached, not
+	// on every intermediate pass (see RtRayTracingSession.cpp's finalDenoise
 	// flag) - so this always needs to do *some* real smoothing work; unlike
 	// an earlier per-pass design, it's never valid to taper down to "skip
 	// entirely" here, since this is the only denoise opportunity the final
 	// displayed image gets. Still scales mildly with sampleCount, since more
 	// accumulated samples genuinely do mean less residual Monte Carlo noise
-	// to clean up (real path-tracing noise falls off roughly as 1/sqrt(N)) -
+	// to clean up (real ray-tracing noise falls off roughly as 1/sqrt(N)) -
 	// but the floor is a light pass, not zero.
 	void bilateralFallbackDenoise(const std::vector<glm::vec3>& input, int width, int height,
 		std::vector<glm::vec3>& output, uint32_t sampleCount)
@@ -640,12 +640,12 @@ void RtDenoiser::initializeDevice()
 		{
 			_impl->optixContext = nullptr;
 			qWarning() << "RtDenoiser: OptiX denoiser requested but its CUDA/OptiX context could not be initialized"
-				<< "- not falling back to OIDN (OptiX was explicitly requested); path-traced frames will use the"
+				<< "- not falling back to OIDN (OptiX was explicitly requested); ray-traced frames will use the"
 				<< "built-in bilateral fallback denoiser instead.";
 		}
 #else
 		qWarning() << "RtDenoiser: OptiX denoiser requested but this build has no OptiX SDK"
-			<< "(MODELVIEWER_HAVE_OPTIX not defined) - not falling back to OIDN; path-traced frames will use the"
+			<< "(MODELVIEWER_HAVE_OPTIX not defined) - not falling back to OIDN; ray-traced frames will use the"
 			<< "built-in bilateral fallback denoiser instead.";
 #endif
 		return;
@@ -675,7 +675,7 @@ void RtDenoiser::initializeDevice()
 		{
 			qWarning().noquote() << "RtDenoiser: GPU denoiser device requested but OIDN CUDA device unavailable ("
 				<< QString::fromStdString(cudaFailureReason) << ") - not falling back to CPU (GPU was explicitly"
-				<< " requested); path-traced frames will use the built-in bilateral fallback denoiser instead.";
+				<< " requested); ray-traced frames will use the built-in bilateral fallback denoiser instead.";
 		}
 	}
 	// Auto (default): try native OptiX first - generally the best quality/
@@ -717,7 +717,7 @@ void RtDenoiser::initializeDevice()
 	}
 
 	// Falls back to bilateralFallbackDenoise() (see above) whenever neither
-	// device is valid, rather than a raw copy - every path-traced frame
+	// device is valid, rather than a raw copy - every ray-traced frame
 	// would otherwise look permanently noisy/grainy on a machine where OIDN
 	// fails to initialize (missing runtime dependency, unsupported CPU ISA,
 	// driver issue, ...), with no visible indication why beyond this log.
@@ -725,12 +725,12 @@ void RtDenoiser::initializeDevice()
 	{
 		if (_impl->preference != DenoiserDevicePreference::GPU) // GPU's own branch above already logged why
 			qWarning() << "RtDenoiser: OIDN failed to initialize on the requested device(s)"
-				<< "- path-traced frames will use a lower-quality built-in bilateral fallback denoiser instead.";
+				<< "- ray-traced frames will use a lower-quality built-in bilateral fallback denoiser instead.";
 	}
 	else if (_impl->useNativeOptixDenoiser)
-		qInfo() << "RtDenoiser: using native OptiX denoiser for path-traced frame denoising.";
+		qInfo() << "RtDenoiser: using native OptiX denoiser for ray-traced frame denoising.";
 	else
-		qInfo() << "RtDenoiser: using OIDN" << activeDeviceName() << "device for path-traced frame denoising.";
+		qInfo() << "RtDenoiser: using OIDN" << activeDeviceName() << "device for ray-traced frame denoising.";
 }
 
 void RtDenoiser::setDevicePreference(DenoiserDevicePreference preference)

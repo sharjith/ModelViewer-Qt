@@ -614,7 +614,7 @@ struct RtInstance
 
 // Flattened form of GPULight (PunctualLights.h) - position/direction are
 // already world-space, copied verbatim from SceneGraph::buildEnabledLightList()
-// (the same list the raster UBO uses), so raster and path-traced lighting
+// (the same list the raster UBO uses), so raster and ray-traced lighting
 // stay in sync by construction.
 struct RtLight
 {

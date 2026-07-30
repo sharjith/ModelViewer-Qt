@@ -38,7 +38,7 @@ public:
 
 	bool isAvailable() const;
 
-	// Diagnostics tab accessors (PathTracingDialog) - all read already-
+	// Diagnostics tab accessors (RtRenderDialog) - all read already-
 	// computed state with no per-call GPU work, so polling them at UI refresh
 	// rate is free. hasHardwareRT()/deviceName() are fixed once isAvailable()
 	// is true (set in the constructor); the rest reflect the most recent
@@ -52,7 +52,7 @@ public:
 
 	// (Re)builds the GPU acceleration structure from this snapshot's
 	// meshes/instances - mirrors RtEmbreeScene::build()'s contract. Callers
-	// (RtInteractiveRenderer::ensureSceneResources(), RtOptixPathTracingSession::
+	// (RtInteractiveRenderer::ensureSceneResources(), RtOptixRayTracingSession::
 	// start()) already skip calling this at all when the snapshot's revisionId
 	// hasn't changed. Every ACTUAL call still walks every mesh/instance, but
 	// three pieces persist across calls independently rather than being
@@ -87,7 +87,7 @@ public:
 	// irradiance/prefilter pixel data members are ignored here). Output is
 	// linear HDR radiance (un-tonemapped) - same contract as
 	// CpuPathTracer's own frame output - so callers wanting progressive
-	// multi-launch accumulation (see RtOptixPathTracingSession) can average
+	// multi-launch accumulation (see RtOptixRayTracingSession) can average
 	// multiple calls' results in linear space before a single final tonemap.
 	// outAlbedo/outNormal are OIDN guide (auxiliary feature) buffers -
 	// primary-hit base color/world-space shading normal, chunk-averaged the
@@ -115,7 +115,7 @@ public:
 		std::vector<float>& outAlpha);
 
 	// GPU-resident variant for the interactive/CUDA-GL-interop path (see
-	// RtOptixPathTracingSession's persistent device buffer) - same rendering
+	// RtOptixRayTracingSession's persistent device buffer) - same rendering
 	// as renderScene() above (same camera/environment/quality-setting
 	// semantics), but writes the combined linear-HDR RGBA result (see
 	// RtOptixSceneParams::image's doc comment - .rgb beauty, .w alpha)
@@ -138,7 +138,7 @@ public:
 
 	// Allocates/frees a CUDA device buffer sized width*height*sizeof(float4)
 	// (16 bytes/pixel), suitable for renderSceneToDevice()'s deviceImageRGBA
-	// parameter. Exists so RtOptixPathTracingSession (its persistent
+	// parameter. Exists so RtOptixRayTracingSession (its persistent
 	// ping-pong interactive-frame buffers) never has to include a CUDA
 	// header or link against the CUDA runtime itself - this class remains
 	// the sole CUDA/OptiX-aware boundary, same role its stub/real split
@@ -172,7 +172,7 @@ public:
 	// calling thread waiting for GPU completion - unlike renderScene()/
 	// renderSceneToDevice(), which both end in cudaDeviceSynchronize() and
 	// are fine for that only because they run exclusively on
-	// RtOptixPathTracingSession's background worker thread, never the UI
+	// RtOptixRayTracingSession's background worker thread, never the UI
 	// thread. submitSceneRenderToDevice() is the UI-thread-safe counterpart.
 	// -----------------------------------------------------------------------
 
@@ -290,7 +290,7 @@ public:
 	// of them (including hostParamsStaging) until
 	// isEventComplete(completionEvent) confirms THIS submission has
 	// finished - the expected pattern is double-buffering all five per
-	// in-flight "slot" (extends RtOptixPathTracingSession's existing
+	// in-flight "slot" (extends RtOptixRayTracingSession's existing
 	// RGBA-only ping-pong to cover every buffer a launch touches, since ALL
 	// of them are live for the duration of an async launch now, not just
 	// the output). The params struct is written into hostParamsStaging here,

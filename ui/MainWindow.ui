@@ -123,7 +123,7 @@
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionPathTracing"/>
+    <addaction name="actionRayTracing"/>
     <addaction name="actionToolsSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
@@ -384,12 +384,12 @@
     <string>Open the texture debug panel for the selected mesh</string>
    </property>
   </action>
-  <action name="actionPathTracing">
+  <action name="actionRayTracing">
    <property name="text">
-    <string>Path Tracing...</string>
+    <string>Ray Tracing...</string>
    </property>
    <property name="statusTip">
-    <string>Open path tracing settings and start a render</string>
+    <string>Open ray tracing settings and start a render</string>
    </property>
   </action>
   <action name="actionToolsSeparator">

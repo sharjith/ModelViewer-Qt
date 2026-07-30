@@ -8,7 +8,7 @@
 
 namespace Ui
 {
-	class PathTracingDialog;
+	class RtRenderDialog;
 }
 
 class ModelViewer;
@@ -17,18 +17,18 @@ class QCloseEvent;
 class QMdiSubWindow;
 
 // ---------------------------------------------------------------------------
-// PathTracingDialog
+// RtRenderDialog
 //
 // Non-modal settings/progress/export dialog for the CPU path tracer, opened
-// from the Tools menu (see MainWindow::on_actionPathTracing_triggered()).
+// from the Tools menu (see MainWindow::on_actionRayTracing_triggered()).
 // Non-modal deliberately - unlike SettingsDialog, the user is expected to
 // watch the main viewport update live while adjusting settings and pressing
 // Render, not fill out a form and close it.
 //
-// Does not own or duplicate any path-tracing state - every control here is a
+// Does not own or duplicate any ray-tracing state - every control here is a
 // thin read/write onto the target ModelViewer's ViewportWidget (see
-// ViewportWidget::setPathTracingMaxSamples()/pathTracingProgress()/
-// requestPathTracedRenderNow()) and ModelViewer::onRenderingModeSelected()
+// ViewportWidget::setRayTracingMaxSamples()/rayTracingProgress()/
+// requestRayTracedRenderNow()) and ModelViewer::onRenderingModeSelected()
 // (the same entry point the toolbar's render-mode menu uses, so this
 // dialog's Render/Stop buttons and the toolbar's mode indicator never fall
 // out of sync with each other).
@@ -42,13 +42,13 @@ class QMdiSubWindow;
 // different (inactive) document would be ambiguous about which one it's
 // actually acting on.
 // ---------------------------------------------------------------------------
-class PathTracingDialog : public QDialog
+class RtRenderDialog : public QDialog
 {
 	Q_OBJECT
 
 public:
-	explicit PathTracingDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
-	~PathTracingDialog();
+	explicit RtRenderDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+	~RtRenderDialog();
 
 protected:
 	void closeEvent(QCloseEvent* event) override;
@@ -90,7 +90,7 @@ private:
 	// timer for the whole blocking export (see onExportClicked()'s own doc
 	// comment on why).
 	static QString formatElapsedTime(qint64 elapsedMs);
-	void loadSettings(); // QSettings "pathtracing/*" - geometry + last-used values, loaded into the viewport before the UI reads them
+	void loadSettings(); // QSettings "raytracing/*" - geometry + last-used values, loaded into the viewport before the UI reads them
 	void saveSettings(); // called from closeEvent()
 	void updateResolutionWarning(); // shows/hides labelResolutionWarning + adjustSize() on change, mirrors labelOrthoThinWallWarning's pattern
 	void populateResolutionPresets();
@@ -103,14 +103,14 @@ private:
 	// constructor and whenever comboBoxRenderEngine changes.
 	void updateMaxShadowRayHitsEnabled();
 
-	// Populates the Diagnostics tab from ViewportWidget::pathTracingDiagnostics().
+	// Populates the Diagnostics tab from ViewportWidget::rayTracingDiagnostics().
 	// Called from onProgressTimer() but gated there on the Diagnostics tab
 	// actually being the visible one right now - every field is cheap to
-	// read (see pathTracingDiagnostics()'s own doc comment), but there's no
+	// read (see rayTracingDiagnostics()'s own doc comment), but there's no
 	// reason to touch even that while nobody can see the result, and
 	// samples/sec here does its own arithmetic on top. effectiveElapsedMs is
 	// onProgressTimer()'s already-frozen elapsed time (see _frozenElapsedMs's
-	// doc comment), NOT ViewportWidget::pathTracingElapsedMs()/diag.elapsedMs
+	// doc comment), NOT ViewportWidget::rayTracingElapsedMs()/diag.elapsedMs
 	// directly - the latter is a live, never-reset session clock that keeps
 	// ticking after Stop is pressed, which previously made Render Time/
 	// Samples-per-sec/MRays-per-sec keep climbing even once rendering had
@@ -119,15 +119,15 @@ private:
 
 	ModelViewer* _modelViewer; // not owned - dialog is a child of the ModelViewer's window
 	QTimer* _progressTimer;
-	std::unique_ptr<Ui::PathTracingDialog> ui;
+	std::unique_ptr<Ui::RtRenderDialog> ui;
 
-	// RtPathTracingSession::stop() (what disarming ultimately calls)
+	// RtRayTracingSession::stop() (what disarming ultimately calls)
 	// deliberately leaves its last published sample count in place rather
 	// than clearing it - so a camera-interrupted render can keep showing its
 	// last frame until a fresh start() resets it on settle. That means this
 	// dialog's own Stop button (which only stops, never restarts) would
 	// otherwise show a frozen non-zero count instead of returning to Idle.
-	// Tracked locally rather than changing RtPathTracingSession's semantics
+	// Tracked locally rather than changing RtRayTracingSession's semantics
 	// (which other callers - camera interaction - correctly rely on).
 	// Cleared the moment real progress is observed again (via Render, or
 	// the camera settling and restarting outside this dialog entirely).
@@ -136,16 +136,16 @@ private:
 	// Set for the duration of onExportClicked()'s blocking offline-render
 	// branch (needsOfflineRender==true) - repurposes pushButtonStop (label
 	// swapped to "Cancel" for the duration) to call ViewportWidget::
-	// cancelPathTracedOfflineRender() instead of its normal onStopClicked()
+	// cancelRayTracedOfflineRender() instead of its normal onStopClicked()
 	// interactive-session-stop behavior, since a blocking offline render has
-	// no running RtPathTracingSession/RtOptixPathTracingSession to stop in
+	// no running RtRayTracingSession/RtOptixRayTracingSession to stop in
 	// the first place. See onExportClicked()'s own doc comment for the rest
 	// of the cancellation mechanism (why the whole dialog can't just be
 	// setEnabled(false) the way it used to be).
 	bool _offlineRenderInProgress = false;
 
 	// Elapsed-time display below the progress bar. The LIVE value is read
-	// straight from ViewportWidget::pathTracingElapsedMs() every poll - that
+	// straight from ViewportWidget::rayTracingElapsedMs() every poll - that
 	// clock is authoritative (restarted at the one place a session actually
 	// begins, regardless of what triggered it: this dialog's Render button, a
 	// keyboard shortcut, or ViewportWidget auto-restarting on its own after

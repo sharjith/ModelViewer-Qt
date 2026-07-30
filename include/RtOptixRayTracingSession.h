@@ -14,9 +14,9 @@
 #include "RtSceneSnapshot.h"
 
 // ---------------------------------------------------------------------------
-// RtOptixPathTracingSession
+// RtOptixRayTracingSession
 //
-// GPU-backend counterpart to RtPathTracingSession (see that class's doc
+// GPU-backend counterpart to RtRayTracingSession (see that class's doc
 // comment for the pattern this mirrors) - owns a background worker thread
 // that repeatedly renders a small chunk of samples per pixel via
 // RtOptixSceneTracer::renderScene(), accumulates the results (as a running
@@ -24,11 +24,11 @@
 // comment for why linear-space accumulation matters here) and publishes the
 // latest averaged frame to a mutex-protected slot the GL/UI thread can poll
 // via latestFrame() without blocking the worker. This is what lets
-// PathTracingDialog's progress bar/elapsed-time display move for the GPU
+// RtRenderDialog's progress bar/elapsed-time display move for the GPU
 // engine the same way it already does for the CPU one, instead of the
 // caller blocking on one single all-samples-at-once optixLaunch().
 //
-// Unlike RtPathTracingSession, there is no separate notifyCameraChanged() -
+// Unlike RtRayTracingSession, there is no separate notifyCameraChanged() -
 // ViewportWidget's own CPU-path usage never actually calls that either (see
 // its own doc comment), always calling start() unconditionally instead, so
 // there was no existing behavior to preserve here. start() always resets
@@ -52,21 +52,21 @@
 // doesn't have in the first place (see the branch's design notes).
 //
 // Also owns an RtDenoiser, run once the final chunk reaches maxSamples() -
-// same "denoise only on the last pass" contract as RtPathTracingSession's
+// same "denoise only on the last pass" contract as RtRayTracingSession's
 // own publishLatest(finalDenoise) (see RtDenoiser::denoise()'s doc comment
 // for why: OIDN's guide buffers make more of a difference the fewer real
 // samples/pixel are behind the beauty image, so the final pass is the only
 // one worth paying for). RtOptixSceneTracer::renderScene() supplies the
 // albedo/normal guide buffers this needs - see its own doc comment.
 // ---------------------------------------------------------------------------
-class RtOptixPathTracingSession
+class RtOptixRayTracingSession
 {
 public:
-	RtOptixPathTracingSession();
-	~RtOptixPathTracingSession();
+	RtOptixRayTracingSession();
+	~RtOptixRayTracingSession();
 
-	RtOptixPathTracingSession(const RtOptixPathTracingSession&) = delete;
-	RtOptixPathTracingSession& operator=(const RtOptixPathTracingSession&) = delete;
+	RtOptixRayTracingSession(const RtOptixRayTracingSession&) = delete;
+	RtOptixRayTracingSession& operator=(const RtOptixRayTracingSession&) = delete;
 
 	bool isAvailable() const;
 
@@ -77,7 +77,7 @@ public:
 	uint32_t maxSamples() const { return _maxSamples; }
 
 	// Forwarded to RtOptixSceneTracer::renderScene() - mirrors CpuPathTracer::
-	// Settings::maxBounces (RtPathTracingSession's identical setting).
+	// Settings::maxBounces (RtRayTracingSession's identical setting).
 	void setMaxBounces(uint32_t maxBounces) { _maxBounces = maxBounces > 0 ? maxBounces : 1; }
 	uint32_t maxBounces() const { return _maxBounces; }
 
@@ -94,7 +94,7 @@ public:
 	// Settings::maxTransmissionBounces/fireflyClampThreshold/
 	// russianRouletteStartDepth exactly (same defaults too) - previously
 	// hardcoded constants in RtOptixScene.cu, silently ignoring whatever
-	// ViewportWidget's PathTracingDialog-backed settings actually held even
+	// ViewportWidget's RtRenderDialog-backed settings actually held even
 	// when CPU and GPU renders were started from identical-looking dialog
 	// state.
 	void setMaxTransmissionBounces(uint32_t maxTransmissionBounces) { _maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1; }
@@ -122,7 +122,7 @@ public:
 
 	// When false, the published frame never gets the final OIDN pass even
 	// once maxSamples() is reached - the raw progressive accumulation is
-	// published as-is instead. Mirrors RtPathTracingSession::
+	// published as-is instead. Mirrors RtRayTracingSession::
 	// setDenoiserEnabled()'s identical contract.
 	void setDenoiserEnabled(bool enabled) { _denoiserEnabled = enabled; }
 	bool denoiserEnabled() const { return _denoiserEnabled; }
@@ -146,7 +146,7 @@ public:
 
 	bool isRunning() const { return _running.load(std::memory_order_acquire); }
 
-	// Cheap progress-polling accessor - see RtPathTracingSession::currentSampleCount()'s identical reasoning.
+	// Cheap progress-polling accessor - see RtRayTracingSession::currentSampleCount()'s identical reasoning.
 	uint32_t currentSampleCount() const { return _publishedSampleCount.load(std::memory_order_acquire); }
 
 	// Latest averaged linear-HDR frame available for display - safe to call
@@ -154,8 +154,8 @@ public:
 	// vector if no chunk has completed yet. outAlpha (if non-null) receives
 	// the per-pixel primary-hit fraction (0 = pure background), which
 	// RtPresenter alpha-blends so raster's own sharp skybox/gradient shows
-	// through behind the path-traced geometry - the same alpha-composited-
-	// background contract as RtPathTracingSession::latestFrame(). outCamera
+	// through behind the ray-traced geometry - the same alpha-composited-
+	// background contract as RtRayTracingSession::latestFrame(). outCamera
 	// (if non-null) receives the exact camera pose this published frame was
 	// rendered with; ViewportWidget uses that during interactive PT so the
 	// raster skybox can be drawn from the same pose as the last PT chunk
@@ -163,7 +163,7 @@ public:
 	std::vector<glm::vec3> latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
 		std::vector<float>* outAlpha = nullptr, RtCamera* outCamera = nullptr) const;
 
-	// Diagnostics tab accessor (PathTracingDialog) - read-only access to the
+	// Diagnostics tab accessor (RtRenderDialog) - read-only access to the
 	// owned tracer's own diagnostics accessors (hasHardwareRT()/deviceName()/
 	// lastGasBuildMs()/lastIasBuildMs()/lastTriangleCount() - see
 	// RtOptixSceneTracer.h). No per-call GPU work, safe to poll at UI refresh rate.

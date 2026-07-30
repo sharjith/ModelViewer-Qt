@@ -619,7 +619,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     renderingModeMenu->setStyleSheet(flyoutStyleSheet);
     _adsAction = renderingModeMenu->addAction(QIcon(":/icons/res/ads_mode.png"), tr("ADS (Blinn-Phong)"));
     _pbrAction = renderingModeMenu->addAction(QIcon(":/icons/res/pbr_mode.png"), tr("PBR (Metallic-Roughness)"));
-    _pathTracedAction = renderingModeMenu->addAction(QIcon(":/icons/res/path_tracing_mode.png"), tr("Path Traced"));
+    _rayTracedAction = renderingModeMenu->addAction(QIcon(":/icons/res/ray_tracing_mode.png"), tr("Ray Traced"));
 
     connect(_adsAction, &QAction::triggered, this,
         [this]() {
@@ -635,16 +635,16 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         }
     );
 
-    connect(_pathTracedAction, &QAction::triggered, this,
+    connect(_rayTracedAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonRenderingMode->setDefaultAction(_pathTracedAction);
-            emit renderingModeSelected("PathTraced");
+            _toolButtonRenderingMode->setDefaultAction(_rayTracedAction);
+            emit renderingModeSelected("RayTraced");
         }
     );
 
     _renderingModeActions[RenderingModeActions::ADS] = _adsAction;
     _renderingModeActions[RenderingModeActions::PBR] = _pbrAction;
-    _renderingModeActions[RenderingModeActions::PATH_TRACED] = _pathTracedAction;
+    _renderingModeActions[RenderingModeActions::RAY_TRACED] = _rayTracedAction;
 
     _toolButtonRenderingMode->setMenu(renderingModeMenu);
     _toolButtonRenderingMode->setDefaultAction(_adsAction);  // Default to ADS
@@ -1229,9 +1229,9 @@ void ViewToolbar::updateRenderingModeButton(const QString& mode)
 	{
 		_toolButtonRenderingMode->setDefaultAction(_pbrAction);
 	}
-	else if (mode == "PathTraced")
+	else if (mode == "RayTraced")
 	{
-		_toolButtonRenderingMode->setDefaultAction(_pathTracedAction);
+		_toolButtonRenderingMode->setDefaultAction(_rayTracedAction);
 	}
 }
 

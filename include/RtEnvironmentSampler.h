@@ -17,7 +17,7 @@
 // only ever gets lit by BSDF-sampled bounces stumbling into it by chance,
 // which converges extremely slowly.
 //
-// Built once per scene/environment change (RtPathTracingSession rebuilds it
+// Built once per scene/environment change (RtRayTracingSession rebuilds it
 // alongside the Embree BVH, gated on the same "geometry actually changed"
 // condition - camera-only changes rebuild neither), then read-only for the
 // lifetime of that build - sample()/pdf() are const and safe to call

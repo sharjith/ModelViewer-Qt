@@ -1,21 +1,21 @@
-#include "RtPathTracingSession.h"
+#include "RtRayTracingSession.h"
 
 #include <algorithm>
 
-RtPathTracingSession::RtPathTracingSession() = default;
+RtRayTracingSession::RtRayTracingSession() = default;
 
-RtPathTracingSession::~RtPathTracingSession()
+RtRayTracingSession::~RtRayTracingSession()
 {
 	stop();
 }
 
-void RtPathTracingSession::setResolution(int width, int height)
+void RtRayTracingSession::setResolution(int width, int height)
 {
 	_width  = width;
 	_height = height;
 }
 
-void RtPathTracingSession::resetForNewPass(std::shared_ptr<const RtSceneSnapshot> snapshot, bool rebuildEmbreeScene)
+void RtRayTracingSession::resetForNewPass(std::shared_ptr<const RtSceneSnapshot> snapshot, bool rebuildEmbreeScene)
 {
 	stop(); // cancel/join any previously running worker before touching shared state
 
@@ -53,20 +53,20 @@ void RtPathTracingSession::resetForNewPass(std::shared_ptr<const RtSceneSnapshot
 	const uint64_t myRevision = ++_activeRevision;
 	_cancelRequested.store(false, std::memory_order_release);
 	_running.store(true, std::memory_order_release);
-	_worker = std::thread(&RtPathTracingSession::workerLoop, this, myRevision);
+	_worker = std::thread(&RtRayTracingSession::workerLoop, this, myRevision);
 }
 
-void RtPathTracingSession::start(std::shared_ptr<const RtSceneSnapshot> snapshot)
+void RtRayTracingSession::start(std::shared_ptr<const RtSceneSnapshot> snapshot)
 {
 	resetForNewPass(std::move(snapshot), /*rebuildEmbreeScene=*/true);
 }
 
-void RtPathTracingSession::notifyCameraChanged(std::shared_ptr<const RtSceneSnapshot> snapshotWithNewCamera)
+void RtRayTracingSession::notifyCameraChanged(std::shared_ptr<const RtSceneSnapshot> snapshotWithNewCamera)
 {
 	resetForNewPass(std::move(snapshotWithNewCamera), /*rebuildEmbreeScene=*/false);
 }
 
-void RtPathTracingSession::stop()
+void RtRayTracingSession::stop()
 {
 	_cancelRequested.store(true, std::memory_order_release);
 	if (_worker.joinable())
@@ -74,7 +74,7 @@ void RtPathTracingSession::stop()
 	_running.store(false, std::memory_order_release);
 }
 
-void RtPathTracingSession::workerLoop(uint64_t myRevision)
+void RtRayTracingSession::workerLoop(uint64_t myRevision)
 {
 	std::shared_ptr<const RtSceneSnapshot> snapshot;
 	{
@@ -112,7 +112,7 @@ void RtPathTracingSession::workerLoop(uint64_t myRevision)
 	_running.store(false, std::memory_order_release);
 }
 
-void RtPathTracingSession::publishLatest(bool finalDenoise)
+void RtRayTracingSession::publishLatest(bool finalDenoise)
 {
 	std::vector<glm::vec3> resolved = _accumulator.resolve();
 	const int width  = _accumulator.width();
@@ -165,7 +165,7 @@ void RtPathTracingSession::publishLatest(bool finalDenoise)
 	_publishedSampleCount = sampleCount;
 }
 
-std::vector<glm::vec3> RtPathTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
+std::vector<glm::vec3> RtRayTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
 	std::vector<float>* outAlpha) const
 {
 	std::lock_guard<std::mutex> lock(_publishMutex);

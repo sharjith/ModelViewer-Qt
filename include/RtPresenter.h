@@ -13,15 +13,15 @@
 // ---------------------------------------------------------------------------
 // RtPresenter
 //
-// Presents the path tracer's latest frame (RtPathTracingSession::
+// Presents the path tracer's latest frame (RtRayTracingSession::
 // latestFrame()) into the existing OpenGL viewport: uploads the linear HDR
 // RGB buffer plus primary-hit alpha into a GL_RGBA32F texture (same upload pattern as
 // SceneRenderController's transmission buffer) and draws it as a fullscreen
 // triangle, reusing the project's existing fullscreen_triangle.vert plus a
-// new small tonemap+gamma fragment shader (path_traced_present.frag).
+// new small tonemap+gamma fragment shader (ray_traced_present.frag).
 //
 // Deliberately kept separate from SceneRenderController rather than folded
-// into that already-large class - path tracing is a bolt-on display mode
+// into that already-large class - ray tracing is a bolt-on display mode
 // layered on top of the raster pipeline, not part of what that class manages.
 // ---------------------------------------------------------------------------
 class RtPresenter : public QOpenGLFunctions_4_5_Core
@@ -38,7 +38,7 @@ public:
 	void cleanup();
 
 	// Uploads a linear HDR RGB buffer (width*height, un-tonemapped, row 0 =
-	// top of image - matching RtPathTracingSession/QImage convention) and an
+	// top of image - matching RtRayTracingSession/QImage convention) and an
 	// optional alpha mask as the frame to present next. Alpha is 0 where the
 	// primary ray missed geometry, letting the already-rendered raster
 	// gradient/skybox remain visible.
@@ -46,7 +46,7 @@ public:
 		const std::vector<float>* alpha = nullptr);
 
 	// GPU-resident variant of upload(), for the interactive/CUDA-GL-interop
-	// presentation path (see RtOptixPathTracingSession::latestDeviceFrame()'s
+	// presentation path (see RtOptixRayTracingSession::latestDeviceFrame()'s
 	// doc comment) - deviceRgba is a CUDA device pointer already holding
 	// width*height linear-HDR float4 RGBA (.w = alpha, same layout upload()
 	// packs on the CPU side). Copies it straight into the display texture via
@@ -76,7 +76,7 @@ public:
 	// gammaCorrection()/screenGamma()/iblExposure(). Passing the LIVE
 	// values (rather than the shader's own hardcoded ACES-Narkowicz
 	// defaults, which this used to always use regardless of what raster
-	// was configured to show) keeps a path-traced-vs-raster comparison an
+	// was configured to show) keeps a ray-traced-vs-raster comparison an
 	// apples-to-apples exposure/contrast comparison - a real, previously-
 	// deferred mismatch (see this file's git history) that visibly showed
 	// as PT looking "washed out" relative to raster whenever the user had
@@ -106,7 +106,7 @@ public:
 	bool hasFrame() const { return _hasFrame; }
 
 	// Suppresses draw() until the next upload() - call when a fresh
-	// RtPathTracingSession starts, so the previous (now stale - different
+	// RtRayTracingSession starts, so the previous (now stale - different
 	// camera position) frame doesn't flash on screen during the gap between
 	// the session starting and its first pass actually publishing.
 	void invalidate() { _hasFrame = false; }

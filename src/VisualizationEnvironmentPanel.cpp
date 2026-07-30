@@ -246,7 +246,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	updateSkyBoxRotationLabels(_viewportWidget->isCameraUpAxisZUp());
 
 	// updateControlDependencies() reads getRenderingMode() (checkBoxEnvMapping's
-	// adsMode gate, radioButtonGroundInfinitePlane's pathTracedMode gate) - without this
+	// adsMode gate, radioButtonGroundInfinitePlane's rayTracedMode gate) - without this
 	// connection, switching rendering mode via any control OTHER than this
 	// panel's own (e.g. a toolbar/menu selector) never re-evaluates those
 	// gates, leaving them stuck at whatever they were computed as when this
@@ -318,16 +318,16 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	bool skyBoxHDRIEnabled = skyBoxEnabled && ui->checkBoxSkyBoxHDRI->isChecked();
 	bool floorTextureEnabled = floorEnabled && ui->checkBoxFloorTexture->isChecked();
 	bool adsMode = _viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
-	// NOT RenderingMode::PATH_TRACED - ModelViewer::onRenderingModeSelected()'s
-	// "PathTraced" branch deliberately keeps getRenderingMode() at
+	// NOT RenderingMode::RAY_TRACED - ModelViewer::onRenderingModeSelected()'s
+	// "RayTraced" branch deliberately keeps getRenderingMode() at
 	// PHYSICALLY_BASED_RENDERING (so the live PBR raster feed keeps showing
-	// while the camera moves) and layers path tracing on top via the
-	// SEPARATE _pathTracedArmed flag instead - see ViewportWidget::
-	// armPathTracedRenderingMode()'s doc comment. getRenderingMode()==
-	// PATH_TRACED is essentially only ever set by the viewerState-restore
+	// while the camera moves) and layers ray tracing on top via the
+	// SEPARATE _rayTracedArmed flag instead - see ViewportWidget::
+	// armRayTracedRenderingMode()'s doc comment. getRenderingMode()==
+	// RAY_TRACED is essentially only ever set by the viewerState-restore
 	// path (ModelViewer.cpp), never by live interaction, so gating on it
 	// left this checkbox permanently disabled during normal use.
-	bool pathTracedMode = _viewportWidget && _viewportWidget->isPathTracedRenderingModeArmed();
+	bool rayTracedMode = _viewportWidget && _viewportWidget->isRayTracedRenderingModeArmed();
 
 	// Environment Mapping (ADS) - legacy shadeBlinnPhong() reflection term
 	// only, unrelated to Environment IBL's KHR PBR lighting (see
@@ -352,15 +352,15 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	// Infinite Plane / Shadow Catcher (path tracer only, see
 	// GroundMode::InfinitePlane's and RtMaterial::isShadowCatcher's doc
 	// comments) - raster has no equivalent, so the radio itself is only
-	// selectable in path-traced mode (it stays checked-but-disabled if the
-	// user leaves path-traced mode after selecting it, matching how every
+	// selectable in ray-traced mode (it stays checked-but-disabled if the
+	// user leaves ray-traced mode after selecting it, matching how every
 	// other PT-only control in this panel behaves - no forced fallback to
 	// a different ground mode). Being its own ground mode (mutually
 	// exclusive with Floor/Grid/None) means Reflections/Floor Texture are
 	// already naturally disabled whenever this is selected (floorEnabled is
 	// false), with no need to cross-disable them explicitly.
-	ui->radioButtonGroundInfinitePlane->setEnabled(pathTracedMode);
-	bool shadowCatcherSettingsEnabled = infinitePlaneSelected && pathTracedMode;
+	ui->radioButtonGroundInfinitePlane->setEnabled(rayTracedMode);
+	bool shadowCatcherSettingsEnabled = infinitePlaneSelected && rayTracedMode;
 	ui->labelShadowDarkness->setEnabled(shadowCatcherSettingsEnabled);
 	ui->doubleSpinBoxShadowDarkness->setEnabled(shadowCatcherSettingsEnabled);
 	ui->labelShadowCatcherColor->setEnabled(shadowCatcherSettingsEnabled);
@@ -541,19 +541,19 @@ void VisualizationEnvironmentPanel::onDefaultLightsChanged(bool checked)
 	_viewportWidget->updateView();
 }
 
-void VisualizationEnvironmentPanel::applyPathTracedGroundDefaultsOnce()
+void VisualizationEnvironmentPanel::applyRayTracedGroundDefaultsOnce()
 {
 	if (!_viewportWidget || !ui)
 		return;
 
-	// Unconditional, every time Path-Traced mode is (re-)selected via the
+	// Unconditional, every time Ray-Traced mode is (re-)selected via the
 	// toolbar/shortcut - not a "first time only" default. Ground mode and
-	// default lights are part of what DEFINES Path-Traced mode (the
+	// default lights are part of what DEFINES Ray-Traced mode (the
 	// shadow-catcher look), same as onDisplayModeChanged()'s realism-driven
 	// checkboxes just below it in the call chain - so switching INTO this
 	// mode always re-asserts InfinitePlane/lights-off regardless of whatever
 	// the user left ground mode/default lights at during a previous PBR or
-	// Path-Traced session. The user is still free to change either
+	// Ray-Traced session. The user is still free to change either
 	// afterward, for as long as they stay in this mode - only the mode
 	// SWITCH itself is authoritative.
 	//
@@ -590,8 +590,8 @@ void VisualizationEnvironmentPanel::restoreDefaultLightsForAds()
 
 	// ADS mode never calls switchToRealisticRendering()/setRealismEnabled(),
 	// so onDisplayModeChanged() (which re-asserts default lights on for
-	// every ADS/PBR/Path-Traced switch) never runs for it - meaning default
-	// lights stayed off forever after a Path-Traced session if the only fix
+	// every ADS/PBR/Ray-Traced switch) never runs for it - meaning default
+	// lights stayed off forever after a Ray-Traced session if the only fix
 	// were there. ADS deliberately does NOT get the rest of onDisplayModeChanged()'s
 	// realism-driven defaults (floor/shadows/reflections/env-map) - it just
 	// needs its lights back, independent of Realistic rendering.
@@ -1302,7 +1302,7 @@ void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 
 	// Load texture folder if available - unless a custom folder (loaded via
 	// "Select Custom Map", which isn't represented in this preset combo at
-	// all) is currently active. Without this check, every PBR/PathTraced
+	// all) is currently active. Without this check, every PBR/RayTraced
 	// mode (re)selection - which calls this via setPBRLightingMode(true) -
 	// would silently reload whatever preset index was last active over top
 	// of the user's custom skybox.
@@ -1349,8 +1349,8 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	// unconditionally on every mode switch - not a one-time default. Ground
 	// mode and default lights are part of what DEFINES each rendering mode
 	// (Floor + lights-on for ADS/PBR, InfinitePlane + lights-off for
-	// Path-Traced - see applyPathTracedGroundDefaultsOnce(), which runs
-	// right after this function whenever the mode is actually Path-Traced
+	// Ray-Traced - see applyRayTracedGroundDefaultsOnce(), which runs
+	// right after this function whenever the mode is actually Ray-Traced
 	// and re-asserts its own values on top of these), so every toolbar/
 	// shortcut mode switch always re-asserts its own canonical values,
 	// regardless of whatever the user left ground mode/default lights at
@@ -1389,20 +1389,20 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 		// this signal also fires from setDisplayMode() (Shaded/HollowMesh/
 		// MeshEdges/Wireframe/ShadedWithEdges - see ViewportWidget's
 		// _viewToolbar->displayModeSelected lambda), none of which touch
-		// realism/Path-Traced state at all, but which DO share this same
+		// realism/Ray-Traced state at all, but which DO share this same
 		// displayModeChanged signal (both setDisplayMode() and
 		// setRealismEnabled() emit it). Gating default lights on realShaded
 		// meant switching to Wireframe/HollowMesh/etc. while realism
 		// happened to be off (e.g. coming from ADS) silently turned default
-		// lights off too - wrong, since only Path-Traced mode should ever
-		// disable them (see applyPathTracedGroundDefaultsOnce(), which
+		// lights off too - wrong, since only Ray-Traced mode should ever
+		// disable them (see applyRayTracedGroundDefaultsOnce(), which
 		// overrides this back to off right after, for that one mode only).
-		// isPathTracedRenderingModeArmed() correctly stays false for every
+		// isRayTracedRenderingModeArmed() correctly stays false for every
 		// display-mode toggle, ADS, and PBR alike.
-		const bool pathTraced = _viewportWidget->isPathTracedRenderingModeArmed();
+		const bool rayTraced = _viewportWidget->isRayTracedRenderingModeArmed();
 		QSignalBlocker blockDefaultLights(ui->checkBoxDefaultLights);
-		ui->checkBoxDefaultLights->setChecked(!pathTraced);
-		_viewportWidget->useDefaultLights(!pathTraced);
+		ui->checkBoxDefaultLights->setChecked(!rayTraced);
+		_viewportWidget->useDefaultLights(!rayTraced);
 	}
 	ui->checkBoxSkyBoxHDRI->setChecked(ui->checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
 

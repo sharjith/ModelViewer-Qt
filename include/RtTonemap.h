@@ -7,18 +7,18 @@
 // ---------------------------------------------------------------------------
 // RtTonemap
 //
-// Direct C++ port of shaders/path_traced_present.frag's applyToneMapping()
+// Direct C++ port of shaders/ray_traced_present.frag's applyToneMapping()
 // and its operators, verbatim - same tonemap curves raster/the live PT
 // viewport use, just running on the CPU instead of in the presentation
-// shader. Needed specifically for offline path-traced exports to ordinary
+// shader. Needed specifically for offline ray-traced exports to ordinary
 // LDR formats (PNG/JPEG/BMP/TIFF): those exports can't rely on grabbing an
-// already-tonemapped GPU framebuffer (see PathTracingDialog::onExportClicked()'s
+// already-tonemapped GPU framebuffer (see RtRenderDialog::onExportClicked()'s
 // doc comments) once the export resolution is decoupled from the live
 // viewport's own on-screen size, so the tonemap has to happen here instead.
 // EXR export never needs this - it writes the untouched linear buffer.
 //
 // toneMapMode mirrors RenderEnums.h's HDRToneMapMode ordinal exactly, same
-// convention path_traced_present.frag's own uniform uses:
+// convention ray_traced_present.frag's own uniform uses:
 // 0=KhronosPbrNeutral 1=ACES_Narkowicz 2=ACES_Hill 3=ACES_Hill_ExposureBoost
 // 4=Uncharted2 5=Reinhard
 // ---------------------------------------------------------------------------
@@ -100,7 +100,7 @@ namespace RtTonemap
 			case 0: color = toneMap_KhronosPbrNeutral(color); break;
 			case 1: color = toneMapACES_Narkowicz(color); break;
 			case 2: color = toneMapACES_Hill(color); break;
-			case 3: color = toneMapACES_Hill(color / 0.6f); break; // exposure boost, see path_traced_present.frag
+			case 3: color = toneMapACES_Hill(color / 0.6f); break; // exposure boost, see ray_traced_present.frag
 			case 4: color = uncharted2ToneMapping(color); break;
 			default: color = color / (color + glm::vec3(1.0f)); break; // Reinhard
 			}

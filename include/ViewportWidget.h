@@ -44,9 +44,9 @@
 #include "TransformGizmo.h"
 #include "RtInteractiveRenderer.h"
 #include "RtInteractionController.h"
-#include "RtOptixPathTracingSession.h"
+#include "RtOptixRayTracingSession.h"
 #include "RtOptixSceneTracer.h"
-#include "RtPathTracingSession.h"
+#include "RtRayTracingSession.h"
 #include "RtPresenter.h"
 
 /* Custom OpenGL Viewer Widget */
@@ -73,15 +73,15 @@ class ModelViewer;
 // ClippingPlaneHatchMode, HatchPattern â†’ RenderEnums.h (Phase 11/12)
 enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES };
 
-// User-facing path-tracing render-engine choice (PT settings dropdown) -
+// User-facing ray-tracing render-engine choice (PT settings dropdown) -
 // mirrors DenoiserDevicePreference's placement/style in RtDenoiser.h,
 // including the Auto option. Auto resolves to a concrete CPU/GPU choice via
-// ViewportWidget::effectivePathTracingEnginePreference() - see that
+// ViewportWidget::effectiveRayTracingEnginePreference() - see that
 // function's doc comment for how (a cheap check, not a new probe). Every
 // render-path branch reads the EFFECTIVE preference, never this raw one
 // directly, so Auto never needs handling at individual call sites - CPU and
 // GPU remain the only two real backends as far as rendering code is concerned.
-enum class RtPathTracingEnginePreference
+enum class RtRayTracingEnginePreference
 {
 	Auto,
 	CPU,
@@ -151,13 +151,13 @@ public:
 	void updateFloorPlane();
 	// Extracted from updateFloorPlane() so setLightOffset() can also call it
 	// directly - the persistent PunctualLights fallback light (distinct from
-	// buildPathTracedSnapshot()'s own freshly-recomputed "keyLight"; see that
+	// buildRayTracedSnapshot()'s own freshly-recomputed "keyLight"; see that
 	// function's doc comment) is otherwise only ever refreshed when
 	// updateFloorPlane() itself runs (scene load/resize/bounding-box change),
 	// leaving it stale at the OLD light-offset position after a slider drag
-	// while buildPathTracedSnapshot() still appends a second, correctly-
+	// while buildRayTracedSnapshot() still appends a second, correctly-
 	// positioned keyLight on top - two point lights, casting two visibly
-	// different shadow directions in CPU/GPU path tracing, neither of which
+	// different shadow directions in CPU/GPU ray tracing, neither of which
 	// is what raster's own single, always-live shadow shows.
 	void refreshFallbackLight();
 	void updateBoundingSphere();
@@ -367,9 +367,9 @@ public:
 	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
 	void setRenderingMode(const RenderingMode& renderingMode);
 
-	// ---- Path-traced rendering mode ----------------------------------------
-	// Arms the "Path Traced" mode: forces the raster shader to PBR (path
-	// tracing never feeds RenderingMode::PATH_TRACED into the shader uniform
+	// ---- Ray-traced rendering mode ----------------------------------------
+	// Arms the "Ray Traced" mode: forces the raster shader to PBR (path
+	// tracing never feeds RenderingMode::RAY_TRACED into the shader uniform
 	// itself - see RenderEnums.h and the design note above onRenderingMode-
 	// Selected() in ModelViewer.cpp) and starts the idle-detection timer.
 	// While armed, camera interaction behaves differently per backend (see
@@ -378,24 +378,24 @@ public:
 	// CPU/Embree, any camera interaction still cancels the in-flight/
 	// converged trace and falls back to the live PBR raster feed immediately.
 	// On GPU/OptiX, camera interaction instead restarts a reduced-quality
-	// INTERACTIVE trace (startInteractivePathTracedGpuSession()) and keeps
+	// INTERACTIVE trace (startInteractiveRayTracedGpuSession()) and keeps
 	// compositing it live - raster is never shown for GPU PT while armed.
 	// CPU/Embree still promotes to the full user-configured quality once the
-	// camera settles (onPathTracedIdleTimeout()); GPU/OptiX has no such
+	// camera settles (onRayTracedIdleTimeout()); GPU/OptiX has no such
 	// promotion anymore - the same continuous interactive accumulator just
 	// keeps converging/denoising in place once the camera holds still (see
-	// RtInteractiveRenderer's class doc comment and onPathTracedIdleTimeout(),
+	// RtInteractiveRenderer's class doc comment and onRayTracedIdleTimeout(),
 	// which is a GPU no-op).
 	//
 	// startInteractiveSessionNow (default true) controls whether arming also
 	// immediately starts/warms up the interactive session - pass false when
-	// the caller (requestPathTracedRenderNow()) is about to immediately
+	// the caller (requestRayTracedRenderNow()) is about to immediately
 	// replace it with the settled session anyway, so arming doesn't pay a
 	// real GAS/IAS rebuild + synchronous warm-up launch just to have
-	// startPathTracedSession() tear it back down a moment later.
-	void armPathTracedRenderingMode(bool startInteractiveSessionNow = true);
-	void disarmPathTracedRenderingMode();
-	bool isPathTracedRenderingModeArmed() const { return _rtInteractionCtrl->armed(); }
+	// startRayTracedSession() tear it back down a moment later.
+	void armRayTracedRenderingMode(bool startInteractiveSessionNow = true);
+	void disarmRayTracedRenderingMode();
+	bool isRayTracedRenderingModeArmed() const { return _rtInteractionCtrl->armed(); }
 
 	// Call when geometry/material/light/visibility changes for a reason other
 	// than direct viewport interaction (undo/redo, a material/light panel
@@ -408,7 +408,7 @@ public:
 	// RtInteractionController::notifyCameraInteracting()'s doc comment for
 	// why camera-only GPU restarts are safe to keep showing a
 	// stale-but-still-correct frame through, and why this call site
-	// deliberately doesn't get that treatment). The next startPathTracedSession()
+	// deliberately doesn't get that treatment). The next startRayTracedSession()
 	// call already rebuilds the RtSceneSnapshot from current scene state
 	// unconditionally. The revision bump lets GPU PT distinguish real scene/
 	// env changes from camera-only restarts so it can keep its GAS/IAS alive
@@ -416,34 +416,34 @@ public:
 	//
 	// RtInteractionController::notifySceneContentMutated() itself
 	// (re)arms the debounced resume warm-up (see
-	// onPathTracedResumeWarmUpTimeout()'s doc comment) whenever it tears the
+	// onRayTracedResumeWarmUpTimeout()'s doc comment) whenever it tears the
 	// interactive accumulator down - this is just one of several call sites
 	// that share that same behavior, not a special case, so nothing
 	// scene-mutation-specific needs to happen here
 	// beyond the revision bump.
-	void notifyPathTracedSceneMutated();
+	void notifyRayTracedSceneMutated();
 	// Animation playback/scrubbing is also a scene mutation, but for the GPU
 	// backend we want to drive the live interactive PT path with those new
 	// revisions instead of unconditionally dropping to raster/PBR. Falls back
-	// to notifyPathTracedSceneMutated()'s original teardown behavior if the
+	// to notifyRayTracedSceneMutated()'s original teardown behavior if the
 	// interactive GPU path can't be restarted/refreshed.
-	void notifyPathTracedAnimationMutated();
+	void notifyRayTracedAnimationMutated();
 
-	// User-adjustable PT quality settings (PathTracingDialog) - stored here
+	// User-adjustable PT quality settings (RtRenderDialog) - stored here
 	// rather than pushed straight into _rtSession/CpuPathTracer::Settings so
 	// they survive across arm/disarm and apply to the NEXT
-	// startPathTracedSession() call, same lifecycle as every other snapshot
+	// startRayTracedSession() call, same lifecycle as every other snapshot
 	// input it already reads fresh from _renderCtrl/_viewCtrl each call.
-	void setPathTracingMaxSamples(uint32_t maxSamples) { _ptMaxSamples = maxSamples > 0 ? maxSamples : 1; }
-	void setPathTracingMaxBounces(int maxBounces) { _ptMaxBounces = std::max(1, maxBounces); }
-	uint32_t pathTracingMaxSamples() const { return _ptMaxSamples; }
-	int pathTracingMaxBounces() const { return _ptMaxBounces; }
+	void setRayTracingMaxSamples(uint32_t maxSamples) { _ptMaxSamples = maxSamples > 0 ? maxSamples : 1; }
+	void setRayTracingMaxBounces(int maxBounces) { _ptMaxBounces = std::max(1, maxBounces); }
+	uint32_t rayTracingMaxSamples() const { return _ptMaxSamples; }
+	int rayTracingMaxBounces() const { return _ptMaxBounces; }
 
-	// Advanced settings - see CpuPathTracer::Settings/RtPathTracingSession
+	// Advanced settings - see CpuPathTracer::Settings/RtRayTracingSession
 	// for what each one actually controls.
-	void setPathTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
-	void setPathTracingDenoiserDevicePreference(DenoiserDevicePreference preference) { _ptDenoiserDevicePreference = preference; }
-	DenoiserDevicePreference pathTracingDenoiserDevicePreference() const { return _ptDenoiserDevicePreference; }
+	void setRayTracingDenoiserEnabled(bool enabled) { _ptDenoiserEnabled = enabled; }
+	void setRayTracingDenoiserDevicePreference(DenoiserDevicePreference preference) { _ptDenoiserDevicePreference = preference; }
+	DenoiserDevicePreference rayTracingDenoiserDevicePreference() const { return _ptDenoiserDevicePreference; }
 	// Switching engines mid-session used to leave the OLD engine's already-
 	// converged (and now stale) frame on screen - this setter used to be a
 	// plain field assignment, never stopping the old session/invalidating
@@ -455,20 +455,20 @@ public:
 	// models of different sizes" on screen at once. notifyEngineSwitch()
 	// immediately stops both sessions and invalidates the presenter (clearing
 	// the stale frame, falling back to the live raster), then
-	// startPathTracedSession() re-renders with the new engine right away
+	// startRayTracedSession() re-renders with the new engine right away
 	// instead of waiting for the idle-settle countdown (that debounce exists
 	// for rapid camera interaction, not a single explicit menu choice).
-	void setPathTracingEnginePreference(RtPathTracingEnginePreference preference)
+	void setRayTracingEnginePreference(RtRayTracingEnginePreference preference)
 	{
 		if (_ptEnginePreference == preference)
 			return;
 		_ptEnginePreference = preference;
 		if (!_rtInteractionCtrl->armed())
-			return; // not in path-traced mode right now - just remember the preference for next time
+			return; // not in ray-traced mode right now - just remember the preference for next time
 		_rtInteractionCtrl->notifyEngineSwitch();
 		update();
 	}
-	RtPathTracingEnginePreference pathTracingEnginePreference() const { return _ptEnginePreference; }
+	RtRayTracingEnginePreference rayTracingEnginePreference() const { return _ptEnginePreference; }
 	// Resolves Auto to a concrete CPU/GPU choice - GPU if this document's
 	// OptiX tracer initialized successfully, CPU otherwise. Cheap: _ptOptixSession's
 	// RtOptixSceneTracer already ran the real cudaFree(0)/optixInit()/device-
@@ -478,9 +478,9 @@ public:
 	// bool, not probing anything new. Every render-path branch below reads
 	// THIS, never _ptEnginePreference directly, so Auto never needs handling
 	// at individual call sites - CPU and GPU remain the only two real
-	// backends as far as rendering code is concerned. pathTracingEnginePreference()
+	// backends as far as rendering code is concerned. rayTracingEnginePreference()
 	// above still returns the RAW (possibly Auto) preference, since
-	// PathTracingDialog's combo box needs to keep showing "Auto" as what the
+	// RtRenderDialog's combo box needs to keep showing "Auto" as what the
 	// user actually chose, not silently normalize it to whatever it resolved to.
 	//
 	// NOT the reference point for DenoiserDevicePreference::OptiX - unlike the
@@ -489,68 +489,68 @@ public:
 	// engine actually produced the frame, so _ptDenoiserDevicePreference is
 	// forwarded to both _rtSession and _ptOptixSession as-is (see the
 	// setDenoiserDevicePreference() call sites in ViewportWidget.cpp).
-	RtPathTracingEnginePreference effectivePathTracingEnginePreference() const
+	RtRayTracingEnginePreference effectiveRayTracingEnginePreference() const
 	{
-		if (_ptEnginePreference == RtPathTracingEnginePreference::Auto)
-			return _ptOptixSession.isAvailable() ? RtPathTracingEnginePreference::GPU : RtPathTracingEnginePreference::CPU;
+		if (_ptEnginePreference == RtRayTracingEnginePreference::Auto)
+			return _ptOptixSession.isAvailable() ? RtRayTracingEnginePreference::GPU : RtRayTracingEnginePreference::CPU;
 		return _ptEnginePreference;
 	}
-	void setPathTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
-	void setPathTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
-	void setPathTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
-	void setPathTracingRussianRouletteStartDepth(int depth) { _ptRussianRouletteStartDepth = std::max(1, depth); }
+	void setRayTracingEnvImportanceSamplingEnabled(bool enabled) { _ptEnvImportanceSamplingEnabled = enabled; }
+	void setRayTracingFireflyClampThreshold(float threshold) { _ptFireflyClampThreshold = std::max(0.01f, threshold); }
+	void setRayTracingMaxTransmissionBounces(int maxBounces) { _ptMaxTransmissionBounces = std::max(1, maxBounces); }
+	void setRayTracingRussianRouletteStartDepth(int depth) { _ptRussianRouletteStartDepth = std::max(1, depth); }
 	// KHR_materials_volume_scatter's free-flight random walk's own, separate
 	// scatter-event budget - see CpuPathTracer::Settings::maxVolumeScatterBounces's
 	// doc comment.
-	void setPathTracingMaxVolumeScatterBounces(int maxBounces) { _ptMaxVolumeScatterBounces = std::max(1, maxBounces); }
+	void setRayTracingMaxVolumeScatterBounces(int maxBounces) { _ptMaxVolumeScatterBounces = std::max(1, maxBounces); }
 	// CPU (Embree) only - see CpuPathTracer::Settings::maxShadowRayHits' doc
 	// comment for why GPU (OptiX) has no equivalent setting.
-	void setPathTracingMaxShadowRayHits(int hits) { _ptMaxShadowRayHits = std::max(1, hits); }
-	bool pathTracingDenoiserEnabled() const { return _ptDenoiserEnabled; }
-	bool pathTracingEnvImportanceSamplingEnabled() const { return _ptEnvImportanceSamplingEnabled; }
-	float pathTracingFireflyClampThreshold() const { return _ptFireflyClampThreshold; }
-	int pathTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
-	int pathTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
-	int pathTracingMaxShadowRayHits() const { return _ptMaxShadowRayHits; }
-	int pathTracingMaxVolumeScatterBounces() const { return _ptMaxVolumeScatterBounces; }
+	void setRayTracingMaxShadowRayHits(int hits) { _ptMaxShadowRayHits = std::max(1, hits); }
+	bool rayTracingDenoiserEnabled() const { return _ptDenoiserEnabled; }
+	bool rayTracingEnvImportanceSamplingEnabled() const { return _ptEnvImportanceSamplingEnabled; }
+	float rayTracingFireflyClampThreshold() const { return _ptFireflyClampThreshold; }
+	int rayTracingMaxTransmissionBounces() const { return _ptMaxTransmissionBounces; }
+	int rayTracingRussianRouletteStartDepth() const { return _ptRussianRouletteStartDepth; }
+	int rayTracingMaxShadowRayHits() const { return _ptMaxShadowRayHits; }
+	int rayTracingMaxVolumeScatterBounces() const { return _ptMaxVolumeScatterBounces; }
 
-	// Applies the user's persisted PT settings (QSettings "pathtracing/*"
-	// keys - same keys PathTracingDialog::saveSettings() writes) on top of
+	// Applies the user's persisted PT settings (QSettings "raytracing/*"
+	// keys - same keys RtRenderDialog::saveSettings() writes) on top of
 	// whatever these members currently hold, narrowing/leaving each one
 	// untouched if its key was never saved. Called once unconditionally from
-	// the constructor - NOT only from PathTracingDialog::loadSettings() (that
+	// the constructor - NOT only from RtRenderDialog::loadSettings() (that
 	// still calls this too, so re-opening the dialog picks up any changes
-	// made outside it) - because Path Tracing can trigger via the idle timer
+	// made outside it) - because Ray Tracing can trigger via the idle timer
 	// without the dialog ever having been opened in the session, which
 	// previously left every setting pinned to its hardcoded default (e.g.
 	// _ptMaxSamples's 16) until the user happened to open it once.
-	void loadPathTracingSettingsFromDisk();
+	void loadRayTracingSettingsFromDisk();
 
 	// True when the most recently built PT scene combines orthographic
 	// projection with a thin-walled transmissive material (KHR_materials_
 	// transmission without KHR_materials_volume) - a genuine mathematical
 	// degenerate case (every pixel samples the same environment direction,
-	// see startPathTracedSession()'s detection), not a bug. PathTracingDialog
+	// see startRayTracedSession()'s detection), not a bug. RtRenderDialog
 	// surfaces this so the user understands why such glass looks flat
 	// instead of assuming the renderer is broken.
-	bool pathTracingOrthoThinWallWarningActive() const { return _ptOrthoThinWallWarningActive; }
+	bool rayTracingOrthoThinWallWarningActive() const { return _ptOrthoThinWallWarningActive; }
 
-	// Progress snapshot for PathTracingDialog's poll timer - current/target
+	// Progress snapshot for RtRenderDialog's poll timer - current/target
 	// sample counts and whether the worker is still running. Cheap (no frame
-	// copy) - see RtPathTracingSession::currentSampleCount(). Reads from
+	// copy) - see RtRayTracingSession::currentSampleCount(). Reads from
 	// whichever backend's session is actually the active one, so the
 	// progress bar/elapsed-time display works identically for both engines.
-	void pathTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
+	void rayTracingProgress(uint32_t& outCurrentSamples, uint32_t& outTargetSamples, bool& outRunning) const
 	{
-		const bool gpu = effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU;
-		if (gpu && _pathTracedInteractiveActive)
+		const bool gpu = effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU;
+		if (gpu && _rayTracedInteractiveActive)
 		{
 			outCurrentSamples = _rtInteractiveRenderer.currentSampleCount();
 			outTargetSamples  = _rtInteractiveRenderer.maxSampleCount();
 			outRunning        = _rtInteractiveRenderer.isFrameInFlight() || outCurrentSamples < outTargetSamples;
 			return;
 		}
-		if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+		if (effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU)
 		{
 			outCurrentSamples = _ptOptixSession.currentSampleCount();
 			outTargetSamples  = _ptOptixSession.maxSamples();
@@ -562,17 +562,17 @@ public:
 		outRunning        = _rtSession.isRunning();
 	}
 
-	// Snapshot of everything PathTracingDialog's Diagnostics tab displays -
+	// Snapshot of everything RtRenderDialog's Diagnostics tab displays -
 	// see the diagnostics-tab feature notes for the field list this mirrors
 	// (Renderer/GPU/Traversal/Denoiser, Resolution/Triangles/BLAS-TLAS build
 	// time/samples-per-sec/render time). Deliberately a single call rather
-	// than several small accessors, so PathTracingDialog can gate ALL of it
+	// than several small accessors, so RtRenderDialog can gate ALL of it
 	// behind "is the Diagnostics tab actually the visible one right now" at
 	// one call site instead of several - every field read here is already
 	// cheap/precomputed (see RtOptixSceneTracer's own diagnostics accessors'
 	// doc comments), but there's still no reason to touch any of it, even
 	// this cheaply, while the tab isn't on screen to show it.
-	struct PathTracingDiagnostics
+	struct RayTracingDiagnostics
 	{
 		bool gpuEngineActive = false;
 		QString rendererName;   // "OptiX (GPU)" or "Embree (CPU)"
@@ -582,25 +582,25 @@ public:
 		QString denoiserName;
 		int width = 0;
 		int height = 0;
-		bool triangleCountKnown = false; // false while the CPU engine is active - see pathTracingDiagnostics()'s doc comment
+		bool triangleCountKnown = false; // false while the CPU engine is active - see rayTracingDiagnostics()'s doc comment
 		uint64_t triangleCount = 0;
 		bool buildTimesKnown = false; // false while the CPU engine is active - BLAS/TLAS are OptiX-only concepts
 		double gasBuildMs = 0.0;
 		double iasBuildMs = 0.0;
 		uint32_t currentSamples = 0;
 		uint32_t targetSamples = 0;
-		// Deliberately no elapsedMs field here: pathTracingElapsedMs() is a
+		// Deliberately no elapsedMs field here: rayTracingElapsedMs() is a
 		// live, never-reset session clock that keeps ticking after Stop is
 		// pressed - callers computing a rate (samples/sec, render time) MUST
-		// use PathTracingDialog's own frozen-on-stop elapsed value (see
+		// use RtRenderDialog's own frozen-on-stop elapsed value (see
 		// onProgressTimer()'s _frozenElapsedMs) instead, or those rates would
 		// keep sliding toward zero forever after rendering actually stops.
 	};
-	PathTracingDiagnostics pathTracingDiagnostics() const
+	RayTracingDiagnostics rayTracingDiagnostics() const
 	{
-		PathTracingDiagnostics d;
-		const bool gpu = effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU;
-		const bool interactiveGpu = gpu && _pathTracedInteractiveActive;
+		RayTracingDiagnostics d;
+		const bool gpu = effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU;
+		const bool interactiveGpu = gpu && _rayTracedInteractiveActive;
 		d.gpuEngineActive = gpu;
 		d.rendererName    = gpu ? QStringLiteral("OptiX (GPU)") : QStringLiteral("Embree (CPU)");
 		const RtOptixSceneTracer& gpuTracer = interactiveGpu ? _rtInteractiveTracer : _ptOptixSession.tracer();
@@ -618,22 +618,22 @@ public:
 		d.gasBuildMs      = gpu ? gpuTracer.lastGasBuildMs() : 0.0;
 		d.iasBuildMs      = gpu ? gpuTracer.lastIasBuildMs() : 0.0;
 		bool running = false;
-		pathTracingProgress(d.currentSamples, d.targetSamples, running);
+		rayTracingProgress(d.currentSamples, d.targetSamples, running);
 		return d;
 	}
 
 	// Milliseconds since the CURRENTLY active PT session actually began -
 	// _ptSessionElapsedTimer is (re)started at the single place a session
-	// really starts (startPathTracedSession()/startOptixTestPathTracedSession()),
+	// really starts (startRayTracedSession()/startOptixTestRayTracedSession()),
 	// regardless of what triggered it: the dialog's own Render button, a
-	// keyboard shortcut toggling path-traced mode directly, or an automatic
-	// camera-settle restart. PathTracingDialog reads this directly instead of
+	// keyboard shortcut toggling ray-traced mode directly, or an automatic
+	// camera-settle restart. RtRenderDialog reads this directly instead of
 	// running its own independent clock that only starts once the dialog
 	// happens to be open and polling - a dialog opened AFTER a shortcut-
 	// triggered session was already well underway previously had no way to
 	// know that, and showed elapsed time counting up from 0 instead of the
 	// session's real age.
-	qint64 pathTracingElapsedMs() const { return _ptSessionElapsedTimer.isValid() ? _ptSessionElapsedTimer.elapsed() : 0; }
+	qint64 rayTracingElapsedMs() const { return _ptSessionElapsedTimer.isValid() ? _ptSessionElapsedTimer.elapsed() : 0; }
 
 	// Whether whichever backend's session is CURRENTLY the active one
 	// (per _ptEnginePreference) is running - used by the paintGL()/
@@ -643,28 +643,28 @@ public:
 	// GPU is selected (that backend never touches _rtSession at all), making
 	// both watchdogs think a build-in-progress GPU session was "stuck idle"
 	// and restart it on every single paint call - each restart calling
-	// RtOptixPathTracingSession::stop() first, which kills whatever
+	// RtOptixRayTracingSession::stop() first, which kills whatever
 	// buildScene()/first-chunk-render was already in flight, so the session
 	// could never actually finish and publish its first frame. A real,
 	// previously-unnoticed bug once the GPU path moved from one blocking
 	// optixLaunch() (where hasFrame() flipped true near-instantly, before
 	// paintGL() got a chance to see otherwise) to a background progressive
 	// session with real build/first-chunk latency.
-	// _pathTracedInteractiveActive covers the continuous interactive
+	// _rayTracedInteractiveActive covers the continuous interactive
 	// accumulator (RtInteractiveRenderer has no worker thread/isRunning() of
 	// its own - it's driven from paintGL() - so "running" for it just means
 	// "armed and already given at least one camera pose", the same flag
-	// startInteractivePathTracedGpuSession() sets). Without this, the
+	// startInteractiveRayTracedGpuSession() sets). Without this, the
 	// app-reactivation/visibility-change watchdogs below would see
 	// _ptOptixSession.isRunning()==false (correctly - it's no longer used
 	// for auto-interaction, see RtInteractionController::notifyCameraInteracting()'s
 	// GPU branch) and
 	// wrongly conclude nothing is running, restarting the settled session
 	// redundantly alongside the interactive one that's already live.
-	bool pathTracedSessionRunning() const
+	bool rayTracedSessionRunning() const
 	{
-		return effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU
-			? (_ptOptixSession.isRunning() || _pathTracedInteractiveActive)
+		return effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU
+			? (_ptOptixSession.isRunning() || _rayTracedInteractiveActive)
 			: _rtSession.isRunning();
 	}
 
@@ -675,12 +675,12 @@ public:
 	// frame, read back on demand through _rtInteractiveTracer. RtPresenter's
 	// tonemap only happens at PRESENT time in the display shader, so none of
 	// these paths mutate the underlying linear radiance buffer.
-	std::vector<glm::vec3> pathTracingRawFrame(int& outWidth, int& outHeight) const
+	std::vector<glm::vec3> rayTracingRawFrame(int& outWidth, int& outHeight) const
 	{
 		uint32_t sampleCount = 0;
-		if (effectivePathTracingEnginePreference() == RtPathTracingEnginePreference::GPU)
+		if (effectiveRayTracingEnginePreference() == RtRayTracingEnginePreference::GPU)
 		{
-			if (_pathTracedInteractiveActive)
+			if (_rayTracedInteractiveActive)
 			{
 				RtCamera frameCamera;
 				uint64_t generation = 0;
@@ -700,29 +700,29 @@ public:
 		return _rtSession.latestFrame(outWidth, outHeight, sampleCount);
 	}
 
-	// Arms Path Traced mode AND starts tracing immediately, rather than
-	// waiting for the idle-settle countdown armPathTracedRenderingMode()
-	// alone leaves running - PathTracingDialog's "Render" button wants the
+	// Arms Ray Traced mode AND starts tracing immediately, rather than
+	// waiting for the idle-settle countdown armRayTracedRenderingMode()
+	// alone leaves running - RtRenderDialog's "Render" button wants the
 	// press to visibly start work right away, not after a camera-idle delay
 	// that may never arrive if the user isn't touching the viewport at all.
-	void requestPathTracedRenderNow()
+	void requestRayTracedRenderNow()
 	{
-		// See armPathTracedRenderingMode()'s doc comment for why false here -
-		// startPathTracedSession() right below is about to start the real
+		// See armRayTracedRenderingMode()'s doc comment for why false here -
+		// startRayTracedSession() right below is about to start the real
 		// settled session regardless of engine, tearing down anything the
 		// interactive path just started.
-		armPathTracedRenderingMode(/*startInteractiveSessionNow=*/false);
-		startPathTracedSession();
+		armRayTracedRenderingMode(/*startInteractiveSessionNow=*/false);
+		startRayTracedSession();
 	}
 
 	// Renders and returns the current frame with the axis triad/view cube/
-	// mesh-count HUD overlays suppressed - for PathTracingDialog's Export,
-	// which wants exactly the composited raster+path-traced pixels, not a
+	// mesh-count HUD overlays suppressed - for RtRenderDialog's Export,
+	// which wants exactly the composited raster+ray-traced pixels, not a
 	// viewport screenshot. Triggers a real synchronous re-paint (via
 	// QOpenGLWidget::grabFramebuffer(), which paintGL() then sees
 	// _capturingCleanFrame set for) rather than reading back whatever was
 	// last on screen, then restores normal HUD-visible display afterward.
-	QImage captureCleanPathTracedImage()
+	QImage captureCleanRayTracedImage()
 	{
 		_capturingCleanFrame = true;
 		QImage img = grabFramebuffer();
@@ -732,12 +732,12 @@ public:
 	}
 
 	// Current on-screen device-pixel resolution - same fbWidth/fbHeight
-	// computation startPathTracedSession() uses. PathTracingDialog compares
+	// computation startRayTracedSession() uses. RtRenderDialog compares
 	// its requested export resolution against this to decide whether a
 	// downscale of the already-converged frame is enough (fast path) or a
-	// fresh renderPathTracedOffline() call is needed (requested resolution
+	// fresh renderRayTracedOffline() call is needed (requested resolution
 	// exceeds this in either dimension).
-	void pathTracingViewportResolution(int& outWidth, int& outHeight) const
+	void rayTracingViewportResolution(int& outWidth, int& outHeight) const
 	{
 		const qreal dpr = devicePixelRatioF();
 		outWidth  = static_cast<int>(width()  * dpr);
@@ -745,11 +745,11 @@ public:
 	}
 
 	// Live tonemap settings - same values passed to _rtPresenter.draw() for
-	// on-screen display. PathTracingDialog's offline export path needs
+	// on-screen display. RtRenderDialog's offline export path needs
 	// these directly (see RtTonemap.h) since it never touches the GPU/
 	// RtPresenter at all, unlike the fast path which just grabs the
 	// already-tonemapped framebuffer.
-	void pathTracingToneMapSettings(bool& outHdrToneMapping, bool& outGammaCorrection,
+	void rayTracingToneMapSettings(bool& outHdrToneMapping, bool& outGammaCorrection,
 		float& outScreenGamma, float& outIblExposure, int& outToneMapMode) const
 	{
 		outHdrToneMapping  = _renderCtrl.hdrToneMapping();
@@ -759,43 +759,43 @@ public:
 		outToneMapMode     = static_cast<int>(_renderCtrl.toneMappingMode());
 	}
 
-	// Blocking offline path-traced render at an arbitrary resolution,
+	// Blocking offline ray-traced render at an arbitrary resolution,
 	// decoupled entirely from the interactive session/viewport (see
-	// buildPathTracedSnapshot()'s doc comment for the shared setup logic,
-	// and PathTracingDialog::onExportClicked() for when this is used vs the
+	// buildRayTracedSnapshot()'s doc comment for the shared setup logic,
+	// and RtRenderDialog::onExportClicked() for when this is used vs the
 	// fast downscale-existing-frame path). Dispatches to CPU (RtEmbreeScene/
-	// CpuPathTracer) or GPU (renderPathTracedOfflineGpu(), RtOptixSceneTracer)
+	// CpuPathTracer) or GPU (renderRayTracedOfflineGpu(), RtOptixSceneTracer)
 	// based on _ptEnginePreference - same engine the interactive viewport is
 	// currently using. Genuinely blocks the calling thread for the whole
 	// render - no worker thread - per an explicit call that a blocking
 	// offline export is acceptable; the caller is expected to pump
 	// QApplication::processEvents() (WITHOUT ExcludeUserInputEvents - see
-	// cancelPathTracedOfflineRender()'s doc comment for why) from onProgress
+	// cancelRayTracedOfflineRender()'s doc comment for why) from onProgress
 	// to keep the UI visually responsive and let a cancel request actually
 	// reach this call. onProgress is called once per completed sample with
 	// (currentSample, maxSamples). Returns false (outLinearRgb left
 	// untouched) if the scene/camera isn't ready to render at all, or (GPU
 	// only) if OptiX isn't available on this machine. outCancelled, if
 	// non-null, is set true when the render stopped early because
-	// cancelPathTracedOfflineRender() was called mid-render - a false
+	// cancelRayTracedOfflineRender() was called mid-render - a false
 	// return with outCancelled set is not a failure and shouldn't be
 	// reported as one.
-	bool renderPathTracedOffline(int width, int height,
+	bool renderRayTracedOffline(int width, int height,
 		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
 		std::vector<glm::vec3>& outLinearRgb, bool* outCancelled = nullptr);
 
-	// Requests that an in-progress renderPathTracedOffline() stop at the
+	// Requests that an in-progress renderRayTracedOffline() stop at the
 	// next opportunity (next sample boundary on GPU, next scanline on CPU -
 	// see CpuPathTracer::renderPass()'s own cancelFlag doc comment) rather
 	// than running to completion. Safe to call from a Qt slot invoked via
-	// QApplication::processEvents() while renderPathTracedOffline() is
+	// QApplication::processEvents() while renderRayTracedOffline() is
 	// still blocking the calling thread further up the same call stack -
 	// this is the ONLY way a click can reach that call at all, since it
 	// never returns to the event loop on its own until done or cancelled.
 	// No-op if no offline render is currently in progress (the flag is
-	// reset at the start of every renderPathTracedOffline() call, so a
+	// reset at the start of every renderRayTracedOffline() call, so a
 	// stale request can't affect a later, unrelated one).
-	void cancelPathTracedOfflineRender() { _ptOfflineCancelRequested.store(true, std::memory_order_release); }
+	void cancelRayTracedOfflineRender() { _ptOfflineCancelRequested.store(true, std::memory_order_release); }
 
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
 	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
@@ -992,25 +992,25 @@ public slots:
 	bool isGammaCorrectionEnabled() const { return _renderCtrl.gammaCorrection(); }
 	HDRToneMapMode getHDRToneMappingMode() const { return _renderCtrl.toneMappingMode(); }
 	void showLights(bool showLights);
-	// notifyPathTracedSceneMutated() (NOT just notifyCameraInteracting()/
-	// notifySceneContentMutated()): both feed buildPathTracedSnapshot()'s
-	// light list fresh on every call, which is enough for CPU (RtPathTracingSession::
+	// notifyRayTracedSceneMutated() (NOT just notifyCameraInteracting()/
+	// notifySceneContentMutated()): both feed buildRayTracedSnapshot()'s
+	// light list fresh on every call, which is enough for CPU (RtRayTracingSession::
 	// start() unconditionally rebuilds its Embree scene every restart), but
-	// RtOptixPathTracingSession::start() only re-uploads its lights buffer
+	// RtOptixRayTracingSession::start() only re-uploads its lights buffer
 	// (inside buildScene()) when snapshot->revisionId actually changed - a
 	// bare idle-timer restart with the SAME revision reuses the GPU's stale
 	// lights buffer. Bumping the revision forces both engines to pick up the
 	// new light set. Toggling either previously only triggered a raster
-	// update(), leaving a path-traced session showing a stale frame with the
+	// update(), leaving a ray-traced session showing a stale frame with the
 	// old light set until some unrelated event (camera move, etc.) happened
 	// to restart it.
 	// refreshFallbackLight() re-evaluates the persistent PunctualLights
 	// fallback entry against the new useDefaultLights() value (see its own
 	// doc comment) - without this call, toggling the checkbox never
 	// created/cleared that entry at all, only ever affecting
-	// buildPathTracedSnapshot()'s separately-recomputed keyLight.
-	void useDefaultLights(bool useDefaultLights) { _renderCtrl.setUseDefaultLights(useDefaultLights); refreshFallbackLight(); notifyPathTracedSceneMutated(); update(); }
-	void usePunctualLights(bool usePunctualLights) { _renderCtrl.setUsePunctualLights(usePunctualLights); notifyPathTracedSceneMutated(); update(); }
+	// buildRayTracedSnapshot()'s separately-recomputed keyLight.
+	void useDefaultLights(bool useDefaultLights) { _renderCtrl.setUseDefaultLights(useDefaultLights); refreshFallbackLight(); notifyRayTracedSceneMutated(); update(); }
+	void usePunctualLights(bool usePunctualLights) { _renderCtrl.setUsePunctualLights(usePunctualLights); notifyRayTracedSceneMutated(); update(); }
 
 	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
 	// sync the hasPunctualLights / lightCount shader uniforms in one call.
@@ -1412,49 +1412,49 @@ private:
 	QRubberBand* _selectRect;
 	QTimer* _inertiaTimer        = nullptr;
 
-	// ---- Path-traced rendering mode -----------------------------------------
+	// ---- Ray-traced rendering mode -----------------------------------------
 	// _rtSession/_rtPresenter own the actual background tracing/presentation;
 	// this widget only arms/disarms them and feeds them a fresh RtSceneSnapshot
-	// on settle - see armPathTracedRenderingMode()/onPathTracedIdleTimeout().
-	RtPathTracingSession _rtSession;
+	// on settle - see armRayTracedRenderingMode()/onRayTracedIdleTimeout().
+	RtRayTracingSession _rtSession;
 	RtPresenter          _rtPresenter;
-	QTimer*  _pathTracedIdleTimer    = nullptr; // reset on every camera-affecting event
-	QTimer*  _pathTracedRefreshTimer = nullptr; // periodically repaints while a trace is running
+	QTimer*  _rayTracedIdleTimer    = nullptr; // reset on every camera-affecting event
+	QTimer*  _rayTracedRefreshTimer = nullptr; // periodically repaints while a trace is running
 	// Debounced GAS/IAS rebuild + interactive warm-up, armed by
 	// RtInteractionController every time the interactive accumulator
-	// gets torn down while path tracing stays armed (a scene mutation, a scripted
+	// gets torn down while ray tracing stays armed (a scene mutation, a scripted
 	// view animation, a real resize, hiding/showing this widget's MDI
 	// document, ...) - single-shot, restarted on every teardown so a burst of
 	// rapid events (e.g. a slider being dragged in VisualizationEnvironmentPanel)
 	// only pays the rebuild once, after the burst actually settles, rather
-	// than once per tick. See onPathTracedResumeWarmUpTimeout()'s own doc
-	// comment for the full rationale and kPathTracedResumeWarmUpDebounceMs in
+	// than once per tick. See onRayTracedResumeWarmUpTimeout()'s own doc
+	// comment for the full rationale and kRayTracedResumeWarmUpDebounceMs in
 	// ViewportWidget.cpp for the debounce interval.
-	QTimer*  _pathTracedResumeWarmUpTimer = nullptr;
+	QTimer*  _rayTracedResumeWarmUpTimer = nullptr;
 	// Owns the GPU interactive-PT settle/resume STATE MACHINE - see its own
-	// class doc comment. Sole source of truth for "is path tracing armed"
-	// (isPathTracedRenderingModeArmed() now just forwards to armed()); the
-	// old standalone _pathTracedArmed bool was removed so the two could never
+	// class doc comment. Sole source of truth for "is ray tracing armed"
+	// (isRayTracedRenderingModeArmed() now just forwards to armed()); the
+	// old standalone _rayTracedArmed bool was removed so the two could never
 	// drift apart. Constructed in the ctor body (not the initializer list)
-	// once _pathTracedIdleTimer/_pathTracedResumeWarmUpTimer actually exist -
+	// once _rayTracedIdleTimer/_rayTracedResumeWarmUpTimer actually exist -
 	// raw owning pointer, deleted in ~ViewportWidget(), since
 	// RtInteractionController is a plain (non-QObject) class and so
 	// can't be parented into Qt's object tree the way the two timers are.
 	RtInteractionController* _rtInteractionCtrl = nullptr;
-	uint64_t _pathTracedSceneRevision = 1;
-	int      _pathTracedFramebufferWidth = 0;
-	int      _pathTracedFramebufferHeight = 0;
+	uint64_t _rayTracedSceneRevision = 1;
+	int      _rayTracedFramebufferWidth = 0;
+	int      _rayTracedFramebufferHeight = 0;
 	bool     _preservePtPresenterOnNextStart = false;
 	RtCamera _rtInteractivePreviewCamera;
 	bool     _rtInteractivePreviewCameraValid = false;
 
 	// True while _rtInteractiveRenderer is the live GPU/OptiX continuous
 	// accumulator (see RtInteractiveRenderer's class doc comment) - set by
-	// startInteractivePathTracedGpuSession(), which RtInteractionController
+	// startInteractiveRayTracedGpuSession(), which RtInteractionController
 	// calls on every camera-affecting event for GPU. There is no more
 	// "promote to a different, full-quality session on settle" - the same
 	// accumulator just keeps converging/denoising in place once the camera
-	// holds still (onPathTracedIdleTimeout() is a GPU no-op now). Cleared
+	// holds still (onRayTracedIdleTimeout() is a GPU no-op now). Cleared
 	// false by RtInteractionController::notifySceneContentMutated()'s
 	// hard-invalidate branch (a scene mutation, or switching to the
 	// CPU/Embree engine) and by hideEvent()
@@ -1462,8 +1462,8 @@ private:
 	// doesn't clear this itself - see hideEvent()'s own doc comment for why
 	// leaving it true there was a real bug, not just an oversight).
 	// GPU/OptiX only - CPU/Embree never sets this.
-	bool  _pathTracedInteractiveActive  = false;
-	// Throttles startInteractivePathTracedGpuSession()'s SLOW path only (a
+	bool  _rayTracedInteractiveActive  = false;
+	// Throttles startInteractiveRayTracedGpuSession()'s SLOW path only (a
 	// real ensureSceneResources()+resize() with a rebuilt snapshot - the
 	// first tick of a new interactive burst, or a mid-drag resolution
 	// change) - the fast path (RtInteractiveRenderer::updateCamera(), used
@@ -1472,24 +1472,24 @@ private:
 	qint64 _lastInteractiveGpuRestartMs = 0;
 	// Wall-clock timestamp (QDateTime::currentMSecsSinceEpoch()) of the last
 	// genuine RtInteractionController::notifyCameraInteracting() call -
-	// see onPathTracedIdleTimeout()'s doc comment for why this exists: Qt's
+	// see onRayTracedIdleTimeout()'s doc comment for why this exists: Qt's
 	// QTimer can be throttled/coalesced by the OS under heavy GUI-thread load
 	// (dragging + GPU launches + presenter uploads is exactly that), so the
 	// 450ms single-shot idle timer firing is not, by itself, reliable proof
 	// that 450ms of genuine idleness actually passed - it can fire late AND,
 	// under coalescing, effectively "early" relative to the last real
-	// interaction once the event loop catches up. onPathTracedIdleTimeout()
+	// interaction once the event loop catches up. onRayTracedIdleTimeout()
 	// cross-checks against this before treating a timeout as a real settle.
 	qint64 _lastCameraInteractionMs = 0;
 
-	// User-adjustable PT quality settings - see setPathTracingMaxSamples()/
-	// setPathTracingMaxBounces()'s doc comments. Defaults match
-	// RtPathTracingSession/CpuPathTracer::Settings's own defaults exactly, so
-	// behavior is unchanged until a user actually opens PathTracingDialog and
+	// User-adjustable PT quality settings - see setRayTracingMaxSamples()/
+	// setRayTracingMaxBounces()'s doc comments. Defaults match
+	// RtRayTracingSession/CpuPathTracer::Settings's own defaults exactly, so
+	// behavior is unchanged until a user actually opens RtRenderDialog and
 	// changes them. _ptMaxSamples deliberately lower (16, not the old 128) -
 	// a fast, responsive default that still lets the live viewport refine
 	// quickly; the same spinBoxMaxSamples value also drives offline Export
-	// (see PathTracingDialog::onExportClicked()), so users doing a final
+	// (see RtRenderDialog::onExportClicked()), so users doing a final
 	// high-quality render should raise it there before exporting.
 	uint32_t _ptMaxSamples = 16;
 	int      _ptMaxBounces = 6;
@@ -1501,17 +1501,17 @@ private:
 	int      _ptMaxVolumeScatterBounces = 64;
 	int      _ptMaxShadowRayHits = 8; // CPU (Embree) only - matches CpuPathTracer::Settings::maxShadowRayHits' default
 	DenoiserDevicePreference _ptDenoiserDevicePreference = DenoiserDevicePreference::Auto;
-	RtPathTracingEnginePreference _ptEnginePreference = RtPathTracingEnginePreference::Auto;
-	RtOptixPathTracingSession _ptOptixSession; // GPU-backend counterpart to _rtSession above - see startOptixTestPathTracedSession()
+	RtRayTracingEnginePreference _ptEnginePreference = RtRayTracingEnginePreference::Auto;
+	RtOptixRayTracingSession _ptOptixSession; // GPU-backend counterpart to _rtSession above - see startOptixTestRayTracedSession()
 
 	// Same-frame, GPU-resident, non-blocking-submission interactive PT
 	// renderer (see its own doc comment) - this is the ONLY interactive GPU
 	// PT path; _ptOptixSession above is used exclusively for the settled/
 	// full-quality session now (its own former interactive half was retired
-	// once this renderer was proven - see RtOptixPathTracingSession.h's doc
+	// once this renderer was proven - see RtOptixRayTracingSession.h's doc
 	// comment). Owns a SEPARATE RtOptixSceneTracer instance (its own
 	// GAS/IAS/texture uploads, its own VRAM) rather than sharing
-	// _ptOptixSession's internal tracer - RtOptixPathTracingSession only
+	// _ptOptixSession's internal tracer - RtOptixRayTracingSession only
 	// exposes that as const (tracer(), a read-only diagnostics accessor),
 	// and even if it exposed a mutable one, having two independent
 	// revision-gated callers (_ptOptixSession's own workerLoop() and this
@@ -1525,7 +1525,7 @@ private:
 	RtOptixSceneTracer   _rtInteractiveTracer;
 	RtInteractiveRenderer _rtInteractiveRenderer{ _rtInteractiveTracer };
 	// Retained snapshot from the last slow-path rebuild (see
-	// startInteractivePathTracedGpuSession()) - unlike RtOptixPathTracingSession
+	// startInteractiveRayTracedGpuSession()) - unlike RtOptixRayTracingSession
 	// (which stores its own snapshot internally for workerLoop() to read),
 	// RtInteractiveRenderer is driven entirely from paintGL() and takes a
 	// snapshot only transiently (ensureSceneResources()), so ViewportWidget
@@ -1537,11 +1537,11 @@ private:
 	// whose generation it has already seen.
 	uint64_t _lastConsumedRtInteractiveRendererGeneration = 0;
 
-	bool     _ptOrthoThinWallWarningActive = false; // see pathTracingOrthoThinWallWarningActive()'s doc comment
-	QElapsedTimer _ptSessionElapsedTimer; // see pathTracingElapsedMs()'s doc comment
+	bool     _ptOrthoThinWallWarningActive = false; // see rayTracingOrthoThinWallWarningActive()'s doc comment
+	QElapsedTimer _ptSessionElapsedTimer; // see rayTracingElapsedMs()'s doc comment
 
-	// See cancelPathTracedOfflineRender()'s doc comment - reset to false at
-	// the start of every renderPathTracedOffline() call, checked between
+	// See cancelRayTracedOfflineRender()'s doc comment - reset to false at
+	// the start of every renderRayTracedOffline() call, checked between
 	// samples/chunks by that call and its GPU counterpart. Atomic even
 	// though everything touching it currently runs on the same (UI) thread
 	// - the whole point is that it's set from a Qt slot invoked via
@@ -1550,10 +1550,10 @@ private:
 	// concurrent-access pattern worth being explicit and correct about.
 	std::atomic<bool> _ptOfflineCancelRequested{ false };
 
-	// Set for the duration of a captureCleanPathTracedImage() call -
+	// Set for the duration of a captureCleanRayTracedImage() call -
 	// paintGL() checks this to suppress the axis triad/view cube/mesh-count
 	// HUD overlays (see their call sites) so an exported render contains
-	// only the composited raster+path-traced scene, matching what a render-
+	// only the composited raster+ray-traced scene, matching what a render-
 	// to-file export should look like rather than a viewport screenshot.
 	bool _capturingCleanFrame = false;
 
@@ -1566,7 +1566,7 @@ private:
 	// inertiaDamping() every tick), performKeyboardNav()'s held-key
 	// navigation - NOT resize or any scene-mutation call site, which all
 	// keep the default. For the GPU/OptiX backend only, true keeps a
-	// reduced-quality INTERACTIVE trace (startInteractivePathTracedGpuSession())
+	// reduced-quality INTERACTIVE trace (startInteractiveRayTracedGpuSession())
 	// live and tracking the camera instead of tearing down to raster.
 	//
 	// The per-frame PROGRAMMATIC animation callbacks - animateViewChange()/
@@ -1583,35 +1583,35 @@ private:
 	// ignores this flag entirely regardless of any of the above and always
 	// takes the original path, since it has no hardware RT acceleration to
 	// make a per-frame interactive trace realistic. See
-	// armPathTracedRenderingMode()'s doc comment for the user-visible summary.
-	void onPathTracedIdleTimeout();
-	void onPathTracedRefreshTimer();
-	void startPathTracedSession();
+	// armRayTracedRenderingMode()'s doc comment for the user-visible summary.
+	void onRayTracedIdleTimeout();
+	void onRayTracedRefreshTimer();
+	void startRayTracedSession();
 	// GPU/OptiX-only reduced-quality trace kicked off while the camera is
 	// actively moving - see RtInteractionController::notifyCameraInteracting()'s
 	// doc comment. The
 	// FIRST call of a new interactive burst does a real (throttled, see
 	// _lastInteractiveGpuRestartMs) RtInteractiveRenderer::ensureSceneResources()
 	// +resize(), reusing that class's own revision-gated GAS/IAS rebuild-skip
-	// (camera-only movement leaves _pathTracedSceneRevision unchanged); every
+	// (camera-only movement leaves _rayTracedSceneRevision unchanged); every
 	// subsequent call while that renderer is already at the right resolution
 	// instead takes a much cheaper path - RtInteractiveRenderer::
 	// updateCamera(), which needs neither a rebuilt scene snapshot nor any
 	// GPU work of its own - so it's cheap enough to call unthrottled on every
 	// mouse-move event. See RtInteractiveRenderer::updateCamera()'s doc
-	// comment for why that distinction matters (buildPathTracedSnapshot()'s
+	// comment for why that distinction matters (buildRayTracedSnapshot()'s
 	// synchronous environment-cubemap GPU readback, not the trace itself, was
 	// the real per-tick cost a naive always-restart approach used to pay).
 	// forceSceneRefresh=true is the animation path: if an interactive PT
 	// session is ALREADY live at the current resolution, rebuilds (or queues,
 	// if a launch is still in flight) a NEW scene snapshot against that SAME
 	// renderer instance instead of tearing it down and starting over.
-	void startInteractivePathTracedGpuSession(bool forceSceneRefresh = false);
+	void startInteractiveRayTracedGpuSession(bool forceSceneRefresh = false);
 
-	// Called unconditionally from the END of startInteractivePathTracedGpuSession()'s
+	// Called unconditionally from the END of startInteractiveRayTracedGpuSession()'s
 	// slow path - i.e. every time that path runs, regardless of which caller
-	// triggered it (armPathTracedRenderingMode(), the debounced
-	// onPathTracedResumeWarmUpTimeout(), or a genuine mouse-move/wheel event
+	// triggered it (armRayTracedRenderingMode(), the debounced
+	// onRayTracedResumeWarmUpTimeout(), or a genuine mouse-move/wheel event
 	// resuming the accumulator after some other teardown). Forces the FIRST
 	// interactive launch's one-time costs - GAS/IAS build (ensureSceneResources()
 	// only rebuilds when the scene snapshot's revision actually changed, which
@@ -1633,25 +1633,25 @@ private:
 	// path itself - rather than trusting each caller to remember to call it -
 	// closes that gap structurally: a short synchronous pause exactly when a
 	// rebuild happens, never a stale-pose snap once it's done. No-op if
-	// startInteractivePathTracedGpuSession() didn't actually start anything
+	// startInteractiveRayTracedGpuSession() didn't actually start anything
 	// (e.g. OptiX unavailable).
-	void warmUpInteractivePathTracedGpuSession();
+	void warmUpInteractiveRayTracedGpuSession();
 
 	// Tears down whichever GPU PT session(s) are currently active/converging
 	// - shared by RtInteractionController's Recovering-entry teardown,
-	// hideEvent(), and disarmPathTracedRenderingMode(), which previously each
+	// hideEvent(), and disarmRayTracedRenderingMode(), which previously each
 	// reimplemented this teardown slightly differently (see hideEvent()'s own
 	// doc comment for the bug that divergence caused). Does NOT touch
-	// _pathTracedArmed, _pathTracedIdleTimer, or _pathTracedResumeWarmUpTimer
+	// _rayTracedArmed, _rayTracedIdleTimer, or _rayTracedResumeWarmUpTimer
 	// - callers decide those independently based on their own context.
-	void teardownActivePathTracedSessions();
+	void teardownActiveRayTracedSessions();
 
-	// _pathTracedResumeWarmUpTimer's single-shot timeout - fires once a burst
+	// _rayTracedResumeWarmUpTimer's single-shot timeout - fires once a burst
 	// of teardowns goes quiet
-	// for kPathTracedResumeWarmUpDebounceMs. Re-enters
-	// startInteractivePathTracedGpuSession()'s slow path (rebuilding whatever
-	// the teardown invalidated) plus warmUpInteractivePathTracedGpuSession(),
-	// but ONLY when nothing is already running (!pathTracedSessionRunning())
+	// for kRayTracedResumeWarmUpDebounceMs. Re-enters
+	// startInteractiveRayTracedGpuSession()'s slow path (rebuilding whatever
+	// the teardown invalidated) plus warmUpInteractiveRayTracedGpuSession(),
+	// but ONLY when nothing is already running (!rayTracedSessionRunning())
 	// - if the user resumed dragging before this timer fired, the normal
 	// mouse-move path already restarted the interactive session itself (fast
 	// or slow path as appropriate), and re-triggering here would be redundant
@@ -1660,7 +1660,7 @@ private:
 	// fire while this widget is hidden (see hideEvent()'s call site) - the
 	// warm-up is pure CUDA/OptiX work with no GL-context/visibility
 	// dependency.
-	void onPathTracedResumeWarmUpTimeout();
+	void onRayTracedResumeWarmUpTimeout();
 
 	// Releases _rtInteractiveRenderer's GPU resources (stream, per-slot
 	// device/host buffers) and forgets its retained snapshot/generation
@@ -1680,31 +1680,31 @@ private:
 	// exactly what this does and doesn't render yet (real geometry/
 	// instancing/camera, flat-normal-as-color shading, no materials/lights/
 	// bounces). Rebuilds the GPU acceleration structure from the current
-	// snapshot (see buildPathTracedSnapshot()) and renders it through the
+	// snapshot (see buildRayTracedSnapshot()) and renders it through the
 	// real camera at the current framebuffer size, uploading the result
 	// through the same _rtPresenter the CPU path uses, so switching the
 	// Render Engine dropdown is directly comparable in the same viewport.
-	// Called from startPathTracedSession() instead of the real _rtSession
+	// Called from startRayTracedSession() instead of the real _rtSession
 	// setup when the GPU engine is selected.
-	void startOptixTestPathTracedSession(int fbWidth, int fbHeight);
+	void startOptixTestRayTracedSession(int fbWidth, int fbHeight);
 
-	// GPU-engine counterpart to renderPathTracedOffline()'s CPU path -
+	// GPU-engine counterpart to renderRayTracedOffline()'s CPU path -
 	// same blocking-until-done, own-fresh-scene-independent-of-the-live-
 	// session contract, just built on RtOptixSceneTracer instead of
-	// RtEmbreeScene/CpuPathTracer. Mirrors RtOptixPathTracingSession::
+	// RtEmbreeScene/CpuPathTracer. Mirrors RtOptixRayTracingSession::
 	// workerLoop()'s exact chunked running-mean accumulation + final-pass-
 	// only denoise (see that function's own doc comment for the numerics
 	// rationale), just as a plain synchronous loop in the calling thread
 	// rather than a background worker - offline export already blocks the
-	// whole application per renderPathTracedOffline()'s own contract, so
+	// whole application per renderRayTracedOffline()'s own contract, so
 	// there is no reason to pay for a worker thread + polling wait here.
-	bool renderPathTracedOfflineGpu(int width, int height, const RtSceneSnapshot& snapshot,
+	bool renderRayTracedOfflineGpu(int width, int height, const RtSceneSnapshot& snapshot,
 		const std::function<void(uint32_t currentSample, uint32_t maxSamples)>& onProgress,
 		std::vector<glm::vec3>& outLinearRgb, bool* outCancelled);
 
 	// Builds a fresh RtSceneSnapshot for the given OUTPUT resolution -
-	// shared by startPathTracedSession() (the interactive session) and
-	// renderPathTracedOffline() (blocking export at an arbitrary
+	// shared by startRayTracedSession() (the interactive session) and
+	// renderRayTracedOffline() (blocking export at an arbitrary
 	// resolution), so the light/environment/floor snapshot-building logic
 	// isn't duplicated between them. aspectRatio is recomputed from
 	// width/height rather than reusing the camera's own configured aspect,
@@ -1712,7 +1712,7 @@ private:
 	// viewport frames correctly instead of stretching the same framing.
 	// Also updates _ptOrthoThinWallWarningActive as a side effect (see its
 	// doc comment) - both callers want this detection to run.
-	std::shared_ptr<const RtSceneSnapshot> buildPathTracedSnapshot(int width, int height,
+	std::shared_ptr<const RtSceneSnapshot> buildRayTracedSnapshot(int width, int height,
 		const RtEnvironment* reusedEnvironment = nullptr);
 
 	// Selection manager instance (owns all selection logic and state)

@@ -63,7 +63,7 @@ public:
 
     // Current world-space light list (same data already bound to the raster
     // UBO via setLights()) - lets other consumers (RtSceneBuilder, for the
-    // path-traced display mode) read the exact same lights the raster pass
+    // ray-traced display mode) read the exact same lights the raster pass
     // uses, guaranteeing the two stay in sync without re-deriving anything.
     const std::vector<GPULight>& getLights() const { return lights; }
 

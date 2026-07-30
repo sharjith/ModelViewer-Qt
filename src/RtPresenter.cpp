@@ -33,9 +33,9 @@ bool RtPresenter::initialize(const QString& shaderBasePath)
 	_shader->setObjectName("_rtPresentShader");
 	if (!_shader->loadCompileAndLinkShaderFromFile(
 			shaderBasePath + "shaders/fullscreen_triangle.vert",
-			shaderBasePath + "shaders/path_traced_present.frag"))
+			shaderBasePath + "shaders/ray_traced_present.frag"))
 	{
-		qWarning() << "RtPresenter: failed to load/link path_traced_present shader:" << _shader->log();
+		qWarning() << "RtPresenter: failed to load/link ray_traced_present shader:" << _shader->log();
 		_shader.reset();
 		return false;
 	}
@@ -206,7 +206,7 @@ void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGa
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	_shader->bind();
-	// path_traced_present.frag computes uv = gl_FragCoord.xy / resolution -
+	// ray_traced_present.frag computes uv = gl_FragCoord.xy / resolution -
 	// gl_FragCoord is in the CURRENT GL VIEWPORT's pixel coordinates, which
 	// is NOT necessarily the same size as the uploaded texture anymore now
 	// that RtInteractiveRenderer can render at a reduced internal resolution
@@ -223,7 +223,7 @@ void RtPresenter::draw(bool hdrToneMapping, bool gammaCorrection, float screenGa
 	GLint viewport[4] = { 0, 0, _texWidth, _texHeight };
 	glGetIntegerv(GL_VIEWPORT, viewport);
 	_shader->setUniformValue("resolution", QVector2D(static_cast<float>(viewport[2]), static_cast<float>(viewport[3])));
-	_shader->setUniformValue("pathTracedTexture", 0);
+	_shader->setUniformValue("rayTracedTexture", 0);
 	_shader->setUniformValue("hdrToneMapping", hdrToneMapping);
 	_shader->setUniformValue("gammaCorrection", gammaCorrection);
 	_shader->setUniformValue("screenGamma", screenGamma);

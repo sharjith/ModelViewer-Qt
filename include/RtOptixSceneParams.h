@@ -14,7 +14,7 @@
 // roughness/normal/emissive - see RtOptixTexture/RtOptixSceneHitGroupData
 // below) and COLOR_0 vertex color, ported from CpuPathTracer's
 // sampleTexture()/evaluateSurface(). __raygen__rg() now runs a real
-// iterative path-tracing loop (up to maxBounces below) instead of a single
+// iterative ray-tracing loop (up to maxBounces below) instead of a single
 // deterministic mirror bounce: each hit stochastically samples ONE lobe
 // (cosine-weighted diffuse or GGX-VNDF specular, chosen by a Fresnel-based
 // probability) for its continuation direction, weighting throughput by the
@@ -53,7 +53,7 @@
 // exit distance and hero-wavelength dispersion). maxTransmissionBounces/
 // fireflyClampThreshold/russianRouletteStartDepth below all mirror
 // CpuPathTracer::Settings' identically-named fields exactly, read from the
-// same PathTracingDialog-backed ViewportWidget settings CPU uses - they used
+// same RtRenderDialog-backed ViewportWidget settings CPU uses - they used
 // to be hardcoded constants in RtOptixScene.cu instead, silently diverging
 // from whatever the dialog actually showed.
 // ---------------------------------------------------------------------------
@@ -155,7 +155,7 @@ struct RtOptixEnvironment
 struct RtOptixSceneParams
 {
 	// Linear HDR radiance, un-tonemapped/un-gamma-encoded (RtOptixSceneTracer
-	// reads this back as-is into glm::vec3s) - RtOptixPathTracingSession
+	// reads this back as-is into glm::vec3s) - RtOptixRayTracingSession
 	// accumulates multiple single/few-sample launches' worth of these in
 	// linear space and only tonemaps once at present time (RtPresenter::
 	// upload()), same contract as CpuPathTracer's own output. An earlier
@@ -169,18 +169,18 @@ struct RtOptixSceneParams
 	//
 	// .w carries the per-pixel primary-hit fraction (hits/spp for this
 	// launch's samples) - mirrors RtFrameAccumulator::hitCounts()/
-	// RtPathTracingSession's published alpha exactly. RtPresenter alpha-
-	// blends the path-traced frame over the already-rendered raster, so 0
+	// RtRayTracingSession's published alpha exactly. RtPresenter alpha-
+	// blends the ray-traced frame over the already-rendered raster, so 0
 	// here (pure background) lets raster's own sharp skybox/gradient show
 	// through instead of this kernel's traced background - the SAME "alpha-
 	// composited background" design the CPU session uses (see
-	// RtPathTracingSession::publishLatest()); without it the GPU frame
+	// RtRayTracingSession::publishLatest()); without it the GPU frame
 	// rendered fully opaque, covering the raster skybox, which is why
 	// enabling the Sky Box checkbox showed no skybox in GPU mode while CPU
 	// mode (alpha-composited) showed it fine. RGB and alpha used to be two
 	// separate buffers (`image` as float3 + a standalone `alphaImage`) -
 	// merged into one float4 write so the interactive/GPU-resident
-	// presentation path (RtOptixPathTracingSession's persistent device
+	// presentation path (RtOptixRayTracingSession's persistent device
 	// buffer, consumed via CUDA-GL interop with no CPU readback) can treat
 	// this as a single RGBA texture with no separate combine step, matching
 	// NVIDIA's own RTXPT reference sample's output-buffer convention
@@ -191,7 +191,7 @@ struct RtOptixSceneParams
 	// world-space shading normal, chunk-averaged the same way `image` is,
 	// zeroed wherever the primary ray never hits geometry. Mirrors
 	// RtFrameAccumulator::resolveAlbedo()/resolveNormal()'s contract so
-	// RtOptixPathTracingSession can feed them straight to RtDenoiser - see
+	// RtOptixRayTracingSession can feed them straight to RtDenoiser - see
 	// RtDenoiser::denoise()'s albedo/normal doc comment for why both
 	// buffers help it specifically with reflections (this kernel's own
 	// mirror-bounce term).
@@ -246,7 +246,7 @@ struct RtOptixSceneParams
 
 	// Number of jittered primary-ray samples averaged per pixel within THIS
 	// launch (box-filter AA jitter, via a per-(pixel,sample) hash seed - see
-	// RtOptixScene.cu's pcgHash()). RtOptixPathTracingSession additionally
+	// RtOptixScene.cu's pcgHash()). RtOptixRayTracingSession additionally
 	// accumulates the results of several launches (each a small chunk of
 	// this many samples) across time for real progressive refinement/
 	// progress reporting - see that class's doc comment - so this is a
@@ -267,7 +267,7 @@ struct RtOptixSceneParams
 	// in-kernel running-mean blend against the EXISTING buffer contents
 	// instead of an overwrite - newMean = oldMean + (thisLaunchMean -
 	// oldMean) * thisLaunchSpp / (previousSampleCount + thisLaunchSpp), the
-	// same incremental-mean formula RtOptixPathTracingSession::workerLoop()
+	// same incremental-mean formula RtOptixRayTracingSession::workerLoop()
 	// already does on the CPU side, just moved into the kernel so combining
 	// many small launches into one progressively-refining image needs no
 	// host round-trip at all. Callers that want persistent GPU-resident
@@ -278,7 +278,7 @@ struct RtOptixSceneParams
 
 	// Maximum path length (primary hit + subsequent bounces) the raygen loop
 	// in RtOptixScene.cu will trace per sample before giving up - mirrors
-	// CpuPathTracer::Settings::maxBounces (RtPathTracingSession's identical
+	// CpuPathTracer::Settings::maxBounces (RtRayTracingSession's identical
 	// setting), previously read but never actually honored by this backend.
 	unsigned int maxBounces;
 
@@ -288,7 +288,7 @@ struct RtOptixSceneParams
 	// Bounces=32, kFireflyClampThreshold=3.0f, an inline `>= 2` literal)
 	// instead of reading the user's actual dialog settings, silently
 	// diverging from whatever CPU was configured with even when the UI
-	// showed identical values - see PathTracingDialog's matching CPU/GPU
+	// showed identical values - see RtRenderDialog's matching CPU/GPU
 	// hygiene pass.
 	unsigned int maxTransmissionBounces;
 	float fireflyClampThreshold;

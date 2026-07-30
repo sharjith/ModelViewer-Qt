@@ -47,7 +47,7 @@ namespace
 	}
 
 	// Builds RtTextureSample::mips - see that field's own doc comment for
-	// why this exists (path-traced texture minification aliasing, no
+	// why this exists (ray-traced texture minification aliasing, no
 	// hardware mipmapping equivalent). Box-filter downsample (plain 2x2
 	// average of the PREVIOUS level's sRGB-encoded bytes, not a linear-space
 	// average) - a standard, if not perfectly radiometrically precise,
@@ -131,7 +131,7 @@ RtMeshGeometry RtSceneBuilder::convertGeometry(const SceneMesh* mesh)
 	// Raster's actual posed geometry only exists as a per-frame joint-matrix
 	// UNIFORM array applied by main_scene.vert's computeSkinMatrix() at draw
 	// time - it never gets written back into any CPU-side buffer this
-	// tracer can read. Without this, any skinned/rigged model path-traced
+	// tracer can read. Without this, any skinned/rigged model ray-traced
 	// in its rest/bind pose regardless of the raster viewport's current
 	// animation frame. Applied here (mirroring computeSkinMatrix()/main()
 	// exactly: same per-vertex 4-bone blend, same no-renormalization-of-
@@ -895,7 +895,7 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	// Only currently-shown meshes (matches _sceneRuntime.currentVisibleObjectIds()
 	// used by the raster render loop) - deliberately NOT the per-frame frustum/
 	// clip-plane visibility used by ViewportWidget::isMeshVisible(), since that
-	// is a raster-only view-dependent optimization: a path-traced ray can hit
+	// is a raster-only view-dependent optimization: a ray-traced ray can hit
 	// geometry currently outside the raster frustum after a bounce.
 	const std::vector<int>& visibleIds = runtime.currentVisibleObjectIds();
 	snapshot->meshes.reserve(visibleIds.size());
@@ -913,7 +913,7 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 		const SceneMesh* mesh = runtime.meshAt(static_cast<size_t>(id));
 		if (!mesh) continue;
 
-		// Path tracing needs triangle data - a non-triangle mesh's index
+		// Ray tracing needs triangle data - a non-triangle mesh's index
 		// buffer (points/lines/strips - e.g. hinges, wires, or other
 		// non-surface elements some models include) is not a flat triangle
 		// list, and reading it as one produces garbage/degenerate triangles

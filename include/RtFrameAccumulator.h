@@ -11,9 +11,9 @@
 // Running-average HDR accumulation buffer. Pure math, no threading - each
 // call to accumulate() adds one CpuPathTracer::renderPass() result (one
 // sample per pixel) into a running sum; resolve() returns the current
-// average (sum / sampleCount). Owned and driven by RtPathTracingSession's
+// average (sum / sampleCount). Owned and driven by RtRayTracingSession's
 // background loop, which decides when to reset() (geometry/material/
-// visibility/camera changes - see RtPathTracingSession.h).
+// visibility/camera changes - see RtRayTracingSession.h).
 // ---------------------------------------------------------------------------
 class RtFrameAccumulator
 {

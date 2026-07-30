@@ -145,7 +145,7 @@ public:
     // RGB floats in GL_TEXTURE_CUBE_MAP_POSITIVE_X+i order. Returns false
     // (leaving outFaces/outFaceSize untouched) if no environment cubemap is
     // currently bound. Synchronous GPU readback - only call this when
-    // starting a new path-traced session (camera-settled), not per frame.
+    // starting a new ray-traced session (camera-settled), not per frame.
     bool captureEnvironmentCubemapCPU(std::vector<float> outFaces[6], int& outFaceSize);
 
     // Same idea as captureEnvironmentCubemapCPU() above, but reading
@@ -167,7 +167,7 @@ public:
     // false (leaving outMips untouched) if no prefilter map is currently
     // bound. Same synchronous-GPU-readback caveat as
     // captureEnvironmentCubemapCPU() - only call when starting a new
-    // path-traced session, not per frame.
+    // ray-traced session, not per frame.
     bool capturePrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips);
     bool captureSheenPrefilterCubemapCPU(std::vector<PrefilterMipCPU>& outMips);
 

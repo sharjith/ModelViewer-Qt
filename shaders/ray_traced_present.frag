@@ -1,6 +1,6 @@
 #version 450 core
 
-uniform sampler2D pathTracedTexture;
+uniform sampler2D rayTracedTexture;
 uniform vec2 resolution;
 
 // Mirrors main_scene.frag's applyToneMapping() uniforms/convention exactly
@@ -20,7 +20,7 @@ uniform int   toneMapMode = 0; // 0=KhronosPbrNeutral 1=ACES_Narkowicz 2=ACES_Hi
 
 out vec4 FragColor;
 
-// ---- Tonemap operators, ported verbatim from main_scene.frag so path-traced
+// ---- Tonemap operators, ported verbatim from main_scene.frag so ray-traced
 // presentation can match whichever one raster is currently configured to use ----
 
 const mat3 ACESInputMat = mat3
@@ -129,14 +129,14 @@ void main()
 {
 	vec2 uv = gl_FragCoord.xy / resolution;
 
-	// RtPathTracingSession's buffer has row 0 = top of image (matching
+	// RtRayTracingSession's buffer has row 0 = top of image (matching
 	// QImage/export convention), but gl_FragCoord.y = 0 is the bottom of the
 	// viewport under OpenGL's default lower-left origin - flip here rather
 	// than in the tracer, so the buffer stays a normal top-down image for
 	// the NxN export/save path.
 	uv.y = 1.0 - uv.y;
 
-	vec4 hdrSample = texture(pathTracedTexture, uv);
+	vec4 hdrSample = texture(rayTracedTexture, uv);
 	vec3 hdrColor = hdrSample.rgb;
 
 	vec3 mapped = applyToneMapping(hdrColor);

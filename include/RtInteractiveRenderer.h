@@ -34,7 +34,7 @@ class RtOptixSceneTracer;
 // ensureSceneResources()/updateCamera()/tick()/pollCompletedFrame() are all
 // expected to be called from paintGL(), on the GL/UI thread. There is
 // deliberately no background worker thread here (unlike
-// RtOptixPathTracingSession::workerLoop()): tick() submits at most one async
+// RtOptixRayTracingSession::workerLoop()): tick() submits at most one async
 // launch per call via RtOptixSceneTracer::submitSceneRenderToDevice() and
 // returns immediately - it never waits for GPU completion, so paintGL() never
 // stalls on a whole OptiX launch. Completion is discovered later via
@@ -78,7 +78,7 @@ class RtOptixSceneTracer;
 // instead - denoising an under-converged, rapidly-changing image every tick
 // smeared sharp/thin CAD geometry into an ill-defined blur during motion.
 //
-// Settle promotion: ViewportWidget::onPathTracedIdleTimeout() no longer
+// Settle promotion: ViewportWidget::onRayTracedIdleTimeout() no longer
 // hands off to a SEPARATE settled/offline session once the camera stops -
 // that caused a visible "handover flash" (a converged-but-capped image
 // suddenly replaced by a fresh, barely-converged one from an independent
@@ -113,7 +113,7 @@ public:
 
 	// Lazily creates the dedicated CUDA stream (first call only), then
 	// (re)builds the GPU acceleration structure via the owned tracer only if
-	// snapshot->revisionId changed (mirrors RtOptixPathTracingSession::
+	// snapshot->revisionId changed (mirrors RtOptixRayTracingSession::
 	// start()'s identical revision-gated rebuild). If a launch is currently
 	// in flight, a newer revision is QUEUED instead of being rebuilt
 	// immediately; tick() applies that pending snapshot as soon as the
@@ -125,7 +125,7 @@ public:
 	// carries no width/height, so callers must ALSO call resize() (with
 	// whatever resolution they're targeting) before tick() will actually
 	// submit anything; tick() no-ops while either hasn't happened yet
-	// (mirrors RtOptixPathTracingSession's own separate setResolution()+
+	// (mirrors RtOptixRayTracingSession's own separate setResolution()+
 	// start() calls, not one call doing both). Order between this and
 	// resize() doesn't matter - call both before the first updateCamera()/
 	// tick() of a new interactive burst. Returns false on hard failure
@@ -134,7 +134,7 @@ public:
 
 	// Cheap - just records the latest camera pose for the next tick() to
 	// consider. Does NOT itself submit a launch. Unlike
-	// RtOptixPathTracingSession::updateCamera(), no cross-thread generation
+	// RtOptixRayTracingSession::updateCamera(), no cross-thread generation
 	// counter is needed - everything here runs on the caller's own thread.
 	void updateCamera(const RtCamera& camera);
 
@@ -194,7 +194,7 @@ public:
 	// sample-count change. maxAccumulatedSamples caps how many samples a
 	// slot accumulates before tick() stops submitting more for it (avoids
 	// wasting GPU work once fully converged) - mirrors
-	// RtOptixPathTracingSession::setMaxSamples()'s role. When
+	// RtOptixRayTracingSession::setMaxSamples()'s role. When
 	// resolutionAdaptiveEnabled, tick() steps _resolutionScale down (and
 	// back up) using a hysteresis band around targetFrameTimeMs (measured via
 	// each launch's own RtOptixSceneTracer::elapsedEventTimeMs()) instead of
@@ -211,7 +211,7 @@ public:
 	// completion handling unconditionally recomputes that from
 	// _resolutionScale every time a launch finishes and would silently
 	// clobber a value set from outside between ticks). Called once the
-	// camera settles (see ViewportWidget::onPathTracedIdleTimeout()) so a
+	// camera settles (see ViewportWidget::onRayTracedIdleTimeout()) so a
 	// session that got throttled down under load during a drag returns to
 	// full resolution at rest, when responsiveness no longer matters. If the
 	// scale genuinely was reduced, this one reallocation resets the
@@ -221,7 +221,7 @@ public:
 	void requestFullResolution() { _forceFullResolutionRequested = true; }
 
 	// Progressive denoising - see this class's own doc comment. Mirrors
-	// RtOptixPathTracingSession's identically-named setDenoiserEnabled()/
+	// RtOptixRayTracingSession's identically-named setDenoiserEnabled()/
 	// setDenoiserDevicePreference() exactly, just forwarded to this class's
 	// OWN RtDenoiser instance rather than that session's (each GPU-facing
 	// piece owns its own denoiser/device state - see RtDenoiser.h's Impl::
@@ -256,7 +256,7 @@ public:
 	// during interaction matters more here than finishing that one recovery.
 	// Also cancels any still-PENDING requestFullResolution() promotion that
 	// hadn't been consumed by tick() yet - without this, a drag starting in
-	// the narrow window right after onPathTracedIdleTimeout() queues that
+	// the narrow window right after onRayTracedIdleTimeout() queues that
 	// promotion (before the next tick() call actually applies it) could still
 	// force a full-resolution jump mid-drag, exactly the interaction-first
 	// policy this whole settle/resume split exists to enforce.
@@ -276,7 +276,7 @@ public:
 	const char* activeDenoiserName() const { return _denoiser.activeDeviceName(); }
 
 	// Forwarded to RtOptixSceneTracer::submitSceneRenderToDevice() - mirror
-	// RtOptixPathTracingSession's identically-named setters exactly (same
+	// RtOptixRayTracingSession's identically-named setters exactly (same
 	// defaults too).
 	void setMaxTransmissionBounces(uint32_t maxTransmissionBounces) { _maxTransmissionBounces = maxTransmissionBounces > 0 ? maxTransmissionBounces : 1; }
 	void setFireflyClampThreshold(float threshold) { _fireflyClampThreshold = threshold > 0.0f ? threshold : 0.01f; }
@@ -305,7 +305,7 @@ public:
 	int renderWidth() const { return _width; }
 	int renderHeight() const { return _height; }
 
-	// Progress/diagnostics helpers for UI consumers (PathTracingDialog) - the
+	// Progress/diagnostics helpers for UI consumers (RtRenderDialog) - the
 	// single shared accumulation history's sample count (_accumulatedSampleCount),
 	// unambiguous regardless of which physical slot currently holds it. This
 	// deliberately mirrors the "what is the live interactive renderer doing
@@ -534,10 +534,10 @@ private:
 	unsigned int _maxVolumeScatterBounces = 64;
 
 	// This class's OWN RtDenoiser instance - see setDenoiserEnabled()'s doc
-	// comment for why this isn't shared with RtOptixPathTracingSession's.
+	// comment for why this isn't shared with RtOptixRayTracingSession's.
 	// Defaults to enabled/Auto, matching that session's own defaults; both
 	// are overwritten by ViewportWidget's actual PT-dialog-backed settings
-	// immediately after construction (see startInteractivePathTracedGpuSession()).
+	// immediately after construction (see startInteractiveRayTracedGpuSession()).
 	RtDenoiser _denoiser;
 	bool _denoiserEnabled = true;
 

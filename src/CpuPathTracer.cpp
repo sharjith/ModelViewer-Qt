@@ -62,7 +62,7 @@ namespace
 	// actually useful to look at.
 	constexpr float kVolumeScatterDebugRampCap = 32.0f;
 
-	// xorshift32 - fast, small, good enough for Monte Carlo path tracing noise
+	// xorshift32 - fast, small, good enough for Monte Carlo ray tracing noise
 	// (not for cryptography). Seeded per-pixel-per-pass so successive
 	// renderPass() calls with different sampleSeed values are decorrelated.
 	struct Rng
@@ -205,7 +205,7 @@ namespace
 
 	// ---- Cook-Torrance terms, ported verbatim from main_scene.frag ---------
 	// (distributionGGX / geometrySchlickGGX / geometrySmith / fresnelSchlick)
-	// so path-traced and raster PBR shading agree on the same material.
+	// so ray-traced and raster PBR shading agree on the same material.
 	float distributionGGX(float NdotH, float roughness)
 	{
 		const float a    = roughness * roughness;
@@ -442,7 +442,7 @@ namespace
 
 	// lod: mip level to sample, trilinearly blended between floor(lod) and
 	// ceil(lod) - see RtTextureSample::mips' doc comment for why this exists
-	// (path-traced texture minification aliasing) and computeTextureLod()
+	// (ray-traced texture minification aliasing) and computeTextureLod()
 	// for how callers derive it. Defaults to 0.0f (base level only, the
 	// exact previous behavior) for call sites that don't have per-hit
 	// triangle/camera context cheaply available (shadow rays, alpha-cutout
@@ -951,7 +951,7 @@ namespace
 		const glm::vec3 sampleDir = undoSkyboxRotation(direction, environment.cameraUpAxisZUp, environment.skyBoxZRotationDegrees);
 		// iblExposure is deliberately NOT applied here - it's applied exactly
 		// once, uniformly, to the whole accumulated frame by the final
-		// present/tonemap stage (path_traced_present.frag's applyToneMapping(),
+		// present/tonemap stage (ray_traced_present.frag's applyToneMapping(),
 		// RtTonemap::apply() for offline export). An earlier version of this
 		// code applied it here too, which double-exposed env-sourced radiance
 		// relative to purely punctual-lit surfaces, since the present stage
@@ -1036,7 +1036,7 @@ namespace
 	// raster's plain background gradient instead, matching what PBR mode
 	// shows with the skybox disabled). When shown, samples the sharp captured
 	// cubemap. Background pixels are restored from the raw accumulation after
-	// denoising (see RtPathTracingSession::publishLatest()), so feeding the
+	// denoising (see RtRayTracingSession::publishLatest()), so feeding the
 	// camera a pre-blurred/downsampled skybox only makes the visible skybox
 	// look like an irradiance map.
 	// Undoes ViewportWidget::drawSkyBox()'s cube rotation - see

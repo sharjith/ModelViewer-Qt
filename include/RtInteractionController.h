@@ -9,12 +9,12 @@ class RtInteractiveRenderer;
 // RtInteractionController
 //
 // Owns the GPU interactive-PT camera-settle/resume STATE MACHINE that used to
-// be scattered across ViewportWidget as boolean flags (_pathTracedArmed,
-// _pathTracedInteractiveActive, plus RtInteractiveRenderer's own
+// be scattered across ViewportWidget as boolean flags (_rayTracedArmed,
+// _rayTracedInteractiveActive, plus RtInteractiveRenderer's own
 // _cameraSettled) and several functions that each had to independently
-// remember the correct call ORDER (the now-removed resetPathTracedIdleTimer()
-// and armPathTracedResumeWarmUp(), plus onPathTracedIdleTimeout() and
-// onPathTracedResumeWarmUpTimeout(), which still exist as thin forwarding
+// remember the correct call ORDER (the now-removed resetRayTracedIdleTimer()
+// and armRayTracedResumeWarmUp(), plus onRayTracedIdleTimeout() and
+// onRayTracedResumeWarmUpTimeout(), which still exist as thin forwarding
 // wrappers into this class). That ordering was never enforced by the
 // code, only documented - Codex's audit found the SAME "call
 // setCameraSettled(false) before starting the session, not after" bug in two
@@ -25,7 +25,7 @@ class RtInteractiveRenderer;
 // or stops the settle/resume timers.
 //
 // States:
-//   Disarmed   - path tracing isn't active at all.
+//   Disarmed   - ray tracing isn't active at all.
 //   Interacting - the interactive accumulator is live; camera may be
 //                 currently moving (denoise off, resolution-adaptive on) or
 //                 may have just resumed from Recovering (same unsettled
@@ -80,24 +80,24 @@ public:
 
 		// Starts (or hands the live camera pose to, if already running at
 		// this resolution) the interactive GPU accumulator. Mirrors
-		// ViewportWidget::startInteractivePathTracedGpuSession(false).
+		// ViewportWidget::startInteractiveRayTracedGpuSession(false).
 		std::function<void()> startInteractiveSession;
 
 		// Same, but forces a scene-snapshot refresh against the SAME live
 		// accumulator instead of tearing it down - used only for
 		// notifyContentAnimationTick() (skeletal/morph/pointer-animation
-		// playback). Mirrors startInteractivePathTracedGpuSession(true).
+		// playback). Mirrors startInteractiveRayTracedGpuSession(true).
 		std::function<void()> startInteractiveSessionWithSceneRefresh;
 
 		// Tears down whichever GPU PT session(s) are active. Mirrors
-		// ViewportWidget::teardownActivePathTracedSessions().
+		// ViewportWidget::teardownActiveRayTracedSessions().
 		std::function<void()> teardownSessions;
 
 		// Starts the SETTLED/offline session immediately, bypassing any
 		// debounce - used for CPU/Embree's only quality tier, and for the
 		// engine-switch case, which deliberately doesn't wait (a single
 		// explicit menu choice, not rapid camera interaction). Mirrors
-		// ViewportWidget::startPathTracedSession().
+		// ViewportWidget::startRayTracedSession().
 		std::function<void()> startSettledSessionImmediate;
 
 		// Full stop of any CPU or GPU worker session, without touching this
@@ -108,9 +108,9 @@ public:
 
 		// True if the interactive GPU accumulator actually ended up live
 		// after the most recent startInteractiveSession*() call - mirrors
-		// ViewportWidget::_pathTracedInteractiveActive. Only consulted by
+		// ViewportWidget::_rayTracedInteractiveActive. Only consulted by
 		// notifyContentAnimationTick(), to mirror
-		// notifyPathTracedAnimationMutated()'s original control flow exactly:
+		// notifyRayTracedAnimationMutated()'s original control flow exactly:
 		// attempt the in-place refresh first, and only fall back to a normal
 		// teardown+Recovering transition if that attempt didn't actually
 		// leave a live session behind.
@@ -143,10 +143,10 @@ public:
 	State state() const { return _state; }
 	bool armed() const { return _state != State::Disarmed; }
 
-	// Arms path tracing. startInteractiveSessionNow=false is used only by the
-	// dialog's manual Render button path (requestPathTracedRenderNow()),
+	// Arms ray tracing. startInteractiveSessionNow=false is used only by the
+	// dialog's manual Render button path (requestRayTracedRenderNow()),
 	// which starts the settled session directly instead - mirrors
-	// armPathTracedRenderingMode()'s identical parameter.
+	// armRayTracedRenderingMode()'s identical parameter.
 	void arm(bool startInteractiveSessionNow = true);
 	void disarm();
 
@@ -182,7 +182,7 @@ public:
 	// notifySceneContentMutated(): this keeps the interactive GPU accumulator
 	// ALIVE and refreshes its scene snapshot in place (see
 	// startInteractiveSessionWithSceneRefresh), rather than tearing it down -
-	// see ViewportWidget::notifyPathTracedAnimationMutated()'s original doc
+	// see ViewportWidget::notifyRayTracedAnimationMutated()'s original doc
 	// comment for why (dropping to raster for the whole duration of any
 	// animated clip would be a much worse regression than a live but
 	// slightly-stale-cadence PT preview).

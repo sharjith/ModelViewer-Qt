@@ -16,7 +16,7 @@ namespace
 // nearly-converged frame; this one decides whether the CURRENT accumulation
 // streak is still valid) - _pendingCamera only ever takes on a genuinely new
 // VALUE when a real mouse/keyboard event calls updateCamera() with a freshly
-// computed RtCamera (see ViewportWidget::startInteractivePathTracedGpuSession()).
+// computed RtCamera (see ViewportWidget::startInteractiveRayTracedGpuSession()).
 // A camera recomputed from unchanged state is expected to compare bit-equal
 // (or within float noise) to the previous one, so a tiny epsilon here is
 // only for floating-point safety, not a deliberate "close enough" tolerance.
@@ -122,7 +122,7 @@ bool RtInteractiveRenderer::applySceneSnapshot(const std::shared_ptr<const RtSce
 			return false;
 	}
 
-	// Revision-gated rebuild, mirrors RtOptixPathTracingSession::start()'s
+	// Revision-gated rebuild, mirrors RtOptixRayTracingSession::start()'s
 	// identical check - camera-only movement leaves snapshot->revisionId
 	// unchanged, so this (comparatively expensive) GAS/IAS rebuild is only
 	// paid when the scene itself actually changed.

@@ -17,14 +17,14 @@
 #include "RtEnvironmentSampler.h"
 
 // ---------------------------------------------------------------------------
-// RtPathTracingSession
+// RtRayTracingSession
 //
 // Owns the background progressive-rendering loop: repeatedly calls
 // CpuPathTracer::renderPass() and accumulates into RtFrameAccumulator,
 // publishing the latest resolved (averaged) frame to a double-buffered slot
 // the GL/UI thread can read via latestFrame() without blocking the worker.
 //
-// The outer worker thread here does not itself do CPU-heavy path-tracing
+// The outer worker thread here does not itself do CPU-heavy ray-tracing
 // math - each call to CpuPathTracer::renderPass() already parallelizes one
 // full-frame pass across its own worker threads (see CpuPathTracer.cpp).
 // This thread just orchestrates: run a pass, accumulate, publish, repeat.
@@ -38,14 +38,14 @@
 //   - stop(): cancels any in-flight pass and joins the worker thread. Call
 //     when interaction resumes (falls back to raster) or the mode is exited.
 // ---------------------------------------------------------------------------
-class RtPathTracingSession
+class RtRayTracingSession
 {
 public:
-	RtPathTracingSession();
-	~RtPathTracingSession();
+	RtRayTracingSession();
+	~RtRayTracingSession();
 
-	RtPathTracingSession(const RtPathTracingSession&)            = delete;
-	RtPathTracingSession& operator=(const RtPathTracingSession&) = delete;
+	RtRayTracingSession(const RtRayTracingSession&)            = delete;
+	RtRayTracingSession& operator=(const RtRayTracingSession&) = delete;
 
 	// Records the target render resolution. Takes effect on the next
 	// start()/notifyCameraChanged() call - does not affect an already-running
@@ -113,7 +113,7 @@ public:
 		std::vector<float>* outAlpha = nullptr) const;
 
 	// Human-readable active denoiser name (Diagnostics tab) - mirrors
-	// RtOptixPathTracingSession::activeDenoiserName().
+	// RtOptixRayTracingSession::activeDenoiserName().
 	const char* activeDenoiserName() const { return _denoiser.activeDeviceName(); }
 
 	// Current render resolution (Diagnostics tab) - whatever the last

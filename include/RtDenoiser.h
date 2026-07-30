@@ -57,7 +57,7 @@ enum class DenoiserDevicePreference
 //
 // Denoises a linear HDR RGB buffer produced by RtFrameAccumulator::resolve()
 // into a separate, visually clean buffer for display, while the raw
-// accumulation keeps refining underneath (see RtPathTracingSession) - this is
+// accumulation keeps refining underneath (see RtRayTracingSession) - this is
 // what lets a handful of samples already look presentable instead of showing
 // raw Monte Carlo noise while converging.
 //
@@ -79,14 +79,14 @@ public:
 	// error - callers should treat that as "OIDN unavailable this pass", not
 	// a hard failure: output is still populated, via a lower-quality built-in
 	// bilateral fallback filter rather than a raw copy (see RtDenoiser.cpp),
-	// so path-traced frames aren't left permanently noisy on machines where
+	// so ray-traced frames aren't left permanently noisy on machines where
 	// OIDN's CPU device fails to initialize.
 	//
 	// sampleCount (RtFrameAccumulator::sampleCount() - how many passes are
 	// already averaged into input) mildly tapers the fallback filter's
 	// strength: more accumulated samples mean less residual Monte Carlo noise
 	// to clean up, so a well-converged image needs a lighter touch than a
-	// noisy one - but never zero, since RtPathTracingSession only calls this
+	// noisy one - but never zero, since RtRayTracingSession only calls this
 	// once, on the final pass (see its maxSamples()), not every intermediate
 	// pass, so this is the only denoise opportunity that pass gets. Only
 	// affects the fallback path - ignored when OIDN itself is used.
@@ -124,7 +124,7 @@ public:
 	// buffers, both required together or both null (matching denoise()'s own
 	// albedo/normal contract). Writes the denoised result into dOutputRGBA, a
 	// SEPARATE buffer from dColorRGBA - the caller's own raw accumulation
-	// keeps refining underneath, exactly like RtPathTracingSession's "denoise
+	// keeps refining underneath, exactly like RtRayTracingSession's "denoise
 	// a copy" pattern, just invoked periodically instead of once at the end.
 	//
 	// Only implemented for the native OptiX denoiser - the interactive GPU-PT
@@ -140,7 +140,7 @@ public:
 	// DenoiserDevicePreference's doc comment) - releases whichever OIDN
 	// device is currently held (if any) and tries again from scratch. Safe
 	// to call at any time, including mid-session (e.g. the user changes the
-	// setting while Path Tracing is already running) - denoise() always
+	// setting while Ray Tracing is already running) - denoise() always
 	// reads the current device state fresh on its next call, there's no
 	// torn-state risk.
 	void setDevicePreference(DenoiserDevicePreference preference);

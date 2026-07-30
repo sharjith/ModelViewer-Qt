@@ -14,14 +14,14 @@ class RtEmbreeScene;
 // ---------------------------------------------------------------------------
 // CpuPathTracer
 //
-// Renders one sample-per-pixel pass of the scene: unidirectional path tracing
+// Renders one sample-per-pixel pass of the scene: unidirectional ray tracing
 // with next-event-estimation direct lighting (against snapshot.lights, using
 // the exact glTF KHR_lights_punctual range/spot attenuation formula ported
 // from evaluatePunctualLight() in main_scene.frag) plus BSDF-sampled indirect
 // bounces, terminated by Russian roulette. Diffuse + metallic-roughness GGX
 // only for v1 (see RtMaterial) - the Cook-Torrance D/G/F terms are ported
 // from the same shader's distributionGGX()/geometrySmith()/fresnelSchlick()
-// so path-traced and raster PBR shading agree on a material at rest.
+// so ray-traced and raster PBR shading agree on a material at rest.
 //
 // Repeated calls to renderPass() with different sampleSeed values produce
 // statistically independent noisy estimates of the same image - averaging
@@ -97,7 +97,7 @@ public:
 		// than a bounded host-side loop, and adding a matching limit there
 		// would mean spending one of the pipeline's fully-allocated 20
 		// payload registers, so this is CPU-only for now (see
-		// PathTracingDialog's Advanced tab, disabled while the GPU engine is
+		// RtRenderDialog's Advanced tab, disabled while the GPU engine is
 		// active).
 		int maxShadowRayHits = 8;
 
@@ -134,14 +134,14 @@ public:
 	// cancelFlag, if non-null, is checked once per scanline by every worker
 	// thread so a pass can be aborted quickly (within about one row's worth of
 	// tracing time) rather than only between whole passes - this is what lets
-	// RtPathTracingSession::stop() return promptly when interaction resumes
+	// RtRayTracingSession::stop() return promptly when interaction resumes
 	// and the mode needs to fall back to raster immediately. On cancellation
 	// outRadiance is only partially filled and must be discarded by the
 	// caller, not accumulated.
 	// outPrimaryHitMask, if non-null, is resized to width*height and filled
 	// with the primary ray's effective coverage/alpha for this sample
 	// (normally 1 for a real opaque geometry hit, 0 for a pure miss, and a
-	// fractional value for path-traced shadow-catcher compositing) - see
+	// fractional value for ray-traced shadow-catcher compositing) - see
 	// RtFrameAccumulator's hit-count tracking for why this matters (OIDN's
 	// beauty-only denoise pass has no guide buffers to tell it a smooth
 	// environment texture isn't noise, and over-blurs it - background pixels

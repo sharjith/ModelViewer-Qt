@@ -48,9 +48,9 @@ void RtInteractionController::arm(bool startInteractiveSessionNow)
 
 	if (!startInteractiveSessionNow)
 	{
-		// Caller (requestPathTracedRenderNow()) is about to immediately start
+		// Caller (requestRayTracedRenderNow()) is about to immediately start
 		// the settled session itself instead - mirrors
-		// armPathTracedRenderingMode()'s identical early-out. Still counts as
+		// armRayTracedRenderingMode()'s identical early-out. Still counts as
 		// armed so disarm() correctly tears it back down later, but this
 		// controller's own state machine has nothing to do until the next
 		// notify*() call.

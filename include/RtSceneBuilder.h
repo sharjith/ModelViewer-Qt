@@ -111,7 +111,7 @@ class RtSceneBuilder
 public:
 	// lights must already be world-space and enabled-filtered, i.e. the same
 	// flat list SceneGraph::buildEnabledLightList() produces for the raster
-	// UBO - reusing it keeps raster and path-traced lighting in sync by
+	// UBO - reusing it keeps raster and ray-traced lighting in sync by
 	// construction instead of re-deriving light transforms independently.
 	//
 	// environment is copied verbatim into the snapshot (may be nullptr, or
@@ -121,7 +121,7 @@ public:
 	// that (large, GL-heavy) header.
 	// floor (see RtFloorParams) populates the path tracer's analytic infinite
 	// plane when floor->groundMode == GroundMode::Floor. The raster path still
-	// owns the visible finite floor/grid meshes; path tracing consumes only
+	// owns the visible finite floor/grid meshes; ray tracing consumes only
 	// the plane height/material/shadow-catcher description and intersects it
 	// procedurally at render time. floor may be nullptr (no infinite plane) or
 	// floor->floorMesh may be nullptr (material unavailable, e.g. before the
@@ -132,7 +132,7 @@ public:
 	// shadowsEnabled()/selfShadowsEnabled()) - see RtSceneSnapshot.h's
 	// fields of the same name for what they control.
 	// Extracted from build()'s own camera-conversion code so a camera-only
-	// update (see RtOptixPathTracingSession::updateCamera()) can build a fresh
+	// update (see RtOptixRayTracingSession::updateCamera()) can build a fresh
 	// RtCamera without paying for a full build() call (geometry/material/
 	// environment-cubemap capture etc, all irrelevant to a pure camera move).
 	static RtCamera buildCamera(const Camera& camera, float aspectRatio);

@@ -23,7 +23,7 @@
 #include <assimp/version.h>
 
 #include "PathUtils.h"
-#include "PathTracingDialog.h"
+#include "RtRenderDialog.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -128,20 +128,20 @@ MainWindow::MainWindow(QWidget* parent)
 			activeMdiChild()->showTextureDebugPanel();
 		});
 
-	// Tools → Path Tracing - non-modal, at most one instance per document
+	// Tools → Ray Tracing - non-modal, at most one instance per document
 	// (mirrors SettingsDialog's WA_DeleteOnClose pattern for auto-cleanup,
 	// but reuses/raises an already-open dialog instead of stacking a new one
 	// on each click - repeatedly triggering the menu/shortcut used to spawn
 	// a fresh dialog every time, leaving several identical windows open on
 	// top of each other with no way to tell them apart).
-	connect(ui->actionPathTracing, &QAction::triggered, this, [this]() {
+	connect(ui->actionRayTracing, &QAction::triggered, this, [this]() {
 		if (!activeMdiChild())
 			return;
 		// Opening the dialog does NOT switch rendering mode by itself - it
-		// stays whatever it currently is (ADS/PBR/already-PathTraced) until
+		// stays whatever it currently is (ADS/PBR/already-RayTraced) until
 		// the user actually presses Render inside the dialog (see
-		// PathTracingDialog::onRenderClicked()), which is the single place
-		// that switches to Path Traced mode.
+		// RtRenderDialog::onRenderClicked()), which is the single place
+		// that switches to Ray Traced mode.
 		//
 		// Parented to the ModelViewer (the MDI subwindow's own content
 		// widget - added via QMdiArea::addSubWindow(), which reparents it
@@ -154,20 +154,20 @@ MainWindow::MainWindow(QWidget* parent)
 		// way it closes along with the document it belongs to instead.
 		//
 		// findChild() (direct children only - the dialog parents its own
-		// widgets under itself too, but none of THOSE are PathTracingDialogs)
+		// widgets under itself too, but none of THOSE are RtRenderDialogs)
 		// doubles as the "is one already open for this document" check:
 		// WA_DeleteOnClose means a closed dialog stops being findable here,
 		// so this naturally reduces to "create one" the first time and
 		// "bring the existing one forward" on every repeat click after.
 		ModelViewer* child = activeMdiChild();
-		if (PathTracingDialog* existing = child->findChild<PathTracingDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		if (RtRenderDialog* existing = child->findChild<RtRenderDialog*>(QString(), Qt::FindDirectChildrenOnly))
 		{
 			existing->show();
 			existing->raise();
 			existing->activateWindow();
 			return;
 		}
-		PathTracingDialog* dialog = new PathTracingDialog(child, child);
+		RtRenderDialog* dialog = new RtRenderDialog(child, child);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 		dialog->show();
 		});
@@ -1001,10 +1001,10 @@ void MainWindow::updateMenus()
 	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
 	ui->actionTile->setEnabled(hasMdiChild);
 
-	// Tools menu is always visible now that Path Tracing gives it a
+	// Tools menu is always visible now that Ray Tracing gives it a
 	// permanent, non-debug entry - only the Texture Debugger action (and
 	// its separator) stay gated behind the Settings debug flag.
-	ui->actionPathTracing->setEnabled(hasMdiChild);
+	ui->actionRayTracing->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

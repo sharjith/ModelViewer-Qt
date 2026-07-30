@@ -38,28 +38,28 @@ public:
 	// Public method for ModelViewer to set PBR mode
 	void setPBRLightingMode(bool enable);
 
-	// Called by ModelViewer::onRenderingModeSelected()'s "PathTraced" branch,
-	// BEFORE armPathTracedRenderingMode() (so the first interactive snapshot
+	// Called by ModelViewer::onRenderingModeSelected()'s "RayTraced" branch,
+	// BEFORE armRayTracedRenderingMode() (so the first interactive snapshot
 	// already reflects these values) - the analogous mode-defining default
-	// for Path-Traced mode to what onDisplayModeChanged() already does for
+	// for Ray-Traced mode to what onDisplayModeChanged() already does for
 	// Realistic/PBR mode (Floor + default lights on there), except this one
 	// sets GroundMode::InfinitePlane (the path-tracer-only shadow-catcher
 	// floor - see GroundMode::InfinitePlane's own doc comment) and turns
 	// default lights off, since a shadow-catcher floor lit only by the flat
 	// default headlight looks wrong compared to real environment/skybox
-	// lighting. Unconditional, every time Path-Traced mode is (re-)selected
+	// lighting. Unconditional, every time Ray-Traced mode is (re-)selected
 	// via the toolbar/shortcut - not a one-time default. The user is still
 	// free to change either afterward, for as long as they stay in
-	// Path-Traced mode; only the mode switch itself is authoritative (see
+	// Ray-Traced mode; only the mode switch itself is authoritative (see
 	// onDisplayModeChanged()'s identical doc comment for why an earlier
 	// "only the first time" version of this was a bug, not a feature).
-	void applyPathTracedGroundDefaultsOnce();
+	void applyRayTracedGroundDefaultsOnce();
 
 	// Called by ModelViewer::onRenderingModeSelected()'s "ADS" branch. ADS
 	// never calls switchToRealisticRendering()/setRealismEnabled(), so
 	// onDisplayModeChanged() (which re-asserts default lights on for every
-	// ADS/PBR/Path-Traced switch) never runs for it - without this, default
-	// lights stayed off forever in ADS mode too, once a prior Path-Traced
+	// ADS/PBR/Ray-Traced switch) never runs for it - without this, default
+	// lights stayed off forever in ADS mode too, once a prior Ray-Traced
 	// session had turned them off. Deliberately restores ONLY default
 	// lights, not the rest of onDisplayModeChanged()'s realism-driven
 	// defaults (floor/shadows/reflections/env-map) - ADS should not also
@@ -80,7 +80,7 @@ public:
 	// viewport's actual current state without re-emitting toggled() (which
 	// would just call back into onShadowMappingStateChanged()/
 	// onSelfShadowsChanged() and redundantly re-apply the same value) -
-	// lets PathTracingDialog's own Shadows/Self Shadows checkboxes (a
+	// lets RtRenderDialog's own Shadows/Self Shadows checkboxes (a
 	// convenience mirror of this same viewport-wide state) push a change
 	// back to this panel when the user toggles them there instead of here.
 	void syncShadowCheckboxes(bool shadowsEnabled, bool selfShadowsEnabled);

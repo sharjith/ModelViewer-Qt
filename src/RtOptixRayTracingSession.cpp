@@ -1,28 +1,28 @@
-#include "RtOptixPathTracingSession.h"
+#include "RtOptixRayTracingSession.h"
 
 #include <algorithm>
 
 #include <QDebug>
 
-RtOptixPathTracingSession::RtOptixPathTracingSession() = default;
+RtOptixRayTracingSession::RtOptixRayTracingSession() = default;
 
-RtOptixPathTracingSession::~RtOptixPathTracingSession()
+RtOptixRayTracingSession::~RtOptixRayTracingSession()
 {
 	stop();
 }
 
-bool RtOptixPathTracingSession::isAvailable() const
+bool RtOptixRayTracingSession::isAvailable() const
 {
 	return _tracer.isAvailable();
 }
 
-void RtOptixPathTracingSession::setResolution(int width, int height)
+void RtOptixRayTracingSession::setResolution(int width, int height)
 {
 	_width  = width;
 	_height = height;
 }
 
-bool RtOptixPathTracingSession::start(std::shared_ptr<const RtSceneSnapshot> snapshot)
+bool RtOptixRayTracingSession::start(std::shared_ptr<const RtSceneSnapshot> snapshot)
 {
 	stop(); // cancel/join any previously running worker before touching shared state
 
@@ -33,7 +33,7 @@ bool RtOptixPathTracingSession::start(std::shared_ptr<const RtSceneSnapshot> sna
 	{
 		if (!_tracer.buildScene(*snapshot))
 		{
-			qWarning() << "RtOptixPathTracingSession::start: buildScene() failed.";
+			qWarning() << "RtOptixRayTracingSession::start: buildScene() failed.";
 			return false;
 		}
 		_builtRevision = snapshot->revisionId;
@@ -57,11 +57,11 @@ bool RtOptixPathTracingSession::start(std::shared_ptr<const RtSceneSnapshot> sna
 	const uint64_t myGeneration = ++_generation;
 	_cancelRequested.store(false, std::memory_order_release);
 	_running.store(true, std::memory_order_release);
-	_worker = std::thread(&RtOptixPathTracingSession::workerLoop, this, myGeneration);
+	_worker = std::thread(&RtOptixRayTracingSession::workerLoop, this, myGeneration);
 	return true;
 }
 
-void RtOptixPathTracingSession::stop()
+void RtOptixRayTracingSession::stop()
 {
 	_cancelRequested.store(true, std::memory_order_release);
 	if (_worker.joinable())
@@ -69,7 +69,7 @@ void RtOptixPathTracingSession::stop()
 	_running.store(false, std::memory_order_release);
 }
 
-void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
+void RtOptixRayTracingSession::workerLoop(uint64_t myGeneration)
 {
 	std::shared_ptr<const RtSceneSnapshot> snapshot;
 	{
@@ -146,7 +146,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 		std::vector<glm::vec3> presented = resolved;
 
 		// Only worth denoising once accumulation is done - see this class's
-		// own doc comment (mirrors RtPathTracingSession::publishLatest()'s
+		// own doc comment (mirrors RtRayTracingSession::publishLatest()'s
 		// finalDenoise contract exactly).
 		if (_denoiserEnabled && sampleCount >= _maxSamples)
 		{
@@ -161,7 +161,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 			// Pure-background pixels (no primary ray ever hit geometry) keep
 			// the raw accumulated value - OIDN over-smooths a sharp traced
 			// background it has no guide values for; same restoration
-			// RtPathTracingSession::publishLatest() does. Mostly invisible
+			// RtRayTracingSession::publishLatest() does. Mostly invisible
 			// here since these pixels are alpha=0 anyway (raster shows
 			// through), but keeps the published frame itself sane.
 			for (size_t i = 0; i < pixelCount; ++i)
@@ -183,7 +183,7 @@ void RtOptixPathTracingSession::workerLoop(uint64_t myGeneration)
 	_running.store(false, std::memory_order_release);
 }
 
-std::vector<glm::vec3> RtOptixPathTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
+std::vector<glm::vec3> RtOptixRayTracingSession::latestFrame(int& outWidth, int& outHeight, uint32_t& outSampleCount,
 	std::vector<float>* outAlpha, RtCamera* outCamera) const
 {
 	std::lock_guard<std::mutex> lock(_publishMutex);

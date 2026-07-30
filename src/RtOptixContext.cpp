@@ -48,7 +48,7 @@ RtOptixContext::RtOptixContext() : _impl(std::make_unique<Impl>())
 	if (cudaErr != cudaSuccess)
 	{
 		qWarning() << "RtOptixContext: CUDA initialization failed (cudaFree(0):"
-			<< cudaGetErrorString(cudaErr) << ") - GPU path tracing unavailable.";
+			<< cudaGetErrorString(cudaErr) << ") - GPU ray tracing unavailable.";
 		return;
 	}
 
@@ -61,7 +61,7 @@ RtOptixContext::RtOptixContext() : _impl(std::make_unique<Impl>())
 	if (initResult != OPTIX_SUCCESS)
 	{
 		qWarning() << "RtOptixContext: optixInit() failed (result" << static_cast<int>(initResult)
-			<< ") - the NVIDIA driver on this system doesn't support OptiX 7.7. GPU path tracing unavailable.";
+			<< ") - the NVIDIA driver on this system doesn't support OptiX 7.7. GPU ray tracing unavailable.";
 		return;
 	}
 
@@ -79,7 +79,7 @@ RtOptixContext::RtOptixContext() : _impl(std::make_unique<Impl>())
 	if (contextResult != OPTIX_SUCCESS)
 	{
 		qWarning() << "RtOptixContext: optixDeviceContextCreate() failed (result"
-			<< static_cast<int>(contextResult) << ") - GPU path tracing unavailable.";
+			<< static_cast<int>(contextResult) << ") - GPU ray tracing unavailable.";
 		_impl->optixContext = nullptr;
 		return;
 	}

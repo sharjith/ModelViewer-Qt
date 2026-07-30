@@ -826,7 +826,7 @@
                <item>
                 <widget class="QRadioButton" name="radioButtonGroundInfinitePlane">
                  <property name="toolTip">
-                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Path tracer only: an invisible ground plane showing only the model's shadow/contact darkening, as if the model were sitting directly on the environment's own ground. Only selectable while Path Traced rendering is active.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                  <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Ray tracer only: an invisible ground plane showing only the model's shadow/contact darkening, as if the model were sitting directly on the environment's own ground. Only selectable while Ray Traced rendering is active.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                  </property>
                  <property name="text">
                   <string>Infinite Plane</string>

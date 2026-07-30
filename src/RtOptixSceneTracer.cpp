@@ -886,7 +886,7 @@ struct RtOptixSceneTracer::Impl
 		// seeing THIS line in the log confirms the pipeline/module/device
 		// context themselves (not just the scene's mesh/texture buffers) were
 		// actually released, not just their owning RtOptixSceneTracer/
-		// RtOptixPathTracingSession going out of scope in C++ terms.
+		// RtOptixRayTracingSession going out of scope in C++ terms.
 		qInfo() << "RtOptixSceneTracer: tracer destroyed - releasing pipeline/module/device context.";
 		freeSceneBuffers(/*includePersistentCaches=*/true);
 		if (sheenAlbedoLutBuffer) cudaFree(reinterpret_cast<void*>(sheenAlbedoLutBuffer));
@@ -2828,7 +2828,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		// importance-sample the identical distribution), then uploads its raw
 		// flat CDF/texel-pdf arrays verbatim - see RtOptixSceneParams.h's
 		// RtOptixEnvironment::envFlatCdf doc comment. A local, buildScene()-
-		// scoped instance is sufficient (unlike CPU's RtPathTracingSession-owned
+		// scoped instance is sufficient (unlike CPU's RtRayTracingSession-owned
 		// one, which stays alive to serve every render call) since this backend
 		// only needs the arrays uploaded once, not kept around host-side.
 		_impl->envTotalWeight = 0.0f;
@@ -2889,7 +2889,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 // Shared by renderScene() (settled/CPU-readback path) and
 // renderSceneToDevice() (interactive/GPU-resident path, see
-// RtOptixPathTracingSession's persistent device buffer) - builds the launch
+// RtOptixRayTracingSession's persistent device buffer) - builds the launch
 // params from the tracer's built scene + the caller's camera/environment/
 // quality settings, uploads them, and runs one optixLaunch(). Callers own
 // dImageRGBA/dAlbedo/dNormal (already sized width*height, of the types the
@@ -3106,7 +3106,7 @@ bool RtOptixSceneTracer::renderSceneToDevice(const RtCamera& camera, const RtEnv
 	if (!_impl->valid || _impl->iasHandle == 0 || width <= 0 || height <= 0 || !deviceImageRGBA)
 		return false;
 
-	// Interactive/GPU-resident path (see RtOptixPathTracingSession's
+	// Interactive/GPU-resident path (see RtOptixRayTracingSession's
 	// persistent ping-pong device buffers): deviceImageRGBA is a
 	// caller-owned, already-allocated device pointer sized
 	// width*height*sizeof(float4) - this call writes straight into it, with
