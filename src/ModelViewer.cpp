@@ -5320,6 +5320,19 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 		_viewportWidget->disarmPathTracedRenderingMode();
 		_viewportWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
 		visualizationEnvironmentPanel->setPBRLightingMode(false);
+
+		// Explicitly switch Realistic rendering off - ADS is the one mode
+		// that must NOT inherit whatever Floor/InfinitePlane +
+		// shadows/reflections/env-map state PBR or Path-Traced left behind.
+		// This fires onDisplayModeChanged() with realShaded=false, which
+		// (via its existing realShaded-gated defaults) forces GroundMode::
+		// None and turns shadows/reflections/env-map/default-lights off, all
+		// in one pass - restoreDefaultLightsForAds() right after then
+		// overrides just the lights back on for ADS specifically (see its
+		// own doc comment for why ADS needs lights but not the rest of
+		// realism).
+		_viewportWidget->setRealismEnabled(false);
+		visualizationEnvironmentPanel->restoreDefaultLightsForAds();
 	}
 	else if (mode == "PBR")
 	{
@@ -5339,6 +5352,29 @@ void ModelViewer::onRenderingModeSelected(const QString& mode)
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_viewportWidget->setSkyBoxTextureHDRI(true);
 		switchToRealisticRendering();
+
+		// Mirrors onDisplayModeChanged()'s own mode-defining default (Floor +
+		// default lights on, unconditionally re-asserted on every switch into
+		// realistic shading) but for Path-Traced mode specifically:
+		// GroundMode::InfinitePlane (the shadow-catcher floor) instead of
+		// Floor, plus default lights off - a shadow-catcher floor lit only by
+		// the flat default headlight looks wrong compared to real
+		// environment/skybox lighting. Called BEFORE armPathTracedRenderingMode()
+		// (not after) so the FIRST interactive PT session/snapshot it builds
+		// already reflects GroundMode::InfinitePlane - calling this after arm()
+		// meant the first snapshot got built with whatever groundMode was
+		// active before (Floor/None), and setGroundMode()'s own
+		// notifyPathTracedSceneMutated() call then had to tear that
+		// freshly-armed session down and rebuild it a moment later just to
+		// pick up the shadow-catcher floor, instead of getting it right the
+		// first time. radioButtonGroundInfinitePlane's own
+		// isPathTracedRenderingModeArmed()-gated enablement is still correct
+		// by the time this function returns - the unconditional
+		// updateControlDependencies() call at the end of this whole function
+		// re-evaluates it once armPathTracedRenderingMode() below has actually
+		// run.
+		visualizationEnvironmentPanel->applyPathTracedGroundDefaultsOnce();
+
 		_viewportWidget->armPathTracedRenderingMode();
 	}
 	// Update toolbar button to reflect the new rendering mode

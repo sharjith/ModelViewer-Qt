@@ -15,6 +15,7 @@
 #include <QDir>
 #include <QDebug>
 #include <QMouseEvent>
+#include <QSignalBlocker>
 #include <QTreeWidget>
 
 #include <algorithm>
@@ -540,6 +541,67 @@ void VisualizationEnvironmentPanel::onDefaultLightsChanged(bool checked)
 	_viewportWidget->updateView();
 }
 
+void VisualizationEnvironmentPanel::applyPathTracedGroundDefaultsOnce()
+{
+	if (!_viewportWidget || !ui)
+		return;
+
+	// Unconditional, every time Path-Traced mode is (re-)selected via the
+	// toolbar/shortcut - not a "first time only" default. Ground mode and
+	// default lights are part of what DEFINES Path-Traced mode (the
+	// shadow-catcher look), same as onDisplayModeChanged()'s realism-driven
+	// checkboxes just below it in the call chain - so switching INTO this
+	// mode always re-asserts InfinitePlane/lights-off regardless of whatever
+	// the user left ground mode/default lights at during a previous PBR or
+	// Path-Traced session. The user is still free to change either
+	// afterward, for as long as they stay in this mode - only the mode
+	// SWITCH itself is authoritative.
+	//
+	// All four radios in the group are blocked, not just InfinitePlane -
+	// see onDisplayModeChanged()'s identical comment: Qt's auto-exclusive
+	// group implicitly unchecks whichever radio (Floor/None/Grid) was
+	// previously checked as a side effect of setChecked(true) here, and
+	// that implicit uncheck would otherwise emit its own real toggled(false)
+	// signal via onGroundModeChanged().
+	ui->radioButtonGroundInfinitePlane->blockSignals(true);
+	ui->radioButtonGroundFloor->blockSignals(true);
+	ui->radioButtonGroundNone->blockSignals(true);
+	ui->radioButtonGroundGrid->blockSignals(true);
+	ui->radioButtonGroundInfinitePlane->setChecked(true);
+	ui->radioButtonGroundInfinitePlane->blockSignals(false);
+	ui->radioButtonGroundFloor->blockSignals(false);
+	ui->radioButtonGroundNone->blockSignals(false);
+	ui->radioButtonGroundGrid->blockSignals(false);
+	_viewportWidget->setGroundMode(GroundMode::InfinitePlane);
+
+	ui->checkBoxDefaultLights->blockSignals(true);
+	ui->checkBoxDefaultLights->setChecked(false);
+	ui->checkBoxDefaultLights->blockSignals(false);
+	_viewportWidget->useDefaultLights(false);
+
+	updateControlDependencies();
+	_viewportWidget->updateView();
+}
+
+void VisualizationEnvironmentPanel::restoreDefaultLightsForAds()
+{
+	if (!_viewportWidget || !ui)
+		return;
+
+	// ADS mode never calls switchToRealisticRendering()/setRealismEnabled(),
+	// so onDisplayModeChanged() (which re-asserts default lights on for
+	// every ADS/PBR/Path-Traced switch) never runs for it - meaning default
+	// lights stayed off forever after a Path-Traced session if the only fix
+	// were there. ADS deliberately does NOT get the rest of onDisplayModeChanged()'s
+	// realism-driven defaults (floor/shadows/reflections/env-map) - it just
+	// needs its lights back, independent of Realistic rendering.
+	ui->checkBoxDefaultLights->blockSignals(true);
+	ui->checkBoxDefaultLights->setChecked(true);
+	ui->checkBoxDefaultLights->blockSignals(false);
+	_viewportWidget->useDefaultLights(true);
+	_viewportWidget->updateView();
+}
+
 // ---------------------------------------------------------------------------
 // Punctual Lights tree
 // ---------------------------------------------------------------------------
@@ -948,8 +1010,6 @@ void VisualizationEnvironmentPanel::onGroundModeChanged()
 	if (!_viewportWidget || !ui)
 		return;
 
-	_groundModeUserSet = true;
-
 	GroundMode mode = GroundMode::None;
 	if (ui->radioButtonGroundFloor->isChecked())
 		mode = GroundMode::Floor;
@@ -1267,25 +1327,73 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	bool realShaded = _viewportWidget->isRealismEnabled();
 	bool pbrLighting = (_viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
 
-	// Block signals to prevent cascading updates
-	blockSignals(true);
-
+	// IMPORTANT: every setChecked() below is DELIBERATELY left free to
+	// re-entrantly fire its own dedicated handler (onShadowMappingStateChanged(),
+	// onReflectionsChanged(), onEnvMappingChanged(), onSkyBoxHDRIChanged(),
+	// onHDRToneMappingStateChanged(), onGammaCorrectionStateChanged() - see
+	// connectSignalsAndSlots()) - this function only ever sets the CHECKBOX,
+	// it never calls _viewportWidget->showShadows()/showReflections()/etc.
+	// itself, so that cascade is the ONLY thing that actually applies these
+	// defaults to the viewport at all. A previous attempt at this comment
+	// claimed blockSignals(true) on `this` (the panel) prevented that cascade
+	// - it never did (QObject::blockSignals() only suppresses signals whose
+	// SENDER is the object it's called on, and every signal here is emitted
+	// by the CHILD widget, not the panel) - and actually blocking the cascade
+	// for real (via QSignalBlocker on each child widget, tried once) broke
+	// realism mode almost entirely: the floor/shadows/reflections/env-map
+	// checkboxes still showed "on", but ViewportWidget's own state was never
+	// updated to match, so switching to PBR left the floor invisible, no
+	// shadows, etc. until the user manually re-toggled each checkbox by hand.
+	//
+	// radioButtonGroundFloor/GroundNone/checkBoxDefaultLights are set
+	// unconditionally on every mode switch - not a one-time default. Ground
+	// mode and default lights are part of what DEFINES each rendering mode
+	// (Floor + lights-on for ADS/PBR, InfinitePlane + lights-off for
+	// Path-Traced - see applyPathTracedGroundDefaultsOnce(), which runs
+	// right after this function whenever the mode is actually Path-Traced
+	// and re-asserts its own values on top of these), so every toolbar/
+	// shortcut mode switch always re-asserts its own canonical values,
+	// regardless of whatever the user left ground mode/default lights at
+	// during a previous session in a DIFFERENT mode. The user is still free
+	// to change either afterward, for as long as they stay in the mode they
+	// switched to - only the mode SWITCH itself is authoritative. (An
+	// earlier revision gated this behind "only the first time, unless the
+	// user already touched it" per-control flags - that made both the
+	// switch-into-PBR floor/shadow default AND the switch-into-PT shadow-
+	// catcher default silently stop re-applying after the very first manual
+	// tweak, since Qt's auto-exclusive radio group also fires a real signal
+	// on whichever radio gets implicitly unchecked - see below.)
+	//
+	// radioButtonGroundGrid/GroundInfinitePlane are ALSO blocked here even
+	// though this function never checks/unchecks them directly - they share
+	// an auto-exclusive button group with Floor/None, so Qt automatically
+	// unchecks whichever of the four was previously checked as an implicit
+	// side effect of setChecked(true) on Floor/None below, and that implicit
+	// uncheck would otherwise emit its own real toggled(false) signal via
+	// onGroundModeChanged().
 	ui->checkBoxEnvMapping->setChecked(realShaded || pbrLighting);
 	ui->checkBoxShadowMapping->setChecked(realShaded);
 	ui->checkBoxSelfShadows->setChecked(realShaded);
 	ui->checkBoxReflections->setChecked(realShaded);
-	if (!_groundModeUserSet)
 	{
+		QSignalBlocker blockGroundFloor(ui->radioButtonGroundFloor);
+		QSignalBlocker blockGroundNone(ui->radioButtonGroundNone);
+		QSignalBlocker blockGroundGrid(ui->radioButtonGroundGrid);
+		QSignalBlocker blockGroundInfinitePlane(ui->radioButtonGroundInfinitePlane);
 		ui->radioButtonGroundFloor->setChecked(realShaded);
 		ui->radioButtonGroundNone->setChecked(!realShaded);
+		_viewportWidget->setGroundMode(realShaded ? GroundMode::Floor : GroundMode::None);
+	}
+	{
+		QSignalBlocker blockDefaultLights(ui->checkBoxDefaultLights);
+		ui->checkBoxDefaultLights->setChecked(realShaded);
+		_viewportWidget->useDefaultLights(realShaded);
 	}
 	ui->checkBoxSkyBoxHDRI->setChecked(ui->checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
 
 	bool skyBoxHDRIChecked = ui->checkBoxSkyBoxHDRI->isChecked();
 	ui->checkBoxHDRToneMapping->setChecked(skyBoxHDRIChecked && pbrLighting);
 	ui->checkBoxGammaCorrection->setChecked(skyBoxHDRIChecked && pbrLighting);
-
-	blockSignals(false);
 
 	updateControlDependencies();
 	_viewportWidget->setSkyBoxTextureHDRI(skyBoxHDRIChecked);

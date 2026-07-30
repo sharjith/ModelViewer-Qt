@@ -38,6 +38,34 @@ public:
 	// Public method for ModelViewer to set PBR mode
 	void setPBRLightingMode(bool enable);
 
+	// Called by ModelViewer::onRenderingModeSelected()'s "PathTraced" branch,
+	// BEFORE armPathTracedRenderingMode() (so the first interactive snapshot
+	// already reflects these values) - the analogous mode-defining default
+	// for Path-Traced mode to what onDisplayModeChanged() already does for
+	// Realistic/PBR mode (Floor + default lights on there), except this one
+	// sets GroundMode::InfinitePlane (the path-tracer-only shadow-catcher
+	// floor - see GroundMode::InfinitePlane's own doc comment) and turns
+	// default lights off, since a shadow-catcher floor lit only by the flat
+	// default headlight looks wrong compared to real environment/skybox
+	// lighting. Unconditional, every time Path-Traced mode is (re-)selected
+	// via the toolbar/shortcut - not a one-time default. The user is still
+	// free to change either afterward, for as long as they stay in
+	// Path-Traced mode; only the mode switch itself is authoritative (see
+	// onDisplayModeChanged()'s identical doc comment for why an earlier
+	// "only the first time" version of this was a bug, not a feature).
+	void applyPathTracedGroundDefaultsOnce();
+
+	// Called by ModelViewer::onRenderingModeSelected()'s "ADS" branch. ADS
+	// never calls switchToRealisticRendering()/setRealismEnabled(), so
+	// onDisplayModeChanged() (which re-asserts default lights on for every
+	// ADS/PBR/Path-Traced switch) never runs for it - without this, default
+	// lights stayed off forever in ADS mode too, once a prior Path-Traced
+	// session had turned them off. Deliberately restores ONLY default
+	// lights, not the rest of onDisplayModeChanged()'s realism-driven
+	// defaults (floor/shadows/reflections/env-map) - ADS should not also
+	// enable Realistic rendering itself.
+	void restoreDefaultLightsForAds();
+
 	// Set preview widget for updating on environment changes
 	void setPreviewWidget(MaterialPreviewWidget* preview) { _previewWidget = preview; }
 
@@ -187,14 +215,6 @@ private:
 	// reloadSkyBoxPresets() must not stomp on it with a preset reload when
 	// this is set (see reloadSkyBoxPresets()).
 	bool _customSkyBoxActive = false;
-
-	// True once the user has explicitly picked a ground mode radio button -
-	// onDisplayModeChanged()'s realism-based floor/none default is only for
-	// the very first switch into realistic shading, not something that
-	// should re-stomp a deliberate later choice (e.g. "None") every time
-	// setRealismEnabled()/displayModeChanged fires again, such as on every
-	// Path Tracing "Render" click.
-	bool _groundModeUserSet = false;
 
 	bool _detached = false;
 
