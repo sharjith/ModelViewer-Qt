@@ -2382,6 +2382,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.hasVolumeScattering = mat.hasVolumeScattering ? 1 : 0;
 			hgSbt.data.isShadowCatcher = mat.isShadowCatcher ? 1 : 0;
 			hgSbt.data.shadowCatcherDarkness = mat.shadowCatcherDarkness;
+			hgSbt.data.hasRadialAlphaFade = mat.hasRadialAlphaFade ? 1 : 0;
+			hgSbt.data.radialFadeCenter = make_float3(mat.radialFadeCenter.x, mat.radialFadeCenter.y, mat.radialFadeCenter.z);
+			hgSbt.data.radialFadeUpAxisZUp = mat.radialFadeUpAxisZUp ? 1 : 0;
+			hgSbt.data.radialFadeStartRadius = mat.radialFadeStartRadius;
+			hgSbt.data.radialFadeEndRadius = mat.radialFadeEndRadius;
 
 			uploadMaterialTexture(mat.baseColorTexture, hgSbt.data.baseColorTexture);
 			uploadMaterialTexture(mat.metallicTexture, hgSbt.data.metallicTexture);
@@ -2448,6 +2453,11 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			hgSbt.data.hasVolumeScattering = 0;
 			hgSbt.data.isShadowCatcher = 0;
 			hgSbt.data.shadowCatcherDarkness = 0.5f;
+			hgSbt.data.hasRadialAlphaFade = 0;
+			hgSbt.data.radialFadeCenter = make_float3(0.0f, 0.0f, 0.0f);
+			hgSbt.data.radialFadeUpAxisZUp = 0;
+			hgSbt.data.radialFadeStartRadius = 0.0f;
+			hgSbt.data.radialFadeEndRadius = 0.0f;
 
 			hgSbt.data.baseColorTexture.width = 0;
 			hgSbt.data.metallicTexture.width = 0;

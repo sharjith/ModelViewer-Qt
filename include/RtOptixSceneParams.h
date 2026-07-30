@@ -560,6 +560,18 @@ struct RtOptixSceneHitGroupData
 	float shadowCatcherMetalness;
 	float shadowCatcherRoughness;
 
+	// Procedural radial opacity fade for the large RT GroundMode::Floor
+	// plate - mirrors RtMaterial::hasRadialAlphaFade and its neighboring
+	// fields exactly - see that struct's doc comment. Consumed in
+	// RtOptixScene.cu's __anyhit__ah(), multiplied into resolveOpacity()'s
+	// result before the ordinary blendMode==BLEND stochastic pass-through
+	// test - same mechanism CpuPathTracer.cpp's radialFadeAlpha() uses.
+	int hasRadialAlphaFade; // bool as int
+	float3 radialFadeCenter;
+	int radialFadeUpAxisZUp; // bool as int
+	float radialFadeStartRadius;
+	float radialFadeEndRadius;
+
 	RtOptixTexture baseColorTexture;
 	RtOptixTexture metallicTexture;
 	RtOptixTexture roughnessTexture;

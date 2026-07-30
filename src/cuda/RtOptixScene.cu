@@ -506,6 +506,35 @@ namespace
 		return data->opacity;
 	}
 
+	// Procedural radial opacity fade for the large RT GroundMode::Floor
+	// plate - GPU mirror of CpuPathTracer.cpp's radialFadeAlpha(); see
+	// RtMaterial::hasRadialAlphaFade's doc comment for the full rationale.
+	// worldHitPos is this any-hit invocation's actual hit point (rayOrigin +
+	// rayDir * optixGetRayTmax(), same convention __closesthit__ch() uses).
+	// Returns 1.0 (no effect) for every ordinary, non-floor material.
+	__forceinline__ __device__ float resolveRadialFadeAlpha(const RtOptixSceneHitGroupData* data, const float3& worldHitPos)
+	{
+		if (data->hasRadialAlphaFade == 0)
+			return 1.0f;
+
+		const float2 hitPlanar = data->radialFadeUpAxisZUp != 0
+			? make_float2(worldHitPos.x, worldHitPos.y)
+			: make_float2(worldHitPos.x, worldHitPos.z);
+		const float2 centerPlanar = data->radialFadeUpAxisZUp != 0
+			? make_float2(data->radialFadeCenter.x, data->radialFadeCenter.y)
+			: make_float2(data->radialFadeCenter.x, data->radialFadeCenter.z);
+		const float2 delta = make_float2(hitPlanar.x - centerPlanar.x, hitPlanar.y - centerPlanar.y);
+		const float distance = sqrtf(delta.x * delta.x + delta.y * delta.y);
+
+		if (data->radialFadeEndRadius <= data->radialFadeStartRadius)
+			return distance <= data->radialFadeStartRadius ? 1.0f : 0.0f;
+
+		const float t = fminf(fmaxf((distance - data->radialFadeStartRadius)
+			/ (data->radialFadeEndRadius - data->radialFadeStartRadius), 0.0f), 1.0f);
+		const float smooth = t * t * (3.0f - 2.0f * t); // smoothstep, matching main_scene.frag's floor fade curve
+		return 1.0f - smooth;
+	}
+
 	// Ported from CpuPathTracer::applyNormalMap() - N is the (already world-
 	// space, faceforward) shading normal; rawTangentAndHandedness.xyz is the
 	// OBJECT-space tangent already transformed to world space by the caller
@@ -2594,7 +2623,14 @@ extern "C" __global__ void __anyhit__ah()
 	bool passThrough = false;
 	if (needsAlphaTest)
 	{
-		const float opacity = resolveOpacity(data, uv);
+		float opacity = resolveOpacity(data, uv);
+		if (data->hasRadialAlphaFade != 0)
+		{
+			const float3 rayOriginAH = optixGetWorldRayOrigin();
+			const float3 rayDirAH = optixGetWorldRayDirection();
+			const float3 worldHitPosAH = rayOriginAH + rayDirAH * optixGetRayTmax();
+			opacity *= resolveRadialFadeAlpha(data, worldHitPosAH);
+		}
 		if (data->blendMode == 1) // Masked
 		{
 			passThrough = opacity < data->alphaThreshold;

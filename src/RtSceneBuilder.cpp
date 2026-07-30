@@ -673,7 +673,8 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 
 RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled,
 	bool shadowCatcherEnabled, float shadowCatcherDarkness, const QVector3D& shadowCatcherBaseColor,
-	float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache)
+	float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache,
+	bool applyRadialFade, const QVector3D& fadeCenter, bool fadeUpAxisZUp, float floorRadius)
 {
 	RtMaterial rt;
 	// Shadow-catcher floor mode (path tracer only) - see RtMaterial::
@@ -731,6 +732,19 @@ RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, con
 	// albedo" texture), so no texCache/tier-3 lookup is needed either.
 	rt.baseColorTexture = extractTextureSample(nullptr, runtime, material, static_cast<int>(Material::TextureType::Albedo), nullptr, material.albedoMapPath(), nullptr, dedupCache);
 
+	if (applyRadialFade)
+	{
+		// Force BLEND so the ordinary alphaTest machinery this fade piggy-
+		// backs on actually runs for this material at all - see
+		// RtMaterial::hasRadialAlphaFade's doc comment.
+		rt.blendMode              = 2; // Alpha/BLEND
+		rt.hasRadialAlphaFade     = true;
+		rt.radialFadeCenter       = toGlm(fadeCenter);
+		rt.radialFadeUpAxisZUp    = fadeUpAxisZUp;
+		rt.radialFadeStartRadius = floorRadius * 0.65f;  // matches main_scene.frag's fadeStart ratio
+		rt.radialFadeEndRadius   = floorRadius * 1.025f; // matches main_scene.frag's fadeEnd ratio
+	}
+
 	return rt;
 }
 
@@ -745,7 +759,8 @@ void RtSceneBuilder::fillInfinitePlane(RtSceneSnapshot& snapshot, const SceneRun
 	snapshot.infinitePlane.material = convertFloorMaterial(
 		runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled,
 		floor.shadowCatcherEnabled, floor.shadowCatcherDarkness, floor.shadowCatcherBaseColor,
-		floor.shadowCatcherMetalness, floor.shadowCatcherRoughness, dedupCache);
+		floor.shadowCatcherMetalness, floor.shadowCatcherRoughness, dedupCache,
+		!floor.shadowCatcherEnabled, floor.center, floor.cameraUpAxisZUp, floor.rasterFloorExtent * 0.5f);
 }
 
 void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache)
@@ -753,20 +768,22 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 	if (!floor.floorMesh)
 		return; // floor not created yet (e.g. before the viewport's first layout pass)
 
-	// Half-extent from the live scene bounding box, not the raster floor's
-	// own (much larger, aesthetic fade-out) geometry - see the declaration
-	// comments in RtSceneBuilder.h/RtFloorParams for why. A flat 30% margin
-	// keeps the floor extending a bit past the model on every side (so
-	// contact shadows/reflections aren't clipped right at the silhouette)
-	// without paying for the raster extent's far larger area. Square, not
-	// matching the bounding box's actual aspect ratio: using the larger of
-	// the two footprint axes for both keeps the floor from looking cut off
-	// along whichever axis happens to be shorter (e.g. a long, narrow model).
+	// Same half-extent as raster's own floor (rasterFloorExtent) rather than
+	// a small bounding-box-trimmed proxy - now that convertFloorMaterial()
+	// gives this instance's material a procedural radial alpha fade (see
+	// RtMaterial::hasRadialAlphaFade's doc comment) reaching all the way out
+	// to this same extent, a hard rectangular silhouette is no longer a
+	// concern, so the real RT geometry can extend as far as raster's does -
+	// meaning reflections/shadows now see the same-sized floor a raster user
+	// is used to, not a footprint clipped tightly to the model's own bounds.
+	// Falls back to the previous bbox-margin sizing only if rasterFloorExtent
+	// isn't populated yet (e.g. before the viewport's first layout pass).
 	constexpr float kMarginFactor = 1.3f;
 	const BoundingBox& bbox = floor.sceneBoundingBox;
 	const float extentU = static_cast<float>(bbox.getXSize());
 	const float extentV = floor.cameraUpAxisZUp ? static_cast<float>(bbox.getYSize()) : static_cast<float>(bbox.getZSize());
-	const float halfExtent = (std::max)(extentU, extentV) * 0.5f * kMarginFactor;
+	const float bboxHalfExtent = (std::max)(extentU, extentV) * 0.5f * kMarginFactor;
+	const float halfExtent = floor.rasterFloorExtent > 1e-4f ? (floor.rasterFloorExtent * 0.5f) : bboxHalfExtent;
 	const float safeHalfU = halfExtent > 1e-4f ? halfExtent : 1.0f;
 	const float safeHalfV = safeHalfU;
 

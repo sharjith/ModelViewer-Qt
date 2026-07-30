@@ -228,9 +228,15 @@ private:
 	// physically-grounded lever available to make the *real* GGX specular
 	// lobe visibly reflective without introducing a second, fake reflection
 	// mechanism into the tracer.
+	// applyRadialFade/fadeCenter/fadeUpAxisZUp/floorRadius drive
+	// RtMaterial::hasRadialAlphaFade (see its own doc comment) - only
+	// meaningful (and only ever passed true) when shadowCatcherEnabled is
+	// false, since the shadow-catcher gate already substitutes background
+	// radiance directly and has no use for a separate fade.
 	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled,
 		bool shadowCatcherEnabled, float shadowCatcherDarkness, const QVector3D& shadowCatcherBaseColor,
-		float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache);
+		float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache,
+		bool applyRadialFade, const QVector3D& fadeCenter, bool fadeUpAxisZUp, float floorRadius);
 
 	// Fills the PT-only analytic infinite plane description from the app's
 	// current floor controls/material. CPU uses this directly; GPU keeps the

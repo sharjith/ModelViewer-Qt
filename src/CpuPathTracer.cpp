@@ -2238,6 +2238,38 @@ namespace
 		}
 	}
 
+	// Procedural radial opacity fade for the large RT floor plate - see
+	// RtMaterial::hasRadialAlphaFade's doc comment for the full rationale.
+	// Multiplies into the ordinary blendMode==BLEND alphaTest at every
+	// alpha-aware hit site in this file (tracePixel()'s primary bounce,
+	// traceShadowRay(), findGuideSurfaceThroughTransmission()'s glass peek)
+	// rather than adding a separate blend-to-background code path - camera,
+	// shadow, and reflection rays all then naturally pass through the faded
+	// rim to whatever's really behind it (the real environment or other
+	// geometry), instead of hitting a hard rectangular silhouette. Returns
+	// 1.0 (no effect) for every ordinary, non-floor material.
+	float radialFadeAlpha(const RtMaterial& mat, const glm::vec3& hitPosition)
+	{
+		if (!mat.hasRadialAlphaFade)
+			return 1.0f;
+
+		const glm::vec2 hitPlanar = mat.radialFadeUpAxisZUp
+			? glm::vec2(hitPosition.x, hitPosition.y)
+			: glm::vec2(hitPosition.x, hitPosition.z);
+		const glm::vec2 centerPlanar = mat.radialFadeUpAxisZUp
+			? glm::vec2(mat.radialFadeCenter.x, mat.radialFadeCenter.y)
+			: glm::vec2(mat.radialFadeCenter.x, mat.radialFadeCenter.z);
+		const float distance = glm::length(hitPlanar - centerPlanar);
+
+		if (mat.radialFadeEndRadius <= mat.radialFadeStartRadius)
+			return distance <= mat.radialFadeStartRadius ? 1.0f : 0.0f;
+
+		const float t = std::clamp((distance - mat.radialFadeStartRadius)
+			/ (mat.radialFadeEndRadius - mat.radialFadeStartRadius), 0.0f, 1.0f);
+		const float smooth = t * t * (3.0f - 2.0f * t); // smoothstep, matching main_scene.frag's floor fade curve
+		return 1.0f - smooth;
+	}
+
 	// NEE shadow-ray occlusion, alpha/transmission-aware. RtEmbreeScene::
 	// occluded() alone is a plain any-hit test - ANY geometric intersection
 	// blocks the ray, even a MASK cutout's transparent hole or a fully-
@@ -2299,6 +2331,7 @@ namespace
 					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
 				else if (mat.baseColorTexture)
 					alphaTest *= sampleTexture(*mat.baseColorTexture, hit.texCoords).a;
+				alphaTest *= radialFadeAlpha(mat, hit.position);
 				alphaTest = std::clamp(alphaTest, 0.0f, 1.0f);
 
 				passThrough = (mat.blendMode == 1) // Masked
@@ -2520,6 +2553,7 @@ namespace
 					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
 				else if (mat.baseColorTexture)
 					alphaTest *= sampleTexture(*mat.baseColorTexture, hit.texCoords).a;
+				alphaTest *= radialFadeAlpha(mat, hit.position);
 				alphaTest = std::clamp(alphaTest, 0.0f, 1.0f);
 
 				const bool passThrough = (mat.blendMode == 1) // Masked
@@ -3273,6 +3307,7 @@ namespace
 					alphaTest *= applyChannelPacking(sampleTexture(*mat.opacityTexture, hit.texCoords), *mat.opacityTexture);
 				else if (mat.baseColorTexture)
 					alphaTest *= sampleTexture(*mat.baseColorTexture, hit.texCoords).a; // main_scene.frag's PBR-mode sampleFallbackOpacity()
+				alphaTest *= radialFadeAlpha(mat, hit.position);
 				alphaTest = std::clamp(alphaTest, 0.0f, 1.0f);
 
 				const bool passThrough = (mat.blendMode == 1) // Masked

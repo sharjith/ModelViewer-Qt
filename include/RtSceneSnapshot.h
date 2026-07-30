@@ -541,6 +541,36 @@ struct RtMaterial
 	float     shadowCatcherMetalness   = 0.0f;
 	float     shadowCatcherRoughness   = 0.5f;
 
+	// Procedural radial opacity fade for the large RT GroundMode::Floor
+	// plate (non-shadow-catcher, user-enabled manually) - set ONLY by
+	// RtSceneBuilder::convertFloorMaterial()/fillInfinitePlane(), same as
+	// the shadow-catcher fields above, and mutually exclusive with them
+	// (isShadowCatcher already substitutes background radiance directly, so
+	// it never needs this). RtSceneBuilder::addFloorInstance() now sizes the
+	// floor's real mesh geometry the same as raster's own (rasterFloorExtent)
+	// instead of a small bounding-box-trimmed proxy, so this material also
+	// needs a way to avoid a visible hard rectangular silhouette at that
+	// larger size - unlike main_scene.frag's raster equivalent (a per-
+	// fragment screen-space blend toward a sampled background color, only
+	// meaningful for the camera's direct view), this reuses the ordinary
+	// glTF alphaMode==BLEND stochastic alpha-passthrough machinery
+	// (CpuPathTracer.cpp's radialFadeAlpha()/RtOptixScene.cu's device
+	// equivalent) with a procedural, distance-from-center opacity instead of
+	// a texture: 1.0 within radialFadeStartRadius, smoothly down to 0.0 at
+	// radialFadeEndRadius (same 0.65/1.025-of-floorRadius ratios as
+	// main_scene.frag's fadeStart/fadeEnd), so it's physically correct for
+	// every ray type (camera, shadow, reflection) - a ray near the true edge
+	// naturally has a chance to pass straight through to whatever's really
+	// there (environment or other geometry) rather than the floor's own
+	// material, with no separate blend-to-background shading code needed.
+	// blendMode is forced to 2 (Alpha/BLEND) alongside these so the existing
+	// alphaTest machinery actually runs for this material at all.
+	bool      hasRadialAlphaFade      = false;
+	glm::vec3 radialFadeCenter        = glm::vec3(0.0f);
+	bool      radialFadeUpAxisZUp     = false;
+	float     radialFadeStartRadius   = 0.0f;
+	float     radialFadeEndRadius     = 0.0f;
+
 	// KHR_materials_diffuse_transmission - a translucent DIFFUSE material
 	// (leaves, paper, thin curtains), distinct from KHR_materials_
 	// transmission's specular/refractive glass model: light landing on the
