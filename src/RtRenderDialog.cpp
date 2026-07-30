@@ -528,6 +528,19 @@ void RtRenderDialog::onExportClicked()
 	const QString path = QFileDialog::getSaveFileName(this, tr("Export Ray-Traced Image"), defaultPath,
 		tr("PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp);;TIFF Image (*.tif *.tiff);;OpenEXR Image (*.exr)"),
 		&selectedFilter);
+
+	// Long-standing Windows glitch: this dialog is a floating, non-modal
+	// QDialog (not the app's actual QMainWindow), and closing a native file
+	// dialog parented to it can leave Windows' foreground-window activation
+	// confused, dropping the ENTIRE application behind whatever else is
+	// running instead of returning focus here - a known Qt-on-Windows quirk
+	// with native dialogs under non-mainwindow parents, not something this
+	// app's own event handling caused. raise()+activateWindow() forces this
+	// dialog (and with it, the whole app) back to the foreground regardless
+	// of whether the user picked a file or cancelled.
+	raise();
+	activateWindow();
+
 	if (path.isEmpty())
 		return;
 
