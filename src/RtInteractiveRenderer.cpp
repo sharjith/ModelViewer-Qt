@@ -148,6 +148,7 @@ bool RtInteractiveRenderer::applySceneSnapshot(const std::shared_ptr<const RtSce
 		_accumulationCameraValid = false;
 		_accumulatedSampleCount = 0;
 		_latestCompletedSlot = -1;
+		_finalDenoiseDone = false;
 	}
 
 	return true;
@@ -386,8 +387,21 @@ void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		// motion is still actively ongoing, where publishing immediately for
 		// progressive feedback matters more than avoiding an extra
 		// intermediate frame.
+		//
+		// EXCEPT when this completing launch is the one that crosses
+		// _maxAccumulatedSamples: that assumption ("a fresher frame is about
+		// to replace this one") is false in that specific case - (b) below
+		// will see the cap already reached and submit NOTHING further, ever,
+		// for this accumulation streak. Skipping publish here would also skip
+		// the one-shot final denoise below (it only runs inside this
+		// publishThisFrame branch), permanently stranding the display on a
+		// stale, never-denoised frame with no future launch left to fix it -
+		// confirmed via [PT-STALL-DIAG] heartbeat logging as the actual cause
+		// of a reported "sampling looks stuck, grainy, denoiser never ran"
+		// bug at the tail of a drag.
+		const bool crossesSampleCap = _accumulatedSampleCount >= _maxAccumulatedSamples;
 		bool publishThisFrame = true;
-		if (_pendingCameraDirty && cameraNearlySettled(slot.submittedCamera, _pendingCamera))
+		if (!crossesSampleCap && _pendingCameraDirty && cameraNearlySettled(slot.submittedCamera, _pendingCamera))
 			publishThisFrame = false;
 
 		// ACCUMULATION-HISTORY bookkeeping - unconditional, regardless of
@@ -440,6 +454,17 @@ void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsE
 			slot.denoisedValid = _denoiserEnabled && _cameraSettled && _accumulatedSampleCount >= _maxAccumulatedSamples &&
 				_denoiser.denoiseDevice(slot.deviceImageRGBA, slot.dAlbedoScratch, slot.dNormalScratch,
 					_width, _height, slot.deviceDenoisedRGBA, _accumulatedSampleCount);
+
+			// If this completion crosses the cap WHILE ALREADY SETTLED, this
+			// was the one-shot final denoise attempt - mark it done regardless
+			// of success (a genuine failure/disabled-denoiser case shouldn't
+			// be retried forever either, matching the original one-shot
+			// intent). If the cap was crossed while NOT YET settled, leave
+			// this false - tick()'s "already at cap" early-return below picks
+			// up the deferred attempt once _cameraSettled actually flips true
+			// (see _finalDenoiseDone's own doc comment).
+			if (crossesSampleCap && _cameraSettled)
+				_finalDenoiseDone = true;
 
 			// See _holdPublishUntilConverged's doc comment - skips publishing
 			// ONLY this one completed launch (the freshly-reallocated,
@@ -514,12 +539,31 @@ void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		_accumulationCameraValid = true;
 		_accumulatedSampleCount = 0;
 		_latestCompletedSlot = -1;
+		_finalDenoiseDone = false;
 	}
 
 	if (_accumulatedSampleCount >= _maxAccumulatedSamples)
 	{
-		// Fully converged at this pose - nothing more to do until the pose
-		// changes again.
+		// Fully converged at this pose - nothing more to SUBMIT until the
+		// pose changes again. But the one-shot final denoise may still be
+		// outstanding: continuous accumulation keeps submitting through the
+		// whole 450ms idle-settle debounce, so a low enough sample cap can
+		// reach _maxAccumulatedSamples BEFORE _cameraSettled actually flips
+		// true - the normal completion-handling denoise above is gated on
+		// _cameraSettled and silently skips in that case, and once the cap
+		// is reached no further launch will ever complete to retry it. Do it
+		// here instead, the first time this is reached AFTER settling - see
+		// _finalDenoiseDone's own doc comment for the full mechanism.
+		if (_cameraSettled && !_finalDenoiseDone && _latestCompletedSlot >= 0)
+		{
+			Slot& finalSlot = _slots[_latestCompletedSlot];
+			finalSlot.denoisedValid = _denoiserEnabled &&
+				_denoiser.denoiseDevice(finalSlot.deviceImageRGBA, finalSlot.dAlbedoScratch, finalSlot.dNormalScratch,
+					_width, _height, finalSlot.deviceDenoisedRGBA, _accumulatedSampleCount);
+			_readySlot = _latestCompletedSlot;
+			++_generation;
+			_finalDenoiseDone = true;
+		}
 		_pendingCameraDirty = false;
 		return;
 	}
@@ -616,6 +660,7 @@ void RtInteractiveRenderer::applyInternalResolution()
 	_inFlightSlot = -1;
 	_latestCompletedSlot = -1;
 	_accumulatedSampleCount = 0;
+	_finalDenoiseDone = false;
 	_pendingCameraDirty = false;
 	_pendingCameraValid = false;
 	_accumulationCameraValid = false;
@@ -663,6 +708,7 @@ void RtInteractiveRenderer::resize(int width, int height)
 		_inFlightSlot = -1;
 		_latestCompletedSlot = -1;
 		_accumulatedSampleCount = 0;
+		_finalDenoiseDone = false;
 		_pendingCameraDirty = false;
 		_pendingCameraValid = false;
 		_accumulationCameraValid = false;
@@ -691,6 +737,7 @@ void RtInteractiveRenderer::releaseResources()
 	_readySlot = -1;
 	_latestCompletedSlot = -1;
 	_accumulatedSampleCount = 0;
+	_finalDenoiseDone = false;
 	_pendingCameraDirty = false;
 	_pendingCameraValid = false;
 	_accumulationCameraValid = false;

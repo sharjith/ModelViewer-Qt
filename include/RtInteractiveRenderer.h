@@ -268,6 +268,11 @@ public:
 			_holdPublishUntilConverged = false;
 			_forceFullResolutionRequested = false;
 			_pendingResolutionChangeIsForced = false;
+			// A fresh interacting spell always precedes a genuine pose change
+			// (which independently resets this too - see tick()'s poseChanged
+			// branch), but resetting here as well costs nothing and closes any
+			// theoretical gap - see _finalDenoiseDone's own doc comment.
+			_finalDenoiseDone = false;
 		}
 	}
 	bool cameraSettled() const { return _cameraSettled; }
@@ -376,6 +381,25 @@ private:
 	// was wrong). Reset to 0 whenever the camera genuinely changes or the
 	// accumulation otherwise starts over.
 	uint32_t _accumulatedSampleCount = 0;
+
+	// True once the one-shot final denoise (see tick()'s own doc comment on
+	// why it only ever fires once per accumulation streak) has actually run
+	// for the CURRENT streak - reset to false everywhere _accumulatedSampleCount
+	// resets to 0. Exists because the sample cap can be reached WHILE THE
+	// CAMERA IS STILL NOT SETTLED (_cameraSettled == false): continuous
+	// accumulation keeps submitting through the whole 450ms idle-settle
+	// debounce, and a low enough sample cap (e.g. 16 launches at ~33ms each,
+	// under 600ms) can finish BEFORE that debounce elapses. tick()'s normal
+	// completion-handling denoise is gated on _cameraSettled, so it silently
+	// skips in that case - and once the cap is reached, tick() stops
+	// submitting anything else, so that denoise would otherwise never get a
+	// second chance. This flag lets tick()'s "already at cap" early-return
+	// perform that deferred one-shot denoise+publish itself, the FIRST time
+	// it's called after the camera actually settles - see tick()'s own use
+	// site for the full mechanism. Root-caused via [PT-STALL-DIAG] logging
+	// after a reported "sampling looks stuck, grainy, denoiser never ran"
+	// bug at the tail of a drag with a low interactive sample cap.
+	bool _finalDenoiseDone = false;
 
 	// Edge-triggered, not equality-compared: every updateCamera() call marks
 	// the pending pose dirty only when it actually differs from the previous
