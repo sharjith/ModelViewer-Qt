@@ -1715,6 +1715,24 @@ private:
 	std::shared_ptr<const RtSceneSnapshot> buildRayTracedSnapshot(int width, int height,
 		const RtEnvironment* reusedEnvironment = nullptr);
 
+	// Live (not cached) camera-vs-floor-plane test, computed the same way
+	// RtSceneBuilder::build() decides whether to include the floor at all
+	// (camera's up-axis coordinate vs _floorPlaneZ). Used to compare against
+	// _rtLastBuildCameraAboveFloor on every camera-only fast-path update, to
+	// detect when the camera has actually crossed the floor's plane and a
+	// real rebuild is needed to hide/show it - see that member's own doc
+	// comment for the full rationale. Returns true (never hide) if there's
+	// no primary camera yet.
+	bool isCameraAboveFloorPlane() const
+	{
+		if (!_primaryCamera)
+			return true;
+		const float cameraUpCoord = _viewCtrl.cameraUpAxisZUp()
+			? _primaryCamera->getRenderPosition().z()
+			: _primaryCamera->getRenderPosition().y();
+		return cameraUpCoord >= _floorPlaneZ;
+	}
+
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;
 
@@ -1736,6 +1754,21 @@ private:
 	// _floorOffsetPercent â†’ SceneRenderController (Phase 12)
 	float                    _floorPlaneZ;
 	QVector3D                _floorCenter;
+
+	// Whether the camera was above (vs below) the floor's plane the last
+	// time buildRayTracedSnapshot() actually ran RtSceneBuilder::build() -
+	// see isCameraAboveFloorPlane()'s own doc comment for why this exists:
+	// RtSceneBuilder::build() decides whether to include the PT floor at
+	// all based on camera position, but ordinary camera-only interaction
+	// (startInteractiveRayTracedGpuSession()'s fast path) deliberately
+	// never calls build() again, reusing the existing snapshot/GAS - so
+	// without this, orbiting the camera below the floor mid-drag would
+	// never actually hide it (build() ran once, before the crossing,
+	// and never runs again for a pure camera move). Updated every time
+	// buildRayTracedSnapshot() runs; compared against the LIVE camera
+	// position on every fast-path camera update to detect a genuine
+	// crossing and force a real rebuild only then.
+	bool _rtLastBuildCameraAboveFloor = true;
 
 
 	QPointer<QWidget> _navigationOverlayPanel;

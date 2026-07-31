@@ -1835,14 +1835,28 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		{
 			// Reuse the existing device buffers/handle in place - vertex/
 			// index COUNT is unchanged (checked above), so their byte sizes
-			// match exactly; only their CONTENTS need updating. Indices,
-			// texCoords, and vertexColors are NOT re-uploaded: topology-
-			// preserving deformation (skinning/morph) only ever moves
-			// positions/normals/tangents - triangle connectivity, UVs, and
-			// vertex colors are baked once at import and never touched by
-			// animation, so re-uploading byte-identical data for them every
-			// single frame (as an earlier version of this refit path did)
-			// was pure waste.
+			// match exactly; only their CONTENTS need updating. Indices are
+			// NOT re-uploaded (triangle connectivity is genuinely immutable
+			// for every mesh that reaches this branch, animated or not).
+			//
+			// texCoords and vertexColors ARE re-uploaded, unlike an earlier
+			// version of this path: the original reasoning ("topology-
+			// preserving deformation only ever moves positions/normals/
+			// tangents, so UVs/vertex colors are baked once at import and
+			// never touched again") is only true for the SKINNING/MORPH
+			// refits above, which are gated on mesh.hasSkinningData/
+			// hasMorphData. This generic branch is reached by ANY refit-
+			// eligible mesh, animated or not - RtSceneBuilder's own
+			// synthetic floor quad is the concrete counterexample: its 4
+			// corner POSITIONS never change between builds (same vertex/
+			// index count every time), but its baked-in UV coordinates DO
+			// (texture repeat, radial-fade-driven regeneration, floor
+			// center) - a content change this refit path used to silently
+			// swallow, leaving the GPU serving stale texture coordinates
+			// until something else forced a full rebuild (e.g. the persistent
+			// GAS cache getting cleared some other way) - reported as
+			// "floor tiling changes don't take effect until switching back
+			// and forth once".
 			//
 			// Reached only when the GPU-skin fast path above wasn't taken
 			// (not a skinned mesh) or fell through after failing - CPU-bake
@@ -1860,6 +1874,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			bool ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.positions), positions.data(), positionsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh positions, GAS refit)");
 			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.normals), normals.data(), normalsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh normals, GAS refit)");
 			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.tangents), tangents.data(), tangentsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh tangents, GAS refit)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), texCoords.data(), texCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords, GAS refit)");
+			if (ok) ok = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), vertexColors.data(), vertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors, GAS refit)");
 
 			if (ok)
 			{

@@ -13716,7 +13716,6 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildRayTracedSnapshot(in
 	floorParams.rasterFloorExtent = CoordinateSystemHelper::groundPlaneExtent(_floorSize, _floorSizeFactor, _renderCtrl.groundMode());
 	floorParams.texRepeatS       = _renderCtrl.floorTexRepeatS();
 	floorParams.texRepeatT       = _renderCtrl.floorTexRepeatT();
-	floorParams.reflectionsEnabled = _renderCtrl.reflectionsEnabled();
 	floorParams.shadowCatcherEnabled = infinitePlaneMode;
 	floorParams.shadowCatcherDarkness = _renderCtrl.shadowCatcherDarkness();
 	floorParams.shadowCatcherBaseColor = _renderCtrl.shadowCatcherBaseColor();
@@ -13735,6 +13734,12 @@ std::shared_ptr<const RtSceneSnapshot> ViewportWidget::buildRayTracedSnapshot(in
 		_sceneRuntime, *_primaryCamera, aspectRatio,
 		lights, _rayTracedSceneRevision, &environment, &floorParams,
 		_renderCtrl.shadowsEnabled(), _renderCtrl.selfShadowsEnabled());
+
+	// Cache which side of the floor's plane the camera was on for THIS
+	// build - see _rtLastBuildCameraAboveFloor's own doc comment for why
+	// this needs tracking separately from build()'s own (correct, but only
+	// evaluated HERE) camera-vs-floor-plane decision.
+	_rtLastBuildCameraAboveFloor = isCameraAboveFloorPlane();
 
 	// KHR_materials_transmission without KHR_materials_volume ("thin-walled")
 	// passes rays through completely undeviated per spec - under
@@ -13942,7 +13947,37 @@ void ViewportWidget::startInteractiveRayTracedGpuSession(bool forceSceneRefresh)
 	{
 		const float aspectRatio = fbHeight > 0 ? static_cast<float>(fbWidth) / static_cast<float>(fbHeight) : 1.0f;
 		const RtCamera camera = RtSceneBuilder::buildCamera(*_primaryCamera, aspectRatio);
-		if (!forceSceneRefresh)
+
+		// RtSceneBuilder::build() decides whether to include the PT floor at
+		// all based on which side of its plane the camera is on (see its own
+		// doc comment) - but that decision is only re-evaluated when build()
+		// actually runs, and the fast path below deliberately never calls it
+		// (that's the whole point of the fast path). Without this check,
+		// orbiting the camera below the floor mid-drag would never hide it -
+		// build() ran once, before the crossing, and the fast path would
+		// just keep reusing that stale snapshot forever. Only relevant for
+		// the two ground modes RtSceneBuilder::build() actually applies this
+		// to (see its floor->groundMode==GroundMode::Floor check and
+		// buildRayTracedSnapshot()'s infinitePlaneMode->GroundMode::Floor
+		// remap for the shadow-catcher case).
+		const bool floorCrossingRelevant =
+			_renderCtrl.groundMode() == GroundMode::Floor || _renderCtrl.groundMode() == GroundMode::InfinitePlane;
+		const bool floorSideUnchanged = !floorCrossingRelevant || isCameraAboveFloorPlane() == _rtLastBuildCameraAboveFloor;
+		if (!floorSideUnchanged)
+		{
+			// The rebuild path below is gated on _rayTracedSceneRevision
+			// (RtInteractiveRenderer::applySceneSnapshot() only pays for a
+			// real GAS/IAS rebuild when snapshot->revisionId actually
+			// changes) - without bumping it here, buildRayTracedSnapshot()
+			// would correctly add/drop the floor mesh in the CPU-side
+			// RtSceneSnapshot, but the GPU scene actually raytraced against
+			// would silently keep the OLD mesh list, same as any other
+			// mutation that needs this bump (see notifyRayTracedSceneMutated()'s
+			// identical increment).
+			++_rayTracedSceneRevision;
+		}
+
+		if (!forceSceneRefresh && floorSideUnchanged)
 		{
 			// Fast path: already at this resolution - just hand over the
 			// current camera pose (cheap: no snapshot rebuild, no resize, no
@@ -13955,9 +13990,13 @@ void ViewportWidget::startInteractiveRayTracedGpuSession(bool forceSceneRefresh)
 			return;
 		}
 
-		// Animation-driven scene revision on an already-live interactive
-		// session: rebuild/queue the NEW snapshot against the same renderer
-		// instance instead of tearing it down and starting over.
+		// Animation-driven scene revision (forceSceneRefresh) OR a floor
+		// plane crossing (floorSideUnchanged false) on an already-live
+		// interactive session: rebuild/queue the NEW snapshot against the
+		// same renderer instance instead of tearing it down and starting
+		// over. RtSceneBuilder::build(), reached via buildRayTracedSnapshot()
+		// below, is what actually re-evaluates whether the floor should be
+		// included for the crossing case.
 		const RtEnvironment* reusedEnvironment =
 			_rtInteractiveRendererSnapshot ? &_rtInteractiveRendererSnapshot->environment : nullptr;
 		auto snapshot = buildRayTracedSnapshot(fbWidth, fbHeight, reusedEnvironment);

@@ -44,15 +44,6 @@ struct RtFloorParams
 	float texRepeatS        = 1.0f;
 	float texRepeatT        = 1.0f;
 
-	// Mirrors the Visualization panel's "Reflections" checkbox
-	// (SceneRenderController::reflectionsEnabled()), which raster uses to
-	// gate its own (fake, planar-mirror) floor reflection pass. The path-
-	// traced floor's "reflection" is really just a deliberately-lowered
-	// roughness override (see convertFloorMaterial()) - when this is false,
-	// that override is skipped so the floor falls back to its actual
-	// material roughness (no visible reflection), matching raster's toggle.
-	bool reflectionsEnabled = true;
-
 	// shadowCatcherEnabled mirrors GroundMode::InfinitePlane being selected
 	// (its own radio button in the Visualization panel's Ground section,
 	// mutually exclusive with None/Floor/Grid) - ViewportWidget derives this
@@ -217,23 +208,25 @@ private:
 	// imageData directly, with no SceneMesh::textures() or texCache tier
 	// needed.
 	//
-	// Roughness is overridden lower than the raster floor's actual Material
-	// (0.45 by default) rather than reusing it verbatim: raster's floor
-	// reflection is a wholly separate, non-physical planar-mirror render
-	// pass (ViewportWidget's isReflectedPass, blended via the floorSpecular
-	// Scale/floorFresnelDampen shader uniforms - see main_scene.frag) that
-	// never consults Material::roughness/metalness at all, so a real BRDF
-	// path tracer using that value as-is produces a much duller floor than
-	// what raster's fake reflection shows. Lowering roughness is the only
-	// physically-grounded lever available to make the *real* GGX specular
-	// lobe visibly reflective without introducing a second, fake reflection
-	// mechanism into the tracer.
+	// The floor always uses its real, unmodified Material::roughness - no
+	// PT-side reflection override (an earlier roughness-clamp attempt was
+	// removed: raster's floor reflection is a wholly separate, non-physical
+	// planar-mirror render pass, ViewportWidget's isReflectedPass blended via
+	// the floorSpecularScale/floorFresnelDampen shader uniforms in
+	// main_scene.frag - it never consults Material::roughness/metalness at
+	// all, and has no equivalent physically-grounded lever available in a
+	// real BRDF path tracer without introducing a second, fake reflection
+	// mechanism into the tracer). The plain floor is intentionally just a
+	// diffuse PBR-like surface that correctly receives shadows; actual floor
+	// reflectivity is available via the Infinite Plane / Shadow Catcher
+	// ground mode instead, which already has its own explicit
+	// shadowCatcherMetalness/Roughness controls driving a real BSDF bounce.
 	// applyRadialFade/fadeCenter/fadeUpAxisZUp/floorRadius drive
 	// RtMaterial::hasRadialAlphaFade (see its own doc comment) - only
 	// meaningful (and only ever passed true) when shadowCatcherEnabled is
 	// false, since the shadow-catcher gate already substitutes background
 	// radiance directly and has no use for a separate fade.
-	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled,
+	static RtMaterial convertFloorMaterial(const SceneRuntime& runtime, const Material& material,
 		bool shadowCatcherEnabled, float shadowCatcherDarkness, const QVector3D& shadowCatcherBaseColor,
 		float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache,
 		bool applyRadialFade, const QVector3D& fadeCenter, bool fadeUpAxisZUp, float floorRadius);

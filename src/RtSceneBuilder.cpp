@@ -671,7 +671,36 @@ RtMaterial RtSceneBuilder::convertMaterial(const SceneMesh* mesh, const SceneRun
 	return rt;
 }
 
-RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material, bool reflectionsEnabled,
+namespace
+{
+	// Back to raster's own (larger, model-size-independent) floor extent -
+	// see git history for the back-and-forth: a smaller, bbox-margin-based
+	// extent was tried specifically to stop a much bigger diffuse floor from
+	// gathering extra environment radiance and diluting contact shadows with
+	// indirect fill light, but the actual "missing shadow" reports turned
+	// out to be a red herring (a dark object's own mirror reflection being
+	// mistaken for a shadow, and/or a soft/ambient HDRI that never produced
+	// much of a hard shadow regardless of floor size). Restored to the
+	// raster-matching size so real HDRI comparisons aren't confounded by an
+	// undersized floor - falls back to the bbox-margin sizing only if
+	// rasterFloorExtent isn't populated yet (e.g. before the viewport's
+	// first layout pass). See its two call sites (RtSceneBuilder::
+	// fillInfinitePlane()/addFloorInstance()) for how the radial alpha fade
+	// still gives this a soft, non-rectangular visual edge at this size.
+	constexpr float kFloorMarginFactor = 1.3f;
+	float floorLightTransportHalfExtent(const RtFloorParams& floor)
+	{
+		if (floor.rasterFloorExtent > 1e-4f)
+			return floor.rasterFloorExtent * 0.5f;
+
+		const BoundingBox& bbox = floor.sceneBoundingBox;
+		const float extentU = static_cast<float>(bbox.getXSize());
+		const float extentV = floor.cameraUpAxisZUp ? static_cast<float>(bbox.getYSize()) : static_cast<float>(bbox.getZSize());
+		return (std::max)(extentU, extentV) * 0.5f * kFloorMarginFactor;
+	}
+}
+
+RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, const Material& material,
 	bool shadowCatcherEnabled, float shadowCatcherDarkness, const QVector3D& shadowCatcherBaseColor,
 	float shadowCatcherMetalness, float shadowCatcherRoughness, TextureDedupCache& dedupCache,
 	bool applyRadialFade, const QVector3D& fadeCenter, bool fadeUpAxisZUp, float floorRadius)
@@ -692,33 +721,23 @@ RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, con
 	rt.shadowCatcherRoughness = shadowCatcherRoughness;
 	rt.baseColor         = toGlm(material.albedoColor());
 	rt.metalness         = material.metalness();
-	if (reflectionsEnabled)
-	{
-		// See the declaration comment in RtSceneBuilder.h: raster's floor
-		// reflection never reads Material::roughness at all (it's a separate
-		// fake planar-mirror pass), so reusing the raster value verbatim (0.45
-		// by default - fairly diffuse-dominant) leaves a real BRDF path tracer's
-		// floor looking duller than what raster shows. This is the one
-		// physically-grounded lever available to make it actually reflective.
-		// Clamped lower than the first attempt (0.12) - once the fallback
-		// light's calibrated intensity made the floor's direct-lit diffuse
-		// response strong enough for a visible shadow, that same brightness
-		// compressed the previous, still-fairly-soft reflection into near-
-		// invisibility through the ACES tonemap. A sharper (lower-roughness)
-		// GGX lobe concentrates the same reflected energy into a smaller,
-		// higher-contrast highlight instead of spreading it thin, so it reads
-		// as a real reflection rather than a faint smear even next to a bright
-		// diffuse floor.
-		rt.roughness = (std::min)(material.roughness(), 0.04f);
-	}
-	else
-	{
-		// "Reflections" toggled off (Visualization panel, mirrors raster's
-		// own fake-reflection-pass gate) - use the floor's actual material
-		// roughness unmodified, same as any other surface, so no visible
-		// specular reflection shows.
-		rt.roughness = material.roughness();
-	}
+	// No PT-side reflection override anymore (previously a roughness clamp
+	// gated on the raster "Reflections" checkbox - see git history for the
+	// abandoned attempt and why it didn't work: widening/narrowing roughness
+	// alone can't replicate raster's fake mirror pass, since raster's floor
+	// reflection reads neither Material::roughness NOR any physically-
+	// grounded Fresnel term at all - it's a wholly separate double-rendered-
+	// geometry overlay blended at a fixed low opacity, independent of BRDF).
+	// The ordinary floor now always uses its real, unmodified material
+	// roughness, same as any other surface - a plain PBR-like diffuse floor
+	// that still correctly receives shadows (NEE/occlusion is independent of
+	// this value). Actual floor reflectivity is available via the Infinite
+	// Plane / Shadow Catcher ground mode instead, which already has its own
+	// explicit shadowCatcherMetalness/Roughness controls driving a real BSDF
+	// bounce (see the isShadowCatcher gate in CpuPathTracer.cpp/RtOptixScene.cu) -
+	// a deliberately separate, opt-in feature rather than folding reflection
+	// into the plain floor's own material.
+	rt.roughness = material.roughness();
 	rt.emissive          = toGlm(material.emissive());
 	rt.emissiveStrength  = material.emissiveStrength();
 	rt.opacity           = material.opacity();
@@ -757,10 +776,10 @@ void RtSceneBuilder::fillInfinitePlane(RtSceneSnapshot& snapshot, const SceneRun
 	snapshot.infinitePlane.cameraUpAxisZUp = floor.cameraUpAxisZUp;
 	snapshot.infinitePlane.height          = floor.planeLevel;
 	snapshot.infinitePlane.material = convertFloorMaterial(
-		runtime, floor.floorMesh->getMaterial(), floor.reflectionsEnabled,
+		runtime, floor.floorMesh->getMaterial(),
 		floor.shadowCatcherEnabled, floor.shadowCatcherDarkness, floor.shadowCatcherBaseColor,
 		floor.shadowCatcherMetalness, floor.shadowCatcherRoughness, dedupCache,
-		!floor.shadowCatcherEnabled, floor.center, floor.cameraUpAxisZUp, floor.rasterFloorExtent * 0.5f);
+		!floor.shadowCatcherEnabled, floor.center, floor.cameraUpAxisZUp, floorLightTransportHalfExtent(floor));
 }
 
 void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRuntime& runtime, const RtFloorParams& floor, TextureDedupCache& dedupCache)
@@ -768,22 +787,13 @@ void RtSceneBuilder::addFloorInstance(RtSceneSnapshot& snapshot, const SceneRunt
 	if (!floor.floorMesh)
 		return; // floor not created yet (e.g. before the viewport's first layout pass)
 
-	// Same half-extent as raster's own floor (rasterFloorExtent) rather than
-	// a small bounding-box-trimmed proxy - now that convertFloorMaterial()
-	// gives this instance's material a procedural radial alpha fade (see
-	// RtMaterial::hasRadialAlphaFade's doc comment) reaching all the way out
-	// to this same extent, a hard rectangular silhouette is no longer a
-	// concern, so the real RT geometry can extend as far as raster's does -
-	// meaning reflections/shadows now see the same-sized floor a raster user
-	// is used to, not a footprint clipped tightly to the model's own bounds.
-	// Falls back to the previous bbox-margin sizing only if rasterFloorExtent
-	// isn't populated yet (e.g. before the viewport's first layout pass).
-	constexpr float kMarginFactor = 1.3f;
-	const BoundingBox& bbox = floor.sceneBoundingBox;
-	const float extentU = static_cast<float>(bbox.getXSize());
-	const float extentV = floor.cameraUpAxisZUp ? static_cast<float>(bbox.getYSize()) : static_cast<float>(bbox.getZSize());
-	const float bboxHalfExtent = (std::max)(extentU, extentV) * 0.5f * kMarginFactor;
-	const float halfExtent = floor.rasterFloorExtent > 1e-4f ? (floor.rasterFloorExtent * 0.5f) : bboxHalfExtent;
+	// Tight, bounding-box-margin half-extent (see floorLightTransportHalfExtent()'s
+	// own doc comment for why this real light-transport geometry is kept
+	// small again rather than matching raster's much larger cosmetic
+	// footprint) - the radial alpha fade below still gives this a soft,
+	// non-rectangular visual edge despite the smaller size, so there's no
+	// hard silhouette regression from shrinking this back down.
+	const float halfExtent = floorLightTransportHalfExtent(floor);
 	const float safeHalfU = halfExtent > 1e-4f ? halfExtent : 1.0f;
 	const float safeHalfV = safeHalfU;
 
@@ -955,7 +965,25 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 		snapshot->instances.push_back(instance);
 	}
 
-	if (floor && floor->groundMode == GroundMode::Floor)
+	// Hide the floor entirely once the camera drops below its plane -
+	// mirrors raster's own behavior (ViewportWidget::drawFloor()), which
+	// hides it via plain OpenGL hardware backface culling (glCullFace(
+	// GL_FRONT)) rather than any shader-level or camera-position check - see
+	// main_scene.frag's main(), which explicitly EXEMPTS floorRendering from
+	// its own twoSided/isFrontFacing discard because the hardware culling
+	// already handles it. Replicating that exact winding-dependent GL
+	// culling behavior via the tracer's own twoSided/hitBackface mechanism
+	// would mean reverse-engineering which side of the analytic floor
+	// quad's fixed vertex winding reads as "front" - risky to get backwards
+	// without being able to test live (the wrong sign would hide the floor
+	// from ABOVE instead, a much worse regression than not hiding it at
+	// all). A camera-position check achieves the same practical result
+	// unambiguously: computed once per snapshot build, no per-hit backface
+	// test needed, and no dependency on winding order at all.
+	const float cameraUpCoord = (floor && floor->cameraUpAxisZUp) ? camera.getRenderPosition().z() : camera.getRenderPosition().y();
+	const bool cameraAboveFloor = !floor || cameraUpCoord >= floor->planeLevel;
+
+	if (floor && floor->groundMode == GroundMode::Floor && cameraAboveFloor)
 	{
 		fillInfinitePlane(*snapshot, runtime, *floor, dedupCache);
 		// Shadow-catcher PT mode should behave like NVIDIA's analytic
