@@ -341,11 +341,19 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	ui->labelSkyBoxBlurValue->setEnabled(skyBoxEnabled);
 	ui->labelFOV->setEnabled(skyBoxEnabled);
 	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);
-	ui->labelSkyBoxRotation->setEnabled(skyBoxEnabled);
-	ui->comboBoxSkyBoxRotation->setEnabled(skyBoxEnabled);
-	ui->sliderSkyBoxRotationFine->setEnabled(skyBoxEnabled);
-	ui->labelSkyBoxRotationFineValue->setEnabled(skyBoxEnabled);
-	
+
+	// Rotation deliberately NOT gated on skyBoxEnabled (unlike blur/FOV above,
+	// which only affect the drawn background itself): setSkyBoxZRotationDegrees()
+	// also rebuilds updateEnvMapRotationMatrix(), which orients the SAME
+	// environment map used for IBL reflections/lighting - see that method's
+	// own doc comment. That lighting effect is visible whether or not the
+	// skybox is drawn behind the model, so hiding the skybox shouldn't lock
+	// the user out of rotating the light itself.
+	ui->labelSkyBoxRotation->setEnabled(true);
+	ui->comboBoxSkyBoxRotation->setEnabled(true);
+	ui->sliderSkyBoxRotationFine->setEnabled(true);
+	ui->labelSkyBoxRotationFineValue->setEnabled(true);
+
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
 	ui->checkBoxFloorTexture->setEnabled(floorEnabled);
