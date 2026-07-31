@@ -502,7 +502,17 @@ void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsE
 	const int submitInto = (_readySlot == 0) ? 1 : 0;
 	Slot& slot = _slots[submitInto];
 	if (!slot.deviceImageRGBA)
+	{
+		// [PT-STALL-DIAG] temporary diagnostic - see this class's own doc
+		// comment on _diagNoResourcesStreak. Should essentially never happen
+		// once resize() has been called with a real size, so log every
+		// occurrence rather than throttling.
+		++_diagNoResourcesStreak;
+		qWarning() << "[PT-STALL-DIAG] tick(): submitInto slot" << submitInto << "has no deviceImageRGBA - "
+			"resources not allocated yet (streak=" << _diagNoResourcesStreak << ", width=" << _width << "height=" << _height << ")";
 		return; // resources not allocated yet - see resize()
+	}
+	_diagNoResourcesStreak = 0;
 
 	// A genuine pose (or scene) change invalidates the shared accumulation
 	// history entirely - discard it so a later submission doesn't blend
@@ -542,8 +552,24 @@ void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsE
 			_tracer.copyGuideScratchBufferAsync(slot.dAlbedoScratch, source.dAlbedoScratch, _width, _height, _stream) &&
 			_tracer.copyGuideScratchBufferAsync(slot.dNormalScratch, source.dNormalScratch, _width, _height, _stream);
 		if (!copiedThisTick)
+		{
+			// [PT-STALL-DIAG] temporary diagnostic - copyDeviceRGBABufferAsync()/
+			// copyGuideScratchBufferAsync() already log the specific CUDA error
+			// via cudaCheck() if one occurred; this adds the tick()-level context
+			// (which slot, how many consecutive ticks this has failed) needed to
+			// tell "one-off transient hiccup" apart from "stuck failing forever,
+			// silently blocking all further accumulation until something else
+			// (a camera nudge) resets this streak/copy state" - the reported
+			// "interactive PT stops converging, needs a nudge" bug.
+			++_diagCopyFailStreak;
+			if (_diagCopyFailStreak == 1 || _diagCopyFailStreak % 50 == 0)
+				qWarning() << "[PT-STALL-DIAG] tick(): copy-forward from slot" << _latestCompletedSlot << "into slot"
+					<< submitInto << "failed (streak=" << _diagCopyFailStreak << ") - accumulation stalled at sample count"
+					<< _accumulatedSampleCount << "of" << _maxAccumulatedSamples;
 			return; // try again next tick() rather than launch against a half-copied/stale destination
+		}
 	}
+	_diagCopyFailStreak = 0;
 
 	const uint32_t previousSampleCount = _accumulatedSampleCount;
 	const bool ok = _tracer.submitSceneRenderToDevice(_pendingCamera, environment, _width, _height,
@@ -558,6 +584,19 @@ void RtInteractiveRenderer::tick(const RtEnvironment& environment, bool shadowsE
 		_accumulatedSampleCount = previousSampleCount + _samplesPerLaunch;
 		_inFlightSlot = submitInto;
 		_pendingCameraDirty = false;
+		_diagSubmitFailStreak = 0;
+	}
+	else
+	{
+		// [PT-STALL-DIAG] temporary diagnostic - submitSceneRenderToDevice()
+		// already logs the specific precondition/CUDA/OptiX failure reason;
+		// this adds the same streak-tracking context as the copy-forward log
+		// above, from the exact same suspected stall site.
+		++_diagSubmitFailStreak;
+		if (_diagSubmitFailStreak == 1 || _diagSubmitFailStreak % 50 == 0)
+			qWarning() << "[PT-STALL-DIAG] tick(): submitSceneRenderToDevice() into slot" << submitInto
+				<< "failed (streak=" << _diagSubmitFailStreak << ") - accumulation stalled at sample count"
+				<< previousSampleCount << "of" << _maxAccumulatedSamples << "cameraSettled=" << _cameraSettled;
 	}
 	// On failure, leave _pendingCameraDirty set - the next tick() will
 	// simply try again with whatever the latest pending camera is by then.

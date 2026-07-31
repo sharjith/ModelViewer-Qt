@@ -533,6 +533,17 @@ private:
 	unsigned int _russianRouletteStartDepth = 3;
 	unsigned int _maxVolumeScatterBounces = 64;
 
+	// [PT-STALL-DIAG] temporary diagnostic counters - see tick()'s matching
+	// logging. Track consecutive ticks that failed to make progress toward
+	// _maxAccumulatedSamples for a reason OTHER than "already converged" or
+	// "genuinely in flight", to catch a reported "interactive PT stops
+	// converging once the camera stops, needs a nudge to resume" bug that
+	// static code review couldn't conclusively pin down. Remove once that
+	// bug is root-caused.
+	uint32_t _diagCopyFailStreak = 0;
+	uint32_t _diagSubmitFailStreak = 0;
+	uint32_t _diagNoResourcesStreak = 0;
+
 	// This class's OWN RtDenoiser instance - see setDenoiserEnabled()'s doc
 	// comment for why this isn't shared with RtOptixRayTracingSession's.
 	// Defaults to enabled/Auto, matching that session's own defaults; both
