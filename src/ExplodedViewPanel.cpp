@@ -4,6 +4,7 @@
 #include "ExplodedViewSelectionEditor.h"
 #include "ViewportWidget.h"
 #include "GltfAnimationData.h"
+#include "LanguageManager.h"
 #include "ModelViewer.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
@@ -1017,6 +1018,16 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
     , _viewportWidget(parent)
 {
     setupUi(this);
+
+    // Without this, switching languages live in Settings left every string
+    // in this panel showing whatever language was active when the app
+    // started, until the next restart re-ran setupUi() from scratch - see
+    // ClippingPlanesEditor's identical connection for the established
+    // pattern this app uses instead of overriding changeEvent().
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+        retranslateUi(this);
+        });
+
     _draftPreviewTimer = new QTimer(this);
     _draftPreviewTimer->setInterval(16);
     frameVector->setVisible(false);

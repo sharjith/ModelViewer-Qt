@@ -81,6 +81,13 @@ private:
 	// UI construction
 	void buildUI();
 
+	// Fills _channelCombo with the "All"/geometry/texture/extension groups and
+	// their separators, using fresh tr() calls - shared by buildUI() (initial
+	// population) and retranslateTexts() (rebuild on language change), so the
+	// ~35-item list only needs to be maintained in one place. Does not create
+	// _channelCombo itself or touch its current selection.
+	void populateChannelCombo();
+
 	// Population helpers — called from onTextureReadbackReady
 	void populateThumbnails(const QVector<TextureSlotInfo>& slots);
 	void populateExtensions(const QVector<TextureSlotInfo>& slots);
@@ -94,6 +101,18 @@ private:
 
 	// Shows/hides the amber PBR warning strip based on the current rendering mode.
 	void updatePBRWarning();
+
+	// This panel builds its whole UI programmatically (no .ui file), so there
+	// is no generated retranslateUi() for LanguageManager::languageChanged to
+	// call - this is buildUI()'s hand-written equivalent instead. Re-applies
+	// tr() to every STATIC piece of chrome (window title, buttons, combo
+	// items, section labels) without rebuilding the layout, then calls
+	// refresh() to let the existing mesh-name/thumbnail/extension population
+	// logic re-derive its own text fresh (those already call tr() every time
+	// they run, so no separate translation logic needs to be duplicated
+	// here - see onTextureReadbackReady()/populateThumbnails()/
+	// populateExtensions()).
+	void retranslateTexts();
 
 	// Returns the set of units that have real (active) textures on the current mesh.
 	QSet<int> activeUnits() const;
@@ -130,9 +149,11 @@ private:
 	QLabel*      _pbrWarningLabel     = nullptr;   // amber strip shown when mode is not PBR
 
 	// Channel isolation dropdown (All / Albedo / Metallic / …)
+	QLabel*      _channelLabel        = nullptr;
 	QComboBox*   _channelCombo        = nullptr;
 
 	// Textures section
+	QLabel*      _texturesSectionLabel = nullptr;
 	QCheckBox*   _showInactiveCheck   = nullptr;
 	QScrollArea* _thumbnailScroll     = nullptr;
 	QWidget*     _thumbnailContainer  = nullptr;

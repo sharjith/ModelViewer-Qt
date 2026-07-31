@@ -1,5 +1,6 @@
 #include "TextureParametersDialog.h"
 #include "ui_TextureParametersDialog.h"
+#include "LanguageManager.h"
 
 #include <QOpenGLFunctions_4_5_Core>
 
@@ -13,8 +14,19 @@ TextureParametersDialog::TextureParametersDialog(QWidget* parent)
     // Initialize sampler dropdown mappings
     initializeSamplerMappings();
 
-    // Set reasonable window properties
-    setWindowTitle("Texture Parameters");   
+    // Set reasonable window properties - tr() wrapped (previously a bare
+    // string literal, so this title never appeared in the .ts files at all
+    // and stayed in English regardless of the app's language setting).
+    setWindowTitle(tr("Texture Parameters"));
+
+    // See ExplodedViewPanel's/ClippingPlanesEditor's identical connection -
+    // without this, a live language switch in Settings left this dialog
+    // showing whatever language was active at construction until the next
+    // app restart.
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+        _ui->retranslateUi(this);
+        setWindowTitle(tr("Texture Parameters"));
+        });
 
     connect(_ui->btnDefault, &QPushButton::clicked, this, [this]() {
         // Reset to default values

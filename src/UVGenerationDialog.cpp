@@ -1,5 +1,6 @@
 #include "UVGenerationDialog.h"
 #include "ui_UVGenerationDialog.h"
+#include "LanguageManager.h"
 #include <glm/gtc/constants.hpp>
 
 UVGenerationDialog::UVGenerationDialog(QWidget* parent)
@@ -7,6 +8,15 @@ UVGenerationDialog::UVGenerationDialog(QWidget* parent)
     , ui(new Ui::UVGenerationDialog)
 {
     ui->setupUi(this);
+
+    // See ExplodedViewPanel's/ClippingPlanesEditor's identical connection -
+    // without this, a live language switch in Settings left this dialog
+    // showing whatever language was active at construction until the next
+    // app restart.
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+        ui->retranslateUi(this);
+        });
+
     setupConnections();
 
     // Set initial page to Planar (index 0)

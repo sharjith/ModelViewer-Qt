@@ -1,6 +1,7 @@
 #include "TextureDebugPanel.h"
 #include "ViewportWidget.h"
 #include "ModelViewer.h"
+#include "LanguageManager.h"
 
 #include <QCheckBox>
 #include <QCloseEvent>
@@ -136,6 +137,14 @@ TextureDebugPanel::TextureDebugPanel(QWidget* parent)
 	setObjectName("TextureDebugPanel");
 	buildUI();
 	restoreWindowGeometry();
+
+	// This panel builds its UI entirely in code (no .ui file, so no generated
+	// retranslateUi() exists) - retranslateTexts() is buildUI()'s hand-written
+	// equivalent. See its own doc comment for how it re-applies every
+	// translated string without rebuilding the layout.
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		retranslateTexts();
+		});
 }
 
 void TextureDebugPanel::setViewportWidget(ViewportWidget* viewportWidget)
@@ -186,54 +195,11 @@ void TextureDebugPanel::buildUI()
 	// IDs 1-8: geometry/vertex channels.  IDs 10-17: texture channels.
 	{
 		auto* row = new QHBoxLayout;
-		auto* lbl = new QLabel(tr("Channel:"), this);
+		_channelLabel = new QLabel(tr("Channel:"), this);
 		_channelCombo = new QComboBox(this);
+		populateChannelCombo();
 
-		// "All" — normal checkbox-driven rendering
-		_channelCombo->addItem(tr("All"), 0);
-
-		// Geometry / vertex group
-		_channelCombo->insertSeparator(_channelCombo->count());
-		_channelCombo->addItem(tr("Texture Coordinates 0"),  1);
-		_channelCombo->addItem(tr("Texture Coordinates 1"),  2);
-		_channelCombo->addItem(tr("Geometry Normal"),        3);
-		_channelCombo->addItem(tr("Geometry Tangent"),       4);
-		_channelCombo->addItem(tr("Geometry Bitangent"),     5);
-		_channelCombo->addItem(tr("Geometry Tangent W"),     6);
-		_channelCombo->addItem(tr("Shading Normal"),         7);
-		_channelCombo->addItem(tr("Alpha"),                  8);
-		_channelCombo->addItem(tr("Vertex Color"),           9);
-
-		// Texture channels group
-		_channelCombo->insertSeparator(_channelCombo->count());
-		_channelCombo->addItem(tr("Albedo"),    10);
-		_channelCombo->addItem(tr("Metallic"),  11);
-		_channelCombo->addItem(tr("Roughness"), 16);
-		_channelCombo->addItem(tr("AO"),        17);
-		_channelCombo->addItem(tr("Emissive"),  12);
-		_channelCombo->addItem(tr("Normal Map"), 13);
-		_channelCombo->addItem(tr("Height"),    14);
-		_channelCombo->addItem(tr("Opacity"),   15);
-
-		// Extension texture channels group (PBR only)
-		_channelCombo->insertSeparator(_channelCombo->count());
-		_channelCombo->addItem(tr("Clearcoat Strength"),             18);
-		_channelCombo->addItem(tr("Clearcoat Roughness"),            19);
-		_channelCombo->addItem(tr("Clearcoat Normal"),               20);
-		_channelCombo->addItem(tr("Specular Strength"),              21);
-		_channelCombo->addItem(tr("Specular Color"),                 22);
-		_channelCombo->addItem(tr("Anisotropic Strength"),           23);
-		_channelCombo->addItem(tr("Anisotropic Direction"),          32);
-		_channelCombo->addItem(tr("Iridescence Strength"),           24);
-		_channelCombo->addItem(tr("Iridescence Thickness"),          25);
-		_channelCombo->addItem(tr("Sheen Color"),                    26);
-		_channelCombo->addItem(tr("Sheen Roughness"),                27);
-		_channelCombo->addItem(tr("Transmission Strength"),          28);
-		_channelCombo->addItem(tr("Volume Thickness"),               30);
-		_channelCombo->addItem(tr("Diffuse Transmission Strength"),  34);
-		_channelCombo->addItem(tr("Diffuse Transmission Color"),     35);
-
-		row->addWidget(lbl);
+		row->addWidget(_channelLabel);
 		row->addWidget(_channelCombo, 1);
 		root->addLayout(row);
 
@@ -302,10 +268,10 @@ void TextureDebugPanel::buildUI()
 
 	// ---- Textures section --------------------------------------------------
 	{
-		auto* sectionLabel = new QLabel(tr("TEXTURES"), this);
-		QFont f = sectionLabel->font();
+		_texturesSectionLabel = new QLabel(tr("TEXTURES"), this);
+		QFont f = _texturesSectionLabel->font();
 		f.setBold(true);
-		sectionLabel->setFont(f);
+		_texturesSectionLabel->setFont(f);
 
 		_showInactiveCheck = new QCheckBox(tr("Show inactive slots"), this);
 		_showInactiveCheck->setChecked(false);
@@ -315,7 +281,7 @@ void TextureDebugPanel::buildUI()
 		});
 
 		auto* texHeaderRow = new QHBoxLayout;
-		texHeaderRow->addWidget(sectionLabel);
+		texHeaderRow->addWidget(_texturesSectionLabel);
 		texHeaderRow->addStretch();
 		texHeaderRow->addWidget(_showInactiveCheck);
 		root->addLayout(texHeaderRow);
@@ -364,6 +330,96 @@ void TextureDebugPanel::buildUI()
 
 	setMinimumWidth(380);
 	resize(420, 620);
+}
+
+// ---------------------------------------------------------------------------
+// populateChannelCombo
+// ---------------------------------------------------------------------------
+void TextureDebugPanel::populateChannelCombo()
+{
+	// "All" — normal checkbox-driven rendering
+	_channelCombo->addItem(tr("All"), 0);
+
+	// Geometry / vertex group
+	_channelCombo->insertSeparator(_channelCombo->count());
+	_channelCombo->addItem(tr("Texture Coordinates 0"),  1);
+	_channelCombo->addItem(tr("Texture Coordinates 1"),  2);
+	_channelCombo->addItem(tr("Geometry Normal"),        3);
+	_channelCombo->addItem(tr("Geometry Tangent"),       4);
+	_channelCombo->addItem(tr("Geometry Bitangent"),     5);
+	_channelCombo->addItem(tr("Geometry Tangent W"),     6);
+	_channelCombo->addItem(tr("Shading Normal"),         7);
+	_channelCombo->addItem(tr("Alpha"),                  8);
+	_channelCombo->addItem(tr("Vertex Color"),           9);
+
+	// Texture channels group
+	_channelCombo->insertSeparator(_channelCombo->count());
+	_channelCombo->addItem(tr("Albedo"),    10);
+	_channelCombo->addItem(tr("Metallic"),  11);
+	_channelCombo->addItem(tr("Roughness"), 16);
+	_channelCombo->addItem(tr("AO"),        17);
+	_channelCombo->addItem(tr("Emissive"),  12);
+	_channelCombo->addItem(tr("Normal Map"), 13);
+	_channelCombo->addItem(tr("Height"),    14);
+	_channelCombo->addItem(tr("Opacity"),   15);
+
+	// Extension texture channels group (PBR only)
+	_channelCombo->insertSeparator(_channelCombo->count());
+	_channelCombo->addItem(tr("Clearcoat Strength"),             18);
+	_channelCombo->addItem(tr("Clearcoat Roughness"),            19);
+	_channelCombo->addItem(tr("Clearcoat Normal"),               20);
+	_channelCombo->addItem(tr("Specular Strength"),              21);
+	_channelCombo->addItem(tr("Specular Color"),                 22);
+	_channelCombo->addItem(tr("Anisotropic Strength"),           23);
+	_channelCombo->addItem(tr("Anisotropic Direction"),          32);
+	_channelCombo->addItem(tr("Iridescence Strength"),           24);
+	_channelCombo->addItem(tr("Iridescence Thickness"),          25);
+	_channelCombo->addItem(tr("Sheen Color"),                    26);
+	_channelCombo->addItem(tr("Sheen Roughness"),                27);
+	_channelCombo->addItem(tr("Transmission Strength"),          28);
+	_channelCombo->addItem(tr("Volume Thickness"),               30);
+	_channelCombo->addItem(tr("Diffuse Transmission Strength"),  34);
+	_channelCombo->addItem(tr("Diffuse Transmission Color"),     35);
+}
+
+// ---------------------------------------------------------------------------
+// retranslateTexts
+// ---------------------------------------------------------------------------
+void TextureDebugPanel::retranslateTexts()
+{
+	setWindowTitle(tr("Texture Debugger"));
+	_refreshButton->setText(tr("↻ Refresh"));
+	_channelLabel->setText(tr("Channel:"));
+	_pbrWarningLabel->setText(tr("⚠  Switch to PBR rendering mode for accurate channel display"));
+	_texturesSectionLabel->setText(tr("TEXTURES"));
+	_showInactiveCheck->setText(tr("Show inactive slots"));
+	_extensionGroup->setTitle(tr("Extensions"));
+
+	// Rebuild the combo's items in place rather than hand-tracking each
+	// item's index (fragile, given the interspersed separators) - remember
+	// the previously active channel by its stored id, not its index, so the
+	// user's current selection survives the rebuild.
+	const int previousChannelId = _channelCombo->currentData().isValid()
+		? _channelCombo->currentData().toInt() : 0;
+	{
+		const QSignalBlocker blocker(_channelCombo);
+		_channelCombo->clear();
+		populateChannelCombo();
+		const int restoredIndex = _channelCombo->findData(previousChannelId);
+		_channelCombo->setCurrentIndex(restoredIndex >= 0 ? restoredIndex : 0);
+	}
+
+	// _meshNameLabel/_statusLabel and the thumbnail/extension grids are all
+	// stateful (mesh name, multi-select count, per-slot tooltips) rather than
+	// fixed strings - refresh() re-derives and re-applies all of that fresh
+	// (via onTextureReadbackReady()/populateThumbnails()/populateExtensions(),
+	// which already call tr() every time they run), so it's reused here
+	// instead of duplicating that logic. One known gap: refresh() doesn't
+	// re-run onSelectionChanged()'s multi-select branch, so _statusLabel's
+	// "N meshes selected" warning (if currently showing) keeps its old
+	// language until the next real selection change - a narrow, rarely-hit
+	// edge case not worth the extra state tracking it would take to fix.
+	refresh();
 }
 
 // ---------------------------------------------------------------------------

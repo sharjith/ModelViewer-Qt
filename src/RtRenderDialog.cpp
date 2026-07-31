@@ -1,6 +1,7 @@
 ﻿#include "RtRenderDialog.h"
 #include "ui_RtRenderDialog.h"
 
+#include "LanguageManager.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "VisualizationEnvironmentPanel.h"
@@ -156,16 +157,30 @@ RtRenderDialog::RtRenderDialog(ModelViewer* modelViewer, QWidget* parent)
 	// reusing the path tracer's - it only needs an NVIDIA GPU with OptiX
 	// support present. Falls back to the built-in bilateral filter (never
 	// silently to OIDN) if that's not the case, or this build has no OptiX
-	// SDK at all.
-	if (auto* model = qobject_cast<QStandardItemModel*>(ui->comboBoxDenoiserDevice->model()))
-	{
-		constexpr int kOptixItemIndex = 3;
-		if (QStandardItem* item = model->item(kOptixItemIndex))
+	// SDK at all. Wrapped in a lambda (not just a one-shot block) since this
+	// tooltip is set programmatically rather than through the .ui file, so
+	// plain retranslateUi() alone wouldn't pick it up on a language switch.
+	auto applyOptixTooltip = [this]() {
+		if (auto* model = qobject_cast<QStandardItemModel*>(ui->comboBoxDenoiserDevice->model()))
 		{
-			item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back to "
-				"the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
+			constexpr int kOptixItemIndex = 3;
+			if (QStandardItem* item = model->item(kOptixItemIndex))
+			{
+				item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back to "
+					"the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
+			}
 		}
-	}
+	};
+	applyOptixTooltip();
+
+	// See ExplodedViewPanel's/ClippingPlanesEditor's identical connection -
+	// without this, a live language switch in Settings left this dialog
+	// showing whatever language was active at construction until the next
+	// app restart.
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this, applyOptixTooltip]() {
+		ui->retranslateUi(this);
+		applyOptixTooltip();
+		});
 
 	populateResolutionPresets();
 	loadSettings(); // pulls last-used values from QSettings into the viewport, and restores window geometry - before the UI below reads them

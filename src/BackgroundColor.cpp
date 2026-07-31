@@ -1,6 +1,7 @@
 #include "BackgroundColor.h"
 #include "ui_BackgroundColor.h"
 
+#include "LanguageManager.h"
 #include "ViewportWidget.h"
 
 #include <QColorDialog>
@@ -11,6 +12,14 @@ BackgroundColor::BackgroundColor(QWidget* parent) :
 	ui(new Ui::BackgroundColor)
 {
 	ui->setupUi(this);
+
+	// See ExplodedViewPanel's/ClippingPlanesEditor's identical connection -
+	// without this, a live language switch in Settings left this dialog
+	// showing whatever language was active at construction until the next
+	// app restart.
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		ui->retranslateUi(this);
+		});
 
 	ViewportWidget* viewportWidget = dynamic_cast<ViewportWidget*>(parent);
 	if (viewportWidget)
