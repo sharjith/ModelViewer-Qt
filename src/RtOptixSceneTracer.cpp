@@ -3314,20 +3314,7 @@ bool RtOptixSceneTracer::submitSceneRenderToDevice(const RtCamera& camera, const
 {
 	if (!_impl->valid || _impl->iasHandle == 0 || width <= 0 || height <= 0 ||
 		!deviceImageRGBA || !hostParamsStaging || !dParamsScratch || !dAlbedoScratch || !dNormalScratch || !completionEvent)
-	{
-		// [PT-STALL-DIAG] temporary diagnostic - see RtInteractiveRenderer::tick()'s
-		// matching logging for the full context. This early-out returns false
-		// silently otherwise, which from the caller's side is indistinguishable
-		// from a transient CUDA failure - logging which specific precondition
-		// failed narrows down a reported "interactive PT stops converging after
-		// the camera stops, needs a nudge" bug.
-		qWarning() << "[PT-STALL-DIAG] submitSceneRenderToDevice: precondition failed - valid=" << _impl->valid
-			<< "iasHandle=" << _impl->iasHandle << "size=" << width << "x" << height
-			<< "deviceImageRGBA=" << (deviceImageRGBA != nullptr) << "hostParamsStaging=" << (hostParamsStaging != nullptr)
-			<< "dParamsScratch=" << (dParamsScratch != nullptr) << "dAlbedoScratch=" << (dAlbedoScratch != nullptr)
-			<< "dNormalScratch=" << (dNormalScratch != nullptr) << "completionEvent=" << (completionEvent != nullptr);
 		return false;
-	}
 
 	// The launch params struct is built directly into hostParamsStaging (a
 	// caller-owned PINNED host buffer, NOT a stack-local - see

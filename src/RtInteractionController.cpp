@@ -2,7 +2,6 @@
 
 #include "RtInteractiveRenderer.h"
 
-#include <QDebug>
 #include <QTimer>
 
 namespace
@@ -263,13 +262,6 @@ void RtInteractionController::enterRecovering()
 
 void RtInteractionController::enterSettled()
 {
-	// [PT-STALL-DIAG] temporary diagnostic - marks the exact moment the idle
-	// timer promoted Interacting -> Settled, so a captured log can be lined up
-	// against "camera visibly stopped but the image never converged" reports -
-	// see RtInteractiveRenderer::tick()'s matching [PT-STALL-DIAG] logging for
-	// the accumulation-side half of this trace.
-	qWarning() << "[PT-STALL-DIAG] enterSettled(): sample count at settle =" << _rtInteractiveRenderer.currentSampleCount()
-		<< "of" << _rtInteractiveRenderer.maxSampleCount();
 	_rtInteractiveRenderer.setCameraSettled(true);
 	_rtInteractiveRenderer.setInteractiveBudget(kInteractiveSamplesPerLaunch, _callbacks.maxSamples(), _callbacks.maxBounces(),
 		kInteractiveTargetFrameMs, /*resolutionAdaptiveEnabled=*/false);
