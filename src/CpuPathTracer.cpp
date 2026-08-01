@@ -3215,6 +3215,20 @@ namespace
 				constexpr int kShadowCatcherOcclusionSamples = 2;
 				constexpr float kShadowCatcherDarknessExponentAtZero = 0.5f;
 				constexpr float kShadowCatcherDarknessExponentAtOne = 8.0f;
+				// Grain-reduction lever confirmed by explicit live A/B test:
+				// bumping the render's OVERALL max samples from 16 to 128
+				// visibly cleaned up the shadow catcher's grain (proving
+				// this is a genuine variance problem, not a bug), but doing
+				// that globally wastes time re-sampling parts of the image
+				// (the model itself) that already look clean at 16. This
+				// trials this estimator specifically, M times, instead -
+				// see evaluateShadowCatcherTrial's own call-site comment
+				// below for why M independent trials averaged AFTER
+				// exponentiating is the unbiased way to do this (unlike
+				// raising K, which averages before exponentiating and
+				// shifts the mean per Jensen's inequality - confirmed by
+				// live testing to make the result too dark).
+				constexpr int kShadowCatcherResultTrials = 4;
 				bool fullyLit = true;
 				glm::vec3 resultColor = envColor;
 				// Applied to BOTH resultColor above AND the continuation
@@ -3245,61 +3259,6 @@ namespace
 					lightTechWeight /= totalTechWeight;
 					envTechWeight /= totalTechWeight;
 
-					glm::vec3 shadowFactorSum(0.0f);
-					for (int occSample = 0; occSample < kShadowCatcherOcclusionSamples; ++occSample)
-					{
-						const bool sampleLightTech = rng.next01() < lightTechWeight;
-						glm::vec3 sampleDir(0.0f);
-						float sampleDistance = 1e6f; // environment/unbounded default
-						bool haveSampleDir = false;
-
-						if (sampleLightTech)
-						{
-							const size_t lightIndex = (std::min)(
-								static_cast<size_t>(rng.next01() * static_cast<float>(snapshot.lights.size())),
-								snapshot.lights.size() - 1);
-							const RtLight& light = snapshot.lights[lightIndex];
-							glm::vec3 lightDir, lightIntensity;
-							float lightDistance;
-							evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
-							if (lightIntensity != glm::vec3(0.0f))
-							{
-								sampleDir = lightDir;
-								sampleDistance = lightDistance;
-								haveSampleDir = true;
-							}
-						}
-						else
-						{
-							glm::vec3 envDir;
-							float envPdf;
-							envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
-							if (envPdf > 0.0f)
-							{
-								sampleDir = envDir;
-								haveSampleDir = true;
-							}
-						}
-
-						glm::vec3 thisShadowFactor(1.0f);
-						if (haveSampleDir && glm::dot(sampleDir, N) > 0.0f)
-						{
-							RtRay shadowRay;
-							shadowRay.origin = hit.position + Ng * eps;
-							shadowRay.direction = sampleDir;
-							shadowRay.tFar = (std::max)(sampleDistance - 2.0f * eps, eps);
-							shadowRay.mask = shadowCatcherRayMask;
-							thisShadowFactor = snapshot.shadowsEnabled
-								? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
-								: glm::vec3(1.0f);
-						}
-
-						const bool thisFullyLit = thisShadowFactor.r >= 1.0f && thisShadowFactor.g >= 1.0f && thisShadowFactor.b >= 1.0f;
-						fullyLit = fullyLit && thisFullyLit;
-						shadowFactorSum += thisShadowFactor;
-					}
-					const glm::vec3 visibility = glm::clamp(
-						shadowFactorSum / static_cast<float>(kShadowCatcherOcclusionSamples), 0.0f, 1.0f);
 					// Exponent now ranges from < 1 at darkness=0 up to > 1
 					// at darkness=1, not just 1..4. A sub-1 power BRIGHTENS
 					// partial visibility (e.g. v=0.5 -> 0.5^0.5=0.71)
@@ -3319,8 +3278,106 @@ namespace
 					// the UPPER half (closer to 1) ramps it up fast.
 					const float darknessExponent = kShadowCatcherDarknessExponentAtZero
 						* std::pow(kShadowCatcherDarknessExponentAtOne / kShadowCatcherDarknessExponentAtZero, shadowStrength);
-					catcherDarkenFactor = fullyLit ? glm::vec3(1.0f) : glm::pow(visibility, glm::vec3(darknessExponent));
-					resultColor = envColor * catcherDarkenFactor;
+
+					// One full, independent trial of the (K-sample-average ->
+					// exponent) estimator: fresh K occlusion rays, its own
+					// visibility/darken factor/fullyLit outcome, and the
+					// resultColor that outcome implies. Called once per
+					// kShadowCatcherResultTrials trial below.
+					auto evaluateShadowCatcherTrial = [&](glm::vec3& outDarkenFactor, bool& outFullyLit) -> glm::vec3
+					{
+						glm::vec3 shadowFactorSum(0.0f);
+						bool trialFullyLit = true;
+						for (int occSample = 0; occSample < kShadowCatcherOcclusionSamples; ++occSample)
+						{
+							const bool sampleLightTech = rng.next01() < lightTechWeight;
+							glm::vec3 sampleDir(0.0f);
+							float sampleDistance = 1e6f; // environment/unbounded default
+							bool haveSampleDir = false;
+
+							if (sampleLightTech)
+							{
+								const size_t lightIndex = (std::min)(
+									static_cast<size_t>(rng.next01() * static_cast<float>(snapshot.lights.size())),
+									snapshot.lights.size() - 1);
+								const RtLight& light = snapshot.lights[lightIndex];
+								glm::vec3 lightDir, lightIntensity;
+								float lightDistance;
+								evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
+								if (lightIntensity != glm::vec3(0.0f))
+								{
+									sampleDir = lightDir;
+									sampleDistance = lightDistance;
+									haveSampleDir = true;
+								}
+							}
+							else
+							{
+								glm::vec3 envDir;
+								float envPdf;
+								envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
+								if (envPdf > 0.0f)
+								{
+									sampleDir = envDir;
+									haveSampleDir = true;
+								}
+							}
+
+							glm::vec3 thisShadowFactor(1.0f);
+							if (haveSampleDir && glm::dot(sampleDir, N) > 0.0f)
+							{
+								RtRay shadowRay;
+								shadowRay.origin = hit.position + Ng * eps;
+								shadowRay.direction = sampleDir;
+								shadowRay.tFar = (std::max)(sampleDistance - 2.0f * eps, eps);
+								shadowRay.mask = shadowCatcherRayMask;
+								thisShadowFactor = snapshot.shadowsEnabled
+									? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
+									: glm::vec3(1.0f);
+							}
+
+							const bool thisFullyLit = thisShadowFactor.r >= 1.0f && thisShadowFactor.g >= 1.0f && thisShadowFactor.b >= 1.0f;
+							trialFullyLit = trialFullyLit && thisFullyLit;
+							shadowFactorSum += thisShadowFactor;
+						}
+						const glm::vec3 visibility = glm::clamp(
+							shadowFactorSum / static_cast<float>(kShadowCatcherOcclusionSamples), 0.0f, 1.0f);
+						outFullyLit = trialFullyLit;
+						outDarkenFactor = trialFullyLit ? glm::vec3(1.0f) : glm::pow(visibility, glm::vec3(darknessExponent));
+						return envColor * outDarkenFactor;
+					};
+
+					// kShadowCatcherResultTrials INDEPENDENT trials of the
+					// estimator above, averaged for the resultColor added to
+					// radiance - reduces grain from this high-variance
+					// estimator without shifting its mean, unlike averaging
+					// the underlying occlusion samples before exponentiating
+					// (which raising K alone did - see kShadowCatcherOcclusionSamples'
+					// own history above). Each trial is independently drawn
+					// from the SAME distribution as a single evaluation, so
+					// averaging M of them leaves E[resultColor] exactly
+					// unchanged (unbiased) while dividing its variance by M -
+					// the correct way to add samples to a nonlinear estimator
+					// (transform-then-average, never average-then-transform).
+					// Trial 0's own fullyLit/catcherDarkenFactor - NOT an
+					// average across trials - still alone drives whether the
+					// path terminates here and, if not, how the continuation
+					// bounce's throughput is scaled below: mixing in fresh,
+					// UNCONDITIONAL trials there would systematically bias
+					// the "not fully lit" branch brighter (those extra trials
+					// aren't conditioned on trial 0 having found occlusion,
+					// so some of them land on their own fully-lit outcome and
+					// pull the average up) - averaging only belongs in the
+					// unconditional resultColor sum, never in this gate.
+					resultColor = evaluateShadowCatcherTrial(catcherDarkenFactor, fullyLit);
+					glm::vec3 resultColorSum = resultColor;
+					for (int trial = 1; trial < kShadowCatcherResultTrials; ++trial)
+					{
+						glm::vec3 extraDarkenFactor;
+						bool extraFullyLit;
+						resultColorSum += evaluateShadowCatcherTrial(extraDarkenFactor, extraFullyLit);
+					}
+					resultColor = resultColorSum / static_cast<float>(kShadowCatcherResultTrials);
 				}
 
 				if (!primaryHitResolved)

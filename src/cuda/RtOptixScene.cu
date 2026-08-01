@@ -1888,6 +1888,20 @@ namespace
 					// exponent (1^n=1 always).
 					constexpr float kShadowCatcherDarknessExponentAtZero = 0.5f;
 					constexpr float kShadowCatcherDarknessExponentAtOne = 8.0f;
+					// Grain-reduction lever confirmed by explicit live A/B
+					// test - see CpuPathTracer.cpp's identical isShadowCatcher
+					// gate for the full rationale (bumping the render's
+					// OVERALL max samples from 16 to 128 visibly cleaned up
+					// the shadow catcher's grain, proving this is a genuine
+					// variance problem; doing that globally wastes time on
+					// parts of the image that already look clean at 16, so
+					// this trials the estimator specifically, M times,
+					// instead). M independent trials averaged AFTER
+					// exponentiating is unbiased (unlike raising K, which
+					// averages before exponentiating and shifts the mean per
+					// Jensen's inequality - confirmed by live testing to make
+					// the result too dark).
+					constexpr int kShadowCatcherResultTrials = 4;
 					bool fullyLit = true;
 					float3 resultColor = envColor;
 					// Applied to BOTH resultColor below AND the
@@ -1903,69 +1917,6 @@ namespace
 						lightTechWeight /= totalTechWeight;
 						envTechWeight /= totalTechWeight;
 
-						float3 shadowFactorSum = make_float3(0.0f, 0.0f, 0.0f);
-						for (int occSample = 0; occSample < kShadowCatcherOcclusionSamples; ++occSample)
-						{
-							catcherRng = pcgHash(catcherRng ^ 0x2545F491u);
-							const bool sampleLightTech = hashToUnitFloat(catcherRng) < lightTechWeight;
-
-							float3 sampleDir = make_float3(0.0f, 0.0f, 0.0f);
-							float sampleDistance = 1e16f; // environment/unbounded default
-							bool haveSampleDir = false;
-
-							if (sampleLightTech)
-							{
-								catcherRng = pcgHash(catcherRng);
-								const unsigned int lightIndex = min(
-									static_cast<unsigned int>(hashToUnitFloat(catcherRng) * static_cast<float>(params.lightCount)),
-									params.lightCount - 1);
-								float3 lightDir, lightIntensity;
-								float lightDistance;
-								evaluatePunctualLight(params.lights[lightIndex], planePos, lightDir, lightIntensity, lightDistance);
-								if (lightIntensity.x > 0.0f || lightIntensity.y > 0.0f || lightIntensity.z > 0.0f)
-								{
-									sampleDir = lightDir;
-									sampleDistance = lightDistance;
-									haveSampleDir = true;
-								}
-							}
-							else
-							{
-								catcherRng = pcgHash(catcherRng);
-								const float eu0 = hashToUnitFloat(catcherRng);
-								catcherRng = pcgHash(catcherRng);
-								const float eu1 = hashToUnitFloat(catcherRng);
-								catcherRng = pcgHash(catcherRng);
-								const float eu2 = hashToUnitFloat(catcherRng);
-								float3 envDir;
-								float envPdf;
-								envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
-								if (envPdf > 0.0f)
-								{
-									sampleDir = envDir;
-									haveSampleDir = true;
-								}
-							}
-
-							float3 thisShadowFactor = make_float3(1.0f, 1.0f, 1.0f);
-							if (haveSampleDir && dot3(sampleDir, planeNormal) > 0.0f)
-							{
-								catcherRng = pcgHash(catcherRng);
-								const float3 shadowOrigin = planePos + planeNormal * eps;
-								const float shadowMaxDistance = fminf(sampleDistance, 1e16f);
-								thisShadowFactor = params.shadowsEnabled != 0
-									? traceShadowRay(shadowOrigin, sampleDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
-									: make_float3(1.0f, 1.0f, 1.0f);
-							}
-							const bool thisFullyLit = thisShadowFactor.x >= 1.0f && thisShadowFactor.y >= 1.0f && thisShadowFactor.z >= 1.0f;
-							fullyLit = fullyLit && thisFullyLit;
-							shadowFactorSum = shadowFactorSum + thisShadowFactor;
-						}
-						const float3 visibilityRaw = shadowFactorSum * (1.0f / static_cast<float>(kShadowCatcherOcclusionSamples));
-						const float3 visibility = make_float3(
-							fminf(fmaxf(visibilityRaw.x, 0.0f), 1.0f),
-							fminf(fmaxf(visibilityRaw.y, 0.0f), 1.0f),
-							fminf(fmaxf(visibilityRaw.z, 0.0f), 1.0f));
 						// Geometric (exponential), not linear, interpolation
 						// between the two endpoints - see CpuPathTracer.cpp's
 						// identical isShadowCatcher gate for the full
@@ -1973,13 +1924,103 @@ namespace
 						// near the top" feel of a log-mapped slider).
 						const float darknessExponent = kShadowCatcherDarknessExponentAtZero
 							* powf(kShadowCatcherDarknessExponentAtOne / kShadowCatcherDarknessExponentAtZero, shadowStrength);
-						catcherDarkenFactor = fullyLit
-							? make_float3(1.0f, 1.0f, 1.0f)
-							: make_float3(
-								powf(visibility.x, darknessExponent),
-								powf(visibility.y, darknessExponent),
-								powf(visibility.z, darknessExponent));
-						resultColor = envColor * catcherDarkenFactor;
+
+						// kShadowCatcherResultTrials INDEPENDENT trials of the
+						// (K-sample-average -> exponent) estimator, averaged
+						// for the resultColor added to radiance. Trial 0's
+						// own fullyLit/catcherDarkenFactor - NOT an average
+						// across trials - still alone drives path
+						// continuation below: mixing in fresh, UNCONDITIONAL
+						// trials there would systematically bias the "not
+						// fully lit" branch brighter (those extra trials
+						// aren't conditioned on trial 0 having found
+						// occlusion, so some land on their own fully-lit
+						// outcome and pull the average up) - averaging only
+						// belongs in the unconditional resultColor sum, never
+						// in this gate. See CpuPathTracer.cpp's identical
+						// isShadowCatcher gate for the full derivation.
+						float3 resultColorSum = make_float3(0.0f, 0.0f, 0.0f);
+						for (int trial = 0; trial < kShadowCatcherResultTrials; ++trial)
+						{
+							float3 shadowFactorSum = make_float3(0.0f, 0.0f, 0.0f);
+							bool trialFullyLit = true;
+							for (int occSample = 0; occSample < kShadowCatcherOcclusionSamples; ++occSample)
+							{
+								catcherRng = pcgHash(catcherRng ^ 0x2545F491u);
+								const bool sampleLightTech = hashToUnitFloat(catcherRng) < lightTechWeight;
+
+								float3 sampleDir = make_float3(0.0f, 0.0f, 0.0f);
+								float sampleDistance = 1e16f; // environment/unbounded default
+								bool haveSampleDir = false;
+
+								if (sampleLightTech)
+								{
+									catcherRng = pcgHash(catcherRng);
+									const unsigned int lightIndex = min(
+										static_cast<unsigned int>(hashToUnitFloat(catcherRng) * static_cast<float>(params.lightCount)),
+										params.lightCount - 1);
+									float3 lightDir, lightIntensity;
+									float lightDistance;
+									evaluatePunctualLight(params.lights[lightIndex], planePos, lightDir, lightIntensity, lightDistance);
+									if (lightIntensity.x > 0.0f || lightIntensity.y > 0.0f || lightIntensity.z > 0.0f)
+									{
+										sampleDir = lightDir;
+										sampleDistance = lightDistance;
+										haveSampleDir = true;
+									}
+								}
+								else
+								{
+									catcherRng = pcgHash(catcherRng);
+									const float eu0 = hashToUnitFloat(catcherRng);
+									catcherRng = pcgHash(catcherRng);
+									const float eu1 = hashToUnitFloat(catcherRng);
+									catcherRng = pcgHash(catcherRng);
+									const float eu2 = hashToUnitFloat(catcherRng);
+									float3 envDir;
+									float envPdf;
+									envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
+									if (envPdf > 0.0f)
+									{
+										sampleDir = envDir;
+										haveSampleDir = true;
+									}
+								}
+
+								float3 thisShadowFactor = make_float3(1.0f, 1.0f, 1.0f);
+								if (haveSampleDir && dot3(sampleDir, planeNormal) > 0.0f)
+								{
+									catcherRng = pcgHash(catcherRng);
+									const float3 shadowOrigin = planePos + planeNormal * eps;
+									const float shadowMaxDistance = fminf(sampleDistance, 1e16f);
+									thisShadowFactor = params.shadowsEnabled != 0
+										? traceShadowRay(shadowOrigin, sampleDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
+										: make_float3(1.0f, 1.0f, 1.0f);
+								}
+								const bool thisFullyLit = thisShadowFactor.x >= 1.0f && thisShadowFactor.y >= 1.0f && thisShadowFactor.z >= 1.0f;
+								trialFullyLit = trialFullyLit && thisFullyLit;
+								shadowFactorSum = shadowFactorSum + thisShadowFactor;
+							}
+							const float3 visibilityRaw = shadowFactorSum * (1.0f / static_cast<float>(kShadowCatcherOcclusionSamples));
+							const float3 visibility = make_float3(
+								fminf(fmaxf(visibilityRaw.x, 0.0f), 1.0f),
+								fminf(fmaxf(visibilityRaw.y, 0.0f), 1.0f),
+								fminf(fmaxf(visibilityRaw.z, 0.0f), 1.0f));
+							const float3 trialDarkenFactor = trialFullyLit
+								? make_float3(1.0f, 1.0f, 1.0f)
+								: make_float3(
+									powf(visibility.x, darknessExponent),
+									powf(visibility.y, darknessExponent),
+									powf(visibility.z, darknessExponent));
+							const float3 trialResultColor = envColor * trialDarkenFactor;
+							resultColorSum = resultColorSum + trialResultColor;
+							if (trial == 0)
+							{
+								fullyLit = trialFullyLit;
+								catcherDarkenFactor = trialDarkenFactor;
+							}
+						}
+						resultColor = resultColorSum * (1.0f / static_cast<float>(kShadowCatcherResultTrials));
 					}
 
 					outRadiance = resultColor;
