@@ -121,7 +121,7 @@ int main(int argc, char** argv)
 	// combined. A more specific message here (vs. the previous generic
 	// "Preparing workspace...") keeps the splash from looking stuck during
 	// that step.
-	showSplashMessage(QObject::tr("Initializing GPU ray tracing (first run after a shader change may take a moment)..."));
+	showSplashMessage(QObject::tr("Preparing workspace and initializing GPU ray tracing..."));
 	ModelViewer* viewer = mw->createMdiChild();
 	mw->showMaximized();
 	if (splash)
