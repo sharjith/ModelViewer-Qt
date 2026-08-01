@@ -275,10 +275,10 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->radioButtonGroundInfinitePlane, &QRadioButton::toggled, this, &VisualizationEnvironmentPanel::onGroundModeChanged);
 	connect(ui->checkBoxFloorTexture, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onFloorTextureStateChanged);
 	connect(ui->checkBoxReflections, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onReflectionsChanged);
-	connect(ui->doubleSpinBoxShadowDarkness, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onShadowDarknessChanged);
+	connect(ui->sliderShadowDarkness, &QSlider::valueChanged, this, &VisualizationEnvironmentPanel::onShadowDarknessChanged);
 	connect(ui->pushButtonShadowCatcherColor, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onShadowCatcherColorClicked);
-	connect(ui->doubleSpinBoxShadowCatcherMetallic, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onShadowCatcherMetallicChanged);
-	connect(ui->doubleSpinBoxShadowCatcherRoughness, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onShadowCatcherRoughnessChanged);
+	connect(ui->sliderShadowCatcherMetallic, &QSlider::valueChanged, this, &VisualizationEnvironmentPanel::onShadowCatcherMetallicChanged);
+	connect(ui->sliderShadowCatcherRoughness, &QSlider::valueChanged, this, &VisualizationEnvironmentPanel::onShadowCatcherRoughnessChanged);
 	connect(ui->checkBoxEnvMapping, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onEnvMappingChanged);
 	connect(ui->doubleSpinBoxFloorOffset, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onFloorOffsetChanged);
 	connect(ui->doubleSpinBoxRepeatS, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onRepeatSChanged);
@@ -368,15 +368,30 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	// already naturally disabled whenever this is selected (floorEnabled is
 	// false), with no need to cross-disable them explicitly.
 	ui->radioButtonGroundInfinitePlane->setEnabled(rayTracedMode);
+	// Darkness/Color only mean anything for the shadow-catching illusion
+	// itself (isShadowCatcher gate) - meaningless for an ordinary opaque
+	// floor, so they stay Infinite-Plane-only. Metallic/Roughness, however,
+	// now also drive the ordinary floor's real PBR reflectivity (see
+	// RtSceneBuilder::convertFloorMaterial()'s doc comment), so they're
+	// unlocked for plain Floor mode too, not just Infinite Plane.
 	bool shadowCatcherSettingsEnabled = infinitePlaneSelected && rayTracedMode;
+	bool floorReflectanceSettingsEnabled = (floorEnabled || infinitePlaneSelected) && rayTracedMode;
+	// Metallic/Roughness now double as the ordinary floor's reflectance
+	// controls (see convertFloorMaterial()'s doc comment) - retitle the
+	// group box so it doesn't misleadingly say "Shadow Catcher" while the
+	// user is actually dialing in plain Floor mode's reflectivity.
+	ui->groupBoxShadowCatcher->setTitle(infinitePlaneSelected ? tr("Shadow Catcher Settings") : tr("Floor Reflectance Settings"));
 	ui->labelShadowDarkness->setEnabled(shadowCatcherSettingsEnabled);
-	ui->doubleSpinBoxShadowDarkness->setEnabled(shadowCatcherSettingsEnabled);
+	ui->sliderShadowDarkness->setEnabled(shadowCatcherSettingsEnabled);
+	ui->labelShadowDarknessValue->setEnabled(shadowCatcherSettingsEnabled);
 	ui->labelShadowCatcherColor->setEnabled(shadowCatcherSettingsEnabled);
 	ui->pushButtonShadowCatcherColor->setEnabled(shadowCatcherSettingsEnabled);
-	ui->labelShadowCatcherMetallic->setEnabled(shadowCatcherSettingsEnabled);
-	ui->doubleSpinBoxShadowCatcherMetallic->setEnabled(shadowCatcherSettingsEnabled);
-	ui->labelShadowCatcherRoughness->setEnabled(shadowCatcherSettingsEnabled);
-	ui->doubleSpinBoxShadowCatcherRoughness->setEnabled(shadowCatcherSettingsEnabled);
+	ui->labelShadowCatcherMetallic->setEnabled(floorReflectanceSettingsEnabled);
+	ui->sliderShadowCatcherMetallic->setEnabled(floorReflectanceSettingsEnabled);
+	ui->labelShadowCatcherMetallicValue->setEnabled(floorReflectanceSettingsEnabled);
+	ui->labelShadowCatcherRoughness->setEnabled(floorReflectanceSettingsEnabled);
+	ui->sliderShadowCatcherRoughness->setEnabled(floorReflectanceSettingsEnabled);
+	ui->labelShadowCatcherRoughnessValue->setEnabled(floorReflectanceSettingsEnabled);
 	ui->labelFloorOffset->setEnabled(groundEnabled);
 	ui->doubleSpinBoxFloorOffset->setEnabled(groundEnabled);
 	ui->labelRepeatS->setEnabled(floorTextureEnabled);
@@ -1050,12 +1065,16 @@ void VisualizationEnvironmentPanel::onReflectionsChanged(bool checked)
 	_viewportWidget->updateView();
 }
 
-void VisualizationEnvironmentPanel::onShadowDarknessChanged(double value)
+void VisualizationEnvironmentPanel::onShadowDarknessChanged(int value)
 {
+	const float floatValue = static_cast<float>(value) / 100.0f;
+	if (ui)
+		ui->labelShadowDarknessValue->setText(QString::number(floatValue, 'f', 2));
+
 	if (!_viewportWidget)
 		return;
 
-	_viewportWidget->setShadowCatcherDarkness(static_cast<float>(value));
+	_viewportWidget->setShadowCatcherDarkness(floatValue);
 	_viewportWidget->updateView();
 }
 
@@ -1079,21 +1098,29 @@ void VisualizationEnvironmentPanel::onShadowCatcherColorClicked()
 	}
 }
 
-void VisualizationEnvironmentPanel::onShadowCatcherMetallicChanged(double value)
+void VisualizationEnvironmentPanel::onShadowCatcherMetallicChanged(int value)
 {
+	const float floatValue = static_cast<float>(value) / 100.0f;
+	if (ui)
+		ui->labelShadowCatcherMetallicValue->setText(QString::number(floatValue, 'f', 2));
+
 	if (!_viewportWidget)
 		return;
 
-	_viewportWidget->setShadowCatcherMetalness(static_cast<float>(value));
+	_viewportWidget->setShadowCatcherMetalness(floatValue);
 	_viewportWidget->updateView();
 }
 
-void VisualizationEnvironmentPanel::onShadowCatcherRoughnessChanged(double value)
+void VisualizationEnvironmentPanel::onShadowCatcherRoughnessChanged(int value)
 {
+	const float floatValue = static_cast<float>(value) / 100.0f;
+	if (ui)
+		ui->labelShadowCatcherRoughnessValue->setText(QString::number(floatValue, 'f', 2));
+
 	if (!_viewportWidget)
 		return;
 
-	_viewportWidget->setShadowCatcherRoughness(static_cast<float>(value));
+	_viewportWidget->setShadowCatcherRoughness(floatValue);
 	_viewportWidget->updateView();
 }
 
@@ -1254,9 +1281,9 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 	// onShadowCatcherRoughnessChanged() via their existing valueChanged connections,
 	// same as doubleSpinBoxFloorOffset above; the color swatch has no spinbox,
 	// so it's set directly and the button style refreshed to match.
-	ui->doubleSpinBoxShadowDarkness->setValue(0.5);
-	ui->doubleSpinBoxShadowCatcherMetallic->setValue(0.0);
-	ui->doubleSpinBoxShadowCatcherRoughness->setValue(0.5);
+	ui->sliderShadowDarkness->setValue(50);
+	ui->sliderShadowCatcherMetallic->setValue(0);
+	ui->sliderShadowCatcherRoughness->setValue(50);
 	_viewportWidget->setShadowCatcherBaseColor(QVector3D(0.5f, 0.5f, 0.5f));
 	updateButtonStyles();
 

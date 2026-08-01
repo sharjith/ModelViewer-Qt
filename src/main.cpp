@@ -111,8 +111,17 @@ int main(int argc, char** argv)
 	}
 
 	showSplashMessage(QObject::tr("Creating main window..."));
-	MainWindow* mw = MainWindow::mainWindow();		
-	showSplashMessage(QObject::tr("Preparing workspace..."));
+	MainWindow* mw = MainWindow::mainWindow();
+	// createMdiChild() constructs the first ViewportWidget, whose
+	// RtOptixSceneTracer member runs cudaFree(0)/optixInit()/device-
+	// context/pipeline setup synchronously in ITS OWN constructor (see
+	// ViewportWidget.h's isAvailable() doc comment) - on a fresh CUDA-code
+	// rebuild this is a full OptiX PTX recompile, which can take
+	// noticeably longer than everything else in this startup sequence
+	// combined. A more specific message here (vs. the previous generic
+	// "Preparing workspace...") keeps the splash from looking stuck during
+	// that step.
+	showSplashMessage(QObject::tr("Initializing GPU ray tracing (first run after a shader change may take a moment)..."));
 	ModelViewer* viewer = mw->createMdiChild();
 	mw->showMaximized();
 	if (splash)

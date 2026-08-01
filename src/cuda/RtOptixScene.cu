@@ -304,6 +304,17 @@ namespace
 	// redirected ray then escapes straight to the environment without
 	// hitting real geometry first - see __miss__ms()'s use of it.
 	constexpr float kVolumeScatterEscapeSentinel = -7.0f;
+	// Marks a shadow-catcher specular-lobe bounce that escapes straight to
+	// the environment without hitting real scene geometry first (see
+	// traceBouncePath()'s isShadowCatcher gate). Routes __miss__ms() to
+	// computePrimaryCameraDirection()'s exact background substitution
+	// instead of a true reflected-direction environment sample, so a
+	// reflective shadow catcher's open-sky area still blends invisibly into
+	// the background (matching the diffuse illusion) while genuine
+	// reflections of real geometry - which never reach __miss__ms() at all,
+	// since they hit something - stay unaffected and show a real mirror
+	// image.
+	constexpr float kShadowCatcherSpecularEscapeSentinel = -4.0f;
 
 	// Scale-relative self-intersection epsilon, matching CpuPathTracer.cpp's
 	// selfIntersectionEpsilon() exactly (a fixed world-space constant is
@@ -1521,6 +1532,28 @@ namespace
 			+ params.camUp * (ndcY * tanHalfFovY));
 	}
 
+	// Reconstructs the ORIGINAL primary camera ray direction for pixel
+	// (su, sv), from the camera alone - independent of whatever the CURRENT
+	// bounce ray's direction is. Matches __raygen__rg()'s own primary-ray
+	// formula (minus its per-sample AA jitter, negligible here), so this
+	// gives the exact same background a fully transparent floor would show
+	// at this screen pixel. Used by the shadow catcher's specular-lobe
+	// escape (see kShadowCatcherSpecularEscapeSentinel's doc comment) to
+	// keep a reflective shadow catcher's OPEN-SKY reflections invisible
+	// (blending straight through to the real background, same as the
+	// diffuse illusion) while still showing genuine mirror reflections of
+	// any real scene geometry the specular ray actually hits.
+	__forceinline__ __device__ float3 computePrimaryCameraDirection(float su, float sv)
+	{
+		if (params.camOrthographic)
+			return params.camForward;
+		const float ndcX = 2.0f * su - 1.0f;
+		const float ndcY = 2.0f * sv - 1.0f;
+		return normalizeF3(params.camForward
+			+ params.camRight * (ndcX * params.camAspectRatio * params.camTanHalfFovY)
+			+ params.camUp * (ndcY * params.camTanHalfFovY));
+	}
+
 	__forceinline__ __device__ float3 flatGradientMiss(const float3& direction)
 	{
 		const float t = fminf(fmaxf(direction.y * 0.5f + 0.5f, 0.0f), 1.0f);
@@ -1752,6 +1785,36 @@ namespace
 				{
 					const float3 planePos = origin + direction * tPlane;
 
+					unsigned int catcherRng = rngSeed;
+
+					// Structure now matches NVIDIA's own handleShadowCatcher()
+					// exactly (confirmed against the real vk_gltf_renderer
+					// source, pathtrace_functions.h.slang): the illusion
+					// below ALWAYS runs first, unconditionally - there is no
+					// upfront "is this sample a mirror or an illusion" roll
+					// gating it. A fully-lit sample terminates immediately
+					// with the plain envColor (see the fullyLit branch
+					// below), same as a real miss. Only a PARTIALLY/FULLY
+					// OCCLUDED sample draws a real BSDF lobe (diffuse-vs-
+					// specular, Fresnel/metalness-weighted - see the lobe
+					// pick further down) and continues the path with it.
+					// This is a deliberate correction from an earlier version
+					// that drew the lobe UPFRONT and let a specular pick
+					// bypass the illusion entirely, everywhere on the plane -
+					// that made high-metalness settings lose the illusion's
+					// own fill/shadow-detail contribution across most of the
+					// floor (any sample that rolled specular got zero
+					// illusion contribution at all, not just near occlusion),
+					// which is what made the ground under/around a model go
+					// a flat, detail-less dark instead of NVIDIA's still-
+					// legible-through-the-shadow floor. Gating the lobe pick
+					// on occlusion instead keeps the reflection naturally
+					// confined near the model (exactly where NVIDIA's own
+					// reference shows it), and keeps the illusion's fill
+					// light contributing everywhere else. See CpuPathTracer.
+					// cpp's identical isShadowCatcher gate for the full
+					// write-up.
+					//
 					// Faithful port of NVIDIA's getDirectLightingTechniqueProbabilities()/
 					// sampleLights() stochastic technique pick (pathtrace_functions.h.
 					// slang:357-464) - see CpuPathTracer::tracePixel()'s identical
@@ -1764,70 +1827,11 @@ namespace
 					// direction (proportional weights if only one technique is
 					// available), then ONE shadow ray against whichever direction
 					// was picked.
-					unsigned int catcherRng = rngSeed;
 					const bool haveLights = params.lightCount > 0;
 					const bool haveEnv = params.environment.envFlatCdf != nullptr && params.environment.envTotalWeight > 0.0f;
 					float lightTechWeight = haveLights ? 0.5f : 0.0f;
 					float envTechWeight = haveEnv ? 0.5f : 0.0f;
 					const float totalTechWeight = lightTechWeight + envTechWeight;
-
-					float3 shadowFactor = make_float3(1.0f, 1.0f, 1.0f);
-					if (totalTechWeight > 0.0f)
-					{
-						lightTechWeight /= totalTechWeight;
-						envTechWeight /= totalTechWeight;
-
-						catcherRng = pcgHash(catcherRng ^ 0x2545F491u);
-						const bool sampleLightTech = hashToUnitFloat(catcherRng) < lightTechWeight;
-
-						float3 sampleDir = make_float3(0.0f, 0.0f, 0.0f);
-						float sampleDistance = 1e16f; // environment/unbounded default
-						bool haveSampleDir = false;
-
-						if (sampleLightTech)
-						{
-							catcherRng = pcgHash(catcherRng);
-							const unsigned int lightIndex = min(
-								static_cast<unsigned int>(hashToUnitFloat(catcherRng) * static_cast<float>(params.lightCount)),
-								params.lightCount - 1);
-							float3 lightDir, lightIntensity;
-							float lightDistance;
-							evaluatePunctualLight(params.lights[lightIndex], planePos, lightDir, lightIntensity, lightDistance);
-							if (lightIntensity.x > 0.0f || lightIntensity.y > 0.0f || lightIntensity.z > 0.0f)
-							{
-								sampleDir = lightDir;
-								sampleDistance = lightDistance;
-								haveSampleDir = true;
-							}
-						}
-						else
-						{
-							catcherRng = pcgHash(catcherRng);
-							const float eu0 = hashToUnitFloat(catcherRng);
-							catcherRng = pcgHash(catcherRng);
-							const float eu1 = hashToUnitFloat(catcherRng);
-							catcherRng = pcgHash(catcherRng);
-							const float eu2 = hashToUnitFloat(catcherRng);
-							float3 envDir;
-							float envPdf;
-							envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
-							if (envPdf > 0.0f)
-							{
-								sampleDir = envDir;
-								haveSampleDir = true;
-							}
-						}
-
-						if (haveSampleDir && dot3(sampleDir, planeNormal) > 0.0f)
-						{
-							catcherRng = pcgHash(catcherRng);
-							const float3 shadowOrigin = planePos + planeNormal * eps;
-							const float shadowMaxDistance = fminf(sampleDistance, 1e16f);
-							shadowFactor = params.shadowsEnabled != 0
-								? traceShadowRay(shadowOrigin, sampleDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
-								: make_float3(1.0f, 1.0f, 1.0f);
-						}
-					}
 
 					float3 envColor;
 					if (escapeRoughness == -1.0f)
@@ -1847,18 +1851,150 @@ namespace
 						envColor = sampleEnvironmentRaw(params.environment, direction) * misWeight;
 					}
 
-					// Literal port of handleShadowCatcher()'s own branch split
-					// (pathtrace_functions.h.slang:527-535) - see CPU's identical
-					// isShadowCatcher gate for the full doc comment.
-					const bool fullyLit = shadowFactor.x >= 1.0f && shadowFactor.y >= 1.0f && shadowFactor.z >= 1.0f;
 					const float shadowStrength = fminf(fmaxf(params.infinitePlaneShadowCatcherDarkness, 0.0f), 1.0f);
-					const float3 resultColor = fullyLit
-						? envColor
-						: envColor * shadowFactor - envColor * (make_float3(1.0f, 1.0f, 1.0f) - shadowFactor) * shadowStrength;
+
+					// Multiple INDEPENDENT stochastic occlusion tests per
+					// illusion evaluation, averaged into a visibility
+					// fraction v - see CpuPathTracer.cpp's identical
+					// isShadowCatcher gate for the full history of the two
+					// prior formulas that didn't work (avg-then-multiply
+					// over-darkened mostly-open floor; per-sample binary
+					// blend turned out mathematically equivalent to that
+					// since an occluded sample's shadowFactor is already
+					// ~0, so multiplying it by (1-darkness) had no visible
+					// effect at any darkness value). This version applies
+					// darkness as an EXPONENT on v instead of a linear
+					// scale: resultColor = envColor * v^(1+darkness*3). At
+					// darkness=0 the exponent is 1 (bit-for-bit v*envColor,
+					// the same natural proportional falloff as always). At
+					// darkness=1 the exponent is 4, aggressively crushing
+					// partial visibility toward black while v=1 (gated by
+					// the same "all K samples individually unoccluded"
+					// fullyLit test) stays untouched at any darkness.
+					// K reduced back to 2 - see CpuPathTracer.cpp's identical
+					// isShadowCatcher gate for the full rationale (the pow-
+					// exponent formula is unbiased at any K in expectation,
+					// but K=4 makes each single evaluation noisier/
+					// stricter, reading as persistent haze over open floor;
+					// K=2 pairs the previously-confirmed clean see-through
+					// with the new formula's confirmed darkness contrast).
+					constexpr int kShadowCatcherOcclusionSamples = 2;
+					// Exponent now ranges from < 1 at darkness=0 up to > 1
+					// at darkness=1 - see CpuPathTracer.cpp's identical
+					// isShadowCatcher gate for the full rationale. A sub-1
+					// power BRIGHTENS partial visibility (e.g. v=0.5 ->
+					// 0.5^0.5=0.71), which is what the see-through pass at
+					// darkness=0 needed; v=1 stays untouched at any
+					// exponent (1^n=1 always).
+					constexpr float kShadowCatcherDarknessExponentAtZero = 0.5f;
+					constexpr float kShadowCatcherDarknessExponentAtOne = 8.0f;
+					bool fullyLit = true;
+					float3 resultColor = envColor;
+					// Applied to BOTH resultColor below AND the
+					// continuation bounce's throughput further down - see
+					// CpuPathTracer.cpp's identical isShadowCatcher gate for
+					// the full history of why scaling only one of the two
+					// terms (either the bounce alone, or neither) produced
+					// a broken/inverted darkness dial. A single shared
+					// factor keeps both terms moving together.
+					float3 catcherDarkenFactor = make_float3(1.0f, 1.0f, 1.0f);
+					if (totalTechWeight > 0.0f)
+					{
+						lightTechWeight /= totalTechWeight;
+						envTechWeight /= totalTechWeight;
+
+						float3 shadowFactorSum = make_float3(0.0f, 0.0f, 0.0f);
+						for (int occSample = 0; occSample < kShadowCatcherOcclusionSamples; ++occSample)
+						{
+							catcherRng = pcgHash(catcherRng ^ 0x2545F491u);
+							const bool sampleLightTech = hashToUnitFloat(catcherRng) < lightTechWeight;
+
+							float3 sampleDir = make_float3(0.0f, 0.0f, 0.0f);
+							float sampleDistance = 1e16f; // environment/unbounded default
+							bool haveSampleDir = false;
+
+							if (sampleLightTech)
+							{
+								catcherRng = pcgHash(catcherRng);
+								const unsigned int lightIndex = min(
+									static_cast<unsigned int>(hashToUnitFloat(catcherRng) * static_cast<float>(params.lightCount)),
+									params.lightCount - 1);
+								float3 lightDir, lightIntensity;
+								float lightDistance;
+								evaluatePunctualLight(params.lights[lightIndex], planePos, lightDir, lightIntensity, lightDistance);
+								if (lightIntensity.x > 0.0f || lightIntensity.y > 0.0f || lightIntensity.z > 0.0f)
+								{
+									sampleDir = lightDir;
+									sampleDistance = lightDistance;
+									haveSampleDir = true;
+								}
+							}
+							else
+							{
+								catcherRng = pcgHash(catcherRng);
+								const float eu0 = hashToUnitFloat(catcherRng);
+								catcherRng = pcgHash(catcherRng);
+								const float eu1 = hashToUnitFloat(catcherRng);
+								catcherRng = pcgHash(catcherRng);
+								const float eu2 = hashToUnitFloat(catcherRng);
+								float3 envDir;
+								float envPdf;
+								envSamplerSample(params.environment, eu0, eu1, eu2, envDir, envPdf);
+								if (envPdf > 0.0f)
+								{
+									sampleDir = envDir;
+									haveSampleDir = true;
+								}
+							}
+
+							float3 thisShadowFactor = make_float3(1.0f, 1.0f, 1.0f);
+							if (haveSampleDir && dot3(sampleDir, planeNormal) > 0.0f)
+							{
+								catcherRng = pcgHash(catcherRng);
+								const float3 shadowOrigin = planePos + planeNormal * eps;
+								const float shadowMaxDistance = fminf(sampleDistance, 1e16f);
+								thisShadowFactor = params.shadowsEnabled != 0
+									? traceShadowRay(shadowOrigin, sampleDir, shadowMaxDistance, 0xFFFFFFFFu, catcherRng, true)
+									: make_float3(1.0f, 1.0f, 1.0f);
+							}
+							const bool thisFullyLit = thisShadowFactor.x >= 1.0f && thisShadowFactor.y >= 1.0f && thisShadowFactor.z >= 1.0f;
+							fullyLit = fullyLit && thisFullyLit;
+							shadowFactorSum = shadowFactorSum + thisShadowFactor;
+						}
+						const float3 visibilityRaw = shadowFactorSum * (1.0f / static_cast<float>(kShadowCatcherOcclusionSamples));
+						const float3 visibility = make_float3(
+							fminf(fmaxf(visibilityRaw.x, 0.0f), 1.0f),
+							fminf(fmaxf(visibilityRaw.y, 0.0f), 1.0f),
+							fminf(fmaxf(visibilityRaw.z, 0.0f), 1.0f));
+						// Geometric (exponential), not linear, interpolation
+						// between the two endpoints - see CpuPathTracer.cpp's
+						// identical isShadowCatcher gate for the full
+						// rationale (matches the "mostly flat, then rapid
+						// near the top" feel of a log-mapped slider).
+						const float darknessExponent = kShadowCatcherDarknessExponentAtZero
+							* powf(kShadowCatcherDarknessExponentAtOne / kShadowCatcherDarknessExponentAtZero, shadowStrength);
+						catcherDarkenFactor = fullyLit
+							? make_float3(1.0f, 1.0f, 1.0f)
+							: make_float3(
+								powf(visibility.x, darknessExponent),
+								powf(visibility.y, darknessExponent),
+								powf(visibility.z, darknessExponent));
+						resultColor = envColor * catcherDarkenFactor;
+					}
 
 					outRadiance = resultColor;
 					outWorldNormal = planeNormal;
 					outHitDistance = tPlane;
+					// REVERTED back to the flat params.infinitePlaneBaseColor
+					// placeholder - see CpuPathTracer.cpp's identical
+					// isShadowCatcher gate for the full write-up. A prior
+					// attempt used resultColor instead (fixing an over-
+					// smoothing/lost-detail denoiser bug), but resultColor
+					// varies stochastically per sample, not just spatially,
+					// which undermined OIDN's denoising even at full
+					// accumulation convergence - diagnosed as persistent
+					// grain under occluding geometry. Reverted by explicit
+					// request to restore a known-decent baseline.
 					outGuideAlbedo = params.infinitePlaneBaseColor;
 					outGuideNormal = planeNormal;
 
@@ -1872,95 +2008,127 @@ namespace
 					}
 					else
 					{
-						// Continue the path as an ordinary BSDF bounce off the
-						// shadow-catcher's own flat material (infinitePlaneBaseColor/
-						// Metalness/Roughness) - mirrors NVIDIA's
-						// `bsdfSampleSimple(sampleData, pbrMat); ... return true`
-						// continuation exactly (pathtrace_functions.h.slang:537-553).
-						// A simplified diffuse/GGX-specular mixture (this flat
-						// material has no clearcoat/sheen/anisotropy to mix in),
-						// since traceBouncePath() runs outside __closesthit__ch()
-						// and can't reuse that shader's own inline BSDF-sampling
-						// code directly.
+						// Continue the path with a FRESH BSDF lobe sample
+						// (diffuse vs. specular, Fresnel/metalness-weighted) -
+						// mirrors NVIDIA's `bsdfSampleSimple(sampleData,
+						// pbrMat); ... return true` continuation
+						// (pathtrace_functions.h.slang:537-553) exactly: that
+						// sample is only ever drawn here, AFTER the occlusion
+						// test above already decided the sample isn't fully
+						// lit, never upfront. This is what lets
+						// infinitePlaneMetalness/Roughness drive a genuine
+						// reflection of the environment/scene geometry while
+						// keeping it confined to the shadowed/occluded region
+						// the illusion above already identified, rather than
+						// a global roll that could fire anywhere on the
+						// plane. specProb tracks the Metallic parameter
+						// directly, with no dielectric-F0 floor: metalness=0
+						// means EXACTLY zero chance of the mirror branch ever
+						// firing. Matches CpuPathTracer.cpp's identical
+						// isShadowCatcher gate exactly.
+						const float3 planeV = direction * -1.0f;
+						float3 planeT, planeB;
+						buildOrthonormalBasis(planeNormal, planeT, planeB);
+
+						const float catcherMetalness = fminf(fmaxf(params.infinitePlaneMetalness, 0.0f), 1.0f);
+						const float catcherRoughness = fminf(fmaxf(params.infinitePlaneRoughness, 0.0001f), 1.0f);
+						const float3 catcherDielectricF0 = make_float3(0.04f, 0.04f, 0.04f);
+						const float3 catcherF0 = lerp3(catcherDielectricF0, params.infinitePlaneBaseColor, catcherMetalness);
+						const float catcherSpecProb = fminf(fmaxf(catcherMetalness, 0.0f), 0.96f);
+
 						catcherRng = pcgHash(catcherRng ^ 0x5BD1E995u);
-						const float u1 = hashToUnitFloat(catcherRng);
+						const float catcherU1 = hashToUnitFloat(catcherRng);
 						catcherRng = pcgHash(catcherRng);
-						const float u2 = hashToUnitFloat(catcherRng);
+						const float catcherU2 = hashToUnitFloat(catcherRng);
 						catcherRng = pcgHash(catcherRng);
-						const float lobeXi = hashToUnitFloat(catcherRng);
+						const float catcherLobeXi = hashToUnitFloat(catcherRng);
 
-						const float metalness = fminf(fmaxf(params.infinitePlaneMetalness, 0.0f), 1.0f);
-						const float roughness = fminf(fmaxf(params.infinitePlaneRoughness, 0.0001f), 1.0f);
-						const float3 dielectricF0 = make_float3(0.04f, 0.04f, 0.04f);
-						const float3 F0 = lerp3(dielectricF0, params.infinitePlaneBaseColor, metalness);
-						const float specProb = fminf(fmaxf(fmaxf(F0.x, fmaxf(F0.y, F0.z)), 0.04f), 0.96f);
+						float3 catcherNextDir = make_float3(0.0f, 0.0f, 0.0f);
+						float3 catcherBounceThroughput = make_float3(0.0f, 0.0f, 0.0f);
+						float catcherBounceEscapeRoughness = -2.0f; // diffuse-lobe sentinel, matches __closesthit__ch()'s convention
+						bool catcherHaveBounce = false;
+						const bool catcherSpecularLobe = catcherSpecProb > 0.0f && catcherLobeXi < catcherSpecProb;
 
-						const float3 V = direction * -1.0f;
-						float3 T, B;
-						buildOrthonormalBasis(planeNormal, T, B);
-
-						float3 nextDir = make_float3(0.0f, 0.0f, 0.0f);
-						float3 bounceThroughput = make_float3(0.0f, 0.0f, 0.0f);
-						float bounceEscapeRoughness = -2.0f; // diffuse-lobe sentinel, matches __closesthit__ch()'s convention
-						bool haveBounce = false;
-
-						if (lobeXi < specProb)
+						if (catcherSpecularLobe)
 						{
-							const float alpha = roughness * roughness;
-							if (roughness <= 0.01f)
+							const float alpha = catcherRoughness * catcherRoughness;
+							if (catcherRoughness <= 0.01f)
 							{
-								const float3 L = reflectF3(V * -1.0f, planeNormal);
+								const float3 L = reflectF3(planeV * -1.0f, planeNormal);
 								if (dot3(planeNormal, L) > 0.0f)
 								{
-									const float NdotV = fmaxf(dot3(planeNormal, V), 1e-4f);
-									const float3 F = fresnelSchlick(NdotV, F0, make_float3(1.0f, 1.0f, 1.0f));
-									nextDir = L;
-									bounceThroughput = F * (1.0f / specProb);
-									bounceEscapeRoughness = 0.0f;
-									haveBounce = true;
+									const float NdotV = fmaxf(dot3(planeNormal, planeV), 1e-4f);
+									const float3 F = fresnelSchlick(NdotV, catcherF0, make_float3(1.0f, 1.0f, 1.0f));
+									catcherNextDir = L;
+									catcherBounceThroughput = F * (1.0f / catcherSpecProb);
+									catcherBounceEscapeRoughness = kShadowCatcherSpecularEscapeSentinel;
+									catcherHaveBounce = true;
 								}
 							}
 							else
 							{
-								const float NdotV0 = fmaxf(dot3(planeNormal, V), 1e-4f);
-								const float3 Ve = make_float3(dot3(V, T), dot3(V, B), NdotV0);
-								const float3 Hlocal = sampleGGXVNDF(Ve, alpha, alpha, u1, u2);
-								const float3 Hworld = normalizeF3(T * Hlocal.x + B * Hlocal.y + planeNormal * Hlocal.z);
-								const float3 L = reflectF3(V * -1.0f, Hworld);
+								const float NdotV0 = fmaxf(dot3(planeNormal, planeV), 1e-4f);
+								const float3 Ve = make_float3(dot3(planeV, planeT), dot3(planeV, planeB), NdotV0);
+								const float3 Hlocal = sampleGGXVNDF(Ve, alpha, alpha, catcherU1, catcherU2);
+								const float3 Hworld = normalizeF3(planeT * Hlocal.x + planeB * Hlocal.y + planeNormal * Hlocal.z);
+								const float3 L = reflectF3(planeV * -1.0f, Hworld);
 								const float NdotL = dot3(planeNormal, L);
 								if (NdotL > 0.0f)
 								{
-									const float NdotV = fmaxf(dot3(planeNormal, V), 1e-4f);
-									const float VdotH = fmaxf(dot3(V, Hworld), 0.0f);
+									const float NdotV = fmaxf(dot3(planeNormal, planeV), 1e-4f);
+									const float VdotH = fmaxf(dot3(planeV, Hworld), 0.0f);
 									const float G1v = smithG1GGX(NdotV, alpha);
 									const float G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
-									const float3 F = fresnelSchlick(VdotH, F0, make_float3(1.0f, 1.0f, 1.0f));
-									nextDir = L;
-									bounceThroughput = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / specProb);
-									bounceEscapeRoughness = roughness;
-									haveBounce = true;
+									const float3 F = fresnelSchlick(VdotH, catcherF0, make_float3(1.0f, 1.0f, 1.0f));
+									catcherNextDir = L;
+									catcherBounceThroughput = F * (G2 / fmaxf(G1v, 1e-6f)) * (1.0f / catcherSpecProb);
+									catcherBounceEscapeRoughness = kShadowCatcherSpecularEscapeSentinel;
+									catcherHaveBounce = true;
 								}
 							}
 						}
 						else
 						{
-							const float diffuseProb = fmaxf(1.0f - specProb, 1e-4f);
-							const float3 localDir = cosineSampleHemisphere(u1, u2);
-							nextDir = normalizeF3(T * localDir.x + B * localDir.y + planeNormal * localDir.z);
-							const float NdotV = fmaxf(dot3(planeNormal, V), 1e-4f);
-							const float3 Fview = fresnelSchlick(NdotV, F0, make_float3(1.0f, 1.0f, 1.0f));
-							const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - metalness);
-							bounceThroughput = kD * params.infinitePlaneBaseColor * (1.0f / diffuseProb);
-							bounceEscapeRoughness = -2.0f;
-							haveBounce = true;
+							const float diffuseProb = fmaxf(1.0f - catcherSpecProb, 1e-4f);
+							const float3 localDir = cosineSampleHemisphere(catcherU1, catcherU2);
+							catcherNextDir = normalizeF3(planeT * localDir.x + planeB * localDir.y + planeNormal * localDir.z);
+							const float NdotV = fmaxf(dot3(planeNormal, planeV), 1e-4f);
+							const float3 Fview = fresnelSchlick(NdotV, catcherF0, make_float3(1.0f, 1.0f, 1.0f));
+							const float3 kD = (make_float3(1.0f, 1.0f, 1.0f) - Fview) * (1.0f - catcherMetalness);
+							catcherBounceThroughput = kD * params.infinitePlaneBaseColor * (1.0f / diffuseProb);
+							catcherBounceEscapeRoughness = -2.0f;
+							catcherHaveBounce = true;
 						}
 
-						if (haveBounce)
+						if (catcherHaveBounce)
 						{
-							outHitFlag = 1u;
-							outNextDirection = nextDir;
-							outThroughputWeight = bounceThroughput;
-							outEscapeRoughness = bounceEscapeRoughness;
+							// hitFlag 5, NOT the ordinary 1 - a verified,
+							// deliberate difference from a plain bounce. Real
+							// NVIDIA source (gltf_pathtrace.slang): the shadow
+							// catcher's own continuation returns
+							// PathStepResult.eEarlyContinue, which the main
+							// loop's `if (step == eEarlyContinue) continue;`
+							// jumps straight back to the while-condition on -
+							// skipping the `pt.surfaceDepth++` at the very
+							// bottom of the loop body entirely. This bounce is
+							// FREE: it never consumes the maxDepth/maxBounces
+							// budget. __raygen__rg()'s hitFlag==5 branch (see
+							// its own doc comment) mirrors that exactly - same
+							// geometric offset handling as an ordinary hit,
+							// just excluded from the ++bounce counter.
+							outHitFlag = 5u;
+							outNextDirection = catcherNextDir;
+							// Scaled by the SAME catcherDarkenFactor as
+							// resultColor above - see CpuPathTracer.cpp's
+							// identical isShadowCatcher gate for the full
+							// history of why scaling only one of these two
+							// terms broke the darkness dial. This bounce's
+							// own contribution lands on the NEXT trace
+							// (typically escaping back to open sky), so it
+							// must move in lockstep with resultColor's
+							// darkening or it silently overrides it.
+							outThroughputWeight = catcherBounceThroughput * catcherDarkenFactor;
+							outEscapeRoughness = catcherBounceEscapeRoughness;
 							outNextBsdfPdf = 0.0f; // no MIS - matches the alpha-pass-through/transmission convention
 						}
 						else
@@ -2218,7 +2386,7 @@ extern "C" __global__ void __raygen__rg()
 				sampleNormal = guideNormal;
 				if (hitFlag == 2u)
 					accumulatedHits += fminf(fmaxf(nextEscapeRoughness, 0.0f), 1.0f);
-				else if (hitFlag != 0u) // 1/3/4 (hit, any kind) - the primary ray hit geometry opaquely
+				else if (hitFlag != 0u) // 1/3/4/5 (hit, any kind) - the primary ray hit geometry opaquely
 					accumulatedHits += 1.0f;
 			}
 
@@ -2304,6 +2472,16 @@ extern "C" __global__ void __raygen__rg()
 						break;
 					throughput = throughput * (1.0f / rrPcont);
 				}
+			}
+			else if (hitFlag == 5u)
+			{
+				// Shadow catcher's own continuation - a verified, deliberate
+				// free bounce (see traceBouncePath()'s isShadowCatcher gate,
+				// hitFlag==5 branch, for the full rationale against NVIDIA's
+				// actual source). Neither bounce nor any other counter
+				// advances here - this hit is entirely uncounted, exactly
+				// like NVIDIA's PathStepResult.eEarlyContinue skipping their
+				// own pt.surfaceDepth++.
 			}
 			else
 			{
@@ -2423,8 +2601,11 @@ extern "C" __global__ void __miss__ms()
 	// __closesthit__ch()'s transmission branch), kVolumeScatterEscapeSentinel
 	// (-7) marks a KHR_materials_volume_scatter free-flight-walk redirect
 	// that escaped straight to the environment without hitting real
-	// geometry first (see that sentinel's own doc comment), and >=0 means a
-	// GGX specular-lobe escape with that material roughness.
+	// geometry first (see that sentinel's own doc comment),
+	// kShadowCatcherSpecularEscapeSentinel (-4) marks a shadow-catcher
+	// specular-lobe bounce that escaped to open sky (see that sentinel's own
+	// doc comment), and >=0 means an ordinary GGX specular-lobe escape with
+	// that material roughness.
 	const float escapeRoughness = __uint_as_float(optixGetPayload_18());
 	const float previousBsdfPdf = __uint_as_float(optixGetPayload_19());
 	const float3 dir = optixGetWorldRayDirection();
@@ -2440,6 +2621,21 @@ extern "C" __global__ void __miss__ms()
 		const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
 		const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
 		result = sampleEnvironmentBackground(params.environment, computeSkyboxBackgroundDirection(dir, su, sv), su, sv);
+	}
+	else if (escapeRoughness == kShadowCatcherSpecularEscapeSentinel)
+	{
+		// Reflective shadow catcher's specular lobe escaped to open sky
+		// (never hit real geometry) - substitute the EXACT primary-ray
+		// background for this pixel, ignoring the true reflected direction
+		// entirely, so this reads as invisible/blended-through just like the
+		// diffuse illusion, instead of a literal full-frame mirror. Real
+		// reflections of scene geometry never reach this branch (a ray that
+		// hits something doesn't call __miss__ms() at all).
+		const uint3 idx = optixGetLaunchIndex();
+		const uint3 dimLaunch = optixGetLaunchDimensions();
+		const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
+		const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
+		result = sampleEnvironmentBackground(params.environment, computePrimaryCameraDirection(su, sv), su, sv);
 	}
 	else if (escapeRoughness == -3.0f || escapeRoughness == kVolumeScatterEscapeSentinel)
 	{
@@ -2654,9 +2850,13 @@ extern "C" __global__ void __anyhit__ah()
 	// transmissionFactor whenever the ray passes through. Uses the FLAT
 	// (per-triangle) normal, not the smooth shading one, matching CPU's own
 	// hit.geometricNormal-based Fresnel term exactly - fetched via
-	// optixGetTriangleVertexData() (needs OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS
+	// optixGetTriangleVertexData(data[3]) (needs OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS
 	// on this GAS, already enabled for the texture-footprint/LOD computation
-	// - see RtOptixSceneTracer.cpp's GAS build).
+	// - see RtOptixSceneTracer.cpp's GAS build). No-argument overload -
+	// primIdx above is this shader invocation's OWN current hit
+	// (optixGetPrimitiveIndex()), not some other/random triangle, so the
+	// explicit-handle overload isn't needed here (and is deprecated for
+	// this exact use per OptiX 9's own doc comment on it).
 	float3 transmissionTint = make_float3(1.0f, 1.0f, 1.0f);
 	if (!passThrough && needsTransmissionTest)
 	{
@@ -2666,7 +2866,7 @@ extern "C" __global__ void __anyhit__ah()
 		transmissionFactor = fminf(fmaxf(transmissionFactor, 0.0f), 1.0f);
 
 		float3 objectTriAH[3];
-		optixGetTriangleVertexData(optixGetGASTraversableHandle(), primIdx, optixGetSbtGASIndex(), 0.0f, objectTriAH);
+		optixGetTriangleVertexData(objectTriAH);
 		const float3 objectFlatNormal = cross3(objectTriAH[1] - objectTriAH[0], objectTriAH[2] - objectTriAH[0]);
 		const float3 worldFlatNormal = normalizeF3(optixTransformNormalFromObjectToWorldSpace(objectFlatNormal));
 		const float3 rayDirAH = optixGetWorldRayDirection();
@@ -2788,8 +2988,10 @@ extern "C" __global__ void __closesthit__ch()
 	// from dot(ray.direction, hit.geometricNormal)>0; do the same explicit
 	// test here instead of relying on OptiX's front-face flag so volume
 	// entry/exit classification is exactly shared between PTC and PTG.
+	// No-argument overload (current hit's own triangle, same reasoning as
+	// __anyhit__ah()'s identical call above).
 	float3 objectTri[3];
-	optixGetTriangleVertexData(optixGetGASTraversableHandle(), primIdx, optixGetSbtGASIndex(), 0.0f, objectTri);
+	optixGetTriangleVertexData(objectTri);
 	const float3 objectFlatNormal = cross3(objectTri[1] - objectTri[0], objectTri[2] - objectTri[0]);
 	const float3 worldFlatNormal = normalizeF3(optixTransformNormalFromObjectToWorldSpace(objectFlatNormal));
 

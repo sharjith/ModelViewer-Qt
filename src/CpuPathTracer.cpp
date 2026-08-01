@@ -3107,70 +3107,42 @@ namespace
 					? (shadowRayMask & ~(1u << (hit.instanceIndex % 32u)))
 					: shadowRayMask;
 
+				// Structure now matches NVIDIA's own handleShadowCatcher()
+				// exactly (confirmed against the real vk_gltf_renderer
+				// source, pathtrace_functions.h.slang): the illusion below
+				// ALWAYS runs first, unconditionally - there is no upfront
+				// "is this sample a mirror or an illusion" roll gating it.
+				// A fully-lit sample terminates immediately with the plain
+				// envColor (see the fullyLit break below), same as a real
+				// miss. Only a PARTIALLY/FULLY OCCLUDED sample draws a real
+				// BSDF lobe (diffuse-vs-specular, Fresnel/metalness-weighted
+				// - see the lobe pick further down) and continues the path
+				// with it. This is a deliberate correction from an earlier
+				// version that drew the lobe UPFRONT and let a specular pick
+				// bypass the illusion entirely, everywhere on the plane -
+				// that made high-metalness settings lose the illusion's own
+				// fill/shadow-detail contribution across most of the floor
+				// (any sample that rolled specular got zero illusion
+				// contribution at all, not just near occlusion), which is
+				// what made the ground under/around a model go a flat,
+				// detail-less dark instead of NVIDIA's still-legible-through-
+				// the-shadow floor. Gating the lobe pick on occlusion instead
+				// keeps the reflection naturally confined near the model
+				// (exactly where NVIDIA's own reference shows it), and keeps
+				// the illusion's fill light contributing everywhere else.
 				const bool haveLights = !snapshot.lights.empty();
 				const bool haveEnv = envSampler.isValid();
 				float lightTechWeight = haveLights ? 0.5f : 0.0f;
 				float envTechWeight = haveEnv ? 0.5f : 0.0f;
 				const float totalTechWeight = lightTechWeight + envTechWeight;
 
-				glm::vec3 shadowFactor(1.0f);
-				if (totalTechWeight > 0.0f)
-				{
-					lightTechWeight /= totalTechWeight;
-					envTechWeight /= totalTechWeight;
-
-					const bool sampleLightTech = rng.next01() < lightTechWeight;
-					glm::vec3 sampleDir(0.0f);
-					float sampleDistance = 1e6f; // environment/unbounded default
-					bool haveSampleDir = false;
-
-					if (sampleLightTech)
-					{
-						const size_t lightIndex = (std::min)(
-							static_cast<size_t>(rng.next01() * static_cast<float>(snapshot.lights.size())),
-							snapshot.lights.size() - 1);
-						const RtLight& light = snapshot.lights[lightIndex];
-						glm::vec3 lightDir, lightIntensity;
-						float lightDistance;
-						evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
-						if (lightIntensity != glm::vec3(0.0f))
-						{
-							sampleDir = lightDir;
-							sampleDistance = lightDistance;
-							haveSampleDir = true;
-						}
-					}
-					else
-					{
-						glm::vec3 envDir;
-						float envPdf;
-						envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
-						if (envPdf > 0.0f)
-						{
-							sampleDir = envDir;
-							haveSampleDir = true;
-						}
-					}
-
-					if (haveSampleDir && glm::dot(sampleDir, N) > 0.0f)
-					{
-						RtRay shadowRay;
-						shadowRay.origin = hit.position + Ng * eps;
-						shadowRay.direction = sampleDir;
-						shadowRay.tFar = (std::max)(sampleDistance - 2.0f * eps, eps);
-						shadowRay.mask = shadowCatcherRayMask;
-						shadowFactor = snapshot.shadowsEnabled
-							? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
-							: glm::vec3(1.0f);
-					}
-				}
-
 				// Background radiance in the ray's CURRENT direction -
 				// mirrors the real miss branch's own dual convention exactly
 				// (pixel-perfect skybox lookup at the primary hit, MIS-
 				// weighted lookup for later bounces) so an unshadowed hit is
 				// indistinguishable from a genuine miss at this same bounce
-				// depth.
+				// depth. Computed before the occlusion loop below now (used
+				// per-sample inside it).
 				glm::vec3 envColor;
 				if (!primaryHitResolved)
 				{
@@ -3193,20 +3165,163 @@ namespace
 							: sampleEnvironmentMiss(snapshot.environment, ray.direction))) * misWeightFloor;
 				}
 
-				// Literal port of handleShadowCatcher()'s own branch split
-				// (pathtrace_functions.h.slang:527-535): fully-lit (all three
-				// channels read EXACTLY 1 - this sample's stochastic
-				// direction was genuinely unoccluded) substitutes envColor
-				// alone and terminates identically to a real miss; otherwise
-				// the subtractive envColor*shadowFactor - envColor*(1-
-				// shadowFactor)*darkenAmount split (physically-plausible
-				// partial occlusion minus the user's artistic darkening
-				// dial), then continues the path.
-				const bool fullyLit = shadowFactor.r >= 1.0f && shadowFactor.g >= 1.0f && shadowFactor.b >= 1.0f;
 				const float shadowStrength = std::clamp(mat.shadowCatcherDarkness, 0.0f, 1.0f);
-				const glm::vec3 resultColor = fullyLit
-					? envColor
-					: envColor * shadowFactor - envColor * (glm::vec3(1.0f) - shadowFactor) * shadowStrength;
+
+				// Multiple INDEPENDENT stochastic occlusion tests per
+				// illusion evaluation, averaged into a visibility fraction
+				// v (componentwise, preserves partial/tinted transmission)
+				// - see the two prior attempts' write-ups (now superseded)
+				// for the full history of what didn't work:
+				//   1) avg(shadowFactor) then multiply the WHOLE result by
+				//      a flat (1-darkness) scalar - crushed even mostly-
+				//      open floor toward black at high darkness, since the
+				//      dial applied to the genuinely-visible fraction too.
+				//   2) per-sample binary blend (unoccluded sample
+				//      contributes raw envColor, occluded contributes
+				//      envColor*shadowFactor*(1-darkness)) - looked
+				//      identical to (1) because a genuinely-occluded
+				//      sample's shadowFactor is already ~0, so multiplying
+				//      it by (1-darkness) is a no-op at ANY darkness value:
+				//      darkness lost essentially all effect, while K=4's
+				//      stricter "fully lit" gate (all 4 samples clear)
+				//      still reproduced (1)'s over-darkening at darkness=0.
+				// This version instead applies darkness as an EXPONENT on
+				// v, not a linear scale: resultColor = envColor * v^(1 +
+				// darkness*3). At darkness=0 the exponent is 1, so this is
+				// bit-for-bit v*envColor - the same natural, proportional,
+				// see-through partial visibility as darkness=0 always had.
+				// At darkness=1 the exponent is 4, which pushes any
+				// partially-occluded v aggressively toward black (e.g.
+				// v=0.75 -> 0.75^4=0.316) while v=1 (genuinely fully open,
+				// gated by the SAME "all K samples individually unoccluded"
+				// fullyLit test below) is untouched at any darkness since
+				// 1^n=1 - so darkness can never darken truly open floor,
+				// only reshape how steeply partial occlusion falls off.
+				// This is smooth/proportional (no hard clip, unlike the
+				// original NVIDIA subtractive port) so tile/grout contrast
+				// is preserved at every darkness level, just with a
+				// progressively steeper falloff curve.
+				// K reduced back to 2 (from 4) - the pow-exponent formula
+				// above is unbiased in expectation regardless of K (mean of
+				// v over many accumulated path-tracer samples converges to
+				// the true visibility fraction either way), but K=4 makes
+				// each single evaluation noisier/stricter (needs all 4
+				// stochastic rays clear to land in the pure-envColor
+				// branch), which read as persistent haze over open floor
+				// even with the new formula. K=2 was already confirmed to
+				// give clean see-through on open floor; pairing it with the
+				// new exponent-based darkness curve (confirmed to give good
+				// darkness=0 vs darkness=1 contrast) combines both fixes.
+				constexpr int kShadowCatcherOcclusionSamples = 2;
+				constexpr float kShadowCatcherDarknessExponentAtZero = 0.5f;
+				constexpr float kShadowCatcherDarknessExponentAtOne = 8.0f;
+				bool fullyLit = true;
+				glm::vec3 resultColor = envColor;
+				// Applied to BOTH resultColor above AND the continuation
+				// bounce's throughput below - a single, unified darkening
+				// factor instead of two independently-tuned ones. Two
+				// earlier attempts each scaled only ONE of the two terms:
+				// scaling only the bounce (by a flat (1-darkness), now
+				// removed) meant darkness=0 left the bounce fully
+				// unsuppressed while darkness=1 fully killed it - and since
+				// the bounce's own contribution (added on the NEXT loop
+				// iteration once the continuation ray typically escapes
+				// back to open sky) is a SEPARATE additive term from
+				// resultColor, that made high darkness look artificially
+				// CLEANER than low darkness (backwards). Scaling neither
+				// term (leaving the bounce fully unsuppressed always) let
+				// that same unattenuated bounce swamp resultColor's own
+				// darkness curve at every darkness value, making the dial
+				// appear to do nothing. Using the SAME v^exponent factor on
+				// both terms keeps them moving together: at darkness=0
+				// (exponent<1) both stay close to full brightness for
+				// partially-open floor; at darkness=1 (exponent=4) both are
+				// crushed together, so the overall shadow actually deepens
+				// as darkness increases instead of one term hiding the
+				// other's response.
+				glm::vec3 catcherDarkenFactor(1.0f);
+				if (totalTechWeight > 0.0f)
+				{
+					lightTechWeight /= totalTechWeight;
+					envTechWeight /= totalTechWeight;
+
+					glm::vec3 shadowFactorSum(0.0f);
+					for (int occSample = 0; occSample < kShadowCatcherOcclusionSamples; ++occSample)
+					{
+						const bool sampleLightTech = rng.next01() < lightTechWeight;
+						glm::vec3 sampleDir(0.0f);
+						float sampleDistance = 1e6f; // environment/unbounded default
+						bool haveSampleDir = false;
+
+						if (sampleLightTech)
+						{
+							const size_t lightIndex = (std::min)(
+								static_cast<size_t>(rng.next01() * static_cast<float>(snapshot.lights.size())),
+								snapshot.lights.size() - 1);
+							const RtLight& light = snapshot.lights[lightIndex];
+							glm::vec3 lightDir, lightIntensity;
+							float lightDistance;
+							evaluatePunctualLight(light, hit.position, lightDir, lightIntensity, lightDistance);
+							if (lightIntensity != glm::vec3(0.0f))
+							{
+								sampleDir = lightDir;
+								sampleDistance = lightDistance;
+								haveSampleDir = true;
+							}
+						}
+						else
+						{
+							glm::vec3 envDir;
+							float envPdf;
+							envSampler.sample(rng.next01(), rng.next01(), rng.next01(), envDir, envPdf);
+							if (envPdf > 0.0f)
+							{
+								sampleDir = envDir;
+								haveSampleDir = true;
+							}
+						}
+
+						glm::vec3 thisShadowFactor(1.0f);
+						if (haveSampleDir && glm::dot(sampleDir, N) > 0.0f)
+						{
+							RtRay shadowRay;
+							shadowRay.origin = hit.position + Ng * eps;
+							shadowRay.direction = sampleDir;
+							shadowRay.tFar = (std::max)(sampleDistance - 2.0f * eps, eps);
+							shadowRay.mask = shadowCatcherRayMask;
+							thisShadowFactor = snapshot.shadowsEnabled
+								? traceShadowRay(scene, snapshot, shadowRay, rng, settings.maxShadowRayHits)
+								: glm::vec3(1.0f);
+						}
+
+						const bool thisFullyLit = thisShadowFactor.r >= 1.0f && thisShadowFactor.g >= 1.0f && thisShadowFactor.b >= 1.0f;
+						fullyLit = fullyLit && thisFullyLit;
+						shadowFactorSum += thisShadowFactor;
+					}
+					const glm::vec3 visibility = glm::clamp(
+						shadowFactorSum / static_cast<float>(kShadowCatcherOcclusionSamples), 0.0f, 1.0f);
+					// Exponent now ranges from < 1 at darkness=0 up to > 1
+					// at darkness=1, not just 1..4. A sub-1 power BRIGHTENS
+					// partial visibility (e.g. v=0.5 -> 0.5^0.5=0.71)
+					// instead of leaving it linear, which is what the see-
+					// through pass at darkness=0 actually needed - v=1
+					// (genuinely fully open) is untouched at any exponent
+					// (1^n=1 always), so this only lifts the partially-
+					// occluded midtones, it doesn't brighten true shadow.
+					// Geometric (exponential), not linear, interpolation
+					// between the two endpoints - by explicit request, to
+					// match the "mostly flat, then rapid near the top"
+					// feel of a log-mapped slider. At shadowStrength=0 this
+					// is exactly kShadowCatcherDarknessExponentAtZero; at 1
+					// it's exactly kShadowCatcherDarknessExponentAtOne; in
+					// between it grows multiplicatively, so most of the
+					// slider's LOWER half barely changes the exponent while
+					// the UPPER half (closer to 1) ramps it up fast.
+					const float darknessExponent = kShadowCatcherDarknessExponentAtZero
+						* std::pow(kShadowCatcherDarknessExponentAtOne / kShadowCatcherDarknessExponentAtZero, shadowStrength);
+					catcherDarkenFactor = fullyLit ? glm::vec3(1.0f) : glm::pow(visibility, glm::vec3(darknessExponent));
+					resultColor = envColor * catcherDarkenFactor;
+				}
 
 				if (!primaryHitResolved)
 				{
@@ -3214,6 +3329,22 @@ namespace
 						*outPrimaryHit = fullyLit ? 0.0f : 1.0f;
 					if (!fullyLit)
 					{
+						// REVERTED back to the flat mat.shadowCatcherBaseColor
+						// placeholder - a prior attempt used resultColor
+						// instead (the actual displayed content, correctly
+						// fixing an over-smoothing/lost-detail denoiser bug),
+						// but resultColor varies stochastically PER SAMPLE
+						// (it depends on which direction that sample's shadow
+						// ray happened to test), not just spatially - OIDN
+						// generally assumes its albedo/normal guide buffers
+						// are low-noise, stable references, and a noisy guide
+						// undermines its ability to denoise the radiance
+						// signal even at full accumulation convergence,
+						// diagnosed as a persistent grainy look under
+						// occluding geometry that didn't resolve with more
+						// samples. Reverted by explicit request rather than
+						// chasing a further fix, to get back to a known-
+						// decent baseline for the shadow effect itself.
 						if (outPrimaryAlbedo)
 							*outPrimaryAlbedo = mat.shadowCatcherBaseColor;
 						if (outPrimaryNormal)
@@ -3224,41 +3355,124 @@ namespace
 				if (fullyLit)
 					break;
 
-				// Continue the path as an ordinary BSDF bounce off the
-				// shadow-catcher's own flat material (shadowCatcherBaseColor/
-				// Metalness/Roughness) - mirrors NVIDIA's
-				// `bsdfSampleSimple(sampleData, pbrMat); ... return true`
-				// continuation exactly (pathtrace_functions.h.slang:537-553).
-				// Restored now that shadowFactor itself is computed the same
-				// way NVIDIA's is (single stochastic light-or-environment
-				// direction, not a deterministic sum over every light) - the
-				// earlier attempt at this bounce visibly worsened the result
-				// specifically because it amplified the OLD shadowFactor's
-				// too-broad "shadowed" region, not because the bounce itself
-				// is wrong.
-				SurfaceParams catcherSurf;
-				catcherSurf.baseColor = mat.shadowCatcherBaseColor;
-				catcherSurf.metalness = std::clamp(mat.shadowCatcherMetalness, 0.0f, 1.0f);
-				catcherSurf.roughness = std::clamp(mat.shadowCatcherRoughness, 0.0001f, 1.0f);
-				computeF0F90(mat, catcherSurf.baseColor, catcherSurf.metalness, 1.0f, glm::vec3(1.0f),
-					catcherSurf.F0, catcherSurf.F90, catcherSurf.directF0, catcherSurf.dielectricF0, catcherSurf.dielectricDirectF0);
+				// Continue the path with a FRESH BSDF lobe sample (diffuse
+				// vs. specular, Fresnel/metalness-weighted) - mirrors
+				// NVIDIA's `bsdfSampleSimple(sampleData, pbrMat); ... return
+				// true` continuation (pathtrace_functions.h.slang:537-553)
+				// exactly: that sample is only ever drawn here, AFTER the
+				// occlusion test above already decided the sample isn't
+				// fully lit, never upfront. This is what lets
+				// shadowCatcherMetalness/Roughness drive a genuine reflection
+				// of the environment/scene geometry while keeping it
+				// confined to the shadowed/occluded region the illusion
+				// above already identified, rather than a global roll that
+				// could fire anywhere on the plane. specProb tracks the
+				// Metallic dial directly, with no dielectric-F0 floor:
+				// metalness=0 means EXACTLY zero chance of the mirror branch
+				// ever firing. Matches RtOptixScene.cu's identical
+				// isShadowCatcher gate exactly.
+				const float catcherRoughness = std::clamp(mat.shadowCatcherRoughness, 0.0001f, 1.0f);
+				const float catcherMetalness = std::clamp(mat.shadowCatcherMetalness, 0.0f, 1.0f);
+				const glm::vec3 catcherDielectricF0(0.04f);
+				const glm::vec3 catcherF0 = glm::mix(catcherDielectricF0, mat.shadowCatcherBaseColor, catcherMetalness);
+				const float catcherSpecProb = std::clamp(catcherMetalness, 0.0f, 0.96f);
 
-				glm::vec3 catcherDir, catcherThroughput;
-				float catcherEnvRoughness = -1.0f;
-				const float catcherAlpha = catcherSurf.roughness * catcherSurf.roughness;
-				if (!sampleBSDFBounce(N, N, V, catcherSurf, glm::vec3(0.0f), false,
-						glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), catcherAlpha, catcherAlpha,
-						rng, catcherDir, catcherThroughput, catcherEnvRoughness))
+				glm::vec3 catcherT, catcherB;
+				buildOrthonormalBasis(N, catcherT, catcherB);
+
+				glm::vec3 catcherDir(0.0f), catcherThroughput(0.0f);
+				float catcherEnvRoughness = -1.0f; // diffuse-lobe sentinel
+				bool haveCatcherBounce = false;
+				const bool catcherSpecularLobe = catcherSpecProb > 0.0f && rng.next01() < catcherSpecProb;
+
+				if (catcherSpecularLobe)
+				{
+					const float alpha = catcherRoughness * catcherRoughness;
+					if (catcherRoughness <= 0.01f)
+					{
+						const glm::vec3 L = glm::reflect(-V, N);
+						if (glm::dot(N, L) > 0.0f)
+						{
+							const float NdotV = (std::max)(glm::dot(N, V), 1e-4f);
+							const glm::vec3 F = fresnelSchlick(NdotV, catcherF0, glm::vec3(1.0f));
+							catcherDir = L;
+							catcherThroughput = F * (1.0f / catcherSpecProb);
+							catcherEnvRoughness = 0.0f;
+							haveCatcherBounce = true;
+						}
+					}
+					else
+					{
+						const float NdotV0 = (std::max)(glm::dot(N, V), 1e-4f);
+						const glm::vec3 Ve(glm::dot(V, catcherT), glm::dot(V, catcherB), NdotV0);
+						const glm::vec3 Hlocal = sampleGGXVNDF(Ve, alpha, alpha, rng.next01(), rng.next01());
+						const glm::vec3 Hworld = glm::normalize(catcherT * Hlocal.x + catcherB * Hlocal.y + N * Hlocal.z);
+						const glm::vec3 L = glm::reflect(-V, Hworld);
+						const float NdotL = glm::dot(N, L);
+						if (NdotL > 0.0f)
+						{
+							const float NdotV = (std::max)(glm::dot(N, V), 1e-4f);
+							const float VdotH = (std::max)(glm::dot(V, Hworld), 0.0f);
+							const float G1v = smithG1GGX(NdotV, alpha);
+							const float G2 = smithG2HeightCorrelatedGGX(NdotV, NdotL, alpha);
+							const glm::vec3 F = fresnelSchlick(VdotH, catcherF0, glm::vec3(1.0f));
+							catcherDir = L;
+							catcherThroughput = F * (G2 / (std::max)(G1v, 1e-6f)) * (1.0f / catcherSpecProb);
+							catcherEnvRoughness = catcherRoughness;
+							haveCatcherBounce = true;
+						}
+					}
+				}
+				else
+				{
+					const float diffuseProb = (std::max)(1.0f - catcherSpecProb, 1e-4f);
+					const glm::vec3 localDir = cosineSampleHemisphere(rng.next01(), rng.next01());
+					catcherDir = glm::normalize(catcherT * localDir.x + catcherB * localDir.y + N * localDir.z);
+					const float NdotV = (std::max)(glm::dot(N, V), 1e-4f);
+					const glm::vec3 Fview = fresnelSchlick(NdotV, catcherF0, glm::vec3(1.0f));
+					const glm::vec3 kD = (glm::vec3(1.0f) - Fview) * (1.0f - catcherMetalness);
+					catcherThroughput = kD * mat.shadowCatcherBaseColor * (1.0f / diffuseProb);
+					catcherEnvRoughness = -1.0f;
+					haveCatcherBounce = true;
+				}
+
+				if (!haveCatcherBounce)
 					break;
 
-				throughput *= catcherThroughput;
+				// Scaled by the SAME catcherDarkenFactor as resultColor
+				// above (v^exponent) - see that variable's declaration
+				// comment for the full history of why a flat (1-darkness)
+				// scale and no scale at all both failed. This bounce's own
+				// contribution lands on the NEXT loop iteration (it's a
+				// real continuation, typically escaping back to open sky),
+				// so it must move in lockstep with resultColor's darkening
+				// or it silently overrides/negates whatever resultColor
+				// just did.
+				throughput *= catcherThroughput * catcherDarkenFactor;
 				if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
 					break;
 				ray.origin = hit.position + Ng * eps;
 				ray.direction = catcherDir;
 				lastBounceEnvRoughness = catcherEnvRoughness;
 				lastBsdfSamplePdf = 0.0f; // no MIS - matches the alpha-pass-through/transmission convention
-				++bounce;
+				// Deliberately NOT ++bounce - a real, verified difference from
+				// NVIDIA's own reference (gltf_pathtrace.slang): the shadow
+				// catcher's own continuation is a FREE bounce that never
+				// consumes surfaceDepth (its PathStepResult.eEarlyContinue
+				// skips the "Consume one surface bounce" pt.surfaceDepth++ at
+				// the bottom of their main loop - confirmed by reading their
+				// actual source, not inferred). A reflected/scattered ray off
+				// a horizontal plane always points into the upper hemisphere,
+				// so it can never re-hit this same infinite plane again on a
+				// straight ray - no infinite-loop risk from leaving bounce
+				// uncounted here, matching why NVIDIA's own code has no extra
+				// guard against it either. Previously we DID count this
+				// against maxBounces, meaning any path touching the shadow
+				// catcher had strictly less real-geometry bounce budget left
+				// than NVIDIA's equivalent path - starving the illusion's own
+				// indirect/GI fill light under occluding geometry and
+				// producing a visibly weaker, less-defined shadow than the
+				// reference for the exact same maxBounces setting.
 				continue;
 			}
 

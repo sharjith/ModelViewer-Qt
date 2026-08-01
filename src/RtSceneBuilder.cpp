@@ -720,24 +720,26 @@ RtMaterial RtSceneBuilder::convertFloorMaterial(const SceneRuntime& runtime, con
 	rt.shadowCatcherMetalness = shadowCatcherMetalness;
 	rt.shadowCatcherRoughness = shadowCatcherRoughness;
 	rt.baseColor         = toGlm(material.albedoColor());
-	rt.metalness         = material.metalness();
-	// No PT-side reflection override anymore (previously a roughness clamp
-	// gated on the raster "Reflections" checkbox - see git history for the
-	// abandoned attempt and why it didn't work: widening/narrowing roughness
-	// alone can't replicate raster's fake mirror pass, since raster's floor
-	// reflection reads neither Material::roughness NOR any physically-
-	// grounded Fresnel term at all - it's a wholly separate double-rendered-
-	// geometry overlay blended at a fixed low opacity, independent of BRDF).
-	// The ordinary floor now always uses its real, unmodified material
-	// roughness, same as any other surface - a plain PBR-like diffuse floor
-	// that still correctly receives shadows (NEE/occlusion is independent of
-	// this value). Actual floor reflectivity is available via the Infinite
-	// Plane / Shadow Catcher ground mode instead, which already has its own
-	// explicit shadowCatcherMetalness/Roughness controls driving a real BSDF
-	// bounce (see the isShadowCatcher gate in CpuPathTracer.cpp/RtOptixScene.cu) -
-	// a deliberately separate, opt-in feature rather than folding reflection
-	// into the plain floor's own material.
-	rt.roughness = material.roughness();
+	// Metalness/roughness for the floor - INCLUDING the ordinary
+	// (non-shadow-catcher) case - now come from the same Metallic/Roughness
+	// sliders the Shadow Catcher Settings group exposes, rather than the
+	// underlying glTF material's own values. Previously the ordinary floor
+	// always used the raw material roughness (no PT-side override at all,
+	// after an earlier reflectivity attempt tied to raster's "Reflections"
+	// checkbox was abandoned - see git history for why that one didn't
+	// work), which left the user with no way to dial reflection amount in
+	// or out short of editing the material itself. Since rt.isShadowCatcher
+	// stays false for this ordinary-floor path, these values now drive a
+	// real, physically sampled specular reflection through the SAME generic
+	// BSDF pipeline every other surface in the scene already uses - no
+	// special-cased illusion involved, just a normal PBR floor whose
+	// reflectivity the user can control directly. When shadowCatcherEnabled
+	// is true instead, these same two parameters feed the invisible
+	// shadow-catching illusion's diffuse throughput tint only (see the
+	// isShadowCatcher gate in CpuPathTracer.cpp/RtOptixScene.cu) - no real
+	// specular bounce there, by design.
+	rt.metalness = shadowCatcherMetalness;
+	rt.roughness = shadowCatcherRoughness;
 	rt.emissive          = toGlm(material.emissive());
 	rt.emissiveStrength  = material.emissiveStrength();
 	rt.opacity           = material.opacity();

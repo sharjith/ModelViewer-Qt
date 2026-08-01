@@ -58,6 +58,16 @@ struct RtFloorParams
 	// defaults (mid-grey, non-metal, medium roughness) for the same reason
 	// theirs do - a plausible, unremarkable default GI contributor while the
 	// shadow-catcher continuation bounce is active.
+	//
+	// Metalness/Roughness are no longer exclusive to shadow-catcher mode:
+	// VisualizationEnvironmentPanel::updateControlDependencies() also
+	// enables their two sliders for plain Floor mode, and
+	// RtSceneBuilder::convertFloorMaterial() feeds them into the ordinary
+	// floor's rt.metalness/rt.roughness (replacing the raw glTF material
+	// values) so its reflectivity is directly user-controllable through the
+	// normal PBR BSDF path - see that function's doc comment. Darkness/
+	// BaseColor stay shadow-catcher-only (meaningless for an ordinary opaque
+	// floor, which never runs the catching illusion).
 	bool shadowCatcherEnabled    = false;
 	float shadowCatcherDarkness = 0.5f;
 	QVector3D shadowCatcherBaseColor = QVector3D(0.5f, 0.5f, 0.5f);
