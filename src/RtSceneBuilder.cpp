@@ -982,10 +982,27 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 	// all). A camera-position check achieves the same practical result
 	// unambiguously: computed once per snapshot build, no per-hit backface
 	// test needed, and no dependency on winding order at all.
+	//
+	// This gate is ONLY applied to addFloorInstance()'s real BVH mesh
+	// below, not to fillInfinitePlane(). The analytic infinite plane
+	// (CpuPathTracer.cpp's isShadowCatcher gate / RtOptixScene.cu's
+	// traceBouncePath()) is NOT real geometry - it's a per-ray distance
+	// test gated on `originUp > planeHeight`, where origin is the CURRENT
+	// ray's origin. For a primary ray that origin IS the camera eye, so
+	// that test already self-hides the plane from a camera below it, for
+	// free, every single frame, with no snapshot rebuild required at all.
+	// Gating fillInfinitePlane() itself on cameraAboveFloor used to force
+	// a full snapshot rebuild (and therefore a real GAS/IAS rebuild) just
+	// to catch a camera crossing during interactive orbiting - visible as
+	// a jerk, especially in Infinite Plane/Shadow Catcher mode where the
+	// plane sits right at the subject's base and gets crossed constantly
+	// during ordinary orbiting. A real mesh instance (addFloorInstance(),
+	// plain Floor mode only) has no equivalent free self-hiding mechanism,
+	// so it still needs this explicit, rebuild-triggering gate.
 	const float cameraUpCoord = (floor && floor->cameraUpAxisZUp) ? camera.getRenderPosition().z() : camera.getRenderPosition().y();
 	const bool cameraAboveFloor = !floor || cameraUpCoord >= floor->planeLevel;
 
-	if (floor && floor->groundMode == GroundMode::Floor && cameraAboveFloor)
+	if (floor && floor->groundMode == GroundMode::Floor)
 	{
 		fillInfinitePlane(*snapshot, runtime, *floor, dedupCache);
 		// Shadow-catcher PT mode should behave like NVIDIA's analytic
@@ -993,7 +1010,7 @@ std::shared_ptr<RtSceneSnapshot> RtSceneBuilder::build(
 		// proxy here is what creates the hard rectangular footprint visible
 		// in the user's screenshot, because primary rays can still hit that
 		// geometry instead of an unbounded plane/miss-equivalent.
-		if (!floor->shadowCatcherEnabled)
+		if (!floor->shadowCatcherEnabled && cameraAboveFloor)
 			addFloorInstance(*snapshot, runtime, *floor, dedupCache);
 	}
 

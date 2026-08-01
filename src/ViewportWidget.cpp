@@ -13948,20 +13948,26 @@ void ViewportWidget::startInteractiveRayTracedGpuSession(bool forceSceneRefresh)
 		const float aspectRatio = fbHeight > 0 ? static_cast<float>(fbWidth) / static_cast<float>(fbHeight) : 1.0f;
 		const RtCamera camera = RtSceneBuilder::buildCamera(*_primaryCamera, aspectRatio);
 
-		// RtSceneBuilder::build() decides whether to include the PT floor at
-		// all based on which side of its plane the camera is on (see its own
-		// doc comment) - but that decision is only re-evaluated when build()
-		// actually runs, and the fast path below deliberately never calls it
-		// (that's the whole point of the fast path). Without this check,
-		// orbiting the camera below the floor mid-drag would never hide it -
-		// build() ran once, before the crossing, and the fast path would
-		// just keep reusing that stale snapshot forever. Only relevant for
-		// the two ground modes RtSceneBuilder::build() actually applies this
-		// to (see its floor->groundMode==GroundMode::Floor check and
-		// buildRayTracedSnapshot()'s infinitePlaneMode->GroundMode::Floor
-		// remap for the shadow-catcher case).
-		const bool floorCrossingRelevant =
-			_renderCtrl.groundMode() == GroundMode::Floor || _renderCtrl.groundMode() == GroundMode::InfinitePlane;
+		// RtSceneBuilder::build() decides whether to include the real,
+		// finite floor MESH (addFloorInstance()) based on which side of its
+		// plane the camera is on - but that decision is only re-evaluated
+		// when build() actually runs, and the fast path below deliberately
+		// never calls it (that's the whole point of the fast path). Without
+		// this check, orbiting the camera below the floor mid-drag would
+		// never hide the mesh - build() ran once, before the crossing, and
+		// the fast path would just keep reusing that stale snapshot
+		// forever.
+		//
+		// Only relevant for plain GroundMode::Floor now (see
+		// RtSceneBuilder::build()'s own doc comment on this same gate for
+		// the full write-up): Infinite Plane/Shadow Catcher mode's ground
+		// is a purely analytic per-ray plane test (no BVH geometry), which
+		// already self-hides from a camera below it every frame for free -
+		// forcing a rebuild here for that mode too used to cause a visible
+		// jerk every time the camera crossed the plane's height, which
+		// happens constantly when orbiting around a subject sitting right
+		// at that height.
+		const bool floorCrossingRelevant = _renderCtrl.groundMode() == GroundMode::Floor;
 		const bool floorSideUnchanged = !floorCrossingRelevant || isCameraAboveFloorPlane() == _rtLastBuildCameraAboveFloor;
 		if (!floorSideUnchanged)
 		{
