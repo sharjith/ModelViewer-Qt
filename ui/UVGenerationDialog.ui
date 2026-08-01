@@ -181,6 +181,9 @@
            </item>
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_CylOffset">
+             <property name="toolTip">
+              <string>Shifts the cylindrical projection along its axis</string>
+             </property>
              <property name="decimals">
               <number>3</number>
              </property>
@@ -282,6 +285,9 @@
            </item>
            <item row="2" column="1">
             <widget class="QCheckBox" name="checkBox_DuplicatePoles">
+             <property name="toolTip">
+              <string>Duplicate vertices at the poles to avoid UV pinching/distortion</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -299,6 +305,9 @@
            </item>
            <item row="3" column="1">
             <widget class="QCheckBox" name="checkBox_SeamlessSpherical">
+             <property name="toolTip">
+              <string>Wrap U continuously to avoid a visible seam</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -334,6 +343,9 @@
            </item>
            <item row="0" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold">
+             <property name="toolTip">
+              <string>Face-angle difference above which a hard UV seam is cut</string>
+             </property>
              <property name="decimals">
               <number>1</number>
              </property>
@@ -354,6 +366,9 @@
            </item>
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_DistortionWeight">
+             <property name="toolTip">
+              <string>Balance between angle-preserving and area-preserving unwrapping</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -377,6 +392,9 @@
            </item>
            <item row="2" column="1">
             <widget class="QCheckBox" name="checkBox_PreserveAspect">
+             <property name="toolTip">
+              <string>Keep UV proportions matching the 3D geometry</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -394,6 +412,9 @@
            </item>
            <item row="3" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_SeamPadding">
+             <property name="toolTip">
+              <string>Gap left around UV island edges to prevent texture bleeding</string>
+             </property>
              <property name="decimals">
               <number>3</number>
              </property>
@@ -417,6 +438,9 @@
            </item>
            <item row="4" column="1">
             <widget class="QCheckBox" name="checkBox_EnableRelaxation">
+             <property name="toolTip">
+              <string>Smooth UV islands after unwrapping to reduce stretching</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -431,6 +455,9 @@
            </item>
            <item row="5" column="1">
             <widget class="QSpinBox" name="spinBox_RelaxationIterations">
+             <property name="toolTip">
+              <string>How many relaxation passes to run</string>
+             </property>
              <property name="minimum">
               <number>1</number>
              </property>
@@ -451,6 +478,9 @@
            </item>
            <item row="6" column="1">
             <widget class="QCheckBox" name="checkBox_EnablePacking">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -499,6 +529,9 @@
            </item>
            <item row="0" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_Smart">
+             <property name="toolTip">
+              <string>Face-angle difference above which a hard UV seam is cut</string>
+             </property>
              <property name="decimals">
               <number>1</number>
              </property>
@@ -519,6 +552,9 @@
            </item>
            <item row="1" column="1">
             <widget class="QCheckBox" name="checkBox_EnableRelaxation_Smart">
+             <property name="toolTip">
+              <string>Smooth UV islands after unwrapping to reduce stretching</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -533,6 +569,9 @@
            </item>
            <item row="2" column="1">
             <widget class="QSpinBox" name="spinBox_RelaxationIterations_Smart">
+             <property name="toolTip">
+              <string>How many relaxation passes to run</string>
+             </property>
              <property name="minimum">
               <number>1</number>
              </property>

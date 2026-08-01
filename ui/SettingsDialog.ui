@@ -228,6 +228,9 @@
          </item>
          <item row="7" column="1">
           <widget class="QSpinBox" name="spinBoxUndoLimit">
+                      <property name="toolTip">
+            <string>Maximum number of undo steps kept in history</string>
+           </property>
            <property name="frame">
             <bool>true</bool>
            </property>
@@ -252,7 +255,9 @@
          <item row="6" column="0">
           <widget class="QCheckBox" name="checkTutorialLaunch">
            <property name="toolTip">
-            <string>When checked, applying Settings resets the tutorial's &quot;remember my choice&quot; preference, so the launch-method prompt (Dialog Window / Web Browser) is asked again next time.</string>
+            <string>When checked, applying Settings resets the tutorial's &quot;remember my
+choice&quot; preference, so the launch-method prompt (Dialog
+Window / Web Browser) is asked again next time.</string>
            </property>
            <property name="text">
             <string>Show Tutorial Launch Options</string>
@@ -264,6 +269,10 @@
          </item>
          <item row="8" column="0" colspan="2">
           <widget class="QCheckBox" name="checkProgressiveLoading">
+                      <property name="toolTip">
+            <string>Display large models incrementally as they load, instead of
+all at once</string>
+           </property>
            <property name="text">
             <string>Enable Progressive Loading</string>
            </property>
@@ -271,6 +280,9 @@
          </item>
          <item row="9" column="0" colspan="2">
           <widget class="QCheckBox" name="checkAnimateProgressiveFit">
+                      <property name="toolTip">
+            <string>Animate the camera fit as progressively-loaded meshes arrive</string>
+           </property>
            <property name="text">
             <string>Animate Progressive Fit</string>
            </property>
@@ -465,6 +477,9 @@
           </item>
           <item row="0" column="1">
            <widget class="QComboBox" name="navigationModeComboBox">
+                        <property name="toolTip">
+             <string>Default camera control scheme (Orbit, Fly, First Person, etc.)</string>
+            </property>
             <item>
              <property name="text">
               <string>Orbit</string>
@@ -491,6 +506,9 @@
           </item>
           <item row="1" column="1">
            <widget class="QSlider" name="mouseSensitivitySlider">
+                        <property name="toolTip">
+             <string>How fast the camera responds to mouse movement</string>
+            </property>
             <property name="minimum">
              <number>1</number>
             </property>
@@ -514,6 +532,9 @@
           </item>
           <item row="2" column="1">
            <widget class="QSlider" name="zoomSensitivitySlider">
+                        <property name="toolTip">
+             <string>How fast the camera responds to zoom input</string>
+            </property>
             <property name="minimum">
              <number>1</number>
             </property>
@@ -537,6 +558,9 @@
           </item>
           <item row="4" column="0">
            <widget class="QCheckBox" name="smoothNavigationCheckBox">
+                        <property name="toolTip">
+             <string>Ease camera movement with inertia instead of moving instantly</string>
+            </property>
             <property name="text">
              <string>Smooth Navigation</string>
             </property>
@@ -646,6 +670,9 @@
           </item>
           <item row="5" column="0">
            <widget class="QCheckBox" name="showVertexNormalsCheckBox">
+                        <property name="toolTip">
+             <string>Debug overlay: draw a line per vertex normal</string>
+            </property>
             <property name="text">
              <string>Show Vertex Normals</string>
             </property>
@@ -656,6 +683,9 @@
           </item>
           <item row="6" column="0">
            <widget class="QCheckBox" name="showFaceNormalsCheckBox">
+                        <property name="toolTip">
+             <string>Debug overlay: draw a line per face normal</string>
+            </property>
             <property name="text">
              <string>Show Face Normals</string>
             </property>
@@ -699,6 +729,9 @@
           </item>
           <item row="6" column="2">
            <widget class="QSpinBox" name="fieldOfViewSpinBox">
+                        <property name="toolTip">
+             <string>Default camera field of view, in degrees</string>
+            </property>
             <property name="minimum">
              <number>10</number>
             </property>
@@ -726,6 +759,10 @@
           </item>
           <item row="9" column="2">
            <widget class="QComboBox" name="comboBoxHoverHighlightMode">
+                        <property name="toolTip">
+             <string>How hovering highlights a mesh: fast ray-cast preview, full
+accurate render, or off</string>
+            </property>
             <property name="minimumSize">
              <size>
               <width>100</width>
@@ -804,6 +841,9 @@
           </item>
           <item row="1" column="1">
            <widget class="QPushButton" name="pushButtonTopColor">
+                        <property name="toolTip">
+             <string>Pick the background's top (or solid) color</string>
+            </property>
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -824,6 +864,10 @@
           </item>
           <item row="2" column="1">
            <widget class="QPushButton" name="pushButtonBottomColor">
+                        <property name="toolTip">
+             <string>Pick the background's bottom color (used when Gradient is
+on)</string>
+            </property>
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>0</horstretch>
@@ -890,6 +934,9 @@
             </item>
             <item>
              <widget class="QComboBox" name="comboBoxDefaultSkyboxHDRI">
+                            <property name="toolTip">
+               <string>Default HDRI environment map for new documents</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -907,6 +954,9 @@
             </item>
             <item>
              <widget class="QComboBox" name="comboBoxDefaultSkyboxLDRI">
+                            <property name="toolTip">
+               <string>Default plain skybox image for new documents</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>0</horstretch>
@@ -949,6 +999,9 @@
        </item>
        <item row="0" column="1">
         <widget class="QComboBox" name="comboShadingMode">
+                  <property name="toolTip">
+          <string>Default shading mode for new viewports</string>
+         </property>
          <item>
           <property name="text">
            <string>Shaded</string>
@@ -978,6 +1031,9 @@
        </item>
        <item row="1" column="0" colspan="2">
         <widget class="QCheckBox" name="checkBackfaceCulling">
+                  <property name="toolTip">
+          <string>Hide the back faces of surfaces by default</string>
+         </property>
          <property name="text">
           <string>Enable Backface Culling</string>
          </property>
@@ -998,6 +1054,9 @@
           </item>
           <item row="0" column="1">
            <widget class="QComboBox" name="shaderModelComboBox">
+                        <property name="toolTip">
+             <string>Default lighting model used to render materials</string>
+            </property>
             <item>
              <property name="text">
               <string>Blinn-Phong (ADS)</string>
@@ -1019,6 +1078,9 @@
           </item>
           <item row="1" column="1">
            <widget class="QComboBox" name="shadingNormalComboBox">
+                        <property name="toolTip">
+             <string>Default normal interpolation: smooth or flat shading</string>
+            </property>
             <item>
              <property name="text">
               <string>Smooth</string>
@@ -1040,6 +1102,9 @@
           </item>
           <item row="2" column="1">
            <widget class="QComboBox" name="msaaComboBox">
+                        <property name="toolTip">
+             <string>Default multisample anti-aliasing level</string>
+            </property>
             <item>
              <property name="text">
               <string>1 (No MSAA)</string>
@@ -1076,6 +1141,9 @@
           </item>
           <item row="3" column="1">
            <widget class="QComboBox" name="anisotropyComboBox">
+                        <property name="toolTip">
+             <string>Default anisotropic texture filtering level</string>
+            </property>
             <item>
              <property name="text">
               <string>1x (Off)</string>
@@ -1140,6 +1208,9 @@
             </item>
             <item row="2" column="1">
              <widget class="QSlider" name="ambientLightSlider">
+                            <property name="toolTip">
+               <string>Default ambient light contribution</string>
+              </property>
               <property name="minimum">
                <number>0</number>
               </property>
@@ -1163,6 +1234,9 @@
             </item>
             <item row="3" column="1">
              <widget class="QSlider" name="diffuseLightSlider">
+                            <property name="toolTip">
+               <string>Default diffuse light contribution</string>
+              </property>
               <property name="minimum">
                <number>0</number>
               </property>
@@ -1186,6 +1260,9 @@
             </item>
             <item row="4" column="1">
              <widget class="QSlider" name="specularLightSlider">
+                            <property name="toolTip">
+               <string>Default specular light contribution</string>
+              </property>
               <property name="minimum">
                <number>0</number>
               </property>
@@ -1287,6 +1364,10 @@
       <layout class="QGridLayout" name="gridLayout_3">
        <item row="0" column="0">
         <widget class="QComboBox" name="comboUVMethod">
+                  <property name="toolTip">
+          <string>Default UV generation method offered when a mesh has
+no UVs</string>
+         </property>
          <item>
           <property name="text">
            <string>Angle-Based Smart UV</string>
@@ -1321,6 +1402,9 @@
        </item>
        <item row="1" column="0">
         <widget class="QDoubleSpinBox" name="spinAngleThreshold">
+                  <property name="toolTip">
+          <string>Default angle threshold for the angle-based UV methods</string>
+         </property>
          <property name="prefix">
           <string>Angle: </string>
          </property>
@@ -1337,6 +1421,9 @@
        </item>
        <item row="2" column="0">
         <widget class="QCheckBox" name="checkPreserveUVs">
+                  <property name="toolTip">
+          <string>Don't overwrite UV sets a mesh already has</string>
+         </property>
          <property name="text">
           <string>Preserve Existing UVs</string>
          </property>
@@ -1347,6 +1434,9 @@
        </item>
        <item row="3" column="0">
         <widget class="QCheckBox" name="checkAutoPackUVs">
+                  <property name="toolTip">
+          <string>Automatically pack generated UV islands into 0-1 space</string>
+         </property>
          <property name="text">
           <string>Auto Pack UVs</string>
          </property>
@@ -1357,6 +1447,10 @@
        </item>
        <item row="4" column="0">
         <widget class="QCheckBox" name="checkRelaxUVs">
+                  <property name="toolTip">
+          <string>Run a relaxation pass on generated UVs to reduce
+distortion</string>
+         </property>
          <property name="text">
           <string>Relax UVs</string>
          </property>
@@ -1371,6 +1465,10 @@
        </item>
        <item row="6" column="0">
         <widget class="QPushButton" name="buttonResetUVPrompt">
+                  <property name="toolTip">
+          <string>Forget the remembered UV method choice, so the picker
+asks again next time</string>
+         </property>
          <property name="text">
           <string>Reset UV Prompt Setting</string>
          </property>
@@ -1449,6 +1547,9 @@
                  </item>
                  <item row="0" column="1">
                   <widget class="QDoubleSpinBox" name="linearDeflectionSpinBox">
+                                      <property name="toolTip">
+                    <string>Tessellation tolerance for curved surfaces (STEP/IGES import)</string>
+                   </property>
                    <property name="minimum">
                     <double>0.000000000000000</double>
                    </property>
@@ -1472,6 +1573,9 @@
                  </item>
                  <item row="1" column="1">
                   <widget class="QDoubleSpinBox" name="angularDeflectionSpinBox">
+                                      <property name="toolTip">
+                    <string>Tessellation angular tolerance for curved surfaces (STEP/IGES import)</string>
+                   </property>
                    <property name="minimum">
                     <double>0.000000000000000</double>
                    </property>
@@ -1517,6 +1621,9 @@
               </item>
               <item row="2" column="0">
                <widget class="QCheckBox" name="assimpGenNormalsCheckBox">
+                                <property name="toolTip">
+                 <string>Generate vertex normals if the imported file has none</string>
+                </property>
                 <property name="text">
                  <string>Generate Normals</string>
                 </property>
@@ -1527,6 +1634,9 @@
               </item>
               <item row="3" column="0">
                <widget class="QCheckBox" name="assimpSmoothNormalsCheckBox">
+                                <property name="toolTip">
+                 <string>Smooth generated normals across adjacent faces</string>
+                </property>
                 <property name="text">
                  <string>Smooth Normals</string>
                 </property>
@@ -1537,6 +1647,9 @@
               </item>
               <item row="4" column="0">
                <widget class="QCheckBox" name="assimpCalcTangentsCheckBox">
+                                <property name="toolTip">
+                 <string>Compute tangent vectors, needed for normal mapping</string>
+                </property>
                 <property name="text">
                  <string>Calculate Tangents</string>
                 </property>
@@ -1547,6 +1660,9 @@
               </item>
               <item row="5" column="0">
                <widget class="QCheckBox" name="assimpOptimizeMeshCheckBox">
+                                <property name="toolTip">
+                 <string>Merge/optimize meshes on import for better performance</string>
+                </property>
                 <property name="text">
                  <string>Optimize Mesh</string>
                 </property>
@@ -1567,6 +1683,10 @@
               </item>
               <item row="7" column="0">
                <widget class="QCheckBox" name="assimpAutoOrientCheckBox">
+                                <property name="toolTip">
+                 <string>Automatically reorient the model to match this app's up
+axis</string>
+                </property>
                 <property name="text">
                  <string>Auto Orient Models</string>
                 </property>
@@ -1694,6 +1814,9 @@
          <layout class="QFormLayout" name="diagnosticsFormLayout_3">
           <item row="0" column="0">
            <widget class="QCheckBox" name="profileRenderingCheckBox">
+                        <property name="toolTip">
+             <string>Log per-frame rendering timings for performance profiling</string>
+            </property>
             <property name="text">
              <string>Profile Rendering</string>
             </property>
@@ -1702,7 +1825,8 @@
           <item row="1" column="0">
            <widget class="QCheckBox" name="showTextureDebugPanelCheckBox">
             <property name="toolTip">
-             <string>Adds a Texture Debugger entry to the Tools menu. The panel shows GPU-side texture bindings for the selected mesh.</string>
+             <string>Adds a Texture Debugger entry to the Tools menu.
+The panel shows GPU-side texture bindings for the selected mesh.</string>
             </property>
             <property name="text">
              <string>Enable Texture Debugger in Tools menu</string>
@@ -1711,6 +1835,9 @@
           </item>
           <item row="2" column="0">
            <widget class="QPushButton" name="clearCacheButton">
+                        <property name="toolTip">
+             <string>Free GPU texture memory cached across all open documents</string>
+            </property>
             <property name="text">
              <string>Clear All Caches</string>
             </property>

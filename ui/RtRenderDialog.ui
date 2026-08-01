@@ -35,6 +35,10 @@
          </item>
          <item>
           <widget class="QComboBox" name="comboBoxRenderEngine">
+           <property name="toolTip">
+            <string>Auto prefers OptiX (GPU) when available,
+falling back to Embree (CPU)</string>
+           </property>
            <item>
             <property name="text">
              <string>Auto</string>
@@ -75,6 +79,11 @@
          </item>
          <item row="0" column="1">
           <widget class="QSpinBox" name="spinBoxMaxSamples">
+           <property name="toolTip">
+            <string>Total accumulated samples per pixel before the
+render is considered converged. Higher = less
+noise, longer render time</string>
+           </property>
            <property name="minimum">
             <number>1</number>
            </property>
@@ -98,6 +107,10 @@
          </item>
          <item row="1" column="1">
           <widget class="QSpinBox" name="spinBoxMaxBounces">
+           <property name="toolTip">
+            <string>Maximum light bounces per path. Higher gives
+more accurate indirect lighting/reflections, at a cost</string>
+           </property>
            <property name="minimum">
             <number>1</number>
            </property>
@@ -123,6 +136,10 @@
        </item>
        <item>
         <widget class="QCheckBox" name="checkBoxDenoiser">
+         <property name="toolTip">
+          <string>AI-denoise the final image so it looks
+clean at fewer samples</string>
+         </property>
          <property name="text">
           <string>Enable Denoiser</string>
          </property>
@@ -142,6 +159,9 @@
          </item>
          <item>
           <widget class="QComboBox" name="comboBoxDenoiserDevice">
+           <property name="toolTip">
+            <string>Which hardware/backend runs the denoiser</string>
+           </property>
            <item>
             <property name="text">
              <string>Auto</string>
@@ -201,6 +221,9 @@
          </item>
          <item>
           <widget class="QSpinBox" name="spinBoxExportWidth">
+           <property name="toolTip">
+            <string>Exported image width, in pixels</string>
+           </property>
            <property name="minimum">
             <number>1</number>
            </property>
@@ -221,6 +244,9 @@
          </item>
          <item>
           <widget class="QSpinBox" name="spinBoxExportHeight">
+           <property name="toolTip">
+            <string>Exported image height, in pixels</string>
+           </property>
            <property name="minimum">
             <number>1</number>
            </property>
@@ -234,6 +260,9 @@
          </item>
          <item>
           <widget class="QPushButton" name="pushButtonMatchViewport">
+           <property name="toolTip">
+            <string>Set the export resolution to the current viewport size</string>
+           </property>
            <property name="text">
             <string>Match Viewport</string>
            </property>
@@ -288,6 +317,10 @@
          </item>
          <item row="0" column="1">
           <widget class="QDoubleSpinBox" name="doubleSpinBoxFireflyClamp">
+           <property name="toolTip">
+            <string>Caps individual sample brightness to suppress
+noisy bright-pixel outliers ("fireflies")</string>
+           </property>
            <property name="minimum">
             <double>0.100000000000000</double>
            </property>
@@ -311,6 +344,10 @@
          </item>
          <item row="1" column="1">
           <widget class="QSpinBox" name="spinBoxMaxTransmissionBounces">
+           <property name="toolTip">
+            <string>Separate bounce budget for glass/transmissive surfaces,
+independent of Max Bounces</string>
+           </property>
            <property name="minimum">
             <number>1</number>
            </property>
@@ -331,6 +368,10 @@
          </item>
          <item row="2" column="1">
           <widget class="QSpinBox" name="spinBoxRussianRouletteDepth">
+           <property name="toolTip">
+            <string>Bounce depth after which low-contribution paths start
+being probabilistically terminated early, for speed</string>
+           </property>
            <property name="minimum">
             <number>1</number>
            </property>
@@ -392,6 +433,10 @@
        </item>
        <item>
         <widget class="QCheckBox" name="checkBoxEnvImportanceSampling">
+         <property name="toolTip">
+          <string>Sample brighter parts of the environment more
+often, reducing noise from HDRI lighting</string>
+         </property>
          <property name="text">
           <string>Environment Importance Sampling (MIS)</string>
          </property>
@@ -404,6 +449,9 @@
         <layout class="QHBoxLayout" name="horizontalLayoutShadows">
          <item>
           <widget class="QCheckBox" name="checkBoxShadows">
+           <property name="toolTip">
+            <string>Trace shadow rays for direct lighting</string>
+           </property>
            <property name="text">
             <string>Shadows</string>
            </property>
@@ -414,6 +462,9 @@
          </item>
          <item>
           <widget class="QCheckBox" name="checkBoxSelfShadows">
+           <property name="toolTip">
+            <string>Allow a surface to cast shadows on itself</string>
+           </property>
            <property name="text">
             <string>Self Shadows</string>
            </property>
@@ -672,6 +723,9 @@
      </item>
      <item>
       <widget class="QPushButton" name="pushButtonRestoreDefaults">
+       <property name="toolTip">
+        <string>Reset all ray tracing settings on this dialog to defaults</string>
+       </property>
        <property name="text">
         <string>Restore Defaults</string>
        </property>
@@ -683,6 +737,9 @@
     <layout class="QHBoxLayout" name="horizontalLayoutRenderButtons">
      <item>
       <widget class="QPushButton" name="pushButtonRender">
+       <property name="toolTip">
+        <string>Start a path-traced render at these settings</string>
+       </property>
        <property name="text">
         <string>Render</string>
        </property>
@@ -692,6 +749,9 @@
       <widget class="QPushButton" name="pushButtonStop">
        <property name="enabled">
         <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Cancel the in-progress render</string>
        </property>
        <property name="text">
         <string>Stop</string>
@@ -746,6 +806,9 @@
       <widget class="QPushButton" name="pushButtonExport">
        <property name="enabled">
         <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Save the completed render to an image file</string>
        </property>
        <property name="text">
         <string>Export Image...</string>

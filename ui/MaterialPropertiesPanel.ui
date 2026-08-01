@@ -154,6 +154,9 @@
         </property>
         <item>
          <widget class="QLineEdit" name="searchEdit">
+                    <property name="toolTip">
+           <string>Filter the material property list by name</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -214,6 +217,9 @@
          </item>
          <item row="1" column="1">
           <widget class="QComboBox" name="comboShape">
+                      <property name="toolTip">
+            <string>Preview shape for the material ball</string>
+           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -262,6 +268,9 @@
          </item>
          <item row="2" column="1">
           <widget class="QComboBox" name="comboEnv">
+                      <property name="toolTip">
+            <string>Environment lighting used for the material preview</string>
+           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -305,6 +314,9 @@
          </item>
          <item row="3" column="1">
           <widget class="QComboBox" name="comboBoxTexMode">
+                      <property name="toolTip">
+            <string>Which texture slots are shown below</string>
+           </property>
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
              <horstretch>0</horstretch>
@@ -708,6 +720,9 @@
            </property>
            <item row="33" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxSpecularFactor">
+                          <property name="toolTip">
+              <string>Strength of the dielectric specular reflection</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -724,6 +739,9 @@
            </item>
            <item row="36" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxDiffuseTransmissionFactor">
+                          <property name="toolTip">
+              <string>How much light passes through as diffuse transmission</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -740,6 +758,9 @@
            </item>
            <item row="20" column="1">
             <widget class="QDoubleSpinBox" name="iorSpin">
+                          <property name="toolTip">
+              <string>Index of refraction</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -759,6 +780,9 @@
            </item>
            <item row="29" column="1">
             <widget class="QCheckBox" name="twoSidedCheck">
+                          <property name="toolTip">
+              <string>Disable backface culling for this material</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -769,6 +793,10 @@
            </item>
            <item row="24" column="1">
             <widget class="QPushButton" name="btnAttenuationColor">
+                          <property name="toolTip">
+              <string>Absorption tint color light picks up passing through the
+volume</string>
+             </property>
              <property name="text">
               <string>Pick Attenuation Color</string>
              </property>
@@ -776,6 +804,9 @@
            </item>
            <item row="13" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceIorSpin">
+                          <property name="toolTip">
+              <string>Index of refraction of the iridescent thin film</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -795,6 +826,10 @@
            </item>
            <item row="23" column="1">
             <widget class="QDoubleSpinBox" name="attenuationDistanceSpin">
+                          <property name="toolTip">
+              <string>Distance light travels through the volume before this much
+absorption</string>
+             </property>
              <property name="decimals">
               <number>1</number>
              </property>
@@ -856,6 +891,9 @@
            </item>
            <item row="4" column="1">
             <widget class="QPushButton" name="btnEmissiveColor">
+                          <property name="toolTip">
+              <string>Pick the emissive (self-lit) color</string>
+             </property>
              <property name="text">
               <string>Pick Emissive Color</string>
              </property>
@@ -863,6 +901,9 @@
            </item>
            <item row="21" column="1">
             <widget class="QDoubleSpinBox" name="transmissionSpin">
+                          <property name="toolTip">
+              <string>How much light passes straight through (glass-like)</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -931,6 +972,9 @@
            </item>
            <item row="25" column="1">
             <widget class="QDoubleSpinBox" name="dispersionSpin">
+                          <property name="toolTip">
+              <string>Strength of chromatic aberration in transmitted light</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -971,6 +1015,9 @@
            </item>
            <item row="34" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxAnisotropyStrength">
+                          <property name="toolTip">
+              <string>Strength of directional (anisotropic) reflections</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -994,6 +1041,9 @@
            </item>
            <item row="37" column="1">
             <widget class="QPushButton" name="btnDiffTransColor">
+                          <property name="toolTip">
+              <string>Tint color for the diffuse transmission</string>
+             </property>
              <property name="text">
               <string>Pick Diffuse Transmission Color</string>
              </property>
@@ -1008,6 +1058,9 @@
            </item>
            <item row="22" column="1">
             <widget class="QDoubleSpinBox" name="thicknessSpin">
+                          <property name="toolTip">
+              <string>Volume thickness, for transmission/absorption calculations</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1041,6 +1094,9 @@
            </item>
            <item row="7" column="1">
             <widget class="QDoubleSpinBox" name="occlusionStrengthSpin">
+                          <property name="toolTip">
+              <string>Strength of the ambient occlusion map's darkening</string>
+             </property>
              <property name="decimals">
               <number>1</number>
              </property>
@@ -1060,6 +1116,9 @@
            </item>
            <item row="31" column="1">
             <widget class="QCheckBox" name="unlitCheck">
+                          <property name="toolTip">
+              <string>Ignore lighting; show the flat base color only</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -1074,6 +1133,9 @@
            </item>
            <item row="2" column="1">
             <widget class="QDoubleSpinBox" name="roughnessSpin">
+                          <property name="toolTip">
+              <string>Surface roughness factor</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1090,6 +1152,9 @@
            </item>
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="metalnessSpin">
+                          <property name="toolTip">
+              <string>Metallic factor</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1106,6 +1171,9 @@
            </item>
            <item row="27" column="1">
             <widget class="QComboBox" name="shadingCombo">
+                          <property name="toolTip">
+              <string>Shading model used to render this material</string>
+             </property>
              <item>
               <property name="text">
                <string>Unlit</string>
@@ -1144,6 +1212,9 @@
            </item>
            <item row="5" column="1">
             <widget class="QDoubleSpinBox" name="emissiveSpin">
+                          <property name="toolTip">
+              <string>Emissive strength multiplier</string>
+             </property>
              <property name="decimals">
               <number>1</number>
              </property>
@@ -1163,6 +1234,9 @@
            </item>
            <item row="35" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxAnisotropyRotation">
+                          <property name="toolTip">
+              <string>Rotation angle of the anisotropic reflection direction</string>
+             </property>
              <property name="decimals">
               <number>3</number>
              </property>
@@ -1179,6 +1253,9 @@
            </item>
            <item row="8" column="1">
             <widget class="QDoubleSpinBox" name="clearcoatSpin">
+                          <property name="toolTip">
+              <string>Strength of the clearcoat layer</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1198,6 +1275,9 @@
            </item>
            <item row="12" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceFactorSpin">
+                          <property name="toolTip">
+              <string>Strength of the iridescence effect</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1231,6 +1311,9 @@
            </item>
            <item row="3" column="1">
             <widget class="QDoubleSpinBox" name="opacitySpin">
+                          <property name="toolTip">
+              <string>Base color alpha/opacity</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1261,6 +1344,9 @@
            </item>
            <item row="0" column="1">
             <widget class="QPushButton" name="btnAlbedoColor">
+                          <property name="toolTip">
+              <string>Pick the base color</string>
+             </property>
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                <horstretch>0</horstretch>
@@ -1287,6 +1373,10 @@
            </item>
            <item row="26" column="1">
             <widget class="QDoubleSpinBox" name="alphaThresholdSpin">
+                          <property name="toolTip">
+              <string>Alpha cutoff below which pixels are discarded (Mask blend
+mode)</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1306,6 +1396,9 @@
            </item>
            <item row="28" column="1">
             <widget class="QComboBox" name="blendCombo">
+                          <property name="toolTip">
+              <string>How this material's transparency is handled</string>
+             </property>
              <item>
               <property name="text">
                <string>Opaque</string>
@@ -1349,6 +1442,9 @@
            </item>
            <item row="9" column="1">
             <widget class="QDoubleSpinBox" name="clearcoatRoughnessSpin">
+                          <property name="toolTip">
+              <string>Roughness of the clearcoat layer</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1368,6 +1464,9 @@
            </item>
            <item row="15" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceThicknessMaxSpin">
+                          <property name="toolTip">
+              <string>Maximum thin-film thickness for the iridescence effect</string>
+             </property>
              <property name="suffix">
               <string> nm</string>
              </property>
@@ -1404,6 +1503,9 @@
            </item>
            <item row="32" column="1">
             <widget class="QPushButton" name="btnSpecularColor">
+                          <property name="toolTip">
+              <string>Tint color for the specular reflection</string>
+             </property>
              <property name="text">
               <string>Pick Specular Color</string>
              </property>
@@ -1411,6 +1513,9 @@
            </item>
            <item row="30" column="1">
             <widget class="QCheckBox" name="wireframeCheck">
+                          <property name="toolTip">
+              <string>Render this material as wireframe</string>
+             </property>
              <property name="text">
               <string/>
              </property>
@@ -1425,6 +1530,9 @@
            </item>
            <item row="14" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceThicknessMinSpin">
+                          <property name="toolTip">
+              <string>Minimum thin-film thickness for the iridescence effect</string>
+             </property>
              <property name="suffix">
               <string> nm</string>
              </property>
@@ -1447,6 +1555,9 @@
            </item>
            <item row="6" column="1">
             <widget class="QDoubleSpinBox" name="aoSpin">
+                          <property name="toolTip">
+              <string>Ambient occlusion factor</string>
+             </property>
              <property name="decimals">
               <number>1</number>
              </property>
@@ -1466,6 +1577,9 @@
            </item>
            <item row="10" column="1">
             <widget class="QPushButton" name="btnSheenColor">
+                          <property name="toolTip">
+              <string>Pick the sheen (fabric-like) tint color</string>
+             </property>
              <property name="text">
               <string>Pick Sheen Color</string>
              </property>
@@ -1480,6 +1594,9 @@
            </item>
            <item row="11" column="1">
             <widget class="QDoubleSpinBox" name="sheenRoughnessSpin">
+                          <property name="toolTip">
+              <string>Roughness of the sheen layer</string>
+             </property>
              <property name="decimals">
               <number>2</number>
              </property>
@@ -1702,6 +1819,10 @@
                       <verstretch>0</verstretch>
                      </sizepolicy>
                     </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                    </property>
                     <property name="text">
                      <string>Transform</string>
                     </property>
@@ -1835,6 +1956,10 @@
                       <horstretch>0</horstretch>
                       <verstretch>0</verstretch>
                      </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                     </property>
                     <property name="text">
                      <string>Transform</string>
@@ -1986,6 +2111,10 @@
                       <horstretch>0</horstretch>
                       <verstretch>0</verstretch>
                      </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                     </property>
                     <property name="text">
                      <string>Transform</string>
@@ -2149,6 +2278,10 @@
                       <horstretch>0</horstretch>
                       <verstretch>0</verstretch>
                      </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                     </property>
                     <property name="text">
                      <string>Transform</string>
@@ -2337,6 +2470,10 @@
                       <verstretch>0</verstretch>
                      </sizepolicy>
                     </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                    </property>
                     <property name="text">
                      <string>Transform</string>
                     </property>
@@ -2484,6 +2621,10 @@
                       <verstretch>0</verstretch>
                      </sizepolicy>
                     </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                    </property>
                     <property name="text">
                      <string>Transform</string>
                     </property>
@@ -2500,6 +2641,9 @@
                     </item>
                     <item>
                      <widget class="QDoubleSpinBox" name="doubleSpinBoxHeightScale">
+                                            <property name="toolTip">
+                       <string>Strength of the height/displacement map</string>
+                      </property>
                       <property name="maximumSize">
                        <size>
                         <width>50</width>
@@ -2685,6 +2829,10 @@
                       <verstretch>0</verstretch>
                      </sizepolicy>
                     </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                    </property>
                     <property name="text">
                      <string>Transform</string>
                     </property>
@@ -2836,6 +2984,10 @@
                       <verstretch>0</verstretch>
                      </sizepolicy>
                     </property>
+                    <property name="toolTip">
+                     <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                    </property>
                     <property name="text">
                      <string>Transform</string>
                     </property>
@@ -2852,6 +3004,9 @@
                     </item>
                     <item>
                      <widget class="QDoubleSpinBox" name="doubleSpinBoxNormalScale">
+                                            <property name="toolTip">
+                       <string>Strength of the normal map</string>
+                      </property>
                       <property name="maximumSize">
                        <size>
                         <width>50</width>
@@ -3037,6 +3192,10 @@ Color</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -3184,6 +3343,10 @@ Roughness</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>
@@ -3333,6 +3496,10 @@ Normal</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -3349,6 +3516,9 @@ Normal</string>
                   </item>
                   <item>
                    <widget class="QDoubleSpinBox" name="doubleSpinBoxClearcoatNormalScale">
+                                        <property name="toolTip">
+                     <string>Strength of the clearcoat's own normal map</string>
+                    </property>
                     <property name="maximumSize">
                      <size>
                       <width>50</width>
@@ -3511,6 +3681,10 @@ Color</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -3645,6 +3819,10 @@ Roughness</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>
@@ -3803,6 +3981,10 @@ Factor</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -3937,6 +4119,10 @@ Thickness</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>
@@ -4094,6 +4280,10 @@ Thickness</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -4228,6 +4418,10 @@ Thickness</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -4361,6 +4555,10 @@ Thickness</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>
@@ -4519,6 +4717,10 @@ Factor</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -4653,6 +4855,10 @@ Color</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>
@@ -4809,6 +5015,10 @@ Color</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>
@@ -4967,6 +5177,10 @@ Trans. Map</string>
                     <verstretch>0</verstretch>
                    </sizepolicy>
                   </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
+                  </property>
                   <property name="text">
                    <string>Transform</string>
                   </property>
@@ -5101,6 +5315,10 @@ Trans. Color</string>
                     <horstretch>0</horstretch>
                     <verstretch>0</verstretch>
                    </sizepolicy>
+                  </property>
+                  <property name="toolTip">
+                   <string>Open UV transform controls (offset/scale/rotation)
+for this texture</string>
                   </property>
                   <property name="text">
                    <string>Transform</string>

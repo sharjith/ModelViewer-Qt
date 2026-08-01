@@ -147,6 +147,9 @@
          <layout class="QGridLayout" name="gridLayout_5">
           <item row="0" column="0">
            <widget class="QCheckBox" name="checkBoxShowLights">
+            <property name="toolTip">
+             <string>Show light gizmo icons in the viewport</string>
+            </property>
             <property name="text">
              <string>Show Lights</string>
             </property>
@@ -154,6 +157,9 @@
           </item>
           <item row="0" column="1">
            <widget class="QCheckBox" name="checkBoxDefaultLights">
+            <property name="toolTip">
+             <string>Use the built-in default lighting rig below</string>
+            </property>
             <property name="text">
              <string>Default Lights</string>
             </property>
@@ -164,6 +170,9 @@
           </item>
           <item row="0" column="2">
            <widget class="QCheckBox" name="checkBoxIBL">
+            <property name="toolTip">
+             <string>Light the scene using the environment map (image-based lighting)</string>
+            </property>
             <property name="text">
              <string>Environment IBL</string>
             </property>
@@ -236,6 +245,9 @@
               </item>
               <item row="0" column="1">
                <widget class="QSlider" name="sliderLightPosX">
+                <property name="toolTip">
+                 <string>Default light position along X</string>
+                </property>
                 <property name="minimum">
                  <number>-200</number>
                 </property>
@@ -275,6 +287,9 @@
               </item>
               <item row="1" column="1">
                <widget class="QSlider" name="sliderLightPosY">
+                <property name="toolTip">
+                 <string>Default light position along Y</string>
+                </property>
                 <property name="minimum">
                  <number>-200</number>
                 </property>
@@ -314,6 +329,9 @@
               </item>
               <item row="2" column="1">
                <widget class="QSlider" name="sliderLightPosZ">
+                <property name="toolTip">
+                 <string>Default light position along Z</string>
+                </property>
                 <property name="minimum">
                  <number>-100</number>
                 </property>
@@ -370,6 +388,9 @@
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
+                <property name="toolTip">
+                 <string>Pick the default light's color</string>
+                </property>
                 <property name="text">
                  <string>Light Color</string>
                 </property>
@@ -420,6 +441,9 @@
               <layout class="QHBoxLayout" name="skyBoxCheckLayout">
                <item>
                 <widget class="QCheckBox" name="checkBoxSkyBox">
+                 <property name="toolTip">
+                  <string>Show a background environment behind the model</string>
+                 </property>
                  <property name="text">
                   <string>Sky Box</string>
                  </property>
@@ -429,6 +453,9 @@
                 <widget class="QCheckBox" name="checkBoxSkyBoxHDRI">
                  <property name="enabled">
                   <bool>true</bool>
+                 </property>
+                 <property name="toolTip">
+                  <string>Use an HDRI image instead of the plain sky box</string>
                  </property>
                  <property name="text">
                   <string>HDRI</string>
@@ -452,6 +479,9 @@
                 <widget class="QDoubleSpinBox" name="doubleSpinBoxSkyBoxFOV">
                  <property name="enabled">
                   <bool>false</bool>
+                 </property>
+                 <property name="toolTip">
+                  <string>Field of view used to project the sky box</string>
                  </property>
                  <property name="decimals">
                   <number>0</number>
@@ -487,7 +517,8 @@
                   <bool>false</bool>
                  </property>
                  <property name="toolTip">
-                  <string>Control the blurriness of the sky box between 0 to 100%</string>
+                  <string>Control the blurriness of the sky box between
+0 to 100%</string>
                  </property>
                  <property name="minimum">
                   <number>0</number>
@@ -564,6 +595,9 @@
                  </property>
                  <property name="editable">
                   <bool>false</bool>
+                 </property>
+                 <property name="toolTip">
+                  <string>Preset axis the sky box's rotation is measured around</string>
                  </property>
                  <item>
                   <property name="text">
@@ -672,12 +706,18 @@
                    <height>16777215</height>
                   </size>
                  </property>
+                 <property name="toolTip">
+                  <string>Pick a built-in preset environment map</string>
+                 </property>
                 </widget>
                </item>
                <item>
                 <widget class="QPushButton" name="pushButtonSkyBoxTex">
                  <property name="enabled">
                   <bool>true</bool>
+                 </property>
+                 <property name="toolTip">
+                  <string>Load a custom skybox/HDRI image from disk</string>
                  </property>
                  <property name="text">
                   <string>Select Custom Map</string>
@@ -692,7 +732,9 @@
           <item>
            <widget class="QCheckBox" name="checkBoxEnvMapping">
             <property name="toolTip">
-             <string>Legacy ADS (Blinn-Phong) reflection term - only meaningful in ADS shading mode. Unrelated to Environment IBL, which lights PBR materials in both ADS and PBR modes.</string>
+             <string>Legacy ADS (Blinn-Phong) reflection term - only meaningful
+in ADS shading mode. Unrelated to Environment IBL,
+which lights PBR materials in both ADS and PBR modes.</string>
             </property>
             <property name="text">
              <string>Environment Mapping (ADS)</string>
@@ -715,6 +757,9 @@
               <layout class="QHBoxLayout" name="shadowsCheckLayout">
                <item>
                 <widget class="QCheckBox" name="checkBoxShadowMapping">
+                 <property name="toolTip">
+                  <string>Enable real-time shadow mapping</string>
+                 </property>
                  <property name="text">
                   <string>Shadows</string>
                  </property>
@@ -724,6 +769,9 @@
                 <widget class="QCheckBox" name="checkBoxSelfShadows">
                  <property name="enabled">
                   <bool>false</bool>
+                 </property>
+                 <property name="toolTip">
+                  <string>Allow a surface to cast shadows on itself</string>
                  </property>
                  <property name="text">
                   <string>Self Shadows</string>
@@ -754,6 +802,9 @@
                    <width>150</width>
                    <height>16777215</height>
                   </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>Shadow map resolution: higher is softer/smoother but slower</string>
                  </property>
                  <property name="currentIndex">
                   <number>1</number>
@@ -801,6 +852,9 @@
               <layout class="QHBoxLayout" name="floorCheckLayout">
                <item>
                 <widget class="QRadioButton" name="radioButtonGroundNone">
+                 <property name="toolTip">
+                  <string>No ground surface</string>
+                 </property>
                  <property name="text">
                   <string>None</string>
                  </property>
@@ -811,6 +865,9 @@
                </item>
                <item>
                 <widget class="QRadioButton" name="radioButtonGroundFloor">
+                 <property name="toolTip">
+                  <string>A textured, real ground plane mesh</string>
+                 </property>
                  <property name="text">
                   <string>Floor</string>
                  </property>
@@ -818,6 +875,9 @@
                </item>
                <item>
                 <widget class="QRadioButton" name="radioButtonGroundGrid">
+                 <property name="toolTip">
+                  <string>A reference grid instead of a solid floor</string>
+                 </property>
                  <property name="text">
                   <string>Grid</string>
                  </property>
@@ -871,6 +931,9 @@
                    <height>16777215</height>
                   </size>
                  </property>
+                 <property name="toolTip">
+                  <string>Vertical distance below the model the floor sits at</string>
+                 </property>
                  <property name="decimals">
                   <number>0</number>
                  </property>
@@ -885,6 +948,9 @@
               <layout class="QHBoxLayout" name="reflectionsLayout">
                <item>
                 <widget class="QCheckBox" name="checkBoxReflections">
+                 <property name="toolTip">
+                  <string>Show a reflection of the model on the floor</string>
+                 </property>
                  <property name="text">
                   <string>Reflections</string>
                  </property>
@@ -909,6 +975,9 @@
                   </item>
                   <item>
                    <widget class="QSlider" name="sliderShadowDarkness">
+                    <property name="toolTip">
+                     <string>How dark the shadow catcher's contact shadow gets</string>
+                    </property>
                     <property name="minimum">
                      <number>0</number>
                     </property>
@@ -979,6 +1048,9 @@
                   </item>
                   <item>
                    <widget class="QSlider" name="sliderShadowCatcherMetallic">
+                    <property name="toolTip">
+                     <string>Metalness of the shadow catcher's own reflective response</string>
+                    </property>
                     <property name="minimum">
                      <number>0</number>
                     </property>
@@ -1028,6 +1100,9 @@
                   </item>
                   <item>
                    <widget class="QSlider" name="sliderShadowCatcherRoughness">
+                    <property name="toolTip">
+                     <string>Roughness of the shadow catcher's own reflective response</string>
+                    </property>
                     <property name="minimum">
                      <number>0</number>
                     </property>
@@ -1073,6 +1148,10 @@
               <layout class="QHBoxLayout" name="floorTextureLayout">
                <item>
                 <widget class="QCheckBox" name="checkBoxFloorTexture">
+                 <property name="toolTip">
+                  <string>Show a tiled texture on the floor
+instead of a plain color</string>
+                 </property>
                  <property name="text">
                   <string>Floor Texture</string>
                  </property>
@@ -1083,6 +1162,9 @@
                </item>
                <item>
                 <widget class="QPushButton" name="pushButtonFloorTexture">
+                 <property name="toolTip">
+                  <string>Pick the floor's texture image</string>
+                 </property>
                  <property name="text">
                   <string>Select Texture</string>
                  </property>
@@ -1106,6 +1188,9 @@
                    <width>80</width>
                    <height>16777215</height>
                   </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>How many times the floor texture tiles horizontally</string>
                  </property>
                  <property name="decimals">
                   <number>1</number>
@@ -1135,6 +1220,9 @@
                    <width>80</width>
                    <height>16777215</height>
                   </size>
+                 </property>
+                 <property name="toolTip">
+                  <string>How many times the floor texture tiles vertically</string>
                  </property>
                  <property name="decimals">
                   <number>1</number>
@@ -1176,6 +1264,9 @@
            <layout class="QHBoxLayout" name="toneMappingLayout">
             <item>
              <widget class="QCheckBox" name="checkBoxHDRToneMapping">
+              <property name="toolTip">
+               <string>Compress HDR brightness into a displayable range</string>
+              </property>
               <property name="text">
                <string>Tone Mapping</string>
               </property>
@@ -1201,6 +1292,9 @@
                 <width>150</width>
                 <height>16777215</height>
                </size>
+              </property>
+              <property name="toolTip">
+               <string>Tone mapping curve/operator used to compress HDR values</string>
               </property>
               <item>
                <property name="text">
@@ -1259,6 +1353,9 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="toolTip">
+               <string>Brightness adjustment (in stops) for the visible sky box</string>
+              </property>
               <property name="decimals">
                <number>1</number>
               </property>
@@ -1294,6 +1391,9 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="toolTip">
+               <string>Brightness adjustment (in stops) for image-based lighting</string>
+              </property>
               <property name="decimals">
                <number>1</number>
               </property>
@@ -1314,6 +1414,9 @@
            <layout class="QHBoxLayout" name="gammaLayout">
             <item>
              <widget class="QCheckBox" name="checkBoxGammaCorrection">
+              <property name="toolTip">
+               <string>Apply display gamma correction to the final image</string>
+              </property>
               <property name="text">
                <string>Gamma Correction</string>
               </property>
@@ -1343,6 +1446,9 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="toolTip">
+               <string>Gamma value used for the correction (2.2 is typical)</string>
+              </property>
               <property name="decimals">
                <number>1</number>
               </property>
@@ -1364,6 +1470,9 @@
           </item>
           <item>
            <widget class="QPushButton" name="pushButtonDefaultEnvValues">
+            <property name="toolTip">
+             <string>Reset tone mapping, exposure, and gamma to their defaults</string>
+            </property>
             <property name="text">
              <string>Default Values</string>
             </property>

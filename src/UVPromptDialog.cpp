@@ -48,7 +48,7 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
         "Uses spherical shape detection.\nFast, but less accurate.");
     _angleBasedButton = new QRadioButton("Angle Based (Fast, detects geometry crudely)");
     _angleBasedButton->setToolTip(
-        "Uses basic shape detection based on angular deflection (planar, cylindrical, spherical).\nFast, but less accurate.");
+        "Uses basic shape detection based on angular deflection\n(planar, cylindrical, spherical).\nFast, but less accurate.");
     _hybridButton = new QRadioButton("Hybrid (Fast)");
     _hybridButton->setToolTip(
         "Uses basic shape detection (planar, cylindrical, spherical).\nFast, but less accurate.");

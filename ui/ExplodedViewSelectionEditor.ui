@@ -55,6 +55,10 @@
     <layout class="QHBoxLayout" name="horizontalLayoutActions">
      <item>
       <widget class="QPushButton" name="pushButtonAdd">
+       <property name="toolTip">
+        <string>Close this dialog and pick more meshes
+to add from the scene/tree</string>
+       </property>
        <property name="text">
         <string>Add...</string>
        </property>

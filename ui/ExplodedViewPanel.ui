@@ -106,7 +106,8 @@
            </size>
           </property>
           <property name="toolTip">
-           <string>Step authoring method is transient UI state. Auto/manual choice is not saved in presets.</string>
+           <string>Step authoring method is transient UI state.
+Auto/manual choice is not saved in presets.</string>
           </property>
           <property name="text">
            <string>Step Authoring</string>
@@ -120,6 +121,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Explode meshes automatically along a computed direction</string>
           </property>
           <property name="text">
            <string>Auto Explode</string>
@@ -136,6 +140,9 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="toolTip">
+           <string>Drag the gizmo to place each mesh by hand</string>
           </property>
           <property name="text">
            <string>Manual Placement</string>
@@ -194,7 +201,8 @@
                </sizepolicy>
               </property>
               <property name="toolTip">
-               <string>Shows the selected assembly or mesh count. Right-click to edit or clear.</string>
+               <string>Shows the selected assembly or mesh count.
+Right-click to edit or clear.</string>
               </property>
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -222,7 +230,8 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Add meshes to the current assembly from the scene or tree, then click again to confirm</string>
+               <string>Add meshes to the current assembly from the
+scene or tree, then click again to confirm</string>
               </property>
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -252,7 +261,8 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Optional: this mesh stays centred; all others explode away from it</string>
+               <string>Optional: this mesh stays centred; all others
+explode away from it</string>
               </property>
               <property name="text">
                <string>Anchor</string>
@@ -296,7 +306,8 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Clear anchor and pick a new one from scene or tree</string>
+               <string>Clear anchor and pick a new one from
+scene or tree</string>
               </property>
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -341,6 +352,9 @@
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
+              <property name="toolTip">
+               <string>Direction meshes explode away from each other</string>
+              </property>
               <item>
                <property name="text">
                 <string>Auto (Radial)</string>
@@ -383,7 +397,8 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Pick a direction vector from the scene to use as the explosion axis</string>
+               <string>Pick a direction vector from the scene to
+use as the explosion axis</string>
               </property>
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -444,6 +459,9 @@
                <property name="styleSheet">
                 <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
                </property>
+               <property name="toolTip">
+                <string>X component of the Custom Vector explosion direction</string>
+               </property>
                <property name="decimals">
                 <number>3</number>
                </property>
@@ -479,6 +497,9 @@
                <property name="styleSheet">
                 <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
                </property>
+               <property name="toolTip">
+                <string>Y component of the Custom Vector explosion direction</string>
+               </property>
                <property name="decimals">
                 <number>3</number>
                </property>
@@ -513,6 +534,9 @@
                </property>
                <property name="styleSheet">
                 <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+               </property>
+               <property name="toolTip">
+                <string>Z component of the Custom Vector explosion direction</string>
                </property>
                <property name="decimals">
                 <number>3</number>
@@ -560,6 +584,10 @@
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
+              <property name="toolTip">
+               <string>Assembly Aware groups parts by sub-assembly hierarchy;
+Classic explodes every part independently</string>
+              </property>
               <item>
                <property name="text">
                 <string>Assembly Aware</string>
@@ -596,6 +624,9 @@
                 <horstretch>1</horstretch>
                 <verstretch>0</verstretch>
                </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>How far apart the parts explode</string>
               </property>
               <property name="minimum">
                <number>0</number>
@@ -692,6 +723,9 @@
                <property name="styleSheet">
                 <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
                </property>
+               <property name="toolTip">
+                <string>The mesh(es) manual placement will act on</string>
+               </property>
                <property name="readOnly">
                 <bool>true</bool>
                </property>
@@ -708,7 +742,8 @@
                   <bool>false</bool>
                  </property>
                  <property name="toolTip">
-                  <string>Starts manual exploded placement and shows the gizmo at the selection center</string>
+                  <string>Starts manual exploded placement and shows the gizmo
+at the selection center</string>
                  </property>
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -724,7 +759,8 @@
                   <bool>false</bool>
                  </property>
                  <property name="toolTip">
-                  <string>Finishes placement and hides the gizmo while keeping the staged pose visible</string>
+                  <string>Finishes placement and hides the gizmo while keeping
+the staged pose visible</string>
                  </property>
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -775,6 +811,9 @@
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
                  </property>
+                 <property name="toolTip">
+                  <string>Staged explosion offset along X</string>
+                 </property>
                  <property name="suffix">
                   <string> mm</string>
                  </property>
@@ -803,6 +842,9 @@
                  </property>
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="toolTip">
+                  <string>Staged explosion offset along Y</string>
                  </property>
                  <property name="suffix">
                   <string> mm</string>
@@ -833,6 +875,9 @@
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
                  </property>
+                 <property name="toolTip">
+                  <string>Staged explosion offset along Z</string>
+                 </property>
                  <property name="suffix">
                   <string> mm</string>
                  </property>
@@ -861,6 +906,9 @@
                  </property>
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="toolTip">
+                  <string>Staged explosion rotation around X</string>
                  </property>
                  <property name="suffix">
                   <string> deg</string>
@@ -891,6 +939,9 @@
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
                  </property>
+                 <property name="toolTip">
+                  <string>Staged explosion rotation around Y</string>
+                 </property>
                  <property name="suffix">
                   <string> deg</string>
                  </property>
@@ -919,6 +970,9 @@
                  </property>
                  <property name="styleSheet">
                   <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="toolTip">
+                  <string>Staged explosion rotation around Z</string>
                  </property>
                  <property name="suffix">
                   <string> deg</string>
@@ -1177,7 +1231,8 @@
         <item>
          <widget class="QCheckBox" name="checkBoxLoopBack">
           <property name="toolTip">
-           <string>Append a reverse pass back to the original assembled state. Loop-back is stored with the active preset.</string>
+           <string>Append a reverse pass back to the original assembled state.
+Loop-back is stored with the active preset.</string>
           </property>
           <property name="text">
            <string>Loop Back</string>
@@ -1209,6 +1264,9 @@
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
           </property>
+          <property name="toolTip">
+           <string>The active exploded-view preset</string>
+          </property>
           <item>
            <property name="text">
             <string>Explosion 1</string>
@@ -1222,7 +1280,8 @@
            <bool>false</bool>
           </property>
           <property name="toolTip">
-           <string>Preset actions will be wired in the next step of the implementation</string>
+           <string>Preset actions will be wired in the next
+step of the implementation</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -1238,7 +1297,8 @@
            <bool>false</bool>
           </property>
           <property name="toolTip">
-           <string>Preset actions will be wired in the next step of the implementation</string>
+           <string>Preset actions will be wired in the next
+step of the implementation</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -1254,7 +1314,8 @@
            <bool>false</bool>
           </property>
           <property name="toolTip">
-           <string>Preset actions will be wired in the next step of the implementation</string>
+           <string>Preset actions will be wired in the next
+step of the implementation</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -1304,6 +1365,9 @@
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="toolTip">
+           <string>Length of the generated explosion animation clip</string>
           </property>
           <property name="suffix">
            <string> s</string>
@@ -1369,7 +1433,8 @@
            </size>
           </property>
           <property name="toolTip">
-           <string>Replace the selected captured explosion step with the current exploded state</string>
+           <string>Replace the selected captured explosion step with
+the current exploded state</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -1427,6 +1492,9 @@
             </property>
             <property name="styleSheet">
              <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+            </property>
+            <property name="toolTip">
+             <string>Preview the generated explosion animation in the viewport</string>
             </property>
             <property name="text">
              <string>Play</string>
@@ -1486,6 +1554,9 @@
           <property name="enabled">
            <bool>false</bool>
           </property>
+          <property name="toolTip">
+           <string>Scrub the preview animation</string>
+          </property>
           <property name="maximum">
            <number>1000</number>
           </property>
@@ -1498,6 +1569,10 @@
       </item>
       <item row="2" column="0">
        <widget class="QCheckBox" name="checkBoxCombinedPose">
+        <property name="toolTip">
+         <string>Capture both Auto Explode and Manual Placement
+offsets together, not just the active mode's</string>
+        </property>
         <property name="text">
          <string>Use Combined Pose</string>
         </property>

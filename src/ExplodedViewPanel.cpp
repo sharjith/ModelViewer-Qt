@@ -3338,7 +3338,7 @@ void ExplodedViewPanel::updatePresetDirtyIndicator()
     if (hasUncapturedPose)
     {
         labelPresetDirty->setText(tr("Uncaptured"));
-        labelPresetDirty->setToolTip(tr("There are staged auto or manual placements that have not been captured into a step yet."));
+        labelPresetDirty->setToolTip(tr("There are staged auto or manual placements that\nhave not been captured into a step yet."));
         labelPresetDirty->setVisible(true);
         return;
     }
@@ -3346,7 +3346,7 @@ void ExplodedViewPanel::updatePresetDirtyIndicator()
     if (documentDirty)
     {
         labelPresetDirty->setText(tr("Unsaved"));
-        labelPresetDirty->setToolTip(tr("The exploded-view presets or captures have changed and need to be saved with the document."));
+        labelPresetDirty->setToolTip(tr("The exploded-view presets or captures have changed and\nneed to be saved with the document."));
         labelPresetDirty->setVisible(true);
         return;
     }

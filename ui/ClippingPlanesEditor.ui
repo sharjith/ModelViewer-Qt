@@ -46,6 +46,9 @@
                 <height>32</height>
                </size>
               </property>
+              <property name="toolTip">
+               <string>Clip the model with a plane along the XY axes</string>
+              </property>
               <property name="text">
                <string>XY</string>
               </property>
@@ -61,6 +64,9 @@
                 <width>32</width>
                 <height>32</height>
                </size>
+              </property>
+              <property name="toolTip">
+               <string>Clip away the opposite side of the plane</string>
               </property>
               <property name="text">
                <string>Flip</string>
@@ -88,6 +94,9 @@
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
+              <property name="toolTip">
+               <string>Position of the XY clipping plane along its normal</string>
+              </property>
               <property name="minimum">
                <double>-99999.000000000000000</double>
               </property>
@@ -108,6 +117,9 @@
                 <height>32</height>
                </size>
               </property>
+              <property name="toolTip">
+               <string>Clip the model with a plane along the YZ axes</string>
+              </property>
               <property name="text">
                <string>YZ</string>
               </property>
@@ -123,6 +135,9 @@
                 <width>32</width>
                 <height>32</height>
                </size>
+              </property>
+              <property name="toolTip">
+               <string>Clip away the opposite side of the plane</string>
               </property>
               <property name="text">
                <string>Flip</string>
@@ -153,6 +168,9 @@
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
+              <property name="toolTip">
+               <string>Position of the YZ clipping plane along its normal</string>
+              </property>
               <property name="minimum">
                <double>-99999.000000000000000</double>
               </property>
@@ -173,6 +191,9 @@
                 <height>32</height>
                </size>
               </property>
+              <property name="toolTip">
+               <string>Clip the model with a plane along the ZX axes</string>
+              </property>
               <property name="text">
                <string>ZX</string>
               </property>
@@ -188,6 +209,9 @@
                 <width>32</width>
                 <height>32</height>
                </size>
+              </property>
+              <property name="toolTip">
+               <string>Clip away the opposite side of the plane</string>
               </property>
               <property name="text">
                <string>Flip</string>
@@ -215,6 +239,9 @@
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
+              <property name="toolTip">
+               <string>Position of the ZX clipping plane along its normal</string>
+              </property>
               <property name="minimum">
                <double>-99999.000000000000000</double>
               </property>
@@ -229,6 +256,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
              <widget class="QCheckBox" name="checkBoxCapping">
+              <property name="toolTip">
+               <string>Fill the cut cross-section with a solid cap</string>
+              </property>
               <property name="text">
                <string>Capping</string>
               </property>
@@ -236,6 +266,10 @@
             </item>
             <item>
              <widget class="QCheckBox" name="checkBoxDynamicCapping">
+              <property name="toolTip">
+               <string>Hide caps while orbiting/zooming, for smoother
+performance, then restore them once idle</string>
+              </property>
               <property name="text">
                <string>Disable For Interaction</string>
               </property>
@@ -243,6 +277,9 @@
             </item>
             <item>
              <widget class="QPushButton" name="pushButtonResetCoeffs">
+              <property name="toolTip">
+               <string>Reset all three plane positions to zero</string>
+              </property>
               <property name="text">
                <string>Reset Coefficients</string>
               </property>
@@ -258,6 +295,10 @@
            <layout class="QVBoxLayout" name="verticalLayout">
             <item>
              <widget class="QRadioButton" name="radioButtonProcedural">
+              <property name="toolTip">
+               <string>Fill caps with a procedural hatch pattern
+instead of an image</string>
+              </property>
               <property name="text">
                <string>Procedural</string>
               </property>
@@ -288,6 +329,9 @@
 color: rgb(255, 255, 255);
 </string>
                    </property>
+                   <property name="toolTip">
+                    <string>Pick the hatch line color</string>
+                   </property>
                    <property name="text">
                     <string>Select Color</string>
                    </property>
@@ -295,6 +339,9 @@ color: rgb(255, 255, 255);
                  </item>
                  <item row="1" column="2" colspan="2">
                   <widget class="QSpinBox" name="spinBoxHatchTiling">
+                   <property name="toolTip">
+                    <string>How many times the hatch pattern repeats across the cap</string>
+                   </property>
                    <property name="minimum">
                     <number>1</number>
                    </property>
@@ -308,6 +355,9 @@ color: rgb(255, 255, 255);
                  </item>
                  <item row="2" column="2" colspan="2">
                   <widget class="QDoubleSpinBox" name="doubleSpinBoxThickness">
+                   <property name="toolTip">
+                    <string>Width of the hatch lines</string>
+                   </property>
                    <property name="decimals">
                     <number>3</number>
                    </property>
@@ -327,6 +377,9 @@ color: rgb(255, 255, 255);
                  </item>
                  <item row="3" column="2" colspan="2">
                   <widget class="QDoubleSpinBox" name="doubleSpinBoxIntensity">
+                   <property name="toolTip">
+                    <string>Opacity of the hatch pattern over the cap</string>
+                   </property>
                    <property name="decimals">
                     <number>2</number>
                    </property>
@@ -357,6 +410,9 @@ color: rgb(255, 255, 255);
                  </item>
                  <item row="0" column="2" colspan="2">
                   <widget class="QComboBox" name="comboBoxHatchMode">
+                   <property name="toolTip">
+                    <string>Direction/pattern of the hatch lines</string>
+                   </property>
                    <item>
                     <property name="text">
                      <string>Diagonal 45</string>
@@ -405,6 +461,9 @@ color: rgb(255, 255, 255);
                  </item>
                  <item row="5" column="0" colspan="4">
                   <widget class="QPushButton" name="pushButtonDefaultValues">
+                   <property name="toolTip">
+                    <string>Reset the procedural hatch settings to their defaults</string>
+                   </property>
                    <property name="text">
                     <string>Default Values</string>
                    </property>
@@ -421,6 +480,10 @@ color: rgb(255, 255, 255);
            <layout class="QVBoxLayout" name="verticalLayout_2">
             <item>
              <widget class="QRadioButton" name="radioButtonTextured">
+              <property name="toolTip">
+               <string>Fill caps with an image texture instead
+of a procedural hatch pattern</string>
+              </property>
               <property name="text">
                <string>Textured</string>
               </property>
@@ -439,6 +502,10 @@ color: rgb(255, 255, 255);
               </property>
               <property name="styleSheet">
                <string notr="true">background-color: rgba(255, 255, 255, 5%);</string>
+              </property>
+              <property name="toolTip">
+               <string>Pick (or drag &amp; drop) an image
+to use as the cap texture</string>
               </property>
               <property name="text">
                <string>Select Texture</string>
@@ -466,6 +533,9 @@ color: rgb(255, 255, 255);
       </item>
       <item row="1" column="0">
        <widget class="QPushButton" name="pushButtonResetAll">
+        <property name="toolTip">
+         <string>Reset every clipping plane setting to its default</string>
+        </property>
         <property name="text">
          <string>Reset All</string>
         </property>

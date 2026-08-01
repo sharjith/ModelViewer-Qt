@@ -125,6 +125,9 @@
         <property name="suffix">
          <string> mm</string>
         </property>
+        <property name="toolTip">
+         <string>Move the selected object along X</string>
+        </property>
         <property name="decimals">
          <number>3</number>
         </property>
@@ -154,6 +157,9 @@
         <property name="suffix">
          <string> mm</string>
         </property>
+        <property name="toolTip">
+         <string>Move the selected object along Y</string>
+        </property>
         <property name="decimals">
          <number>3</number>
         </property>
@@ -182,6 +188,9 @@
         </property>
         <property name="suffix">
          <string> mm</string>
+        </property>
+        <property name="toolTip">
+         <string>Move the selected object along Z</string>
         </property>
         <property name="decimals">
          <number>3</number>
@@ -224,6 +233,9 @@
         <property name="suffix">
          <string> deg</string>
         </property>
+        <property name="toolTip">
+         <string>Rotate the selected object around X</string>
+        </property>
         <property name="decimals">
          <number>3</number>
         </property>
@@ -253,6 +265,9 @@
         <property name="suffix">
          <string> deg</string>
         </property>
+        <property name="toolTip">
+         <string>Rotate the selected object around Y</string>
+        </property>
         <property name="decimals">
          <number>3</number>
         </property>
@@ -281,6 +296,9 @@
         </property>
         <property name="suffix">
          <string> deg</string>
+        </property>
+        <property name="toolTip">
+         <string>Rotate the selected object around Z</string>
         </property>
         <property name="decimals">
          <number>3</number>
@@ -323,6 +341,9 @@
         <property name="suffix">
          <string> mm</string>
         </property>
+        <property name="toolTip">
+         <string>Scale factor along X (1 = unchanged)</string>
+        </property>
         <property name="decimals">
          <number>3</number>
         </property>
@@ -354,6 +375,9 @@
         </property>
         <property name="suffix">
          <string> mm</string>
+        </property>
+        <property name="toolTip">
+         <string>Scale factor along Y (1 = unchanged)</string>
         </property>
         <property name="decimals">
          <number>3</number>
@@ -387,6 +411,9 @@
         <property name="suffix">
          <string> mm</string>
         </property>
+        <property name="toolTip">
+         <string>Scale factor along Z (1 = unchanged)</string>
+        </property>
         <property name="decimals">
          <number>3</number>
         </property>
@@ -419,6 +446,9 @@
    </item>
    <item>
     <widget class="QPushButton" name="pushButtonApplyTransformations">
+     <property name="toolTip">
+      <string>Apply the values above to the selected object</string>
+     </property>
      <property name="text">
       <string>Apply Transformations</string>
      </property>
@@ -426,6 +456,9 @@
    </item>
    <item>
     <widget class="QPushButton" name="pushButtonResetTransformations">
+     <property name="toolTip">
+      <string>Clear the applied transform back to identity</string>
+     </property>
      <property name="text">
       <string>Reset Transformations</string>
      </property>
