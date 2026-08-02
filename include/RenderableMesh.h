@@ -54,6 +54,17 @@ public:
 	static void setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
 	                                   const QMatrix4x4& viewMatrix);
 	static void clearCurrentRenderContext();
+
+	// Interaction-time geometry LOD - set once per frame (mirrors
+	// setCurrentRenderContext's pattern) from ViewportWidget::setCommonUniforms(),
+	// gated on the SAME lowResEnabled()+oversized-model condition that already
+	// drives interactionFastPath's shader-cost cutback. render() reads this via
+	// lodPolicyActive() at its glDrawElements call site to pick between the
+	// full-resolution index buffer and a mesh's precomputed coarse LOD1 tier
+	// (present only on meshes where the eligibility gate in SceneMesh::
+	// optimizeMesh() allowed generating one - see _hasLod1 below).
+	static void setLodPolicy(bool useLod1);
+	static bool lodPolicyActive();
 	static void bindTextureUnitCached(GLenum textureUnit, GLuint textureId);
 	static void resetTextureBindingCacheForCurrentContext();
 	static void bindProgramCached(QOpenGLShaderProgram* prog);
@@ -544,6 +555,7 @@ protected:
 
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
+	static bool       _lodPolicyUseLod1;
 
 	// ---- Debug override maps -----------------------------------------------
 	QMap<int, GLuint>       _debugTextureOverrides;
@@ -553,6 +565,18 @@ protected:
 	QOpenGLBuffer            _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
 	QOpenGLVertexArrayObject _featureEdgeVAO;
 	int                      _featureEdgeCount = 0;
+
+	// ---- Interaction-time LOD1 (coarse) index buffer -----------------------
+	// A second, independent EBO drawn against the SAME vertex buffer/VAO as
+	// _indexBuffer - kept entirely separate from _indices/_indexBuffer (rather
+	// than concatenated into one buffer) so every other consumer of _indices
+	// (RtSceneBuilder::convertGeometry(), picking-triangle construction,
+	// setMeshData()'s round trip) keeps seeing full-resolution geometry
+	// unmodified. Only populated for eligible rigid meshes - see
+	// SceneMesh::optimizeMesh()'s eligibility gate and SceneMesh::uploadLodTier().
+	QOpenGLBuffer _lodIndexBuffer { QOpenGLBuffer::IndexBuffer };
+	unsigned int  _nVertsLod1 = 0;
+	bool          _hasLod1    = false;
 
 	// ---- OCC B-Rep edge VAO/VBO (STEP/IGES/BREP exact topology) -----------
 	QOpenGLBuffer            _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };

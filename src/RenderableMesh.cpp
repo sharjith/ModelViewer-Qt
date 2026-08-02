@@ -77,6 +77,7 @@ QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 
 QMatrix4x4 RenderableMesh::_currentGlobalModelMatrix;
 QMatrix4x4 RenderableMesh::_currentViewMatrix;
+bool       RenderableMesh::_lodPolicyUseLod1 = false;
 
 void RenderableMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
                                            const QMatrix4x4& viewMatrix)
@@ -89,6 +90,16 @@ void RenderableMesh::clearCurrentRenderContext()
 {
 	_currentGlobalModelMatrix.setToIdentity();
 	_currentViewMatrix.setToIdentity();
+}
+
+void RenderableMesh::setLodPolicy(bool useLod1)
+{
+	_lodPolicyUseLod1 = useLod1;
+}
+
+bool RenderableMesh::lodPolicyActive()
+{
+	return _lodPolicyUseLod1;
 }
 
 const QMatrix4x4& RenderableMesh::currentGlobalModelMatrix()
@@ -1636,8 +1647,13 @@ void RenderableMesh::render()
 	// Handle lighting normal for negative scaling
 	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 	_vertexArrayObject.bind();
-	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
-	_vertexArrayObject.release();	
+	const bool drawLod1 = _hasLod1 && lodPolicyActive();
+	if (drawLod1)
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
+	else
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
+	glDrawElements(GL_TRIANGLES, drawLod1 ? _nVertsLod1 : _nVerts, GL_UNSIGNED_INT, 0);
+	_vertexArrayObject.release();
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glDisable(GL_BLEND);

@@ -148,6 +148,13 @@ private:
 	// Initializes all the buffer objects/arrays
 	void setupMesh();
 	void buildAndUploadFeatureEdges(float thresholdDegrees = 15.0f);
+	// Uploads the coarse LOD1 index tier optimizeMesh() staged into
+	// _pendingLod1Indices (if any) into RenderableMesh's _lodIndexBuffer.
+	// Called from setupMesh() so it covers both the constructor path and
+	// setMeshData()'s re-upload path - though setMeshData() doesn't call
+	// optimizeMesh(), so _pendingLod1Indices is simply empty there and this
+	// is a no-op (mesh stays LOD0-only, which is safe, just not optimized).
+	void uploadLodTier();
 
 	void cacheTextureBindings();
 	void bindTexturesOptimized();
@@ -174,6 +181,13 @@ protected:
 	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---
 	std::vector<Vertex> _vertices;
 	std::vector<Vertex> _baseVertices;
+
+	// ---- Interaction-time LOD1 hand-off ------------------------------------------
+	// Staged by optimizeMesh() (CPU-side simplification, runs before GPU buffers
+	// exist), consumed and cleared by uploadLodTier() (called from setupMesh(),
+	// which creates GPU buffers). Empty whenever no LOD1 tier was generated
+	// (skinned/morph/small/non-triangle meshes, or setMeshData()'s no-optimize path).
+	std::vector<unsigned int> _pendingLod1Indices;
 
 	// ---- Morph-target data (static after load) ----------------------------------
 	QVector<MorphTargetData> _morphTargets;

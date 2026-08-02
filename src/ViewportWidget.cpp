@@ -5014,7 +5014,12 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	_renderCtrl.textShader()->setUniformValue("projection", projection);
 	_renderCtrl.textShader()->release();
 	glViewport(0, 0, width(), height());
-	if (_renderCtrl.shadowsEnabled())
+	// showShadows (setCommonUniforms()) already skips SAMPLING the shadow map
+	// during this same lowResEnabled+oversized window, but that alone leaves
+	// the full-resolution shadow depth pass itself still running for nothing
+	// - skip generating it too, matching the same condition.
+	if (_renderCtrl.shadowsEnabled()
+		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -5075,7 +5080,11 @@ void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>
 void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 {
 	glViewport(0, 0, width(), height());
-	if (_renderCtrl.shadowsEnabled())
+	// See renderSingleView()'s identical condition for why this is skipped
+	// (not just the shadow-map SAMPLING that showShadows already gates) during
+	// interaction on oversized models.
+	if (_renderCtrl.shadowsEnabled()
+		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -6414,6 +6423,12 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	prog->setUniformValue("lightPos",
 		shaderLightPos);
 	RenderableMesh::setCurrentRenderContext(_viewCtrl.modelMatrix(), camera->getViewMatrix());
+	// Second consumer of the same interactionFastPath signal that already
+	// gates shadow-map sampling and expensive shader branches above - drops
+	// eligible meshes to their precomputed coarse LOD1 tier for the same
+	// interaction+oversized-model window, snapping back to full resolution
+	// the instant lowResEnabled() clears. See RenderableMesh::setLodPolicy().
+	RenderableMesh::setLodPolicy(interactionFastPath);
 	prog->setUniformValue("modelMatrix", _viewCtrl.modelMatrix());
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);

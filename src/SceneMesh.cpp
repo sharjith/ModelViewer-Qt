@@ -346,9 +346,23 @@ void SceneMesh::render()
 	if (profiling)
 		stageTimer.restart();
 	if (_indices.empty())
+	{
 		glDrawArrays(_primitiveMode, 0, drawCount);
+	}
 	else
-		glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
+	{
+		// Interaction-time LOD: _hasLod1 is only ever true for eligible rigid
+		// triangle meshes (see optimizeMesh()'s eligibility gate), so no extra
+		// primitive-mode check is needed here - explicit EBO rebind rather
+		// than relying on residual VAO state, since the same VAO is reused
+		// across frames for both tiers.
+		const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
+		if (drawLod1)
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
+		else
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
+		glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
+	}
 	recordDrawCall(!_indices.empty(), isTransparent());
 	if (profiling)
 		recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
@@ -591,6 +605,28 @@ quint64 SceneMesh::uniformStateSignature() const
 	return _cachedUniformStateSignature;
 }
 
+namespace
+{
+	// Interaction-time LOD1 tuning - both are judgment calls (this is the
+	// first use of meshopt_simplify in this codebase, unlike the cache/
+	// overdraw/fetch passes below which had an established precedent to
+	// anchor to) and should be retuned after visually validating against
+	// real large assemblies. kLod1TriangleRatio: target fraction of LOD0's
+	// triangle count: 22% keeps a coarse tier recognizable while still
+	// meaningfully cutting draw cost. kLod1TargetError: meshopt_simplify's
+	// error is expressed relative to mesh extent, so 0.02 (2%) is a ceiling
+	// meant to stop simplification going visibly mushy before it reaches the
+	// triangle-count target.
+	constexpr float  kLod1TriangleRatio = 0.22f;
+	constexpr float  kLod1TargetError = 0.02f;
+	// Below this triangle count, a mesh is cheap enough that generating and
+	// drawing a second tier for it isn't worth the simplification cost paid
+	// once at load time - small parts (fasteners, brackets) that appear by
+	// the hundreds in mechanical assemblies dominate mesh COUNT but not
+	// triangle cost.
+	constexpr size_t kLodMinTriangleCount = 5000;
+}
+
 void SceneMesh::optimizeMesh()
 {
 	// ============================================
@@ -637,15 +673,78 @@ void SceneMesh::optimizeMesh()
 			1.05f
 		);
 
-		// Step 3: Vertex Fetch Optimization
-		meshopt_optimizeVertexFetch(
-			_vertices.data(),
-			_indices.data(),
-			_indices.size(),
-			_vertices.data(),
-			vertexCount,
-			sizeof(Vertex)
-		);
+		// Step 3: interaction-time LOD1 (coarse) tier - generated here, BEFORE
+		// vertex-fetch reordering below, since meshopt_simplify needs an index
+		// array still referencing the CURRENT (pre-reorder) vertex layout, and
+		// the vertex-fetch remap computed after this must be applied to both
+		// LOD0 and LOD1 consistently (see Step 4). Restricted to rigid meshes
+		// only - skinning/morph target data isn't remapped by this pass, and a
+		// simplified skinned mesh's weights would no longer correspond to the
+		// simplified topology.
+		std::vector<unsigned int> lod1Indices;
+		const bool eligibleForLod = !hasSkinning() && !hasMorphTargets()
+			&& _primitiveMode == GL_TRIANGLES
+			&& _indices.size() >= kLodMinTriangleCount * 3;
+		if (eligibleForLod)
+		{
+			const size_t targetIndexCount = (static_cast<size_t>(_indices.size() * kLod1TriangleRatio) / 3) * 3;
+			float resultError = 0.0f;
+			lod1Indices.resize(_indices.size());
+			size_t lod1Count = meshopt_simplify(
+				lod1Indices.data(),
+				_indices.data(),
+				_indices.size(),
+				tempPositions.data(),
+				vertexCount,
+				sizeof(float) * 3,
+				targetIndexCount,
+				kLod1TargetError,
+				meshopt_SimplifyLockBorder,
+				&resultError
+			);
+			lod1Indices.resize(lod1Count);
+
+			// meshopt_simplify can stop early due to topology constraints and
+			// return close to the original count for some meshes - only keep
+			// LOD1 if it's a meaningful reduction.
+			if (lod1Count > 0 && lod1Count < _indices.size() * 0.9)
+			{
+				meshopt_optimizeVertexCache(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(), vertexCount);
+				meshopt_optimizeOverdraw(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(),
+					tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
+			}
+			else
+			{
+				lod1Indices.clear();
+			}
+		}
+
+		// Step 4: Vertex Fetch Optimization - ONE shared remap computed from
+		// LOD0's access pattern (it's the tier drawn almost always), then
+		// applied to the vertex buffer AND to every index array that
+		// references it (LOD0 always, LOD1 if generated above). Using
+		// meshopt_optimizeVertexFetch directly (as before this LOD feature
+		// existed) only remaps the single index array passed to it - fine
+		// when there was only ever one, but it would silently desync LOD1
+		// from the reordered vertex buffer, so the remap has to be computed
+		// once and applied explicitly to both.
+		std::vector<unsigned int> remap(vertexCount);
+		meshopt_optimizeVertexFetchRemap(remap.data(), _indices.data(), _indices.size(), vertexCount);
+
+		std::vector<Vertex> remappedVertices(vertexCount);
+		meshopt_remapVertexBuffer(remappedVertices.data(), _vertices.data(), vertexCount, sizeof(Vertex), remap.data());
+		_vertices = std::move(remappedVertices);
+
+		std::vector<unsigned int> remappedLod0(_indices.size());
+		meshopt_remapIndexBuffer(remappedLod0.data(), _indices.data(), _indices.size(), remap.data());
+		_indices = std::move(remappedLod0);
+
+		if (!lod1Indices.empty())
+		{
+			std::vector<unsigned int> remappedLod1(lod1Indices.size());
+			meshopt_remapIndexBuffer(remappedLod1.data(), lod1Indices.data(), lod1Indices.size(), remap.data());
+			_pendingLod1Indices = std::move(remappedLod1);
+		}
 
 		// Keep _baseVertices in sync with the reordered _vertices so that
 		// clone() can safely pass _baseVertices + _indices to a new constructor
@@ -713,9 +812,30 @@ void SceneMesh::setupMesh()
 	}
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
+	uploadLodTier();
 	computeBounds();
 	if (wireframeFeaturesEnabled())
 		buildAndUploadFeatureEdges(15.0f);
+}
+
+void SceneMesh::uploadLodTier()
+{
+	_hasLod1 = false;
+	if (_pendingLod1Indices.empty())
+		return;
+
+	if (!_lodIndexBuffer.isCreated())
+		_lodIndexBuffer.create();
+	_lodIndexBuffer.bind();
+	_lodIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_lodIndexBuffer.allocate(_pendingLod1Indices.data(),
+		static_cast<int>(_pendingLod1Indices.size() * sizeof(unsigned int)));
+	_lodIndexBuffer.release();
+
+	_nVertsLod1 = static_cast<unsigned int>(_pendingLod1Indices.size());
+	_hasLod1 = true;
+	_pendingLod1Indices.clear();
+	_pendingLod1Indices.shrink_to_fit();
 }
 
 void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
