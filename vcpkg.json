@@ -42,11 +42,16 @@
     },
     "libwebp",
     "libjpeg-turbo",
-    "assimp",
     "freetype",
     "glm",
     "opencascade",
     "meshoptimizer",
+    {
+      "name": "assimp",
+      "features": [
+        "draco"
+      ]
+    },
     {
       "name": "embree",
       "default-features": false,
