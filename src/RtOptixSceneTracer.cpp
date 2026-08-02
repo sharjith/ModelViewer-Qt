@@ -1637,15 +1637,52 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 		bool refitSucceeded = false;
 
-		// GPU-skin fast path - attempted BEFORE building any host-side vertex
-		// arrays below, not after: this mesh's positions/normals/tangents
-		// never need to touch the CPU at all when this succeeds, so building
-		// them first (only to discard almost all of it once the GPU kernel
-		// writes its own result) would be pure waste. Confirmed via a real
-		// session log that this waste was real and measurable: BrainStem's
-		// per-frame cadence didn't improve at all when the GPU-skin kernel
-		// first landed, because this exact host-side loop was still running
-		// unconditionally for all 59 skinned meshes every frame regardless.
+		// texCoords/vertexColors are NEVER touched by the skin/morph GPU
+		// blend kernels below (those only ever write positions/normals/
+		// tangents) - unlike those, building these two is cheap (a plain
+		// per-vertex copy, no skin/morph blend math), so they're prepared
+		// unconditionally here rather than lazily, and re-uploaded into the
+		// reused cached buffer inside BOTH fast paths below. Without this,
+		// a refit-eligible mesh (same vertex/index COUNT, e.g. after UV
+		// regeneration or a texture-transform edit - anything that doesn't
+		// add/remove vertices) would silently keep whatever texCoords/
+		// vertexColors buffer the GAS cache entry already had, forever:
+		// refitEligible only checks vertex/index count, so a UV-only change
+		// on an already-cached skinned/morphed mesh took this fast path and
+		// never got its new UVs uploaded at all - reported as "applying a
+		// UV regeneration in RT mode makes the mesh's textures disappear
+		// permanently, even switching engines/materials afterward doesn't
+		// fix it" (this GAS cache entry, and therefore its texCoords, is
+		// never rebuilt from scratch again until something invalidates the
+		// cache entirely, e.g. a vertex/index count change or app restart).
+		std::vector<float2> earlyTexCoords;
+		std::vector<float3> earlyVertexColors;
+		if (refitEligible && (mesh.hasSkinningData || mesh.hasMorphData))
+		{
+			earlyTexCoords.resize(mesh.vertices.size() * 4);
+			earlyVertexColors.resize(mesh.vertices.size());
+			for (size_t i = 0; i < mesh.vertices.size(); ++i)
+			{
+				const RtVertex& v = mesh.vertices[i];
+				earlyVertexColors[i] = make_float3(v.color.x, v.color.y, v.color.z);
+				for (int ch = 0; ch < 4; ++ch)
+					earlyTexCoords[i * 4 + ch] = make_float2(v.texCoords[ch].x, v.texCoords[ch].y);
+			}
+		}
+		const size_t earlyTexCoordsBytes = earlyTexCoords.size() * sizeof(float2);
+		const size_t earlyVertexColorsBytes = earlyVertexColors.size() * sizeof(float3);
+
+		// GPU-skin fast path - attempted BEFORE building any host-side POSITION/
+		// NORMAL/TANGENT arrays, not after: this mesh's positions/normals/
+		// tangents never need to touch the CPU at all when this succeeds, so
+		// building them first (only to discard almost all of it once the GPU
+		// kernel writes its own result) would be pure waste. Confirmed via a
+		// real session log that this waste was real and measurable:
+		// BrainStem's per-frame cadence didn't improve at all when the
+		// GPU-skin kernel first landed, because this exact host-side loop was
+		// still running unconditionally for all 59 skinned meshes every frame
+		// regardless. texCoords/vertexColors are cheap enough to always
+		// prepare regardless (see earlyTexCoords/earlyVertexColors above).
 		if (refitEligible && mesh.hasSkinningData)
 		{
 			gas.positions = cachedIt->second.positions;
@@ -1656,7 +1693,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			gas.indices = cachedIt->second.indices;
 			gas.gasOutputBuffer = cachedIt->second.gasOutputBuffer;
 
-			if (_impl->updateSkinBase(mesh, gas.positions, gas.normals, gas.tangents))
+			bool texUploadOk = true;
+			if (earlyTexCoordsBytes > 0)
+				texUploadOk = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), earlyTexCoords.data(), earlyTexCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords, GPU-skin refit)");
+			if (texUploadOk && earlyVertexColorsBytes > 0)
+				texUploadOk = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), earlyVertexColors.data(), earlyVertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors, GPU-skin refit)");
+
+			if (texUploadOk && _impl->updateSkinBase(mesh, gas.positions, gas.normals, gas.tangents))
 			{
 				OptixAccelBuildOptions accelOptions{};
 				accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
@@ -1736,7 +1779,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			gas.indices = cachedIt->second.indices;
 			gas.gasOutputBuffer = cachedIt->second.gasOutputBuffer;
 
-			if (_impl->updateMorphBase(mesh, gas.positions, gas.normals, gas.tangents))
+			bool texUploadOk = true;
+			if (earlyTexCoordsBytes > 0)
+				texUploadOk = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.texCoords), earlyTexCoords.data(), earlyTexCoordsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh texCoords, GPU-morph refit)");
+			if (texUploadOk && earlyVertexColorsBytes > 0)
+				texUploadOk = cudaCheck(cudaMemcpy(reinterpret_cast<void*>(gas.vertexColors), earlyVertexColors.data(), earlyVertexColorsBytes, cudaMemcpyHostToDevice), "cudaMemcpy(mesh vertexColors, GPU-morph refit)");
+
+			if (texUploadOk && _impl->updateMorphBase(mesh, gas.positions, gas.normals, gas.tangents))
 			{
 				OptixAccelBuildOptions accelOptions{};
 				accelOptions.buildFlags = OPTIX_BUILD_FLAG_ALLOW_RANDOM_VERTEX_ACCESS | OPTIX_BUILD_FLAG_ALLOW_UPDATE;
