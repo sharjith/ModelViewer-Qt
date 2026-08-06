@@ -693,7 +693,14 @@ ViewportWidget::~ViewportWidget()
 		delete _assimpModelLoader;
 
 	// ===== CRITICAL: Ensure context is current before GL calls =====
-	if (context() && context()->isValid())
+	// context()->isValid() only means Qt successfully created the underlying
+	// QOpenGLContext object - it says nothing about whether THIS widget's
+	// initializeGL() ever actually ran. If the widget is destroyed before its
+	// first paint (e.g. it never received an expose/paint event - see
+	// initializeGL()'s and paintGL()'s own isOpenGLInitialized() guards),
+	// _renderCtrl/PunctualLights never resolved their GL function pointers,
+	// so any GL call below (even via a "valid" context) segfaults.
+	if (context() && context()->isValid() && _renderCtrl.isOpenGLInitialized())
 	{
 		makeCurrent();
 
@@ -1127,6 +1134,20 @@ void ViewportWidget::initializeGL()
 		        this, &ViewportWidget::onSceneStructureChanged,
 		        Qt::UniqueConnection);
 	}
+
+	// Retry the fallback light now that a GL context is actually current -
+	// see refreshFallbackLight()'s own doc comment. On an empty/just-launched
+	// scene, ModelViewer::showEvent() reaches setLightOffset()/
+	// refreshFallbackLight() before this initializeGL() has ever run, so that
+	// first attempt bails out with nothing created.
+	refreshFallbackLight();
+
+	// Same story for the startup skybox preset - see setSkyBoxTextureFolder()'s
+	// own doc comment. Its early attempt (queued during VisualizationEnvironmentPanel's
+	// construction, pumped by main()'s splash-screen processEvents() calls)
+	// only recorded the folder; actually load it now that GL is ready.
+	if (!_renderCtrl.currentSkyboxFolder().isEmpty())
+		setSkyBoxTextureFolder(_renderCtrl.currentSkyboxFolder());
 }
 
 void ViewportWidget::resizeGL(int width, int height)
@@ -1405,6 +1426,21 @@ void ViewportWidget::paintGL()
 		std::cout << "Exception raised in ViewportWidget::paintGL\n" << ex.what() << std::endl;
 	}
 
+	// Stomp alpha to fully opaque across the whole frame, right before Qt
+	// composites this widget's FBO into the top-level window surface.
+	// PBR/RT blending (floor-plane transparency, glass/transmission, and
+	// RtPresenter's GL_SRC_ALPHA compositing) leaves per-pixel destination
+	// alpha < 1 in the framebuffer. Requesting QSurfaceFormat::setAlphaBufferSize(0)
+	// wasn't enough - Wayland EGL only offers RGBA configs on this driver, so the
+	// surface still carries a live alpha channel that the Wayland compositor then
+	// alpha-blends against the desktop, showing whatever's behind the window
+	// through those pixels. The color mask restricts this to the alpha channel
+	// only, so it can't affect the RGB result already rendered this frame.
+	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
 	// For testing rendered shadow map
 	/*_renderCtrl.debugShader()->bind();
 	_renderCtrl.debugShader()->setUniformValue("near_plane", 1.0f);
@@ -1429,6 +1465,18 @@ void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 
 	// Store the folder path for later regeneration in detached contexts
 	_renderCtrl.setCurrentSkyboxFolder(folder);
+
+	// Same early-startup timing issue as refreshFallbackLight() (see its doc
+	// comment): VisualizationEnvironmentPanel's preset combo box population
+	// can reach this via a queued onLoadSkyBoxPresetMaps() call that gets
+	// pumped by main()'s splash-screen processEvents() calls, before this
+	// widget's initializeGL() has ever run. The folder is already recorded
+	// above, so initializeGL() re-issues this call once a GL context exists.
+	if (!_renderCtrl.isOpenGLInitialized())
+	{
+		QApplication::restoreOverrideCursor();
+		return;
+	}
 
 	// File pattern map: match flexible identifiers to cube map indices
 	QMap<QString, int> faceMap = {
@@ -2761,6 +2809,18 @@ void ViewportWidget::updateFloorPlane()
 
 void ViewportWidget::refreshFallbackLight()
 {
+	// PunctualLights::createFallbackLight() below issues raw GL calls
+	// (glGenBuffers/glBindBuffer). setLightOffset() can reach this from
+	// ModelViewer::showEvent()'s first-time updateDisplayList() - i.e. before
+	// this widget's own initializeGL() has ever run - so on platforms where
+	// the GL context isn't made current until the widget actually paints
+	// (X11/XCB queues the expose event rather than delivering it synchronously
+	// like Windows' WM_PAINT can), there is no current context yet and those
+	// calls crash. Bail out here; once initializeGL() completes it calls this
+	// again with a valid context.
+	if (!_renderCtrl.isOpenGLInitialized())
+		return;
+
 	// Create fallback light if no punctual lights are available. Also
 	// gated on useDefaultLights() (previously wasn't) - this persistent
 	// PunctualLights fallback entry is what the "Default Lights" checkbox is

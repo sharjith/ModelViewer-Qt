@@ -374,6 +374,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setProfile(QSurfaceFormat::CoreProfile);
 	format.setDepthBufferSize(24);
 	format.setStencilBufferSize(8);
+	format.setAlphaBufferSize(0); // see ModelViewerApplication.cpp for why (Wayland compositor bleed-through)
 	format.setSwapInterval(vsyncEnabled ? 1 : 0);
 	format.setStereo(true);
 	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);

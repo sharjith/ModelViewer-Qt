@@ -52,6 +52,12 @@ ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
 	QSurfaceFormat format;
 	format.setDepthBufferSize(24);
 	format.setStencilBufferSize(8);
+	// No per-pixel window alpha: on native Wayland the compositor alpha-blends
+	// the surface against the desktop using whatever the framebuffer's alpha
+	// channel holds, and PBR/RT blending (floor transparency, glass/transmission,
+	// RtPresenter's GL_SRC_ALPHA compositing) leaves destination alpha < 1 in
+	// places - without this, those pixels show the desktop behind the window.
+	format.setAlphaBufferSize(0);
 	format.setVersion(4, 5); // OpenGL version 4.5
 	format.setProfile(QSurfaceFormat::CoreProfile);
 	format.setOption(QSurfaceFormat::DebugContext);

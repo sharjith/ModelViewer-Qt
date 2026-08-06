@@ -242,7 +242,18 @@ void MainWindow::retranslateUI()
 
 ModelViewer* MainWindow::createMdiChild()
 {
-	ModelViewer* viewer = new ModelViewer(ui->mdiArea);
+	// nullptr, not ui->mdiArea - addSubWindow() below reparents this into a
+	// new QMdiSubWindow regardless, so constructing with mdiArea as the
+	// parent just means the widget gets reparented twice (once implicitly
+	// here, once by addSubWindow()) instead of once. QOpenGLWidget destroys
+	// and recreates its GL context on every reparent that changes the
+	// top-level window, then relies on a fresh expose event to re-trigger
+	// initializeGL() - see refreshFallbackLight()'s doc comment and
+	// ViewportWidget::~ViewportWidget()'s cleanup guard for the class of bug
+	// this causes if that sequence doesn't complete under XWayland. Matches
+	// on_actionNew_triggered()'s identical construction for every
+	// subsequently created document, which already uses nullptr here.
+	ModelViewer* viewer = new ModelViewer(nullptr);
 	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/test-models");
 	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);

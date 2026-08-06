@@ -124,6 +124,20 @@ int main(int argc, char** argv)
 	showSplashMessage(QObject::tr("Preparing workspace and initializing GPU ray tracing..."));
 	ModelViewer* viewer = mw->createMdiChild();
 	mw->showMaximized();
+	// createMdiChild() only adds the viewer to the QMdiArea via
+	// addSubWindow() - unlike on_actionNew_triggered()'s identical setup for
+	// every subsequently created document, it never explicitly shows the
+	// resulting QMdiSubWindow. Under XWayland this leaves the wrapped
+	// QOpenGLWidget's expose event essentially in limbo: the subwindow's own
+	// (raster-painted) title bar renders fine as a side effect of MainWindow
+	// itself becoming visible, but the QOpenGLWidget viewport inside it never
+	// gets the expose event that triggers initializeGL()/paintGL() - it just
+	// sits uninitialized (permanently black viewport, then segfaults on close
+	// per SceneRenderController::cleanupGLResources() touching GL state that
+	// was never set up). Native X11 doesn't hit this - showMaximized() below
+	// makes it explicit instead of relying on implicit cascade-through-parent
+	// visibility, matching what on_actionNew_triggered() already does.
+	viewer->showMaximized();
 	if (splash)
 	{
 		showSplashMessage(QObject::tr("Ready"));
