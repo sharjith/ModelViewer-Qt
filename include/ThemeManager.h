@@ -55,6 +55,24 @@ signals:
 private:
     void applySystemTheme();
     void applySystemAwareTheme();
+#if defined(Q_OS_LINUX)
+    // Reads the running Plasma session's actual configured font and color
+    // scheme from ~/.config/kdeglobals and applies them. Returns false (no-op)
+    // when not running under a KDE session or kdeglobals isn't present, so
+    // callers can fall back to the generic palette. See its own doc comment
+    // in ThemeManager.cpp for why this reads the config file directly instead
+    // of using Qt's QT_QPA_PLATFORMTHEME=kde integration.
+    bool applyKdePlasmaTheme();
+
+    // Same idea for GNOME: shells out to the gsettings CLI (GNOME has no
+    // plain config file like kdeglobals - its settings live in dconf, and
+    // gsettings is the standard way to read them without linking GIO/GLib
+    // just for this) to read the configured font, light/dark preference, and
+    // accent color. Returns false when not on a GNOME session or gsettings
+    // isn't available, so callers can fall back to the generic palette.
+    bool applyGnomeTheme();
+    QString readGSetting(const QString& schema, const QString& key) const;
+#endif
     void applyLightTheme();
     void applyDarkTheme();
 

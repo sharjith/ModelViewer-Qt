@@ -1,5 +1,9 @@
 #include "ThemeManager.h"
+#include <QFont>
 #include <QGuiApplication>
+#include <QHash>
+#include <QProcess>
+#include <QStandardPaths>
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
 #include <QStyleHints>
@@ -95,8 +99,201 @@ void ThemeManager::applySystemTheme()
 	}
 }
 
+#if defined(Q_OS_LINUX)
+bool ThemeManager::applyKdePlasmaTheme()
+{
+	// Only meaningful on an actual Plasma session - reading/applying KDE's
+	// config on GNOME/other desktops would just be wrong.
+	if (!qgetenv("XDG_CURRENT_DESKTOP").contains("KDE"))
+		return false;
+
+	const QString kdeglobalsPath = QDir::homePath() + "/.config/kdeglobals";
+	if (!QFile::exists(kdeglobalsPath))
+		return false;
+
+	QSettings kdeglobals(kdeglobalsPath, QSettings::IniFormat);
+
+	// Font - kdeglobals stores this as a string QFont::fromString() understands
+	// directly (e.g. "Noto Sans,10,-1,5,400,0,0,0,0,0,0,0,0,0,0,1").
+	kdeglobals.beginGroup("General");
+	const QString fontString = kdeglobals.value("font").toString();
+	kdeglobals.endGroup();
+	if (!fontString.isEmpty())
+	{
+		QFont font;
+		if (font.fromString(fontString))
+			qApp->setFont(font);
+	}
+
+	// Colors - build a QPalette from Plasma's actual configured color scheme.
+	// This can't use the real Breeze QStyle/platform-theme plugin at all:
+	// QT_QPA_PLATFORMTHEME=kde was tried and silently falls back to "generic"
+	// (see the "Attempting to load platform theme kde" trace) because those
+	// system plugins are built against the system's dynamically-linked Qt6
+	// (6.10.2 here), while this app statically links its own vcpkg-built Qt6
+	// (6.11.1) - a version/build mismatch that plugin loading can't cross.
+	// Reading kdeglobals directly and applying the colors to Fusion's own
+	// palette is the only reachable way to approximate Breeze without that.
+	auto readGroupColor = [&kdeglobals](const QString& group, const QString& key, const QColor& fallback) -> QColor
+	{
+		kdeglobals.beginGroup(group);
+		const QString raw = kdeglobals.value(key).toString();
+		kdeglobals.endGroup();
+		const QStringList parts = raw.split(',');
+		if (parts.size() != 3)
+			return fallback;
+		bool ok[3] = { false, false, false };
+		const int r = parts[0].toInt(&ok[0]);
+		const int g = parts[1].toInt(&ok[1]);
+		const int b = parts[2].toInt(&ok[2]);
+		if (!ok[0] || !ok[1] || !ok[2])
+			return fallback;
+		return QColor(r, g, b);
+	};
+
+	const QColor windowBg    = readGroupColor("Colors:Window", "BackgroundNormal", QColor(53, 53, 53));
+	const QColor windowFg    = readGroupColor("Colors:Window", "ForegroundNormal", Qt::white);
+	const QColor disabledFg  = readGroupColor("Colors:Window", "ForegroundInactive", QColor(127, 127, 127));
+	const QColor viewBg      = readGroupColor("Colors:View", "BackgroundNormal", QColor(35, 35, 35));
+	const QColor viewAltBg   = readGroupColor("Colors:View", "BackgroundAlternate", QColor(45, 45, 45));
+	const QColor viewFg      = readGroupColor("Colors:View", "ForegroundNormal", Qt::white);
+	const QColor buttonBg    = readGroupColor("Colors:Button", "BackgroundNormal", QColor(66, 66, 66));
+	const QColor buttonFg    = readGroupColor("Colors:Button", "ForegroundNormal", Qt::white);
+	const QColor selectionBg = readGroupColor("Colors:Selection", "BackgroundNormal", QColor(61, 174, 233));
+	const QColor selectionFg = readGroupColor("Colors:Selection", "ForegroundNormal", Qt::white);
+	const QColor tooltipBg   = readGroupColor("Colors:Tooltip", "BackgroundNormal", windowBg);
+	const QColor tooltipFg   = readGroupColor("Colors:Tooltip", "ForegroundNormal", windowFg);
+	const QColor linkFg      = readGroupColor("Colors:View", "ForegroundLink", QColor(41, 128, 185));
+	const QColor visitedFg   = readGroupColor("Colors:View", "ForegroundVisited", QColor(155, 89, 182));
+
+	QPalette palette;
+	palette.setColor(QPalette::Window, windowBg);
+	palette.setColor(QPalette::WindowText, windowFg);
+	palette.setColor(QPalette::Base, viewBg);
+	palette.setColor(QPalette::AlternateBase, viewAltBg);
+	palette.setColor(QPalette::Text, viewFg);
+	palette.setColor(QPalette::Button, buttonBg);
+	palette.setColor(QPalette::ButtonText, buttonFg);
+	palette.setColor(QPalette::Highlight, selectionBg);
+	palette.setColor(QPalette::HighlightedText, selectionFg);
+	palette.setColor(QPalette::ToolTipBase, tooltipBg);
+	palette.setColor(QPalette::ToolTipText, tooltipFg);
+	palette.setColor(QPalette::Link, linkFg);
+	palette.setColor(QPalette::LinkVisited, visitedFg);
+	palette.setColor(QPalette::Disabled, QPalette::Text, disabledFg);
+	palette.setColor(QPalette::Disabled, QPalette::WindowText, disabledFg);
+	palette.setColor(QPalette::Disabled, QPalette::ButtonText, disabledFg);
+
+	qApp->setStyle(QStyleFactory::create("Fusion"));
+	qApp->setPalette(palette);
+
+	return true;
+}
+
+QString ThemeManager::readGSetting(const QString& schema, const QString& key) const
+{
+	QProcess process;
+	process.start("gsettings", { "get", schema, key });
+	if (!process.waitForFinished(500) || process.exitCode() != 0)
+		return QString();
+
+	QString value = QString::fromUtf8(process.readAllStandardOutput()).trimmed();
+	// gsettings wraps string values in single quotes, e.g. 'Cantarell 11'.
+	if (value.length() >= 2 && value.startsWith('\'') && value.endsWith('\''))
+		value = value.mid(1, value.length() - 2);
+	return value;
+}
+
+bool ThemeManager::applyGnomeTheme()
+{
+	if (!qgetenv("XDG_CURRENT_DESKTOP").contains("GNOME"))
+		return false;
+
+	if (QStandardPaths::findExecutable("gsettings").isEmpty())
+		return false;
+
+	// Font - GNOME stores this as "Family Name Size" (e.g. "Cantarell 11"),
+	// not the QFont::fromString()-compatible format kdeglobals uses for
+	// Plasma, so it needs its own parsing: the trailing token is the point
+	// size, everything before it is the family name.
+	const QString fontName = readGSetting("org.gnome.desktop.interface", "font-name");
+	if (!fontName.isEmpty())
+	{
+		const int lastSpace = fontName.lastIndexOf(' ');
+		if (lastSpace > 0)
+		{
+			bool ok = false;
+			const double pointSize = fontName.mid(lastSpace + 1).toDouble(&ok);
+			if (ok && pointSize > 0)
+			{
+				QFont font(fontName.left(lastSpace));
+				font.setPointSizeF(pointSize);
+				qApp->setFont(font);
+			}
+		}
+	}
+
+	// Dark/light preference - "color-scheme" (GNOME 42+) is authoritative
+	// when present; older GNOME only exposes it via the gtk-theme name
+	// ending in "-dark".
+	const QString colorScheme = readGSetting("org.gnome.desktop.interface", "color-scheme");
+	const QString gtkTheme = readGSetting("org.gnome.desktop.interface", "gtk-theme");
+	const bool dark = colorScheme.contains("dark", Qt::CaseInsensitive)
+		|| gtkTheme.contains("dark", Qt::CaseInsensitive);
+
+	// GNOME doesn't expose its theme's actual RGB colors via gsettings the
+	// way kdeglobals does for Plasma - they live in GTK CSS, not a readable
+	// settings key. Reuse this app's own generic light/dark palette as the
+	// base instead, then override just the highlight/accent color with
+	// GNOME's actual configured accent (the "accent-color" key, GNOME 47+,
+	// one of a fixed named set - values below are libadwaita's own
+	// documented hex colors for each name).
+	QPalette palette = dark ? getDarkPalette() : getLightPalette();
+
+	const QString accentName = readGSetting("org.gnome.desktop.interface", "accent-color");
+	static const QHash<QString, QColor> accentColors = {
+		{ "blue",   QColor("#3584e4") },
+		{ "teal",   QColor("#2190a4") },
+		{ "green",  QColor("#3a944a") },
+		{ "yellow", QColor("#c88800") },
+		{ "orange", QColor("#ed5b00") },
+		{ "red",    QColor("#e62d42") },
+		{ "pink",   QColor("#d56199") },
+		{ "purple", QColor("#9141ac") },
+		{ "slate",  QColor("#6f8396") },
+	};
+	const auto accentIt = accentColors.constFind(accentName);
+	if (accentIt != accentColors.constEnd())
+	{
+		palette.setColor(QPalette::Highlight, accentIt.value());
+		palette.setColor(QPalette::HighlightedText, Qt::white);
+		palette.setColor(QPalette::Link, accentIt.value());
+	}
+
+	qApp->setStyle(QStyleFactory::create("Fusion"));
+	qApp->setPalette(palette);
+	if (dark)
+		qApp->setStyleSheet(getDarkExtrasStyleSheet());
+
+	return true;
+}
+#endif
+
 void ThemeManager::applySystemAwareTheme()
 {
+#if defined(Q_OS_LINUX)
+	if (applyKdePlasmaTheme())
+	{
+		qDebug() << "Applied KDE Plasma theme (font + colors read from kdeglobals) using" << QApplication::style()->objectName();
+		return;
+	}
+	if (applyGnomeTheme())
+	{
+		qDebug() << "Applied GNOME theme (font via gsettings, accent color, generic palette) using" << QApplication::style()->objectName();
+		return;
+	}
+#endif
+
 	QString styleName = getCurrentStyleName();
 	bool dark = isSystemInDarkMode();
 
