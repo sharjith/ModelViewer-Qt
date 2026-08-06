@@ -27,6 +27,24 @@ endif()
 # dev machines and CI won't have an NVIDIA GPU/CUDA Toolkit/OptiX SDK
 # installed), and compile RtOptixContext.cpp as an inert stub in that case -
 # see its #ifdef MODELVIEWER_HAVE_OPTIX guard.
+# Recent glibc (2.41+, as shipped by rolling-release-ish Linux distros) declares
+# rsqrt()/rsqrtf() (and on some CUDA versions cospi()/sinpi()/etc.) itself, with
+# a noexcept specifier that conflicts with CUDA's own declaration of the same
+# functions in crt/math_functions.h - a hard "exception specification is
+# incompatible" compile error the moment any .cu file is compiled, entirely
+# unrelated to this project's own code (see e.g. NVIDIA/cuda-samples#403 and
+# multiple NVIDIA developer forum threads for the same glibc/CUDA mismatch).
+# -U_GNU_SOURCE/-D_DEFAULT_SOURCE steers glibc's headers away from declaring
+# those GNU-extension names at all, avoiding the collision. NVCC_APPEND_FLAGS
+# is an env var nvcc itself reads on every invocation (including CMake's own
+# internal check_language()/try_compile probes, which don't inherit
+# CMAKE_CUDA_FLAGS), so it has to be set before check_language(CUDA) below -
+# setting CMAKE_CUDA_FLAGS alone would leave that detection probe still
+# failing on affected systems even though the real build would've worked.
+if(NOT WIN32)
+    set(ENV{NVCC_APPEND_FLAGS} "-Xcompiler -U_GNU_SOURCE -Xcompiler -D_DEFAULT_SOURCE")
+endif()
+
 include(CheckLanguage)
 check_language(CUDA)
 set(MODELVIEWER_HAVE_OPTIX FALSE)
@@ -34,19 +52,35 @@ if(CMAKE_CUDA_COMPILER)
     enable_language(CUDA)
     find_package(CUDAToolkit QUIET)
 
+    if(NOT WIN32)
+        # Belt-and-braces alongside the NVCC_APPEND_FLAGS env var above: bakes
+        # the same flags into the generated build rules directly, so the real
+        # build doesn't depend on that env var still being set in whatever
+        # environment later invokes ninja/make (env var mutations made during
+        # this configure don't propagate to a separate later build invocation).
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -U_GNU_SOURCE -Xcompiler -D_DEFAULT_SOURCE")
+    endif()
+
     # OptiX 7.x ships as headers only (optix.h + friends) - the host API is
     # resolved dynamically at runtime from the NVIDIA display driver via
     # optixInit(), so there's no .lib to find/link, just the include path.
     # OPTIX_SDK_VERSION selects which installed SDK version to look for (the
-    # NVIDIA installer's standard Windows location is versioned in the
+    # NVIDIA installer's standard install location is versioned in the
     # directory name itself, e.g. "OptiX SDK 7.7.0" vs "OptiX SDK 8.0.0") -
     # bump this to pick up a newer SDK on hardware/drivers that support it,
     # without needing to touch the path logic below. OPTIX_ROOT_DIR lets a
-    # developer override the install location entirely (e.g. a non-default
-    # install path, or Linux) independent of the version.
+    # developer override the install location entirely independent of the
+    # version. The default itself is platform-dependent: Windows installs to
+    # a ProgramData path, Linux to a versioned directory under /opt/nvidia
+    # (the NVIDIA .sh installer's default).
     set(OPTIX_SDK_VERSION "9.1.0" CACHE STRING
         "OptiX SDK version to locate (matches the installer's default directory name, e.g. 7.7.0)")
-    set(OPTIX_ROOT_DIR "C:/ProgramData/NVIDIA Corporation/OptiX SDK ${OPTIX_SDK_VERSION}" CACHE PATH
+    if(WIN32)
+        set(OPTIX_ROOT_DIR_DEFAULT "C:/ProgramData/NVIDIA Corporation/OptiX SDK ${OPTIX_SDK_VERSION}")
+    else()
+        set(OPTIX_ROOT_DIR_DEFAULT "/opt/nvidia/NVIDIA-OptiX-SDK-${OPTIX_SDK_VERSION}-linux64-x86_64")
+    endif()
+    set(OPTIX_ROOT_DIR "${OPTIX_ROOT_DIR_DEFAULT}" CACHE PATH
         "Path to the OptiX SDK install (the directory containing include/optix.h)")
     find_path(OPTIX_INCLUDE_DIR
         NAMES optix.h
@@ -73,6 +107,24 @@ endif()
 
 find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets LinguistTools)
 
+# Qt6_FOUND must be captured here, immediately after the call above - a
+# second find_package(Qt6 COMPONENTS ...) call (the optional WebEngineWidgets
+# probe just below) re-evaluates Qt6_FOUND against ITS OWN requested
+# components, clobbering the real result of this one whenever WebEngineWidgets
+# isn't available. That previously produced a spurious "Qt6 not found"
+# message (and skipped setting QT_TRANSLATE_NAMESPACE) even on fully working
+# configures, merely masked because Qt6Config.cmake also sets QT_VERSION_MAJOR
+# itself as an unconditional side effect, so the actual QT_VERSION_MAJOR EQUAL
+# 6 gate further down in this file kept working anyway.
+if(Qt6_FOUND)
+    set(QT_VERSION_MAJOR 6)
+    set(QT_TRANSLATE_NAMESPACE Qt6)
+else()
+    message("Qt6 not found")
+endif()
+
+message("Using Qt${QT_VERSION_MAJOR}")
+
 # Optional: WebEngine - just check for it, don't link yet
 find_package(Qt6 COMPONENTS WebEngineWidgets QUIET)
 
@@ -83,15 +135,6 @@ else()
     message(WARNING "Qt WebEngine not found - tutorials will use QTextBrowser")
     set(HAVE_WEBENGINE FALSE)
 endif()
-
-if(Qt6_FOUND)
-    set(QT_VERSION_MAJOR 6)
-    set(QT_TRANSLATE_NAMESPACE Qt6)
-else()
-    message("Qt6 not found")
-endif()
-
-message("Using Qt${QT_VERSION_MAJOR}")
 
 # ============================================================================
 # Define vcpkg plugins directory (different for debug/release)
@@ -407,6 +450,30 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
 )
 
+# Qt6's automatic static-plugin linking (triggered by linking Qt6::Gui/Widgets
+# above) only pulls in the one platform plugin qtbase was configured with as
+# its default (xcb here) - a second platform plugin built via an extra vcpkg
+# feature (wayland) is compiled into a static lib but never actually
+# registered as an available QPA plugin unless explicitly imported. Without
+# this, the app only ever offers "xcb" at runtime (confirmed via
+# QT_QPA_PLATFORM=wayland failing with "Could not find the Qt platform plugin
+# wayland" despite qtwayland having built fine) - it has no effect on Windows,
+# which never has more than one platform plugin to begin with.
+#
+# Only meaningful for a statically-linked Qt (vcpkg's x64-linux triplet):
+# a dynamically-linked Qt (e.g. the system apt packages used for the .deb
+# build) loads every platform plugin it finds under its plugins/ directory at
+# runtime regardless, and qt_import_plugins() itself expects targets like
+# Qt6::QXcbIntegrationPlugin to exist as importable static plugin libraries -
+# they don't for a shared build, hence the "plug-in ... is not known to the
+# current Qt installation" warnings this guard avoids.
+get_target_property(_modelviewer_qt_core_type Qt6::Core TYPE)
+if(UNIX AND NOT APPLE AND _modelviewer_qt_core_type STREQUAL "STATIC_LIBRARY")
+    qt_import_plugins(ModelViewer
+        INCLUDE Qt6::QXcbIntegrationPlugin Qt6::QWaylandIntegrationPlugin
+    )
+endif()
+
 # Add WebEngine if found
 if(HAVE_WEBENGINE)
     target_compile_definitions(ModelViewer PRIVATE HAVE_WEBENGINE)
@@ -447,6 +514,15 @@ if(MODELVIEWER_HAVE_OPTIX)
             OUTPUT "${ptx_file}"
             COMMAND ${CMAKE_CUDA_COMPILER}
                 --ptx
+                # See the glibc/CUDA rsqrt() doc comment above CMAKE_CUDA_FLAGS
+                # near this file's CUDA-detection block - this custom command
+                # calls nvcc directly rather than through CMake's own CUDA
+                # compile rules, so it doesn't pick up CMAKE_CUDA_FLAGS and
+                # needs the same fix applied explicitly here too.
+                $<$<NOT:$<PLATFORM_ID:Windows>>:-Xcompiler>
+                $<$<NOT:$<PLATFORM_ID:Windows>>:-U_GNU_SOURCE>
+                $<$<NOT:$<PLATFORM_ID:Windows>>:-Xcompiler>
+                $<$<NOT:$<PLATFORM_ID:Windows>>:-D_DEFAULT_SOURCE>
                 -I "${OPTIX_INCLUDE_DIR}"
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
@@ -571,6 +647,73 @@ if(WIN32)
 else()
     # Linux / macOS: Qt finds plugins and libraries through standard paths
     message(STATUS "Non-Windows platform detected - skipping WebP DLL deployment (not needed)")
+endif()
+
+# ============================================================================
+# Deploy Embree/TBB/OpenImageDenoise runtime shared libraries - even under the
+# vcpkg x64-linux triplet's static linkage (VCPKG_LIBRARY_LINKAGE static),
+# OpenImageDenoise and TBB still build as .so (embree itself links statically
+# fine, but OIDN's CPU/CUDA device backends are loaded as plugins at runtime -
+# same reason the Windows block below deploys them explicitly rather than
+# relying on install(TARGETS ... RUNTIME_DEPENDENCIES), which only sees direct
+# link-time dependencies). Without this, a Linux install/.deb runs into
+# "error while loading shared libraries: libOpenImageDenoise.so.2: cannot open
+# shared object file" the moment it's moved out of the build tree, since the
+# build tree's RUNPATH points at vcpkg's build-tree lib dir, not anywhere the
+# installed binary can rely on.
+# ============================================================================
+if(UNIX AND NOT APPLE)
+    if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        if(CMAKE_BUILD_TYPE MATCHES "Debug")
+            set(RT_LIB_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/lib")
+        else()
+            set(RT_LIB_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib")
+        endif()
+
+        file(GLOB RAYTRACING_RUNTIME_SOS
+            "${RT_LIB_DIR}/libtbb.so*"
+            "${RT_LIB_DIR}/libtbbbind*.so*"
+            "${RT_LIB_DIR}/libOpenImageDenoise*.so*"
+        )
+        install(FILES ${RAYTRACING_RUNTIME_SOS}
+                DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        )
+
+        # Installed binaries have no RPATH by default - point it at the lib/
+        # directory installed alongside bin/ (both siblings of the install
+        # prefix) so the dynamic loader finds the .so files above without
+        # needing LD_LIBRARY_PATH set. $ORIGIN keeps this relocatable.
+        set_target_properties(ModelViewer PROPERTIES
+            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+            BUILD_WITH_INSTALL_RPATH FALSE
+        )
+    elseif(OpenImageDenoise_DIR)
+        # System-packages (.deb) build (see CMakePresets.json's
+        # linux_system_* presets): no vcpkg toolchain, so VCPKG_INSTALLED_DIR
+        # above is never defined. OpenImageDenoise still has no apt package
+        # either way, so it's vendored via the minimal manifest in
+        # packaging/linux/vendor instead - OpenImageDenoise_DIR is
+        # find_package()'s own standard <prefix>/share/OpenImageDenoise,
+        # letting this find the matching lib/ two levels up regardless of
+        # exactly where that vendor prefix lives. TBB isn't handled here:
+        # embree already resolves it against the system's own libtbb.so (see
+        # CMakeLists.txt's CUDA/glibc rsqrt doc comment area for the other
+        # half of that story - unrelated, just also near this file's other
+        # "why isn't X just from the system" explanations).
+        get_filename_component(_oidn_vendor_lib_dir "${OpenImageDenoise_DIR}/../../lib" ABSOLUTE)
+
+        file(GLOB RAYTRACING_RUNTIME_SOS
+            "${_oidn_vendor_lib_dir}/libOpenImageDenoise*.so*"
+        )
+        install(FILES ${RAYTRACING_RUNTIME_SOS}
+                DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+        )
+
+        set_target_properties(ModelViewer PROPERTIES
+            INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
+            BUILD_WITH_INSTALL_RPATH FALSE
+        )
+    endif()
 endif()
 
 # ============================================================================
@@ -854,7 +997,17 @@ endif()
 # libraries were linked, so without this a Linux build has no platform
 # plugin at all and can't create a window. Previously gated to WIN32 only,
 # which meant Linux installs/AppImages were missing these entirely.
-if(QT_VERSION_MAJOR EQUAL 6)
+#
+# Skipped on Linux when Qt is dynamically linked (the system apt packages
+# used for the .deb build): qt6_deploy_runtime_dependencies() there tries to
+# bundle the ENTIRE system Qt install's plugin set into our own install tree
+# (avahi/cups printing support, embedded-Linux EGL device integration, etc -
+# things this app never uses), and can hard-fail on system .so files with no
+# RPATH section to rewrite. None of that bundling is needed anyway: a
+# dynamically-linked Qt already finds its plugins at the system's standard
+# Qt plugin path, which the target machine has via its own qt6-base/
+# qt6-image-formats-plugins packages (declared in the .deb's Depends:).
+if(QT_VERSION_MAJOR EQUAL 6 AND (WIN32 OR _modelviewer_qt_core_type STREQUAL "STATIC_LIBRARY"))
     qt_generate_deploy_app_script(
         TARGET ModelViewer
         OUTPUT_SCRIPT deploy_script
@@ -863,4 +1016,61 @@ if(QT_VERSION_MAJOR EQUAL 6)
     )
 
     install(SCRIPT ${deploy_script})
+endif()
+
+# ============================================================================
+# Linux desktop integration (.desktop file + icon) and .deb packaging (CPack)
+# ============================================================================
+if(UNIX AND NOT APPLE)
+    install(FILES ModelViewer.desktop
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications"
+            RENAME modelviewer.desktop
+    )
+
+    # The repo only ships a Windows .ico - convert its largest frame to a PNG
+    # for the Linux hicolor icon theme (freedesktop.org menus/taskbars don't
+    # read .ico). ImageMagick's "convert" is already an apt dependency in CI.
+    find_program(IMAGEMAGICK_CONVERT convert)
+    if(IMAGEMAGICK_CONVERT)
+        set(MODELVIEWER_PNG_ICON "${CMAKE_CURRENT_BINARY_DIR}/modelviewer.png")
+        add_custom_command(
+            OUTPUT "${MODELVIEWER_PNG_ICON}"
+            COMMAND "${IMAGEMAGICK_CONVERT}" "${CMAKE_CURRENT_SOURCE_DIR}/res/ModelViewer.ico[0]" "${MODELVIEWER_PNG_ICON}"
+            DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/res/ModelViewer.ico"
+            COMMENT "Converting ModelViewer.ico to PNG for the Linux .desktop icon"
+        )
+        add_custom_target(modelviewer_icon_png ALL DEPENDS "${MODELVIEWER_PNG_ICON}")
+        install(FILES "${MODELVIEWER_PNG_ICON}"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/256x256/apps"
+                RENAME modelviewer.png
+        )
+    else()
+        message(WARNING "ImageMagick 'convert' not found - the Linux .desktop icon will not be installed")
+    endif()
+
+    # CPack DEB generator: packages whatever the install() rules above produce
+    # (this project links Qt/OpenCASCADE/etc. statically via the vcpkg
+    # x64-linux triplet, so there's no separate Qt runtime to bundle the way
+    # the old AppImage packaging needed to - see the CI workflow's history for
+    # that approach). CPACK_DEBIAN_PACKAGE_SHLIBDEPS runs dpkg-shlibdeps over
+    # every installed binary (the exe and Qt's dynamically-loaded plugins
+    # alike) to compute the real runtime dependency list (libc, libstdc++,
+    # libX11/libxcb/libGL, etc.) instead of hand-maintaining one here.
+    set(CPACK_GENERATOR "DEB")
+    set(CPACK_PACKAGE_NAME "modelviewer")
+    set(CPACK_PACKAGE_VERSION "${APP_VERSION_MAJOR}.${APP_VERSION_MINOR}.${APP_VERSION_PATCH}")
+    set(CPACK_PACKAGE_VENDOR "Sharjith N")
+    set(CPACK_PACKAGE_CONTACT "Sharjith N <sharjith@gmail.com>")
+    set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "3D model viewer for CAD/mesh formats with PBR and path-traced rendering")
+    set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/sharjith/ModelViewer-Qt")
+    set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+    set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/gpl-3.0.txt")
+
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "${CPACK_PACKAGE_CONTACT}")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+
+    include(CPack)
 endif()

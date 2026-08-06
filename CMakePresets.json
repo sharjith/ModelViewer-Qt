@@ -37,25 +37,6 @@
       }
     },
     {
-      "name": "linux",
-      "hidden": true,
-      "condition": {
-        "type": "equals",
-        "lhs": "${hostSystemName}",
-        "rhs": "Linux"
-      },
-      "cacheVariables": {
-        "VCPKG_TARGET_TRIPLET": "x64-linux",
-        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/vcpkg/triplets"
-      },
-      "vendor": {
-        "microsoft.com/VisualStudioRemoteSettings/CMake/1.0": {
-          "sourceDir": "/mnt/d/work/progs/Qt6/vcpkg/ModelViewer-Qt",
-          "copySources": false
-        }
-      }
-    },
-    {
       "name": "ninja_debug_vcpkg",
       "inherits": [
         "base",
@@ -64,31 +45,7 @@
         "debug"
       ],
       "displayName": "ninja debug config with vcpkg",
-      "description": "Configure with vcpkg toolchain"
-    },
-    {
-      "name": "wsl_debug_vcpkg",
-      "inherits": [
-        "base",
-        "vcpkg",
-        "ninja",
-        "debug",
-        "linux"
-      ],
-      "displayName": "WSL/Linux debug config with vcpkg",
-      "description": "Configure with vcpkg toolchain, x64-linux triplet (static linkage, matching CI)"
-    },
-    {
-      "name": "wsl_release_vcpkg",
-      "inherits": [
-        "base",
-        "vcpkg",
-        "ninja",
-        "release",
-        "linux"
-      ],
-      "displayName": "WSL/Linux release config with vcpkg",
-      "description": "Configure with vcpkg toolchain, x64-linux triplet (static linkage, matching CI)"
+      "description": "Windows: configure with vcpkg toolchain"
     },
     {
       "name": "ninja_release_vcpkg",
@@ -99,27 +56,41 @@
         "release"
       ],
       "displayName": "ninja release config with vcpkg",
-      "description": "Configure with vcpkg toolchain"
+      "description": "Windows: configure with vcpkg toolchain"
     },
     {
-      "name": "ninja_debug",
+      "name": "linux-system-vendor",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise"
+      }
+    },
+    {
+      "name": "linux_system_debug",
       "inherits": [
         "base",
         "ninja",
-        "debug"
+        "debug",
+        "linux-system-vendor"
       ],
-      "displayName": "Ninja Debug Config",
-      "description": "Configure with vcpkg toolchain"
+      "displayName": "Linux (system packages) Debug",
+      "description": "Configure against system apt Qt6/OpenCASCADE/embree/assimp/etc (dynamic linkage, no vcpkg toolchain) - only OpenImageDenoise and basisu are vendored, via the minimal manifest in packaging/linux/vendor (run vcpkg install there first: see packaging/linux/vendor/vcpkg.json). This is the .deb packaging path - see CMakeLists.txt's Linux packaging section."
     },
     {
-      "name": "ninja_release",
+      "name": "linux_system_release",
       "inherits": [
         "base",
         "ninja",
-        "release"
+        "release",
+        "linux-system-vendor"
       ],
-      "displayName": "Ninja Release Config",
-      "description": "Configure with vcpkg toolchain"
+      "displayName": "Linux (system packages) Release",
+      "description": "Configure against system apt Qt6/OpenCASCADE/embree/assimp/etc (dynamic linkage, no vcpkg toolchain) - only OpenImageDenoise and basisu are vendored, via the minimal manifest in packaging/linux/vendor (run vcpkg install there first: see packaging/linux/vendor/vcpkg.json). This is the .deb packaging path - see CMakeLists.txt's Linux packaging section."
     },
     {
       "hidden": true,
@@ -139,42 +110,28 @@
       "name": "ninja_debug_vcpkg_build",
       "configurePreset": "ninja_debug_vcpkg",
       "displayName": "Build Debug with vcpkg",
-      "description": "Build Debug with Ninja and vcpkg",
+      "description": "Windows: build Debug with Ninja and vcpkg",
       "configuration": "Debug"
     },
     {
       "name": "ninja_release_vcpkg_build",
       "configurePreset": "ninja_release_vcpkg",
       "displayName": "Build Release with vcpkg",
-      "description": "Build Release with Ninja and vcpkg",
+      "description": "Windows: build Release with Ninja and vcpkg",
       "configuration": "Release"
     },
     {
-      "name": "ninja_debug_build",
-      "configurePreset": "ninja_debug",
-      "displayName": "Build Debug",
-      "description": "Build Debug with Ninja",
+      "name": "linux_system_debug_build",
+      "configurePreset": "linux_system_debug",
+      "displayName": "Build Linux (system packages) Debug",
+      "description": "Build Debug with Ninja against system apt packages",
       "configuration": "Debug"
     },
     {
-      "name": "ninja_release_build",
-      "configurePreset": "ninja_release",
-      "displayName": "Build Release",
-      "description": "Build Release with Ninja",
-      "configuration": "Release"
-    },
-    {
-      "name": "wsl_debug_vcpkg_build",
-      "configurePreset": "wsl_debug_vcpkg",
-      "displayName": "Build WSL/Linux Debug with vcpkg",
-      "description": "Build Debug with Ninja and vcpkg on WSL/Linux",
-      "configuration": "Debug"
-    },
-    {
-      "name": "wsl_release_vcpkg_build",
-      "configurePreset": "wsl_release_vcpkg",
-      "displayName": "Build WSL/Linux Release with vcpkg",
-      "description": "Build Release with Ninja and vcpkg on WSL/Linux",
+      "name": "linux_system_release_build",
+      "configurePreset": "linux_system_release",
+      "displayName": "Build Linux (system packages) Release",
+      "description": "Build Release with Ninja against system apt packages",
       "configuration": "Release"
     }
   ],

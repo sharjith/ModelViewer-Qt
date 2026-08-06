@@ -22,8 +22,13 @@
         "xcb-xlib",
         "xkbcommon-x11",
         "xlib",
-        "fontconfig"
+        "fontconfig",
+        "wayland"
       ]
+    },
+    {
+      "name": "qtwayland",
+      "platform": "linux"
     },
     {
       "name": "qttools",

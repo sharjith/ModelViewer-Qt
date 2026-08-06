@@ -1,0 +1,12 @@
+{
+  "name": "modelviewer-linux-vendor",
+  "version-string": "1.0.0",
+  "builtin-baseline": "0878b5224d4a4968940ee296a2e7fae2d3b62983",
+  "dependencies": [
+    {
+      "name": "basisu",
+      "default-features": false
+    },
+    "openimagedenoise"
+  ]
+}
