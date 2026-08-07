@@ -293,19 +293,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	setupUi(this);
 
-	// Configure main splitter to constrain right panel to 450px on startup
-	// Tree view gets the rest of the space
-	QTimer::singleShot(0, this, [this]() {
-		if (splitter && splitter->count() >= 2)
-		{
-			int totalWidth = splitter->width();
-			int rightWidth = 480;  // Right panel fixed width
-			int leftWidth = totalWidth - rightWidth;
-			if (leftWidth < 300) leftWidth = 300;  // Minimum for left side
-			splitter->setSizes({leftWidth, rightWidth});
-		}
-	});
-
 	// Scene graph — owns the node hierarchy mirroring the loaded aiScene tree.
 	_sceneGraph = new SceneGraph(this);
 
@@ -401,90 +388,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	treeWidgetModel->setSceneGraph(_sceneGraph);
 	treeWidgetModel->setViewportWidget(_viewportWidget);
 
-	// -------------------------------------------------------------------
-	// Optional navigation sub-tabs: Variants, Animations, Cameras.
-	// _innerTabWidget starts null. refreshNavigationSubTabs() creates it on
-	// the fly when the first optional-panel-bearing file is loaded and
-	// destroys it when none remain, leaving the layout exactly as
-	// setupUi() made it.
-	// -------------------------------------------------------------------
-	{
-		_variantsPanel = new MaterialVariantsPanel(this);
-		_variantsPanel->setSceneGraph(_sceneGraph);
-		_variantsPanel->hide();  // keep hidden until reparented into _innerTabWidget
-
-		connect(_variantsPanel, &MaterialVariantsPanel::variantActivated,
-		        this,           &ModelViewer::applyVariant);
-		connect(_variantsPanel, &MaterialVariantsPanel::variantDeleteRequested,
-		        this, [this](const QString& sourceFile, int variantIndex)
-		{
-			if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty())
-				return;
-			_undoStack->push(new MetadataDeleteCommand(
-				this, _viewportWidget, MetadataDeleteCommand::Kind::Variant,
-				sourceFile, variantIndex, tr("Delete Variant")));
-		});
-
-		connect(_sceneGraph, &SceneGraph::variantDataChanged,
-		        this,         &ModelViewer::refreshNavigationSubTabs);
-	}
-
-	{
-		_animationsPanel = new AnimationsPanel(this);
-		_animationsPanel->setSceneGraph(_sceneGraph);
-		_animationsPanel->setViewportWidget(_viewportWidget);
-		_animationsPanel->hide();
-
-		connect(_animationsPanel, &AnimationsPanel::clipActivated,
-		        _viewportWidget,         &ViewportWidget::setActiveAnimation);
-		connect(_animationsPanel, &AnimationsPanel::playbackToggled,
-		        _viewportWidget,         &ViewportWidget::setAnimationPlaying);
-		connect(_animationsPanel, &AnimationsPanel::loopToggled,
-		        _viewportWidget,         &ViewportWidget::setAnimationLooping);
-		connect(_animationsPanel, &AnimationsPanel::seekRequested,
-		        _viewportWidget,         &ViewportWidget::seekAnimation);
-		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged,
-		        _viewportWidget,         &ViewportWidget::setAnimationPlaybackSpeed);
-		connect(_animationsPanel, &AnimationsPanel::clipDeleteRequested,
-		        this, [this](const QString& sourceFile, int clipIndex)
-		{
-			if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty())
-				return;
-			_undoStack->push(new MetadataDeleteCommand(
-				this, _viewportWidget, MetadataDeleteCommand::Kind::Animation,
-				sourceFile, clipIndex, tr("Delete Animation")));
-		});
-
-		connect(_sceneGraph, &SceneGraph::animationDataChanged,
-		        this,         &ModelViewer::refreshNavigationSubTabs);
-		connect(_viewportWidget, &ViewportWidget::animationStateChanged,
-		        _animationsPanel, &AnimationsPanel::refresh);
-	}
-
-	{
-		_camerasPanel = new CamerasPanel(this);
-		_camerasPanel->setSceneGraph(_sceneGraph);
-		_camerasPanel->setViewportWidget(_viewportWidget);
-		_camerasPanel->hide();
-
-		connect(_camerasPanel, &CamerasPanel::gltfCameraActivated,
-		        _viewportWidget,      &ViewportWidget::activateGltfCamera);
-		connect(_camerasPanel, &CamerasPanel::systemCameraRequested,
-		        _viewportWidget,      &ViewportWidget::resetToSystemCamera);
-		connect(_camerasPanel, &CamerasPanel::gltfCameraDeleteRequested,
-		        this, [this](const QString& sourceFile, int cameraIndex)
-		{
-			if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty())
-				return;
-			_undoStack->push(new MetadataDeleteCommand(
-				this, _viewportWidget, MetadataDeleteCommand::Kind::Camera,
-				sourceFile, cameraIndex, tr("Delete Camera")));
-		});
-
-		connect(_sceneGraph, &SceneGraph::gltfCameraDataChanged,
-		        this,         &ModelViewer::refreshNavigationSubTabs);
-	}
-
 	// Exploded View Panel — created inside ViewportWidget; wire SceneGraph + selection clearing here.
 	{
 		ExplodedViewPanel* evPanel = _viewportWidget->getExplodedViewPanel();
@@ -550,93 +453,26 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(treeWidgetModel, &SceneTreeWidget::meshVisibilityChanged,
 	        this, &ModelViewer::handleTreeWidgetVisibilityChanged);
 
-	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), treeWidgetModel);
-	connect(shortcut, &QShortcut::activated, this, &ModelViewer::deleteSelectedItems);
+	// Delete/Ctrl+Shift+I/E/A/P/R used to be registered here as one QShortcut
+	// per document. Even after scoping them to
+	// Qt::WidgetWithChildrenShortcut, multiple simultaneously-open documents
+	// still reported them as ambiguous (unlike the ViewToolbar Home
+	// shortcut's parent/child inversion, which that context fix genuinely
+	// resolved). Moved to single MainWindow-owned instances dispatching via
+	// activeMdiChild() instead - see MainWindow's constructor - which
+	// sidesteps the whole class of bug by construction: with only one
+	// instance total, there is nothing for it to be ambiguous with
+	// regardless of how many documents are open or how they're arranged.
 
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this);
-	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileImport);
-
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
-	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileExport);
-
-
-	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::applyTransformationsRequested,
-		this, &ModelViewer::setTransformation);
-
-
-	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::resetTransformationsRequested,
-		this, [this]() {
-			resetTransformation();
-			objectTransformPanel->resetAllValues();
-		});
-
-	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::detachRequested,
-		this, [this]() { detachTransformationsPanel(); });
-
-	// Set default tab to Material Settings
-	tabWidgetVizAttribs->setCurrentIndex(0);
-
-	// Direct-activation shortcuts for each rendering mode (no toggling -
-	// each key jumps straight to its mode regardless of the current one).
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), this);
-	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("ADS"); });
-
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this);
-	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("PBR"); });
-
-	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this);
-	connect(shortcut, &QShortcut::activated, this, [this] { onRenderingModeSelected("RayTraced"); });
-
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
-		this, &ModelViewer::onCustomMaterialApplied);
-
-	// Connection for mesh material apply
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::meshMaterialApplied,
-		this, [this](const QUuid& meshUuid, const Material& material) {
-			// Get all currently selected mesh IDs
-			std::vector<int> selectedIds = getSelectedIDs();
-			QVector<QUuid> selectedUuids;
-
-			for (int id : selectedIds) {
-				QUuid uuid = _viewportWidget->getUuidByIndex(id);
-				if (!uuid.isNull()) {
-					selectedUuids.append(uuid);
-				}
-			}
-
-			// Apply material to all selected meshes via command (undo-able)
-			QString materialName = "Mesh Material";
-			_undoStack->push(new ApplyMaterialCommand(
-				this, _viewportWidget, selectedUuids, material, materialName));
-
-			// Clear editing state
-			_currentEditingMeshUuid = QUuid();
-
-			QApplication::restoreOverrideCursor();
-		});
-
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::detachRequested,
-		this, &ModelViewer::detachMaterialPanel);
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureSamplerChanged,
-		this, &ModelViewer::setTextureSamplersToSelectedItems);
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureCacheClearRequested,
-		this, &ModelViewer::onTextureCacheCleared);
-
-	// Initialize material properties panel with MDI-scoped cache reference
-	Ui_ModelViewer::predefinedMaterialsPanel->initialize(this, _viewportWidget);
-
-	// Pass preview widget to environment panel so it updates on setting changes
-	visualizationEnvironmentPanel->setPreviewWidget(Ui_ModelViewer::predefinedMaterialsPanel->getPreviewWidget());
-
-	visualizationEnvironmentPanel->initialize(this, _viewportWidget);
-
-	connect(_viewportWidget, QOverload<int>::of(&ViewportWidget::displayModeChanged),
-		visualizationEnvironmentPanel, QOverload<int>::of(&VisualizationEnvironmentPanel::onDisplayModeChanged));
-
-	// Update preview when rendering mode changes (ADS vs PBR)
-	auto* previewWidget = Ui_ModelViewer::predefinedMaterialsPanel->getPreviewWidget();
-	connect(_viewportWidget, QOverload<int>::of(&ViewportWidget::renderingModeChanged),
-		this, [previewWidget](int){ previewWidget->update(); });
+	// predefinedMaterialsPanel/objectTransformPanel/tabWidgetVizAttribs/
+	// visualizationEnvironmentPanel are MainWindow's single shared instances
+	// now (used to be built per-document by Ui_ModelViewer::setupUi()) -
+	// their signal wiring and rebind-to-this-document calls live in
+	// MainWindow's constructor/rebindSharedPanelsTo() instead of here.
+	predefinedMaterialsPanel = MainWindow::mainWindow()->materialPropertiesPanel();
+	objectTransformPanel = MainWindow::mainWindow()->objectTransformPanel();
+	tabWidgetVizAttribs = MainWindow::mainWindow()->propertiesTabWidget();
+	visualizationEnvironmentPanel = MainWindow::mainWindow()->visualizationEnvironmentPanel();
 
 	// Connect ViewToolbar rendering mode selection
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
@@ -652,20 +488,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::zoomViewRequested,
 		_viewportWidget, [this]() { _viewportWidget->setZoomingActive(true); });
 
-	connect(Ui_ModelViewer::visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested,
-		this, &ModelViewer::detachEnvironmentPanel);
-
-	connect(Ui_ModelViewer::toolButtonDetach, &QToolButton::clicked,
-		this, &ModelViewer::detachNavigationPanel);
-	toolButtonDetach->setAutoRaise(true);
-	toolButtonDetach->setIcon(QIcon(":/icons/res/detach.png"));
-	toolButtonDetach->setToolTip(tr("Detach from panel"));
-
 	auto installDetachedOverlayCheckBoxStyle = [](QCheckBox* box)
 	{
 		if (!box)
 			return;
-		box->setProperty("detachedOverlayMode", false);
 		box->setStyle(new DetachedOverlayCheckBoxStyle(box->style()));
 	};
 	installDetachedOverlayCheckBoxStyle(checkBoxSelectAll);
@@ -679,7 +505,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	checkBoxAutoFitView->setProperty("transparentOverlayText", true);
 	checkBoxSelectionHighlight->setProperty("transparentOverlayText", true);
 	label_23->setProperty("transparentOverlayText", true);
-	ensureDockedNavigationHeader();
+	attachNavigationOverlay();
 
 	_hasPBRAlbedoTex = false;	
 	_hasPBRMetallicTex = false;
@@ -703,14 +529,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 ModelViewer::~ModelViewer()
 {
-	// Close detached dialogs before destroying
-	if (_detachedMaterialDialog)
-	{
-		_detachedMaterialDialog->close();
-		_detachedMaterialDialog->deleteLater();
-		_detachedMaterialDialog = nullptr;
-	}
-
 	if (_undoStack)
 	{
 		disconnect(_undoStack, nullptr, nullptr, nullptr);  // Prevent callbacks
@@ -1014,747 +832,114 @@ QString ModelViewer::getSupportedQtImagesFilter()
 	return filter;
 }
 
-void ModelViewer::detachMaterialPanel()
+void ModelViewer::attachNavigationOverlay()
 {
-	if (!predefinedMaterialsPanel || !tabWidgetVizAttribs) return;
-
-	if (_detachedMaterialDialog)
-	{
-		reattachMaterialPanel();
-		return;
-	}
-
-	// STEP 1: Extract the entire previewFrame which contains all preview controls
-	// This keeps the preview and all its tools in the main thread
-	// The previewFrame is a QFrame that wraps:
-	//   - MaterialPreviewWidget
-	//   - Shape selector (comboShape)
-	//   - Environment selector (comboEnv)
-	//   - View Components label
-	//   - Texture view selector (comboTexView)
-
-	// Find the previewFrame in the panel's UI
-	QFrame* previewFrame = predefinedMaterialsPanel->findChild<QFrame*>("previewFrame");
-	if (!previewFrame)
-	{
-		qWarning() << "detachMaterialPanel: Failed to find previewFrame";
-		return;
-	}
-
-	// Get the scroll area directly from the UI
-	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaMaterial");
-	if (!scrollArea)
-	{
-		qWarning() << "detachMaterialPanel: Failed to find scroll area";
-		return;
-	}
-
-	_materialOriginalParent = scrollArea;
-
-	// Create a container widget to hold the preview and its tools
-	// This container will be added as a new tab and kept in the main window
-	_materialPreviewContainer = new QWidget(this);
-	_materialPreviewContainer->setWindowTitle(tr("Material Preview"));
-	QVBoxLayout* previewContainerLayout = new QVBoxLayout(_materialPreviewContainer);
-	previewContainerLayout->setContentsMargins(2, 2, 2, 2);
-	previewContainerLayout->setSpacing(4);
-
-	// STEP 2: Reparent the entire previewFrame to the container
-	// This moves the complete preview section with all controls
-	previewFrame->setParent(_materialPreviewContainer);
-	previewContainerLayout->addWidget(previewFrame, 1);  // Stretch to fill
-	previewFrame->show();
-	previewContainerLayout->activate();  // Ensure layout is processed
-	_materialPreviewContainer->adjustSize();  // Adjust container size
-
-	// STEP 3: Save the material panel's original index BEFORE inserting preview tab
-	// This is crucial because inserting at index 0 will shift existing tabs
-	_materialPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
-	_materialPageLabel = _materialPageIndex >= 0 ? tabWidgetVizAttribs->tabText(_materialPageIndex) : "";
-
-	// STEP 4: Create a new tab for the preview container
-	// Insert it at the beginning (index 0) so it's the first tab
-	_materialPreviewContainerTabIndex = 0;
-	tabWidgetVizAttribs->insertTab(_materialPreviewContainerTabIndex, _materialPreviewContainer, tr("Preview"));
-	tabWidgetVizAttribs->setTabIcon(_materialPreviewContainerTabIndex, QIcon(":/icons/res/preview.png"));
-
-	// STEP 5: Make sure the container is visible and the tab is current
-	_materialPreviewContainer->show();
-	_materialPreviewContainer->raise();  // Bring to front
-	if (_materialPreviewContainerTabIndex >= 0)
-	{
-		tabWidgetVizAttribs->setCurrentIndex(_materialPreviewContainerTabIndex);
-	}
-
-	// Ensure the preview frame is properly initialized in the new context
-	previewFrame->update();  // Trigger a repaint
-	previewFrame->repaint();  // Force immediate repaint
-
-	// STEP 6: Hide the original material panel tab and prepare it for floating dialog
-	// After inserting preview tab at index 0, the material panel has shifted one position right
-	if (_materialPageIndex >= 0)
-	{
-		int currentMaterialIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
-		tabWidgetVizAttribs->removeTab(currentMaterialIndex);
-	}
-
-	// STEP 6: The previewFrame has been moved, leaving the panel with just the library tree
-	// The leftLayout (library tree) will expand to fill the available space
-
-	// STEP 6: Create floating dialog with the (now preview-less) panel
-	auto* floatingMatDlg = new FloatingPanelDialog(this, tr("Predefined Materials"));
-	_detachedMaterialDialog = floatingMatDlg;
-
-	// Remove panel from scroll area and add to floating dialog
-	scrollArea->takeWidget();  // Remove current widget from scroll area
-	floatingMatDlg->addContentWidget(predefinedMaterialsPanel);
-
-	// Position and show the floating dialog...
-	QScreen* screen = QGuiApplication::primaryScreen();
-	QRect screenGeom = screen->availableGeometry();
-	QRect myGeometry = this->frameGeometry();
-	int x = myGeometry.right() + 20;
-	int y = myGeometry.top();
-	if (x + 420 > screenGeom.right()) x = screenGeom.right() - predefinedMaterialsPanel->width() - 40;  // Fit within screen;
-	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - predefinedMaterialsPanel->height();
-	if (x < screenGeom.left()) x = screenGeom.left();
-	if (y < screenGeom.top()) y = screenGeom.top();
-
-	_detachedMaterialDialog->move(x, y);
-	_detachedMaterialDialog->resize(420, std::min(predefinedMaterialsPanel->height(), static_cast<int>(height() * 0.95)));
-	_detachedMaterialDialog->show();
-	predefinedMaterialsPanel->setDetached(true);
-
-	connect(floatingMatDlg, &FloatingPanelDialog::reattachRequested,
-		this, &ModelViewer::reattachMaterialPanel);
-
-}
-
-void ModelViewer::reattachMaterialPanel()
-{
-	if (!_detachedMaterialDialog || !_materialOriginalParent) return;
-
-	_detachedMaterialDialog->hide();
-	_detachedMaterialDialog->disconnect();
-
-	if (predefinedMaterialsPanel && _materialPageIndex >= 0)
-	{
-		// STEP 1: Move the previewFrame back into the panel
-		if (_materialPreviewContainer)
-		{
-			// Find the previewFrame in the container
-			QFrame* previewFrame = _materialPreviewContainer->findChild<QFrame*>("previewFrame");
-			if (previewFrame)
-			{
-				// Remove from container
-				QLayout* containerLayout = _materialPreviewContainer->layout();
-				if (containerLayout)
-					containerLayout->removeWidget(previewFrame);
-
-				// Use the panel's helper method to restore the previewFrame to its original location
-				predefinedMaterialsPanel->restorePreviewFrame(previewFrame);
-			}
-
-			// Remove the preview tab from the tab widget
-			if (_materialPreviewContainerTabIndex >= 0)
-			{
-				tabWidgetVizAttribs->removeTab(_materialPreviewContainerTabIndex);
-				_materialPreviewContainerTabIndex = -1;
-			}
-
-			// Delete the temporary container
-			_materialPreviewContainer->deleteLater();
-			_materialPreviewContainer = nullptr;
-		}
-
-		// STEP 2: Re-parent panel back to the scroll area
-		predefinedMaterialsPanel->setParent(nullptr);  // Detach from floating dialog
-
-		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_materialOriginalParent);
-		if (scrollArea)
-		{
-			scrollArea->setWidget(predefinedMaterialsPanel);
-			predefinedMaterialsPanel->show();
-
-			// Preview widgets have been restored to their original layout
-			predefinedMaterialsPanel->setDetached(false);
-		}
-
-		// STEP 3: Restore the panel tab
-		tabWidgetVizAttribs->insertTab(_materialPageIndex, scrollArea->parentWidget(), _materialPageLabel);
-		tabWidgetVizAttribs->setCurrentIndex(_materialPageIndex);
-		tabWidgetVizAttribs->setTabIcon(_materialPageIndex, QIcon(":/icons/res/material.png"));
-	}
-
-	_detachedMaterialDialog->deleteLater();
-	_detachedMaterialDialog = nullptr;
-	_materialOriginalParent = nullptr;
-
-}
-
-void ModelViewer::detachTransformationsPanel()
-{
-	if (!tabWidgetVizAttribs) return;
-
-	if(_detachedTransformationsDialog)
-	{
-		reattachTransformationsPanel();
-		return;
-	}
-
-	// Get the scroll area directly from the UI
-	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaTransform");
-	if (!scrollArea) return;
-
-	_transformationsOriginalParent = scrollArea;
-
-	// Hide the tab
-	_transformationsPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
-	if (_transformationsPageIndex >= 0)
-	{
-		_transformationsPageLabel = tabWidgetVizAttribs->tabText(_transformationsPageIndex);
-		tabWidgetVizAttribs->removeTab(_transformationsPageIndex);
-	}
-
-	// Create floating dialog
-	auto* floatingTransDlg = new FloatingPanelDialog(this, tr("Object Transformations"));
-	_detachedTransformationsDialog = floatingTransDlg;
-
-	// Remove panel from scroll area and add to floating dialog
-	scrollArea->takeWidget();  // Remove current widget from scroll area
-	floatingTransDlg->addContentWidget(objectTransformPanel);
-	// Position and show...
-	QScreen* screen = QGuiApplication::primaryScreen();
-	QRect screenGeom = screen->availableGeometry();
-	QRect myGeometry = this->frameGeometry();
-	int x = myGeometry.right() + 20;
-	int y = myGeometry.top();
-	if (x + 420 > screenGeom.right()) x = screenGeom.right() - objectTransformPanel->width() - 40;  // Fit within screen;
-	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - objectTransformPanel->height();
-	if (x < screenGeom.left()) x = screenGeom.left();
-	if (y < screenGeom.top()) y = screenGeom.top();
-	_detachedTransformationsDialog->move(x, y);
-	_detachedTransformationsDialog->resize(420, std::min(objectTransformPanel->height(), static_cast<int>(height() * 0.95)));
-	_detachedTransformationsDialog->show();
-	objectTransformPanel->setDetached(true);
-	connect(floatingTransDlg, &FloatingPanelDialog::reattachRequested,
-		this, &ModelViewer::reattachTransformationsPanel);
-}
-
-void ModelViewer::reattachTransformationsPanel()
-{
-	if (!_detachedTransformationsDialog || !_transformationsOriginalParent) return;
-
-	_detachedTransformationsDialog->hide();
-	_detachedTransformationsDialog->disconnect();
-
-	if (objectTransformPanel && _transformationsPageIndex >= 0)
-	{
-		objectTransformPanel->setParent(nullptr);  // Detach from floating dialog
-
-		// Re-parent panel back to the scroll area
-		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_transformationsOriginalParent);
-		if (scrollArea)
-		{
-			scrollArea->setWidget(objectTransformPanel);
-			objectTransformPanel->show();
-			objectTransformPanel->setDetached(false);
-		}
-
-		// Restore the tab
-		tabWidgetVizAttribs->insertTab(_transformationsPageIndex, scrollArea->parentWidget(), _transformationsPageLabel);
-		tabWidgetVizAttribs->setCurrentIndex(_transformationsPageIndex);
-		tabWidgetVizAttribs->setTabIcon(_transformationsPageIndex, QIcon(":/icons/res/transformations.png"));
-	}
-
-	_detachedTransformationsDialog->deleteLater();
-	_detachedTransformationsDialog = nullptr;
-	_transformationsOriginalParent = nullptr;
-}
-
-void ModelViewer::detachEnvironmentPanel()
-{
-	if (!visualizationEnvironmentPanel || !tabWidgetVizAttribs) return;
-
-	if (_detachedEnvironmentDialog)
-	{
-		reattachEnvironmentPanel();
-		return;
-	}
-
-	// Get the scroll area directly from the UI
-	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaEnv");
-	if (!scrollArea) return;
-
-	_environmentOriginalParent = scrollArea;
-
-	// Hide the tab
-	_environmentPageIndex = controlstabWidget->indexOf(scrollArea->parentWidget());
-	if (_environmentPageIndex >= 0)
-	{
-		_environmentPageLabel = controlstabWidget->tabText(_environmentPageIndex);
-		controlstabWidget->removeTab(_environmentPageIndex);
-	}
-
-	// Create floating dialog
-	auto* floatingEnvDlg = new FloatingPanelDialog(this, tr("Visualization Environment Settings"));
-	_detachedEnvironmentDialog = floatingEnvDlg;
-
-	// Remove panel from scroll area and add to floating dialog
-	scrollArea->takeWidget();  // Remove current widget from scroll area
-	floatingEnvDlg->addContentWidget(visualizationEnvironmentPanel);
-
-	// Position and show...
-	QScreen* screen = QGuiApplication::primaryScreen();
-	QRect screenGeom = screen->availableGeometry();
-	QRect myGeometry = this->frameGeometry();
-	int x = myGeometry.right() + 20;
-	int y = myGeometry.top();
-	if (x + 420 > screenGeom.right()) x = screenGeom.right() - visualizationEnvironmentPanel->width() - 40;  // Fit within screen;
-	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - visualizationEnvironmentPanel->height();
-	if (x < screenGeom.left()) x = screenGeom.left();
-	if (y < screenGeom.top()) y = screenGeom.top();
-
-	_detachedEnvironmentDialog->move(x, y);
-	_detachedEnvironmentDialog->resize(420, std::min(visualizationEnvironmentPanel->height(), static_cast<int>(height() * 0.95)));
-	_detachedEnvironmentDialog->show();
-	visualizationEnvironmentPanel->setDetached(true);
-
-	connect(floatingEnvDlg, &FloatingPanelDialog::reattachRequested,
-		this, &ModelViewer::reattachEnvironmentPanel);
-}
-
-void ModelViewer::reattachEnvironmentPanel()
-{
-	if (!_detachedEnvironmentDialog || !_environmentOriginalParent) return;
-
-	_detachedEnvironmentDialog->hide();
-	_detachedEnvironmentDialog->disconnect();
-
-	if (visualizationEnvironmentPanel && _environmentPageIndex >= 0)
-	{
-		visualizationEnvironmentPanel->setParent(nullptr);  // Detach from floating dialog
-
-		// Re-parent panel back to the scroll area
-		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_environmentOriginalParent);
-		if (scrollArea)
-		{
-			scrollArea->setWidget(visualizationEnvironmentPanel);
-			visualizationEnvironmentPanel->show();
-			visualizationEnvironmentPanel->setDetached(false);
-			// Restore the tab
-			controlstabWidget->insertTab(_environmentPageIndex, scrollArea->parentWidget(), _environmentPageLabel);
-			controlstabWidget->setCurrentIndex(_environmentPageIndex);
-			controlstabWidget->setTabIcon(_environmentPageIndex, QIcon(":/icons/res/environment.png"));
-		}
-	}
-
-	_detachedEnvironmentDialog->deleteLater();
-	_detachedEnvironmentDialog = nullptr;
-	_environmentOriginalParent = nullptr;
-}
-
-void ModelViewer::detachNavigationPanel()
-{
-	if (!modelNavigationWidget) return;
-
-	// Toggle back when already detached as an overlay.
-	if (_detachedNavigationOverlay)
-	{
-		reattachNavigationPanel();
-		return;
-	}
-
-	const int overlayWidth = 420;
-	QWidget* navigationContent = _innerTabWidget
-		? static_cast<QWidget*>(_innerTabWidget)
-		: static_cast<QWidget*>(modelNavigationWidget);
-
-	_detachedNavigationOverlay = _viewportWidget->attachOverlayPanel(
-		navigationContent,
-		QRect(10, 36, overlayWidth, std::max(120, _viewportWidget->height() - 36 - 96)),
-		Qt::AlignTop | Qt::AlignLeft,
-		"navigationOverlayPanel");
-
-	if (_detachedNavigationOverlay)
-	{
-		modelNavigationWidget->setAttribute(Qt::WA_NoSystemBackground, true);
-		modelNavigationWidget->setAutoFillBackground(false);
-		modelNavigationWidget->setProperty("detachedOverlayMode", true);
-		treeWidgetModel->setDetachedOverlayMode(true);
-		checkBoxSelectAll->setProperty("detachedOverlayMode", true);
-		checkBoxAutoFitView->setProperty("detachedOverlayMode", true);
-		checkBoxSelectionHighlight->setProperty("detachedOverlayMode", true);
-		checkBoxSelectAll->update();
-		checkBoxAutoFitView->update();
-		checkBoxSelectionHighlight->update();
-
-		// Apply overlay mode to the optional panels when they exist.
-		if (_variantsPanel)
-			_variantsPanel->setDetachedOverlayMode(true);
-		if (_animationsPanel)
-			_animationsPanel->setDetachedOverlayMode(true);
-		if (_camerasPanel)
-			_camerasPanel->setDetachedOverlayMode(true);
-		_viewportWidget->refreshDetachedNavigationOverlayTheme();
-
-		updateNavigationOverlayGeometry();
-		_detachedNavigationOverlay->show();
-		QMetaObject::invokeMethod(this, [this]()
-		{
-			if (!_detachedNavigationOverlay || !_viewportWidget)
-				return;
-			_viewportWidget->refreshDetachedNavigationOverlayTheme();
-			if (_variantsPanel)
-				_variantsPanel->refreshDetachedOverlayTheme();
-			if (_animationsPanel)
-				_animationsPanel->refreshDetachedOverlayTheme();
-			if (_camerasPanel)
-				_camerasPanel->refreshDetachedOverlayTheme();
-		}, Qt::QueuedConnection);
-
-		if (auto* wrapperLayout = qobject_cast<QVBoxLayout*>(_detachedNavigationOverlay->layout()))
-		{
-			if (!_detachedNavigationOverlay->findChild<QWidget*>("navigationOverlayToolbar"))
-			{
-				auto* toolbar = new QWidget(_detachedNavigationOverlay);
-				toolbar->setObjectName("navigationOverlayToolbar");
-				auto* toolbarLayout = new QHBoxLayout(toolbar);
-				toolbarLayout->setContentsMargins(4, 2, 4, 4);
-				toolbarLayout->addStretch();
-
-				auto* reattachButton = new QToolButton(toolbar);
-				reattachButton->setObjectName("navigationOverlayReattachButton");
-				reattachButton->setAutoRaise(true);
-				reattachButton->setToolTip(tr("Reattach to panel"));
-				reattachButton->setIcon(QIcon(":/icons/res/reattach.png"));
-				connect(reattachButton, &QToolButton::clicked,
-					this, &ModelViewer::reattachNavigationPanel);
-				toolbarLayout->addWidget(reattachButton);
-
-				wrapperLayout->insertWidget(0, toolbar);
-			}
-		}
-
-		// Hide the navigation tab
-		_navigationPageIndex = controlstabWidget->indexOf(controlstabWidgetPage1);
-		if (_navigationPageIndex >= 0)
-		{
-			_navigationPageLabel = controlstabWidget->tabText(_navigationPageIndex);
-			controlstabWidget->removeTab(_navigationPageIndex);
-		}
-	}
-
-	toolButtonDetach->setIcon(QIcon(":/icons/res/reattach.png"));
-	toolButtonDetach->setToolTip(tr("Reattach to panel"));
-	toolButtonDetach->hide();
-	navigationContent->show();
-}
-
-void ModelViewer::updateNavigationOverlayGeometry()
-{
-	if (!_detachedNavigationOverlay || !_viewportWidget)
+	// Permanent now, not a toggle - the docked/detached choice and its
+	// tab-removal/reattach-button bookkeeping are gone. Called once from the
+	// constructor; the navigation tree lives as a transparent CAD-style
+	// overlay glued to this document's own viewport for its entire lifetime.
+	if (!modelNavigationWidget || _navigationOverlay)
 		return;
 
-	const int overlayTop = 36;
-	const int overlayLeft = 10;
-	const int overlayWidth = 420;
-	const int overlayBottomMargin = 96;
-	_detachedNavigationOverlay->setGeometry(
-		overlayLeft,
-		overlayTop,
-		overlayWidth,
-		std::max(120, _viewportWidget->height() - overlayTop - overlayBottomMargin));
-}
-
-void ModelViewer::ensureDockedNavigationHeader()
-{
-	if (!navigationFrame)
-		return;
-
-	auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout());
-	if (!grid)
-		return;
-
-	if (!_dockedNavigationHeader)
-	{
-		auto* header = new QWidget(navigationFrame);
-		header->setObjectName("navigationDockedToolbar");
-		auto* headerLayout = new QHBoxLayout(header);
-		headerLayout->setContentsMargins(4, 2, 4, 2);
-		headerLayout->setSpacing(0);
-		headerLayout->addWidget(toolButtonDetach);
-		headerLayout->addStretch();
-		_dockedNavigationHeader = header;
-		grid->addWidget(header, 0, 0);
-	}
-
-	if (modelNavigationWidget && modelNavigationWidget->parentWidget() == navigationFrame)
-	{
-		grid->removeWidget(modelNavigationWidget);
-		grid->addWidget(modelNavigationWidget, 1, 0);
-	}
-	if (_innerTabWidget && _innerTabWidget->parentWidget() == navigationFrame)
-	{
-		grid->removeWidget(_innerTabWidget);
-		grid->addWidget(_innerTabWidget, 1, 0);
-	}
-}
-
-void ModelViewer::placeNavigationContentInHost(QWidget* navigationContent, QWidget* hostParent, QLayout* hostLayout)
-{
-	if (!navigationContent || !hostLayout)
-		return;
-
-	hostLayout->removeWidget(navigationContent);
-
-	if (hostParent == navigationFrame)
-	{
-		ensureDockedNavigationHeader();
-		if (auto* grid = qobject_cast<QGridLayout*>(hostLayout))
-		{
-			grid->addWidget(navigationContent, 1, 0);
-			return;
-		}
-	}
-
-	hostLayout->addWidget(navigationContent);
-}
-
-void ModelViewer::reattachNavigationPanel()
-{
-	if (!_detachedNavigationOverlay) return;
-
-	treeWidgetModel->setDetachedOverlayMode(false);
-	modelNavigationWidget->setAttribute(Qt::WA_NoSystemBackground, false);
-	modelNavigationWidget->setAutoFillBackground(true);
-	modelNavigationWidget->setProperty("detachedOverlayMode", false);
-	checkBoxSelectAll->setProperty("detachedOverlayMode", false);
-	checkBoxAutoFitView->setProperty("detachedOverlayMode", false);
-	checkBoxSelectionHighlight->setProperty("detachedOverlayMode", false);
+	modelNavigationWidget->setAttribute(Qt::WA_NoSystemBackground, true);
+	modelNavigationWidget->setAutoFillBackground(false);
+	modelNavigationWidget->setProperty("detachedOverlayMode", true);
+	treeWidgetModel->setDetachedOverlayMode(true);
+	checkBoxSelectAll->setProperty("detachedOverlayMode", true);
+	checkBoxAutoFitView->setProperty("detachedOverlayMode", true);
+	checkBoxSelectionHighlight->setProperty("detachedOverlayMode", true);
 	checkBoxSelectAll->update();
 	checkBoxAutoFitView->update();
 	checkBoxSelectionHighlight->update();
 
-	if (_variantsPanel)
-		_variantsPanel->setDetachedOverlayMode(false);
-	if (_animationsPanel)
-		_animationsPanel->setDetachedOverlayMode(false);
-	if (_camerasPanel)
-		_camerasPanel->setDetachedOverlayMode(false);
+	// The overlay is an absolutely-positioned floating child of
+	// _viewportWidget (see attachOverlayPanel() below), not a normal
+	// side-by-side grid column - so the collapse button has to be wrapped
+	// INSIDE the same content widget that gets attached as the overlay,
+	// glued to modelNavigationWidget's own left edge, rather than living
+	// in this document's outer gridLayout (which attachOverlayPanel()
+	// reparents modelNavigationWidget away from entirely).
+	_navCollapseButton = new QToolButton();
+	_navCollapseButton->setObjectName(QStringLiteral("navCollapseButton"));
+	_navCollapseButton->setMinimumSize(14, 0);
+	_navCollapseButton->setMaximumSize(14, QWIDGETSIZE_MAX);
+	_navCollapseButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+	_navCollapseButton->setAutoRaise(true);
+	_navCollapseButton->setText(QStringLiteral("◀"));
+	_navCollapseButton->setToolTip(tr("Collapse the model navigation panel"));
 
-	QWidget* navigationContent = _innerTabWidget
-		? static_cast<QWidget*>(_innerTabWidget)
-		: static_cast<QWidget*>(modelNavigationWidget);
+	auto* navComposite = new QWidget();
+	navComposite->setObjectName(QStringLiteral("navComposite"));
+	// Transparent like modelNavigationWidget itself, so the overlay
+	// wrapper's own translucent panel styling (applyOverlayPanelStyle())
+	// shows through instead of this composite's plain default background
+	// covering it.
+	navComposite->setAttribute(Qt::WA_NoSystemBackground, true);
+	navComposite->setAutoFillBackground(false);
+	auto* navCompositeLayout = new QHBoxLayout(navComposite);
+	navCompositeLayout->setContentsMargins(0, 0, 0, 0);
+	navCompositeLayout->setSpacing(0);
+	navCompositeLayout->addWidget(_navCollapseButton);
+	navCompositeLayout->addWidget(modelNavigationWidget, 1);
 
-	_viewportWidget->takeOverlayPanel(navigationContent);
-	_detachedNavigationOverlay = nullptr;
+	// Whole panel (not just its contents) hides on collapse - the button
+	// stays behind (it's a sibling in navComposite, not a child of
+	// modelNavigationWidget) so it's still clickable to re-expand.
+	// updateNavigationOverlayGeometry() shrinks the overlay's own width to
+	// match so the collapsed state doesn't leave 400+px of dead space.
+	connect(_navCollapseButton, &QToolButton::clicked, this, [this]() {
+		_navigationCollapsed = !_navigationCollapsed;
+		modelNavigationWidget->setVisible(!_navigationCollapsed);
+		_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
+		_navCollapseButton->setToolTip(_navigationCollapsed
+			? tr("Expand the model navigation panel")
+			: tr("Collapse the model navigation panel"));
+		updateNavigationOverlayGeometry();
+	});
 
-	placeNavigationContentInHost(navigationContent, navigationFrame, navigationFrame->layout());
+	const int overlayWidth = 420;
+	_navigationOverlay = _viewportWidget->attachOverlayPanel(
+		navComposite,
+		QRect(10, 36, overlayWidth, std::max(120, _viewportWidget->height() - 36 - 88)),
+		Qt::AlignTop | Qt::AlignLeft,
+		"navigationOverlayPanel");
 
-	// Restore the navigation tab
-	if (_navigationPageIndex >= 0)
+	if (_navigationOverlay)
 	{
-		controlstabWidget->insertTab(_navigationPageIndex, controlstabWidgetPage1, _navigationPageLabel);
-		controlstabWidget->setCurrentIndex(_navigationPageIndex);
-		controlstabWidget->setTabIcon(_navigationPageIndex, QIcon(":/icons/res/navigation.png"));
-		_navigationPageIndex = -1;
-	}
-
-	toolButtonDetach->setIcon(QIcon(":/icons/res/detach.png"));
-	toolButtonDetach->setToolTip(tr("Detach from panel"));
-	toolButtonDetach->show();
-	navigationContent->show();
-}
-
-void ModelViewer::refreshNavigationSubTabs()
-{
-	if (!_variantsPanel || !_animationsPanel || !_camerasPanel || !_sceneGraph)
-		return;
-
-	const bool hasVariants   = !_sceneGraph->filesWithVariants().isEmpty();
-	const bool hasAnimations = !_sceneGraph->filesWithAnimations().isEmpty();
-	const bool hasCameras    = !_sceneGraph->filesWithGltfCameras().isEmpty();
-	const bool needsInnerTabs = hasVariants || hasAnimations || hasCameras;
-
-	if (needsInnerTabs && !_innerTabWidget)
-	{
-		QWidget* hostParent = modelNavigationWidget->parentWidget()
-			? modelNavigationWidget->parentWidget()
-			: navigationFrame;
-		QLayout* hostLayout = hostParent ? hostParent->layout() : nullptr;
-		if (!hostLayout)
-			return;
-
-		// Create the tab widget parented to the current host, which may be the
-		// docked navigation frame or the detached overlay wrapper.
-		_innerTabWidget = new QTabWidget(hostParent);
-		_innerTabWidget->hide();
-		_innerTabWidget->setIconSize(QSize(36, 36));
-
-		// Remove modelNavigationWidget from its current layout and
-		// reparent it into tab 0 of the new tab widget.
-		hostLayout->removeWidget(modelNavigationWidget);
-		_innerTabWidget->addTab(modelNavigationWidget, QIcon(":/icons/res/expand.png"), tr("Model"));
-
-		placeNavigationContentInHost(_innerTabWidget, hostParent, hostLayout);
-
-		connect(_innerTabWidget, &QTabWidget::currentChanged,
-		        this, &ModelViewer::onInnerNavTabChanged);
-
-		if (_detachedNavigationOverlay)
-			_innerTabWidget->setProperty("detachedOverlayMode", true);
-	}
-
-	if (_innerTabWidget)
-	{
-		auto syncOptionalTab = [this](QWidget* panel, bool present, const QIcon& icon, const QString& label)
+		_viewportWidget->refreshDetachedNavigationOverlayTheme();
+		updateNavigationOverlayGeometry();
+		_navigationOverlay->show();
+		QMetaObject::invokeMethod(this, [this]()
 		{
-			const int tabIndex = _innerTabWidget->indexOf(panel);
-			if (present)
-			{
-				if (tabIndex < 0)
-				{
-					panel->setParent(_innerTabWidget);
-					_innerTabWidget->addTab(panel, icon, label);
-				}
-			}
-			else if (tabIndex >= 0)
-			{
-				_innerTabWidget->removeTab(tabIndex);
-				panel->setParent(this);
-				panel->hide();
-			}
-		};
-
-		syncOptionalTab(_variantsPanel,   hasVariants,   QIcon(":/icons/res/material_variants.png"), tr("Variants"));
-		syncOptionalTab(_animationsPanel, hasAnimations, QIcon(":/icons/res/animations.png"),         tr("Animations"));
-		syncOptionalTab(_camerasPanel,    hasCameras,    QIcon(":/icons/res/camera.png"),              tr("Cameras"));
-
-		// Enforce tab order: Model(0) → Variants(1) → Animations → Cameras(last)
-		const int modelTabIndex = _innerTabWidget->indexOf(modelNavigationWidget);
-		if (modelTabIndex > 0)
-			_innerTabWidget->tabBar()->moveTab(modelTabIndex, 0);
-
-		const int variantsTabIndex = _innerTabWidget->indexOf(_variantsPanel);
-		if (variantsTabIndex >= 0)
-		{
-			const int desiredVariantIndex = 1;
-			if (variantsTabIndex != desiredVariantIndex)
-				_innerTabWidget->tabBar()->moveTab(variantsTabIndex, desiredVariantIndex);
-		}
-
-		const int animationsTabIndex = _innerTabWidget->indexOf(_animationsPanel);
-		if (animationsTabIndex >= 0)
-		{
-			const int desiredAnimationIndex = hasVariants ? 2 : 1;
-			if (animationsTabIndex != desiredAnimationIndex)
-				_innerTabWidget->tabBar()->moveTab(animationsTabIndex, desiredAnimationIndex);
-		}
-
-		const int camerasTabIndex = _innerTabWidget->indexOf(_camerasPanel);
-		if (camerasTabIndex >= 0)
-		{
-			// Cameras is always the last tab
-			const int desiredCameraIndex = _innerTabWidget->count() - 1;
-			if (camerasTabIndex != desiredCameraIndex)
-				_innerTabWidget->tabBar()->moveTab(camerasTabIndex, desiredCameraIndex);
-		}
-
-		if (hasVariants)
-			_variantsPanel->refresh();
-		if (hasAnimations)
-			_animationsPanel->refresh();
-		if (hasCameras)
-			_camerasPanel->refresh();
-
-		if (_detachedNavigationOverlay && _viewportWidget)
-		{
-			if (hasVariants)
-				_variantsPanel->setDetachedOverlayMode(true);
-			if (hasAnimations)
-				_animationsPanel->setDetachedOverlayMode(true);
-			if (hasCameras)
-				_camerasPanel->setDetachedOverlayMode(true);
-
-			_viewportWidget->refreshDetachedNavigationOverlayTheme();
-			QMetaObject::invokeMethod(this, [this, hasVariants, hasAnimations, hasCameras]()
-			{
-				if (!_detachedNavigationOverlay || !_viewportWidget)
-					return;
+			if (_navigationOverlay && _viewportWidget)
 				_viewportWidget->refreshDetachedNavigationOverlayTheme();
-				if (hasVariants && _variantsPanel)
-					_variantsPanel->refreshDetachedOverlayTheme();
-				if (hasAnimations && _animationsPanel)
-					_animationsPanel->refreshDetachedOverlayTheme();
-				if (hasCameras && _camerasPanel)
-					_camerasPanel->refreshDetachedOverlayTheme();
-			}, Qt::QueuedConnection);
-		}
+		}, Qt::QueuedConnection);
 	}
 
-	if (!needsInnerTabs && _innerTabWidget)
-	{
-		disconnect(_innerTabWidget, &QTabWidget::currentChanged,
-		           this, &ModelViewer::onInnerNavTabChanged);
-
-		QWidget* hostParent = _innerTabWidget->parentWidget()
-			? _innerTabWidget->parentWidget()
-			: navigationFrame;
-		QLayout* hostLayout = hostParent ? hostParent->layout() : nullptr;
-
-		// Reparent modelNavigationWidget back to the current host (docked or detached).
-		modelNavigationWidget->setParent(hostParent);
-		if (hostLayout)
-		{
-			hostLayout->removeWidget(_innerTabWidget);
-			placeNavigationContentInHost(modelNavigationWidget, hostParent, hostLayout);
-		}
-
-		_variantsPanel->setParent(this);
-		_variantsPanel->hide();
-		_animationsPanel->setParent(this);
-		_animationsPanel->hide();
-		_camerasPanel->setParent(this);
-		_camerasPanel->hide();
-
-		delete _innerTabWidget;
-		_innerTabWidget = nullptr;
-
-		modelNavigationWidget->show();
-	}
-	else if (_innerTabWidget)
-	{
-		if (_detachedNavigationOverlay)
-			_innerTabWidget->setProperty("detachedOverlayMode", true);
-		_innerTabWidget->show();
-	}
+	modelNavigationWidget->show();
 }
 
-void ModelViewer::onInnerNavTabChanged(int index)
+void ModelViewer::updateNavigationOverlayGeometry()
 {
-	if (!_innerTabWidget)
+	if (!_navigationOverlay || !_viewportWidget)
 		return;
 
-	QWidget* currentWidget = _innerTabWidget->widget(index);
-	if (currentWidget == _variantsPanel)
-	{
-		_variantsPanel->refresh();
-		if (_detachedNavigationOverlay)
-			_variantsPanel->refreshDetachedOverlayTheme();
-	}
-	else if (currentWidget == _animationsPanel)
-	{
-		_animationsPanel->refresh();
-		if (_detachedNavigationOverlay)
-			_animationsPanel->refreshDetachedOverlayTheme();
-	}
-	else if (currentWidget == _camerasPanel)
-	{
-		_camerasPanel->refresh();
-		if (_detachedNavigationOverlay)
-			_camerasPanel->refreshDetachedOverlayTheme();
-	}
+	const int overlayTop = 36;
+	const int overlayLeft = 10;
+	const int overlayExpandedWidth = 420;
+	// Just enough for the collapse button itself once collapsed - matches
+	// its own locked 14px width plus the overlay wrapper's own 6px margins
+	// (see attachOverlayPanel()).
+	const int overlayCollapsedWidth = 26;
+	// ViewToolbar (bottom-docked, see ViewToolbar::reposition()) is a fixed
+	// 76px tall, positioned 10px above the viewport's bottom edge - 88
+	// leaves a small 2px gap above its top edge without overlapping it.
+	const int overlayBottomMargin = 88;
+	_navigationOverlay->setGeometry(
+		overlayLeft,
+		overlayTop,
+		_navigationCollapsed ? overlayCollapsedWidth : overlayExpandedWidth,
+		std::max(120, _viewportWidget->height() - overlayTop - overlayBottomMargin));
 }
 
 void ModelViewer::showTextureDebugPanel()
@@ -1801,6 +986,33 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 	_viewportWidget->refreshAnimationMaterialState(sourceFile);
 	_viewportWidget->update();
 	_viewportWidget->notifyRayTracedSceneMutated();
+}
+
+void ModelViewer::deleteVariant(const QString& sourceFile, int variantIndex)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty())
+		return;
+	_undoStack->push(new MetadataDeleteCommand(
+		this, _viewportWidget, MetadataDeleteCommand::Kind::Variant,
+		sourceFile, variantIndex, tr("Delete Variant")));
+}
+
+void ModelViewer::deleteAnimationClip(const QString& sourceFile, int clipIndex)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty())
+		return;
+	_undoStack->push(new MetadataDeleteCommand(
+		this, _viewportWidget, MetadataDeleteCommand::Kind::Animation,
+		sourceFile, clipIndex, tr("Delete Animation")));
+}
+
+void ModelViewer::deleteGltfCamera(const QString& sourceFile, int cameraIndex)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty())
+		return;
+	_undoStack->push(new MetadataDeleteCommand(
+		this, _viewportWidget, MetadataDeleteCommand::Kind::Camera,
+		sourceFile, cameraIndex, tr("Delete Camera")));
 }
 
 void ModelViewer::setupUndoStackMonitoring()
@@ -1941,7 +1153,7 @@ void ModelViewer::cleanupOrphanedMeshes()
 bool ModelViewer::saveMaterialsBeforeClose()
 {
 	// Get the material panel
-	MaterialPropertiesPanel* materialPanel = Ui_ModelViewer::predefinedMaterialsPanel;
+	MaterialPropertiesPanel* materialPanel = predefinedMaterialsPanel;
 	if (!materialPanel)
 	{
 		qWarning() << "Material panel not available for saving unsaved materials";
@@ -2346,7 +1558,7 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 void ModelViewer::closeEvent(QCloseEvent* event)
 {
 	// Check for unsaved materials first
-	MaterialPropertiesPanel* materialPanel = Ui_ModelViewer::predefinedMaterialsPanel;
+	MaterialPropertiesPanel* materialPanel = predefinedMaterialsPanel;
 	QSet<QString> unsavedKeys = materialPanel ? materialPanel->getUnsavedMaterialKeys() : QSet<QString>();
 
 	if (!unsavedKeys.isEmpty())
@@ -3520,39 +2732,22 @@ void ModelViewer::displaySelectedMeshInfo()
 
 void ModelViewer::showVisualizationModelPage()
 {
-	controlstabWidget->setCurrentWidget(controlstabWidgetPage3);
+	MainWindow::mainWindow()->showEnvironmentDockPage();
 }
 
 void ModelViewer::showPredefinedMaterialsPage()
 {
-	controlstabWidget->setCurrentWidget(controlstabWidgetPage2);
-
-	if (_detachedMaterialDialog)
-	{
-		if (_materialPreviewContainer && tabWidgetVizAttribs->indexOf(_materialPreviewContainer) >= 0)
-			tabWidgetVizAttribs->setCurrentWidget(_materialPreviewContainer);
-
-		_detachedMaterialDialog->show();
-		_detachedMaterialDialog->raise();
-		_detachedMaterialDialog->activateWindow();
-		return;
-	}
-
-	if (tabWidgetVizAttribs->indexOf(materialProcessorPage) >= 0)
-		tabWidgetVizAttribs->setCurrentWidget(materialProcessorPage);
+	MainWindow::mainWindow()->showMaterialsPropertiesPage();
 }
 
 void ModelViewer::showTransformationsPage()
 {
-	controlstabWidget->setCurrentWidget(controlstabWidgetPage2);
-	tabWidgetVizAttribs->setCurrentWidget(transformationsPage);
-	_viewportWidget->showTransformGizmoForSelection(true);
-	updateTransformationValues();
+	MainWindow::mainWindow()->showTransformationsPropertiesPage();
 }
 
 void ModelViewer::showEnvironmentPage()
 {
-	tabWidgetVizAttribs->setCurrentIndex(2);
+	MainWindow::mainWindow()->showEnvironmentDockPage();
 }
 
 void ModelViewer::handleTreeWidgetVisibilityChanged()
@@ -3585,7 +2780,7 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 		else
 			_viewportWidget->showTransformGizmoForSelection(false);
 	}
-	else if (tabWidgetVizAttribs->currentWidget() == transformationsPage)
+	else if (tabWidgetVizAttribs->currentIndex() == 1) // Transformations tab
 	{
 		_viewportWidget->showTransformGizmoForSelection(true);
 	}
@@ -5192,7 +4387,7 @@ bool ModelViewer::saveToFile(const QString& fileName)
 	// "save without clicking Apply" still captures the intended textures/properties.
 	if (!_currentEditingMeshUuid.isNull())
 	{
-		const Material* panelMat = Ui_ModelViewer::predefinedMaterialsPanel->material();
+		const Material* panelMat = predefinedMaterialsPanel->material();
 		if (panelMat && _viewportWidget)
 		{
 			SceneMesh* mesh = _viewportWidget->getMeshByUuid(_currentEditingMeshUuid);
@@ -5288,19 +4483,6 @@ void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
 	else
 	{
 		checkBoxSelectAll->setCheckState(Qt::Checked);
-	}
-}
-
-void ModelViewer::on_tabWidgetVizAttribs_currentChanged(int index)
-{
-	if (index == 1) // Transformations tab
-	{
-		_viewportWidget->showTransformGizmoForSelection(true);
-		updateTransformationValues();
-	}
-	else
-	{
-		_viewportWidget->showTransformGizmoForSelection(false);
 	}
 }
 
@@ -5426,6 +4608,28 @@ void ModelViewer::onCustomMaterialApplied(const Material& mat)
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, uuids, mat, materialName
 	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& material)
+{
+	Q_UNUSED(meshUuid);
+
+	std::vector<int> selectedIds = getSelectedIDs();
+	QVector<QUuid> selectedUuids;
+	for (int id : selectedIds)
+	{
+		QUuid uuid = _viewportWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			selectedUuids.append(uuid);
+	}
+
+	QString materialName = "Mesh Material";
+	_undoStack->push(new ApplyMaterialCommand(
+		this, _viewportWidget, selectedUuids, material, materialName));
+
+	_currentEditingMeshUuid = QUuid();
 
 	QApplication::restoreOverrideCursor();
 }
@@ -5721,10 +4925,10 @@ void ModelViewer::editMeshMaterial()
 	QString meshName = mesh->getName();
 
 	// Create unsaved material from mesh's material
-	Ui_ModelViewer::predefinedMaterialsPanel->createUnsavedMaterialFromMesh(meshName, meshMaterial);
+	predefinedMaterialsPanel->createUnsavedMaterialFromMesh(meshName, meshMaterial);
 
 	// Set the editing mesh UUID in the panel
-	Ui_ModelViewer::predefinedMaterialsPanel->setEditingMeshUuid(meshUuid);
+	predefinedMaterialsPanel->setEditingMeshUuid(meshUuid);
 
 	// Show material properties panel
 	showPredefinedMaterialsPage();

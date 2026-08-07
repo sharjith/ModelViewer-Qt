@@ -134,10 +134,10 @@ int main(int argc, char** argv)
 	// gets the expose event that triggers initializeGL()/paintGL() - it just
 	// sits uninitialized (permanently black viewport, then segfaults on close
 	// per SceneRenderController::cleanupGLResources() touching GL state that
-	// was never set up). Native X11 doesn't hit this - showMaximized() below
-	// makes it explicit instead of relying on implicit cascade-through-parent
-	// visibility, matching what on_actionNew_triggered() already does.
-	viewer->showMaximized();
+	// was never set up). Native X11 doesn't hit this - presentDocumentFullscreen()
+	// below makes it explicit instead of relying on implicit cascade-through-
+	// parent visibility, matching what on_actionNew_triggered() already does.
+	mw->presentDocumentFullscreen(viewer);
 	if (splash)
 	{
 		showSplashMessage(QObject::tr("Ready"));

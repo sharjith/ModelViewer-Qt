@@ -185,6 +185,7 @@ public:
 	void updateControlDependencies();
 	void updateButtonStyles();
 	void reloadSkyBoxPresets();
+	void syncSkyBoxSelectionSilently();
 
 private:
 	// Member variables
@@ -194,6 +195,15 @@ private:
 	MaterialPreviewWidget* _previewWidget = nullptr;
 	std::unique_ptr<Ui::VisualizationEnvironmentPanel> ui;
 	bool _isInitialized;
+	// Tracks the current SceneGraph::lightDataChanged connection so rebinding
+	// to a different document's SceneGraph in initialize() can disconnect the
+	// old one first instead of accumulating a new connection on every switch.
+	QMetaObject::Connection _sceneGraphLightDataConnection;
+	// Same idea, for the two ViewportWidget connections connectSignalsAndSlots()
+	// used to make directly (back when it ran once per document instead of
+	// once ever) - now rebound in initialize() on every call instead.
+	QMetaObject::Connection _viewportCameraUpAxisConnection;
+	QMetaObject::Connection _viewportRenderingModeConnection;
 
 	// Build one file-level parent item + its light children.
 	QTreeWidgetItem* makeLightFileItem(const QString& sourceFile) const;

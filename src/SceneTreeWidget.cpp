@@ -19,6 +19,7 @@
 #include <QStyleOption>
 #include <QStyledItemDelegate>
 #include <QScrollBar>
+#include <QWheelEvent>
 #include <algorithm>
 #include <limits>
 
@@ -940,6 +941,11 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
 void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     QTreeWidget::mouseReleaseEvent(event);
+}
+
+void SceneTreeWidget::wheelEvent(QWheelEvent* event)
+{
+    event->ignore();
 }
 
 // ---------------------------------------------------------------------------

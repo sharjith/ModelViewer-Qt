@@ -15,6 +15,8 @@
 #include "CamerasPanel.h"
 #include "ExplodedViewPanel.h"
 #include "MaterialPropertiesPanel.h"
+#include "ObjectTransformPanel.h"
+#include "VisualizationEnvironmentPanel.h"
 #include "SceneClipboard.h"
 #include "CutCommand.h"
 #include "MaterialVariantsPanel.h"
@@ -23,6 +25,7 @@
 #include <QUndoStack>
 
 class QTabWidget;
+class QToolButton;
 
 struct UVDialogResult
 {
@@ -58,6 +61,17 @@ public:
 	void syncLightPositionUiToScene();
 
 	SceneTreeWidget* getTreeModel() { return treeWidgetModel; }
+
+	// Aliases to MainWindow's single shared instances (used to be owned
+	// per-document via ui/ModelViewer.ui) - set once in the constructor,
+	// rebound to whichever document is active by
+	// MainWindow::rebindSharedPanelsTo(), not by ModelViewer itself. Public
+	// to match their old effective accessibility as public members inherited
+	// from Ui::ModelViewer (RtRenderDialog/ViewportWidget read these).
+	MaterialPropertiesPanel* predefinedMaterialsPanel = nullptr;
+	ObjectTransformPanel* objectTransformPanel = nullptr;
+	QTabWidget* tabWidgetVizAttribs = nullptr;
+	VisualizationEnvironmentPanel* visualizationEnvironmentPanel = nullptr;
 
 	void updateTransformationValues();
 	void resetTransformationValues();
@@ -141,19 +155,35 @@ public:
 	// Selection helpers (for DuplicateCommand)
 	QSet<QUuid> getSelectedUuids() const;
 
-	void detachMaterialPanel();
-	void reattachMaterialPanel();
-	void detachTransformationsPanel();
-	void reattachTransformationsPanel();
-	void detachEnvironmentPanel();
-	void reattachEnvironmentPanel();
-	void detachNavigationPanel();
-	void reattachNavigationPanel();
+	// Attaches the navigation tree as a permanent transparent overlay on this
+	// document's own viewport - called once from the constructor; there's no
+	// docked/detached toggle anymore, only collapsed/expanded (see
+	// _navCollapseButton below). updateNavigationOverlayGeometry()
+	// repositions/resizes it on viewport resize (see resizeEvent()) and on
+	// collapse/expand.
+	void attachNavigationOverlay();
 	void updateNavigationOverlayGeometry();
+
+	// Applies material to meshUuid via an undo-able ApplyMaterialCommand.
+	// Extracted from what used to be an inline lambda on
+	// MaterialPropertiesPanel::meshMaterialApplied, back when that panel was
+	// constructed once per document rather than as a single shared instance
+	// MainWindow dispatches to whichever document is currently active.
+	void applyMeshMaterial(const QUuid& meshUuid, const Material& material);
 
 	// Apply a named variant to all meshes from the given source file.
 	// variantIndex = -1 resets to the file's default material assignments.
 	void applyVariant(const QString& sourceFile, int variantIndex);
+
+	// Extracted from what used to be inline lambdas on
+	// MaterialVariantsPanel::variantDeleteRequested/
+	// AnimationsPanel::clipDeleteRequested/
+	// CamerasPanel::gltfCameraDeleteRequested, same reasoning as
+	// applyMeshMaterial() above - now dispatched from MainWindow via
+	// activeMdiChild() instead of connected directly per-document.
+	void deleteVariant(const QString& sourceFile, int variantIndex);
+	void deleteAnimationClip(const QString& sourceFile, int clipIndex);
+	void deleteGltfCamera(const QString& sourceFile, int cameraIndex);
 
 public slots:
 	void updateDisplayList();
@@ -185,6 +215,7 @@ public slots:
 	void onDisplayModeChanged(int mode);
 	void onTextureCacheCleared();
 	void onRenderingModeSelected(const QString& mode);
+	void onCustomMaterialApplied(const Material& mat);
 
 private slots:
 	void setListRow(int index);
@@ -205,10 +236,7 @@ private slots:
 	void handleTreeWidgetSelectionChanged();
 	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);
 
-	void on_tabWidgetVizAttribs_currentChanged(int index);
-
 	void onPredefinedMaterialSelected(const Material& mat);
-	void onCustomMaterialApplied(const Material& mat);
 
 	void onTexturesApplied(const Material* mat = nullptr);
 
@@ -223,18 +251,6 @@ protected:
 	void mouseMoveEvent(QMouseEvent* event);
 
 private:
-	void ensureDockedNavigationHeader();
-	void placeNavigationContentInHost(QWidget* navigationContent, QWidget* hostParent, QLayout* hostLayout);
-
-	// Rebuild the inner navigation sub-tab widget based on what the currently
-	// loaded model(s) support: Variants, Animations, and/or Cameras.
-	// The inner tab widget is created on demand and destroyed when no optional
-	// panels are needed, leaving the layout exactly as setupUi() made it.
-	void refreshNavigationSubTabs();
-
-	// Called when the inner sub-tab selection changes.
-	void onInnerNavTabChanged(int index);
-
 	void checkAndRenameModel(SceneMesh* mesh, const QString& name);
 	QString computeUniqueName(SceneMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
@@ -308,41 +324,18 @@ private:
 	int _skyBoxLDRIIndex = 0;
 	int _skyBoxHDRIIndex = 0;
 
-	QPointer<QDialog> _detachedMaterialDialog; // Stores the floating dialog
-	QWidget* _materialOriginalParent = nullptr; // Stores the scroll area
-	int _materialPageIndex = -1;
-	QString _materialPageLabel;
+	QPointer<QWidget> _navigationOverlay;
+	// Chevron button glued to the overlay's own left edge (a child of the
+	// composite widget passed to attachOverlayPanel(), not of gridLayout -
+	// the overlay is an absolutely-positioned floating child of
+	// _viewportWidget, not a normal side-by-side grid column, so the
+	// button has to live and move with it, not in the document's outer
+	// layout). Collapsing hides modelNavigationWidget entirely (not just
+	// its contents) and shrinks the overlay down to just this button via
+	// updateNavigationOverlayGeometry().
+	QToolButton* _navCollapseButton = nullptr;
+	bool _navigationCollapsed = false;
 
-	// Preview widget container (keeps preview in main thread when panel is detached)
-	QWidget* _materialPreviewContainer = nullptr; // Container holding preview widget while panel is detached
-	QLayout* _materialPreviewLayout = nullptr; // Original layout of preview tools
-	int _materialPreviewContainerTabIndex = -1; // Track where we inserted the preview tab
-
-	QPointer<QDialog> _detachedTransformationsDialog; // Stores the floating dialog
-	QWidget* _transformationsOriginalParent = nullptr; // Stores the scroll area
-	int _transformationsPageIndex = -1;
-	QString _transformationsPageLabel;
-
-	QPointer<QDialog> _detachedEnvironmentDialog; // Stores the floating dialog
-	QWidget* _environmentOriginalParent = nullptr; // Stores the scroll area
-	int _environmentPageIndex = -1;
-	QString _environmentPageLabel;
-
-	QPointer<QWidget> _detachedNavigationOverlay;
-	QPointer<QWidget> _dockedNavigationHeader;
-	int _navigationPageIndex = -1;
-	QString _navigationPageLabel;
-
-	// Optional navigation sub-tabs (Variants, Animations, Cameras).
-	// _innerTabWidget is null at startup. When at least one optional panel is
-	// needed it is created on the fly: modelNavigationWidget is reparented into
-	// it as tab 0 and the relevant panels follow in order. When all optional
-	// panels are removed the process is reversed and the tab widget is destroyed,
-	// leaving the layout exactly as it was originally.
-	QTabWidget*            _innerTabWidget  = nullptr;
-	MaterialVariantsPanel* _variantsPanel   = nullptr;
-	AnimationsPanel*       _animationsPanel    = nullptr;
-	CamerasPanel*          _camerasPanel       = nullptr;
 	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 
 	QUndoStack* _undoStack;

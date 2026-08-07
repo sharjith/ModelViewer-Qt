@@ -1,6 +1,8 @@
 ﻿
+#include <algorithm>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QCursor>
 #include <QEventLoop>
 #include <QMessageBox>
 #include <QFileDialog>
@@ -19,11 +21,32 @@
 #include <QtOpenGL>
 #include <QProgressBar>
 #include <QPushButton>
-#include <QMdiSubWindow>
+#include <QUuid>
+#include <utility>
 #include <assimp/version.h>
 
 #include "PathUtils.h"
 #include "RtRenderDialog.h"
+
+#include <DockManager.h>
+#include <DockWidget.h>
+#include <DockWidgetTab.h>
+#include <DockAreaWidget.h>
+#include <DockSplitter.h>
+#include <QLabel>
+#include <QTabWidget>
+#include <QTabBar>
+#include <QScrollArea>
+#include <QSplitter>
+#include <QShortcut>
+#include <QPointer>
+#include "MaterialPropertiesPanel.h"
+#include "ObjectTransformPanel.h"
+#include "VisualizationEnvironmentPanel.h"
+#include "MaterialPreviewWidget.h"
+#include "MaterialVariantsPanel.h"
+#include "AnimationsPanel.h"
+#include "CamerasPanel.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -40,6 +63,343 @@ MainWindow::MainWindow(QWidget* parent)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+
+	// Qt-ADS docking: documents themselves are now native CDockWidgets (see
+	// createDocumentDock()), tabbed together in _documentDockArea, which is
+	// created on demand by the first call to createDocumentDock() - there's
+	// no QMdiArea left to give any special "central widget" protection to,
+	// documents are ordinary dock widgets like Document/Properties/
+	// Environment, just positioned to their left.
+	{
+		using namespace ads;
+
+		// Needed for focusedDockWidgetChanged() below, which is otherwise
+		// never emitted - must be set before the CDockManager is
+		// constructed (per Qt-ADS's own docs on this flag).
+		CDockManager::setConfigFlag(CDockManager::FocusHighlighting, true);
+
+		_dockManager = new CDockManager(this);
+		setCentralWidget(_dockManager);
+
+		// FocusHighlighting is needed for focusedDockWidgetChanged() (see
+		// below), but its accompanying tab/title-bar highlight color was
+		// judged too "in your face" - CDockManager's constructor already
+		// loaded Qt-ADS's own focus_highlighting_linux.css onto this widget
+		// (CDockManager has no API to keep the signal without the styling),
+		// so append an override that resets the "focused" state back to
+		// look like an ordinary active-but-unfocused tab, reusing the exact
+		// values default_linux.css itself uses for [activeTab="true"]/
+		// #tabCloseButton rather than guessing new colors. Appended (not
+		// replaced) so normal QSS cascade order - not selector specificity,
+		// which is otherwise equal - makes these win over Qt-ADS's own
+		// same-widget stylesheet.
+		_dockManager->setStyleSheet(_dockManager->styleSheet() + QStringLiteral(R"(
+ads--CDockAreaWidget[focused="true"] ads--CDockAreaTitleBar {
+	background: transparent;
+	border-bottom: none;
+	padding-bottom: 0px;
+}
+ads--CDockWidgetTab[focused="true"] {
+	background: qlineargradient(spread: pad, x1: 0, y1: 0, x2: 0, y2: 0.5, stop: 0 palette(window), stop: 1 palette(light));
+	border-color: palette(light);
+}
+ads--CDockWidgetTab[focused="true"] QLabel {
+	color: palette(foreground);
+}
+ads--CDockWidgetTab[focused="true"] > #tabCloseButton {
+	qproperty-icon: url(:/ads/images/close-button.svg), url(:/ads/images/close-button-disabled.svg) disabled;
+}
+ads--CDockWidgetTab[focused="true"] > #tabCloseButton:hover {
+	border: 1px solid rgba(0, 0, 0, 32);
+	background: rgba(0, 0, 0, 16);
+}
+ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
+	background: rgba(0, 0, 0, 32);
+}
+)"));
+
+		// currentChanged(int) on a document area (connected per-area below/
+		// in createDocumentDock()) only fires when that area's own tab index
+		// changes, so it misses the case of a user activating a document by
+		// clicking into a DIFFERENT, already-current, single-tab area (e.g.
+		// two documents split side by side rather than tabbed together).
+		// focusedDockWidgetChanged() fires on any change of which dock
+		// widget actually has focus, which does cover that case. Only acts
+		// when the newly focused widget wraps a ModelViewer - clicking into
+		// the Properties/Environment/Document tool panels themselves must
+		// NOT clear or change which document's data those panels show.
+		connect(_dockManager, &CDockManager::focusedDockWidgetChanged, this,
+			[this](ads::CDockWidget*, ads::CDockWidget* now) {
+				if (!now)
+					return;
+				if (ModelViewer* child = qobject_cast<ModelViewer*>(now->widget()))
+					activateDocument(child);
+			});
+
+		// --- Document dock: Variants + Animations + Cameras sub-tabs, single
+		// shared instances - used to be built on demand inside each
+		// document's own navigation area (_innerTabWidget), duplicated per
+		// MDI child, and only shown when that document's model actually had
+		// the relevant data. All three tabs stay visible always now (dimmed
+		// via setDocumentTabDimmed() when the active document has none of
+		// that data) rather than appearing/disappearing, since this dock is
+		// a permanent MainWindow fixture rather than something built fresh
+		// per document.
+		_documentTabWidget = new QTabWidget();
+		_documentTabWidget->setTabPosition(QTabWidget::North);
+		_documentTabWidget->setTabShape(QTabWidget::Rounded);
+		_documentTabWidget->setIconSize(QSize(32, 32));
+		_documentTabWidget->setDocumentMode(false);
+		_documentTabWidget->setMovable(true);
+
+		_materialVariantsPanel = new MaterialVariantsPanel();
+		_documentTabWidget->addTab(_materialVariantsPanel, QIcon(":/icons/res/material_variants.png"), tr("Variants"));
+
+		_animationsPanel = new AnimationsPanel();
+		_documentTabWidget->addTab(_animationsPanel, QIcon(":/icons/res/animations.png"), tr("Animations"));
+
+		_camerasPanel = new CamerasPanel();
+		_documentTabWidget->addTab(_camerasPanel, QIcon(":/icons/res/camera.png"), tr("Cameras"));
+
+		auto* documentDock = new CDockWidget(_dockManager, tr("Document"));
+		documentDock->setWidget(_documentTabWidget);
+		documentDock->setIcon(QIcon(":/icons/res/document-root.png"));
+		_dockManager->addDockWidget(RightDockWidgetArea, documentDock);
+		_documentDock = documentDock;
+		// tabWidget() only exists once the dock widget is actually docked
+		// somewhere, hence called after addDockWidget() rather than right
+		// next to setIcon() above - matches the 32x32 size the inner
+		// Variants/Animations/Cameras sub-tabs already use, since Qt-ADS's
+		// own default is noticeably smaller than QTabWidget's.
+		if (documentDock->tabWidget())
+			documentDock->tabWidget()->setIconSize(QSize(24, 24));
+
+		// --- Properties dock: Materials + Transformations sub-tabs, single
+		// shared instances (used to be one MaterialPropertiesPanel/
+		// ObjectTransformPanel per open document, duplicated per MDI child).
+		_propertiesTabWidget = new QTabWidget();
+		_propertiesTabWidget->setTabPosition(QTabWidget::North);
+		_propertiesTabWidget->setTabShape(QTabWidget::Rounded);
+		_propertiesTabWidget->setIconSize(QSize(32, 32));
+		_propertiesTabWidget->setDocumentMode(false);
+		_propertiesTabWidget->setMovable(true);
+
+		_materialPropertiesPanel = new MaterialPropertiesPanel();
+		auto* scrollAreaMaterial = new QScrollArea();
+		scrollAreaMaterial->setWidgetResizable(true);
+		scrollAreaMaterial->setWidget(_materialPropertiesPanel);
+		_propertiesTabWidget->addTab(scrollAreaMaterial, QIcon(":/icons/res/material.png"), tr("Materials"));
+
+		_objectTransformPanel = new ObjectTransformPanel();
+		auto* scrollAreaTransform = new QScrollArea();
+		scrollAreaTransform->setWidgetResizable(true);
+		scrollAreaTransform->setWidget(_objectTransformPanel);
+		_propertiesTabWidget->addTab(scrollAreaTransform, QIcon(":/icons/res/transformations.png"), tr("Transformations"));
+
+		_propertiesTabWidget->setCurrentIndex(0);
+
+		_propertiesDock = new CDockWidget(_dockManager, tr("Properties"));
+		_propertiesDock->setWidget(_propertiesTabWidget);
+		_propertiesDock->setIcon(QIcon(":/icons/res/properties.png"));
+		_dockManager->addDockWidgetTab(RightDockWidgetArea, _propertiesDock);
+		if (_propertiesDock->tabWidget())
+			_propertiesDock->tabWidget()->setIconSize(QSize(24, 24));
+
+		// --- Environment dock: single shared VisualizationEnvironmentPanel.
+		_visualizationEnvironmentPanel = new VisualizationEnvironmentPanel();
+		auto* scrollAreaEnv = new QScrollArea();
+		scrollAreaEnv->setWidgetResizable(true);
+		scrollAreaEnv->setWidget(_visualizationEnvironmentPanel);
+
+		_environmentDock = new CDockWidget(_dockManager, tr("Environment"));
+		_environmentDock->setWidget(scrollAreaEnv);
+		_environmentDock->setIcon(QIcon(":/icons/res/environment.png"));
+		_dockManager->addDockWidgetTab(RightDockWidgetArea, _environmentDock);
+		if (_environmentDock->tabWidget())
+			_environmentDock->tabWidget()->setIconSize(QSize(24, 24));
+
+		// Every connection below is made ONCE, for the shared panels'
+		// lifetime, rather than per-document as before. Where a handler used
+		// to touch the emitting ModelViewer directly (`this`), it now
+		// dispatches to activeMdiChild() instead - safe because these panels
+		// only ever receive input while docked/floating and visible, which
+		// requires their host document to be the active one.
+		connect(_objectTransformPanel, &ObjectTransformPanel::applyTransformationsRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->setTransformation();
+		});
+		connect(_objectTransformPanel, &ObjectTransformPanel::resetTransformationsRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->resetTransformation();
+			_objectTransformPanel->resetAllValues();
+		});
+		connect(_objectTransformPanel, &ObjectTransformPanel::detachRequested, this, [this]() {
+			_propertiesDock->setFloating();
+		});
+
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::materialApplied, this, [this](const Material& mat) {
+			if (ModelViewer* child = activeMdiChild())
+				child->onCustomMaterialApplied(mat);
+		});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::meshMaterialApplied, this,
+			[this](const QUuid& meshUuid, const Material& material) {
+				if (ModelViewer* child = activeMdiChild())
+					child->applyMeshMaterial(meshUuid, material);
+			});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::detachRequested, this, [this]() {
+			_propertiesDock->setFloating();
+		});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::textureSamplerChanged, this,
+			[this](Material* material, Material::TextureType type) {
+				if (ModelViewer* child = activeMdiChild())
+					child->setTextureSamplersToSelectedItems(material, type);
+			});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::textureCacheClearRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->onTextureCacheCleared();
+		});
+
+		connect(_visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested, this, [this]() {
+			_environmentDock->setFloating();
+		});
+
+		// Mirrors the old on_tabWidgetVizAttribs_currentChanged: the
+		// Transformations sub-tab shows the viewport's transform gizmo for
+		// the active document's current selection while it's frontmost.
+		connect(_propertiesTabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+			ModelViewer* child = activeMdiChild();
+			if (!child)
+				return;
+			if (index == 1)
+			{
+				child->getViewportWidget()->showTransformGizmoForSelection(true);
+				child->updateTransformationValues();
+			}
+			else
+			{
+				child->getViewportWidget()->showTransformGizmoForSelection(false);
+			}
+		});
+
+		// Variants/Animations/Cameras: same one-time-connect, dispatch-via-
+		// activeMdiChild() pattern as the Properties/Environment panels
+		// above. The panel->viewport forwards (clipActivated etc.) go
+		// straight to the active document's ViewportWidget with no
+		// ModelViewer-level method needed, since they're 1:1 forwards with
+		// matching signatures; the *DeleteRequested ones need the new
+		// ModelViewer::deleteVariant()/deleteAnimationClip()/
+		// deleteGltfCamera() methods since they also touch this document's
+		// own SceneGraph/undo stack, not just its viewport.
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantActivated, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->applyVariant(file, index);
+			});
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantDeleteRequested, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->deleteVariant(file, index);
+			});
+
+		connect(_animationsPanel, &AnimationsPanel::clipActivated, this,
+			[this](const QString& file, int clip) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setActiveAnimation(file, clip);
+			});
+		connect(_animationsPanel, &AnimationsPanel::playbackToggled, this,
+			[this](bool playing) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setAnimationPlaying(playing);
+			});
+		connect(_animationsPanel, &AnimationsPanel::loopToggled, this,
+			[this](bool looping) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setAnimationLooping(looping);
+			});
+		connect(_animationsPanel, &AnimationsPanel::seekRequested, this,
+			[this](double seconds) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->seekAnimation(seconds);
+			});
+		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged, this,
+			[this](double speed) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->setAnimationPlaybackSpeed(speed);
+			});
+		connect(_animationsPanel, &AnimationsPanel::clipDeleteRequested, this,
+			[this](const QString& file, int clip) {
+				if (ModelViewer* child = activeMdiChild())
+					child->deleteAnimationClip(file, clip);
+			});
+
+		connect(_camerasPanel, &CamerasPanel::gltfCameraActivated, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->activateGltfCamera(file, index);
+			});
+		connect(_camerasPanel, &CamerasPanel::systemCameraRequested, this,
+			[this]() {
+				if (ModelViewer* child = activeMdiChild())
+					child->getViewportWidget()->resetToSystemCamera();
+			});
+		connect(_camerasPanel, &CamerasPanel::gltfCameraDeleteRequested, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->deleteGltfCamera(file, index);
+			});
+
+		// Closing a CDockWidget only hides it (DockWidgetDeleteOnClose isn't
+		// set), but with nothing wired to its toggleViewAction() there was no
+		// way back in from the UI - a closed dock looked permanently gone.
+		auto* viewMenu = new QMenu(tr("View"), this);
+		viewMenu->addAction(documentDock->toggleViewAction());
+		viewMenu->addAction(_propertiesDock->toggleViewAction());
+		viewMenu->addAction(_environmentDock->toggleViewAction());
+		menuBar()->insertMenu(ui->menuHelp->menuAction(), viewMenu);
+
+		// Re-clamp the tool-panel column's width after any docking action
+		// (e.g. splitting documents side-by-side can otherwise leave it
+		// disproportionately wide) - deferred to the next event loop
+		// iteration since these signals fire mid-layout-pass, before the
+		// splitter's sizes are final. A plain manual splitter drag by the
+		// user doesn't emit any of these, so this never fights that.
+		// dockAreasAdded() (CDockManager IS-A CDockContainerWidget) is the
+		// one most directly tied to "an area got split off from another" -
+		// dockAreaCreated()/dockWidgetAdded() are kept alongside it since
+		// it's not documented which of these actually fires for a drag-
+		// triggered split versus only for the addDockWidget()-family calls
+		// this code itself makes.
+		connect(_dockManager, &CDockManager::dockAreasAdded, this, [this]() {
+			QTimer::singleShot(0, this, [this]() { constrainToolPanelWidth(); });
+			});
+		connect(_dockManager, &CDockManager::dockAreaCreated, this, [this](CDockAreaWidget* area) {
+			QTimer::singleShot(0, this, [this]() { constrainToolPanelWidth(); });
+			// A user dragging a document's tab to split it off creates a
+			// NEW CDockAreaWidget outside of any code path this class
+			// controls (Qt-ADS's own drag-and-drop handling, not
+			// createDocumentDock()) - _documentDockArea alone only ever
+			// tracked the ORIGINAL area, so switching tabs in a split-off
+			// area never ran rebindSharedPanelsTo()/the repaint-on-switch
+			// fix at all. Whenever a newly created area turns out to host
+			// at least one document, wire the same handler to it too -
+			// Qt::UniqueConnection guards against connecting twice if this
+			// somehow fires more than once for the same area.
+			if (area && !_documentDocks.isEmpty())
+			{
+				const QList<CDockWidget*> hosted = area->dockWidgets();
+				const bool hostsADocument = std::any_of(hosted.begin(), hosted.end(),
+					[this](CDockWidget* dw) { return _documentDocks.values().contains(dw); });
+				if (hostsADocument)
+				{
+					connect(area, &CDockAreaWidget::currentChanged, this,
+						&MainWindow::handleActiveDocumentChanged, Qt::UniqueConnection);
+				}
+			}
+			});
+		connect(_dockManager, &CDockManager::dockWidgetAdded, this, [this](CDockWidget*) {
+			QTimer::singleShot(0, this, [this]() { constrainToolPanelWidth(); });
+			});
+	}
 
 	// Set the application theme based on user settings
 	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -83,7 +443,6 @@ MainWindow::MainWindow(QWidget* parent)
 
 	setRecentFilesVisible(MainWindow::hasRecentFiles());
 
-	connect(ui->mdiArea, &QMdiArea::subWindowActivated, this, &MainWindow::updateMenus);
 	connect(ui->menuWindows, &QMenu::aboutToShow, this, &MainWindow::updateWindowMenu);
 
 	QAction* closeAct = ui->actionClose;
@@ -103,13 +462,65 @@ MainWindow::MainWindow(QWidget* parent)
 	QAction* nextAct = ui->actionNext;
 	nextAct->setShortcuts(QKeySequence::NextChild);
 	nextAct->setStatusTip(tr("Move the focus to the next window"));
-	connect(nextAct, &QAction::triggered, ui->mdiArea, &QMdiArea::activateNextSubWindow);
+	connect(nextAct, &QAction::triggered, this, [this]() {
+		cycleActiveDocument(1);
+		});
 
 	QAction* previousAct = ui->actionPrevious;
 	previousAct->setShortcuts(QKeySequence::PreviousChild);
 	previousAct->setStatusTip(tr("Move the focus to the previous "
 		"window"));
-	connect(previousAct, &QAction::triggered, ui->mdiArea, &QMdiArea::activatePreviousSubWindow);
+	connect(previousAct, &QAction::triggered, this, [this]() {
+		cycleActiveDocument(-1);
+		});
+
+	// Document-scoped shortcuts (Delete, and the rendering-mode/import/
+	// export ones below) - single MainWindow-owned instances dispatching to
+	// activeMdiChild(), same pattern as Undo/Redo/Ray Tracing right below.
+	// These used to be created per-document, inside ModelViewer's own
+	// constructor, with QShortcut's default WindowShortcut context relying
+	// on QMdiSubWindow's Qt::SubWindow flag to give each document its own
+	// window-shortcut scope for free. CDockWidget (see
+	// MainWindow::createDocumentDock()) carries no such flag, so with two-
+	// plus documents open every one of those per-document shortcuts resolved
+	// to the same top-level MainWindow and Qt disabled them all as
+	// ambiguous. A single instance per shortcut, scoped to MainWindow, can
+	// never be ambiguous with itself regardless of how many documents are
+	// open or how they're arranged.
+	connect(new QShortcut(QKeySequence(Qt::Key_Delete), this), &QShortcut::activated, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		// Narrower than the other document shortcuts below: only fires
+		// while the active document's own navigation tree has keyboard
+		// focus, matching the original per-document shortcut's intent
+		// (parented directly to treeWidgetModel) - Delete must not also
+		// fire while, say, typing into a search box or a property field.
+		QWidget* focusWidget = QApplication::focusWidget();
+		QWidget* tree = child->treeWidgetModel;
+		if (focusWidget && tree && (focusWidget == tree || tree->isAncestorOf(focusWidget)))
+			child->deleteSelectedItems();
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->importModel();
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->exportModel();
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_A), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->onRenderingModeSelected("ADS");
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->onRenderingModeSelected("PBR");
+		});
+	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R), this), &QShortcut::activated, this, [this]() {
+		if (ModelViewer* child = activeMdiChild())
+			child->onRenderingModeSelected("RayTraced");
+		});
 
 	// Connect undo/redo actions
 	connect(ui->actionUndo, &QAction::triggered, this, [this]() {
@@ -143,15 +554,15 @@ MainWindow::MainWindow(QWidget* parent)
 		// RtRenderDialog::onRenderClicked()), which is the single place
 		// that switches to Ray Traced mode.
 		//
-		// Parented to the ModelViewer (the MDI subwindow's own content
-		// widget - added via QMdiArea::addSubWindow(), which reparents it
-		// under the QMdiSubWindow it creates), NOT to MainWindow (`this`) -
-		// a QDialog still floats as an independent top-level window
-		// regardless of which widget is passed as its parent, but the
-		// parent IS what Qt uses to auto-destroy child widgets when it's
-		// destroyed. Parenting to MainWindow meant the dialog outlived
-		// every MDI document, including all of them being closed - this
-		// way it closes along with the document it belongs to instead.
+		// Parented to the ModelViewer (the document's own content widget,
+		// wrapped in its CDockWidget - see createDocumentDock()), NOT to
+		// MainWindow (`this`) - a QDialog still floats as an independent
+		// top-level window regardless of which widget is passed as its
+		// parent, but the parent IS what Qt uses to auto-destroy child
+		// widgets when it's destroyed. Parenting to MainWindow meant the
+		// dialog outlived every document, including all of them being
+		// closed - this way it closes along with the document it belongs to
+		// instead.
 		//
 		// findChild() (direct children only - the dialog parents its own
 		// widgets under itself too, but none of THOSE are RtRenderDialogs)
@@ -172,21 +583,11 @@ MainWindow::MainWindow(QWidget* parent)
 		dialog->show();
 		});
 
-	// Update menus when undo stack changes
-	connect(ui->mdiArea, &QMdiArea::subWindowActivated, this, [this]() {
-		updateMenus();
-
-		ModelViewer* child = activeMdiChild();
-		if (!child)
-			return;
-
-		// Connect to the new child's undo stack
-		if (child->getUndoStack())
-		{
-			connect(child->getUndoStack(), &QUndoStack::indexChanged,
-				this, &MainWindow::updateMenus, Qt::UniqueConnection);
-		}
-		});
+	// handleActiveDocumentChanged() is connected to _documentDockArea's
+	// currentChanged(int) signal once, when that area is first created by
+	// createDocumentDock() - it doesn't exist yet at this point in
+	// construction (no document has been created), so there's nothing to
+	// connect here.
 
 	updateMenus();
 
@@ -203,7 +604,6 @@ MainWindow::MainWindow(QWidget* parent)
 	ui->statusBar->addPermanentWidget(_progressBar);
 	_progressBar->hide();
 	//createMdiChild();
-	setCentralWidget((ui->mdiArea));
 
 	_bFirstTime = true;
 
@@ -212,6 +612,19 @@ MainWindow::MainWindow(QWidget* parent)
 		retranslateUI();  // if needed
 		});
 
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event)
+{
+	if (event->type() == QEvent::WindowTitleChange)
+	{
+		if (ModelViewer* viewer = qobject_cast<ModelViewer*>(watched))
+		{
+			if (ads::CDockWidget* dock = _documentDocks.value(viewer))
+				dock->setWindowTitle(viewer->windowTitle());
+		}
+	}
+	return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::retranslateUI()
@@ -242,12 +655,12 @@ void MainWindow::retranslateUI()
 
 ModelViewer* MainWindow::createMdiChild()
 {
-	// nullptr, not ui->mdiArea - addSubWindow() below reparents this into a
-	// new QMdiSubWindow regardless, so constructing with mdiArea as the
-	// parent just means the widget gets reparented twice (once implicitly
-	// here, once by addSubWindow()) instead of once. QOpenGLWidget destroys
-	// and recreates its GL context on every reparent that changes the
-	// top-level window, then relies on a fresh expose event to re-trigger
+	// nullptr, not some dock's content area - createDocumentDock() below
+	// reparents this into a new CDockWidget regardless, so constructing with
+	// a real parent just means the widget gets reparented twice (once
+	// implicitly here, once by setWidget()) instead of once. QOpenGLWidget
+	// destroys and recreates its GL context on every reparent that changes
+	// the top-level window, then relies on a fresh expose event to re-trigger
 	// initializeGL() - see refreshFallbackLight()'s doc comment and
 	// ViewportWidget::~ViewportWidget()'s cleanup guard for the class of bug
 	// this causes if that sequence doesn't complete under XWayland. Matches
@@ -257,20 +670,7 @@ ModelViewer* MainWindow::createMdiChild()
 	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/test-models");
 	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
-	_viewers.append(viewer);
-	// Keep _viewers in sync regardless of how the sub-window is closed
-	// (MDI X button, closeAllSubWindows, failed load, etc.). WA_DeleteOnClose
-	// deletes the viewer without going through closeSubWindow(), so without
-	// this the list accumulates dangling pointers that crash settings apply.
-	connect(viewer, &QObject::destroyed, this, [this, viewer]() {
-		_viewers.removeAll(viewer);
-	});
-	ui->mdiArea->addSubWindow(viewer);
-	connect(viewer, &ModelViewer::documentModifiedChanged,
-	        this, [this, viewer](bool) {
-	            if (viewer == activeMdiChild())
-	                updateMenus();
-	        });
+	createDocumentDock(viewer);
 
 	// Apply persisted perspective FOV immediately so the first view uses the
 	// setting before any settingsChanged signal fires.
@@ -283,9 +683,477 @@ ModelViewer* MainWindow::createMdiChild()
 	return viewer;
 }
 
+ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
+{
+	using namespace ads;
+
+	_viewers.append(viewer);
+	// Keep _viewers (and _documentDocks) in sync regardless of how the
+	// document is closed (dock close button, closeAllSubWindows, failed
+	// load, etc.). WA_DeleteOnClose deletes the viewer without going through
+	// closeSubWindow(), so without this the lists accumulate dangling
+	// pointers that crash settings apply. The CDockWidget is torn down from
+	// here too, following the viewer's lifetime rather than the other way
+	// around, since ModelViewer::closeEvent() (the unsaved-changes save
+	// prompt) is what actually decides whether a close goes through at all -
+	// see the closeRequested connection below.
+	connect(viewer, &QObject::destroyed, this, [this, viewer]() {
+		_viewers.removeAll(viewer);
+		// On application exit, _dockManager (and every document CDockWidget)
+		// is a child of MainWindow and gets torn down by Qt's own cascading
+		// parent-child destruction as part of ~MainWindow() - in that case
+		// this handler runs SYNCHRONOUSLY from inside the dock widget's own
+		// destructor (destroying its wrapped viewer is one of its cleanup
+		// steps), so dock and _dockManager are mid-teardown here and must not
+		// be touched; Qt's own cascade already owns finishing the job. Only
+		// the normal one-document-at-a-time close path (closeRequested ->
+		// viewer->close() -> deferred deleteLater()) reaches this outside of
+		// any destructor call stack, where touching them is safe.
+		if (_shuttingDown)
+			return;
+		if (CDockWidget* dock = _documentDocks.take(viewer))
+		{
+			_dockManager->removeDockWidget(dock);
+			dock->deleteLater();
+		}
+		// _documentPlaceholderDock (see the constructor) stays registered
+		// in _documentDockArea even with zero real documents open, so the
+		// area itself never actually goes empty/gets torn down anymore -
+		// just make the placeholder visible again so the document region
+		// doesn't sit on a blank/stale tab.
+		if (_documentDocks.isEmpty() && _documentPlaceholderDock)
+			_documentPlaceholderDock->setAsCurrentTab();
+	});
+	connect(viewer, &ModelViewer::documentModifiedChanged,
+	        this, [this, viewer](bool) {
+	            if (viewer == activeMdiChild())
+	                updateMenus();
+	        });
+
+	// Constructed with a UUID as the title so the required-unique object
+	// name (see CDockWidget's constructor docs) never collides, even across
+	// same-named "Session N" or reopened-file tabs; the actual visible tab
+	// label is set separately right below and kept in sync afterwards via
+	// eventFilter() watching for QEvent::WindowTitleChange, the same
+	// mechanism QMdiSubWindow itself uses internally.
+	auto* dock = new CDockWidget(_dockManager, QUuid::createUuid().toString(QUuid::WithoutBraces));
+	dock->setWindowTitle(viewer->windowTitle());
+	dock->setWidget(viewer, CDockWidget::ForceNoScrollArea);
+	dock->setFeature(CDockWidget::CustomCloseHandling, true);
+	connect(dock, &CDockWidget::closeRequested, viewer, &QWidget::close);
+	viewer->installEventFilter(this);
+	_documentDocks.insert(viewer, dock);
+
+	if (_documentDockArea)
+	{
+		_documentDockArea = _dockManager->addDockWidgetTabToArea(dock, _documentDockArea);
+	}
+	else
+	{
+		// First document: establishes the document area to the left of the
+		// Document/Properties/Environment tool docks (already created in the
+		// constructor by the time any document exists - main.cpp creates the
+		// first one only after MainWindow::mainWindow() returns). Qt-ADS
+		// defaults to giving each side space based on its content's size
+		// hint rather than an even split - since the Properties panel's
+		// dense form content wants more room than an empty 3D viewport, that
+		// left the viewport a sliver next to a much wider tool-panel column
+		// without this explicit override.
+		//
+		// The permanent placeholder (kept alongside every real document
+		// from here on, tabbed together, NoTab so it never shows its own
+		// tab - see the "made current again" comment in the destroyed-
+		// signal handler above) is established HERE, at the same point the
+		// document area itself first comes into existence, deliberately
+		// NOT earlier in the constructor: readSettings() (called later in
+		// the constructor) restores a persisted dock layout from
+		// QSettings, and a widget that didn't exist in that saved layout
+		// gets flagged "unassigned" by Qt-ADS's restore logic - which,
+		// this being the ONLY dock widget in a whole area at that point,
+		// triggered a layout restructure that ended up destroying the
+		// wrapped ModelViewer along with it once the first real document
+		// was later added relative to the now-stale area reference
+		// (confirmed via a real crash on startup, reproducible every
+		// time). createDocumentDock() only ever runs after readSettings()
+		// has already applied whatever it's going to apply, matching
+		// exactly when the OLD (placeholder-less) code used to first
+		// establish this area too.
+		ads::CDockAreaWidget* toolArea = _documentDock->dockAreaWidget();
+		auto* placeholderLabel = new QLabel(tr("No documents open"));
+		placeholderLabel->setAlignment(Qt::AlignCenter);
+		placeholderLabel->setStyleSheet("color: palette(mid); background: palette(base);");
+		_documentPlaceholderDock = new CDockWidget(_dockManager, QStringLiteral("DocumentPlaceholder"));
+		_documentPlaceholderDock->setWidget(placeholderLabel);
+		_documentPlaceholderDock->setFeature(CDockWidget::NoTab, true);
+		_documentPlaceholderDock->setFeature(CDockWidget::DockWidgetClosable, false);
+
+		_documentDockArea = _dockManager->addDockWidget(LeftDockWidgetArea, _documentPlaceholderDock, toolArea);
+		_documentDockArea = _dockManager->addDockWidgetTabToArea(dock, _documentDockArea);
+		_dockManager->setSplitterSizes(_documentDockArea, { width() * 3 / 4, width() / 4 });
+		connect(_documentDockArea, &CDockAreaWidget::currentChanged, this, &MainWindow::handleActiveDocumentChanged);
+	}
+
+	dock->setAsCurrentTab();
+	return dock;
+}
+
+void MainWindow::cycleActiveDocument(int direction)
+{
+	using namespace ads;
+
+	if (!_documentDockArea)
+		return;
+	QList<CDockWidget*> docs = _documentDockArea->dockWidgets();
+	docs.removeAll(_documentPlaceholderDock);
+	if (docs.size() < 2)
+		return;
+
+	CDockWidget* current = _documentDockArea->currentDockWidget();
+	int idx = docs.indexOf(current);
+	// If the placeholder is current (idx == -1, since it was just removed
+	// from the list above), start from the first/last real document rather
+	// than computing a modulus against -1.
+	if (idx < 0)
+		idx = (direction > 0) ? -1 : 0;
+	const int nextIdx = (idx + direction + docs.size()) % docs.size();
+	docs[nextIdx]->setAsCurrentTab();
+}
+
+void MainWindow::constrainToolPanelWidth()
+{
+	using namespace ads;
+
+	if (!_propertiesDock)
+		return;
+	CDockAreaWidget* toolArea = _propertiesDock->dockAreaWidget();
+	if (!toolArea)
+		return;
+
+	// A temporary maximumWidth cap (an earlier version of this) doesn't
+	// actually fix anything: once released, Qt-ADS's own content-hint-driven
+	// sizing (which is also what caused the ORIGINAL too-wide default this
+	// whole mechanism exists to correct - see createDocumentDock()) just
+	// reasserts itself immediately, so nothing changes after the cap lifts.
+	// parentSplitter() is CDockAreaWidget's own official accessor for this -
+	// CDockManager::setSplitterSizes() itself is just a thin wrapper around
+	// it (verified against Qt-ADS's actual source, not just the header) - a
+	// prior version of this guessed at the same QSplitter via
+	// qobject_cast<QSplitter*>(toolArea->parentWidget()) instead, which is
+	// no longer needed now that a real accessor for it is known to exist.
+	QSplitter* splitter = toolArea->parentSplitter();
+	if (!splitter)
+		return;
+	const int index = splitter->indexOf(toolArea);
+	if (index < 0)
+		return;
+
+	QList<int> sizes = splitter->sizes();
+	if (sizes.size() < 2)
+		return;
+
+	const int targetWidth = width() / 4;
+	const int delta = sizes[index] - targetWidth;
+	if (delta == 0)
+		return;
+	sizes[index] = targetWidth;
+
+	// Redistribute the freed (or reclaimed) space across the other
+	// splitter children proportionally to their current sizes, rather than
+	// dumping it all onto just one sibling.
+	int othersTotal = 0;
+	for (int i = 0; i < sizes.size(); ++i)
+		if (i != index)
+			othersTotal += sizes[i];
+	if (othersTotal <= 0)
+		return;
+	for (int i = 0; i < sizes.size(); ++i)
+	{
+		if (i == index)
+			continue;
+		sizes[i] += delta * sizes[i] / othersTotal;
+	}
+	splitter->setSizes(sizes);
+}
+
+void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
+{
+	if (!viewer)
+	{
+		// No active document (last one just closed) - disabling isn't
+		// enough on its own: these panels are single shared instances that
+		// cache the ModelViewer/ViewportWidget/SceneGraph pointers they were
+		// last bound to (see initialize() on each), and disabling a widget
+		// doesn't touch those. Left uncleared, the pointers go dangling the
+		// moment that document is actually destroyed - and a REENTRANT call
+		// into one of these panels can still happen after that (confirmed
+        // via a real crash: opening a new document runs its first
+        // initializeGL() -> loadRenderSettings() ->
+        // ModelViewer::onRenderingModeSelected(), which reaches
+        // VisualizationEnvironmentPanel::setPBRLightingMode() - and that
+        // panel was still holding the PREVIOUS, by-then-destroyed
+        // document's ViewportWidget*, so it called a shader bind on freed
+        // memory). Passing nullptr through the same initialize()/setter
+        // calls the non-null branch below already uses is what actually
+        // clears the dangling references - each of these was already
+        // confirmed to handle null viewer/viewport/sceneGraph arguments
+        // safely (they're guarded internally, or plain setters with no
+        // immediate dereference).
+		_materialPropertiesPanel->initialize(nullptr, nullptr);
+		_objectTransformPanel->setEnabled(false);
+		_visualizationEnvironmentPanel->initialize(nullptr, nullptr);
+		_materialVariantsPanel->setSceneGraph(nullptr);
+		_animationsPanel->setSceneGraph(nullptr);
+		_animationsPanel->setViewportWidget(nullptr);
+		_camerasPanel->setSceneGraph(nullptr);
+		_camerasPanel->setViewportWidget(nullptr);
+
+		_materialPropertiesPanel->setEnabled(false);
+		_objectTransformPanel->setEnabled(false);
+		_visualizationEnvironmentPanel->setEnabled(false);
+		_materialVariantsPanel->setEnabled(false);
+		_animationsPanel->setEnabled(false);
+		_camerasPanel->setEnabled(false);
+		return;
+	}
+
+	_materialPropertiesPanel->setEnabled(true);
+	_objectTransformPanel->setEnabled(true);
+	_visualizationEnvironmentPanel->setEnabled(true);
+	_materialVariantsPanel->setEnabled(true);
+	_animationsPanel->setEnabled(true);
+	_camerasPanel->setEnabled(true);
+
+	ViewportWidget* viewport = viewer->getViewportWidget();
+
+	// MaterialPropertiesPanel::initialize() has no one-shot guard, so this is
+	// already safe to call on every rebind.
+	_materialPropertiesPanel->initialize(viewer, viewport);
+	// Clears state left over from whichever document was active before -
+	// without this, an in-progress mesh-material edit on the previous
+	// document would still look "in progress" against the new one.
+	_materialPropertiesPanel->setEditingMeshUuid(QUuid());
+
+	_visualizationEnvironmentPanel->setPreviewWidget(_materialPropertiesPanel->getPreviewWidget());
+	_visualizationEnvironmentPanel->initialize(viewer, viewport);
+
+	// These two connections are per-ViewportWidget, and every document has
+	// its own - reconnect them to the newly-active one each time instead of
+	// leaving them wired to whichever viewport was active before.
+	disconnect(_environmentPanelDisplayModeConnection);
+	_environmentPanelDisplayModeConnection = connect(viewport, QOverload<int>::of(&ViewportWidget::displayModeChanged),
+		_visualizationEnvironmentPanel, QOverload<int>::of(&VisualizationEnvironmentPanel::onDisplayModeChanged));
+
+	disconnect(_materialPreviewRenderingModeConnection);
+	MaterialPreviewWidget* previewWidget = _materialPropertiesPanel->getPreviewWidget();
+	_materialPreviewRenderingModeConnection = connect(viewport, QOverload<int>::of(&ViewportWidget::renderingModeChanged),
+		this, [previewWidget](int) { previewWidget->update(); });
+
+	// Unconditional, not just on switching TO the Transformations tab - if
+	// the user was already looking at that tab when a different document
+	// activated, only the tab-changed handler would have caught it, leaving
+	// the panel showing the previous document's selection's values.
+	viewer->updateTransformationValues();
+
+	// Document dock: Variants/Animations/Cameras. setSceneGraph()/
+	// setViewportWidget() are plain setters with no one-shot guard or
+	// ordering hazard (checked their implementations directly, given what
+	// the Environment panel's initialize() ordering bug cost earlier) -
+	// safe to call on every rebind.
+	SceneGraph* sceneGraph = viewer->sceneGraph();
+	_materialVariantsPanel->setSceneGraph(sceneGraph);
+	_animationsPanel->setSceneGraph(sceneGraph);
+	_animationsPanel->setViewportWidget(viewport);
+	_camerasPanel->setSceneGraph(sceneGraph);
+	_camerasPanel->setViewportWidget(viewport);
+	_materialVariantsPanel->refresh();
+	_animationsPanel->refresh();
+	_camerasPanel->refresh();
+
+	// Per-document sources (this document's SceneGraph/ViewportWidget, not
+	// the shared panels) - disconnect from whichever document was
+	// previously bound and reconnect to the new one, same reasoning as the
+	// Environment panel's SceneGraph::lightDataChanged connection.
+	disconnect(_variantDataChangedConnection);
+	disconnect(_animationDataChangedConnection);
+	disconnect(_gltfCameraDataChangedConnection);
+	disconnect(_animationStateChangedConnection);
+	if (sceneGraph)
+	{
+		_variantDataChangedConnection = connect(sceneGraph, &SceneGraph::variantDataChanged, this,
+			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		_animationDataChangedConnection = connect(sceneGraph, &SceneGraph::animationDataChanged, this,
+			[this]() { _animationsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		_gltfCameraDataChangedConnection = connect(sceneGraph, &SceneGraph::gltfCameraDataChanged, this,
+			[this]() { _camerasPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+	}
+	_animationStateChangedConnection = connect(viewport, &ViewportWidget::animationStateChanged,
+		_animationsPanel, &AnimationsPanel::refresh);
+
+	refreshDocumentDockTabStyling(viewer);
+}
+
+void MainWindow::handleActiveDocumentChanged()
+{
+	// Determined from the signal sender, not activeMdiChild() (which just
+	// returns _activeDocument - the very thing this function updates) -
+	// this fires once per document-hosting CDockAreaWidget, and there can
+	// be more than one (see createDocumentDock()'s dockAreaCreated
+	// handler), so it must reflect whichever area actually changed, not
+	// always the original one.
+	ModelViewer* child = nullptr;
+	if (auto* area = qobject_cast<ads::CDockAreaWidget*>(sender()))
+	{
+		if (ads::CDockWidget* current = area->currentDockWidget())
+			child = qobject_cast<ModelViewer*>(current->widget());
+	}
+	activateDocument(child);
+}
+
+void MainWindow::activateDocument(ModelViewer* child)
+{
+	// Both currentChanged(int) (tab switch within one area) and
+	// focusedDockWidgetChanged() (focus moving to a different area
+	// entirely) can fire for what amounts to the same activation - skip
+	// redoing the rebind/undo-stack/repaint-nudge work below if the
+	// document isn't actually changing.
+	if (child && child == _activeDocument)
+		return;
+
+	_activeDocument = child;
+
+	updateMenus();
+
+	// Disconnect from the PREVIOUS child's undo stack before connecting to
+	// the new one - without this, every document switch added another
+	// connection to the last child's stack, so updateMenus() fired once per
+	// prior switch on every subsequent undo/redo.
+	if (_lastBoundModelViewer && _lastBoundModelViewer->getUndoStack())
+		disconnect(_lastBoundModelViewer->getUndoStack(), &QUndoStack::indexChanged, this, &MainWindow::updateMenus);
+
+	rebindSharedPanelsTo(child);
+	_lastBoundModelViewer = child;
+
+	if (child && child->getUndoStack())
+	{
+		connect(child->getUndoStack(), &QUndoStack::indexChanged,
+			this, &MainWindow::updateMenus, Qt::UniqueConnection);
+	}
+
+	if (child)
+	{
+		// A tab becoming current only shows the QOpenGLWidget again - it
+		// doesn't itself guarantee a repaint, so without this the viewport
+		// can sit on stale/blank contents until something else (a click, an
+		// animation frame) happens to trigger one. Also grabs keyboard focus
+		// the same way a click into the viewport already does (see
+		// ViewportWidget::mousePressEvent()), so camera-navigation keys work
+		// immediately on switching tabs instead of requiring a click first.
+		if (ViewportWidget* viewport = child->getViewportWidget())
+		{
+			viewport->setFocus();
+			// Neither update() nor repaint() actually fixes this (confirmed
+			// by testing both): the viewport reports isVisible()==true with
+			// a correct size right here, and repaint() forces Qt to run
+			// paintGL() synchronously, yet the screen stayed on stale/black
+			// contents until a genuine native input event (the mouse
+			// entering the viewport OR passing over a nearby widget like the
+			// tab's close button) happened. That points at the window
+			// manager/compositor never being told this region needs
+			// recompositing - Qt's own internal repaint clearly ran, but
+			// nothing reached the compositor without real input activity.
+			// A real resize (shrink then restore) forces genuine native
+			// ConfigureNotify/Expose events the compositor can't ignore,
+			// unlike a pure Qt-level update()/repaint() call - matches the
+			// same class of Wayland/XWayland compositor quirk already
+			// worked around elsewhere in this codebase (see
+			// ViewportWidget::paintGL()'s alpha-stomp comment), just showing
+			// up as stale pixels here instead of alpha bleed-through.
+			//
+			// The shrink and restore need to be genuinely separate event-
+			// loop passes, not back-to-back calls - two resize() calls with
+			// no event processing between them risk Qt coalescing them into
+			// a single net no-op (final size == original size), which would
+			// never generate a real native event at all. That's consistent
+			// with this only failing "randomly": whether Qt happens to
+			// process something in between the two calls isn't guaranteed
+			// by calling them consecutively in the same function.
+			QPointer<ViewportWidget> guardedViewport(viewport);
+			QTimer::singleShot(0, this, [guardedViewport]() {
+				if (!guardedViewport)
+					return;
+				const QSize size = guardedViewport->size();
+				guardedViewport->resize(size - QSize(1, 1));
+				QTimer::singleShot(0, guardedViewport, [guardedViewport, size]() {
+					if (guardedViewport)
+						guardedViewport->resize(size);
+					});
+				});
+		}
+	}
+	else
+	{
+	}
+}
+
+void MainWindow::setDocumentTabDimmed(int tabIndex, bool dimmed)
+{
+	QTabBar* tabBar = _documentTabWidget->tabBar();
+	if (tabIndex < 0 || tabIndex >= tabBar->count())
+		return;
+	// QPalette::NoRole clears the override and falls back to the tab bar's
+	// normal palette - can't just use a fixed "undimmed" color here since
+	// that would stop tracking the app's actual theme (dark vs light).
+	tabBar->setTabTextColor(tabIndex, dimmed ? tabBar->palette().color(QPalette::Disabled, QPalette::WindowText)
+	                                          : QColor());
+}
+
+void MainWindow::refreshDocumentDockTabStyling(ModelViewer* viewer)
+{
+	if (!_documentTabWidget)
+		return;
+
+	SceneGraph* sceneGraph = viewer ? viewer->sceneGraph() : nullptr;
+	const bool hasVariants = sceneGraph && !sceneGraph->filesWithVariants().isEmpty();
+	const bool hasAnimations = sceneGraph && !sceneGraph->filesWithAnimations().isEmpty();
+	const bool hasCameras = sceneGraph && !sceneGraph->filesWithGltfCameras().isEmpty();
+
+	setDocumentTabDimmed(0, !hasVariants);
+	setDocumentTabDimmed(1, !hasAnimations);
+	setDocumentTabDimmed(2, !hasCameras);
+}
+
+void MainWindow::showMaterialsPropertiesPage()
+{
+	_propertiesTabWidget->setCurrentIndex(0);
+	_propertiesDock->setAsCurrentTab();
+	_propertiesDock->toggleView(true);
+}
+
+void MainWindow::showTransformationsPropertiesPage()
+{
+	_propertiesTabWidget->setCurrentIndex(1);
+	_propertiesDock->setAsCurrentTab();
+	_propertiesDock->toggleView(true);
+	if (ModelViewer* child = activeMdiChild())
+	{
+		child->getViewportWidget()->showTransformGizmoForSelection(true);
+		child->updateTransformationValues();
+	}
+}
+
+void MainWindow::showEnvironmentDockPage()
+{
+	_environmentDock->setAsCurrentTab();
+	_environmentDock->toggleView(true);
+}
+
 
 MainWindow::~MainWindow()
 {
+	// Must be set before anything below runs Qt's cascading parent-child
+	// destruction of _dockManager and its dock widgets - see the comment in
+	// createDocumentDock()'s destroyed-signal handler.
+	_shuttingDown = true;
 	delete ui;
 }
 
@@ -302,12 +1170,18 @@ void MainWindow::readSettings()
 	else {
 		restoreGeometry(geometry);
 	}
+
+	const QByteArray dockState = settings.value("dockState", QByteArray()).toByteArray();
+	if (!dockState.isEmpty() && _dockManager)
+		_dockManager->restoreState(dockState);
 }
 
 void MainWindow::writeSettings()
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	settings.setValue("geometry", saveGeometry());
+	if (_dockManager)
+		settings.setValue("dockState", _dockManager->saveState());
 }
 
 
@@ -675,7 +1549,7 @@ void MainWindow::showEvent(QShowEvent* event)
 	{
 		//std::vector<int> mod = { 5 };
 		//_viewers[0]->getViewportWidget()->setDisplayList(mod);
-		_viewers[0]->showMaximized();
+		presentDocumentFullscreen(_viewers[0]);
 		_viewers[0]->updateDisplayList();
 
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -738,12 +1612,19 @@ void MainWindow::on_actionNew_triggered()
 	ModelViewer* viewer = new ModelViewer(nullptr);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
-	_viewers.append(viewer);
-	ui->mdiArea->addSubWindow(viewer);
-	viewer->showMaximized();
+	createDocumentDock(viewer);
 	//std::vector<int> mod = { 5 };
 	//viewer->getViewportWidget()->setDisplayList(mod);
 	viewer->updateDisplayList();
+}
+
+void MainWindow::presentDocumentFullscreen(ModelViewer* viewer)
+{
+	// Documents are native CDockWidgets now (see createDocumentDock()) - Qt-
+	// ADS manages showing/sizing each document's tab entirely on its own, no
+	// manual geometry/frame/maximize-state handling needed here at all.
+	if (ads::CDockWidget* dock = _documentDocks.value(viewer))
+		dock->setAsCurrentTab();
 }
 
 void MainWindow::on_actionOpen_triggered()
@@ -775,9 +1656,9 @@ void MainWindow::on_actionOpen_triggered()
 
 bool MainWindow::openFile(const QString& fileName)
 {
-	if (QMdiSubWindow* existing = findMdiChild(fileName))
+	if (ads::CDockWidget* existing = findDocumentDock(fileName))
 	{
-		ui->mdiArea->setActiveSubWindow(existing);
+		existing->setAsCurrentTab();
 		return true;
 	}
 	const bool succeeded = loadFile(fileName);
@@ -797,33 +1678,30 @@ void MainWindow::cancelFileLoading()
 
 void MainWindow::closeSubWindow()
 {
-	ModelViewer* viewer = activeMdiChild();	
-	viewer->parentWidget()->close();
-	// Remove from the list
-	_viewers.removeAll(viewer);
+	// close() runs ModelViewer::closeEvent() (unsaved-changes save prompt)
+	// and, if accepted, WA_DeleteOnClose schedules its deletion - the
+	// destroyed-signal handler in createDocumentDock() removes it from
+	// _viewers and tears down its CDockWidget from there.
+	if (ModelViewer* viewer = activeMdiChild())
+		viewer->close();
 }
 
 void MainWindow::closeAllSubWindows()
 {
-	QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
-	for (QMdiSubWindow* sub : subWindows)
-	{
-		ModelViewer* viewer = dynamic_cast<ModelViewer*>(sub->widget());
-		if (viewer)
-		{
-			viewer->parentWidget()->close();
-		}
-	}
+	// Snapshot first - closing each viewer mutates _viewers via the
+	// destroyed-signal handler in createDocumentDock().
+	const QList<ModelViewer*> viewers = _viewers;
+	for (ModelViewer* viewer : viewers)
+		viewer->close();
 }
 
 bool MainWindow::loadFile(const QString& fileName)
 {
 	ModelViewer* child = createMdiChild();
-	child->setWindowState(Qt::WindowMaximized);
-	child->show();
+	presentDocumentFullscreen(child);
 	const bool succeeded = child->loadFile(fileName);
 	if (!succeeded)
-		child->parentWidget()->close();
+		child->close();
 	else
 	{
 		child->setWindowTitle(QFileInfo(fileName).fileName());
@@ -937,50 +1815,26 @@ void MainWindow::on_actionSettings_triggered()
 	});
 }
 
+// Tile/Cascade have no meaning for documents anymore: they're always-tabbed
+// Qt-ADS dock widgets (see createDocumentDock()) with no independent
+// per-document geometry left to arrange. The slots are kept as no-ops,
+// rather than removed, only because ui_MainWindow.h's auto-connect wiring
+// (QMetaObject::connectSlotsByName) expects them to exist; the actions
+// themselves are permanently hidden in updateMenus().
 void MainWindow::on_actionTile_Horizontally_triggered()
 {
-	ui->mdiArea->tileSubWindows();
-	QMdiArea* mdiArea = ui->mdiArea;
-	if (mdiArea->subWindowList().isEmpty())
-		return;
-
-	QPoint position(0, 0);
-
-	foreach(QMdiSubWindow * window, mdiArea->subWindowList())
-	{
-		QRect rect(0, 0, mdiArea->width() / mdiArea->subWindowList().count(), mdiArea->height());
-		window->setGeometry(rect);
-		window->move(position);
-		position.setX(position.x() + window->width());
-	}
 }
 
 void MainWindow::on_actionTile_Vertically_triggered()
 {
-	ui->mdiArea->tileSubWindows();
-	QMdiArea* mdiArea = ui->mdiArea;
-	if (mdiArea->subWindowList().isEmpty())
-		return;
-
-	QPoint position(0, 0);
-
-	foreach(QMdiSubWindow * window, mdiArea->subWindowList())
-	{
-		QRect rect(0, 0, mdiArea->width(), mdiArea->height() / mdiArea->subWindowList().count());
-		window->setGeometry(rect);
-		window->move(position);
-		position.setY(position.y() + window->height());
-	}
 }
 
 void MainWindow::on_actionTile_triggered()
 {
-	ui->mdiArea->tileSubWindows();
 }
 
 void MainWindow::on_actionCascade_triggered()
 {
-	ui->mdiArea->cascadeSubWindows();
 }
 
 MainWindow* MainWindow::mainWindow()
@@ -1007,10 +1861,14 @@ void MainWindow::updateMenus()
 	ui->actionExport->setVisible(hasMdiChild);
 	ui->actionClose->setEnabled(hasMdiChild);
 	ui->actionFileClose->setVisible(hasMdiChild);
-	ui->actionClose_All->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
+	// _documentDocks.count(), not _documentDockArea->dockWidgetsCount():
+	// the latter now always includes the permanent placeholder dock (see
+	// the constructor), which would make this off-by-one against the
+	// actual number of open documents.
+	const int documentCount = _documentDocks.count();
+	ui->actionClose_All->setVisible(hasMdiChild && documentCount > 1);
 
 	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
-	ui->actionTile->setEnabled(hasMdiChild);
 
 	// Tools menu is always visible now that Ray Tracing gives it a
 	// permanent, non-debug entry - only the Texture Debugger action (and
@@ -1022,11 +1880,15 @@ void MainWindow::updateMenus()
 		ui->actionToolsSeparator->setVisible(debugEnabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(debugEnabled && hasMdiChild);
 	}
-	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
-	ui->actionTile_Vertically->setEnabled(hasMdiChild);
-	ui->actionCascade->setEnabled(hasMdiChild);
-	ui->actionNext->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
-	ui->actionPrevious->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
+	// Tile/Cascade: no longer meaningful (see on_actionTile*/on_actionCascade
+	// _triggered() above) - permanently hidden rather than left visible-but-
+	// inert.
+	ui->actionTile->setVisible(false);
+	ui->actionTile_Horizontally->setVisible(false);
+	ui->actionTile_Vertically->setVisible(false);
+	ui->actionCascade->setVisible(false);
+	ui->actionNext->setVisible(hasMdiChild && documentCount > 1);
+	ui->actionPrevious->setVisible(hasMdiChild && documentCount > 1);
 
 #ifndef QT_NO_CLIPBOARD
 	//bool hasSelection = (activeMdiChild() && activeMdiChild()->textCursor().hasSelection());
@@ -1078,33 +1940,21 @@ void MainWindow::updateWindowMenu()
 	ui->menuWindows->addAction(ui->actionClose);
 	ui->menuWindows->addAction(ui->actionClose_All);
 	ui->menuWindows->addSeparator();
-	ui->menuWindows->addAction(ui->actionCascade);
-	ui->menuWindows->addAction(ui->actionTile);
-	ui->menuWindows->addAction(ui->actionTile_Horizontally);
-	ui->menuWindows->addAction(ui->actionTile_Vertically);
-	ui->menuWindows->addSeparator();
 	ui->menuWindows->addAction(ui->actionNext);
 	ui->menuWindows->addAction(ui->actionPrevious);
 
-	QList<QMdiSubWindow*> windows = ui->mdiArea->subWindowList();
-	if (!windows.isEmpty())
+	if (!_viewers.isEmpty())
 		ui->menuWindows->addSeparator();
 
-	for (int i = 0; i < windows.size(); ++i) {
-		QMdiSubWindow* mdiSubWindow = windows.at(i);
-		ModelViewer* child = qobject_cast<ModelViewer*>(mdiSubWindow->widget());
+	for (ModelViewer* child : std::as_const(_viewers))
+	{
+		ads::CDockWidget* dock = _documentDocks.value(child);
+		if (!dock)
+			continue;
 
-		QString text;
-		if (i < 9)
-		{
-			text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
-		}
-		else
-		{
-			text = child->currentFile() == "" ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
-		}
-		QAction* action = ui->menuWindows->addAction(text, mdiSubWindow, [this, mdiSubWindow]() {
-			ui->mdiArea->setActiveSubWindow(mdiSubWindow);
+		const QString text = child->currentFile().isEmpty() ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
+		QAction* action = ui->menuWindows->addAction(text, dock, [dock]() {
+			dock->setAsCurrentTab();
 			});
 		action->setCheckable(true);
 		action->setChecked(child == activeMdiChild());
@@ -1113,21 +1963,19 @@ void MainWindow::updateWindowMenu()
 
 ModelViewer* MainWindow::activeMdiChild() const
 {
-	if (QMdiSubWindow* activeSubWindow = ui->mdiArea->activeSubWindow())
-		return qobject_cast<ModelViewer*>(activeSubWindow->widget());
-	return nullptr;
+	// _activeDocument, not _documentDockArea->currentDockWidget(): a
+	// document split off into its own area (see createDocumentDock()'s
+	// dockAreaCreated handler) can be the one the user is actually looking
+	// at, and _documentDockArea only ever tracked the original area.
+	return _activeDocument;
 }
 
-QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
+ads::CDockWidget* MainWindow::findDocumentDock(const QString& fileName) const
 {
-	//QString canonicalFilePath = QFileInfo(fileName).canonicalFilePath();
-	const QList<QMdiSubWindow*> subWindows = ui->mdiArea->subWindowList();
-	for (QMdiSubWindow* window : subWindows)
+	for (auto it = _documentDocks.constBegin(); it != _documentDocks.constEnd(); ++it)
 	{
-		ModelViewer* mdiChild = qobject_cast<ModelViewer*>(window->widget());
-		QString curFile = mdiChild->currentFile();
-		if (curFile == fileName)
-			return window;
+		if (it.key()->currentFile() == fileName)
+			return it.value();
 	}
 	return nullptr;
 }
@@ -1151,25 +1999,18 @@ bool MainWindow::canExit()
 		}
 	}
 
-	// Get the list of MDI child windows
-	QList<QMdiSubWindow*> windows = ui->mdiArea->subWindowList();
-
-	// Query each MDI child window
-	for (QMdiSubWindow* window : windows)
+	// Query each open document
+	for (ModelViewer* child : std::as_const(_viewers))
 	{
-		ModelViewer* child = qobject_cast<ModelViewer*>(window->widget());
-		if (child)
-		{
-			// Create a close event and let the child handle it
-			// This will trigger ModelViewer::closeEvent which shows the save dialog
-			QCloseEvent closeEvent;
-			child->closeEvent(&closeEvent);
+		// Create a close event and let the child handle it
+		// This will trigger ModelViewer::closeEvent which shows the save dialog
+		QCloseEvent closeEvent;
+		child->closeEvent(&closeEvent);
 
-			// If the child rejected the close (user clicked Cancel), return false
-			if (!closeEvent.isAccepted())
-			{
-				return false;  // Exit cancelled - don't close application
-			}
+		// If the child rejected the close (user clicked Cancel), return false
+		if (!closeEvent.isAccepted())
+		{
+			return false;  // Exit cancelled - don't close application
 		}
 	}
 

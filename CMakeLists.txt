@@ -11,6 +11,7 @@ find_package(basisu CONFIG REQUIRED)
 find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
+find_package(qtadvanceddocking-qt6 CONFIG REQUIRED)
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -443,6 +444,7 @@ target_link_libraries(ModelViewer
         embree
         OpenImageDenoise
         OpenEXR::OpenEXR
+        ads::qtadvanceddocking-qt6
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}

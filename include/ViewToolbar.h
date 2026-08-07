@@ -79,6 +79,16 @@ protected:
     bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
+    // Scopes a toolbar action's shortcut to "fires while the owning
+    // ViewportWidget (parentWidget(), not this toolbar itself) or one of
+    // its children has focus" - see the .cpp for why this needs both a
+    // context change AND an explicit addAction() association, not just
+    // setShortcutContext() alone.
+    void scopeShortcutToViewport(QAction* action);
+    // Same scoping, for buttons: QAbstractButton::setShortcut() has no
+    // public API to change its context, so this replaces it with an
+    // explicit QShortcut (same pattern already used for the Home shortcut).
+    void scopeButtonShortcutToViewport(QAbstractButton* button, const QKeySequence& sequence);
     void retranslateUI();
     void updateScrollButtons();
     void scrollLeft();

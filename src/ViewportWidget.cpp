@@ -1109,7 +1109,23 @@ void ViewportWidget::initializeGL()
 	}
 
 	_renderCtrl.setOpenGLInitialized(true);
-	loadRenderSettings();
+	// Deferred, not called synchronously here: loadRenderSettings()
+	// reentrantly triggers setDisplayMode()/onRenderingModeSelected(),
+	// whose signals reach VisualizationEnvironmentPanel::
+	// onDisplayModeChanged() and touch GL-dependent render state (floor/
+	// cube geometry, etc.) that isn't actually fully constructed yet at
+	// this exact point - despite isOpenGLInitialized() already reporting
+	// true (set on the line above). Confirmed via a real crash
+	// (CubeRenderable::setSize() corrupting a std::vector inside
+	// updateFloorGeometry(), reached through this exact chain) that
+	// guarding each individual downstream call isn't sustainable: an
+	// EARLIER guard was already added to onDisplayModeChanged() for this
+	// same reentrancy and still wasn't enough once a DIFFERENT GL-dependent
+	// object was the one actually touched. Running this on the next event
+	// loop iteration instead means it only starts once initializeGL() has
+	// genuinely finished constructing everything - none of the code below
+	// this point depends on loadRenderSettings() having already run.
+	QTimer::singleShot(0, this, [this]() { loadRenderSettings(); });
 
 	// Seed the default navigation/camera mode. setCameraMode() calls setProjection()
 	// internally for Fly/FirstPerson, which touches shader state — must run after GL init.
@@ -2768,6 +2784,16 @@ void ViewportWidget::updateBoundingBox()
 
 void ViewportWidget::updateFloorPlane()
 {
+	// loadRenderSettings() (called from initializeGL(), before _lightCube -
+	// touched by updateFloorGeometry() below - is constructed) emits
+	// displayModeChanged partway through initializeGL(), and
+	// VisualizationEnvironmentPanel::onDisplayModeChanged() reacts to it by
+	// calling setGroundMode() -> here. Harmless for every normal (post-init)
+	// call, which is the vast majority - only blocks this one reentrant
+	// during-init path.
+	if (!_renderCtrl.isOpenGLInitialized())
+		return;
+
 	if ((!_floorPlane || !_renderCtrl.fgShader()) && (!_gridPlane || !_renderCtrl.gridShader()))
 		return;
 
@@ -7320,7 +7346,7 @@ bool ViewportWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle h
 		}
 	}
 
-	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	if (_viewer->tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		_viewer->objectTransformPanel->setTranslationValues(QVector3D(0.0f, 0.0f, 0.0f));
 	}
@@ -7387,7 +7413,7 @@ void ViewportWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 		}
 	}
 
-	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	if (_viewer->tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		_viewer->objectTransformPanel->setTranslationValues(_viewCtrl.transformGizmoCurrentTranslationDelta());
 	}
@@ -7553,7 +7579,7 @@ bool ViewportWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle,
 		}
 	}
 
-	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	if (_viewer->tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		_viewer->objectTransformPanel->setScaleValues(QVector3D(1.0f, 1.0f, 1.0f));
 	}
@@ -7653,7 +7679,7 @@ void ViewportWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 		}
 	}
 
-	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	if (_viewer->tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		_viewer->objectTransformPanel->setScaleValues(_viewCtrl.transformGizmoCurrentScaleDelta());
 	}
@@ -7807,7 +7833,7 @@ bool ViewportWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle hand
 		}
 	}
 
-	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	if (_viewer->tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		_viewer->objectTransformPanel->setRotationValues(QVector3D(0.0f, 0.0f, 0.0f));
 	}
@@ -7902,7 +7928,7 @@ void ViewportWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 		}
 	}
 
-	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	if (_viewer->tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		_viewer->objectTransformPanel->setRotationValues(_viewCtrl.transformGizmoCurrentRotationDelta());
 	}
@@ -14940,9 +14966,13 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			{				
 				action = contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &ViewportWidget::fitAll);
 				action->setShortcut(QKeySequence(Qt::Key_F));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 
 				action = contextMenu.addAction(QIcon(":/icons/res/window-zoom.png"), tr("Zoom Area"));
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_W));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 				action->setCheckable(true);
 				connect(action, &QAction::triggered, this, &ViewportWidget::beginWindowZoom);
 
@@ -14963,18 +14993,24 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 				}
 				action = contextMenu.addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom"));
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Z));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 				connect(action, &QAction::triggered, this, [this]() {
 					setZoomingActive(true);
 					});
 
 				action = contextMenu.addAction(QIcon(":/icons/res/panview.png"), tr("Pan"));
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_P));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 				connect(action, &QAction::triggered, this, [this]() {
 					setPanningActive(true);
 					});
 
 				action = contextMenu.addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate"));
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_R));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 				connect(action, &QAction::triggered, this, [this]() {
 					setRotationActive(true);
 					});								
@@ -14986,17 +15022,23 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
 				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 			}
 			if (_sceneRuntime.displayedObjectsIds().size() != 0)
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 			}
 			if (_sceneRuntime.hiddenObjectsIds().size() != 0)
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
+				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+				addAction(action);
 				action->setChecked(_sceneRuntime.visibleSwapped());				
 				connect(action, &QAction::triggered, this, [this](bool enabled) {
 					swapVisible(enabled);

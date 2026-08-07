@@ -235,6 +235,12 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    // Ignored (not scrolled) rather than accepted - the tree lives as a
+    // transparent overlay glued to the viewport (see
+    // ModelViewer::attachNavigationOverlay()), and an ignored wheel event
+    // propagates up to the viewport underneath instead, so scrolling over
+    // the tree still zooms the 3D view like scrolling anywhere else in it.
+    void wheelEvent(QWheelEvent* event) override;
 
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);

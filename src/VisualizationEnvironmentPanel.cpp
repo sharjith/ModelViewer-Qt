@@ -144,9 +144,6 @@ bool VisualizationEnvironmentPanel::eventFilter(QObject* watched, QEvent* event)
 
 void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget)
 {
-	if (_isInitialized)
-		return;
-
 	_modelViewer = modelViewer;
 	_viewportWidget    = viewportWidget;
 	_sceneGraph  = _modelViewer ? _modelViewer->sceneGraph() : nullptr;
@@ -158,60 +155,196 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 		_skyBoxHDRIIndex = _modelViewer->getSkyBoxHDRIIndex();
 	}
 
-	connectSignalsAndSlots();
+	// One-time UI construction: this panel's own signal/slot wiring and the
+	// punctual-lights resize handle never change across documents, so they
+	// still only run once - but AFTER _modelViewer/_viewportWidget are
+	// assigned above, since connectSignalsAndSlots() dereferences
+	// _viewportWidget directly (e.g. isCameraUpAxisZUp()) as part of wiring
+	// up. Everything below the guard re-runs on every call instead, since
+	// this is now a single shared instance rebound to whichever document is
+	// active (see MainWindow::rebindSharedPanelsTo()) rather than one
+	// instance per document - initialize() used to be called exactly once,
+	// at construction, and this guard made a second call a silent no-op,
+	// which would have left the panel permanently showing whichever
+	// document happened to be active first.
+	if (!_isInitialized)
+	{
+		connectSignalsAndSlots();
+
+		// ── Punctual-lights tree resize handle ─────────────────────────────────
+		// Give the tree a compact default height (shows ~4–5 items); users drag
+		// the handle strip below it to reveal more.  The tree's own scroll bar
+		// handles any overflow.
+		{
+			// Fix the tree at a compact default height; the user can drag the handle
+			// down to expand.  setFixedHeight is used so the layout immediately
+			// honours the size regardless of content count.
+			constexpr int kDefaultTreeH = 110;
+			ui->treePunctualLights->setFixedHeight(kDefaultTreeH);
+
+			// Thin drag-handle strip inserted below the tree in the group box layout.
+			auto* handle = new QFrame(ui->groupBoxPunctualLights);
+			handle->setObjectName("treeLightResizeHandle");
+			handle->setFrameShape(QFrame::HLine);
+			handle->setFrameShadow(QFrame::Sunken);
+			handle->setCursor(Qt::SizeVerCursor);
+			handle->setFixedHeight(6);
+			handle->setToolTip(tr("Drag to resize the lights list"));
+
+			auto* gl = qobject_cast<QGridLayout*>(ui->groupBoxPunctualLights->layout());
+			if (gl)
+				gl->addWidget(handle, 1, 0);
+
+			handle->installEventFilter(this);
+			_lightTreeResizeHandle = handle;
+		}
+		// ────────────────────────────────────────────────────────────────────────
+
+		_isInitialized = true;
+	}
 
 	// Refresh punctual lights tree whenever SceneGraph light data changes
 	// (model loaded/unloaded, or individual light toggled from elsewhere).
+	// Disconnect the previous document's SceneGraph first - without this,
+	// rebinding to a different document repeatedly would leave every earlier
+	// SceneGraph still wired to this panel's slot.
+	disconnect(_sceneGraphLightDataConnection);
 	if (_sceneGraph)
 	{
-		connect(_sceneGraph, &SceneGraph::lightDataChanged,
+		_sceneGraphLightDataConnection = connect(_sceneGraph, &SceneGraph::lightDataChanged,
 		        this, &VisualizationEnvironmentPanel::refreshPunctualLightsTree);
 	}
-	updateControlDependencies();
 
-	// Keep ViewportWidget in sync with the UI defaults on first startup as well.
-	// Without this, the viewer could retain an internal floor offset that
-	// differs from the spin box value until the user touches the control.
+	// Rebind the two ViewportWidget-scoped connections connectSignalsAndSlots()
+	// used to make directly, back when it ran once per document - disconnect
+	// from whichever document's viewport this panel was previously bound to
+	// first, same reasoning as the SceneGraph connection above.
+	disconnect(_viewportCameraUpAxisConnection);
+	disconnect(_viewportRenderingModeConnection);
+	if (_viewportWidget)
+	{
+		_viewportCameraUpAxisConnection = connect(_viewportWidget, &ViewportWidget::cameraUpAxisChanged,
+		        this, &VisualizationEnvironmentPanel::updateSkyBoxRotationLabels);
+		updateSkyBoxRotationLabels(_viewportWidget->isCameraUpAxisZUp());
+
+		_viewportRenderingModeConnection = connect(_viewportWidget, &ViewportWidget::renderingModeChanged,
+		        this, &VisualizationEnvironmentPanel::updateControlDependencies);
+	}
+
+	// Reflect the newly-bound document's actual ground mode/floor offset into
+	// the UI - NOT the other way around. This used to push the (freshly
+	// Designer-defaulted) UI state onto the viewport, which only made sense
+	// when initialize() ran once, for a brand new document whose
+	// ViewportWidget genuinely had no ground mode set yet. Now that the same
+	// call rebinds an already-configured document, doing that would
+	// overwrite its actual ground mode with whatever the PREVIOUSLY active
+	// document had left checked in the UI.
 	if (_viewportWidget && ui)
 	{
-		_viewportWidget->setGroundMode(ui->radioButtonGroundFloor->isChecked()
-			? GroundMode::Floor
-			: (ui->radioButtonGroundGrid->isChecked()
-				? GroundMode::Grid
-				: (ui->radioButtonGroundInfinitePlane->isChecked() ? GroundMode::InfinitePlane : GroundMode::None)));
-		_viewportWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
+		const GroundMode mode = _viewportWidget->groundMode();
+		QSignalBlocker blockFloor(ui->radioButtonGroundFloor);
+		QSignalBlocker blockNone(ui->radioButtonGroundNone);
+		QSignalBlocker blockGrid(ui->radioButtonGroundGrid);
+		QSignalBlocker blockInfinitePlane(ui->radioButtonGroundInfinitePlane);
+		ui->radioButtonGroundFloor->setChecked(mode == GroundMode::Floor);
+		ui->radioButtonGroundGrid->setChecked(mode == GroundMode::Grid);
+		ui->radioButtonGroundInfinitePlane->setChecked(mode == GroundMode::InfinitePlane);
+		ui->radioButtonGroundNone->setChecked(mode == GroundMode::None);
+
+		QSignalBlocker blockFloorOffset(ui->doubleSpinBoxFloorOffset);
+		ui->doubleSpinBoxFloorOffset->setValue(_viewportWidget->getFloorOffsetPercent());
 	}
 
-	// ── Punctual-lights tree resize handle ─────────────────────────────────
-	// Give the tree a compact default height (shows ~4–5 items); users drag
-	// the handle strip below it to reveal more.  The tree's own scroll bar
-	// handles any overflow.
+	syncSkyBoxSelectionSilently();
+	// Cheap (float assignment + view update, not a texture reload) and
+	// idempotent since we're reading the value straight back from the same
+	// viewport it's already applied to - safe to call unconditionally here.
+	restoreSkyBoxRotationDegrees(_viewportWidget ? _viewportWidget->getSkyBoxZRotationDegrees() : 0.0f);
+
+	// Reflect every other remaining per-document toggle/value directly from
+	// the viewport, signals blocked so nothing here re-applies anything back
+	// (all of it is already active and correct on this viewport - this is a
+	// display-only sync). Covers the same class of bug as the ground-mode/
+	// skybox fixes above: any control that ISN'T re-synced here still shows
+	// whatever the PREVIOUSLY active document last left it at.
+	if (_viewportWidget && ui)
 	{
-		// Fix the tree at a compact default height; the user can drag the handle
-		// down to expand.  setFixedHeight is used so the layout immediately
-		// honours the size regardless of content count.
-		constexpr int kDefaultTreeH = 110;
-		ui->treePunctualLights->setFixedHeight(kDefaultTreeH);
+		{
+			QSignalBlocker b1(ui->checkBoxShadowMapping), b2(ui->checkBoxSelfShadows),
+				b3(ui->checkBoxReflections), b4(ui->checkBoxEnvMapping), b5(ui->checkBoxIBL),
+				b6(ui->checkBoxDefaultLights), b7(ui->checkBoxShowLights),
+				b8(ui->checkBoxHDRToneMapping), b9(ui->checkBoxGammaCorrection),
+				b10(ui->checkBoxFloorTexture), b11(ui->checkBoxSkyBox);
+			ui->checkBoxShadowMapping->setChecked(_viewportWidget->areShadowsEnabled());
+			ui->checkBoxSelfShadows->setChecked(_viewportWidget->areSelfShadowsEnabled());
+			ui->checkBoxReflections->setChecked(_viewportWidget->areReflectionsEnabled());
+			ui->checkBoxEnvMapping->setChecked(_viewportWidget->isEnvironmentMapEnabled());
+			ui->checkBoxIBL->setChecked(_viewportWidget->isIBLEnabled());
+			ui->checkBoxDefaultLights->setChecked(_viewportWidget->areDefaultLightsEnabled());
+			ui->checkBoxShowLights->setChecked(_viewportWidget->areLightsShown());
+			ui->checkBoxHDRToneMapping->setChecked(_viewportWidget->isHDRToneMappingEnabled());
+			ui->checkBoxGammaCorrection->setChecked(_viewportWidget->isGammaCorrectionEnabled());
+			ui->checkBoxFloorTexture->setChecked(_viewportWidget->isFloorTextureShown());
+			ui->checkBoxSkyBox->setChecked(_viewportWidget->isSkyBoxShown());
+		}
 
-		// Thin drag-handle strip inserted below the tree in the group box layout.
-		auto* handle = new QFrame(ui->groupBoxPunctualLights);
-		handle->setObjectName("treeLightResizeHandle");
-		handle->setFrameShape(QFrame::HLine);
-		handle->setFrameShadow(QFrame::Sunken);
-		handle->setCursor(Qt::SizeVerCursor);
-		handle->setFixedHeight(6);
-		handle->setToolTip(tr("Drag to resize the lights list"));
+		{
+			QSignalBlocker b1(ui->doubleSpinBoxScreenGamma), b2(ui->doubleSpinBoxEnvMapExposure),
+				b3(ui->doubleSpinBoxIBLExposure), b4(ui->doubleSpinBoxSkyBoxFOV), b5(ui->sliderSkyBoxBlur);
+			ui->doubleSpinBoxScreenGamma->setValue(_viewportWidget->getScreenGamma());
+			ui->doubleSpinBoxEnvMapExposure->setValue(_viewportWidget->getEnvMapExposure());
+			ui->doubleSpinBoxIBLExposure->setValue(_viewportWidget->getIBLExposure());
+			ui->doubleSpinBoxSkyBoxFOV->setValue(_viewportWidget->getSkyBoxFOV());
+			ui->sliderSkyBoxBlur->setValue(_viewportWidget->getSkyBoxBlurPercent());
+		}
 
-		auto* gl = qobject_cast<QGridLayout*>(ui->groupBoxPunctualLights->layout());
-		if (gl)
-			gl->addWidget(handle, 1, 0);
+		// Sliders store 0-100 int, viewport stores 0.0-1.0 float (see
+		// onShadowDarknessChanged()/onShadowCatcherMetallicChanged()/
+		// onShadowCatcherRoughnessChanged() for the same *100/100 pairing).
+		{
+			QSignalBlocker b1(ui->sliderShadowDarkness), b2(ui->sliderShadowCatcherMetallic),
+				b3(ui->sliderShadowCatcherRoughness);
+			const int darkness = qRound(_viewportWidget->shadowCatcherDarkness() * 100.0f);
+			const int metallic = qRound(_viewportWidget->shadowCatcherMetalness() * 100.0f);
+			const int roughness = qRound(_viewportWidget->shadowCatcherRoughness() * 100.0f);
+			ui->sliderShadowDarkness->setValue(darkness);
+			ui->sliderShadowCatcherMetallic->setValue(metallic);
+			ui->sliderShadowCatcherRoughness->setValue(roughness);
+			ui->labelShadowDarknessValue->setText(QString::number(darkness / 100.0f, 'f', 2));
+			ui->labelShadowCatcherMetallicValue->setText(QString::number(metallic / 100.0f, 'f', 2));
+			ui->labelShadowCatcherRoughnessValue->setText(QString::number(roughness / 100.0f, 'f', 2));
+		}
 
-		handle->installEventFilter(this);
-		_lightTreeResizeHandle = handle;
+		// comboBoxHDRToneMappingMode's items carry their HDRToneMapMode enum
+		// value in UserRole (set in the constructor) - find the item whose
+		// role matches the viewport's actual current mode.
+		{
+			const int currentMode = static_cast<int>(_viewportWidget->getHDRToneMappingMode());
+			for (int i = 0; i < ui->comboBoxHDRToneMappingMode->count(); ++i)
+			{
+				if (ui->comboBoxHDRToneMappingMode->itemData(i).toInt() == currentMode)
+				{
+					QSignalBlocker block(ui->comboBoxHDRToneMappingMode);
+					ui->comboBoxHDRToneMappingMode->setCurrentIndex(i);
+					break;
+				}
+			}
+		}
+
+		updateButtonStyles();
+
+		// Re-evaluate dependent-control enabled state (checkBoxSelfShadows/
+		// comboBoxShadowQuality gated on checkBoxShadowMapping, the ADS/
+		// RayTraced mode gates, etc.) now that every checkbox above reflects
+		// this document's actual values - moved here from earlier in this
+		// function so it sees the FINAL synced state, not whatever was left
+		// over from the previous document.
+		updateControlDependencies();
 	}
-	// ────────────────────────────────────────────────────────────────────────
 
-	_isInitialized = true;
+	// Repopulate immediately for the newly-bound document rather than waiting
+	// for its next lightDataChanged emission, which may not come for a while.
+	refreshPunctualLightsTree();
 }
 
 void VisualizationEnvironmentPanel::connectSignalsAndSlots()
@@ -241,18 +374,10 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	ui->groupBoxPunctualLights->setVisible(false);
 
 	// ===== Skybox Controls =====
-	connect(_viewportWidget, &ViewportWidget::cameraUpAxisChanged,
-	        this, &VisualizationEnvironmentPanel::updateSkyBoxRotationLabels);
-	updateSkyBoxRotationLabels(_viewportWidget->isCameraUpAxisZUp());
-
-	// updateControlDependencies() reads getRenderingMode() (checkBoxEnvMapping's
-	// adsMode gate, radioButtonGroundInfinitePlane's rayTracedMode gate) - without this
-	// connection, switching rendering mode via any control OTHER than this
-	// panel's own (e.g. a toolbar/menu selector) never re-evaluates those
-	// gates, leaving them stuck at whatever they were computed as when this
-	// panel was last touched.
-	connect(_viewportWidget, &ViewportWidget::renderingModeChanged,
-	        this, &VisualizationEnvironmentPanel::updateControlDependencies);
+	// cameraUpAxisChanged/renderingModeChanged are connected per-rebind, not
+	// here - see initialize(), which (re)connects them to whichever
+	// document's ViewportWidget is currently bound, since this function only
+	// ever runs once.
 	connect(ui->checkBoxSkyBox, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxStateChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxHDRIChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
@@ -1298,6 +1423,56 @@ void VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps()
 	reloadSkyBoxPresets();
 }
 
+// Makes the HDRI checkbox + preset combo reflect this document's actual
+// current skybox (read from _viewportWidget, the authoritative source) with
+// signals blocked throughout - unlike reloadSkyBoxPresets(), this never
+// calls setSkyBoxTextureFolder()/updateView(): the correct texture is
+// already loaded and rendering for this document, so re-applying it on
+// every rebind would just be a wasted (and visibly flickery) reload. Called
+// from initialize() on every document switch; reloadSkyBoxPresets() remains
+// what actually changes the skybox when the user picks a new one.
+void VisualizationEnvironmentPanel::syncSkyBoxSelectionSilently()
+{
+	if (!_viewportWidget || !ui)
+		return;
+
+	const bool isHDRI = _viewportWidget->isSkyBoxHDRIEnabled();
+	const QString currentFolder = _viewportWidget->getCurrentSkyboxFolder();
+
+	QSignalBlocker blockHDRICheckbox(ui->checkBoxSkyBoxHDRI);
+	ui->checkBoxSkyBoxHDRI->setChecked(isHDRI);
+
+	QString appPath = PathUtils::getDataDirectory();
+	QString texPath = appPath + (isHDRI ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");
+
+	QSignalBlocker blockCombo(ui->comboBoxSkyBoxMaps);
+	ui->comboBoxSkyBoxMaps->clear();
+
+	QDir dir(texPath);
+	const QStringList folderList = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+	int matchedIndex = -1;
+	for (int i = 0; i < folderList.size(); ++i)
+	{
+		const QString fullPath = dir.absoluteFilePath(folderList.at(i));
+		ui->comboBoxSkyBoxMaps->addItem(folderList.at(i), fullPath);
+		if (fullPath == currentFolder)
+			matchedIndex = i;
+	}
+
+	// No match means the active folder isn't one of the presets (a custom
+	// folder via "Select Custom Map") - leave the combo on whatever it
+	// defaults to and rely on _customSkyBoxActive, same as
+	// reloadSkyBoxPresets() does, rather than falsely selecting a preset.
+	if (matchedIndex >= 0)
+	{
+		ui->comboBoxSkyBoxMaps->setCurrentIndex(matchedIndex);
+		if (isHDRI)
+			_skyBoxHDRIIndex = matchedIndex;
+		else
+			_skyBoxLDRIIndex = matchedIndex;
+	}
+}
+
 void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 {
 	if (!_modelViewer || !_viewportWidget || !ui)
@@ -1357,6 +1532,18 @@ void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 {
 	if (!_viewportWidget || !ui)
+		return;
+	// ViewportWidget::loadRenderSettings() (called from initializeGL(), well
+	// before GL-dependent state like _lightCube exists) emits
+	// displayModeChanged partway through init - this function reacts by
+	// touching viewport render state (setGroundMode() -> floor geometry,
+	// setSkyBoxTextureHDRI(), etc.) that isn't ready yet at that point.
+	// updateFloorPlane() already guards its own GL-dependent path, but this
+	// crashed elsewhere inside this function's reentrant-during-init call,
+	// confirming that guard alone wasn't sufficient - reject the whole
+	// reentrant call here instead of chasing each individual unsafe call
+	// inside it one at a time.
+	if (!_viewportWidget->isOpenGLInitialized())
 		return;
 
 	bool realShaded = _viewportWidget->isRealismEnabled();

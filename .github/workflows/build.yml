@@ -117,6 +117,7 @@ jobs:
           qt6-base-dev \
           qt6-tools-dev \
           qt6-image-formats-plugins \
+          libqt-advanced-docking-system-dev \
           libocct-foundation-dev \
           libocct-modeling-data-dev \
           libocct-modeling-algorithms-dev \

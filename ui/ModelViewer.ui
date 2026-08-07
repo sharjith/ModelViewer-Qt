@@ -28,386 +28,156 @@
     <normaloff>:/icons/res/logo.png</normaloff>:/icons/res/logo.png</iconset>
   </property>
   <layout class="QGridLayout" name="gridLayout_14">
+   <property name="leftMargin">
+    <number>5</number>
+   </property>
+   <property name="topMargin">
+    <number>5</number>
+   </property>
+   <property name="rightMargin">
+    <number>5</number>
+   </property>
+   <property name="bottomMargin">
+    <number>5</number>
+   </property>
+   <property name="spacing">
+    <number>5</number>
+   </property>
    <item row="0" column="0">
-    <widget class="QSplitter" name="splitter">
+    <widget class="QFrame" name="viewerframe">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-       <horstretch>0</horstretch>
+       <horstretch>100</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
      </property>
-     <property name="frameShape">
-      <enum>QFrame::Shape::NoFrame</enum>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
-     </property>
-     <widget class="QFrame" name="viewerframe">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-        <horstretch>100</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
-      </property>
-      <layout class="QGridLayout" name="gridLayout">
-       <property name="leftMargin">
-        <number>0</number>
-       </property>
-       <property name="topMargin">
-        <number>0</number>
-       </property>
-       <property name="rightMargin">
-        <number>0</number>
-       </property>
-       <property name="bottomMargin">
-        <number>0</number>
-       </property>
-       <property name="spacing">
-        <number>0</number>
-       </property>
-       <item row="0" column="0">
-        <widget class="QFrame" name="glFrame">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QTabWidget" name="controlstabWidget">
-      <property name="minimumSize">
-       <size>
-        <width>450</width>
-        <height>0</height>
-       </size>
-      </property>
-      <property name="currentIndex">
+     <layout class="QGridLayout" name="gridLayout">
+      <property name="leftMargin">
        <number>0</number>
       </property>
-      <property name="iconSize">
-       <size>
-        <width>32</width>
-        <height>32</height>
-       </size>
+      <property name="topMargin">
+       <number>0</number>
       </property>
-      <widget class="QWidget" name="controlstabWidgetPage1">
-       <attribute name="icon">
-        <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/navigation.png</normaloff>:/icons/res/navigation.png</iconset>
-       </attribute>
-       <attribute name="title">
-        <string>Navigation</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_3">
-        <property name="leftMargin">
-         <number>0</number>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+      <property name="spacing">
+       <number>0</number>
+      </property>
+      <item row="0" column="0">
+       <widget class="QFrame" name="glFrame">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
         </property>
-        <property name="topMargin">
-         <number>0</number>
-        </property>
-        <property name="rightMargin">
-         <number>0</number>
-        </property>
-        <property name="bottomMargin">
-         <number>0</number>
-        </property>
-        <item row="0" column="0">
-         <widget class="QFrame" name="navigationFrame">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_15">
-           <item row="0" column="0">
-            <widget class="QWidget" name="modelNavigationWidget" native="true">
-             <layout class="QVBoxLayout" name="verticalLayout">
-              <property name="spacing">
-               <number>6</number>
-              </property>
-              <property name="leftMargin">
-               <number>1</number>
-              </property>
-              <property name="topMargin">
-               <number>1</number>
-              </property>
-              <property name="rightMargin">
-               <number>1</number>
-              </property>
-              <property name="bottomMargin">
-               <number>1</number>
-              </property>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_14">
-                <item>
-                 <widget class="QToolButton" name="toolButtonDetach">
-                  <property name="toolTip">
-                   <string> Detach from panel</string>
-                  </property>
-                  <property name="text">
-                   <string/>
-                  </property>
-                  <property name="icon">
-                   <iconset resource="../ModelViewer.qrc">
-                    <normaloff>:/icons/res/detach.png</normaloff>:/icons/res/detach.png</iconset>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="horizontalSpacer_13">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>40</width>
-                    <height>20</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_27">
-                <item>
-                 <widget class="QCheckBox" name="checkBoxSelectAll">
-                  <property name="toolTip">
-                   <string>Hide/Show All</string>
-                  </property>
-                  <property name="text">
-                   <string>Hide/Show All</string>
-                  </property>
-                  <property name="tristate">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxAutoFitView">
-                  <property name="toolTip">
-                   <string>Auto Fit View On Hide/Show</string>
-                  </property>
-                  <property name="text">
-                   <string>Auto Fit View On Hide/Show</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QCheckBox" name="checkBoxSelectionHighlight">
-                  <property name="toolTip">
-                   <string>Selection Highlighting in Viewer</string>
-                  </property>
-                  <property name="text">
-                   <string>Selection Highlighting</string>
-                  </property>
-                  <property name="checked">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <layout class="QHBoxLayout" name="horizontalLayout_28">
-                <item>
-                 <widget class="QLabel" name="label_23">
-                  <property name="text">
-                   <string>Search</string>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <widget class="QLineEdit" name="searchBox">
-                  <property name="clearButtonEnabled">
-                   <bool>true</bool>
-                  </property>
-                  <property name="toolTip">
-                   <string>Filter the scene tree by name</string>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="SceneTreeWidget" name="treeWidgetModel">
-                <property name="styleSheet">
-                 <string notr="true"/>
-                </property>
-                <property name="selectionMode">
-                 <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
-                </property>
-                <column>
-                 <property name="text">
-                  <string notr="true">1</string>
-                 </property>
-                </column>
-               </widget>
-              </item>
-             </layout>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QWidget" name="modelNavigationWidget" native="true">
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <property name="spacing">
+          <number>6</number>
+         </property>
+         <property name="leftMargin">
+          <number>1</number>
+         </property>
+         <property name="topMargin">
+          <number>1</number>
+         </property>
+         <property name="rightMargin">
+          <number>1</number>
+         </property>
+         <property name="bottomMargin">
+          <number>1</number>
+         </property>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_27">
+           <item>
+            <widget class="QCheckBox" name="checkBoxSelectAll">
+             <property name="toolTip">
+              <string>Hide/Show All</string>
+             </property>
+             <property name="text">
+              <string>Hide/Show All</string>
+             </property>
+             <property name="tristate">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkBoxAutoFitView">
+             <property name="toolTip">
+              <string>Auto Fit View On Hide/Show</string>
+             </property>
+             <property name="text">
+              <string>Auto Fit View On Hide/Show</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCheckBox" name="checkBoxSelectionHighlight">
+             <property name="toolTip">
+              <string>Selection Highlighting in Viewer</string>
+             </property>
+             <property name="text">
+              <string>Selection Highlighting</string>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
             </widget>
            </item>
           </layout>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="controlstabWidgetPage2">
-       <attribute name="icon">
-        <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/properties.png</normaloff>:/icons/res/properties.png</iconset>
-       </attribute>
-       <attribute name="title">
-        <string>Properties</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_2">
-        <item row="0" column="0">
-         <layout class="QVBoxLayout" name="verticalLayout_5">
-          <item>
-           <widget class="QTabWidget" name="tabWidgetVizAttribs">
-            <property name="tabPosition">
-             <enum>QTabWidget::TabPosition::North</enum>
-            </property>
-            <property name="tabShape">
-             <enum>QTabWidget::TabShape::Rounded</enum>
-            </property>
-            <property name="currentIndex">
-             <number>1</number>
-            </property>
-            <property name="iconSize">
-             <size>
-              <width>32</width>
-              <height>32</height>
-             </size>
-            </property>
-            <property name="documentMode">
-             <bool>false</bool>
-            </property>
-            <property name="movable">
-             <bool>true</bool>
-            </property>
-            <widget class="QWidget" name="materialProcessorPage">
-             <attribute name="icon">
-              <iconset resource="../ModelViewer.qrc">
-               <normaloff>:/icons/res/material.png</normaloff>:/icons/res/material.png</iconset>
-             </attribute>
-             <attribute name="title">
-              <string>Materials</string>
-             </attribute>
-             <layout class="QGridLayout" name="gridLayout_23">
-              <property name="leftMargin">
-               <number>0</number>
-              </property>
-              <property name="topMargin">
-               <number>0</number>
-              </property>
-              <property name="rightMargin">
-               <number>0</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item row="0" column="0">
-               <widget class="QScrollArea" name="scrollAreaMaterial">
-                <property name="widgetResizable">
-                 <bool>true</bool>
-                </property>
-                <widget class="MaterialPropertiesPanel" name="predefinedMaterialsPanel">
-                 <property name="geometry">
-                  <rect>
-                   <x>0</x>
-                   <y>0</y>
-                   <width>98</width>
-                   <height>28</height>
-                  </rect>
-                 </property>
-                </widget>
-               </widget>
-              </item>
-             </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_28">
+           <item>
+            <widget class="QLabel" name="label_23">
+             <property name="text">
+              <string>Search</string>
+             </property>
             </widget>
-            <widget class="QWidget" name="transformationsPage">
-             <attribute name="icon">
-              <iconset resource="../ModelViewer.qrc">
-               <normaloff>:/icons/res/transformations.png</normaloff>:/icons/res/transformations.png</iconset>
-             </attribute>
-             <attribute name="title">
-              <string>Transformations</string>
-             </attribute>
-             <layout class="QGridLayout" name="gridLayout_11">
-              <property name="leftMargin">
-               <number>0</number>
-              </property>
-              <property name="topMargin">
-               <number>0</number>
-              </property>
-              <property name="rightMargin">
-               <number>0</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item row="0" column="0">
-               <widget class="QScrollArea" name="scrollAreaTransform">
-                <property name="widgetResizable">
-                 <bool>true</bool>
-                </property>
-                <widget class="ObjectTransformPanel" name="objectTransformPanel">
-                 <property name="geometry">
-                  <rect>
-                   <x>0</x>
-                   <y>0</y>
-                   <width>454</width>
-                   <height>1347</height>
-                  </rect>
-                 </property>
-                </widget>
-               </widget>
-              </item>
-             </layout>
+           </item>
+           <item>
+            <widget class="QLineEdit" name="searchBox">
+             <property name="clearButtonEnabled">
+              <bool>true</bool>
+             </property>
+             <property name="toolTip">
+              <string>Filter the scene tree by name</string>
+             </property>
             </widget>
-           </widget>
-          </item>
-         </layout>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="controlstabWidgetPage3">
-       <attribute name="icon">
-        <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/environment.png</normaloff>:/icons/res/environment.png</iconset>
-       </attribute>
-       <attribute name="title">
-        <string>Environment</string>
-       </attribute>
-       <layout class="QGridLayout" name="gridLayout_4">
-        <item row="0" column="0">
-         <widget class="QScrollArea" name="scrollAreaEnv">
-          <property name="widgetResizable">
-           <bool>true</bool>
-          </property>
-          <widget class="VisualizationEnvironmentPanel" name="visualizationEnvironmentPanel">
-           <property name="geometry">
-            <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>462</width>
-             <height>1394</height>
-            </rect>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="SceneTreeWidget" name="treeWidgetModel">
+           <property name="styleSheet">
+            <string notr="true"/>
            </property>
+           <property name="selectionMode">
+            <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+           </property>
+           <column>
+            <property name="text">
+             <string notr="true">1</string>
+            </property>
+           </column>
           </widget>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-     </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
     </widget>
    </item>
   </layout>
@@ -418,24 +188,6 @@
    <class>SceneTreeWidget</class>
    <extends>QTreeWidget</extends>
    <header>SceneTreeWidget.h</header>
-  </customwidget>
-  <customwidget>
-   <class>MaterialPropertiesPanel</class>
-   <extends>QWidget</extends>
-   <header>MaterialPropertiesPanel.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>ObjectTransformPanel</class>
-   <extends>QWidget</extends>
-   <header>ObjectTransformPanel.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>VisualizationEnvironmentPanel</class>
-   <extends>QWidget</extends>
-   <header>VisualizationEnvironmentPanel.h</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <tabstops>

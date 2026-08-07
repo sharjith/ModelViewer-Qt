@@ -75,6 +75,7 @@
       ]
     },
     "openimagedenoise",
-    "openexr"
+    "openexr",
+    "qt-advanced-docking-system"
   ]
 }

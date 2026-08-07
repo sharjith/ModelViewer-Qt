@@ -219,6 +219,8 @@ public:
 	void setShadowCatcherRoughness(float roughness);
 	void setGroundMode(GroundMode mode);
 	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
+	float getFloorOffsetPercent() const { return _renderCtrl.floorOffsetPercent(); }
+	bool isOpenGLInitialized() const { return _renderCtrl.isOpenGLInitialized(); }
 	void showFloor(bool show) { setGroundMode(show ? GroundMode::Floor : GroundMode::None); }
 	bool isFloorShown() { return _renderCtrl.groundMode() == GroundMode::Floor; }
 	bool isGridShown() const { return _renderCtrl.groundMode() == GroundMode::Grid; }

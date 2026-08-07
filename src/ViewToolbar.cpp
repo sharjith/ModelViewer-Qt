@@ -34,6 +34,49 @@ QString debugOverlayIconPath(DebugOverlayActions action, bool enabled)
 }
 }
 
+void ViewToolbar::scopeShortcutToViewport(QAction* action)
+{
+    // One ViewToolbar (and its flyout menus' actions) exists per document -
+    // under the old QMdiArea setup, QAction's default WindowShortcut
+    // context happened to be scoped per-document for free, because
+    // QMdiSubWindow's Qt::SubWindow window flag made QWidget::window() stop
+    // there instead of continuing up to MainWindow. CDockWidget (see
+    // MainWindow::createDocumentDock()) carries no such flag, so with two-
+    // plus documents open every one of these actions' shortcuts resolved to
+    // the same top-level MainWindow and Qt disabled them all as ambiguous -
+    // this is the "Ambiguous shortcut overload" warning the user's log
+    // showed for Ctrl+T/Ctrl+F, unrelated to the earlier-fixed
+    // ModelViewer-level shortcuts.
+    //
+    // Simply switching the context to WidgetWithChildrenShortcut is not
+    // enough by itself: these actions are created via QMenu::addAction(),
+    // which parents them to their (parentless, never-shown-except-as-a-
+    // popup) QMenu - "the widget that defined it" for context-matching
+    // purposes would then be that menu, which never has focus during normal
+    // 3D-viewport use, so the shortcut would just stop firing entirely
+    // rather than becoming merely non-ambiguous. addAction() associates the
+    // action with parentWidget() (the actual ViewportWidget that gets focus
+    // on click - see ViewportWidget::mousePressEvent()) directly, so
+    // WidgetWithChildrenShortcut's "owner or a child of it has focus" check
+    // has the right widget to check against.
+    action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    if (QWidget* viewport = parentWidget())
+        viewport->addAction(action);
+}
+
+void ViewToolbar::scopeButtonShortcutToViewport(QAbstractButton* button, const QKeySequence& sequence)
+{
+    // QAbstractButton::setShortcut() has no public API to change the
+    // resulting shortcut's context away from the default WindowShortcut -
+    // same per-document ambiguity problem as scopeShortcutToViewport()
+    // above, fixed the same way the (already-confirmed-working) Home
+    // shortcut is: an explicit QShortcut parented to the ViewportWidget
+    // instead, with WidgetWithChildrenShortcut context.
+    QShortcut* shortcut = new QShortcut(sequence, parentWidget());
+    shortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(shortcut, &QShortcut::activated, button, &QAbstractButton::click);
+}
+
 ViewToolbar::ViewToolbar(QWidget* parent)
     : QWidget(parent)
     , _isRepositioning(false)
@@ -217,12 +260,15 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _rotateViewAction = navigationMenu->addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate View"));
     _rotateViewAction->setCheckable(true);
 	_rotateViewAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_R));
+	scopeShortcutToViewport(_rotateViewAction);
     _panViewAction = navigationMenu->addAction(QIcon(":/icons/res/panview.png"), tr("Pan View"));
     _panViewAction->setCheckable(true);
     _panViewAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_P));
+    scopeShortcutToViewport(_panViewAction);
     _zoomViewAction = navigationMenu->addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom View"));
     _zoomViewAction->setCheckable(true);
     _zoomViewAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Z));
+    scopeShortcutToViewport(_zoomViewAction);
 
     connect(_rotateViewAction, &QAction::triggered, this,
         [this]() {
@@ -270,7 +316,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _btnFitAll->setIcon(QIcon(":/icons/res/fit-all.png"));
     _btnFitAll->setIconSize(QSize(48, 48));
     _btnFitAll->setToolTip(tr("Fit All"));
-    _btnFitAll->setShortcut(QKeySequence(Qt::Key_F));
+    scopeButtonShortcutToViewport(_btnFitAll, QKeySequence(Qt::Key_F));
     _btnFitAll->setAutoRaise(true);
     _mainLayout->addWidget(_btnFitAll);
     connect(_btnFitAll, &QToolButton::clicked, this, [this]() { emit fitToViewRequested(); });
@@ -280,7 +326,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _btnWindowZoom->setIcon(QIcon(":/icons/res/window-zoom.png"));
     _btnWindowZoom->setIconSize(QSize(48, 48));
     _btnWindowZoom->setToolTip(tr("Window Zoom"));
-    _btnWindowZoom->setShortcut(QKeySequence(Qt::ALT | Qt::Key_W));
+    scopeButtonShortcutToViewport(_btnWindowZoom, QKeySequence(Qt::ALT | Qt::Key_W));
     _btnWindowZoom->setAutoRaise(true);
     _mainLayout->addWidget(_btnWindowZoom);
     connect(_btnWindowZoom, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
@@ -298,10 +344,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     camModeMenu->setStyleSheet(flyoutStyleSheet);
     _orbitAction = camModeMenu->addAction(QIcon(":/icons/res/camera_orbit.png"), tr("Orbit"));
     _orbitAction->setShortcut(QKeySequence(Qt::Key_1));
+    scopeShortcutToViewport(_orbitAction);
     _flyAction = camModeMenu->addAction(QIcon(":/icons/res/camera_fly.png"), tr("Fly"));
     _flyAction->setShortcut(QKeySequence(Qt::Key_2));
+    scopeShortcutToViewport(_flyAction);
     _firstPersonAction = camModeMenu->addAction(QIcon(":/icons/res/camera_first_person.png"), tr("First Person"));
     _firstPersonAction->setShortcut(QKeySequence(Qt::Key_3));
+    scopeShortcutToViewport(_firstPersonAction);
 
     connect(_orbitAction, &QAction::triggered, this,
         [this]() {
@@ -370,16 +419,22 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     viewsMenu->setStyleSheet(flyoutStyleSheet);
     _topViewAction = viewsMenu->addAction(QIcon(":/icons/res/top.png"), tr("Top"));
     _topViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    scopeShortcutToViewport(_topViewAction);
     _frontViewAction = viewsMenu->addAction(QIcon(":/icons/res/front.png"), tr("Front"));
     _frontViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_F));
+    scopeShortcutToViewport(_frontViewAction);
     _leftViewAction = viewsMenu->addAction(QIcon(":/icons/res/left.png"), tr("Left"));
     _leftViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+    scopeShortcutToViewport(_leftViewAction);
     _bottomViewAction = viewsMenu->addAction(QIcon(":/icons/res/bottom.png"), tr("Bottom"));
     _bottomViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
+    scopeShortcutToViewport(_bottomViewAction);
     _rearViewAction = viewsMenu->addAction(QIcon(":/icons/res/back.png"), tr("Rear"));
     _rearViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    scopeShortcutToViewport(_rearViewAction);
     _rightViewAction = viewsMenu->addAction(QIcon(":/icons/res/right.png"), tr("Right"));
     _rightViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_J));
+    scopeShortcutToViewport(_rightViewAction);
 
     connect(_topViewAction, &QAction::triggered, this,
         [this]() {
@@ -441,7 +496,18 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonViewModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonViewModes->setAutoRaise(true);
 
-    QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), this);
+    // WidgetWithChildrenShortcut, targeted at `parent` (the owning
+    // ViewportWidget) rather than `this` (ViewToolbar, a CHILD of it) - see
+    // the identical fix/reasoning in ModelViewer's constructor for why
+    // WindowShortcut's default scope collides across documents now that
+    // they're CDockWidgets rather than QMdiSubWindows. Targeting `this`
+    // instead of `parent` would have been backwards: clicking into the 3D
+    // view focuses ViewportWidget itself (see its mousePressEvent()), which
+    // is ViewToolbar's PARENT, not one of its children - a
+    // WidgetWithChildrenShortcut scoped to the toolbar would then only ever
+    // fire while focus sat on one of the toolbar's own buttons.
+    QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), parent);
+    defaultShortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(defaultShortcut, &QShortcut::activated, _toolButtonViewModes, &QToolButton::click);
 
     _mainLayout->addWidget(_toolButtonViewModes);
@@ -450,10 +516,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     axoMenu->setStyleSheet(flyoutStyleSheet);
     _isoAction = axoMenu->addAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"));
     _isoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
+    scopeShortcutToViewport(_isoAction);
     _dimAction = axoMenu->addAction(QIcon(":/icons/res/dimetric.png"), tr("Dimetric"));
     _dimAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
+    scopeShortcutToViewport(_dimAction);
     _triAction = axoMenu->addAction(QIcon(":/icons/res/trimetric.png"), tr("Trimetric"));
     _triAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
+    scopeShortcutToViewport(_triAction);
 
     connect(_isoAction, &QAction::triggered, this,
         [this]() {
@@ -497,7 +566,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
     _projToggleButton->setIconSize(QSize(48, 48));
     _projToggleButton->setToolTip(tr("Toggle Projection"));
-    _projToggleButton->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_P));
+    scopeButtonShortcutToViewport(_projToggleButton, QKeySequence(Qt::SHIFT | Qt::Key_P));
     _mainLayout->addWidget(_projToggleButton);
 
     connect(_projToggleButton, &QToolButton::toggled, this, [this](bool checked) {
@@ -522,7 +591,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _multiBtn->setToolTip(tr("Toggle Multi-View"));
     _multiBtn->setCheckable(true);
     _multiBtn->setAutoRaise(true);
-    _multiBtn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
+    scopeButtonShortcutToViewport(_multiBtn, QKeySequence(Qt::CTRL | Qt::Key_M));
     _mainLayout->addWidget(_multiBtn);
     connect(_multiBtn, &QToolButton::toggled, this, [this](bool checked) { emit multiViewToggled(checked); });
 
@@ -543,7 +612,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
     _realisticBtn->setCheckable(true);
     _realisticBtn->setAutoRaise(true);
-    _realisticBtn->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_R));
+    scopeButtonShortcutToViewport(_realisticBtn, QKeySequence(Qt::SHIFT | Qt::Key_R));
     _mainLayout->addWidget(_realisticBtn);
     connect(_realisticBtn, &QToolButton::clicked, this,
         [this]() { emit displayModeSelected("Realistic"); });
@@ -553,14 +622,19 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     dispModeMenu->setStyleSheet(flyoutStyleSheet);
     _shaded = dispModeMenu->addAction(QIcon(":/icons/res/shaded.png"), tr("Shaded"));
     _shaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_S));
+    scopeShortcutToViewport(_shaded);
     _hollowMesh = dispModeMenu->addAction(QIcon(":/icons/res/hollow_mesh.png"), tr("Hollow Mesh"));
     _hollowMesh->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_H));
+    scopeShortcutToViewport(_hollowMesh);
     _meshEdges = dispModeMenu->addAction(QIcon(":/icons/res/mesh_edges.png"), tr("Mesh Edges"));
     _meshEdges->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_M));
+    scopeShortcutToViewport(_meshEdges);
     _wireframe = dispModeMenu->addAction(QIcon(":/icons/res/wireframe.png"), tr("Wireframe"));
     _wireframe->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_W));
+    scopeShortcutToViewport(_wireframe);
     _shadedWithEdges = dispModeMenu->addAction(QIcon(":/icons/res/wireshaded.png"), tr("Shaded with Edges"));
     _shadedWithEdges->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
+    scopeShortcutToViewport(_shadedWithEdges);
 
     connect(_shaded, &QAction::triggered, this,
         [this]() {
@@ -662,8 +736,10 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     shadingNormalMenu->setStyleSheet(flyoutStyleSheet);
     _flatshaded = shadingNormalMenu->addAction(QIcon(":/icons/res/flat_shaded.png"), tr("Flat Shaded"));
     _flatshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
+    scopeShortcutToViewport(_flatshaded);
     QAction* _smoothShaded = shadingNormalMenu->addAction(QIcon(":/icons/res/smooth_shaded.png"), tr("Smooth Shaded"));
     _smoothShaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_G));
+    scopeShortcutToViewport(_smoothShaded);
 
     connect(_flatshaded, &QAction::triggered, this,
         [this]() {
