@@ -96,49 +96,6 @@
           <number>1</number>
          </property>
          <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_27">
-           <item>
-            <widget class="QCheckBox" name="checkBoxSelectAll">
-             <property name="toolTip">
-              <string>Hide/Show All</string>
-             </property>
-             <property name="text">
-              <string>Hide/Show All</string>
-             </property>
-             <property name="tristate">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="checkBoxAutoFitView">
-             <property name="toolTip">
-              <string>Auto Fit View On Hide/Show</string>
-             </property>
-             <property name="text">
-              <string>Auto Fit View On Hide/Show</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-           <item>
-            <widget class="QCheckBox" name="checkBoxSelectionHighlight">
-             <property name="toolTip">
-              <string>Selection Highlighting in Viewer</string>
-             </property>
-             <property name="text">
-              <string>Selection Highlighting</string>
-             </property>
-             <property name="checked">
-              <bool>true</bool>
-             </property>
-            </widget>
-           </item>
-          </layout>
-         </item>
-         <item>
           <layout class="QHBoxLayout" name="horizontalLayout_28">
            <item>
             <widget class="QLabel" name="label_23">
@@ -158,6 +115,13 @@
             </widget>
            </item>
           </layout>
+         </item>
+         <item>
+          <widget class="QLabel" name="labelMeshCount">
+           <property name="text">
+            <string notr="true"/>
+           </property>
+          </widget>
          </item>
          <item>
           <widget class="SceneTreeWidget" name="treeWidgetModel">
@@ -191,7 +155,6 @@
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>checkBoxSelectAll</tabstop>
   <tabstop>treeWidgetModel</tabstop>
  </tabstops>
  <resources>

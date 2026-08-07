@@ -10,6 +10,7 @@ class QProgressBar;
 class QPushButton;
 class QAction;
 class QTabWidget;
+class QCheckBox;
 
 #ifdef _WIN32
 class QWinTaskbarProgress;
@@ -188,6 +189,14 @@ private:
 	ads::CDockWidget* _documentDock = nullptr;
 	QTabWidget* _propertiesTabWidget = nullptr;
 	QTabWidget* _documentTabWidget = nullptr;
+	// Above _documentTabWidget's Variants/Animations/Cameras tabs - moved
+	// here from the per-document nav overlay (design change: single shared
+	// instances rebound to whichever document is active, like the other
+	// Materials/Environment/etc. panels, instead of one pair per document).
+	// Rebound in rebindSharedPanelsTo(): reflects the active document's
+	// current state on every switch and dispatches toggles to it.
+	QCheckBox* _checkBoxAutoFitView = nullptr;
+	QCheckBox* _checkBoxSelectionHighlight = nullptr;
 
 	// Documents: one CDockWidget per open ModelViewer, initially all tabbed
 	// together in _documentDockArea - but a user can drag a document tab to

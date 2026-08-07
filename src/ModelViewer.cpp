@@ -62,138 +62,6 @@ QString ModelViewer::_lastSelectedFilter;
 
 namespace
 {
-class DetachedOverlayCheckBoxStyle : public QProxyStyle
-{
-public:
-	using QProxyStyle::QProxyStyle;
-
-	void drawPrimitive(PrimitiveElement pe,
-	                   const QStyleOption* opt,
-	                   QPainter* painter,
-	                   const QWidget* widget = nullptr) const override
-	{
-		if (pe == PE_IndicatorCheckBox && widget && widget->property("detachedOverlayMode").toBool())
-		{
-			QStyleOptionButton buttonOpt;
-			if (const auto* button = qstyleoption_cast<const QStyleOptionButton*>(opt))
-				buttonOpt = *button;
-			else if (opt)
-				buttonOpt.rect = opt->rect;
-			else
-				buttonOpt.initFrom(widget);
-
-			const QColor boxFill(255, 255, 255, 225);
-			const QColor boxBorder(0, 0, 0, 100);
-			const QColor markColor(0, 0, 0);
-
-			const QRect rect = buttonOpt.rect.adjusted(1, 1, -1, -1);
-			painter->save();
-			painter->setRenderHint(QPainter::Antialiasing, true);
-			painter->setPen(QPen(boxBorder, 1.0));
-			painter->setBrush(boxFill);
-			painter->drawRoundedRect(rect, 2.0, 2.0);
-
-			if (buttonOpt.state & State_On)
-			{
-				const QPoint p1(rect.left() + 3, rect.center().y());
-				const QPoint p2(rect.center().x() - 1, rect.bottom() - 3);
-				const QPoint p3(rect.right() - 2, rect.top() + 3);
-				painter->setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-				painter->drawLine(p1, p2);
-				painter->drawLine(p2, p3);
-			}
-			else if (buttonOpt.state & State_NoChange)
-			{
-				painter->setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-				painter->drawLine(rect.left() + 3, rect.center().y(),
-					rect.right() - 3, rect.center().y());
-			}
-
-			painter->restore();
-			return;
-		}
-
-		QProxyStyle::drawPrimitive(pe, opt, painter, widget);
-	}
-};
-
-bool isDetachedNavigationOverlayCheckBox(const QObject* watched,
-                                         const QCheckBox* selectAll,
-                                         const QCheckBox* autoFit,
-                                         const QCheckBox* selectionHighlight)
-{
-	return watched == selectAll
-		|| watched == autoFit
-		|| watched == selectionHighlight;
-}
-
-bool paintDetachedNavigationOverlayCheckBox(QCheckBox* box, QPaintEvent* event)
-{
-	if (!box || !box->property("detachedOverlayMode").toBool())
-		return false;
-
-	QPainter painter(box);
-	painter.setRenderHint(QPainter::Antialiasing, true);
-	painter.setClipRect(event->rect());
-
-	QStyleOptionButton opt;
-	opt.initFrom(box);
-	opt.text = box->text();
-	if (box->isEnabled())
-		opt.state |= QStyle::State_Enabled;
-	if (box->underMouse())
-		opt.state |= QStyle::State_MouseOver;
-	if (box->hasFocus())
-		opt.state |= QStyle::State_HasFocus;
-	switch (box->checkState())
-	{
-	case Qt::Checked:
-		opt.state |= QStyle::State_On;
-		break;
-	case Qt::PartiallyChecked:
-		opt.state |= QStyle::State_NoChange;
-		break;
-	case Qt::Unchecked:
-	default:
-		opt.state |= QStyle::State_Off;
-		break;
-	}
-
-	const QRect indicatorRect = box->style()->subElementRect(QStyle::SE_CheckBoxIndicator, &opt, box);
-	const QRect textRect = box->style()->subElementRect(QStyle::SE_CheckBoxContents, &opt, box);
-	const QRect rect = indicatorRect.adjusted(1, 1, -1, -1);
-
-	const bool lightLabel = box->property("overlayViewerLightText").toBool();
-	const QColor labelColor = lightLabel ? QColor(255, 255, 255) : QColor(0, 0, 0);
-	const QColor boxFill(24, 24, 24, 220);
-	const QColor boxBorder(255, 255, 255, 150);
-	const QColor markColor(255, 255, 255);
-
-	painter.setPen(QPen(boxBorder, 1.0));
-	painter.setBrush(boxFill);
-	painter.drawRoundedRect(rect, 2.0, 2.0);
-
-	if (opt.state & QStyle::State_On)
-	{
-		const QPoint p1(rect.left() + 3, rect.center().y());
-		const QPoint p2(rect.center().x() - 1, rect.bottom() - 3);
-		const QPoint p3(rect.right() - 2, rect.top() + 3);
-		painter.setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-		painter.drawLine(p1, p2);
-		painter.drawLine(p2, p3);
-	}
-	else if (opt.state & QStyle::State_NoChange)
-	{
-		painter.setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-		painter.drawLine(rect.left() + 3, rect.center().y(),
-			rect.right() - 3, rect.center().y());
-	}
-
-	painter.setPen(labelColor);
-	painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, box->text());
-	return true;
-}
-
 QMatrix4x4 buildWorldRotationDeltaMatrix(const QVector3D& rotation)
 {
 	QMatrix4x4 matrix;
@@ -376,8 +244,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_viewportWidget, 1);
 
-	connect(checkBoxAutoFitView, &QCheckBox::toggled, _viewportWidget, &ViewportWidget::setAutoFitViewOnUpdate);
-	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _viewportWidget, &ViewportWidget::setSelectionHighlighting);
 	connect(_viewportWidget, &ViewportWidget::singleSelectionDone, this, &ModelViewer::setListRow);
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_viewportWidget, &ViewportWidget::zoomAndPanSet, this, [this]() {
@@ -488,23 +354,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::zoomViewRequested,
 		_viewportWidget, [this]() { _viewportWidget->setZoomingActive(true); });
 
-	auto installDetachedOverlayCheckBoxStyle = [](QCheckBox* box)
-	{
-		if (!box)
-			return;
-		box->setStyle(new DetachedOverlayCheckBoxStyle(box->style()));
-	};
-	installDetachedOverlayCheckBoxStyle(checkBoxSelectAll);
-	installDetachedOverlayCheckBoxStyle(checkBoxAutoFitView);
-	installDetachedOverlayCheckBoxStyle(checkBoxSelectionHighlight);
-	checkBoxSelectAll->installEventFilter(this);
-	checkBoxAutoFitView->installEventFilter(this);
-	checkBoxSelectionHighlight->installEventFilter(this);
 	modelNavigationWidget->setProperty("transparentOverlaySurface", true);
-	checkBoxSelectAll->setProperty("transparentOverlayText", true);
-	checkBoxAutoFitView->setProperty("transparentOverlayText", true);
-	checkBoxSelectionHighlight->setProperty("transparentOverlayText", true);
 	label_23->setProperty("transparentOverlayText", true);
+	labelMeshCount->setProperty("transparentOverlayText", true);
 	attachNavigationOverlay();
 
 	_hasPBRAlbedoTex = false;	
@@ -845,12 +697,6 @@ void ModelViewer::attachNavigationOverlay()
 	modelNavigationWidget->setAutoFillBackground(false);
 	modelNavigationWidget->setProperty("detachedOverlayMode", true);
 	treeWidgetModel->setDetachedOverlayMode(true);
-	checkBoxSelectAll->setProperty("detachedOverlayMode", true);
-	checkBoxAutoFitView->setProperty("detachedOverlayMode", true);
-	checkBoxSelectionHighlight->setProperty("detachedOverlayMode", true);
-	checkBoxSelectAll->update();
-	checkBoxAutoFitView->update();
-	checkBoxSelectionHighlight->update();
 
 	// The overlay is an absolutely-positioned floating child of
 	// _viewportWidget (see attachOverlayPanel() below), not a normal
@@ -900,7 +746,7 @@ void ModelViewer::attachNavigationOverlay()
 	const int overlayWidth = 420;
 	_navigationOverlay = _viewportWidget->attachOverlayPanel(
 		navComposite,
-		QRect(10, 36, overlayWidth, std::max(120, _viewportWidget->height() - 36 - 88)),
+		QRect(10, 10, overlayWidth, std::max(120, _viewportWidget->height() - 10 - 88)),
 		Qt::AlignTop | Qt::AlignLeft,
 		"navigationOverlayPanel");
 
@@ -924,7 +770,11 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	if (!_navigationOverlay || !_viewportWidget)
 		return;
 
-	const int overlayTop = 36;
+	// Now that the checkbox row and mesh-count text have both moved out of
+	// this overlay (into MainWindow's shared Document tab), there's no
+	// longer anything needing headroom above the search box/tree - a small
+	// symmetric inset matching overlayLeft, instead of the old 36px gap.
+	const int overlayTop = 10;
 	const int overlayLeft = 10;
 	const int overlayExpandedWidth = 420;
 	// Just enough for the collapse button itself once collapsed - matches
@@ -1316,7 +1166,7 @@ void ModelViewer::updateDisplayList()
 		}
 	}
 
-	const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
+	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
 	_viewportWidget->setAutoFitViewOnUpdate(false);
 
 	_visibleMeshUuids = collectVisibleUuidsFromDisplayList();
@@ -1380,16 +1230,6 @@ void ModelViewer::showEvent(QShowEvent*)
 
 bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 {
-	if (event->type() == QEvent::Paint
-		&& isDetachedNavigationOverlayCheckBox(watched,
-			checkBoxSelectAll,
-			checkBoxAutoFitView,
-			checkBoxSelectionHighlight))
-	{
-		if (auto* box = qobject_cast<QCheckBox*>(watched))
-			return paintDetachedNavigationOverlayCheckBox(box, static_cast<QPaintEvent*>(event));
-	}
-
 	if (_treeRebuildPending &&
 		(watched == treeWidgetModel || watched == treeWidgetModel->viewport()))
 	{
@@ -3830,7 +3670,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 			// Apply visibility
 			_visibleMeshUuids = visibleUuids;
-			const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
+			const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
 			_viewportWidget->setAutoFitViewOnUpdate(false);
 			_viewportWidget->setDisplayList(visibleIndicesFromState());
 			_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
@@ -4022,7 +3862,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// syncRuntimeNodeTransforms(), so preserved-node-transform assets can have
 	// incorrect bounds/camera framing until we recompute after the hierarchy is
 	// restored.
-	const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
+	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
 	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 	_viewportWidget->setDisplayList(visibleIndicesFromState());
 	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
@@ -4457,35 +4297,6 @@ void ModelViewer::setTextureSamplersToSelectedItems(const Material* material, Ma
 	_viewportWidget->synchronizeTextureCache(material, type);
 }
 
-void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
-{
-	if (arg1 != Qt::PartiallyChecked)
-	{
-		if (treeWidgetModel->meshCount() > 0)
-		{
-			Qt::CheckState cs = checkBoxSelectAll->checkState();
-			QSet<QUuid> visibleUuids;
-			if (cs == Qt::Checked)
-			{
-				// Make all meshes visible
-				const auto& store = _viewportWidget->getMeshStore();
-				for (size_t i = 0; i < store.size(); ++i)
-				{
-					QUuid uuid = _viewportWidget->getUuidByIndex(static_cast<int>(i));
-					if (!uuid.isNull()) visibleUuids.insert(uuid);
-				}
-			}
-			// If Unchecked, visibleUuids stays empty (hide all)
-			_visibleMeshUuids = visibleUuids;
-			applyVisibleMeshState(true, true);
-		}
-	}
-	else
-	{
-		checkBoxSelectAll->setCheckState(Qt::Checked);
-	}
-}
-
 void ModelViewer::switchToRealisticRendering()
 {
 	_viewportWidget->setRealismEnabled(true);
@@ -4800,20 +4611,12 @@ std::vector<int> ModelViewer::visibleIndicesFromState() const
 
 void ModelViewer::updateVisibilityUiFromState()
 {
-	checkBoxSelectAll->blockSignals(true);
-	const int total = static_cast<int>(_viewportWidget->getMeshStore().size());
-	const int visible = _visibleMeshUuids.size();
-	if (visible == 0)
-		checkBoxSelectAll->setCheckState(Qt::Unchecked);
-	else if (visible == total)
-		checkBoxSelectAll->setCheckState(Qt::Checked);
-	else
-		checkBoxSelectAll->setCheckState(Qt::PartiallyChecked);
-	checkBoxSelectAll->blockSignals(false);
-
 	float range = _viewportWidget->getBoundingSphere().getRadius() * 4.0f;
 	float offset = _viewportWidget->getFloorSize() * 1.25f;
 	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
+
+	const int count = static_cast<int>(_viewportWidget->currentVisibleObjectIds().size());
+	labelMeshCount->setText(count > 0 ? tr("No of Meshes: %1").arg(count) : QString());
 }
 
 void ModelViewer::applyVisibleMeshState(bool syncTree,

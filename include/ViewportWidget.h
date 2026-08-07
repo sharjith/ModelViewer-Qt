@@ -957,7 +957,9 @@ public slots:
 	void fitAll();
 	void fitAllImmediate();
 	void setAutoFitViewOnUpdate(bool update) { _viewCtrl.setAutoFitViewOnUpdate(update); }
+	bool autoFitViewOnUpdate() const { return _viewCtrl.autoFitViewOnUpdate(); }
 	void setSelectionHighlighting(bool highlight);
+	bool isSelectionHighlighting() const { return _selectionHighlighting; }
 	void performKeyboardNav();
 	void disableLowRes();
 	void disableSectionCapsInteractionSuppression() { setSectionCapsInteractionSuppressed(false); }
@@ -1405,7 +1407,6 @@ private:
 	TextRenderer* _axisTextRenderer;
 	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
 	QString _labelAxisX, _labelAxisY, _labelAxisZ;
-	QString _labelNumMeshes;
 	QString _modelName;
 
 	bool _selectionHighlighting;

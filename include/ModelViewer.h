@@ -230,8 +230,6 @@ private slots:
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
 
-	void on_checkBoxSelectAll_stateChanged(int arg1);
-
 	void handleTreeWidgetVisibilityChanged();
 	void handleTreeWidgetSelectionChanged();
 	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);

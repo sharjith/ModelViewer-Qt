@@ -768,9 +768,6 @@ void ViewportWidget::retranslateUI()
 	_labelIsometric = tr("Isometric");
 	_labelDimetric = tr("Dimetric");
 	_labelTrimetric = tr("Trimetric");
-
-	// Mesh count label
-	_labelNumMeshes = tr("No of Meshes: %1");
 }
 
 void ViewportWidget::cleanUpShaders()
@@ -1428,13 +1425,6 @@ void ViewportWidget::paintGL()
 					drawCornerAxis(_viewCtrl.cornerAxisPosition(), axisViewOverride);
 			}
 
-			// Text rendering
-			if (_sceneRuntime.meshStore().size() != 0)
-			{
-				const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
-				if (objectIds.size() > 0)
-					_textRenderer->RenderText(_labelNumMeshes.arg(objectIds.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
-			}
 		}
 	}
 	catch (const std::exception& ex)

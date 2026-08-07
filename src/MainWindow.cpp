@@ -34,6 +34,9 @@
 #include <DockAreaWidget.h>
 #include <DockSplitter.h>
 #include <QLabel>
+#include <QCheckBox>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QTabWidget>
 #include <QTabBar>
 #include <QScrollArea>
@@ -161,8 +164,39 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		_camerasPanel = new CamerasPanel();
 		_documentTabWidget->addTab(_camerasPanel, QIcon(":/icons/res/camera.png"), tr("Cameras"));
 
+		// Auto Fit View / Selection Highlighting: moved here from the
+		// per-document nav overlay, above the Variants/Animations/Cameras
+		// tabs - single shared instances rebound to whichever document is
+		// active (see rebindSharedPanelsTo()), matching every other panel
+		// in this dock instead of being duplicated per document.
+		_checkBoxAutoFitView = new QCheckBox(tr("Auto Fit View On Hide/Show"));
+		_checkBoxAutoFitView->setToolTip(tr("Auto Fit View On Hide/Show"));
+		_checkBoxSelectionHighlight = new QCheckBox(tr("Selection Highlighting"));
+		_checkBoxSelectionHighlight->setToolTip(tr("Selection Highlighting in Viewer"));
+		connect(_checkBoxAutoFitView, &QCheckBox::toggled, this, [this](bool checked) {
+			if (ModelViewer* child = activeMdiChild())
+				child->getViewportWidget()->setAutoFitViewOnUpdate(checked);
+		});
+		connect(_checkBoxSelectionHighlight, &QCheckBox::toggled, this, [this](bool checked) {
+			if (ModelViewer* child = activeMdiChild())
+				child->getViewportWidget()->setSelectionHighlighting(checked);
+		});
+		auto* documentControlsRow = new QWidget();
+		auto* documentControlsLayout = new QHBoxLayout(documentControlsRow);
+		documentControlsLayout->setContentsMargins(4, 4, 4, 4);
+		documentControlsLayout->addWidget(_checkBoxAutoFitView);
+		documentControlsLayout->addWidget(_checkBoxSelectionHighlight);
+		documentControlsLayout->addStretch(1);
+
+		auto* documentTabContainer = new QWidget();
+		auto* documentTabContainerLayout = new QVBoxLayout(documentTabContainer);
+		documentTabContainerLayout->setContentsMargins(0, 0, 0, 0);
+		documentTabContainerLayout->setSpacing(0);
+		documentTabContainerLayout->addWidget(documentControlsRow);
+		documentTabContainerLayout->addWidget(_documentTabWidget, 1);
+
 		auto* documentDock = new CDockWidget(_dockManager, tr("Document"));
-		documentDock->setWidget(_documentTabWidget);
+		documentDock->setWidget(documentTabContainer);
 		documentDock->setIcon(QIcon(":/icons/res/document-root.png"));
 		_dockManager->addDockWidget(RightDockWidgetArea, documentDock);
 		_documentDock = documentDock;
@@ -698,19 +732,27 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 	// prompt) is what actually decides whether a close goes through at all -
 	// see the closeRequested connection below.
 	connect(viewer, &QObject::destroyed, this, [this, viewer]() {
-		_viewers.removeAll(viewer);
-		// On application exit, _dockManager (and every document CDockWidget)
-		// is a child of MainWindow and gets torn down by Qt's own cascading
-		// parent-child destruction as part of ~MainWindow() - in that case
-		// this handler runs SYNCHRONOUSLY from inside the dock widget's own
-		// destructor (destroying its wrapped viewer is one of its cleanup
-		// steps), so dock and _dockManager are mid-teardown here and must not
-		// be touched; Qt's own cascade already owns finishing the job. Only
-		// the normal one-document-at-a-time close path (closeRequested ->
-		// viewer->close() -> deferred deleteLater()) reaches this outside of
-		// any destructor call stack, where touching them is safe.
+		// On application exit, _viewers/_documentDocks/_dockManager are all
+		// MainWindow members (or things it owns) being torn down as part of
+		// ~MainWindow()'s own cascading parent-child destruction - by the
+		// time this fires from deep inside that cascade (QWidget's base-
+		// class destructor deleting children, which reaches this document's
+		// CDockWidget -> its wrapped ModelViewer -> this destroyed() signal),
+		// ~MainWindow()'s BODY and its own member destructors (including
+		// _viewers itself, a plain QList<ModelViewer*> member, not a
+		// pointer) have already run - C++ destroys derived members before
+		// the base class - so _viewers is itself an already-destructed
+		// object at this point. Touching it (even just removeAll()) is a
+		// real crash (confirmed via a coredump: SIGSEGV inside
+		// QArrayDataPointer::reallocateAndGrow() reached straight from this
+		// lambda), not just a hypothetical one - the _shuttingDown check
+		// must come BEFORE any member access, not after it. Only the normal
+		// one-document-at-a-time close path (closeRequested -> viewer->
+		// close() -> deferred deleteLater()) reaches this outside of any
+		// destructor call stack, where touching everything below is safe.
 		if (_shuttingDown)
 			return;
+		_viewers.removeAll(viewer);
 		if (CDockWidget* dock = _documentDocks.take(viewer))
 		{
 			_dockManager->removeDockWidget(dock);
@@ -913,6 +955,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_materialVariantsPanel->setEnabled(false);
 		_animationsPanel->setEnabled(false);
 		_camerasPanel->setEnabled(false);
+		_checkBoxAutoFitView->setEnabled(false);
+		_checkBoxSelectionHighlight->setEnabled(false);
 		return;
 	}
 
@@ -922,8 +966,22 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_materialVariantsPanel->setEnabled(true);
 	_animationsPanel->setEnabled(true);
 	_camerasPanel->setEnabled(true);
+	_checkBoxAutoFitView->setEnabled(true);
+	_checkBoxSelectionHighlight->setEnabled(true);
 
 	ViewportWidget* viewport = viewer->getViewportWidget();
+
+	// Reflect the newly-bound document's own current state, not the
+	// previously active document's - blockSignals() so this doesn't loop
+	// back through the toggled-> dispatch connections made in the
+	// constructor and write it right back (redundantly, but harmlessly,
+	// since they'd dispatch to the same viewport this value came from).
+	_checkBoxAutoFitView->blockSignals(true);
+	_checkBoxAutoFitView->setChecked(viewport->autoFitViewOnUpdate());
+	_checkBoxAutoFitView->blockSignals(false);
+	_checkBoxSelectionHighlight->blockSignals(true);
+	_checkBoxSelectionHighlight->setChecked(viewport->isSelectionHighlighting());
+	_checkBoxSelectionHighlight->blockSignals(false);
 
 	// MaterialPropertiesPanel::initialize() has no one-shot guard, so this is
 	// already safe to call on every rebind.
