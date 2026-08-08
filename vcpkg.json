@@ -10,7 +10,8 @@
         "gui",
         "widgets",
         "opengl",
-        "jpeg"
+        "jpeg",
+        "windeployqt"
       ]
     },
     {

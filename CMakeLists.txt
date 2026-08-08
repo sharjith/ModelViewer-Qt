@@ -519,16 +519,21 @@ if(MODELVIEWER_HAVE_OPTIX)
                 # calls nvcc directly rather than through CMake's own CUDA
                 # compile rules, so it doesn't pick up CMAKE_CUDA_FLAGS and
                 # needs the same fix applied explicitly here too.
-                $<$<NOT:$<PLATFORM_ID:Windows>>:-Xcompiler>
-                $<$<NOT:$<PLATFORM_ID:Windows>>:-U_GNU_SOURCE>
-                $<$<NOT:$<PLATFORM_ID:Windows>>:-Xcompiler>
-                $<$<NOT:$<PLATFORM_ID:Windows>>:-D_DEFAULT_SOURCE>
+                # Single genex list (not four separate ones) + COMMAND_EXPAND_LISTS
+                # below: a genex that IS an entire argument and evaluates to ""
+                # is still passed to nvcc as a literal empty-string argument
+                # rather than being omitted, which on Windows produced
+                # `--ptx "" "" "" "" ...` and broke the build ("a single input
+                # file is required..."). Expanding a single semicolon-separated
+                # list genex drops it entirely when empty.
+                "$<$<NOT:$<PLATFORM_ID:Windows>>:-Xcompiler;-U_GNU_SOURCE;-Xcompiler;-D_DEFAULT_SOURCE>"
                 -I "${OPTIX_INCLUDE_DIR}"
                 -I "${CMAKE_CURRENT_SOURCE_DIR}/include"
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
                 -o "${ptx_file}"
             DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/${PARAMS_HEADER}"
             COMMENT "Compiling ${CU_FILE} to PTX"
+            COMMAND_EXPAND_LISTS
             VERBATIM
         )
 
