@@ -886,6 +886,10 @@ public:
 	// double-destroying a QOpenGLBuffer).
 	QMetaObject::Connection _glContextAboutToBeDestroyedConnection;
 
+	void invalidateTextureCacheGpuResources();
+	void releaseLoadedMeshGpuResources();
+	void restoreLoadedMeshGpuResources();
+
 	// Recycle bin operations (used by DeleteCommand)
 	void moveToRecycleBin(const QUuid& uuid, int originalIndex);
 	bool restoreFromRecycleBin(const QUuid& uuid);

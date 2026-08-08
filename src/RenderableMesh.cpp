@@ -479,14 +479,7 @@ _hasVertexColors(false)
 	_fallbackTextureBuffer = dummy;
 	_fallbackTextureImage = convertToGLFormat(_fallbackTextureBuffer);
 
-	glGenTextures(1, &_fallbackTexture);
-	bindTextureUnitCached(GL_TEXTURE0, _fallbackTexture);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	recreateFallbackTexture();
 }
 
 void RenderableMesh::cacheBaseVolumeProperties()
@@ -1705,6 +1698,65 @@ void RenderableMesh::deleteTextures()
 	// lets one mesh teardown invalidate another mesh's live bindings.
 }
 
+void RenderableMesh::releaseContextBoundGpuResources()
+{
+	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	if (shareContexts)
+	{
+		if (_vertexArrayObject.isCreated())
+			_vertexArrayObject.destroy();
+		_vaoConfiguredProgram = nullptr;
+		_textureBindingsDirty = true;
+		_uniformsDirty = true;
+		return;
+	}
+
+	deleteBuffers();
+	deleteTextures();
+	_vaoConfiguredProgram = nullptr;
+	_textureBindingsDirty = true;
+	_uniformsDirty = true;
+}
+
+void RenderableMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
+{
+	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	_prog = prog;
+	clearUniformLocationCache();
+
+	if (shareContexts)
+	{
+		if (!_vertexArrayObject.isCreated())
+			_vertexArrayObject.create();
+		_vaoConfiguredProgram = nullptr;
+		setProg(prog);
+		_textureBindingsDirty = true;
+		_uniformsDirty = true;
+		return;
+	}
+
+	recreateContextBoundBufferObjects();
+	recreateFallbackTexture();
+
+	if (!_points.empty() && !_normals.empty())
+	{
+		initBuffers(
+			&_indices,
+			&_points,
+			&_normals,
+			_colors.empty() ? nullptr : &_colors,
+			_texCoords.empty() ? nullptr : &_texCoords,
+			_tangents.empty() ? nullptr : &_tangents,
+			_bitangents.empty() ? nullptr : &_bitangents,
+			_jointIndices.empty() ? nullptr : &_jointIndices,
+			_jointWeights.empty() ? nullptr : &_jointWeights
+		);
+	}
+
+	_textureBindingsDirty = true;
+	_uniformsDirty = true;
+}
+
 RenderableMesh::~RenderableMesh()
 {
 	deleteBuffers();
@@ -1726,6 +1778,56 @@ void RenderableMesh::deleteBuffers()
 	{
 		_vertexArrayObject.destroy();
 	}
+}
+
+void RenderableMesh::recreateContextBoundBufferObjects()
+{
+	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
+	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_colorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord3Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_tangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_bitangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_jointIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_jointWeightBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_coordBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+
+	_indexBuffer.create();
+	_positionBuffer.create();
+	_normalBuffer.create();
+	_colorBuffer.create();
+	_texCoord0Buffer.create();
+	_texCoord1Buffer.create();
+	_texCoord2Buffer.create();
+	_texCoord3Buffer.create();
+	_tangentBuf.create();
+	_bitangentBuf.create();
+	_jointIndexBuffer.create();
+	_jointWeightBuffer.create();
+	_coordBuf.create();
+
+	if (_vertexArrayObject.isCreated())
+		_vertexArrayObject.destroy();
+	_vertexArrayObject.create();
+	_vaoConfiguredProgram = nullptr;
+}
+
+void RenderableMesh::recreateFallbackTexture()
+{
+	if (_fallbackTexture != 0)
+		glDeleteTextures(1, &_fallbackTexture);
+
+	glGenTextures(1, &_fallbackTexture);
+	bindTextureUnitCached(GL_TEXTURE0, _fallbackTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 }
 
 void RenderableMesh::computeBounds()

@@ -683,24 +683,6 @@ ViewportWidget::~ViewportWidget()
 	if (_axisTextRenderer)
 		delete _axisTextRenderer;
 
-	for (auto& a : _sceneRuntime.meshStore())
-	{
-		delete a.mesh;
-	}
-	if (_primaryCamera)
-		delete _primaryCamera;
-	if (_orthoViewsCamera)
-		delete _orthoViewsCamera;
-
-	if (_sceneRuntime.globalScene())
-	{
-		SceneUtils::deleteScene(_sceneRuntime.globalScene());
-		_sceneRuntime.setGlobalScene(nullptr);
-	}
-
-	if (_assimpModelLoader)
-		delete _assimpModelLoader;
-
 	// ===== CRITICAL: Ensure context is current before GL calls =====
 	// context()->isValid() only means Qt successfully created the underlying
 	// QOpenGLContext object - it says nothing about whether THIS widget's
@@ -721,10 +703,30 @@ ViewportWidget::~ViewportWidget()
 	{
 		qWarning() << "ViewportWidget::~ViewportWidget - No valid OpenGL context for cleanup.";
 	}
+
+	for (auto& a : _sceneRuntime.meshStore())
+	{
+		delete a.mesh;
+	}
+	if (_primaryCamera)
+		delete _primaryCamera;
+	if (_orthoViewsCamera)
+		delete _orthoViewsCamera;
+
+	if (_sceneRuntime.globalScene())
+	{
+		SceneUtils::deleteScene(_sceneRuntime.globalScene());
+		_sceneRuntime.setGlobalScene(nullptr);
+	}
+
+	if (_assimpModelLoader)
+		delete _assimpModelLoader;
 }
 
 void ViewportWidget::releaseGLSceneResources()
 {
+	releaseLoadedMeshGpuResources();
+
 	cleanUpShaders();
 
 	_renderCtrl.cleanupGLResources();
@@ -763,6 +765,46 @@ void ViewportWidget::releaseGLSceneResources()
 
 	cleanupTransmissionBuffer();
 	cleanupSSSBuffer();
+}
+
+void ViewportWidget::invalidateTextureCacheGpuResources()
+{
+	if (QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts))
+		return;
+
+	for (auto& [path, entry] : _sceneRuntime.texCache())
+	{
+		entry.lastGPUTexture = 0;
+		entry.refCount = 0;
+	}
+	_sceneRuntime.texRefCount().clear();
+}
+
+void ViewportWidget::releaseLoadedMeshGpuResources()
+{
+	invalidateTextureCacheGpuResources();
+	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
+	{
+		if (meshRecord.mesh)
+			meshRecord.mesh->releaseContextBoundGpuResources();
+	}
+}
+
+void ViewportWidget::restoreLoadedMeshGpuResources()
+{
+	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
+	{
+		SceneMesh* mesh = meshRecord.mesh;
+		if (!mesh)
+			continue;
+
+		mesh->restoreContextBoundGpuResources(_renderCtrl.fgShader());
+		// Even with shared contexts, meshes keep only raw GL ids. Re-resolving the
+		// material refreshes those ids from the cache on the current context and
+		// repopulates them entirely on the non-shared fallback path.
+		const Material resolvedMaterial = resolveMaterialTextures(this, mesh->getMaterial());
+		mesh->setTextureMaps(resolvedMaterial);
+	}
 }
 
 void ViewportWidget::retranslateUI()
@@ -930,6 +972,7 @@ void ViewportWidget::initializeGL()
 
 	createShaderPrograms();
 	createFullscreenTriangle();
+	restoreLoadedMeshGpuResources();
 
 	qRegisterMetaType<AssImpMeshDataBatch>("AssImpMeshDataBatch");
 	qRegisterMetaType<SceneUpAxis>("SceneUpAxis");

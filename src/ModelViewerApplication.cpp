@@ -23,13 +23,14 @@ int ModelViewerApplication::_supportedAnisotropicFilteringLevel = 16; // Default
 void ModelViewerApplication::configureOpenGLAttributes()
 {
 	// These Qt application attributes must be set before QApplication is constructed.
-	// On Linux/Wayland, AA_UseDesktopOpenGL forces native OpenGL (not ANGLE/EGL) and
-	// AA_ShareOpenGLContexts ensures shared contexts work correctly. Setting them on
-	// Windows is unnecessary and can interfere with driver auto-selection (ANGLE vs native),
-	// so they are gated to non-Windows platforms only.
+	// AA_ShareOpenGLContexts is needed on every platform now that Qt-ADS document
+	// tab switches can recreate QOpenGLWidget contexts in ordinary use. With
+	// sharing enabled, textures/VBOs survive those recreations and only truly
+	// context-local objects (VAOs/FBOs/etc.) need rebuilding, which keeps tab
+	// switching responsive. AA_UseDesktopOpenGL remains Linux-only.
+	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 #if !defined(Q_OS_WIN)
 	QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
-	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 #endif
 }
 

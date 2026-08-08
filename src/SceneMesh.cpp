@@ -828,14 +828,17 @@ void SceneMesh::uploadLodTier()
 		_lodIndexBuffer.create();
 	_lodIndexBuffer.bind();
 	_lodIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	_lodIndexBuffer.allocate(_pendingLod1Indices.data(),
-		static_cast<int>(_pendingLod1Indices.size() * sizeof(unsigned int)));
+	const std::vector<unsigned int>& lodIndices =
+		_pendingLod1Indices.empty() ? _lod1Indices : _pendingLod1Indices;
+	_lodIndexBuffer.allocate(lodIndices.data(),
+		static_cast<int>(lodIndices.size() * sizeof(unsigned int)));
 	_lodIndexBuffer.release();
 
-	_nVertsLod1 = static_cast<unsigned int>(_pendingLod1Indices.size());
+	_nVertsLod1 = static_cast<unsigned int>(lodIndices.size());
 	_hasLod1 = true;
+	if (!_pendingLod1Indices.empty())
+		_lod1Indices = _pendingLod1Indices;
 	_pendingLod1Indices.clear();
-	_pendingLod1Indices.shrink_to_fit();
 }
 
 void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
@@ -1018,7 +1021,8 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		}
 	}
 
-	_featureEdgeCount = static_cast<GLsizei>(featureEdges.size());
+	_featureEdgeIndices = featureEdges;
+	_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
 	if (_featureEdgeCount == 0)
 		return;
 
@@ -1027,47 +1031,15 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		_featureEdgeIndexBuffer.create();
 	_featureEdgeIndexBuffer.bind();
 	_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	_featureEdgeIndexBuffer.allocate(featureEdges.data(),
-	                                 static_cast<int>(featureEdges.size() * sizeof(uint32_t)));
+	_featureEdgeIndexBuffer.allocate(_featureEdgeIndices.data(),
+	                                 static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
 	_featureEdgeIndexBuffer.release();
 
 	// --- Step 5: Create feature edge VAO ---
 	// Reuses the same vertex VBOs as the main VAO; only the index buffer differs.
 	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
 	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
-	if (!_featureEdgeVAO.isCreated())
-		_featureEdgeVAO.create();
-	_featureEdgeVAO.bind();
-
-	_featureEdgeIndexBuffer.bind(); // stored in VAO state
-
-	_positionBuffer.bind();
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
-
-	_normalBuffer.bind();
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
-
-	if (_hasVertexColors && _colorBuffer.isCreated())
-	{
-		_colorBuffer.bind();
-		_prog->enableAttributeArray("vertexColor");
-		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
-	}
-
-	if (!_jointIndices.empty() && _jointIndexBuffer.isCreated())
-	{
-		_jointIndexBuffer.bind();
-		_prog->enableAttributeArray("jointIndices");
-		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
-
-		_jointWeightBuffer.bind();
-		_prog->enableAttributeArray("jointWeights");
-		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
-	}
-
-	_featureEdgeVAO.release();
+	bindFeatureEdgeVertexState();
 }
 
 void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
@@ -1096,6 +1068,43 @@ void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3, 3 * sizeof(float));
 	_occEdgeVAO.release();
 	_occEdgeVertexBuffer.release();
+}
+
+void SceneMesh::bindFeatureEdgeVertexState()
+{
+	if (!_featureEdgeVAO.isCreated())
+		_featureEdgeVAO.create();
+	_featureEdgeVAO.bind();
+
+	_featureEdgeIndexBuffer.bind();
+
+	_positionBuffer.bind();
+	_prog->enableAttributeArray("vertexPosition");
+	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+	_normalBuffer.bind();
+	_prog->enableAttributeArray("vertexNormal");
+	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	if (_hasVertexColors && _colorBuffer.isCreated())
+	{
+		_colorBuffer.bind();
+		_prog->enableAttributeArray("vertexColor");
+		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+	}
+
+	if (!_jointIndices.empty() && _jointIndexBuffer.isCreated())
+	{
+		_jointIndexBuffer.bind();
+		_prog->enableAttributeArray("jointIndices");
+		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+
+		_jointWeightBuffer.bind();
+		_prog->enableAttributeArray("jointWeights");
+		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+	}
+
+	_featureEdgeVAO.release();
 }
 
 void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
@@ -2274,4 +2283,82 @@ void SceneMesh::deleteTextures()
 	glDeleteTextures(1, &_materialState.heightADSMap());
 	glDeleteTextures(1, &_materialState.opacityADSMap());
 	RenderableMesh::deleteTextures();
+}
+
+void SceneMesh::releaseContextBoundGpuResources()
+{
+	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	RenderableMesh::releaseContextBoundGpuResources();
+
+	if (!shareContexts && _lodIndexBuffer.isCreated())
+		_lodIndexBuffer.destroy();
+	if (!shareContexts && _featureEdgeIndexBuffer.isCreated())
+		_featureEdgeIndexBuffer.destroy();
+	if (_featureEdgeVAO.isCreated())
+		_featureEdgeVAO.destroy();
+	if (!shareContexts && _occEdgeVertexBuffer.isCreated())
+		_occEdgeVertexBuffer.destroy();
+	if (_occEdgeVAO.isCreated())
+		_occEdgeVAO.destroy();
+}
+
+void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
+{
+	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	RenderableMesh::restoreContextBoundGpuResources(prog);
+
+	if (!shareContexts)
+	{
+		_lodIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
+		_featureEdgeIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
+		_occEdgeVertexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	}
+	if (_featureEdgeVAO.isCreated())
+		_featureEdgeVAO.destroy();
+	if (_occEdgeVAO.isCreated())
+		_occEdgeVAO.destroy();
+
+	if (shareContexts)
+	{
+		if (wireframeFeaturesEnabled())
+		{
+			if (_importState.hasOccEdges())
+				setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+			else if (!_featureEdgeIndices.empty())
+			{
+				_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
+				bindFeatureEdgeVertexState();
+			}
+		}
+
+		_textureBindingsDirty = true;
+		_uniformsDirty = true;
+		return;
+	}
+
+	if (!_lod1Indices.empty())
+		uploadLodTier();
+	if (wireframeFeaturesEnabled())
+	{
+		if (_importState.hasOccEdges())
+			setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+		else if (!_featureEdgeIndices.empty())
+		{
+			_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
+			if (!_featureEdgeIndexBuffer.isCreated())
+				_featureEdgeIndexBuffer.create();
+			_featureEdgeIndexBuffer.bind();
+			_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+			_featureEdgeIndexBuffer.allocate(_featureEdgeIndices.data(),
+				static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
+			_featureEdgeIndexBuffer.release();
+
+			bindFeatureEdgeVertexState();
+		}
+		else
+			buildAndUploadFeatureEdges(15.0f);
+	}
+
+	_textureBindingsDirty = true;
+	_uniformsDirty = true;
 }

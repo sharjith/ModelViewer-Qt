@@ -451,6 +451,8 @@ public:
 	virtual void updateRuntimeBounds();
 
 	virtual void deleteTextures();
+	virtual void releaseContextBoundGpuResources();
+	virtual void restoreContextBoundGpuResources(QOpenGLShaderProgram* prog);
 
 	// ---- Debug texture overrides (TextureDebugPanel) -------------------------
 	// Replace a texture unit with an alternative texture for the next draw call.
@@ -489,6 +491,8 @@ protected: // methods
 
     void computeBounds();
     void deleteBuffers();
+	void recreateContextBoundBufferObjects();
+	void recreateFallbackTexture();
 	void fastUpdateWorldBounds();   // O(1) AABB update from 8 local corners
 	void invalidateCombinedRenderTransformCache() const;
 	static void markRuntimeBoundsChanged();

@@ -139,6 +139,8 @@ public:
 
 	virtual void setTextureMaps(const Material& material) override;
 	void deleteTextures() override;
+	void releaseContextBoundGpuResources() override;
+	void restoreContextBoundGpuResources(QOpenGLShaderProgram* prog) override;
 	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
 
 	
@@ -160,6 +162,7 @@ private:
 	void bindTexturesOptimized();
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
+	void bindFeatureEdgeVertexState();
 	quint64 uniformStateSignature() const;
 	void removeTexturesByType(std::initializer_list<std::string> types);
 
@@ -188,6 +191,8 @@ protected:
 	// which creates GPU buffers). Empty whenever no LOD1 tier was generated
 	// (skinned/morph/small/non-triangle meshes, or setMeshData()'s no-optimize path).
 	std::vector<unsigned int> _pendingLod1Indices;
+	std::vector<unsigned int> _lod1Indices;
+	std::vector<uint32_t> _featureEdgeIndices;
 
 	// ---- Morph-target data (static after load) ----------------------------------
 	QVector<MorphTargetData> _morphTargets;

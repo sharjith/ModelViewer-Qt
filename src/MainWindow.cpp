@@ -96,14 +96,37 @@ MainWindow::MainWindow(QWidget* parent)
 		// replaced) so normal QSS cascade order - not selector specificity,
 		// which is otherwise equal - makes these win over Qt-ADS's own
 		// same-widget stylesheet.
+		//
+		// [activeTab="true"] is also overridden here, flattening Qt-ADS's own
+		// default.css/default_linux.css gradient (background: qlineargradient(
+		// ... stop:0 palette(window), stop:1 palette(light))) to a flat
+		// palette(light) - same end color, no fade. [focused="true"] is kept
+		// mirroring [activeTab="true"] exactly, per the reasoning above.
+		//
+		// The non-active-tab label color is also overridden here: Qt-ADS's own
+		// default.css uses color: palette(dark) for it, which this app's
+		// ThemeManager never assigns a value for (only Window/Base/Text/etc are
+		// set - see getDarkPalette()/getLightPalette()), so it falls back to
+		// Qt's auto-computed Dark role - a shade darker than the dark theme's
+		// own Window background, reading as near-black-on-near-black. #707070
+		// reuses this app's own established "muted but legible" gray (see
+		// getDarkPalette()'s QPalette::Disabled Text/WindowText/ButtonText,
+		// the same value already used elsewhere for de-emphasized text against
+		// this exact palette) rather than guessing a new one.
 		_dockManager->setStyleSheet(_dockManager->styleSheet() + QStringLiteral(R"(
 ads--CDockAreaWidget[focused="true"] ads--CDockAreaTitleBar {
 	background: transparent;
 	border-bottom: none;
 	padding-bottom: 0px;
 }
+ads--CDockWidgetTab QLabel {
+	color: #707070;
+}
+ads--CDockWidgetTab[activeTab="true"] {
+	background: palette(light);
+}
 ads--CDockWidgetTab[focused="true"] {
-	background: qlineargradient(spread: pad, x1: 0, y1: 0, x2: 0, y2: 0.5, stop: 0 palette(window), stop: 1 palette(light));
+	background: palette(light);
 	border-color: palette(light);
 }
 ads--CDockWidgetTab[focused="true"] QLabel {
@@ -392,11 +415,22 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		menuBar()->insertMenu(ui->menuHelp->menuAction(), viewMenu);
 
 		// Re-clamp the tool-panel column's width after any docking action
-		// (e.g. splitting documents side-by-side can otherwise leave it
-		// disproportionately wide) - deferred to the next event loop
-		// iteration since these signals fire mid-layout-pass, before the
-		// splitter's sizes are final. A plain manual splitter drag by the
-		// user doesn't emit any of these, so this never fights that.
+		// (e.g. splitting documents side-by-side, or dragging a floated
+		// document tab back and merging it into the existing document area
+		// via the center-drop indicator, can otherwise leave the document
+		// area shrunk and the tool-panel column correspondingly too wide) -
+		// deferred since these signals fire mid-layout-pass, before the
+		// splitter's sizes are final. A single next-event-loop-iteration
+		// defer (QTimer::singleShot(0, ...)) is enough for the simple split-
+		// off case but not for a drag-drop merge into an EXISTING area, which is
+		// a more involved multi-step internal Qt-ADS operation (removing
+		// from the floating container, destroying it, inserting into the
+		// target area's tab widget, THEN adjusting splitter geometry) - a
+		// single tick can run before that settles, and our clamp gets
+		// silently overwritten by Qt-ADS's own later pass. 50ms empirically
+		// gives it enough real time to finish first. A plain manual
+		// splitter drag by the user doesn't emit any of these, so this
+		// never fights that.
 		// dockAreasAdded() (CDockManager IS-A CDockContainerWidget) is the
 		// one most directly tied to "an area got split off from another" -
 		// dockAreaCreated()/dockWidgetAdded() are kept alongside it since
@@ -404,10 +438,10 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		// triggered split versus only for the addDockWidget()-family calls
 		// this code itself makes.
 		connect(_dockManager, &CDockManager::dockAreasAdded, this, [this]() {
-			QTimer::singleShot(0, this, [this]() { constrainToolPanelWidth(); });
+			QTimer::singleShot(50, this, [this]() { constrainToolPanelWidth(); });
 			});
 		connect(_dockManager, &CDockManager::dockAreaCreated, this, [this](CDockAreaWidget* area) {
-			QTimer::singleShot(0, this, [this]() { constrainToolPanelWidth(); });
+			QTimer::singleShot(50, this, [this]() { constrainToolPanelWidth(); });
 			// A user dragging a document's tab to split it off creates a
 			// NEW CDockAreaWidget outside of any code path this class
 			// controls (Qt-ADS's own drag-and-drop handling, not
@@ -431,7 +465,7 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 			}
 			});
 		connect(_dockManager, &CDockManager::dockWidgetAdded, this, [this](CDockWidget*) {
-			QTimer::singleShot(0, this, [this]() { constrainToolPanelWidth(); });
+			QTimer::singleShot(50, this, [this]() { constrainToolPanelWidth(); });
 			});
 	}
 
@@ -841,24 +875,19 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 
 void MainWindow::cycleActiveDocument(int direction)
 {
-	using namespace ads;
-
-	if (!_documentDockArea)
-		return;
-	QList<CDockWidget*> docs = _documentDockArea->dockWidgets();
-	docs.removeAll(_documentPlaceholderDock);
-	if (docs.size() < 2)
+	if (_viewers.size() < 2)
 		return;
 
-	CDockWidget* current = _documentDockArea->currentDockWidget();
-	int idx = docs.indexOf(current);
-	// If the placeholder is current (idx == -1, since it was just removed
-	// from the list above), start from the first/last real document rather
-	// than computing a modulus against -1.
-	if (idx < 0)
-		idx = (direction > 0) ? -1 : 0;
-	const int nextIdx = (idx + direction + docs.size()) % docs.size();
-	docs[nextIdx]->setAsCurrentTab();
+	int currentIndex = _viewers.indexOf(activeMdiChild());
+	if (currentIndex < 0)
+		currentIndex = (direction > 0) ? -1 : 0;
+
+	const int nextIndex = (currentIndex + direction + _viewers.size()) % _viewers.size();
+	ModelViewer* nextViewer = _viewers.value(nextIndex);
+	if (!nextViewer)
+		return;
+	if (ads::CDockWidget* dock = _documentDocks.value(nextViewer))
+		dock->setAsCurrentTab();
 }
 
 void MainWindow::constrainToolPanelWidth()
@@ -1157,6 +1186,23 @@ void MainWindow::activateDocument(ModelViewer* child)
 						guardedViewport->resize(size);
 					});
 				});
+#else
+			// On Windows the viewport no longer crashes now that context sharing
+			// keeps the heavy GL resources alive, but a newly-current QOpenGLWidget
+			// can still sit black until the next native input event delivers a real
+			// paint/update pulse. A lightweight updateRequest on the top-level
+			// window, deferred until the tab switch has finished, provides that
+			// pulse without the resize churn the old workaround used.
+			QPointer<ViewportWidget> guardedViewport(viewport);
+			QTimer::singleShot(0, this, [guardedViewport]() {
+				if (!guardedViewport)
+					return;
+				guardedViewport->update();
+				if (QWidget* topLevel = guardedViewport->window())
+					topLevel->update();
+				if (QWindow* windowHandle = guardedViewport->window()->windowHandle())
+					windowHandle->requestUpdate();
+			});
 #endif
 		}
 	}
@@ -1241,17 +1287,20 @@ void MainWindow::readSettings()
 		restoreGeometry(geometry);
 	}
 
-	const QByteArray dockState = settings.value("dockState", QByteArray()).toByteArray();
-	if (!dockState.isEmpty() && _dockManager)
-		_dockManager->restoreState(dockState);
+	// Deliberately do NOT restore Qt-ADS saveState() here. Document docks are
+	// created later and carry per-session UUID object names, so a persisted ADS
+	// layout cannot round-trip reliably across launches once documents have ever
+	// been open. Restoring that stale state made Qt-ADS treat document docks as
+	// "unassigned" and forced layout repair paths against widgets that do not
+	// exist in the new session. Keep old settings from re-triggering that logic.
+	settings.remove("dockState");
 }
 
 void MainWindow::writeSettings()
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	settings.setValue("geometry", saveGeometry());
-	if (_dockManager)
-		settings.setValue("dockState", _dockManager->saveState());
+	settings.remove("dockState");
 }
 
 
@@ -1622,6 +1671,21 @@ void MainWindow::showEvent(QShowEvent* event)
 		presentDocumentFullscreen(_viewers[0]);
 		_viewers[0]->updateDisplayList();
 
+		// Qt-ADS's dynamic-property-based selectors ([activeTab="true"] etc -
+		// used by both its own default styling and the gradient-removal/
+		// gray-label overrides appended in the constructor) aren't guaranteed
+		// to be re-evaluated on a freshly created tab's very first paint -
+		// confirmed via testing: those overrides only took visible effect
+		// after the user actually clicked a tab, which is when Qt-ADS's own
+		// tab-switch handling happens to force a repolish as a side effect of
+		// updating its own state. Re-setting the (unchanged) stylesheet here
+		// forces Qt's documented full unpolish/polish cascade through the
+		// whole dock manager subtree - deferred one event-loop tick so it
+		// runs after this first document's own tab widget actually exists.
+		QTimer::singleShot(0, _dockManager, [this]() {
+			_dockManager->setStyleSheet(_dockManager->styleSheet());
+		});
+
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		if (settings.value("showQuickHelpOnStartup", true).toBool())
 		{
@@ -1695,6 +1759,12 @@ void MainWindow::presentDocumentFullscreen(ModelViewer* viewer)
 	// manual geometry/frame/maximize-state handling needed here at all.
 	if (ads::CDockWidget* dock = _documentDocks.value(viewer))
 		dock->setAsCurrentTab();
+	// The very first startup document can be visibly current before Qt-ADS
+	// has emitted any focus/currentChanged signal that would otherwise drive
+	// _activeDocument. Establish it eagerly here so commands that depend on
+	// activeMdiChild() (for example Shift+Recent-file import) target the
+	// already-visible document even before the first user focus transition.
+	activateDocument(viewer);
 }
 
 void MainWindow::on_actionOpen_triggered()

@@ -172,11 +172,11 @@ private:
 	// on_actionNew_triggered().
 	ads::CDockWidget* createDocumentDock(ModelViewer* viewer);
 
-	// Next/Previous (Ctrl+Tab family): cycles among REAL documents in
-	// _documentDockArea's own tab order, explicitly excluding
-	// _documentPlaceholderDock - dockWidgetsCount()/setCurrentIndex() would
-	// otherwise count/land on the placeholder too, since it's a permanent,
-	// always-registered member of that area (see the constructor).
+	// Next/Previous (Ctrl+Tab family): cycles among all REAL documents,
+	// regardless of which ADS area currently hosts them. The original
+	// _documentDockArea can stop containing some documents after the user
+	// splits tabs into multiple areas, so walking only that area's tab order
+	// is incomplete.
 	void cycleActiveDocument(int direction);
 
 private:

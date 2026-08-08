@@ -1496,14 +1496,13 @@ void ModelViewer::setDocumentModified(bool modified)
 {
 	const bool changed = (_documentModified != modified);
 	_documentModified = modified;
+	const QString baseTitle = _currentFile.isEmpty()
+		? windowTitle().remove(QLatin1Char('*'))
+		: QFileInfo(_currentFile).fileName();
 	if (modified)
-	{
-		setWindowTitle(tr("%1*").arg(QFileInfo(_currentFile).fileName()));
-	}
+		setWindowTitle(tr("%1*").arg(baseTitle));
 	else
-	{
-		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
-	}
+		setWindowTitle(baseTitle);
 	if (changed)
 		emit documentModifiedChanged(_documentModified);
 }
