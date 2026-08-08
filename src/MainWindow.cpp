@@ -674,6 +674,39 @@ QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 		if (_shuttingDown)
 			return;
 		_viewers.removeAll(viewer);
+
+		const bool viewerWasActive = (viewer == _activeDocument);
+		const bool viewerWasLastBound = (viewer == _lastBoundModelViewer);
+
+		// Closing the active document can otherwise leave both
+		// activeMdiChild() and activateDocument() pointing through stale
+		// ModelViewer pointers until QMdiArea happens to emit a later
+		// subWindowActivated() repair signal. Clear those eagerly here.
+		if (viewerWasActive)
+		{
+			_activeDocument = nullptr;
+			rebindSharedPanelsTo(nullptr);
+			updateMenus();
+		}
+		if (viewerWasLastBound)
+			_lastBoundModelViewer = nullptr;
+
+		// Let QMdiArea finish promoting whichever surviving subwindow is
+		// now active, then resync our document bookkeeping from that real
+		// post-close state.
+		QTimer::singleShot(0, this, [this]() {
+			if (_shuttingDown || !_mdiArea)
+				return;
+			if (QMdiSubWindow* active = _mdiArea->activeSubWindow())
+			{
+				if (ModelViewer* child = qobject_cast<ModelViewer*>(active->widget()))
+				{
+					activateDocument(child);
+					return;
+				}
+			}
+			activateDocument(nullptr);
+		});
 	});
 	connect(viewer, &ModelViewer::documentModifiedChanged,
 	        this, [this, viewer](bool) {
@@ -1016,6 +1049,7 @@ MainWindow::~MainWindow()
 void MainWindow::readSettings()
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	static constexpr int kNativeMdiDockStateVersion = 1;
 	const QByteArray geometry = settings.value("geometry", QByteArray()).toByteArray();
 	if (geometry.isEmpty()) {
 		const QRect availableGeometry = screen()->availableGeometry();
@@ -1027,19 +1061,21 @@ void MainWindow::readSettings()
 		restoreGeometry(geometry);
 	}
 
-	// Document/Properties/Environment now have stable, never-changing
-	// objectName()s (set once in the constructor), unlike Qt-ADS's old
-	// per-session-UUID document dock names, so QMainWindow::restoreState()
-	// round-trips reliably across launches - by the time this runs, the
-	// constructor has already created all three tool-panel docks.
-	restoreState(settings.value("dockState").toByteArray());
+	// Native QMainWindow dock state is not compatible with the old Qt-ADS
+	// bytes that previously lived under "dockState". Gate restore on an
+	// explicit version/key pair so a branch switch from Qt-ADS does not try
+	// to deserialize stale foreign state into the new MDI/dock layout.
+	if (settings.value("dockStateNativeMdiVersion", 0).toInt() == kNativeMdiDockStateVersion)
+		restoreState(settings.value("dockStateNativeMdi").toByteArray());
 }
 
 void MainWindow::writeSettings()
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	static constexpr int kNativeMdiDockStateVersion = 1;
 	settings.setValue("geometry", saveGeometry());
-	settings.setValue("dockState", saveState());
+	settings.setValue("dockStateNativeMdiVersion", kNativeMdiDockStateVersion);
+	settings.setValue("dockStateNativeMdi", saveState());
 }
 
 
