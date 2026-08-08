@@ -650,6 +650,15 @@ _floorPlane(nullptr),
 
 ViewportWidget::~ViewportWidget()
 {
+	// Must be first: disconnects the QOpenGLContext::aboutToBeDestroyed()
+	// handler wired up in initializeGL() before the explicit cleanup below
+	// runs. Without this, the base QOpenGLWidget destructor's later context
+	// teardown (after this destructor's body finishes) fires that handler
+	// again, calling releaseGLSceneResources() a second time on GL objects
+	// this destructor already freed - see the connection member's own doc
+	// comment in the header for the full story.
+	disconnect(_glContextAboutToBeDestroyedConnection);
+
 	// Cancel/join the ray-tracing worker before anything else is torn down -
 	// it holds a shared_ptr to its own RtSceneSnapshot, not to any of this
 	// widget's scene state, so no ordering dependency on the teardown below.
@@ -703,47 +712,7 @@ ViewportWidget::~ViewportWidget()
 	if (context() && context()->isValid() && _renderCtrl.isOpenGLInitialized())
 	{
 		makeCurrent();
-
-		cleanUpShaders();
-
-		_renderCtrl.cleanupGLResources();
-		_rtPresenter.cleanup();
-		if (_selectionManager)
-			_selectionManager->cleanupFBOResources();
-
-		// Delete scene objects
-		if (_clippingPlaneXY)
-			delete _clippingPlaneXY;
-		if (_clippingPlaneYZ)
-			delete _clippingPlaneYZ;
-		if (_clippingPlaneZX)
-			delete _clippingPlaneZX;
-		if (_floorPlane)
-			delete _floorPlane;
-		if (_gridPlane)
-			delete _gridPlane;
-		if (_axisCone)
-			delete _axisCone;
-		if (_transformGizmo)
-		{
-			delete _transformGizmo;
-			_transformGizmo = nullptr;
-		}
-		if (_viewCube)
-			delete _viewCube;
-		if (_skyBox)
-			delete _skyBox;
-		if (_lightCube)
-			delete _lightCube;
-
-		if (_renderCtrl.punctualLights())
-		{
-			_renderCtrl.punctualLights()->cleanup();
-		}
-
-		cleanupTransmissionBuffer();
-		cleanupSSSBuffer();
-
+		releaseGLSceneResources();
 		doneCurrent();  // Release context
 
 		qInfo() << "ViewportWidget::~ViewportWidget - OpenGL resources cleaned up successfully.";
@@ -752,6 +721,48 @@ ViewportWidget::~ViewportWidget()
 	{
 		qWarning() << "ViewportWidget::~ViewportWidget - No valid OpenGL context for cleanup.";
 	}
+}
+
+void ViewportWidget::releaseGLSceneResources()
+{
+	cleanUpShaders();
+
+	_renderCtrl.cleanupGLResources();
+	_rtPresenter.cleanup();
+	if (_selectionManager)
+		_selectionManager->cleanupFBOResources();
+
+	// Delete scene objects - each nulled immediately after so a caller that
+	// keeps running afterward (see the aboutToBeDestroyed() handler in
+	// initializeGL()) sees these as honestly absent, not dangling. Without
+	// the null-out, initializeGL()'s own "if (_x == nullptr) create else
+	// reuse" guards (e.g. loadFloor()) would reuse an object whose VAO/
+	// buffers belong to the just-destroyed context - reading through its
+	// context-bound function pointers is what crashed in the first place.
+	if (_clippingPlaneXY) { delete _clippingPlaneXY; _clippingPlaneXY = nullptr; }
+	if (_clippingPlaneYZ) { delete _clippingPlaneYZ; _clippingPlaneYZ = nullptr; }
+	if (_clippingPlaneZX) { delete _clippingPlaneZX; _clippingPlaneZX = nullptr; }
+	if (_floorPlane) { delete _floorPlane; _floorPlane = nullptr; }
+	if (_gridPlane) { delete _gridPlane; _gridPlane = nullptr; }
+	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
+	if (_transformGizmo) { delete _transformGizmo; _transformGizmo = nullptr; }
+	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
+	if (_skyBox) { delete _skyBox; _skyBox = nullptr; }
+	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
+	// createLights() (called from initializeGL()) creates both of these
+	// unconditionally rather than via a null-check/reuse guard, so unlike
+	// the others above this one wasn't reuse-crashing on a second
+	// initializeGL() - just silently leaking the previous context's sphere
+	// on every reinit. Cleaned up here too since it holds a VAO the same way.
+	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
+
+	if (_renderCtrl.punctualLights())
+	{
+		_renderCtrl.punctualLights()->cleanup();
+	}
+
+	cleanupTransmissionBuffer();
+	cleanupSSSBuffer();
 }
 
 void ViewportWidget::retranslateUI()
@@ -894,6 +905,28 @@ void ViewportWidget::initializeGL()
 	_viewCtrl.setShowViewCubeOverride(settings.value("showViewCubeCheckBox", true).toBool() && (_viewCtrl.cornerAxisPosition() != CornerAxisPosition::BOTTOM_RIGHT));
 		
 	makeCurrent();
+
+	// Qt destroys and recreates this widget's QOpenGLContext (triggering a
+	// fresh initializeGL() call, this one) whenever its effective top-level
+	// window changes - see QOpenGLWidget's own docs. Qt-ADS's tab/dock
+	// widget mechanics do this on Windows during ordinary tab switches with
+	// multiple documents open (not observed on Linux); it's expected Qt
+	// behavior, not a bug in the docking library. Per QOpenGLWidget's own
+	// documented cleanup pattern, connect to the (about to die) context's
+	// aboutToBeDestroyed() and release GPU objects while it's still current
+	// - without this, the create-once/reuse-if-non-null objects below
+	// (loadFloor()'s _floorPlane etc.) survive as dangling pointers into a
+	// destroyed context, and the next reuse crashes reading through their
+	// now-invalid resolved GL function pointers (glBindVertexArray et al).
+	// Reconnected every initializeGL() call since context() is a new
+	// QOpenGLContext instance each time. Saved so ~ViewportWidget() can
+	// disconnect it before doing its own explicit cleanup - see the member's
+	// own doc comment for why that ordering matters.
+	_glContextAboutToBeDestroyedConnection =
+		connect(context(), &QOpenGLContext::aboutToBeDestroyed, this, [this]() {
+			makeCurrent();
+			releaseGLSceneResources();
+		});
 
 	createShaderPrograms();
 	createFullscreenTriangle();

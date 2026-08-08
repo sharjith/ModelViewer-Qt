@@ -868,6 +868,24 @@ public:
 
 	void cleanUpShaders();
 
+	// Deletes/nulls every scene-decoration GPU object (floor, grid, skybox,
+	// axis cone, clipping planes, light cube/sphere, view cube) that
+	// initializeGL()'s "if (_x == nullptr) create else reuse" pattern relies
+	// on. Shared between ~ViewportWidget() (widget going away for good) and
+	// the QOpenGLContext::aboutToBeDestroyed() handler wired up in
+	// initializeGL() (widget survives, only its GL context is being replaced
+	// - see that connection's own comment for why this is needed there too).
+	void releaseGLSceneResources();
+
+	// initializeGL()'s QOpenGLContext::aboutToBeDestroyed() connection (see
+	// its own comment there) - must be disconnected at the very top of
+	// ~ViewportWidget(), before that destructor's own explicit cleanup runs,
+	// otherwise the base QOpenGLWidget destructor's later context teardown
+	// fires this a second time and calls releaseGLSceneResources() again on
+	// already-freed GL objects (e.g. SceneRenderController::cleanupGLResources()
+	// double-destroying a QOpenGLBuffer).
+	QMetaObject::Connection _glContextAboutToBeDestroyedConnection;
+
 	// Recycle bin operations (used by DeleteCommand)
 	void moveToRecycleBin(const QUuid& uuid, int originalIndex);
 	bool restoreFromRecycleBin(const QUuid& uuid);

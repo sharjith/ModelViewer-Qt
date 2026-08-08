@@ -1135,6 +1135,17 @@ void MainWindow::activateDocument(ModelViewer* child)
 			// with this only failing "randomly": whether Qt happens to
 			// process something in between the two calls isn't guaranteed
 			// by calling them consecutively in the same function.
+			//
+			// Windows-only: DWM doesn't have the "Qt-level repaint never
+			// reaches the compositor" bug this works around, so on Windows
+			// this is pure liability rather than a needed fix - QOpenGLWidget
+			// resize there recreates FBOs/backing stores more synchronously
+			// than X11/Wayland, and with multiple documents open the QPointer
+			// guard only protects against the viewport being destroyed, not
+			// against the user switching to yet another tab before these
+			// pending timers fire (each still resizes whatever ViewportWidget
+			// it captured, even one that's no longer active/visible).
+#if !defined(Q_OS_WIN)
 			QPointer<ViewportWidget> guardedViewport(viewport);
 			QTimer::singleShot(0, this, [guardedViewport]() {
 				if (!guardedViewport)
@@ -1146,6 +1157,7 @@ void MainWindow::activateDocument(ModelViewer* child)
 						guardedViewport->resize(size);
 					});
 				});
+#endif
 		}
 	}
 	else
