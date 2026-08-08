@@ -11,6 +11,7 @@ class QPushButton;
 class QAction;
 class QTabWidget;
 class QCheckBox;
+class QSplitter;
 
 #ifdef _WIN32
 class QWinTaskbarProgress;
@@ -183,7 +184,22 @@ private:
 	enum { MaxRecentFiles = 15 };
 
 	Ui::MainWindow* ui;
-	ads::CDockManager* _dockManager = nullptr;
+	// Document area (left/top) and tool-panel column (right/bottom, Document/
+	// Properties/Environment) each get their own independent CDockManager,
+	// hosted as the two children of _dockSplitter (owned by MainWindow, not
+	// Qt-ADS) instead of sharing one CDockManager's internal splitter tree -
+	// see the constructor for why (Qt-ADS's own relayout could otherwise
+	// perturb the left/right ratio as a side effect of an operation entirely
+	// within one side).
+	QSplitter* _dockSplitter = nullptr;
+	ads::CDockManager* _documentDockManager = nullptr;
+	ads::CDockManager* _toolPanelDockManager = nullptr;
+	QAction* _actionSplitterOrientation = nullptr;
+	// Set by readSettings() when it successfully restores a persisted
+	// _dockSplitter size - tells createDocumentDock()'s first-document
+	// bootstrap to skip its own hardcoded 75/25 default instead of
+	// clobbering the restored value.
+	bool _dockSplitterSizesRestored = false;
 	ads::CDockWidget* _propertiesDock = nullptr;
 	ads::CDockWidget* _environmentDock = nullptr;
 	ads::CDockWidget* _documentDock = nullptr;
@@ -222,9 +238,10 @@ private:
 	// documents; made current again whenever the last real document closes
 	// (see createDocumentDock()'s destroyed-signal handler).
 	ads::CDockWidget* _documentPlaceholderDock = nullptr;
-	// Set at the top of ~MainWindow(), before _dockManager and its dock
-	// widgets get torn down by Qt's cascading parent-child destruction - see
-	// the comment in createDocumentDock()'s destroyed-signal handler.
+	// Set at the top of ~MainWindow(), before _documentDockManager/
+	// _toolPanelDockManager and their dock widgets get torn down by Qt's
+	// cascading parent-child destruction - see the comment in
+	// createDocumentDock()'s destroyed-signal handler.
 	bool _shuttingDown = false;
 	MaterialPropertiesPanel* _materialPropertiesPanel = nullptr;
 	ObjectTransformPanel* _objectTransformPanel = nullptr;
@@ -261,16 +278,6 @@ private:
 	void setDocumentTabDimmed(int tabIndex, bool dimmed);
 	void refreshDocumentDockTabStyling(ModelViewer* viewer);
 
-	// Resets the Document/Properties/Environment dock area's width back to
-	// its default proportion of the window. Connected to _dockManager's
-	// dockAreaCreated()/dockWidgetAdded() signals (deferred, since sizes
-	// aren't final until Qt finishes the layout pass those signals fire
-	// mid-way through) so that splitting documents apart doesn't leave the
-	// tool-panel column disproportionately wide - a purely manual splitter
-	// drag by the user doesn't touch either signal, so this never fights a
-	// deliberate resize, only re-defaults after the next docking action.
-	void constrainToolPanelWidth();
-
 	// Connected to _documentDockArea's currentChanged(int) signal once, when
 	// that area is first created - drives rebindSharedPanelsTo() and the
 	// undo-stack/menu bookkeeping that used to live in the QMdiArea::
@@ -278,7 +285,7 @@ private:
 	void handleActiveDocumentChanged();
 
 	// Common body of handleActiveDocumentChanged(), also driven directly by
-	// _dockManager's focusedDockWidgetChanged() signal - currentChanged(int)
+	// _documentDockManager's focusedDockWidgetChanged() signal - currentChanged(int)
 	// on a document's CDockAreaWidget only fires when that area's OWN tab
 	// index changes, which never happens when the user activates a document
 	// by clicking into a different, already-current, single-tab area (e.g.

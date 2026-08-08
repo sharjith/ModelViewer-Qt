@@ -1,5 +1,4 @@
 ﻿
-#include <algorithm>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QCursor>
@@ -32,7 +31,6 @@
 #include <DockWidget.h>
 #include <DockWidgetTab.h>
 #include <DockAreaWidget.h>
-#include <DockSplitter.h>
 #include <QLabel>
 #include <QCheckBox>
 #include <QVBoxLayout>
@@ -43,6 +41,7 @@
 #include <QSplitter>
 #include <QShortcut>
 #include <QPointer>
+#include <QSignalBlocker>
 #include "MaterialPropertiesPanel.h"
 #include "ObjectTransformPanel.h"
 #include "VisualizationEnvironmentPanel.h"
@@ -67,22 +66,58 @@ MainWindow::MainWindow(QWidget* parent)
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
-	// Qt-ADS docking: documents themselves are now native CDockWidgets (see
+	// Qt-ADS docking: documents themselves are native CDockWidgets (see
 	// createDocumentDock()), tabbed together in _documentDockArea, which is
 	// created on demand by the first call to createDocumentDock() - there's
 	// no QMdiArea left to give any special "central widget" protection to,
-	// documents are ordinary dock widgets like Document/Properties/
-	// Environment, just positioned to their left.
+	// documents are ordinary dock widgets, just hosted in their own
+	// CDockManager (_documentDockManager) rather than sharing one with
+	// Document/Properties/Environment (_toolPanelDockManager) - see the
+	// _dockSplitter setup right below for why.
 	{
 		using namespace ads;
 
 		// Needed for focusedDockWidgetChanged() below, which is otherwise
-		// never emitted - must be set before the CDockManager is
-		// constructed (per Qt-ADS's own docs on this flag).
+		// never emitted - must be set before either CDockManager is
+		// constructed (per Qt-ADS's own docs on this flag). Confirmed via
+		// Qt-ADS's own source (DockManager.cpp's file-static StaticConfigFlags)
+		// that config flags are process-global, not per-instance - one call
+		// here covers both managers below.
 		CDockManager::setConfigFlag(CDockManager::FocusHighlighting, true);
 
-		_dockManager = new CDockManager(this);
-		setCentralWidget(_dockManager);
+		// Document area (left/top) and tool-panel column (right/bottom) each
+		// get their own independent CDockManager, hosted as the two children
+		// of _dockSplitter (owned by MainWindow, not Qt-ADS) instead of
+		// sharing one CDockManager's internal splitter tree. Confirmed real
+		// bug with the old single-manager setup: Qt-ADS's own drag-drop
+		// relayout could perturb the left/right ratio as a side effect of an
+		// operation entirely within one side (e.g. floating a document tab
+		// out and re-merging it into the existing document area via
+		// center-drop shrank the document area and widened the tool-panel
+		// column) - patched reactively for a while via constrainToolPanelWidth()
+		// (now removed), but the real fix is structural: each manager only
+		// ever touches its own side's splitter tree, so there's nothing left
+		// for Qt-ADS's relayout to perturb across sides. Verified via source
+		// read that drag-and-drop is itself manager-scoped (Qt-ADS's own
+		// FloatingDockContainerPrivate::updateDropOverlays() only enumerates
+		// the dragged widget's OWN manager's containers when computing drop
+		// targets), so this also hard-prevents ever docking a document into
+		// the tool-panel region or vice versa - which has no real use case
+		// anyway (no mainstream 3D/CAD tool tabs a viewport together with its
+		// property inspector).
+		_dockSplitter = new QSplitter(Qt::Horizontal);
+		setCentralWidget(_dockSplitter);
+
+		// Parented to the splitter, never to `this` (MainWindow) - verified
+		// via Qt-ADS's own source that CDockManager's constructor auto-calls
+		// parent->setCentralWidget(this) IF its parent qobject_casts to
+		// QMainWindow, which would make whichever manager is constructed
+		// second silently steal the central widget out from under the
+		// splitter. QSplitter auto-adopts any non-window widget parented to
+		// it as a new pane (its own childEvent() override), in construction
+		// order - no explicit addWidget() call needed.
+		_documentDockManager = new CDockManager(_dockSplitter);
+		_toolPanelDockManager = new CDockManager(_dockSplitter);
 
 		// FocusHighlighting is needed for focusedDockWidgetChanged() (see
 		// below), but its accompanying tab/title-bar highlight color was
@@ -113,7 +148,11 @@ MainWindow::MainWindow(QWidget* parent)
 		// getDarkPalette()'s QPalette::Disabled Text/WindowText/ButtonText,
 		// the same value already used elsewhere for de-emphasized text against
 		// this exact palette) rather than guessing a new one.
-		_dockManager->setStyleSheet(_dockManager->styleSheet() + QStringLiteral(R"(
+		//
+		// Selectors below are generic (ads--CDockAreaWidget/ads--CDockWidgetTab),
+		// not scoped to document vs. tool-panel widgets, so the identical text
+		// applies to both managers for visual consistency across both sides.
+		const QString dockManagerStyleOverrides = QStringLiteral(R"(
 ads--CDockAreaWidget[focused="true"] ads--CDockAreaTitleBar {
 	background: transparent;
 	border-bottom: none;
@@ -142,7 +181,9 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:hover {
 ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 	background: rgba(0, 0, 0, 32);
 }
-)"));
+)");
+		_documentDockManager->setStyleSheet(_documentDockManager->styleSheet() + dockManagerStyleOverrides);
+		_toolPanelDockManager->setStyleSheet(_toolPanelDockManager->styleSheet() + dockManagerStyleOverrides);
 
 		// currentChanged(int) on a document area (connected per-area below/
 		// in createDocumentDock()) only fires when that area's own tab index
@@ -150,11 +191,12 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		// clicking into a DIFFERENT, already-current, single-tab area (e.g.
 		// two documents split side by side rather than tabbed together).
 		// focusedDockWidgetChanged() fires on any change of which dock
-		// widget actually has focus, which does cover that case. Only acts
-		// when the newly focused widget wraps a ModelViewer - clicking into
-		// the Properties/Environment/Document tool panels themselves must
-		// NOT clear or change which document's data those panels show.
-		connect(_dockManager, &CDockManager::focusedDockWidgetChanged, this,
+		// widget actually has focus, which does cover that case. Connected
+		// only to _documentDockManager - the Properties/Environment/Document
+		// tool panels live in _toolPanelDockManager entirely and never emit
+		// this signal at all now, but the ModelViewer* guard below is kept
+		// anyway (e.g. the placeholder dock isn't one either).
+		connect(_documentDockManager, &CDockManager::focusedDockWidgetChanged, this,
 			[this](ads::CDockWidget*, ads::CDockWidget* now) {
 				if (!now)
 					return;
@@ -218,10 +260,10 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		documentTabContainerLayout->addWidget(documentControlsRow);
 		documentTabContainerLayout->addWidget(_documentTabWidget, 1);
 
-		auto* documentDock = new CDockWidget(_dockManager, tr("Document"));
+		auto* documentDock = new CDockWidget(_toolPanelDockManager, tr("Document"));
 		documentDock->setWidget(documentTabContainer);
 		documentDock->setIcon(QIcon(":/icons/res/document-root.png"));
-		_dockManager->addDockWidget(RightDockWidgetArea, documentDock);
+		_toolPanelDockManager->addDockWidget(RightDockWidgetArea, documentDock);
 		_documentDock = documentDock;
 		// tabWidget() only exists once the dock widget is actually docked
 		// somewhere, hence called after addDockWidget() rather than right
@@ -255,10 +297,10 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 
 		_propertiesTabWidget->setCurrentIndex(0);
 
-		_propertiesDock = new CDockWidget(_dockManager, tr("Properties"));
+		_propertiesDock = new CDockWidget(_toolPanelDockManager, tr("Properties"));
 		_propertiesDock->setWidget(_propertiesTabWidget);
 		_propertiesDock->setIcon(QIcon(":/icons/res/properties.png"));
-		_dockManager->addDockWidgetTab(RightDockWidgetArea, _propertiesDock);
+		_toolPanelDockManager->addDockWidgetTab(RightDockWidgetArea, _propertiesDock);
 		if (_propertiesDock->tabWidget())
 			_propertiesDock->tabWidget()->setIconSize(QSize(24, 24));
 
@@ -268,10 +310,10 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		scrollAreaEnv->setWidgetResizable(true);
 		scrollAreaEnv->setWidget(_visualizationEnvironmentPanel);
 
-		_environmentDock = new CDockWidget(_dockManager, tr("Environment"));
+		_environmentDock = new CDockWidget(_toolPanelDockManager, tr("Environment"));
 		_environmentDock->setWidget(scrollAreaEnv);
 		_environmentDock->setIcon(QIcon(":/icons/res/environment.png"));
-		_dockManager->addDockWidgetTab(RightDockWidgetArea, _environmentDock);
+		_toolPanelDockManager->addDockWidgetTab(RightDockWidgetArea, _environmentDock);
 		if (_environmentDock->tabWidget())
 			_environmentDock->tabWidget()->setIconSize(QSize(24, 24));
 
@@ -412,60 +454,61 @@ ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
 		viewMenu->addAction(documentDock->toggleViewAction());
 		viewMenu->addAction(_propertiesDock->toggleViewAction());
 		viewMenu->addAction(_environmentDock->toggleViewAction());
+		viewMenu->addSeparator();
+
+		// Toggles _dockSplitter between side-by-side and stacked - useful on
+		// narrow/portrait monitors where a fixed left/right split leaves the
+		// document area too cramped. setChecked() here is just the
+		// pre-readSettings() default (false/Horizontal); readSettings()
+		// below corrects it (via a QSignalBlocker, so it doesn't re-run this
+		// toggled handler) once the persisted value is known.
+		_actionSplitterOrientation = new QAction(tr("Stack Panels Vertically"), this);
+		_actionSplitterOrientation->setCheckable(true);
+		connect(_actionSplitterOrientation, &QAction::toggled, this, [this](bool checked) {
+			const Qt::Orientation newOrientation = checked ? Qt::Vertical : Qt::Horizontal;
+			_dockSplitter->setOrientation(newOrientation);
+			// The splitter is already laid out/visible here (unlike at
+			// initial construction in createDocumentDock(), where
+			// MainWindow::width()/height() is used instead since the
+			// splitter has no real geometry yet) - derive the new sizes
+			// from its own current extent so the ~75/25 ratio survives the
+			// orientation flip instead of resetting to an even split.
+			const int extent = (newOrientation == Qt::Horizontal) ? _dockSplitter->width() : _dockSplitter->height();
+			_dockSplitter->setSizes({ extent * 3 / 4, extent / 4 });
+			});
+		viewMenu->addAction(_actionSplitterOrientation);
 		menuBar()->insertMenu(ui->menuHelp->menuAction(), viewMenu);
 
-		// Re-clamp the tool-panel column's width after any docking action
-		// (e.g. splitting documents side-by-side, or dragging a floated
-		// document tab back and merging it into the existing document area
-		// via the center-drop indicator, can otherwise leave the document
-		// area shrunk and the tool-panel column correspondingly too wide) -
-		// deferred since these signals fire mid-layout-pass, before the
-		// splitter's sizes are final. A single next-event-loop-iteration
-		// defer (QTimer::singleShot(0, ...)) is enough for the simple split-
-		// off case but not for a drag-drop merge into an EXISTING area, which is
-		// a more involved multi-step internal Qt-ADS operation (removing
-		// from the floating container, destroying it, inserting into the
-		// target area's tab widget, THEN adjusting splitter geometry) - a
-		// single tick can run before that settles, and our clamp gets
-		// silently overwritten by Qt-ADS's own later pass. 50ms empirically
-		// gives it enough real time to finish first. A plain manual
-		// splitter drag by the user doesn't emit any of these, so this
-		// never fights that.
-		// dockAreasAdded() (CDockManager IS-A CDockContainerWidget) is the
-		// one most directly tied to "an area got split off from another" -
-		// dockAreaCreated()/dockWidgetAdded() are kept alongside it since
-		// it's not documented which of these actually fires for a drag-
-		// triggered split versus only for the addDockWidget()-family calls
-		// this code itself makes.
-		connect(_dockManager, &CDockManager::dockAreasAdded, this, [this]() {
-			QTimer::singleShot(50, this, [this]() { constrainToolPanelWidth(); });
-			});
-		connect(_dockManager, &CDockManager::dockAreaCreated, this, [this](CDockAreaWidget* area) {
-			QTimer::singleShot(50, this, [this]() { constrainToolPanelWidth(); });
-			// A user dragging a document's tab to split it off creates a
-			// NEW CDockAreaWidget outside of any code path this class
-			// controls (Qt-ADS's own drag-and-drop handling, not
-			// createDocumentDock()) - _documentDockArea alone only ever
-			// tracked the ORIGINAL area, so switching tabs in a split-off
-			// area never ran rebindSharedPanelsTo()/the repaint-on-switch
-			// fix at all. Whenever a newly created area turns out to host
-			// at least one document, wire the same handler to it too -
-			// Qt::UniqueConnection guards against connecting twice if this
-			// somehow fires more than once for the same area.
-			if (area && !_documentDocks.isEmpty())
+		// A user dragging a document's tab to split it off creates a NEW
+		// CDockAreaWidget outside of any code path this class controls
+		// (Qt-ADS's own drag-and-drop handling, not createDocumentDock()) -
+		// _documentDockArea alone only ever tracked the ORIGINAL area, so
+		// switching tabs in a split-off area never ran rebindSharedPanelsTo()/
+		// the repaint-on-switch fix at all. Wire the same handler to every
+		// newly created area unconditionally (Qt::UniqueConnection guards
+		// against connecting twice if this somehow fires more than once for
+		// the same area) - safe and correct regardless of what the area
+		// happens to host: handleActiveDocumentChanged() already tolerates a
+		// non-ModelViewer current widget (qobject_cast fails -> nullptr ->
+		// activateDocument(nullptr), the correct "nothing active" outcome).
+		// Deliberately does NOT gate on the area already containing a
+		// tracked document (an earlier version did, via
+		// area->dockWidgets()/_documentDocks.values().contains()) - Qt-ADS's
+		// own signal ordering for exactly when a dragged widget is inserted
+		// relative to when dockAreaCreated() fires isn't documented, so that
+		// gate was a timing assumption that could leave an area's
+		// currentChanged() unconnected if the widget wasn't in place yet
+		// when the signal fired. Connecting unconditionally has no such
+		// dependency, and is safe here specifically because
+		// _documentDockManager only ever hosts documents and the
+		// placeholder - the tool-panel side has its own separate manager
+		// and can never end up here.
+		connect(_documentDockManager, &CDockManager::dockAreaCreated, this, [this](CDockAreaWidget* area) {
+			if (area)
 			{
-				const QList<CDockWidget*> hosted = area->dockWidgets();
-				const bool hostsADocument = std::any_of(hosted.begin(), hosted.end(),
-					[this](CDockWidget* dw) { return _documentDocks.values().contains(dw); });
-				if (hostsADocument)
-				{
-					connect(area, &CDockAreaWidget::currentChanged, this,
-						&MainWindow::handleActiveDocumentChanged, Qt::UniqueConnection);
-				}
+				connect(area, &CDockAreaWidget::currentChanged, this,
+					&MainWindow::handleActiveDocumentChanged, Qt::UniqueConnection);
 			}
-			});
-		connect(_dockManager, &CDockManager::dockWidgetAdded, this, [this](CDockWidget*) {
-			QTimer::singleShot(50, this, [this]() { constrainToolPanelWidth(); });
 			});
 	}
 
@@ -766,8 +809,8 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 	// prompt) is what actually decides whether a close goes through at all -
 	// see the closeRequested connection below.
 	connect(viewer, &QObject::destroyed, this, [this, viewer]() {
-		// On application exit, _viewers/_documentDocks/_dockManager are all
-		// MainWindow members (or things it owns) being torn down as part of
+		// On application exit, _viewers/_documentDocks/_documentDockManager
+		// are all MainWindow members (or things it owns) being torn down as part of
 		// ~MainWindow()'s own cascading parent-child destruction - by the
 		// time this fires from deep inside that cascade (QWidget's base-
 		// class destructor deleting children, which reaches this document's
@@ -787,9 +830,17 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 		if (_shuttingDown)
 			return;
 		_viewers.removeAll(viewer);
+
+		const bool viewerWasActive = (viewer == _activeDocument);
+
+		// Remove the dock BEFORE deciding what becomes active next (see
+		// below) - Qt-ADS's own container-level removal can reassign which
+		// widget is current/focused in the affected area as a side effect,
+		// so querying focusedDockWidget() after this has run gives a more
+		// accurate answer than querying it before.
 		if (CDockWidget* dock = _documentDocks.take(viewer))
 		{
-			_dockManager->removeDockWidget(dock);
+			_documentDockManager->removeDockWidget(dock);
 			dock->deleteLater();
 		}
 		// _documentPlaceholderDock (see the constructor) stays registered
@@ -799,6 +850,58 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 		// doesn't sit on a blank/stale tab.
 		if (_documentDocks.isEmpty() && _documentPlaceholderDock)
 			_documentPlaceholderDock->setAsCurrentTab();
+
+		// Closing the currently-active document doesn't reliably get caught
+		// by a follow-up currentChanged()/focusedDockWidgetChanged() signal -
+		// confirmed real gap: if viewer was split into its own area with no
+		// other documents in it, removing its dock can leave that area with
+		// nothing left to report as "current" at all, and _activeDocument
+		// would keep pointing at viewer's now-freed memory until (if ever)
+		// some other interaction happens to fix it - the next Save/Export/
+		// Undo/shortcut that dereferences activeMdiChild() in the meantime
+		// is a real use-after-free. Established directly here instead of
+		// relying on that signal, and proactively re-pointed at whichever
+		// document is actually still on screen rather than just going
+		// blank: CDockManager::focusedDockWidget() (backed by a QPointer
+		// internally - confirmed in Qt-ADS's own source, so safe to query
+		// regardless of what was just destroyed/removed above) reports
+		// whichever dock widget Qt-ADS itself now considers focused, which
+		// after a removal is usually whatever the affected area promoted to
+		// current. Falls back to the most-recently-remaining open document
+		// if that doesn't resolve to one (e.g. focus landed on the
+		// placeholder, or on nothing at all), and to nullptr only if none
+		// are left.
+		if (viewerWasActive)
+		{
+			// Cleared before activateDocument() below is ever called with
+			// ANYTHING, not just when the fallback stays nullptr: it
+			// dereferences _lastBoundModelViewer->getUndoStack() to
+			// disconnect the previous document's undo-stack signal, and
+			// _lastBoundModelViewer is normally the same object as viewer
+			// here (both set together at the end of every
+			// activateDocument() call) - viewer is already destructed by
+			// the time this handler runs (QObject::destroyed() fires from
+			// ~QObject(), after the derived ModelViewer destructor has
+			// already completed), so leaving that stale would make the
+			// upcoming call itself a use-after-free. Nothing to explicitly
+			// disconnect anyway: Qt's own connection bookkeeping already
+			// dropped it automatically when viewer's QUndoStack (a child
+			// object) was destroyed.
+			_activeDocument = nullptr;
+			_lastBoundModelViewer = nullptr;
+
+			ModelViewer* nextActive = nullptr;
+			if (ads::CDockWidget* focused = _documentDockManager->focusedDockWidget())
+			{
+				if (ModelViewer* candidate = qobject_cast<ModelViewer*>(focused->widget()))
+					if (_viewers.contains(candidate))
+						nextActive = candidate;
+			}
+			if (!nextActive && !_viewers.isEmpty())
+				nextActive = _viewers.last();
+
+			activateDocument(nextActive);
+		}
 	});
 	connect(viewer, &ModelViewer::documentModifiedChanged,
 	        this, [this, viewer](bool) {
@@ -812,7 +915,7 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 	// label is set separately right below and kept in sync afterwards via
 	// eventFilter() watching for QEvent::WindowTitleChange, the same
 	// mechanism QMdiSubWindow itself uses internally.
-	auto* dock = new CDockWidget(_dockManager, QUuid::createUuid().toString(QUuid::WithoutBraces));
+	auto* dock = new CDockWidget(_documentDockManager, QUuid::createUuid().toString(QUuid::WithoutBraces));
 	dock->setWindowTitle(viewer->windowTitle());
 	dock->setWidget(viewer, CDockWidget::ForceNoScrollArea);
 	dock->setFeature(CDockWidget::CustomCloseHandling, true);
@@ -822,19 +925,17 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 
 	if (_documentDockArea)
 	{
-		_documentDockArea = _dockManager->addDockWidgetTabToArea(dock, _documentDockArea);
+		_documentDockArea = _documentDockManager->addDockWidgetTabToArea(dock, _documentDockArea);
 	}
 	else
 	{
-		// First document: establishes the document area to the left of the
-		// Document/Properties/Environment tool docks (already created in the
-		// constructor by the time any document exists - main.cpp creates the
-		// first one only after MainWindow::mainWindow() returns). Qt-ADS
-		// defaults to giving each side space based on its content's size
-		// hint rather than an even split - since the Properties panel's
-		// dense form content wants more room than an empty 3D viewport, that
-		// left the viewport a sliver next to a much wider tool-panel column
-		// without this explicit override.
+		// First document: establishes the document area inside
+		// _documentDockManager's own root container - no anchor relative to
+		// the tool-panel side needed anymore (previously anchored via
+		// LeftDockWidgetArea relative to _documentDock->dockAreaWidget(),
+		// back when both sides shared one CDockManager's splitter tree; now
+		// _documentDockManager's root container IS the whole document side,
+		// sized against its sibling via _dockSplitter instead - see below).
 		//
 		// The permanent placeholder (kept alongside every real document
 		// from here on, tabbed together, NoTab so it never shows its own
@@ -854,18 +955,33 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 		// has already applied whatever it's going to apply, matching
 		// exactly when the OLD (placeholder-less) code used to first
 		// establish this area too.
-		ads::CDockAreaWidget* toolArea = _documentDock->dockAreaWidget();
 		auto* placeholderLabel = new QLabel(tr("No documents open"));
 		placeholderLabel->setAlignment(Qt::AlignCenter);
 		placeholderLabel->setStyleSheet("color: palette(mid); background: palette(base);");
-		_documentPlaceholderDock = new CDockWidget(_dockManager, QStringLiteral("DocumentPlaceholder"));
+		_documentPlaceholderDock = new CDockWidget(_documentDockManager, QStringLiteral("DocumentPlaceholder"));
 		_documentPlaceholderDock->setWidget(placeholderLabel);
 		_documentPlaceholderDock->setFeature(CDockWidget::NoTab, true);
 		_documentPlaceholderDock->setFeature(CDockWidget::DockWidgetClosable, false);
 
-		_documentDockArea = _dockManager->addDockWidget(LeftDockWidgetArea, _documentPlaceholderDock, toolArea);
-		_documentDockArea = _dockManager->addDockWidgetTabToArea(dock, _documentDockArea);
-		_dockManager->setSplitterSizes(_documentDockArea, { width() * 3 / 4, width() / 4 });
+		_documentDockArea = _documentDockManager->addDockWidget(LeftDockWidgetArea, _documentPlaceholderDock);
+		_documentDockArea = _documentDockManager->addDockWidgetTabToArea(dock, _documentDockArea);
+
+		// Establishes the initial document/tool-panel ratio on the OUTER
+		// _dockSplitter (replaces the old single-manager
+		// CDockManager::setSplitterSizes() call) - but only if readSettings()
+		// (called earlier in the constructor, well before main.cpp calls
+		// createMdiChild() which reaches here) didn't already restore a
+		// user-adjusted ratio from a previous session; skip clobbering that
+		// with the hardcoded default. Uses MainWindow::width()/height(), not
+		// the splitter's own geometry, because this runs before the window
+		// is ever shown - the splitter hasn't been laid out yet and its own
+		// width()/height() would read as an unreliable placeholder.
+		if (!_dockSplitterSizesRestored)
+		{
+			const int extent = (_dockSplitter->orientation() == Qt::Horizontal) ? width() : height();
+			_dockSplitter->setSizes({ extent * 3 / 4, extent / 4 });
+		}
+
 		connect(_documentDockArea, &CDockAreaWidget::currentChanged, this, &MainWindow::handleActiveDocumentChanged);
 	}
 
@@ -887,63 +1003,19 @@ void MainWindow::cycleActiveDocument(int direction)
 	if (!nextViewer)
 		return;
 	if (ads::CDockWidget* dock = _documentDocks.value(nextViewer))
-		dock->setAsCurrentTab();
-}
-
-void MainWindow::constrainToolPanelWidth()
-{
-	using namespace ads;
-
-	if (!_propertiesDock)
-		return;
-	CDockAreaWidget* toolArea = _propertiesDock->dockAreaWidget();
-	if (!toolArea)
-		return;
-
-	// A temporary maximumWidth cap (an earlier version of this) doesn't
-	// actually fix anything: once released, Qt-ADS's own content-hint-driven
-	// sizing (which is also what caused the ORIGINAL too-wide default this
-	// whole mechanism exists to correct - see createDocumentDock()) just
-	// reasserts itself immediately, so nothing changes after the cap lifts.
-	// parentSplitter() is CDockAreaWidget's own official accessor for this -
-	// CDockManager::setSplitterSizes() itself is just a thin wrapper around
-	// it (verified against Qt-ADS's actual source, not just the header) - a
-	// prior version of this guessed at the same QSplitter via
-	// qobject_cast<QSplitter*>(toolArea->parentWidget()) instead, which is
-	// no longer needed now that a real accessor for it is known to exist.
-	QSplitter* splitter = toolArea->parentSplitter();
-	if (!splitter)
-		return;
-	const int index = splitter->indexOf(toolArea);
-	if (index < 0)
-		return;
-
-	QList<int> sizes = splitter->sizes();
-	if (sizes.size() < 2)
-		return;
-
-	const int targetWidth = width() / 4;
-	const int delta = sizes[index] - targetWidth;
-	if (delta == 0)
-		return;
-	sizes[index] = targetWidth;
-
-	// Redistribute the freed (or reclaimed) space across the other
-	// splitter children proportionally to their current sizes, rather than
-	// dumping it all onto just one sibling.
-	int othersTotal = 0;
-	for (int i = 0; i < sizes.size(); ++i)
-		if (i != index)
-			othersTotal += sizes[i];
-	if (othersTotal <= 0)
-		return;
-	for (int i = 0; i < sizes.size(); ++i)
 	{
-		if (i == index)
-			continue;
-		sizes[i] += delta * sizes[i] / othersTotal;
+		dock->setAsCurrentTab();
+		// setAsCurrentTab() -> CDockAreaWidget::setCurrentDockWidget() ->
+		// setCurrentIndex() early-returns without emitting currentChanged()
+		// if nextViewer's dock is ALREADY its area's current tab (verified
+		// in Qt-ADS's own source) - true whenever documents are split into
+		// separate single-tab areas, since cycling between those never
+		// changes which tab is current WITHIN either area. Without this
+		// explicit call, _activeDocument (and therefore activeMdiChild())
+		// would silently go stale in exactly that arrangement, same as
+		// presentDocumentFullscreen() needed for the very first document.
+		activateDocument(nextViewer);
 	}
-	splitter->setSizes(sizes);
 }
 
 void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
@@ -1267,8 +1339,9 @@ void MainWindow::showEnvironmentDockPage()
 MainWindow::~MainWindow()
 {
 	// Must be set before anything below runs Qt's cascading parent-child
-	// destruction of _dockManager and its dock widgets - see the comment in
-	// createDocumentDock()'s destroyed-signal handler.
+	// destruction of _documentDockManager/_toolPanelDockManager and their
+	// dock widgets - see the comment in createDocumentDock()'s
+	// destroyed-signal handler.
 	_shuttingDown = true;
 	delete ui;
 }
@@ -1294,6 +1367,36 @@ void MainWindow::readSettings()
 	// "unassigned" and forced layout repair paths against widgets that do not
 	// exist in the new session. Keep old settings from re-triggering that logic.
 	settings.remove("dockState");
+
+	// _dockSplitter's orientation, unlike Qt-ADS's own dockState above, is a
+	// plain bool with no per-session-UUID round-trip risk - safe to persist
+	// normally. Runs after _dockSplitter/_actionSplitterOrientation already
+	// exist (both constructed earlier in the constructor, well before this
+	// call) but before any document is created, so createDocumentDock()'s
+	// first-document bootstrap picks up the restored orientation when it
+	// sizes _dockSplitter. QSignalBlocker avoids re-running the toggled
+	// handler (and its own setOrientation()/setSizes() calls) here.
+	const bool splitVertically = settings.value("toolPanelSplitVertically", false).toBool();
+	_dockSplitter->setOrientation(splitVertically ? Qt::Vertical : Qt::Horizontal);
+	if (_actionSplitterOrientation)
+	{
+		const QSignalBlocker blocker(_actionSplitterOrientation);
+		_actionSplitterOrientation->setChecked(splitVertically);
+	}
+
+	// Restores a user-adjusted document/tool-panel ratio, same reasoning as
+	// orientation above (plain ints, no per-session-UUID round-trip risk
+	// unlike Qt-ADS's own dockState). Only applied if the saved list looks
+	// sane (exactly 2 entries) - absent on a first-ever run, or if the
+	// stored value ever gets corrupted, createDocumentDock()'s bootstrap
+	// falls back to its own hardcoded 75/25 default via
+	// _dockSplitterSizesRestored staying false.
+	const QVariantList savedSizes = settings.value("dockSplitterSizes").toList();
+	if (savedSizes.size() == 2)
+	{
+		_dockSplitter->setSizes({ savedSizes[0].toInt(), savedSizes[1].toInt() });
+		_dockSplitterSizesRestored = true;
+	}
 }
 
 void MainWindow::writeSettings()
@@ -1301,6 +1404,10 @@ void MainWindow::writeSettings()
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	settings.setValue("geometry", saveGeometry());
 	settings.remove("dockState");
+	settings.setValue("toolPanelSplitVertically", _dockSplitter->orientation() == Qt::Vertical);
+	const QList<int> sizes = _dockSplitter->sizes();
+	if (sizes.size() == 2)
+		settings.setValue("dockSplitterSizes", QVariantList{ sizes[0], sizes[1] });
 }
 
 
@@ -1682,8 +1789,16 @@ void MainWindow::showEvent(QShowEvent* event)
 		// forces Qt's documented full unpolish/polish cascade through the
 		// whole dock manager subtree - deferred one event-loop tick so it
 		// runs after this first document's own tab widget actually exists.
-		QTimer::singleShot(0, _dockManager, [this]() {
-			_dockManager->setStyleSheet(_dockManager->styleSheet());
+		// Applied to both managers: the underlying Qt repolish issue is
+		// generic to any CDockManager's tabs on their first real paint
+		// (which for both managers is only now, when the window itself is
+		// first shown - not when their tabs were constructed), not specific
+		// to documents.
+		QTimer::singleShot(0, _documentDockManager, [this]() {
+			_documentDockManager->setStyleSheet(_documentDockManager->styleSheet());
+		});
+		QTimer::singleShot(0, _toolPanelDockManager, [this]() {
+			_toolPanelDockManager->setStyleSheet(_toolPanelDockManager->styleSheet());
 		});
 
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -1799,6 +1914,12 @@ bool MainWindow::openFile(const QString& fileName)
 	if (ads::CDockWidget* existing = findDocumentDock(fileName))
 	{
 		existing->setAsCurrentTab();
+		// See cycleActiveDocument()'s comment: setAsCurrentTab() alone can
+		// silently no-op (no currentChanged emitted) if this document is
+		// already its area's current tab - explicit call keeps
+		// _activeDocument in sync regardless.
+		if (ModelViewer* child = qobject_cast<ModelViewer*>(existing->widget()))
+			activateDocument(child);
 		return true;
 	}
 	const bool succeeded = loadFile(fileName);
@@ -2093,8 +2214,12 @@ void MainWindow::updateWindowMenu()
 			continue;
 
 		const QString text = child->currentFile().isEmpty() ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
-		QAction* action = ui->menuWindows->addAction(text, dock, [dock]() {
+		QAction* action = ui->menuWindows->addAction(text, dock, [this, dock, child]() {
 			dock->setAsCurrentTab();
+			// See cycleActiveDocument()'s comment: setAsCurrentTab() alone
+			// can silently no-op if `child` is already its area's current
+			// tab - explicit call keeps _activeDocument in sync regardless.
+			activateDocument(child);
 			});
 		action->setCheckable(true);
 		action->setChecked(child == activeMdiChild());

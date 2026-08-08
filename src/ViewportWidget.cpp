@@ -678,10 +678,12 @@ ViewportWidget::~ViewportWidget()
 
 	_viewToolbar = nullptr;
 
-	if (_textRenderer)
-		delete _textRenderer;
-	if (_axisTextRenderer)
-		delete _axisTextRenderer;
+	// _textRenderer/_axisTextRenderer deletion moved into
+	// releaseGLSceneResources() below (called from the context() guard
+	// right underneath) - it now nulls them after deleting, which this
+	// site never did; leaving both here as well would double-delete once
+	// releaseGLSceneResources() runs, since it'd see the same still-non-null
+	// dangling pointer this block just freed.
 
 	// ===== CRITICAL: Ensure context is current before GL calls =====
 	// context()->isValid() only means Qt successfully created the underlying
@@ -719,8 +721,11 @@ ViewportWidget::~ViewportWidget()
 		_sceneRuntime.setGlobalScene(nullptr);
 	}
 
-	if (_assimpModelLoader)
-		delete _assimpModelLoader;
+	// _assimpModelLoader deletion also moved into releaseGLSceneResources()
+	// above, same reasoning as _textRenderer/_axisTextRenderer - kept out of
+	// here to avoid the same class of double-delete risk, even though this
+	// particular ordering happened to leave it already-nulled by the time
+	// execution reaches here.
 }
 
 void ViewportWidget::releaseGLSceneResources()
@@ -757,6 +762,22 @@ void ViewportWidget::releaseGLSceneResources()
 	// initializeGL() - just silently leaking the previous context's sphere
 	// on every reinit. Cleaned up here too since it holds a VAO the same way.
 	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
+
+	// Same unconditional-recreate-without-cleanup pattern as _lightSphere
+	// above, confirmed via direct audit of initializeGL(): it does
+	// `_assimpModelLoader = new AssImpModelLoader();` and
+	// `_textRenderer`/`_axisTextRenderer = new TextRenderer(...)`
+	// (the latter two each loading a font file from disk) completely
+	// unconditionally, with no prior null-check anywhere. Never crashed
+	// (these aren't reused/dereferenced through a dead context's function
+	// pointers the way VAO-holding objects were), so it went unnoticed as
+	// a genuine memory leak - and, for the two TextRenderers, a wasted
+	// font-file reload from disk - on every context recreation (i.e. every
+	// tab switch that triggers one). Deleted here, same as everything else
+	// in this function, while the dying context is still current.
+	if (_assimpModelLoader) { delete _assimpModelLoader; _assimpModelLoader = nullptr; }
+	if (_textRenderer) { delete _textRenderer; _textRenderer = nullptr; }
+	if (_axisTextRenderer) { delete _axisTextRenderer; _axisTextRenderer = nullptr; }
 
 	if (_renderCtrl.punctualLights())
 	{
