@@ -2,8 +2,6 @@
 
 #include <QMainWindow>
 #include <QSettings>
-#include <QHash>
-#include <QPointer>
 
 QT_BEGIN_NAMESPACE
 class QProgressBar;
@@ -11,7 +9,10 @@ class QPushButton;
 class QAction;
 class QTabWidget;
 class QCheckBox;
-class QSplitter;
+class QLabel;
+class QMdiArea;
+class QMdiSubWindow;
+class QDockWidget;
 
 #ifdef _WIN32
 class QWinTaskbarProgress;
@@ -32,13 +33,6 @@ class MaterialVariantsPanel;
 class AnimationsPanel;
 class CamerasPanel;
 
-namespace ads
-{
-	class CDockManager;
-	class CDockWidget;
-	class CDockAreaWidget;
-}
-
 class MainWindow : public QMainWindow
 {
 	Q_OBJECT
@@ -53,11 +47,10 @@ public:
 
 	ModelViewer* createMdiChild();
 
-	// Makes viewer's document dock widget the current tab in the document
-	// dock area. Documents are native ads::CDockWidgets (see
-	// createDocumentDock()), not QMdiSubWindows, so this is just
-	// CDockWidget::setAsCurrentTab() - no geometry/maximize-state handling
-	// needed at all.
+	// Maximizes viewer's QMdiSubWindow and makes it the active one. Called
+	// for the very first document (before the window is even shown) and by
+	// on_actionNew_triggered()'s equivalent inline logic - see
+	// createDocumentSubWindow().
 	void presentDocumentFullscreen(ModelViewer* viewer);
 
 	MaterialPropertiesPanel* materialPropertiesPanel() const { return _materialPropertiesPanel; }
@@ -116,11 +109,6 @@ protected:
 	void closeEvent(QCloseEvent* event);
 	void dragEnterEvent(QDragEnterEvent* event);
 	void dropEvent(QDropEvent* event);
-	// Mirrors QMdiSubWindow's own internal behavior: watches each document's
-	// WindowTitleChange events (fired by ModelViewer::setWindowTitle(), e.g.
-	// to append/remove the unsaved-changes "*") and mirrors them onto that
-	// document's CDockWidget tab label, which does not track this itself.
-	bool eventFilter(QObject* watched, QEvent* event) override;
 
 protected slots:
 	void on_actionExit_triggered(bool checked = false);
@@ -163,46 +151,28 @@ private:
 	void prependToRecentFiles(const QString& fileName);
 	void setRecentFilesVisible(bool visible);
     ModelViewer* activeMdiChild() const;
-    ads::CDockWidget* findDocumentDock(const QString& fileName) const;
+    QMdiSubWindow* findMdiChild(const QString& fileName) const;
 	bool canExit();
 
-	// Wraps a newly constructed ModelViewer in its own CDockWidget and adds
-	// it to the shared document dock area (creating that area, positioned to
-	// the left of the Document/Properties/Environment tool docks, the first
-	// time this is called). Used by both createMdiChild() and
-	// on_actionNew_triggered().
-	ads::CDockWidget* createDocumentDock(ModelViewer* viewer);
-
-	// Next/Previous (Ctrl+Tab family): cycles among all REAL documents,
-	// regardless of which ADS area currently hosts them. The original
-	// _documentDockArea can stop containing some documents after the user
-	// splits tabs into multiple areas, so walking only that area's tab order
-	// is incomplete.
-	void cycleActiveDocument(int direction);
+	// Wraps a newly constructed ModelViewer in a QMdiSubWindow and adds it
+	// to _mdiArea. Used by both createMdiChild() and on_actionNew_triggered().
+	QMdiSubWindow* createDocumentSubWindow(ModelViewer* viewer);
 
 private:
 	enum { MaxRecentFiles = 15 };
 
 	Ui::MainWindow* ui;
-	// Document area (left/top) and tool-panel column (right/bottom, Document/
-	// Properties/Environment) each get their own independent CDockManager,
-	// hosted as the two children of _dockSplitter (owned by MainWindow, not
-	// Qt-ADS) instead of sharing one CDockManager's internal splitter tree -
-	// see the constructor for why (Qt-ADS's own relayout could otherwise
-	// perturb the left/right ratio as a side effect of an operation entirely
-	// within one side).
-	QSplitter* _dockSplitter = nullptr;
-	ads::CDockManager* _documentDockManager = nullptr;
-	ads::CDockManager* _toolPanelDockManager = nullptr;
-	QAction* _actionSplitterOrientation = nullptr;
-	// Set by readSettings() when it successfully restores a persisted
-	// _dockSplitter size - tells createDocumentDock()'s first-document
-	// bootstrap to skip its own hardcoded 75/25 default instead of
-	// clobbering the restored value.
-	bool _dockSplitterSizesRestored = false;
-	ads::CDockWidget* _propertiesDock = nullptr;
-	ads::CDockWidget* _environmentDock = nullptr;
-	ads::CDockWidget* _documentDock = nullptr;
+	// Documents live in _mdiArea (native QMdiArea - tiling/cascading/
+	// restoring, most-recently-used Next/Previous, all built in). The
+	// tool-panel column (Document/Properties/Environment) is three plain
+	// QDockWidgets, tabified together in QMainWindow's own right-side dock
+	// area - no custom splitter needed, QMainWindow's native dock system
+	// already reserves/resizes that area and persists it via
+	// saveState()/restoreState().
+	QMdiArea* _mdiArea = nullptr;
+	QDockWidget* _propertiesDock = nullptr;
+	QDockWidget* _environmentDock = nullptr;
+	QDockWidget* _documentDock = nullptr;
 	QTabWidget* _propertiesTabWidget = nullptr;
 	QTabWidget* _documentTabWidget = nullptr;
 	// Above _documentTabWidget's Variants/Animations/Cameras tabs - moved
@@ -213,35 +183,16 @@ private:
 	// current state on every switch and dispatches toggles to it.
 	QCheckBox* _checkBoxAutoFitView = nullptr;
 	QCheckBox* _checkBoxSelectionHighlight = nullptr;
+	// Mirrors ModelViewer's own viewport-overlay mesh-count label (see
+	// ModelViewer::updateVisibilityUiFromState()) for whichever document is
+	// active - set immediately on every rebind and kept live afterward via
+	// _meshCountChangedConnection below.
+	QLabel* _labelDocumentMeshCount = nullptr;
 
-	// Documents: one CDockWidget per open ModelViewer, initially all tabbed
-	// together in _documentDockArea - but a user can drag a document tab to
-	// split it off into its own CDockAreaWidget, so there can be MORE than
-	// one document area alive at once (only _documentDockArea's own tab
-	// group is tracked directly for currentChanged()/activeMdiChild(), see
-	// createDocumentDock()). QPointer, not a raw pointer: if the user closes
-	// every document in _documentDockArea's own area while OTHER documents
-	// remain open elsewhere, Qt-ADS destroys that now-empty area on its own
-	// - _documentDocks isn't empty in that case, so the plain
-	// "_documentDocks.isEmpty() -> reset to nullptr" check the destroyed-
-	// signal handler already does for the all-closed case does not catch
-	// this, and a raw pointer would dangle straight into the next
-	// updateMenus()/activeMdiChild() call.
-	QPointer<ads::CDockAreaWidget> _documentDockArea;
-	QHash<ModelViewer*, ads::CDockWidget*> _documentDocks;
-	// Permanent, always-registered member of _documentDockArea (created
-	// once in the constructor, never closed) so that area is never truly
-	// empty and Qt-ADS never tears it down - without this, closing the last
-	// document left the tool-panel column expanding to fill the whole
-	// window instead of a distinct, empty document region remaining on the
-	// left. NoTab, so it never shows a tab of its own alongside real
-	// documents; made current again whenever the last real document closes
-	// (see createDocumentDock()'s destroyed-signal handler).
-	ads::CDockWidget* _documentPlaceholderDock = nullptr;
-	// Set at the top of ~MainWindow(), before _documentDockManager/
-	// _toolPanelDockManager and their dock widgets get torn down by Qt's
-	// cascading parent-child destruction - see the comment in
-	// createDocumentDock()'s destroyed-signal handler.
+	// Set at the top of ~MainWindow(), before _mdiArea/_viewers and their
+	// child widgets get torn down by Qt's cascading parent-child
+	// destruction - see the comment in createDocumentSubWindow()'s
+	// destroyed-signal handler.
 	bool _shuttingDown = false;
 	MaterialPropertiesPanel* _materialPropertiesPanel = nullptr;
 	ObjectTransformPanel* _objectTransformPanel = nullptr;
@@ -251,25 +202,22 @@ private:
 	CamerasPanel* _camerasPanel = nullptr;
 	ModelViewer* _lastBoundModelViewer = nullptr;
 	// Which document activeMdiChild() reports - kept up to date by
-	// handleActiveDocumentChanged(), which is connected to the
-	// currentChanged() signal of EVERY document-hosting CDockAreaWidget
-	// (there can be more than one - see createDocumentDock()'s
-	// dockAreaCreated handler - a user splitting a document tab off creates
-	// a new area outside of any code path this class controls), not just
-	// the original _documentDockArea.
+	// handleActiveDocumentChanged(), connected to _mdiArea's single
+	// subWindowActivated() signal.
 	ModelViewer* _activeDocument = nullptr;
 	QMetaObject::Connection _environmentPanelDisplayModeConnection;
 	QMetaObject::Connection _materialPreviewRenderingModeConnection;
-	// These four are per-document sources (a specific SceneGraph/
-	// ViewportWidget), unlike the panel->viewport forwards below, which are
-	// connected once and dispatch through activeMdiChild() instead - an
-	// incoming signal has to be wired to the actual emitting object, so
-	// these get disconnected from the old document and reconnected to the
-	// new one on every rebind instead.
+	// These five are per-document sources (a specific SceneGraph/
+	// ViewportWidget/ModelViewer), unlike the panel->viewport forwards
+	// below, which are connected once and dispatch through activeMdiChild()
+	// instead - an incoming signal has to be wired to the actual emitting
+	// object, so these get disconnected from the old document and
+	// reconnected to the new one on every rebind instead.
 	QMetaObject::Connection _variantDataChangedConnection;
 	QMetaObject::Connection _animationDataChangedConnection;
 	QMetaObject::Connection _gltfCameraDataChangedConnection;
 	QMetaObject::Connection _animationStateChangedConnection;
+	QMetaObject::Connection _meshCountChangedConnection;
 
 	// Dims (or restores) a Document dock tab's label to signal whether the
 	// active document currently has any data for it - see the tab-styling
@@ -278,20 +226,16 @@ private:
 	void setDocumentTabDimmed(int tabIndex, bool dimmed);
 	void refreshDocumentDockTabStyling(ModelViewer* viewer);
 
-	// Connected to _documentDockArea's currentChanged(int) signal once, when
-	// that area is first created - drives rebindSharedPanelsTo() and the
-	// undo-stack/menu bookkeeping that used to live in the QMdiArea::
-	// subWindowActivated handler.
-	void handleActiveDocumentChanged();
+	// Connected to _mdiArea's subWindowActivated(QMdiSubWindow*) signal -
+	// drives rebindSharedPanelsTo() and the undo-stack/menu bookkeeping via
+	// activateDocument() below.
+	void handleActiveDocumentChanged(QMdiSubWindow* subWindow);
 
-	// Common body of handleActiveDocumentChanged(), also driven directly by
-	// _documentDockManager's focusedDockWidgetChanged() signal - currentChanged(int)
-	// on a document's CDockAreaWidget only fires when that area's OWN tab
-	// index changes, which never happens when the user activates a document
-	// by clicking into a different, already-current, single-tab area (e.g.
-	// two documents split side by side) - focusedDockWidgetChanged() is the
-	// only Qt-ADS signal that reflects "the user just interacted with a
-	// different dock widget" regardless of tab index.
+	// Common body of handleActiveDocumentChanged(), also called directly by
+	// presentDocumentFullscreen()/openFile()/updateWindowMenu() as a
+	// defensive safety net for cases where subWindowActivated() may not
+	// fire (e.g. activating an already-active subwindow, or the very first
+	// document before the window is shown).
 	void activateDocument(ModelViewer* child);
 	QProgressBar* _progressBar;
 #ifdef _WIN32

@@ -31,20 +31,14 @@ public:
 	// Enable/disable controls
 	void setControlsEnabled(bool enabled);
 
-	bool isDetached() const { return _detached; }
-	void setDetached(bool detached);
-
 signals:
 	void applyTransformationsRequested();
 	void resetTransformationsRequested();
-	void detachRequested();
 
 private slots:
 	void onApplyButtonClicked();
 	void onResetButtonClicked();
-	void onDetachButtonClicked();
 
 private:
 	std::unique_ptr<Ui::ObjectTransformPanel> ui;
-	bool _detached = false;
 };

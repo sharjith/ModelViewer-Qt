@@ -37,84 +37,6 @@
     <number>2</number>
    </property>
    <item>
-    <layout class="QHBoxLayout" name="toolbarLayout">
-     <property name="spacing">
-      <number>4</number>
-     </property>
-     <property name="leftMargin">
-      <number>2</number>
-     </property>
-     <property name="topMargin">
-      <number>2</number>
-     </property>
-     <property name="rightMargin">
-      <number>2</number>
-     </property>
-     <property name="bottomMargin">
-      <number>2</number>
-     </property>
-     <item>
-      <widget class="QToolButton" name="detachButton">
-       <property name="toolTip">
-        <string>Detach from panel</string>
-       </property>
-       <property name="icon">
-        <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/detach.png</normaloff>:/icons/res/detach.png</iconset>
-       </property>
-       <property name="iconSize">
-        <size>
-         <width>16</width>
-         <height>16</height>
-        </size>
-       </property>
-       <property name="autoRaise">
-        <bool>true</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="toolbarSpacer">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-     <item>
-      <spacer name="toolbarStretch">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
-       </property>
-       <property name="sizeType">
-        <enum>QSizePolicy::Policy::Expanding</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>40</width>
-         <height>20</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="QFrame" name="separator">
-     <property name="frameShape">
-      <enum>QFrame::Shape::HLine</enum>
-     </property>
-     <property name="frameShadow">
-      <enum>QFrame::Shadow::Sunken</enum>
-     </property>
-    </widget>
-   </item>
-   <item>
     <widget class="QFrame" name="libraryFrame">
      <property name="frameShape">
       <enum>QFrame::Shape::StyledPanel</enum>
@@ -5456,7 +5378,6 @@ for this texture</string>
   <tabstop>btnDiffuseTransColorTex</tabstop>
   <tabstop>toolButtonDiffuseTransTexTrsf</tabstop>
   <tabstop>toolButtonDiffuseTransColorTexTrsf</tabstop>
-  <tabstop>detachButton</tabstop>
  </tabstops>
  <resources>
   <include location="../ModelViewer.qrc"/>

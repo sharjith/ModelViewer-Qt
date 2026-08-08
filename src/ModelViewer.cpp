@@ -4616,6 +4616,7 @@ void ModelViewer::updateVisibilityUiFromState()
 
 	const int count = static_cast<int>(_viewportWidget->currentVisibleObjectIds().size());
 	labelMeshCount->setText(count > 0 ? tr("No of Meshes: %1").arg(count) : QString());
+	emit visibleMeshCountChanged(count);
 }
 
 void ModelViewer::applyVisibleMeshState(bool syncTree,

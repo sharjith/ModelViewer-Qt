@@ -53,16 +53,8 @@ public:
 	// Initialization
 	void initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget);
 
-	// State
-	bool isDetached() const { return _detached; }
-	void setDetached(bool detached);
-
 	// Preview widget access
 	class MaterialPreviewWidget* getPreviewWidget() const { return _preview; }
-
-	// Detach/reattach helpers
-	// These are used when detaching the panel while keeping the preview in the main thread
-	void restorePreviewFrame(QFrame* previewFrame);  // Restore previewFrame to its original location
 
 	// Property getters - all 37 scalar properties
 	QVector3D getAlbedoColor() const;
@@ -125,7 +117,6 @@ signals:
 	void meshMaterialApplied(const QUuid& meshUuid, const Material& material);
 	void textureSamplerChanged(Material* material, Material::TextureType type);
 	void textureCacheClearRequested();
-	void detachRequested();
 
 private slots:
 	// Scalar property handlers
@@ -179,7 +170,6 @@ private slots:
 	void onRenameMaterial();     // Rename user-created material
 
 	void onContextMenu(const QPoint& pos);
-	void onDetachButtonClicked();
 
 protected:
 	bool eventFilter(QObject* obj, QEvent* ev) override;
@@ -276,7 +266,6 @@ private:
 	QString _currentPresetFolder;
 	bool _currentPresetIsUser = false;
 
-	bool _detached = false;
 	bool _updateInProgress = false;
 	bool _texturesDirty = false;  // Track if current material has unsaved texture changes
 

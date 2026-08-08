@@ -93,12 +93,6 @@ public:
 	// construction always falls within the slider's +/-45 range.
 	void restoreSkyBoxRotationDegrees(float degrees);
 
-	bool isDetached() { return _detached; }
-	void setDetached(bool detached);
-
-signals:
-	void detachRequested();
-
 public slots:
 	// ===== Light Color Buttons =====
 	void onLightColorClicked();
@@ -176,9 +170,6 @@ public slots:
 	// ===== Camera Up-Axis =====
 	void updateSkyBoxRotationLabels(bool zUp);
 
-	// ===== Detach Button =====
-	void onDetachButtonClicked();
-
 public:
 	// Helper methods
 	void connectSignalsAndSlots();
@@ -225,8 +216,6 @@ private:
 	// reloadSkyBoxPresets() must not stomp on it with a preset reload when
 	// this is set (see reloadSkyBoxPresets()).
 	bool _customSkyBoxActive = false;
-
-	bool _detached = false;
 
 	// Resize handle for treePunctualLights
 	QFrame* _lightTreeResizeHandle = nullptr;

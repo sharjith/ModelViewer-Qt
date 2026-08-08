@@ -147,6 +147,11 @@ public:
 
 signals:
 	void documentModifiedChanged(bool modified);
+	// Emitted from updateVisibilityUiFromState() alongside its own overlay
+	// labelMeshCount update - lets MainWindow's Document dock mirror the
+	// same count for whichever document is currently active, without
+	// polling.
+	void visibleMeshCountChanged(int count);
 
 public:
 	bool hasSelection() const;

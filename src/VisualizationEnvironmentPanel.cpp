@@ -422,9 +422,6 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 
 	// ===== Default Values Button =====
 	connect(ui->pushButtonDefaultEnvValues, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onDefaultEnvValuesClicked);
-
-	// ===== Detach Button =====
-	connect(ui->toolButtonDetach, &QToolButton::clicked, this, &VisualizationEnvironmentPanel::onDetachButtonClicked);
 }
 
 void VisualizationEnvironmentPanel::updateControlDependencies()
@@ -1766,25 +1763,6 @@ void VisualizationEnvironmentPanel::updateLightPositionValueLabels()
 	ui->labelLightPosXValue->setText(QString::number(sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()), 'f', 2));
 	ui->labelLightPosYValue->setText(QString::number(sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()), 'f', 2));
 	ui->labelLightPosZValue->setText(QString::number(sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value()), 'f', 2));
-}
-
-void VisualizationEnvironmentPanel::setDetached(bool detached)
-{
-	_detached = detached;
-	ui->toolButtonDetach->setVisible(!_detached);
-	ui->toolButtonDetach->setToolTip(tr("Detach from panel"));
-	ui->lineSeparator->setVisible(!_detached);
-	if(detached)
-		ui->scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-	else
-		ui->scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-}
-
-// ==================== DETACH BUTTON ====================
-
-void VisualizationEnvironmentPanel::onDetachButtonClicked()
-{
-	emit detachRequested();
 }
 
 // ==================== LIGHT OFFSET RESTORE ====================

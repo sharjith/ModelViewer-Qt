@@ -18,9 +18,6 @@ ObjectTransformPanel::ObjectTransformPanel(QWidget* parent)
 	connect(ui->pushButtonResetTransformations, &QPushButton::clicked,
 		this, &ObjectTransformPanel::onResetButtonClicked);
 
-	connect(ui->detachButton, &QToolButton::clicked,
-		this, &ObjectTransformPanel::onDetachButtonClicked);
-
 	// Initialize to enabled
 	setControlsEnabled(true);
 }
@@ -152,14 +149,6 @@ void ObjectTransformPanel::setControlsEnabled(bool enabled)
 	ui->pushButtonResetTransformations->setEnabled(enabled);
 }
 
-void ObjectTransformPanel::setDetached(bool detached)
-{
-	_detached = detached;
-	ui->detachButton->setVisible(!_detached);
-	ui->detachButton->setToolTip(tr("Detach from panel"));
-	ui->separator->setVisible(!_detached);
-}
-
 void ObjectTransformPanel::onApplyButtonClicked()
 {
 	emit applyTransformationsRequested();
@@ -168,9 +157,4 @@ void ObjectTransformPanel::onApplyButtonClicked()
 void ObjectTransformPanel::onResetButtonClicked()
 {
 	emit resetTransformationsRequested();
-}
-
-void ObjectTransformPanel::onDetachButtonClicked()
-{
-	emit detachRequested();
 }
