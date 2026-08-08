@@ -3400,7 +3400,7 @@ void ViewportWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& obj
 
 	wrapper->setStyleSheet(QString(
 		"QWidget#%1 {"
-		"  background-color: rgba(255, 255, 255, 25%);"
+		"  background-color: rgba(255, 255, 255, 0%);"
 		"  border: 1px solid rgba(255, 255, 255, 40);"
 		"  border-radius: 6px;"
 		"}"
