@@ -310,6 +310,9 @@
    <property name="statusTip">
     <string>Close the current file</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+W</string>
+   </property>
   </action>
   <action name="actionExport">
    <property name="text">
