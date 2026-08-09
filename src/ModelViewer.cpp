@@ -254,6 +254,17 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	treeWidgetModel->setSceneGraph(_sceneGraph);
 	treeWidgetModel->setViewportWidget(_viewportWidget);
 
+	// SceneTreeWidget::rebuild() only enqueues work and starts a batching
+	// timer (see processRebuildBatch()) - topLevelItemCount() is still 0
+	// (or stale) immediately after calling it, so the search box/label
+	// visibility toggle has to wait for the tree to actually finish
+	// populating, not run right after rebuild() returns.
+	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, [this]() {
+		const bool hasItems = treeWidgetModel->topLevelItemCount() > 0;
+		label_23->setVisible(hasItems);
+		searchBox->setVisible(hasItems);
+	});
+
 	// Exploded View Panel — created inside ViewportWidget; wire SceneGraph + selection clearing here.
 	{
 		ExplodedViewPanel* evPanel = _viewportWidget->getExplodedViewPanel();
@@ -698,6 +709,23 @@ void ModelViewer::attachNavigationOverlay()
 	modelNavigationWidget->setProperty("detachedOverlayMode", true);
 	treeWidgetModel->setDetachedOverlayMode(true);
 
+	// A freshly created document always starts with an empty tree (loadFile()
+	// runs after this, not before) - hidden until the SceneTreeWidget::
+	// rebuildComplete() handler below finds actual content, which is the
+	// sole source of truth for this from here on (covers loading, deleting
+	// down to nothing, etc.).
+	label_23->setVisible(false);
+	searchBox->setVisible(false);
+
+	// Collapsed state is shared across documents (persisted, not per-
+	// instance) - a new document should open already collapsed if the user
+	// left it that way on another one, and that should survive a restart
+	// too, same as the other QSettings-backed UI state in this app.
+	{
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		_navigationCollapsed = settings.value(QStringLiteral("NavigationPanelCollapsed"), false).toBool();
+	}
+
 	// The overlay is an absolutely-positioned floating child of
 	// _viewportWidget (see attachOverlayPanel() below), not a normal
 	// side-by-side grid column - so the collapse button has to be wrapped
@@ -711,8 +739,10 @@ void ModelViewer::attachNavigationOverlay()
 	_navCollapseButton->setMaximumSize(14, QWIDGETSIZE_MAX);
 	_navCollapseButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
 	_navCollapseButton->setAutoRaise(true);
-	_navCollapseButton->setText(QStringLiteral("◀"));
-	_navCollapseButton->setToolTip(tr("Collapse the model navigation panel"));
+	_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
+	_navCollapseButton->setToolTip(_navigationCollapsed
+		? tr("Expand the model navigation panel")
+		: tr("Collapse the model navigation panel"));
 
 	// Right-edge counterpart to _navCollapseButton above - an invisible drag
 	// strip the user can pull to resize the panel, matching the established
@@ -743,12 +773,18 @@ void ModelViewer::attachNavigationOverlay()
 	navCompositeLayout->addWidget(modelNavigationWidget, 1);
 	navCompositeLayout->addWidget(_navResizeHandle);
 
+	// Apply the persisted collapsed state loaded above.
+	modelNavigationWidget->setVisible(!_navigationCollapsed);
+	_navResizeHandle->setVisible(!_navigationCollapsed);
+
 	// Whole panel (not just its contents) hides on collapse - the button
 	// stays behind (it's a sibling in navComposite, not a child of
 	// modelNavigationWidget) so it's still clickable to re-expand. The
 	// resize handle hides too - there's nothing to resize while collapsed.
 	// updateNavigationOverlayGeometry() shrinks the overlay's own width to
 	// match so the collapsed state doesn't leave 400+px of dead space.
+	// Persisted (not just applied to this document) so every other open or
+	// subsequently-opened document starts collapsed/expanded the same way.
 	connect(_navCollapseButton, &QToolButton::clicked, this, [this]() {
 		_navigationCollapsed = !_navigationCollapsed;
 		modelNavigationWidget->setVisible(!_navigationCollapsed);
@@ -758,6 +794,9 @@ void ModelViewer::attachNavigationOverlay()
 			? tr("Expand the model navigation panel")
 			: tr("Collapse the model navigation panel"));
 		updateNavigationOverlayGeometry();
+
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		settings.setValue(QStringLiteral("NavigationPanelCollapsed"), _navigationCollapsed);
 	});
 
 	_navigationOverlay = _viewportWidget->attachOverlayPanel(
@@ -786,7 +825,9 @@ void ModelViewer::attachNavigationOverlay()
 		}, Qt::QueuedConnection);
 	}
 
-	modelNavigationWidget->show();
+	// setVisible(), not show() - must still respect a persisted collapsed
+	// state instead of unconditionally forcing this on.
+	modelNavigationWidget->setVisible(!_navigationCollapsed);
 }
 
 void ModelViewer::updateNavigationOverlayGeometry()
