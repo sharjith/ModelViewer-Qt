@@ -359,5 +359,11 @@ private:
     QPalette _savedViewportPalette;
     QString _savedStyleSheet;
     QFrame::Shape _savedFrameShape = QFrame::StyledPanel;
-    QColor _detachedOverlayFillColor = QColor(255, 255, 255, 65);
+    // Alpha 0, unlike the sibling detached-overlay panels (MaterialVariantsPanel/
+    // CamerasPanel/AnimationsPanel) that dynamically retint theirs by theme -
+    // this one is never updated after construction, so a nonzero default here
+    // would leave a fixed, theme-independent tint painted (via paintEvent()'s
+    // CompositionMode_Source fillRect) across the tree's dead space and even
+    // rows regardless of the tree's own QSS background-color.
+    QColor _detachedOverlayFillColor = QColor(255, 255, 255, 0);
 };
