@@ -337,6 +337,20 @@ void Logger::processQueue()
             oldCoutBuffer->pubsync();
         }
 
+#ifdef _WIN32
+        // ModelViewer is WIN32_EXECUTABLE (see CMakeLists.txt) - it has no
+        // console/stdout attached unless spawnConsole() pops one open, so on
+        // Linux (where the IDE's output pane just captures the process's
+        // real, inherited stdout) these messages show up "for free", but on
+        // Windows they'd otherwise only ever reach the log file or that
+        // separate console window. OutputDebugStringW is what IDE debug/
+        // output panes (Visual Studio's Output window, Qt Creator's
+        // Application Output under the MSVC debugger) actually capture for a
+        // GUI-subsystem app - it's a no-op with no measurable cost when no
+        // debugger is attached, so this isn't gated behind IsDebuggerPresent().
+        OutputDebugStringW((formatted + QStringLiteral("\n")).toStdWString().c_str());
+#endif
+
         // File output
         if (fileEnabled && currentLogFile.isOpen())
         {
