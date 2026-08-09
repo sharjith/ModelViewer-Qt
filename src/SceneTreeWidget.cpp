@@ -733,6 +733,8 @@ void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
           _savedViewportPalette = viewport()->palette();
         _savedAutoFillBackground = autoFillBackground();
         _savedViewportAutoFillBackground = viewport()->autoFillBackground();
+        _savedFrameShape = frameShape();
+        setFrameShape(QFrame::NoFrame);
 
         QPalette treePalette = _savedTreePalette;
           QColor base = treePalette.color(QPalette::Base);
@@ -769,6 +771,7 @@ void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
         setAttribute(Qt::WA_NoSystemBackground, false);
         viewport()->setAttribute(Qt::WA_NoSystemBackground, false);
         viewport()->setAttribute(Qt::WA_StyledBackground, false);
+        setFrameShape(_savedFrameShape);
     }
 
       _detachedOverlayMode = enabled;

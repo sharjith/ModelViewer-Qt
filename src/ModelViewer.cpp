@@ -746,7 +746,7 @@ void ModelViewer::attachNavigationOverlay()
 	const int overlayWidth = 420;
 	_navigationOverlay = _viewportWidget->attachOverlayPanel(
 		navComposite,
-		QRect(10, 10, overlayWidth, std::max(120, _viewportWidget->height() - 10 - 88)),
+		QRect(0, 0, overlayWidth, std::max(120, _viewportWidget->height())),
 		Qt::AlignTop | Qt::AlignLeft,
 		"navigationOverlayPanel");
 
@@ -755,6 +755,14 @@ void ModelViewer::attachNavigationOverlay()
 		_viewportWidget->refreshDetachedNavigationOverlayTheme();
 		updateNavigationOverlayGeometry();
 		_navigationOverlay->show();
+		// attachOverlayPanel() raises this panel above every existing sibling,
+		// including the ViewToolbar (created earlier, in ViewportWidget's own
+		// constructor) - ViewToolbar only reclaims top stacking order the next
+		// time it animates in via showAnimated(). Without this, its initial
+		// partially-visible sliver at startup renders behind the panel until
+		// the first auto-hide/reveal cycle fixes the order.
+		if (ViewToolbar* toolbar = _viewportWidget->getViewToolbar())
+			toolbar->raise();
 		QMetaObject::invokeMethod(this, [this]()
 		{
 			if (_navigationOverlay && _viewportWidget)
@@ -772,24 +780,25 @@ void ModelViewer::updateNavigationOverlayGeometry()
 
 	// Now that the checkbox row and mesh-count text have both moved out of
 	// this overlay (into MainWindow's shared Document tab), there's no
-	// longer anything needing headroom above the search box/tree - a small
-	// symmetric inset matching overlayLeft, instead of the old 36px gap.
-	const int overlayTop = 10;
-	const int overlayLeft = 10;
+	// longer anything needing headroom above the search box/tree - flush
+	// against the viewport's top-left edge for a seamless look.
+	const int overlayTop = 0;
+	const int overlayLeft = 0;
 	const int overlayExpandedWidth = 420;
 	// Just enough for the collapse button itself once collapsed - matches
 	// its own locked 14px width plus the overlay wrapper's own 6px margins
 	// (see attachOverlayPanel()).
 	const int overlayCollapsedWidth = 26;
-	// ViewToolbar (bottom-docked, see ViewToolbar::reposition()) is a fixed
-	// 76px tall, positioned 10px above the viewport's bottom edge - 88
-	// leaves a small 2px gap above its top edge without overlapping it.
-	const int overlayBottomMargin = 88;
+	// Full height, no bottom margin - deliberately overlaps the bottom-docked
+	// ViewToolbar's hover-reveal strip (see ViewportWidget::mouseMoveEvent())
+	// wherever the two intersect, so the toolbar won't auto-reveal while the
+	// mouse is over the navigation panel. Accepted as a reasonable trade-off:
+	// the toolbar's reveal area outside the panel's width is unaffected.
 	_navigationOverlay->setGeometry(
 		overlayLeft,
 		overlayTop,
 		_navigationCollapsed ? overlayCollapsedWidth : overlayExpandedWidth,
-		std::max(120, _viewportWidget->height() - overlayTop - overlayBottomMargin));
+		std::max(120, _viewportWidget->height() - overlayTop));
 }
 
 void ModelViewer::showTextureDebugPanel()

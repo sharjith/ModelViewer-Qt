@@ -358,5 +358,6 @@ private:
     QPalette _savedTreePalette;
     QPalette _savedViewportPalette;
     QString _savedStyleSheet;
+    QFrame::Shape _savedFrameShape = QFrame::StyledPanel;
     QColor _detachedOverlayFillColor = QColor(255, 255, 255, 65);
 };
