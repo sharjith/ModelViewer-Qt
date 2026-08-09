@@ -26,6 +26,7 @@
 
 class QTabWidget;
 class QToolButton;
+class QFrame;
 
 struct UVDialogResult
 {
@@ -333,6 +334,15 @@ private:
 	// updateNavigationOverlayGeometry().
 	QToolButton* _navCollapseButton = nullptr;
 	bool _navigationCollapsed = false;
+	// User-draggable width, mirroring _lightTreeResizeHandle's pattern in
+	// VisualizationEnvironmentPanel (a thin QFrame line, event-filtered for
+	// mouse press/move/release) but horizontal instead of vertical - glued
+	// to the overlay's right edge, a sibling of modelNavigationWidget inside
+	// the same composite as _navCollapseButton above.
+	QFrame* _navResizeHandle = nullptr;
+	int _navigationOverlayWidth = 420;
+	qreal _navResizeDragStartX = 0.0;
+	int _navResizeDragStartWidth = 0;
 
 	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 
