@@ -12988,7 +12988,7 @@ unsigned int ViewportWidget::loadTextureFromFile(
 
 	// Optional vertical flip (OpenGL vs Qt coordinate difference)
 	if (flipY)
-		image = image.mirrored(false, true);
+		image = image.flipped(Qt::Vertical);
 
 	GLenum internalFormat = GL_RGBA8;
 	GLenum dataFormat = GL_RGBA;

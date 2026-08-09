@@ -3379,7 +3379,7 @@ void Material::assignAutoPackingForPath(const QString& path)
 static QVector3D readVec3(const QVariant& v, const QVector3D& fallback = QVector3D(0.8f, 0.8f, 0.8f))
 {
 	if (!v.isValid()) return fallback;
-	if (v.type() == QVariant::List)
+	if (v.typeId() == QMetaType::QVariantList)
 	{
 		QVariantList l = v.toList();
 		if (l.size() >= 3)
@@ -3391,12 +3391,12 @@ static QVector3D readVec3(const QVariant& v, const QVector3D& fallback = QVector
 	{
 		return v.value<QVector3D>();
 	}
-	else if (v.type() == QVariant::Double || v.type() == QVariant::Int)
+	else if (v.typeId() == QMetaType::Double || v.typeId() == QMetaType::Int)
 	{
 		float f = v.toFloat();
 		return QVector3D(f, f, f);
 	}
-	else if (v.type() == QVariant::Map)
+	else if (v.typeId() == QMetaType::QVariantMap)
 	{
 		QVariantMap mm = v.toMap();
 		return QVector3D(mm.value("x", fallback.x()).toFloat(),
@@ -3528,12 +3528,12 @@ Material Material::fromVariantMap(const QVariantMap& m)
 	// small local readers
 	auto readVec3 = [](const QVariant& v, const QVector3D& fallback) -> QVector3D {
 		if (!v.isValid()) return fallback;
-		if (v.type() == QVariant::List)
+		if (v.typeId() == QMetaType::QVariantList)
 		{
 			const QVariantList l = v.toList();
 			if (l.size() >= 3) return QVector3D(l[0].toFloat(), l[1].toFloat(), l[2].toFloat());
 		}
-		else if (v.type() == QVariant::Map)
+		else if (v.typeId() == QMetaType::QVariantMap)
 		{
 			const QVariantMap mm = v.toMap();
 			return QVector3D(mm.value("x", fallback.x()).toFloat(),

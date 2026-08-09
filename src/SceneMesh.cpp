@@ -1569,7 +1569,7 @@ GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasA
 
 	// Convert to a known format and flip vertically to match GL origin (bottom-left)
 	QImage glimg = img.convertToFormat(QImage::Format_ARGB32);
-	glimg = glimg.mirrored(false, true); // horizontal=false, vertical=true
+	glimg = glimg.flipped(Qt::Vertical);
 
 	// Ensure GL context is present (caller must be on GL thread)
 	if (!QOpenGLContext::currentContext())
