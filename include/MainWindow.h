@@ -183,11 +183,6 @@ private:
 	// current state on every switch and dispatches toggles to it.
 	QCheckBox* _checkBoxAutoFitView = nullptr;
 	QCheckBox* _checkBoxSelectionHighlight = nullptr;
-	// Mirrors ModelViewer's own viewport-overlay mesh-count label (see
-	// ModelViewer::updateVisibilityUiFromState()) for whichever document is
-	// active - set immediately on every rebind and kept live afterward via
-	// _meshCountChangedConnection below.
-	QLabel* _labelDocumentMeshCount = nullptr;
 
 	// Set at the top of ~MainWindow(), before _mdiArea/_viewers and their
 	// child widgets get torn down by Qt's cascading parent-child
@@ -217,7 +212,6 @@ private:
 	QMetaObject::Connection _animationDataChangedConnection;
 	QMetaObject::Connection _gltfCameraDataChangedConnection;
 	QMetaObject::Connection _animationStateChangedConnection;
-	QMetaObject::Connection _meshCountChangedConnection;
 
 	// Dims (or restores) a Document dock tab's label to signal whether the
 	// active document currently has any data for it - see the tab-styling

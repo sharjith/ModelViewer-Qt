@@ -147,18 +147,11 @@ MainWindow::MainWindow(QWidget* parent)
 		documentControlsLayout->addWidget(_checkBoxSelectionHighlight);
 		documentControlsLayout->addStretch(1);
 
-		// Below the checkboxes - mirrors ModelViewer's own viewport-overlay
-		// mesh-count label (see updateVisibilityUiFromState()) for whichever
-		// document is active; see rebindSharedPanelsTo().
-		_labelDocumentMeshCount = new QLabel();
-		_labelDocumentMeshCount->setContentsMargins(4, 0, 4, 4);
-
 		auto* documentTabContainer = new QWidget();
 		auto* documentTabContainerLayout = new QVBoxLayout(documentTabContainer);
 		documentTabContainerLayout->setContentsMargins(0, 0, 0, 0);
 		documentTabContainerLayout->setSpacing(0);
 		documentTabContainerLayout->addWidget(documentControlsRow);
-		documentTabContainerLayout->addWidget(_labelDocumentMeshCount);
 		documentTabContainerLayout->addWidget(_documentTabWidget, 1);
 
 		// North, not Qt's own default (South) for a tabified dock group's
@@ -757,8 +750,6 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setEnabled(false);
 		_checkBoxAutoFitView->setEnabled(false);
 		_checkBoxSelectionHighlight->setEnabled(false);
-		disconnect(_meshCountChangedConnection);
-		_labelDocumentMeshCount->clear();
 		return;
 	}
 
@@ -848,16 +839,6 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	}
 	_animationStateChangedConnection = connect(viewport, &ViewportWidget::animationStateChanged,
 		_animationsPanel, &AnimationsPanel::refresh);
-
-	// Mirrors ModelViewer's own viewport-overlay mesh-count label - set
-	// immediately from the newly-bound document's current state (the signal
-	// below only fires on SUBSEQUENT changes), then kept live for as long as
-	// this document stays active.
-	disconnect(_meshCountChangedConnection);
-	const int meshCount = static_cast<int>(viewport->currentVisibleObjectIds().size());
-	_labelDocumentMeshCount->setText(meshCount > 0 ? tr("No of Meshes: %1").arg(meshCount) : QString());
-	_meshCountChangedConnection = connect(viewer, &ModelViewer::visibleMeshCountChanged, this,
-		[this](int count) { _labelDocumentMeshCount->setText(count > 0 ? tr("No of Meshes: %1").arg(count) : QString()); });
 
 	refreshDocumentDockTabStyling(viewer);
 }
