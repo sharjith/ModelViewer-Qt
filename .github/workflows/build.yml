@@ -97,9 +97,12 @@ jobs:
       # build tooling - it no longer needs to build Qt/OpenCASCADE/gperf/etc
       # from source the way the old full-vcpkg Linux build did, so the
       # X11/mesa dev headers, tcl/tk, and autoconf/automake/libtool that were
-      # only there for those source builds are gone too. Only OpenImageDenoise
-      # and basisu are still vendored (no apt package exists for either) -
-      # see the "Install vendor vcpkg dependencies" step below.
+      # only there for those source builds are gone too. OpenImageDenoise and
+      # basisu are still vendored (no apt package exists for either) - see
+      # the "Install vendor vcpkg dependencies" step below. Qt-ADS isn't an
+      # apt package here at all anymore either: apt caps at 4.5.0, which
+      # lacks the Wayland docking fix 5.0.0 has, so CMakeLists.txt builds it
+      # from source via FetchContent instead - no apt/vcpkg entry needed.
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -117,7 +120,6 @@ jobs:
           qt6-base-dev \
           qt6-tools-dev \
           qt6-image-formats-plugins \
-          libqt-advanced-docking-system-dev \
           libocct-foundation-dev \
           libocct-modeling-data-dev \
           libocct-modeling-algorithms-dev \

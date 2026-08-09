@@ -11,7 +11,18 @@ find_package(basisu CONFIG REQUIRED)
 find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
-find_package(qtadvanceddocking-qt6 CONFIG REQUIRED)
+# Windows: vcpkg-resolved (still 4.5.0 - Windows was never affected by the
+# Wayland docking bug 5.0.0 fixes, so no reason to move it off vcpkg too).
+# Linux: no vcpkg involvement at all - built from source via FetchContent
+# further down, once Qt6 itself has actually been found (see the comment
+# there for why it can't happen here yet). User-confirmed: Wayland docking
+# with 5.0.0 now matches Windows. Deliberate, temporary until Ubuntu's apt
+# repo ships 5.0.0 (currently capped at 4.5.0-1) - once it does, this whole
+# FetchContent block can be replaced with a plain find_package() again,
+# matching the Windows branch above.
+if(WIN32)
+    find_package(qtadvanceddocking-qt6 CONFIG REQUIRED)
+endif()
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -125,6 +136,25 @@ else()
 endif()
 
 message("Using Qt${QT_VERSION_MAJOR}")
+
+# Linux: build Qt-ADS 5.0.0 from source, self-contained in the build tree -
+# no vcpkg, no system-wide install. Has to happen here rather than up with
+# the other find_package() calls: Qt-ADS's own src/CMakeLists.txt reads
+# QT_VERSION_MAJOR to pick Qt6 vs Qt5, which isn't reliably set until the
+# Qt6 lookup above has actually run. Produces the alias target
+# ads::qtadvanceddocking-qt6 - identical to the Windows vcpkg path's target
+# name, so the shared target_link_libraries() call further down needs no
+# platform branching of its own.
+if(NOT WIN32)
+    include(FetchContent)
+    FetchContent_Declare(
+        qtadvanceddocking
+        GIT_REPOSITORY https://github.com/githubuser0xFFFF/Qt-Advanced-Docking-System.git
+        GIT_TAG 5.0.0
+    )
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(qtadvanceddocking)
+endif()
 
 # Optional: WebEngine - just check for it, don't link yet
 find_package(Qt6 COMPONENTS WebEngineWidgets QUIET)
