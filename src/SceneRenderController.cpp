@@ -23,30 +23,47 @@ bool SceneRenderController::initialize()
     return initializeOpenGLFunctions();
 }
 
-void SceneRenderController::cleanupGLResources()
+void SceneRenderController::releaseGpuResources()
 {
-    // Textures — IBL, environment, LUT, capping
-    glDeleteTextures(1, &_environmentMap);
-    glDeleteTextures(1, &_shadowMap);
-    glDeleteTextures(1, &_irradianceMap);
-    glDeleteTextures(1, &_prefilterMap);
-    glDeleteTextures(1, &_sheenPrefilterMap);
-    glDeleteTextures(1, &_studioEnvironmentMap);
-    glDeleteTextures(1, &_studioIrradianceMap);
-    glDeleteTextures(1, &_studioPrefilterMap);
-    glDeleteTextures(1, &_studioSheenPrefilterMap);
-    glDeleteTextures(1, &_outdoorEnvironmentMap);
-    glDeleteTextures(1, &_outdoorIrradianceMap);
-    glDeleteTextures(1, &_outdoorPrefilterMap);
-    glDeleteTextures(1, &_outdoorSheenPrefilterMap);
-    glDeleteTextures(1, &_officeEnvironmentMap);
-    glDeleteTextures(1, &_officeIrradianceMap);
-    glDeleteTextures(1, &_officePrefilterMap);
-    glDeleteTextures(1, &_officeSheenPrefilterMap);
-    glDeleteTextures(1, &_brdfLUTTexture);
-    glDeleteTextures(1, &_charlieLUTTexture);
-    glDeleteTextures(1, &_sheenELUTTexture);
-    glDeleteTextures(1, &_cappingTexture);
+    const bool shareContexts = IGpuContextResource::contextsAreShared();
+
+    if (!shareContexts)
+    {
+    // Textures — IBL, environment, LUT, capping, debug/white placeholders.
+    // Every handle is zeroed immediately after deleting it (previously only
+    // _viewCubeLabelTextures was) - several recreation guards elsewhere
+    // (e.g. generateIBL()'s `if (_charlieLUTTexture == 0)`) rely on seeing
+    // zero here to know they need to reload, and a stale non-zero handle
+    // silently skipped reloading on the second+ recreation before this fix.
+    glDeleteTextures(1, &_environmentMap); _environmentMap = 0;
+    glDeleteTextures(1, &_shadowMap); _shadowMap = 0;
+    glDeleteTextures(1, &_irradianceMap); _irradianceMap = 0;
+    glDeleteTextures(1, &_prefilterMap); _prefilterMap = 0;
+    glDeleteTextures(1, &_sheenPrefilterMap); _sheenPrefilterMap = 0;
+    glDeleteTextures(1, &_studioEnvironmentMap); _studioEnvironmentMap = 0;
+    glDeleteTextures(1, &_studioIrradianceMap); _studioIrradianceMap = 0;
+    glDeleteTextures(1, &_studioPrefilterMap); _studioPrefilterMap = 0;
+    glDeleteTextures(1, &_studioSheenPrefilterMap); _studioSheenPrefilterMap = 0;
+    glDeleteTextures(1, &_outdoorEnvironmentMap); _outdoorEnvironmentMap = 0;
+    glDeleteTextures(1, &_outdoorIrradianceMap); _outdoorIrradianceMap = 0;
+    glDeleteTextures(1, &_outdoorPrefilterMap); _outdoorPrefilterMap = 0;
+    glDeleteTextures(1, &_outdoorSheenPrefilterMap); _outdoorSheenPrefilterMap = 0;
+    glDeleteTextures(1, &_officeEnvironmentMap); _officeEnvironmentMap = 0;
+    glDeleteTextures(1, &_officeIrradianceMap); _officeIrradianceMap = 0;
+    glDeleteTextures(1, &_officePrefilterMap); _officePrefilterMap = 0;
+    glDeleteTextures(1, &_officeSheenPrefilterMap); _officeSheenPrefilterMap = 0;
+    glDeleteTextures(1, &_brdfLUTTexture); _brdfLUTTexture = 0;
+    glDeleteTextures(1, &_charlieLUTTexture); _charlieLUTTexture = 0;
+    glDeleteTextures(1, &_sheenELUTTexture); _sheenELUTTexture = 0;
+    glDeleteTextures(1, &_whiteTexture); _whiteTexture = 0;
+    glDeleteTextures(1, &_debugNeutralTex); _debugNeutralTex = 0;
+    glDeleteTextures(1, &_debugNormalTex); _debugNormalTex = 0;
+    glDeleteTextures(1, &_debugBlackTex); _debugBlackTex = 0;
+    }
+
+    // Deliberately still dropped even in the shared-context path: this is
+    // cheap and the current call sites rebuild it unconditionally.
+    glDeleteTextures(1, &_cappingTexture); _cappingTexture = 0;
     for (GLuint& labelTexture : _viewCubeLabelTextures)
     {
         if (labelTexture != 0)
@@ -58,10 +75,17 @@ void SceneRenderController::cleanupGLResources()
 
     // Framebuffers and renderbuffers
     if (_skyboxFBO != 0)
+    {
         glDeleteFramebuffers(1, &_skyboxFBO);
+        _skyboxFBO = 0;
+    }
     if (_shadowMapFBO != 0)
+    {
         glDeleteFramebuffers(1, &_shadowMapFBO);
+        _shadowMapFBO = 0;
+    }
     glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
+    _skyboxDepthBuffer = 0;
 
     // Qt-managed geometry wrappers
     _axisVBO.destroy();
@@ -78,6 +102,7 @@ void SceneRenderController::cleanupGLResources()
         _fsTriVAO = 0;
         _fsTriVBO = 0;
     }
+    _fsTriInitialized = false;
 
     // Quad
     if (_quadVAO != 0)
@@ -114,6 +139,48 @@ void SceneRenderController::cleanupGLResources()
         _debugOverlayBoxVAO = 0;
         _debugOverlayBoxVBO = 0;
     }
+
+    if (!shareContexts && _punctualLights)
+        _punctualLights->cleanup();
+
+    // The shadow-map texture may survive under shared contexts, but its FBO
+    // does not. Force ensureShadowMap() to rebuild the framebuffer next pass.
+    _shadowMapNeedsInitialization = true;
+}
+
+void SceneRenderController::restoreGpuResources()
+{
+    if (_whiteTexture == 0)
+        initWhiteTexture();
+    if (_debugNeutralTex == 0 || _debugNormalTex == 0 || _debugBlackTex == 0)
+        initDebugPlaceholderTextures();
+}
+
+void SceneRenderController::initDebugPlaceholderTextures()
+{
+    // Moved from ViewportWidget::initializeGL()'s makeDebugTex lambda -
+    // previously never appeared in cleanupGLResources()'s delete list at
+    // all, leaking 3 textures on every context recreation.
+    auto makeDebugTex = [this](const GLubyte rgba[4]) -> GLuint {
+        GLuint texId = 0;
+        glGenTextures(1, &texId);
+        glBindTexture(GL_TEXTURE_2D, texId);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
+                     GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        return texId;
+    };
+
+    const GLubyte white[4]         = { 255, 255, 255, 255 };
+    const GLubyte neutralNormal[4] = { 128, 128, 255, 255 };
+    const GLubyte black[4]         = {   0,   0,   0, 255 };
+
+    _debugNeutralTex = makeDebugTex(white);
+    _debugNormalTex  = makeDebugTex(neutralNormal);
+    _debugBlackTex   = makeDebugTex(black);
+
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void SceneRenderController::initAxisGeometry(float extent)

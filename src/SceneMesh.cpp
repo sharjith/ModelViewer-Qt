@@ -1,5 +1,6 @@
 #include "SceneMesh.h"
 #include "TextureLocationManager.h"
+#include "IGpuContextResource.h"
 
 #include <QFileInfo>
 #include <QImage>
@@ -2287,7 +2288,7 @@ void SceneMesh::deleteTextures()
 
 void SceneMesh::releaseContextBoundGpuResources()
 {
-	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	const bool shareContexts = IGpuContextResource::contextsAreShared();
 	RenderableMesh::releaseContextBoundGpuResources();
 
 	if (!shareContexts && _lodIndexBuffer.isCreated())
@@ -2304,7 +2305,7 @@ void SceneMesh::releaseContextBoundGpuResources()
 
 void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 {
-	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	const bool shareContexts = IGpuContextResource::contextsAreShared();
 	RenderableMesh::restoreContextBoundGpuResources(prog);
 
 	if (!shareContexts)

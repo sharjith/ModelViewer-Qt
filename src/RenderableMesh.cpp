@@ -6,6 +6,7 @@
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
 #include "Logger.h"
+#include "IGpuContextResource.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -1700,7 +1701,7 @@ void RenderableMesh::deleteTextures()
 
 void RenderableMesh::releaseContextBoundGpuResources()
 {
-	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	const bool shareContexts = IGpuContextResource::contextsAreShared();
 	if (shareContexts)
 	{
 		if (_vertexArrayObject.isCreated())
@@ -1720,7 +1721,7 @@ void RenderableMesh::releaseContextBoundGpuResources()
 
 void RenderableMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 {
-	const bool shareContexts = QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts);
+	const bool shareContexts = IGpuContextResource::contextsAreShared();
 	_prog = prog;
 	clearUniformLocationCache();
 

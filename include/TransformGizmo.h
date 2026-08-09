@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IGpuContextResource.h"
 #include <QObject>
 #include <QColor>
 #include <QPoint>
@@ -14,7 +15,7 @@ class ConeRenderable;
 class Camera;
 class ShaderProgram;
 
-class TransformGizmo : public QObject, protected QOpenGLFunctions_4_5_Core
+class TransformGizmo : public QObject, protected QOpenGLFunctions_4_5_Core, public IGpuContextResource
 {
 	Q_OBJECT
 public:
@@ -32,6 +33,18 @@ public:
 
 	explicit TransformGizmo(QObject* parent = nullptr);
 	~TransformGizmo() override;
+
+	// IGpuContextResource - registered once from ViewportWidget's
+	// constructor (this object is constructed once for the widget's whole
+	// lifetime, never deleted/recreated on ordinary context recreation).
+	// restoreGpuResources() was formerly private ensureInitialized(),
+	// called lazily from render() every frame (cheap no-op once already
+	// initialized) - now also called explicitly by the registry on every
+	// context recreation, which is what actually fixes the bug: previously
+	// nothing ever re-created this object after the first context loss, so
+	// the gizmo silently vanished for the rest of the session.
+	void restoreGpuResources() override;
+	void releaseGpuResources() override;
 
 	void setVisible(bool visible);
 	bool isVisible() const { return _visible; }
@@ -57,7 +70,6 @@ signals:
 	void activeHandleChanged(TransformGizmo::Handle handle);
 
 private:
-	void ensureInitialized();
 	float computeWorldScale(const Camera* camera, float fallbackScale) const;
 	Handle hitTest(const QPoint& pixel, const Camera* camera,
 	               const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
@@ -70,7 +82,6 @@ private:
 	                     const QMatrix4x4& projectionMatrix, float worldScale);
 	void drawArcs(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
 	              const QMatrix4x4& projectionMatrix, float worldScale);
-	void releaseResources();
 
 	bool _visible = false;
 	bool _initialized = false;

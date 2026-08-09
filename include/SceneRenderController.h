@@ -1,5 +1,6 @@
 #pragma once
 
+#include "IGpuContextResource.h"
 #include "PunctualLights.h"
 #include "RenderEnums.h"
 #include "ShaderProgram.h"
@@ -26,7 +27,8 @@
 // render settings flags that gate each pass.
 //
 // Public API:
-//   - Lifecycle: initialize(), cleanupGLResources()
+//   - Lifecycle: initialize(); implements IGpuContextResource
+//                (releaseGpuResources()/restoreGpuResources())
 //   - Shader init: initShaders(shaderPath)
 //   - Geometry init: initFullscreenTriangle(), initWhiteTexture(),
 //                    initAxisGeometry(extent),
@@ -40,15 +42,18 @@
 //   - Accessors: typed getters/setters for all render state
 //   - Static helpers: ViewCubeStyle, buildViewCubeLabelFaces(), computeFloorDepthBias()
 // ---------------------------------------------------------------------------
-class SceneRenderController : public QOpenGLFunctions_4_5_Core
+class SceneRenderController : public QOpenGLFunctions_4_5_Core, public IGpuContextResource
 {
 public:
     // ---- Lifecycle ---------------------------------------------------------
     bool initialize();
 
-    // Deletes all owned GL resources. Must be called while a GL context is
-    // current (typically from ViewportWidget's destructor after makeCurrent()).
-    void cleanupGLResources();
+    // IGpuContextResource - registered by ViewportWidget into
+    // GpuResourcePhase::Controller. Must be called while a GL context is
+    // current (releaseGpuResources() from the dying context, right before
+    // it's destroyed; restoreGpuResources() from the new one).
+    void releaseGpuResources() override;
+    void restoreGpuResources() override;
 
     // ---- Shader init -------------------------------------------------------
     void initShaders(const QString& shaderPath);
@@ -301,7 +306,12 @@ public:
     // ---- Punctual lights GPU buffer ----------------------------------------
     PunctualLights*       punctualLights()       { return _punctualLights.get(); }
     const PunctualLights* punctualLights() const { return _punctualLights.get(); }
-    void initLights()                { _punctualLights = std::make_unique<PunctualLights>(); }
+    // Construct-once: releaseGpuResources() only zeroes _punctualLights's
+    // GL-side UBO (via cleanup()), it never resets the unique_ptr itself, so
+    // this must not unconditionally replace it either - callers holding a
+    // PunctualLights* from punctualLights() must stay valid across a
+    // release/restore cycle.
+    void initLights()                { if (!_punctualLights) _punctualLights = std::make_unique<PunctualLights>(); }
 
     // ---- Capping -----------------------------------------------------------
     bool   cappingEnabled()       const { return _cappingEnabled; }
@@ -560,6 +570,11 @@ public:
 private:
     static void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
     bool captureCubemapMipChainCPU(GLuint texture, unsigned int mipLevels, std::vector<PrefilterMipCPU>& outMips);
+
+    // Moved here from ViewportWidget::initializeGL() (the makeDebugTex
+    // lambda) - self-sufficient, no external params needed, so it belongs
+    // in restoreGpuResources() directly rather than as an external call.
+    void initDebugPlaceholderTextures();
 
     // ---- Shader programs ---------------------------------------------------
     std::unique_ptr<ShaderProgram> _bgShader;

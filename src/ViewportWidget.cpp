@@ -141,11 +141,11 @@ _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
 _clippingPlaneZX(nullptr),
 _floorPlane(nullptr),
-	_gridPlane(nullptr),
 	_skyBox(nullptr),
 	_axisCone(nullptr),
 	_transformGizmo(nullptr),
 	_lightCube(nullptr),
+	_lightSphere(nullptr),
 	_assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
@@ -194,6 +194,13 @@ _floorPlane(nullptr),
     _viewer = static_cast<ModelViewer*>(parent);
 	_explodedViewCtrl.setExplodedViewManager(new ExplodedViewManager());
 	_transformGizmo = new TransformGizmo(this);
+	// Registered once here, for the widget's whole lifetime - see
+	// IGpuContextResource.h/GpuResourceRegistry.h. _renderCtrl is
+	// registered here too (Controller phase, restored first) even though
+	// it's constructed implicitly as a plain member, not via `new` -
+	// there's no other single "runs exactly once" point to do it from.
+	_gpuResourceRegistry.add(_transformGizmo, GpuResourcePhase::Decorations);
+	_gpuResourceRegistry.add(&_renderCtrl, GpuResourcePhase::Controller);
 
 
 	// Setup the view toolbar
@@ -697,6 +704,17 @@ ViewportWidget::~ViewportWidget()
 	{
 		makeCurrent();
 		releaseGLSceneResources();
+		// Must run before doneCurrent(): unlike releaseGLSceneResources()
+		// (which only releases GPU handles, keeping the C++ objects alive
+		// for a future restore), this actually deletes them - their
+		// destructors make real GL delete calls (RenderableMesh::
+		// ~RenderableMesh() etc.), so a current context is required. Not
+		// called in the else branch below: that path only means this
+		// widget never got a valid context at all, so none of these
+		// objects were ever constructed in the first place (all still
+		// null) - nothing to delete, and no current context to safely
+		// delete through if there somehow were.
+		deleteGpuOwnedObjects();
 		doneCurrent();  // Release context
 
 		qInfo() << "ViewportWidget::~ViewportWidget - OpenGL resources cleaned up successfully.";
@@ -732,60 +750,59 @@ void ViewportWidget::releaseGLSceneResources()
 {
 	releaseLoadedMeshGpuResources();
 
-	cleanUpShaders();
-
-	_renderCtrl.cleanupGLResources();
-	_rtPresenter.cleanup();
-	if (_selectionManager)
-		_selectionManager->cleanupFBOResources();
-
-	// Delete scene objects - each nulled immediately after so a caller that
-	// keeps running afterward (see the aboutToBeDestroyed() handler in
-	// initializeGL()) sees these as honestly absent, not dangling. Without
-	// the null-out, initializeGL()'s own "if (_x == nullptr) create else
-	// reuse" guards (e.g. loadFloor()) would reuse an object whose VAO/
-	// buffers belong to the just-destroyed context - reading through its
-	// context-bound function pointers is what crashed in the first place.
-	if (_clippingPlaneXY) { delete _clippingPlaneXY; _clippingPlaneXY = nullptr; }
-	if (_clippingPlaneYZ) { delete _clippingPlaneYZ; _clippingPlaneYZ = nullptr; }
-	if (_clippingPlaneZX) { delete _clippingPlaneZX; _clippingPlaneZX = nullptr; }
-	if (_floorPlane) { delete _floorPlane; _floorPlane = nullptr; }
-	if (_gridPlane) { delete _gridPlane; _gridPlane = nullptr; }
-	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
-	if (_transformGizmo) { delete _transformGizmo; _transformGizmo = nullptr; }
-	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
-	if (_skyBox) { delete _skyBox; _skyBox = nullptr; }
-	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
-	// createLights() (called from initializeGL()) creates both of these
-	// unconditionally rather than via a null-check/reuse guard, so unlike
-	// the others above this one wasn't reuse-crashing on a second
-	// initializeGL() - just silently leaking the previous context's sphere
-	// on every reinit. Cleaned up here too since it holds a VAO the same way.
-	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
-
-	// Same unconditional-recreate-without-cleanup pattern as _lightSphere
-	// above, confirmed via direct audit of initializeGL(): it does
-	// `_assimpModelLoader = new AssImpModelLoader();` and
-	// `_textRenderer`/`_axisTextRenderer = new TextRenderer(...)`
-	// (the latter two each loading a font file from disk) completely
-	// unconditionally, with no prior null-check anywhere. Never crashed
-	// (these aren't reused/dereferenced through a dead context's function
-	// pointers the way VAO-holding objects were), so it went unnoticed as
-	// a genuine memory leak - and, for the two TextRenderers, a wasted
-	// font-file reload from disk - on every context recreation (i.e. every
-	// tab switch that triggers one). Deleted here, same as everything else
-	// in this function, while the dying context is still current.
+	// Deferred, not migrated into the GPU resource registry (see
+	// IGpuContextResource.h) - these three are fully deleted and
+	// reconstructed every context recreation, same as they always have
+	// been (a recreation-cost concern, not a resource-lifecycle-
+	// correctness one - they're already leak-free as-is). Kept OUTSIDE
+	// _gpuResourceRegistry.releaseAll() below deliberately.
 	if (_assimpModelLoader) { delete _assimpModelLoader; _assimpModelLoader = nullptr; }
 	if (_textRenderer) { delete _textRenderer; _textRenderer = nullptr; }
 	if (_axisTextRenderer) { delete _axisTextRenderer; _axisTextRenderer = nullptr; }
 
-	if (_renderCtrl.punctualLights())
-	{
-		_renderCtrl.punctualLights()->cleanup();
-	}
+	_rtPresenter.cleanup();
+	if (_selectionManager)
+		_selectionManager->cleanupFBOResources();
 
-	cleanupTransmissionBuffer();
-	cleanupSSSBuffer();
+	// Releases every migrated resource (SceneRenderController, the 7
+	// RenderableMesh-derived decoration objects, TransformGizmo,
+	// transmission/SSS buffers) in reverse phase/registration order - see
+	// GpuResourceRegistry::releaseAll(). Unlike the old per-object delete
+	// list this replaces, none of these C++ objects are destroyed here -
+	// only their GPU handles are released; the objects themselves survive
+	// for the next initializeGL()'s restorePhase() calls to reuse.
+	_gpuResourceRegistry.releaseAll();
+}
+
+void ViewportWidget::deleteGpuOwnedObjects()
+{
+	// Must run first: deletes every adapter wrapper (RenderableMeshGpuResourceAdapter
+	// for the 7 decoration objects, LambdaGpuResource for the transmission/
+	// SSS buffer pairs) - these hold non-owning pointers/callbacks into the
+	// objects deleted below, so they must go first to avoid a dangling
+	// reference during their own destruction. Does NOT delete the wrapped
+	// RenderableMesh objects themselves (RenderableMeshGpuResourceAdapter
+	// doesn't own them).
+	_gpuResourceAdapters.clear();
+
+	_gpuResourceRegistry.remove(_transformGizmo);
+	delete _transformGizmo;
+	_transformGizmo = nullptr;
+
+	// &_renderCtrl is never delete'd here - it's a plain value member of
+	// this widget, destroyed automatically as part of ~ViewportWidget()'s
+	// own member destruction, same as before this refactor.
+	_gpuResourceRegistry.remove(&_renderCtrl);
+
+	if (_clippingPlaneXY) { delete _clippingPlaneXY; _clippingPlaneXY = nullptr; }
+	if (_clippingPlaneYZ) { delete _clippingPlaneYZ; _clippingPlaneYZ = nullptr; }
+	if (_clippingPlaneZX) { delete _clippingPlaneZX; _clippingPlaneZX = nullptr; }
+	if (_floorPlane) { delete _floorPlane; _floorPlane = nullptr; }
+	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
+	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
+	if (_skyBox) { delete _skyBox; _skyBox = nullptr; }
+	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
+	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
 }
 
 void ViewportWidget::invalidateTextureCacheGpuResources()
@@ -828,6 +845,12 @@ void ViewportWidget::restoreLoadedMeshGpuResources()
 	}
 }
 
+void ViewportWidget::registerDecorationGpuResource(RenderableMesh* mesh, std::function<QOpenGLShaderProgram*()> shaderResolver)
+{
+	_gpuResourceAdapters.push_back(std::make_unique<RenderableMeshGpuResourceAdapter>(mesh, std::move(shaderResolver)));
+	_gpuResourceRegistry.add(_gpuResourceAdapters.back().get(), GpuResourcePhase::Decorations);
+}
+
 void ViewportWidget::retranslateUI()
 {
 	// Axis labels
@@ -842,10 +865,6 @@ void ViewportWidget::retranslateUI()
 	_labelIsometric = tr("Isometric");
 	_labelDimetric = tr("Dimetric");
 	_labelTrimetric = tr("Trimetric");
-}
-
-void ViewportWidget::cleanUpShaders()
-{	
 }
 
 void ViewportWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
@@ -993,7 +1012,22 @@ void ViewportWidget::initializeGL()
 
 	createShaderPrograms();
 	createFullscreenTriangle();
+	// GpuResourcePhase::Controller first (SceneRenderController - shader/
+	// primitive-owning, e.g. whiteTexture/debug placeholder textures) -
+	// see IGpuContextResource.h/GpuResourceRegistry.h. On the very first
+	// call this is a near-no-op (only &_renderCtrl/_transformGizmo are
+	// registered yet, from the constructor); on every subsequent context
+	// recreation this restores everything registered so far.
+	_gpuResourceRegistry.restorePhase(GpuResourcePhase::Controller);
 	restoreLoadedMeshGpuResources();
+	// Decorations next (floor/skybox/axis cone/viewcube/light helpers/
+	// clipping planes/transform gizmo) - must run before any of their
+	// guarded construction sites further down in this function reach their
+	// reuse branch (e.g. loadFloor()'s _floorPlane->setPlane() call),
+	// which requires the VAO already restored. FramebufferAuxiliaries
+	// (transmission/SSS buffers) last, since they're the least depended-on.
+	_gpuResourceRegistry.restorePhase(GpuResourcePhase::Decorations);
+	_gpuResourceRegistry.restorePhase(GpuResourcePhase::FramebufferAuxiliaries);
 
 	qRegisterMetaType<AssImpMeshDataBatch>("AssImpMeshDataBatch");
 	qRegisterMetaType<SceneUpAxis>("SceneUpAxis");
@@ -1080,59 +1114,107 @@ void ViewportWidget::initializeGL()
 
 	// Load preset environment maps (Studio, Outdoor, Office)
 	const QString dataDir = PathUtils::getDataDirectory();
+	const bool reuseSharedControllerTextures = IGpuContextResource::contextsAreShared();
 
 	// Load preset environment maps (Studio, Outdoor, Office)
 	// Each preset loads an HDR file, converts to cubemap, and generates IBL maps (irradiance + prefilter)
 	{
-		QString studioHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/studio.hdr";
-		_renderCtrl.setStudioEnvironmentMap(loadPresetEnvironmentMap(studioHDRPath));
-		if (_renderCtrl.studioEnvironmentMap())
+		if (!reuseSharedControllerTextures || _renderCtrl.studioEnvironmentMap() == 0 ||
+			_renderCtrl.studioIrradianceMap() == 0 || _renderCtrl.studioPrefilterMap() == 0 ||
+			_renderCtrl.studioSheenPrefilterMap() == 0)
 		{
-			GLuint irr = 0, pf = 0, spf = 0;
-			generatePresetIBLMaps(_renderCtrl.studioEnvironmentMap(), irr, pf, spf);
-			_renderCtrl.setStudioIrradianceMap(irr);
-			_renderCtrl.setStudioPrefilterMap(pf);
-			_renderCtrl.setStudioSheenPrefilterMap(spf);
+			QString studioHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/studio.hdr";
+			_renderCtrl.setStudioEnvironmentMap(loadPresetEnvironmentMap(studioHDRPath));
+			if (_renderCtrl.studioEnvironmentMap())
+			{
+				GLuint irr = 0, pf = 0, spf = 0;
+				generatePresetIBLMaps(_renderCtrl.studioEnvironmentMap(), irr, pf, spf);
+				_renderCtrl.setStudioIrradianceMap(irr);
+				_renderCtrl.setStudioPrefilterMap(pf);
+				_renderCtrl.setStudioSheenPrefilterMap(spf);
+			}
 		}
 	}
 
 	{
-		QString outdoorHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/outdoor.hdr";
-		_renderCtrl.setOutdoorEnvironmentMap(loadPresetEnvironmentMap(outdoorHDRPath));
-		if (_renderCtrl.outdoorEnvironmentMap())
+		if (!reuseSharedControllerTextures || _renderCtrl.outdoorEnvironmentMap() == 0 ||
+			_renderCtrl.outdoorIrradianceMap() == 0 || _renderCtrl.outdoorPrefilterMap() == 0 ||
+			_renderCtrl.outdoorSheenPrefilterMap() == 0)
 		{
-			GLuint irr = 0, pf = 0, spf = 0;
-			generatePresetIBLMaps(_renderCtrl.outdoorEnvironmentMap(), irr, pf, spf);
-			_renderCtrl.setOutdoorIrradianceMap(irr);
-			_renderCtrl.setOutdoorPrefilterMap(pf);
-			_renderCtrl.setOutdoorSheenPrefilterMap(spf);
+			QString outdoorHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/outdoor.hdr";
+			_renderCtrl.setOutdoorEnvironmentMap(loadPresetEnvironmentMap(outdoorHDRPath));
+			if (_renderCtrl.outdoorEnvironmentMap())
+			{
+				GLuint irr = 0, pf = 0, spf = 0;
+				generatePresetIBLMaps(_renderCtrl.outdoorEnvironmentMap(), irr, pf, spf);
+				_renderCtrl.setOutdoorIrradianceMap(irr);
+				_renderCtrl.setOutdoorPrefilterMap(pf);
+				_renderCtrl.setOutdoorSheenPrefilterMap(spf);
+			}
 		}
 	}
 
 	{
-		QString officeHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/office.hdr";
-		_renderCtrl.setOfficeEnvironmentMap(loadPresetEnvironmentMap(officeHDRPath));
-		if (_renderCtrl.officeEnvironmentMap())
+		if (!reuseSharedControllerTextures || _renderCtrl.officeEnvironmentMap() == 0 ||
+			_renderCtrl.officeIrradianceMap() == 0 || _renderCtrl.officePrefilterMap() == 0 ||
+			_renderCtrl.officeSheenPrefilterMap() == 0)
 		{
-			GLuint irr = 0, pf = 0, spf = 0;
-			generatePresetIBLMaps(_renderCtrl.officeEnvironmentMap(), irr, pf, spf);
-			_renderCtrl.setOfficeIrradianceMap(irr);
-			_renderCtrl.setOfficePrefilterMap(pf);
-			_renderCtrl.setOfficeSheenPrefilterMap(spf);
+			QString officeHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/office.hdr";
+			_renderCtrl.setOfficeEnvironmentMap(loadPresetEnvironmentMap(officeHDRPath));
+			if (_renderCtrl.officeEnvironmentMap())
+			{
+				GLuint irr = 0, pf = 0, spf = 0;
+				generatePresetIBLMaps(_renderCtrl.officeEnvironmentMap(), irr, pf, spf);
+				_renderCtrl.setOfficeIrradianceMap(irr);
+				_renderCtrl.setOfficePrefilterMap(pf);
+				_renderCtrl.setOfficeSheenPrefilterMap(spf);
+			}
 		}
 	}
 
 	// Shadow mapping
 	loadFloor();
-	loadGrid();
 
-	createWhiteTexture();
-	initTransmissionBuffer();
-	initSSSBuffer();
+	// _renderCtrl's whiteTexture is (re)created by
+	// _gpuResourceRegistry.restorePhase(GpuResourcePhase::Controller) above
+	// (see SceneRenderController::restoreGpuResources()) - a separate
+	// unconditional call here used to run a second time on every pass,
+	// leaking the first handle every time (glGenTextures with no guard).
+
+	// First time only: _gpuResourceRegistry.restorePhase(FramebufferAuxiliaries)
+	// (called earlier in this function - see the phase-restore block above)
+	// already did this work via the registered lambdas below on every
+	// SUBSEQUENT pass, using width()/height() evaluated fresh at call time -
+	// calling these two again here unconditionally would be a redundant
+	// double-call with no cleanup in between.
+	if (!_bufferGpuResourcesRegistered)
+	{
+		initTransmissionBuffer();
+		initSSSBuffer();
+		_gpuResourceAdapters.push_back(std::make_unique<LambdaGpuResource>(
+			[this] { _renderCtrl.cleanupTransmissionBuffer(); },
+			[this] { initTransmissionBuffer(); }));
+		_gpuResourceRegistry.add(_gpuResourceAdapters.back().get(), GpuResourcePhase::FramebufferAuxiliaries);
+		_gpuResourceAdapters.push_back(std::make_unique<LambdaGpuResource>(
+			[this] { _renderCtrl.cleanupSSSBuffer(); },
+			[this] { initSSSBuffer(); }));
+		_gpuResourceRegistry.add(_gpuResourceAdapters.back().get(), GpuResourcePhase::FramebufferAuxiliaries);
+		_bufferGpuResourcesRegistered = true;
+	}
 
 	float size = 15;
-	_axisCone = new ConeRenderable(_renderCtrl.axisShader(), _viewCtrl.viewRange() / size / 15, _viewCtrl.viewRange() / size / 5, 8u, 1u);
-	_viewCube = new ViewCubeMesh(_renderCtrl.viewCubeShader(), 1.0f);
+	if (_axisCone == nullptr)
+	{
+		// Initial size only - kept in sync afterward by setParameters()
+		// call sites elsewhere, so a stale size from construct-once is safe.
+		_axisCone = new ConeRenderable(_renderCtrl.axisShader(), _viewCtrl.viewRange() / size / 15, _viewCtrl.viewRange() / size / 5, 8u, 1u);
+		registerDecorationGpuResource(_axisCone, [this] { return _renderCtrl.axisShader(); });
+	}
+	if (_viewCube == nullptr)
+	{
+		_viewCube = new ViewCubeMesh(_renderCtrl.viewCubeShader(), 1.0f);
+		registerDecorationGpuResource(_viewCube, [this] { return _renderCtrl.viewCubeShader(); });
+	}
 	initializeViewCubeLabels();
 
 	// Set lighting information
@@ -1174,33 +1256,12 @@ void ViewportWidget::initializeGL()
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
 
-	// --- Debug placeholder textures for TextureDebugPanel ---
-	// _renderCtrl.debugNeutralTex(): 1×1 opaque white  — used for all disabled texture slots.
-	// _renderCtrl.debugNormalTex() : 1×1 (128,128,255) — used for normal-map slots (flat tangent-space normal).
-	// _renderCtrl.debugBlackTex()  : 1×1 opaque black  — reserved; contributions are silenced via scalar uniforms,
-	//                   not via the texture value, so this is not used in the current override path.
-	{
-		auto makeDebugTex = [&](const GLubyte rgba[4]) -> GLuint {
-			GLuint texId = 0;
-			glGenTextures(1, &texId);
-			glBindTexture(GL_TEXTURE_2D, texId);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
-			             GL_RGBA, GL_UNSIGNED_BYTE, rgba);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			return texId;
-		};
-
-		const GLubyte white[4]         = { 255, 255, 255, 255 };
-		const GLubyte neutralNormal[4] = { 128, 128, 255, 255 };
-		const GLubyte black[4]         = {   0,   0,   0, 255 };
-
-		_renderCtrl.setDebugNeutralTex(makeDebugTex(white));
-		_renderCtrl.setDebugNormalTex(makeDebugTex(neutralNormal));
-		_renderCtrl.setDebugBlackTex(makeDebugTex(black));
-
-		glBindTexture(GL_TEXTURE_2D, 0);
-	}
+	// Debug placeholder textures for TextureDebugPanel (debugNeutralTex()/
+	// debugNormalTex()/debugBlackTex()) are created by
+	// _gpuResourceRegistry's Controller-phase restore above (see
+	// SceneRenderController::restoreGpuResources() ->
+	// initDebugPlaceholderTextures()) - moved there so they're properly
+	// released/recreated across context recreation instead of leaking.
 
 	_renderCtrl.setOpenGLInitialized(true);
 	// Deferred, not called synchronously here: loadRenderSettings()
@@ -2881,7 +2942,7 @@ void ViewportWidget::updateFloorPlane()
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
 
-	if ((!_floorPlane || !_renderCtrl.fgShader()) && (!_gridPlane || !_renderCtrl.gridShader()))
+	if (!_floorPlane || !_renderCtrl.fgShader())
 		return;
 
 	// Use helper to update floor geometry
@@ -3400,7 +3461,7 @@ void ViewportWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& obj
 
 	wrapper->setStyleSheet(QString(
 		"QWidget#%1 {"
-		"  background-color: rgba(255, 255, 255, 25%);"
+		"  background-color: rgba(255, 255, 255, 0%);"
 		"  border: 1px solid rgba(255, 255, 255, 40);"
 		"  border-radius: 6px;"
 		"}"
@@ -4668,9 +4729,15 @@ void ViewportWidget::createShaderPrograms()
 void ViewportWidget::createCappingPlanes()
 {
     const QString path = PathUtils::getDataDirectory() + "/";
-	_clippingPlaneXY = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_clippingPlaneYZ = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_clippingPlaneZX = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+	if (_clippingPlaneXY == nullptr)
+	{
+		_clippingPlaneXY = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+		_clippingPlaneYZ = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+		_clippingPlaneZX = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+		registerDecorationGpuResource(_clippingPlaneXY, [this] { return _renderCtrl.clippingPlaneShader(); });
+		registerDecorationGpuResource(_clippingPlaneYZ, [this] { return _renderCtrl.clippingPlaneShader(); });
+		registerDecorationGpuResource(_clippingPlaneZX, [this] { return _renderCtrl.clippingPlaneShader(); });
+	}
     _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
@@ -4688,8 +4755,13 @@ void ViewportWidget::createCappingPlanes()
 
 void ViewportWidget::createLights()
 {
-	_lightCube = new CubeRenderable(_renderCtrl.lightCubeShader(), 10);
-	_lightSphere = new SphereRenderable(_renderCtrl.lightCubeShader(), 1, 16, 16);
+	if (_lightCube == nullptr)
+	{
+		_lightCube = new CubeRenderable(_renderCtrl.lightCubeShader(), 10);
+		_lightSphere = new SphereRenderable(_renderCtrl.lightCubeShader(), 1, 16, 16);
+		registerDecorationGpuResource(_lightCube, [this] { return _renderCtrl.lightCubeShader(); });
+		registerDecorationGpuResource(_lightSphere, [this] { return _renderCtrl.lightCubeShader(); });
+	}
 }
 
 void ViewportWidget::createFullscreenTriangle()
@@ -4795,6 +4867,7 @@ void ViewportWidget::loadFloor()
 			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
 			floorPlaneCoeff, _renderCtrl.floorTexRepeatS(), _renderCtrl.floorTexRepeatT(),
 			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
+		registerDecorationGpuResource(_floorPlane, [this] { return _renderCtrl.fgShader(); });
 	}
 	else
 	{
@@ -4806,16 +4879,6 @@ void ViewportWidget::loadFloor()
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
-}
-
-void ViewportWidget::loadGrid()
-{
-	// Endless grid is rendered as a fullscreen procedural pass, so no mesh is needed.
-	if (_gridPlane != nullptr)
-	{
-		delete _gridPlane;
-		_gridPlane = nullptr;
-	}
 }
 
 void ViewportWidget::applyFloorPlaneMaterialSettings()
@@ -5063,22 +5126,63 @@ void ViewportWidget::loadEnvMap()
 {	
     const QString path = PathUtils::getDataDirectory() + "/";
 
-	_skyBox = new CubeRenderable(_renderCtrl.skyBoxShader(), 1);
+	if (_skyBox == nullptr)
+	{
+		_skyBox = new CubeRenderable(_renderCtrl.skyBoxShader(), 1);
+		registerDecorationGpuResource(_skyBox, [this] { return _renderCtrl.skyBoxShader(); });
+	}
 	_renderCtrl.skyBoxShader()->bind();
 	_renderCtrl.skyBoxShader()->setUniformValue("skybox", 1);
 	
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-	_renderCtrl.createEnvironmentMapTexture();
-	
+	const bool hadEnvironmentMap = (_renderCtrl.environmentMap() != 0);
+	if (_renderCtrl.environmentMap() == 0)
+		_renderCtrl.createEnvironmentMapTexture();
+
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.environmentMap());
 
-	setSkyBoxTextureFolder(path + "textures/envmap/skyboxes/LDRI/@Default");	
+	if (_renderCtrl.currentSkyboxFolder().isEmpty())
+		_renderCtrl.setCurrentSkyboxFolder(path + "textures/envmap/skyboxes/LDRI/@Default");
+
+	// Shared contexts keep the cubemap texture alive. Re-upload only if this
+	// is the first pass or a caller has explicitly invalidated the texture.
+	if (!IGpuContextResource::contextsAreShared() || !hadEnvironmentMap)
+		setSkyBoxTextureFolder(_renderCtrl.currentSkyboxFolder());
 }
 
 void ViewportWidget::loadIrradianceMap()
 {
-	_renderCtrl.generateIBL(defaultFramebufferObject());
+	const bool hasIblCache =
+		_renderCtrl.irradianceMap() != 0 &&
+		_renderCtrl.prefilterMap() != 0 &&
+		_renderCtrl.sheenPrefilterMap() != 0 &&
+		_renderCtrl.brdfLUTTexture() != 0 &&
+		_renderCtrl.charlieLUTTexture() != 0 &&
+		_renderCtrl.sheenELUTTexture() != 0;
+	if (!IGpuContextResource::contextsAreShared() || !hasIblCache)
+	{
+		_renderCtrl.generateIBL(defaultFramebufferObject());
+	}
+	else
+	{
+		// Texture bindings are context state, not object state: after a shared
+		// context recreation the textures still exist, but the new context
+		// needs their unit bindings re-established.
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.irradianceMap());
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.prefilterMap());
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.brdfLUTTexture());
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.sheenPrefilterMap());
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.charlieLUTTexture());
+		glActiveTexture(GL_TEXTURE9);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.sheenELUTTexture());
+		glActiveTexture(GL_TEXTURE0);
+	}
 }
 
 // Helper: Load HDR file and convert to cubemap
@@ -11158,11 +11262,6 @@ void ViewportWidget::initTransmissionBuffer()
 void ViewportWidget::resizeTransmissionBuffer(int width, int height)
 {
 	_renderCtrl.initTransmissionBuffer(width, height);
-}
-
-void ViewportWidget::createWhiteTexture()
-{
-	_renderCtrl.initWhiteTexture();
 }
 
 void ViewportWidget::generateCubemapMipmaps(GLuint cubemapTexture)
