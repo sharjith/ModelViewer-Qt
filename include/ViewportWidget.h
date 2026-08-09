@@ -10,6 +10,10 @@
 #include "VisibilityComputationHelper.h"
 #include "BoundingSphere.h"
 #include "ExplodedViewRuntimeController.h"
+#include "GpuResourceRegistry.h"
+#include "IGpuContextResource.h"
+#include "LambdaGpuResource.h"
+#include "RenderableMeshGpuResourceAdapter.h"
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
 #include "Camera.h"
@@ -866,12 +870,12 @@ public:
 
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
 
-	void cleanUpShaders();
-
-	// Deletes/nulls every scene-decoration GPU object (floor, grid, skybox,
-	// axis cone, clipping planes, light cube/sphere, view cube) that
-	// initializeGL()'s "if (_x == nullptr) create else reuse" pattern relies
-	// on. Shared between ~ViewportWidget() (widget going away for good) and
+	// Releases every GPU-context-bound resource's GL handles (via
+	// _gpuResourceRegistry.releaseAll() - see IGpuContextResource.h) without
+	// deleting the owning C++ objects, which survive for the next
+	// initializeGL()'s restorePhase() calls to reuse. Shared between
+	// ~ViewportWidget() (widget going away for good - see
+	// deleteGpuOwnedObjects() for the object-deletion step that follows) and
 	// the QOpenGLContext::aboutToBeDestroyed() handler wired up in
 	// initializeGL() (widget survives, only its GL context is being replaced
 	// - see that connection's own comment for why this is needed there too).
@@ -882,7 +886,7 @@ public:
 	// ~ViewportWidget(), before that destructor's own explicit cleanup runs,
 	// otherwise the base QOpenGLWidget destructor's later context teardown
 	// fires this a second time and calls releaseGLSceneResources() again on
-	// already-freed GL objects (e.g. SceneRenderController::cleanupGLResources()
+	// already-freed GL objects (e.g. SceneRenderController::releaseGpuResources()
 	// double-destroying a QOpenGLBuffer).
 	QMetaObject::Connection _glContextAboutToBeDestroyedConnection;
 
@@ -1154,7 +1158,6 @@ private:
 	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();
 	void ensureShadowMapResources();
-	void loadGrid();
 	void applyFloorPlaneMaterialSettings();
 	void syncFloorPlaneAlbedoTexture();
 	QVector3D effectiveWorldLightOffset() const;
@@ -1387,8 +1390,6 @@ private:
 	void renderToSSSBuffer(Camera* camera);
 	void resizeSSSBuffer(int width, int height);
 	void cleanupSSSBuffer();
-
-	void createWhiteTexture();
 
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
@@ -1820,7 +1821,6 @@ private:
 
 
 	FloorPlane* _floorPlane;
-	PlaneRenderable* _gridPlane;
 	CubeRenderable* _skyBox;
 	// _fsTriVAO/VBO, _skyBoxFaces, _skyBoxFOV/_skyBoxZRotation, gamma/HDR/tone-map settings,
 
@@ -1830,6 +1830,24 @@ private:
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
 	// _showLights â†’ SceneRenderController (Phase 12)
+
+	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -
+	// _transformGizmo/&_renderCtrl implement the interface directly and are
+	// registered from this widget's constructor; the RenderableMesh-derived
+	// decoration objects above register via a RenderableMeshGpuResourceAdapter
+	// (owned by _gpuResourceAdapters) the first time each is constructed, in
+	// their own existing initializeGL() call sites.
+	GpuResourceRegistry _gpuResourceRegistry;
+	std::vector<std::unique_ptr<IGpuContextResource>> _gpuResourceAdapters;
+	// Guards the one-time LambdaGpuResource registration for the
+	// transmission/SSS buffer pairs - see their call site in initializeGL().
+	bool _bufferGpuResourcesRegistered = false;
+	void deleteGpuOwnedObjects();
+	// Wraps mesh's inherited releaseContextBoundGpuResources()/
+	// restoreContextBoundGpuResources(shader) pair and registers the
+	// adapter into GpuResourcePhase::Decorations - call exactly once, the
+	// first time each decoration object is constructed.
+	void registerDecorationGpuResource(RenderableMesh* mesh, std::function<QOpenGLShaderProgram*()> shaderResolver);
 
 	ModelViewer* _viewer;
 

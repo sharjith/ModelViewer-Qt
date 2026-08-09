@@ -34,7 +34,7 @@ public:
 	bool initialize(const QString& shaderBasePath);
 
 	// Releases GL resources. Must be called while a GL context is current
-	// (mirrors SceneRenderController::cleanupGLResources()'s contract).
+	// (mirrors SceneRenderController::releaseGpuResources()'s contract).
 	void cleanup();
 
 	// Uploads a linear HDR RGB buffer (width*height, un-tonemapped, row 0 =

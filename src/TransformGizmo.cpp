@@ -81,7 +81,7 @@ TransformGizmo::TransformGizmo(QObject* parent)
 
 TransformGizmo::~TransformGizmo()
 {
-	releaseResources();
+	releaseGpuResources();
 }
 
 void TransformGizmo::clearInteraction()
@@ -144,7 +144,7 @@ void TransformGizmo::render(ShaderProgram* axisShader, ConeRenderable* axisCone,
 	if (!_visible || !axisShader || !axisCone || !camera)
 		return;
 
-	ensureInitialized();
+	restoreGpuResources();
 	if (!_initialized)
 		return;
 
@@ -302,7 +302,7 @@ QColor TransformGizmo::resolveHandleColor(Handle handle, const QColor& baseColor
 	return baseColor;
 }
 
-void TransformGizmo::ensureInitialized()
+void TransformGizmo::restoreGpuResources()
 {
 	if (_initialized)
 		return;
@@ -622,7 +622,7 @@ void TransformGizmo::drawScaleHandle(ShaderProgram* axisShader, const QMatrix4x4
 	axisShader->release();
 }
 
-void TransformGizmo::releaseResources()
+void TransformGizmo::releaseGpuResources()
 {
 	if (_axesVertexBuffer.isCreated())
 		_axesVertexBuffer.destroy();
