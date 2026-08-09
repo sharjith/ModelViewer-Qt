@@ -465,14 +465,22 @@ MainWindow::MainWindow(QWidget* parent)
 		ModelViewer* child = activeMdiChild();
 		if (!child)
 			return;
-		// Narrower than the other document shortcuts below: only fires
-		// while the active document's own navigation tree has keyboard
-		// focus, matching the original per-document shortcut's intent
-		// (parented directly to treeWidgetModel) - Delete must not also
-		// fire while, say, typing into a search box or a property field.
+		// Narrower than the other document shortcuts below: only fires while
+		// the active document's own navigation tree OR its 3D viewport has
+		// keyboard focus - Delete must not also fire while, say, typing into
+		// a search box or a property field. deleteSelectedItems() itself is
+		// selection-state-based, not focus-based (both a tree click and a
+		// viewport click update the same underlying selection), so either
+		// widget having focus is equally valid - this used to check the tree
+		// only, which silently broke Delete for viewport-made selections
+		// (ViewportWidget::keyPressEvent() has its own now-dead Key_Delete
+		// branch for exactly that case - this shortcut, having WindowShortcut
+		// context, always intercepts the key first).
 		QWidget* focusWidget = QApplication::focusWidget();
 		QWidget* tree = child->treeWidgetModel;
-		if (focusWidget && tree && (focusWidget == tree || tree->isAncestorOf(focusWidget)))
+		QWidget* viewport = child->getViewportWidget();
+		if (focusWidget && ((tree && (focusWidget == tree || tree->isAncestorOf(focusWidget))) ||
+		                     focusWidget == viewport))
 			child->deleteSelectedItems();
 		});
 	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this), &QShortcut::activated, this, [this]() {

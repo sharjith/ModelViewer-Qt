@@ -12377,8 +12377,11 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	{
 		fitAll();
 	}
-	else if (key == Qt::Key_Delete)
-		_viewer->deleteSelectedItems();
+	// Key_Delete is deliberately not handled here - MainWindow.cpp's global
+	// Delete QShortcut (WindowShortcut context) always intercepts the key
+	// before it would reach this keyPressEvent(), so a branch here would be
+	// unreachable dead code; see that shortcut's connect() for the actual
+	// viewport-selection-aware Delete handling.
 	else if (key == Qt::Key_Space)
 	{
 		if (event->modifiers() & Qt::ShiftModifier)
