@@ -3453,9 +3453,14 @@ void ViewportWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& obj
 	const QColor panelFieldBorderColor = darkBackground
 		? QColor(255, 255, 255, 85)
 		: QColor(0, 0, 0, 65);
-	const QColor treeBaseColor = darkBackground
+	QColor treeBaseColor = darkBackground
 		? QColor(255, 255, 255, 190)
 		: QColor(32, 32, 32, 165);
+	// Zeroed after computing the RGB (still used below for treeTextColor's
+	// lightness check, which ignores alpha) - fully transparent so the dead
+	// space below the last row, and every even-indexed row, matches the
+	// fully-transparent wrapper instead of showing a solid tinted block.
+	treeBaseColor.setAlpha(0);
 	const QColor treeAlternateColor = darkBackground
 		? QColor(245, 245, 245, 190)
 		: QColor(52, 52, 52, 165);
