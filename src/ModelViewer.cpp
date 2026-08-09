@@ -714,6 +714,20 @@ void ModelViewer::attachNavigationOverlay()
 	_navCollapseButton->setText(QStringLiteral("◀"));
 	_navCollapseButton->setToolTip(tr("Collapse the model navigation panel"));
 
+	// Right-edge counterpart to _navCollapseButton above - an invisible drag
+	// strip the user can pull to resize the panel, matching the established
+	// event-filter pattern in VisualizationEnvironmentPanel's punctual-lights
+	// tree handle, just horizontal instead of vertical - but with no visible
+	// line even on hover, only the resize cursor, per explicit user request.
+	_navResizeHandle = new QFrame();
+	_navResizeHandle->setObjectName(QStringLiteral("navResizeHandle"));
+	_navResizeHandle->setFrameShape(QFrame::NoFrame);
+	_navResizeHandle->setCursor(Qt::SizeHorCursor);
+	_navResizeHandle->setFixedWidth(6);
+	_navResizeHandle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
+	_navResizeHandle->setToolTip(tr("Drag to resize the navigation panel"));
+	_navResizeHandle->installEventFilter(this);
+
 	auto* navComposite = new QWidget();
 	navComposite->setObjectName(QStringLiteral("navComposite"));
 	// Transparent like modelNavigationWidget itself, so the overlay
@@ -727,15 +741,18 @@ void ModelViewer::attachNavigationOverlay()
 	navCompositeLayout->setSpacing(0);
 	navCompositeLayout->addWidget(_navCollapseButton);
 	navCompositeLayout->addWidget(modelNavigationWidget, 1);
+	navCompositeLayout->addWidget(_navResizeHandle);
 
 	// Whole panel (not just its contents) hides on collapse - the button
 	// stays behind (it's a sibling in navComposite, not a child of
-	// modelNavigationWidget) so it's still clickable to re-expand.
+	// modelNavigationWidget) so it's still clickable to re-expand. The
+	// resize handle hides too - there's nothing to resize while collapsed.
 	// updateNavigationOverlayGeometry() shrinks the overlay's own width to
 	// match so the collapsed state doesn't leave 400+px of dead space.
 	connect(_navCollapseButton, &QToolButton::clicked, this, [this]() {
 		_navigationCollapsed = !_navigationCollapsed;
 		modelNavigationWidget->setVisible(!_navigationCollapsed);
+		_navResizeHandle->setVisible(!_navigationCollapsed);
 		_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
 		_navCollapseButton->setToolTip(_navigationCollapsed
 			? tr("Expand the model navigation panel")
@@ -743,10 +760,9 @@ void ModelViewer::attachNavigationOverlay()
 		updateNavigationOverlayGeometry();
 	});
 
-	const int overlayWidth = 420;
 	_navigationOverlay = _viewportWidget->attachOverlayPanel(
 		navComposite,
-		QRect(0, 0, overlayWidth, std::max(120, _viewportWidget->height())),
+		QRect(0, 0, _navigationOverlayWidth, std::max(120, _viewportWidget->height())),
 		Qt::AlignTop | Qt::AlignLeft,
 		"navigationOverlayPanel");
 
@@ -784,7 +800,6 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	// against the viewport's top-left edge for a seamless look.
 	const int overlayTop = 0;
 	const int overlayLeft = 0;
-	const int overlayExpandedWidth = 420;
 	// Just enough for the collapse button itself once collapsed - matches
 	// its own locked 14px width plus the overlay wrapper's own 6px margins
 	// (see attachOverlayPanel()).
@@ -797,7 +812,7 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	_navigationOverlay->setGeometry(
 		overlayLeft,
 		overlayTop,
-		_navigationCollapsed ? overlayCollapsedWidth : overlayExpandedWidth,
+		_navigationCollapsed ? overlayCollapsedWidth : _navigationOverlayWidth,
 		std::max(120, _viewportWidget->height() - overlayTop));
 }
 
@@ -1239,6 +1254,40 @@ void ModelViewer::showEvent(QShowEvent*)
 
 bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 {
+	if (watched == _navResizeHandle)
+	{
+		auto* me = static_cast<QMouseEvent*>(event);
+		switch (event->type())
+		{
+		case QEvent::MouseButtonPress:
+			if (me->button() == Qt::LeftButton)
+			{
+				_navResizeDragStartX = me->globalPosition().x();
+				_navResizeDragStartWidth = _navigationOverlayWidth;
+				return true;
+			}
+			break;
+
+		case QEvent::MouseMove:
+			if ((me->buttons() & Qt::LeftButton) && _viewportWidget)
+			{
+				constexpr int kMinWidth = 200;
+				const int maxWidth = qMax(kMinWidth, _viewportWidget->width() / 2);
+				const int delta = static_cast<int>(me->globalPosition().x() - _navResizeDragStartX);
+				_navigationOverlayWidth = qBound(kMinWidth, _navResizeDragStartWidth + delta, maxWidth);
+				updateNavigationOverlayGeometry();
+				return true;
+			}
+			break;
+
+		case QEvent::MouseButtonRelease:
+			return true;
+
+		default:
+			break;
+		}
+	}
+
 	if (_treeRebuildPending &&
 		(watched == treeWidgetModel || watched == treeWidgetModel->viewport()))
 	{
