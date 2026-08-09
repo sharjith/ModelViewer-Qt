@@ -1190,6 +1190,31 @@ void MainWindow::activateDocument(ModelViewer* child)
 		disconnect(_lastBoundModelViewer->getUndoStack(), &QUndoStack::indexChanged, this, &MainWindow::updateMenus);
 
 	rebindSharedPanelsTo(child);
+
+	// RtRenderDialog is per-document (see ui->actionRayTracing's connect()
+	// in the constructor) but still floats as an independent top-level
+	// window regardless of which widget it's parented to - Qt doesn't
+	// hide/show top-level windows just because their parent's own
+	// visibility changed, so without this a dialog opened for one document
+	// kept showing - and still controlling - that document even while a
+	// completely different one became active. Mirrors
+	// feature/mdi-unified-panels' RtRenderDialog::onActiveSubWindowChanged(),
+	// just driven from here (this codebase's own single choke point for
+	// document-activation changes) instead of QMdiArea::subWindowActivated.
+	// setVisible(), not show()/hide() - repeated identical calls are a
+	// no-op, and this doesn't affect an in-progress render either way, only
+	// whether its dialog is currently on screen.
+	if (_lastBoundModelViewer)
+	{
+		if (RtRenderDialog* previousDialog = _lastBoundModelViewer->findChild<RtRenderDialog*>(QString(), Qt::FindDirectChildrenOnly))
+			previousDialog->setVisible(false);
+	}
+	if (child)
+	{
+		if (RtRenderDialog* newDialog = child->findChild<RtRenderDialog*>(QString(), Qt::FindDirectChildrenOnly))
+			newDialog->setVisible(true);
+	}
+
 	_lastBoundModelViewer = child;
 
 	if (child && child->getUndoStack())
