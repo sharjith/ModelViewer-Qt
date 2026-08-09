@@ -898,6 +898,12 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
 void ViewToolbar::showAnimated()
 {
+	// The navigation overlay panel (see ModelViewer::attachNavigationOverlay())
+	// now stretches to the viewport's full height and is raised above sibling
+	// widgets, including this toolbar, in stacking order - without this, the
+	// revealed toolbar would render (and be clickable) behind the panel
+	// wherever the two overlap.
+	raise();
 	if (_toolbarAnimation->state() == QAbstractAnimation::Running)
 		_toolbarAnimation->stop();
 	_toolbarAnimation->setStartValue(geometry());

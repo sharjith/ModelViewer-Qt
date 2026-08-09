@@ -3466,8 +3466,7 @@ void ViewportWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& obj
 	wrapper->setStyleSheet(QString(
 		"QWidget#%1 {"
 		"  background-color: rgba(255, 255, 255, 0%);"
-		"  border: 1px solid rgba(255, 255, 255, 40);"
-		"  border-radius: 6px;"
+		"  border: none;"
 		"}"
 		"QWidget#%1 QLineEdit {"
 		"  background-color: rgba(%5, %6, %7, %8);"
@@ -3480,6 +3479,7 @@ void ViewportWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& obj
 		"  background-color: rgba(%13, %14, %15, %16);"
 		"  alternate-background-color: rgba(%17, %18, %19, %20);"
 		"  color: rgb(%24, %25, %26);"
+		"  border: none;"
 		"}"
 		/* Tab bar: transparent background, tinted tabs that adapt to dark/light bg */
 		"QWidget#%1 QTabBar {"
