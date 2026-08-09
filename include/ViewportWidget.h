@@ -1152,8 +1152,21 @@ private:
 	void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
 	void updateEnvMapRotationMatrix();
 
-	void loadEnvMap();
-	void loadIrradianceMap();
+	// allowCacheReuse=true only from initializeGL()'s context-recreation
+	// path - see the identical reasoning on loadIrradianceMap() below;
+	// getEnvironmentMap(regenerate=true) (used to load a newly selected
+	// skybox folder) must always re-upload regardless of context sharing.
+	void loadEnvMap(bool allowCacheReuse = false);
+	// allowCacheReuse=true only from initializeGL()'s context-recreation
+	// path, where skipping regeneration when the IBL maps already survived
+	// a shared context is correct. Every other call site (skybox/environment
+	// changes, explicit regenerate=true requests from getIrradianceMap()/
+	// getPrefilterMap()/getSheenPrefilterMap()) means "the environment
+	// itself changed, or the caller explicitly wants fresh data" - the old
+	// irradiance/prefilter maps having non-zero handles there doesn't mean
+	// they're still correct, just that they haven't been freed yet, so
+	// those callers must always regenerate regardless of context sharing.
+	void loadIrradianceMap(bool allowCacheReuse = false);
 	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
 	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();

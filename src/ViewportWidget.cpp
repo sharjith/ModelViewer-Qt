@@ -1107,10 +1107,14 @@ void ViewportWidget::initializeGL()
 
 	createLights();
 
-	// Environment Mapping
-	loadEnvMap();
-	// IBL Map
-	loadIrradianceMap();
+	// Environment Mapping - allowCacheReuse=true: this is initializeGL()'s
+	// context-recreation path (see loadEnvMap()'s own doc comment).
+	loadEnvMap(true);
+	// IBL Map - allowCacheReuse=true: this is initializeGL()'s context-
+	// recreation path, the one place where "the IBL maps already survived
+	// under a shared context" is actually a valid reason to skip
+	// regenerating them (see loadIrradianceMap()'s own doc comment).
+	loadIrradianceMap(true);
 
 	// Load preset environment maps (Studio, Outdoor, Office)
 	const QString dataDir = PathUtils::getDataDirectory();
@@ -5122,8 +5126,8 @@ void ViewportWidget::clearAnimatedMeshVisibilityState(const QString& sourceFile)
 	updatePunctualLights();
 }
 
-void ViewportWidget::loadEnvMap()
-{	
+void ViewportWidget::loadEnvMap(bool allowCacheReuse)
+{
     const QString path = PathUtils::getDataDirectory() + "/";
 
 	if (_skyBox == nullptr)
@@ -5133,7 +5137,7 @@ void ViewportWidget::loadEnvMap()
 	}
 	_renderCtrl.skyBoxShader()->bind();
 	_renderCtrl.skyBoxShader()->setUniformValue("skybox", 1);
-	
+
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	const bool hadEnvironmentMap = (_renderCtrl.environmentMap() != 0);
 	if (_renderCtrl.environmentMap() == 0)
@@ -5145,13 +5149,18 @@ void ViewportWidget::loadEnvMap()
 	if (_renderCtrl.currentSkyboxFolder().isEmpty())
 		_renderCtrl.setCurrentSkyboxFolder(path + "textures/envmap/skyboxes/LDRI/@Default");
 
-	// Shared contexts keep the cubemap texture alive. Re-upload only if this
-	// is the first pass or a caller has explicitly invalidated the texture.
-	if (!IGpuContextResource::contextsAreShared() || !hadEnvironmentMap)
+	// allowCacheReuse=true only from initializeGL()'s context-recreation
+	// path (see loadIrradianceMap()'s identical reasoning) - every other
+	// caller (getEnvironmentMap(regenerate=true), used to load a newly
+	// selected skybox folder) means the environment itself may have
+	// changed, so hadEnvironmentMap being true there does NOT mean the
+	// existing texture still holds the right pixels - it must always
+	// re-upload regardless of context sharing.
+	if (!allowCacheReuse || !IGpuContextResource::contextsAreShared() || !hadEnvironmentMap)
 		setSkyBoxTextureFolder(_renderCtrl.currentSkyboxFolder());
 }
 
-void ViewportWidget::loadIrradianceMap()
+void ViewportWidget::loadIrradianceMap(bool allowCacheReuse)
 {
 	const bool hasIblCache =
 		_renderCtrl.irradianceMap() != 0 &&
@@ -5160,7 +5169,7 @@ void ViewportWidget::loadIrradianceMap()
 		_renderCtrl.brdfLUTTexture() != 0 &&
 		_renderCtrl.charlieLUTTexture() != 0 &&
 		_renderCtrl.sheenELUTTexture() != 0;
-	if (!IGpuContextResource::contextsAreShared() || !hasIblCache)
+	if (!allowCacheReuse || !IGpuContextResource::contextsAreShared() || !hasIblCache)
 	{
 		_renderCtrl.generateIBL(defaultFramebufferObject());
 	}
