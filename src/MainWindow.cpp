@@ -89,9 +89,15 @@ MainWindow::MainWindow(QWidget* parent)
 		// (qmdiarea.cpp): neither function nor the QMdiAreaPrivate::rearrange()
 		// they both funnel through checks viewMode at all.
 		_mdiArea->setViewMode(QMdiArea::TabbedView);
-		_mdiArea->setDocumentMode(false);
-		_mdiArea->setTabsClosable(false);
-		_mdiArea->setTabsMovable(false);
+		// Document mode for a cleaner/flatter tab bar, closable (per-tab close
+		// button, handled internally by QMdiArea - closes the underlying
+		// QMdiSubWindow the same as the existing Close action) and movable
+		// (drag-to-reorder) tabs, and North to match every other tab widget
+		// in this app (_documentTabWidget/_propertiesTabWidget above).
+		_mdiArea->setDocumentMode(true);
+		_mdiArea->setTabsClosable(true);
+		_mdiArea->setTabsMovable(true);
+		_mdiArea->setTabPosition(QTabWidget::North);
 		setCentralWidget(_mdiArea);
 
 		// Single activation source, unlike Qt-ADS's multi-area document
@@ -633,7 +639,9 @@ ModelViewer* MainWindow::createMdiChild()
 	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/test-models");
 	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
-	createDocumentSubWindow(viewer);
+	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);
+	qDebug() << "MainWindow: created document via Open/createMdiChild -"
+	         << "viewer=" << (void*)viewer << "subWindow=" << (void*)subWindow;
 
 	// Apply persisted perspective FOV immediately so the first view uses the
 	// setting before any settingsChanged signal fires.
@@ -674,6 +682,14 @@ QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 		// stack, where touching _viewers is safe.
 		if (_shuttingDown)
 			return;
+		// Pointer value only - viewer is mid-QObject-destruction here (this
+		// slot runs off QObject::destroyed(), emitted from ~QObject() after
+		// ~ModelViewer() has already fully run), so calling any method on it
+		// (windowTitle(), etc.) is undefined behavior. Diagnostic for the
+		// "tab present, document gone" bug (2026-08-10) - confirms whether a
+		// document actually goes through this normal destruction path or
+		// disappears some other way.
+		qDebug() << "MainWindow: document destroyed (normal close path) - viewer=" << (void*)viewer;
 		_viewers.removeAll(viewer);
 
 		const bool viewerWasActive = (viewer == _activeDocument);
@@ -1455,6 +1471,21 @@ void MainWindow::showEvent(QShowEvent* event)
 				bar->setIconSize(QSize(20, 20));
 		}
 
+		// Document tabs (_mdiArea's own TabbedView tab bar, not touched by
+		// the icon-size loop above) default to expanding to fill the whole
+		// tab bar width - with only one or two documents open that stretches
+		// each tab across a large chunk of the window instead of sizing to
+		// its label/icon. setExpanding(false) is Qt's documented switch for
+		// this (QTabBar::expanding). setAutoHide(false) is explicit
+		// insurance against QTabBar's own default of hiding itself entirely
+		// with fewer than 2 tabs - this app always wants the strip visible,
+		// even for a single open document.
+		if (QTabBar* mdiTabBar = _mdiArea->findChild<QTabBar*>())
+		{
+			mdiTabBar->setExpanding(false);
+			mdiTabBar->setAutoHide(false);
+		}
+
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		if (settings.value("showQuickHelpOnStartup", true).toBool())
 		{
@@ -1515,8 +1546,16 @@ void MainWindow::on_actionNew_triggered()
 	ModelViewer* viewer = new ModelViewer(nullptr);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
-	createDocumentSubWindow(viewer);
+	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);
+	qDebug() << "MainWindow: created document via New -"
+	         << "viewer=" << (void*)viewer << "subWindow=" << (void*)subWindow
+	         << "title=" << viewer->windowTitle();
 	viewer->showMaximized();
+	// Matches presentDocumentFullscreen()'s eager activateDocument() call
+	// (used by every other document-creation path - Open, the startup
+	// document) instead of relying solely on QMdiArea's own
+	// subWindowActivated signal to establish _activeDocument.
+	activateDocument(viewer);
 	//std::vector<int> mod = { 5 };
 	//viewer->getViewportWidget()->setDisplayList(mod);
 	viewer->updateDisplayList();
@@ -1880,7 +1919,20 @@ void MainWindow::updateWindowMenu()
 	{
 		auto* subWindow = qobject_cast<QMdiSubWindow*>(child->parentWidget());
 		if (!subWindow)
+		{
+			// Diagnostic for the "tab present, document gone from the Window
+			// menu" bug (2026-08-10) - _viewers still references this
+			// ModelViewer, but its parentWidget() no longer resolves to a
+			// QMdiSubWindow, so it's silently skipped here without ever
+			// being removed from _viewers. Logging the actual parent type
+			// pins down whether this is a real reparent/detach or something
+			// else (e.g. a mid-destruction qobject_cast quirk).
+			qWarning() << "MainWindow::updateWindowMenu - skipping tracked document with non-QMdiSubWindow parent:"
+			           << "viewer=" << (void*)child << "title=" << child->windowTitle()
+			           << "currentFile=" << child->currentFile()
+			           << "parentWidget=" << (child->parentWidget() ? child->parentWidget()->metaObject()->className() : "null");
 			continue;
+		}
 
 		const QString text = child->currentFile().isEmpty() ? child->windowTitle() : QFileInfo(child->currentFile()).fileName();
 		QAction* action = ui->menuWindows->addAction(text, subWindow, [this, subWindow, child]() {

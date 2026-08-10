@@ -2822,6 +2822,10 @@ void ModelViewer::importFiles(QStringList& fileNames)
 	// Load selected files
 	if (!fileNames.isEmpty())
 	{
+		qDebug() << "ModelViewer::importFiles - importing into viewer=" << (void*)this
+		         << "title=" << windowTitle()
+		         << "parentWidget=" << (parentWidget() ? parentWidget()->metaObject()->className() : "null")
+		         << "files=" << fileNames;
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 		for (const QString& fileName : std::as_const(fileNames))
 		{
@@ -2832,6 +2836,9 @@ void ModelViewer::importFiles(QStringList& fileNames)
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();
 		QApplication::alert(MainWindow::mainWindow());
+
+		qDebug() << "ModelViewer::importFiles - import complete for viewer=" << (void*)this
+		         << "parentWidget=" << (parentWidget() ? parentWidget()->metaObject()->className() : "null");
 	}
 }
 
