@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/icons">
+        <file>res/dock-tab-close-button.svg</file>
         <file>res/export.png</file>
         <file>res/import.png</file>
         <file>res/pancursor.png</file>

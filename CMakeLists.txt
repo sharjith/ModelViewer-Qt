@@ -117,7 +117,7 @@ else()
     message(STATUS "OptiX GPU path tracer backend: disabled (no CUDA compiler found)")
 endif()
 
-find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets LinguistTools)
+find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets Svg LinguistTools)
 
 # Qt6_FOUND must be captured here, immediately after the call above - a
 # second find_package(Qt6 COMPONENTS ...) call (the optional WebEngineWidgets
@@ -468,8 +468,9 @@ target_link_libraries(ModelViewer
         meshoptimizer::meshoptimizer
         Qt6::Core
         Qt6::Gui
-        Qt6::OpenGLWidgets        
-        Qt6::Widgets        
+        Qt6::OpenGLWidgets
+        Qt6::Widgets
+        Qt6::Svg
         basisu::basisu_encoder
         embree
         OpenImageDenoise

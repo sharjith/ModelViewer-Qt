@@ -31,6 +31,7 @@
 #include <DockWidget.h>
 #include <DockWidgetTab.h>
 #include <DockAreaWidget.h>
+#include <IconProvider.h>
 #include <QLabel>
 #include <QCheckBox>
 #include <QVBoxLayout>
@@ -84,6 +85,31 @@ MainWindow::MainWindow(QWidget* parent)
 		// that config flags are process-global, not per-instance - one call
 		// here covers both managers below.
 		CDockManager::setConfigFlag(CDockManager::FocusHighlighting, true);
+		// Off by default in this Qt-ADS version - without it, document tabs
+		// show no close button at all (matches the equivalent
+		// _mdiArea->setTabsClosable(true) on feature/mdi-unified-panels).
+		// CustomCloseHandling on each document's CDockWidget (see
+		// createDocumentDock()) still routes the actual click through
+		// viewer->close(), so the unsaved-changes prompt behaves the same
+		// either way - this flag only controls whether the button is drawn.
+		CDockManager::setConfigFlag(CDockManager::AllTabsHaveCloseButton, true);
+
+		// Registered directly in C++ rather than via QSS qproperty-icon -
+		// confirmed via Qt-ADS's own source (ads_globals.cpp's
+		// setButtonIcon()) that this iconProvider() lookup is checked FIRST,
+		// before any style-sheet-driven icon, and applied via a direct
+		// Button->setIcon() call at the button's construction time. Multiple
+		// QSS-only attempts at this (unscoped #tabCloseButton rule, a
+		// recolored replacement SVG, forcing a stylesheet repolish on every
+		// new document) all failed to make the icon visible (2026-08-10) -
+		// this app's dark theme never explicitly sets QPalette::Light, so
+		// Qt-ADS's own hardcoded-black close-button.svg has ~zero contrast
+		// against the auto-computed background, and something about this
+		// button's specific creation/polish timing meant QSS never actually
+		// applied a replacement icon either. Bypassing QSS entirely for this
+		// one icon sidesteps both problems at once.
+		CDockManager::iconProvider().registerCustomIcon(
+			TabCloseIcon, QIcon(QStringLiteral(":/icons/res/dock-tab-close-button.svg")));
 
 		// Document area (left/top) and tool-panel column (right/bottom) each
 		// get their own independent CDockManager, hosted as the two children
@@ -132,6 +158,10 @@ MainWindow::MainWindow(QWidget* parent)
 		// which is otherwise equal - makes these win over Qt-ADS's own
 		// same-widget stylesheet.
 		//
+		// #tabCloseButton's icon itself is set via CDockManager::iconProvider()
+		// above, not QSS (see that comment for why) - only its hover/pressed
+		// backgrounds are styled here.
+		//
 		// [activeTab="true"] is also overridden here, flattening Qt-ADS's own
 		// default.css/default_linux.css gradient (background: qlineargradient(
 		// ... stop:0 palette(window), stop:1 palette(light))) to a flat
@@ -171,14 +201,11 @@ ads--CDockWidgetTab[focused="true"] {
 ads--CDockWidgetTab[focused="true"] QLabel {
 	color: palette(foreground);
 }
-ads--CDockWidgetTab[focused="true"] > #tabCloseButton {
-	qproperty-icon: url(:/ads/images/close-button.svg), url(:/ads/images/close-button-disabled.svg) disabled;
-}
-ads--CDockWidgetTab[focused="true"] > #tabCloseButton:hover {
+#tabCloseButton:hover {
 	border: 1px solid rgba(0, 0, 0, 32);
 	background: rgba(0, 0, 0, 16);
 }
-ads--CDockWidgetTab[focused="true"] > #tabCloseButton:pressed {
+#tabCloseButton:pressed {
 	background: rgba(0, 0, 0, 32);
 }
 )");
@@ -994,6 +1021,24 @@ ads::CDockWidget* MainWindow::createDocumentDock(ModelViewer* viewer)
 	}
 
 	dock->setAsCurrentTab();
+
+	// Same Qt stylesheet-repolish gap already worked around for the very
+	// first document's tab in showEvent() (see that comment for the full
+	// explanation) - Qt-ADS's own dynamic-property-based selectors
+	// ([activeTab="true"] etc, used both by its own default styling and by
+	// dockManagerStyleOverrides above) aren't guaranteed to be re-evaluated
+	// on a freshly created tab's very first paint. That existing workaround
+	// only ever ran once, for _viewers[0] at startup - every document
+	// created afterward (every real-world Open/New/Import) needs the same
+	// forced unpolish/polish cascade, not just the first. (Investigated as a
+	// possible cause of the close button icon not showing, 2026-08-10 - the
+	// actual cause turned out to be unrelated, see the iconProvider()
+	// comment in the constructor, but this repolish gap is real and worth
+	// keeping fixed regardless.)
+	QTimer::singleShot(0, _documentDockManager, [this]() {
+		_documentDockManager->setStyleSheet(_documentDockManager->styleSheet());
+	});
+
 	return dock;
 }
 
