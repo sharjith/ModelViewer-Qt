@@ -1895,6 +1895,14 @@ void MainWindow::on_actionNew_triggered()
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	viewer->setWindowTitle(QString("Session %1").arg(++_viewerCount));
 	createDocumentDock(viewer);
+	// Matches every other document-creation path (Open, the startup
+	// document) - without this, _activeDocument was left to whatever Qt-ADS's
+	// own focus/currentChanged signal eventually established, instead of
+	// being set eagerly the same way presentDocumentFullscreen() already
+	// does for those other paths. Same asymmetry fixed on
+	// feature/mdi-unified-panels's on_actionNew_triggered() (2026-08-10),
+	// while investigating a "document tab present but untracked" bug.
+	presentDocumentFullscreen(viewer);
 	//std::vector<int> mod = { 5 };
 	//viewer->getViewportWidget()->setDisplayList(mod);
 	viewer->updateDisplayList();
