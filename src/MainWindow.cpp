@@ -9,6 +9,7 @@
 
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
+#include "AboutDialog.h"
 #include "QuickHelpDialog.h"
 #include "TutorialDialog.h"
 #include "Logger.h"
@@ -22,7 +23,6 @@
 #include <QPushButton>
 #include <QUuid>
 #include <utility>
-#include <assimp/version.h>
 
 #include "PathUtils.h"
 #include "RtRenderDialog.h"
@@ -1412,21 +1412,8 @@ void MainWindow::on_actionOpen_Logs_Folder_triggered()
 
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
-	unsigned int assimpMajor = aiGetVersionMajor();
-	unsigned int assimpMinor = aiGetVersionMinor();
-
-	QString aboutText = QString(tr("Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library,"
-		" and STEP, IGES, and BREP files using the OpenCASCADE library\n\n"
-		"App Version: %1\n"
-		"ASSIMP Version: %2.%3\n\n"
-		"Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n"))
-		.arg(APP_VERSION_STRING)
-		.arg(assimpMajor)
-		.arg(assimpMinor);
-
-	QMessageBox::about(this,
-		tr("About 3D Model Viewer"),
-		aboutText + graphicsInfo());
+	AboutDialog dlg(graphicsInfo(), this);
+	dlg.exec();
 }
 
 void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)
