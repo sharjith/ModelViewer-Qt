@@ -411,13 +411,25 @@ void ModelViewer::retranslateUI()
 
 void ModelViewer::close()
 {
+	// QMdiSubWindow's documented auto-close cascade only reliably runs
+	// top-down (closing the subwindow closes its embedded widget) - closing
+	// the embedded widget directly does not reliably tear down the
+	// QMdiSubWindow/tab itself, leaving an empty tab behind. Redirecting to
+	// the subwindow's own close() fixes that at the source.
 	if (QMdiSubWindow* subWin = qobject_cast<QMdiSubWindow*>(parentWidget()))
 	{
 		subWin->close(); // Closes the MDI tab/subwindow container
 	}
 	else
 	{
-		this->close(); // Fallback if not inside an MDI area
+		// Not yet parented to a QMdiSubWindow (or no longer is) - fall back
+		// to the real QWidget::close(). Plain this->close() here would
+		// recurse into THIS function forever: ModelViewer::close() isn't
+		// virtual and isn't overriding anything (QWidget::close() isn't
+		// virtual either), so declaring it just hides the base class name -
+		// this->close() would resolve back to ModelViewer::close(), not
+		// QWidget::close(), without the explicit qualification below.
+		QWidget::close();
 	}
 }
 
