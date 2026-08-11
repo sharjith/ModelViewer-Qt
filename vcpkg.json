@@ -43,6 +43,9 @@
       "name": "qtimageformats"
     },
     {
+      "name": "qtsvg"
+    },
+    {
       "name": "basisu",
       "default-features": false
     },
