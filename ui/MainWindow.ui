@@ -51,7 +51,6 @@
     <addaction name="actionOpen_Logs_Folder"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
-    <addaction name="actionAbout_Qt"/>
    </widget>
    <widget class="QMenu" name="menuWindows">
     <property name="title">
@@ -113,17 +112,6 @@
    </property>
    <property name="statusTip">
     <string>About the application</string>
-   </property>
-  </action>
-  <action name="actionAbout_Qt">
-   <property name="icon">
-    <iconset theme="help-about-qt"/>
-   </property>
-   <property name="text">
-    <string>About Qt</string>
-   </property>
-   <property name="statusTip">
-    <string>About the Qt Library</string>
    </property>
   </action>
   <action name="actionNew">

@@ -1416,11 +1416,6 @@ void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 	dlg.exec();
 }
 
-void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)
-{
-	QMessageBox::aboutQt(this, tr("About Qt"));
-}
-
 void MainWindow::showEvent(QShowEvent* event)
 {
 	QWidget::showEvent(event);

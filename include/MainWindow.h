@@ -117,7 +117,6 @@ protected slots:
 	void on_actionView_Logs_triggered();
 	void on_actionOpen_Logs_Folder_triggered();
 	void on_actionAbout_triggered(bool checked = false);
-	void on_actionAbout_Qt_triggered(bool checked = false);
 
 private slots:
 	void on_actionNew_triggered();
