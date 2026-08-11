@@ -39,6 +39,7 @@
 #include <QFile>
 #include <QFileDialog>
 #include <QLineEdit>
+#include <QMdiSubWindow>
 #include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
@@ -406,6 +407,18 @@ ModelViewer::~ModelViewer()
 void ModelViewer::retranslateUI()
 {
 	// Dynamically created	
+}
+
+void ModelViewer::close()
+{
+	if (QMdiSubWindow* subWin = qobject_cast<QMdiSubWindow*>(parentWidget()))
+	{
+		subWin->close(); // Closes the MDI tab/subwindow container
+	}
+	else
+	{
+		this->close(); // Fallback if not inside an MDI area
+	}
 }
 
 void ModelViewer::deselectAll()

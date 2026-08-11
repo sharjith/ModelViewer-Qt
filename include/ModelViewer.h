@@ -48,6 +48,8 @@ public:
 
 	void retranslateUI();
 
+	void close();
+
 	ViewportWidget*    getViewportWidget()    const { return _viewportWidget; }
 	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
 	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
