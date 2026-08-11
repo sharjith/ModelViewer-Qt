@@ -1761,6 +1761,13 @@ void RenderableMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 RenderableMesh::~RenderableMesh()
 {
 	deleteBuffers();
+	// Non-polymorphic here by necessity (base class destructor, vtable
+	// already unwound to RenderableMesh) - only ever cleans up this
+	// class's own _fallbackTexture. Derived classes with their own
+	// deleteTextures() override (e.g. SceneMesh) must call it themselves,
+	// from their own destructor, before delegating up to this one - see
+	// SceneMesh::~SceneMesh()'s comment for the leak this caused when it
+	// didn't.
 	deleteTextures();
 }
 

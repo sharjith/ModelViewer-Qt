@@ -1945,7 +1945,7 @@ void ExplodedViewPanel::clearAssemblyPreviewSelection()
 
 QString ExplodedViewPanel::describeAssemblySelection(const QList<int>& ids) const
 {
-    if (!_sceneGraph || ids.isEmpty())
+    if (!_sceneGraph || !_viewportWidget || ids.isEmpty())
         return tr("%1 meshes").arg(ids.size());
 
     QSet<const SceneNode*> owningNodes;

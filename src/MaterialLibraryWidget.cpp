@@ -971,7 +971,13 @@ void MaterialLibraryWidget::populateMaterials()
 	}
 
 	// Build tree from s_groups
-	for (const auto& gpair : s_groups)
+	// False positive: QTreeWidgetItem(parent, ...) is Qt's own ownership-
+	// via-constructor idiom (both groupItem below, parented to `this`, and
+	// its children, parented to groupItem) - the analyzer doesn't model
+	// Qt's parent/child deletion, only plain new/delete pairing. Adding an
+	// explicit delete here would be a real double-free once Qt's own
+	// ownership (clear(), or this widget's own destruction) deletes it.
+	for (const auto& gpair : s_groups) // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 	{
 		QTreeWidgetItem* groupItem = new QTreeWidgetItem(this, QStringList() << gpair.first);
 		for (const auto& itemPair : gpair.second)

@@ -444,7 +444,14 @@ aiMatrix4x4 XCAFDocProcessor::convertLocationToMatrix(const TopLoc_Location& loc
     {
         for (int j = 0; j < 4; j++)
         {
-            matrix[i][j] = transformation.Value(i + 1, j + 1);
+            // False positive from Assimp's own aiMatrix4x4::operator[] (a
+            // type-punning trick over its named a1..d4 members, defined in
+            // matrix4x4.inl and inlined here) that clang's analyzer
+            // doesn't trust, not our indexing - i in [0,2] and j in [0,3]
+            // are both in-bounds for a 4x4 matrix, and the analyzer flags
+            // the identical pattern directly inside Assimp's own header
+            // too.
+            matrix[i][j] = transformation.Value(i + 1, j + 1); // NOLINT(clang-analyzer-security.ArrayBound)
         }
     }
     matrix[3][0] = matrix[3][1] = matrix[3][2] = 0.0f;

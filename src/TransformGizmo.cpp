@@ -81,7 +81,11 @@ TransformGizmo::TransformGizmo(QObject* parent)
 
 TransformGizmo::~TransformGizmo()
 {
-	releaseGpuResources();
+	// False positive: TransformGizmo is the sole implementer of
+	// IGpuContextResource::releaseGpuResources() in this hierarchy (no
+	// further subclass), so the non-polymorphic resolution during
+	// destruction still reaches the only real implementation.
+	releaseGpuResources(); // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
 }
 
 void TransformGizmo::clearInteraction()

@@ -3084,7 +3084,7 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 	QString key = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
 	// Try to derive group from currently selected tree item
-	QList<QTreeWidgetItem*> selectedItems = libraryWidget->selectedItems();
+	QList<QTreeWidgetItem*> selectedItems = libraryWidget ? libraryWidget->selectedItems() : QList<QTreeWidgetItem*>();
 	if (!selectedItems.isEmpty())
 	{
 		QTreeWidgetItem* selectedItem = selectedItems.first();

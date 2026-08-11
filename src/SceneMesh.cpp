@@ -103,13 +103,21 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 
 SceneMesh::~SceneMesh()
 {
-	/*if (_textures.size())
-	{
-		for (const Material::Texture &t : _textures)
-		{
-			glDeleteTextures(1, &t.id);
-		}
-	}*/
+	// Must be called from here, not left to ~RenderableMesh() alone: a
+	// virtual call from a base class destructor can never reach a derived
+	// override (the vtable has already unwound to the base by the time
+	// that runs), so ~RenderableMesh()'s own deleteTextures() call only
+	// ever resolves to RenderableMesh::deleteTextures() - the six ADS
+	// material texture handles SceneMesh::deleteTextures() deletes before
+	// delegating to it were leaking on every SceneMesh destruction
+	// (confirmed via clang-analyzer's optin.cplusplus.VirtualCall check).
+	// Calling it here, still within SceneMesh's own destructor, resolves
+	// correctly; ~RenderableMesh()'s later call becomes a harmless no-op
+	// (it already zeroes/guards its own handle). clang-analyzer still
+	// flags this call generically (any virtual call during destruction),
+	// but SceneMesh has no further subclass, so this - unlike the base
+	// class's own later call - already reaches the real, only override.
+	deleteTextures(); // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
 }
 
 SceneMesh* SceneMesh::clone()
@@ -683,7 +691,12 @@ void SceneMesh::optimizeMesh()
 		// simplified skinned mesh's weights would no longer correspond to the
 		// simplified topology.
 		std::vector<unsigned int> lod1Indices;
-		const bool eligibleForLod = !hasSkinning() && !hasMorphTargets()
+		// False positive: this runs from optimizeMesh(), called from
+		// SceneMesh's own constructor (not a base class ctor), so
+		// SceneMesh's own vtable is already active here - SceneMesh has no
+		// further subclass, so its own hasSkinning()/hasMorphTargets()
+		// overrides ARE what's being called, not a "wrong" base version.
+		const bool eligibleForLod = !hasSkinning() && !hasMorphTargets() // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
 			&& _primitiveMode == GL_TRIANGLES
 			&& _indices.size() >= kLodMinTriangleCount * 3;
 		if (eligibleForLod)
