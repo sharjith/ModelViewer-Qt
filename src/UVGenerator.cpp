@@ -1,6 +1,8 @@
 #include "UVGenerator.h"
-#include <cstdint>   
+#include <algorithm>
+#include <cstdint>
 #include <functional>
+#include <limits>
 #include <queue>
 #include <utility>
 #include <unordered_set>
@@ -15,6 +17,26 @@ void buildIdentityVertexMap(size_t vertexCount, std::vector<unsigned int>* sourc
     sourceVertexMap->resize(vertexCount);
     for (size_t i = 0; i < vertexCount; ++i)
         (*sourceVertexMap)[i] = static_cast<unsigned int>(i);
+}
+
+// Port of Blender's ortho_basis_v3v3_v3 (source/blender/blenlib/intern/math_vector.cc).
+// Builds two vectors orthogonal to a unit normal, used as a projection's tangent/bitangent.
+void orthoBasisFromNormal(const glm::vec3& n, glm::vec3& r_t, glm::vec3& r_b)
+{
+    const float eps = std::numeric_limits<float>::epsilon();
+    const float f = n.x * n.x + n.y * n.y;
+
+    if (f > eps)
+    {
+        const float d = 1.0f / std::sqrt(f);
+        r_t = glm::vec3(n.y * d, -n.x * d, 0.0f);
+        r_b = glm::vec3(-n.z * r_t.y, n.z * r_t.x, n.x * r_t.y - n.y * r_t.x);
+    }
+    else
+    {
+        r_t = glm::vec3((n.z < 0.0f) ? -1.0f : 1.0f, 0.0f, 0.0f);
+        r_b = glm::vec3(0.0f, 1.0f, 0.0f);
+    }
 }
 }
 
@@ -749,6 +771,202 @@ bool UVGenerator::generateAngleBasedSmartUV(
 }
 
 
+// Method 7: Smart Project - ported from Blender's UV_OT_smart_project
+// (source/blender/editors/uvedit/uvedit_unwrap_ops.cc: smart_uv_project_calculate_project_normals
+// and smart_project_exec). Unlike the seam/connectivity-based methods above, this clusters
+// triangles purely by face-normal similarity: seed a cluster from the largest-area triangle,
+// grow it by (optionally area-weighted) average normal within half the angle limit, then repeatedly
+// spawn a new cluster from whichever remaining triangle is least similar to every existing
+// cluster, until none exceeds the angle limit. Each cluster is then linearly projected with an
+// orthonormal basis built from its averaged normal.
+bool UVGenerator::generateSmartProject(
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
+{
+    if (vertices.empty() || indices.empty())
+        return false;
+
+    std::vector<MeshTriangle> triangles;
+    buildTriangleList(vertices, indices, triangles);
+    if (triangles.empty())
+        return false;
+
+    const float areaIgnoreThreshold = 1e-12f; // Matches Blender's smart_uv_project_area_ignore
+    const float angleLimitRad = glm::radians(config.smartProjectAngleLimit);
+    const float angleLimitCos = std::cos(angleLimitRad);
+    const float angleLimitHalfCos = std::cos(angleLimitRad * 0.5f);
+    const float areaWeight = glm::clamp(config.smartProjectAreaWeight, 0.0f, 1.0f);
+
+    // Sort triangles by descending area and drop near-zero-area ones from clustering
+    // (they're still emitted below, with UV (0,0), same as Blender does for degenerate faces).
+    std::vector<uint32_t> order(triangles.size());
+    for (uint32_t i = 0; i < triangles.size(); ++i)
+        order[i] = i;
+    std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) {
+        return triangles[a].area > triangles[b].area;
+        });
+
+    size_t thickCount = order.size();
+    while (thickCount > 0 && !(triangles[order[thickCount - 1]].area > areaIgnoreThreshold))
+        --thickCount;
+
+    // --- Cluster triangles by normal similarity (greedy furthest-normal seeding) ---
+    std::vector<glm::vec3> projectNormals;
+    if (thickCount > 0)
+    {
+        std::vector<bool> tagged(thickCount, false);
+        glm::vec3 projectNormal = triangles[order[0]].normal;
+        std::vector<size_t> clusterMembers;
+
+        while (true)
+        {
+            for (size_t i = thickCount; i-- > 0;)
+            {
+                if (tagged[i]) continue;
+                if (glm::dot(triangles[order[i]].normal, projectNormal) > angleLimitHalfCos)
+                {
+                    clusterMembers.push_back(i);
+                    tagged[i] = true;
+                }
+            }
+
+            glm::vec3 avgNormal(0.0f);
+            for (size_t idx : clusterMembers)
+            {
+                const MeshTriangle& tri = triangles[order[idx]];
+                if (areaWeight <= 0.0f)
+                    avgNormal += tri.normal;
+                else if (areaWeight >= 1.0f)
+                    avgNormal += tri.normal * tri.area;
+                else
+                    avgNormal += tri.normal * (tri.area * areaWeight + (1.0f - areaWeight));
+            }
+            if (glm::length(avgNormal) > 1e-12f)
+                projectNormals.push_back(glm::normalize(avgNormal));
+
+            clusterMembers.clear();
+
+            // Find the remaining triangle whose normal is most different ("most unique")
+            // from every existing cluster normal.
+            float angleBest = 1.0f;
+            size_t angleBestIndex = 0;
+            for (size_t i = thickCount; i-- > 0;)
+            {
+                if (tagged[i]) continue;
+                float angleTest = -1.0f;
+                for (const glm::vec3& p : projectNormals)
+                    angleTest = std::max(angleTest, glm::dot(p, triangles[order[i]].normal));
+                if (angleTest < angleBest)
+                {
+                    angleBest = angleTest;
+                    angleBestIndex = i;
+                }
+            }
+
+            if (angleBest < angleLimitCos)
+            {
+                projectNormal = triangles[order[angleBestIndex]].normal;
+                clusterMembers.push_back(angleBestIndex);
+                tagged[angleBestIndex] = true;
+            }
+            else if (!projectNormals.empty())
+            {
+                break;
+            }
+        }
+    }
+
+    // --- Assign every non-degenerate triangle to its closest projection normal ---
+    std::vector<int> triangleGroup(triangles.size(), -1);
+    for (size_t i = 0; i < thickCount; ++i)
+    {
+        uint32_t triIdx = order[i];
+        if (projectNormals.empty())
+            continue;
+
+        float best = glm::dot(triangles[triIdx].normal, projectNormals[0]);
+        int bestGroup = 0;
+        for (int g = 1; g < static_cast<int>(projectNormals.size()); ++g)
+        {
+            float d = glm::dot(triangles[triIdx].normal, projectNormals[g]);
+            if (d > best)
+            {
+                best = d;
+                bestGroup = g;
+            }
+        }
+        triangleGroup[triIdx] = bestGroup;
+    }
+
+    // --- Precompute an orthonormal projection basis per cluster ---
+    std::vector<glm::vec3> groupTangent(projectNormals.size());
+    std::vector<glm::vec3> groupBitangent(projectNormals.size());
+    for (size_t g = 0; g < projectNormals.size(); ++g)
+        orthoBasisFromNormal(projectNormals[g], groupTangent[g], groupBitangent[g]);
+
+    // --- Project and flatten. Vertices are duplicated per-triangle so that adjoining
+    // triangles assigned to different clusters don't fight over one shared UV. ---
+    std::vector<Vertex> newVertices;
+    std::vector<unsigned int> newIndices;
+    std::vector<unsigned int> newSourceVertexMap;
+    newVertices.reserve(triangles.size() * 3);
+    newIndices.reserve(triangles.size() * 3);
+
+    for (size_t t = 0; t < triangles.size(); ++t)
+    {
+        const MeshTriangle& tri = triangles[t];
+        int group = triangleGroup[t];
+
+        for (int i = 0; i < 3; ++i)
+        {
+            Vertex v = vertices[tri.indices[i]];
+            v.TexCoords[0] = (group >= 0)
+                ? glm::vec2(glm::dot(v.Position, groupTangent[group]),
+                            glm::dot(v.Position, groupBitangent[group]))
+                : glm::vec2(0.0f);
+
+            newIndices.push_back(static_cast<unsigned int>(newVertices.size()));
+            newVertices.push_back(v);
+            newSourceVertexMap.push_back(tri.indices[i]);
+        }
+    }
+
+    // --- Pack islands (plays the role of Blender's uvedit_pack_islands_multi) and
+    // apply user transforms ---
+    if (config.enablePacking)
+    {
+        std::vector<glm::vec2> packedUVs(newVertices.size());
+        std::vector<glm::vec3> positions(newVertices.size());
+        for (size_t i = 0; i < newVertices.size(); ++i)
+        {
+            positions[i] = newVertices[i].Position;
+            packedUVs[i] = newVertices[i].TexCoords[0];
+        }
+
+        packWithXAtlas(packedUVs, newIndices, positions);
+
+        for (size_t i = 0; i < newVertices.size(); ++i)
+        {
+            applyUVTransforms(packedUVs[i], config);
+            newVertices[i].TexCoords[0] = packedUVs[i];
+        }
+    }
+    else
+    {
+        for (auto& v : newVertices)
+            applyUVTransforms(v.TexCoords[0], config);
+    }
+
+    vertices = std::move(newVertices);
+    indices = std::move(newIndices);
+    if (sourceVertexMap)
+        *sourceVertexMap = std::move(newSourceVertexMap);
+
+    return true;
+}
+
 
 // Helper method implementations
 void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
@@ -931,20 +1149,35 @@ void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
     const UVIsland& island,
     std::vector<glm::vec2>& uvs)
 {
-    // Simple planar unwrapping for each island
+    if (island.triangles.empty())
+        return;
+
+    // A single area-weighted average normal (and the basis derived from it) is used
+    // for every triangle in the island. Computing the tangent/bitangent basis
+    // per-triangle (as before) meant a vertex shared by two triangles in the same
+    // island got overwritten with UVs from two different bases depending on
+    // iteration order, tearing the island apart at internal edges.
+    glm::vec3 avgNormal(0.0f);
     for (unsigned int triIdx : island.triangles)
     {
         const MeshTriangle& tri = triangles[triIdx];
+        avgNormal += tri.normal * tri.area;
+    }
 
-        // Project triangle onto its best-fit plane
-        glm::vec3 normal = tri.normal;
-        glm::vec3 tangent = glm::normalize(glm::cross(normal, glm::vec3(0, 1, 0)));
-        if (glm::length(tangent) < 0.1f)
-        {
-            tangent = glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)));
-        }
-        glm::vec3 bitangent = glm::cross(normal, tangent);
+    glm::vec3 normal = (glm::length(avgNormal) > 1e-8f)
+        ? glm::normalize(avgNormal)
+        : triangles[island.triangles[0]].normal;
 
+    glm::vec3 tangent = glm::normalize(glm::cross(normal, glm::vec3(0, 1, 0)));
+    if (glm::length(tangent) < 0.1f)
+    {
+        tangent = glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)));
+    }
+    glm::vec3 bitangent = glm::cross(normal, tangent);
+
+    for (unsigned int triIdx : island.triangles)
+    {
+        const MeshTriangle& tri = triangles[triIdx];
         for (int i = 0; i < 3; ++i)
         {
             glm::vec3 pos = vertices[tri.indices[i]].Position;

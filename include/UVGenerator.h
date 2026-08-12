@@ -69,6 +69,11 @@ struct UVConfig
     bool enableRelaxation = false;
     int relaxationIterations = 10; // Default number of smoothing passes
     bool enablePacking = true;
+
+    // Smart Project (ported from Blender's "Smart UV Project"): clusters triangles by
+    // face-normal similarity, independent of mesh connectivity/seams.
+    float smartProjectAngleLimit = 66.0f;  // Degrees; lower = more projection groups, higher = less distortion
+    float smartProjectAreaWeight = 0.0f;   // 0..1; weights cluster-normal averaging by face area
 };
 
 struct MeshTriangle
@@ -131,10 +136,19 @@ public:
         std::vector<unsigned int>& indices,
         const UVConfig& config);*/
 
-    static bool generateAngleBasedSmartUV(        
+    static bool generateAngleBasedSmartUV(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config,
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
+
+    // Method 7: Smart Project - ported from Blender's UV_OT_smart_project. Clusters
+    // triangles by face-normal similarity (not mesh connectivity) and linearly projects
+    // each cluster using an orthonormal basis built from its averaged normal.
+    static bool generateSmartProject(
+        std::vector<Vertex>& vertices,
+        std::vector<unsigned int>& indices,
+        const UVConfig& config = UVConfig{},
         std::vector<unsigned int>* sourceVertexMap = nullptr);
 
 private:

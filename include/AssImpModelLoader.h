@@ -71,7 +71,8 @@ enum class UVMethod
 	Spherical,
 	AngleBased,
 	Hybrid,
-	AngleBasedSmartUV
+	AngleBasedSmartUV,
+	SmartProject
 };
 
 enum class SceneUpAxis

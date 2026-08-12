@@ -1073,8 +1073,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
-		bool remember = settings.value("RememberUVMethod", false).toBool();		
-		if (_sceneStats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
+		bool remember = settings.value("RememberUVMethod", false).toBool();
+		if (_sceneStats.totalTriangles > 100000 &&
+			(_selectedUVMethod == UVMethod::AngleBasedSmartUV || _selectedUVMethod == UVMethod::SmartProject) &&
+			remember)
 		{
 			if (_uvDecisionCallback)
 			{
@@ -1887,6 +1889,9 @@ void AssImpModelLoader::generateUVsForMesh(MeshAnalysis::AnalysisResult& analysi
 	case UVMethod::AngleBasedSmartUV:
 		UVGenerator::generateAngleBasedSmartUV(vertices, indices, uvconfig);
 		break;
+	case UVMethod::SmartProject:
+		UVGenerator::generateSmartProject(vertices, indices, uvconfig);
+		break;
 	case UVMethod::None: // fall through
 	default:
 		break; // skip UV generation
@@ -2018,6 +2023,9 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 		break;
 	case UVMethod::AngleBasedSmartUV:
 		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config, &sourceVertexMap);
+		break;
+	case UVMethod::SmartProject:
+		UVGenerator::generateSmartProject(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::None: // fall through
 	default:

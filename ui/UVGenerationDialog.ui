@@ -58,6 +58,11 @@
           <string>Angle-Based Smart UV</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>Smart Project (Blender-style)</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>
@@ -580,6 +585,96 @@
              </property>
              <property name="value">
               <number>10</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_SmartProject">
+          <layout class="QFormLayout" name="formLayout_SmartProject">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleLimit_SmartProject">
+             <property name="text">
+              <string>Angle Limit (degrees):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleLimit_SmartProject">
+             <property name="toolTip">
+              <string>Lower for more projection groups (less distortion, more islands), higher for fewer projection groups</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>0.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>89.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>66.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_AreaWeight_SmartProject">
+             <property name="text">
+              <string>Area Weight:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AreaWeight_SmartProject">
+             <property name="toolTip">
+              <string>Weight projection direction clustering by face area; 0 treats all faces equally, 1 lets large faces dominate</string>
+             </property>
+             <property name="decimals">
+              <number>2</number>
+             </property>
+             <property name="maximum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_EnablePacking_SmartProject">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking_SmartProject">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_FlipV_SmartProject">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_SmartProject">
+             <property name="text">
+              <string/>
              </property>
             </widget>
            </item>
