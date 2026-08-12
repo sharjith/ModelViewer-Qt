@@ -3,6 +3,24 @@ cmake_minimum_required(VERSION 3.18)
 project(ModelViewer)
 
 find_package(assimp REQUIRED)
+
+# aiTextureType_ANISOTROPY (KHR_materials_anisotropy) was only added in a
+# later Assimp release than some system-package Ubuntu versions ship, and
+# Assimp doesn't expose a compile-time version macro to guard on directly -
+# probe for the symbol itself instead. See MaterialProcessor.h's use of
+# MODELVIEWER_HAVE_ASSIMP_ANISOTROPY.
+include(CheckCXXSourceCompiles)
+get_target_property(_assimp_include_dirs assimp::assimp INTERFACE_INCLUDE_DIRECTORIES)
+set(CMAKE_REQUIRED_INCLUDES ${_assimp_include_dirs})
+check_cxx_source_compiles("
+#include <assimp/material.h>
+int main() { return static_cast<int>(aiTextureType_ANISOTROPY); }
+" MODELVIEWER_HAVE_ASSIMP_ANISOTROPY)
+unset(CMAKE_REQUIRED_INCLUDES)
+if(MODELVIEWER_HAVE_ASSIMP_ANISOTROPY)
+    add_compile_definitions(MODELVIEWER_HAVE_ASSIMP_ANISOTROPY)
+endif()
+
 find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)

@@ -298,7 +298,10 @@ void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, Mate
 		mat.setAnisotropyStrength(std::clamp(value, 0.0f, 1.0f));
 	}
 
-	if (AI_SUCCESS == material->Get(AI_MATKEY_ANISOTROPY_ROTATION, value))
+	// Using the raw key string (what AI_MATKEY_ANISOTROPY_ROTATION expands to) instead of the
+	// macro itself, since that macro isn't available in older Assimp releases still in use on
+	// some Linux distros - the underlying material property key works on any Assimp version.
+	if (AI_SUCCESS == material->Get("$mat.anisotropyRotation", 0, 0, value))
 	{
 		mat.setAnisotropyRotation(value);
 	}

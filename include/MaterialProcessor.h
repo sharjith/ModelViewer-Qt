@@ -167,8 +167,10 @@ private:
 		{ aiTextureType_SPECULAR,          "specularFactorMap", 0, aiTextureType_NONE, "", 0 },
 		{ aiTextureType_SPECULAR,          "specularColorMap",  1, aiTextureType_NONE, "", 0 },
 
+#ifdef MODELVIEWER_HAVE_ASSIMP_ANISOTROPY
 		// KHR_materials_anisotropy
 		{ aiTextureType_ANISOTROPY,        "anisotropyMap",     0, aiTextureType_NONE, "", 0 },
+#endif
 
 		// KHR_materials_iridescence
 		{ aiTextureType_REFLECTION,        "iridescenceMap",    2, aiTextureType_NONE, "", 0 },
