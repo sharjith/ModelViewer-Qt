@@ -187,7 +187,7 @@ jobs:
     - name: Configure CMake (Windows)
       if: runner.os == 'Windows'
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX=install -G Ninja
+        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" -G Ninja
 
     - name: Configure CMake (Linux)
       if: runner.os == 'Linux'
@@ -202,7 +202,7 @@ jobs:
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_PREFIX_PATH="${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise" \
-          -DCMAKE_INSTALL_PREFIX=install \
+          -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" \
           -G Ninja
 
     - name: Build
@@ -217,7 +217,7 @@ jobs:
       run: ctest --build-config ${{ matrix.build_type }} --output-on-failure --parallel
 
     - name: Install
-      run: cmake --install build --prefix install --config ${{ matrix.build_type }}
+      run: cmake --install build --prefix "${{ github.workspace }}/install" --config ${{ matrix.build_type }}
 
     - name: Package artifacts (Windows)
       if: runner.os == 'Windows' && matrix.build_type == 'Release'
