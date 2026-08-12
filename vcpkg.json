@@ -1,7 +1,7 @@
 {
   "name": "modelviewer",
   "version-string": "1.0.0",
-  "builtin-baseline": "0878b5224d4a4968940ee296a2e7fae2d3b62983",
+  "builtin-baseline": "39344dff01c5a5a0134caf2624cdd492f05d30ea",
   "dependencies": [
     {
       "name": "qtbase",
