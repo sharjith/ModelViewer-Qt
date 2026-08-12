@@ -26,7 +26,7 @@ class UVPromptDialog : public QDialog
     Q_OBJECT
 
 public:
-    enum Choice { None, Planar, Cylindrical, Spherical, Angular, Hybrid, Smart };
+    enum Choice { None, Planar, Cylindrical, Spherical, Angular, Hybrid, Smart, SmartProject };
 
     UVPromptDialog(QWidget* parent = nullptr);
     Choice selectedChoice() const;
@@ -40,6 +40,7 @@ private:
     QRadioButton* _angleBasedButton;
     QRadioButton* _hybridButton;
     QRadioButton* _smartButton;
+    QRadioButton* _smartProjectButton;
     QCheckBox* _rememberChoice;
     QPushButton* _okButton;
     QPushButton* _cancelButton;

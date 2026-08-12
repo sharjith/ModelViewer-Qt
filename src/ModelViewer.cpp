@@ -4624,6 +4624,10 @@ UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
 		{
 			result.method = UVMethod::AngleBasedSmartUV;
 		}
+		else if (choice == UVPromptDialog::Choice::SmartProject)
+		{
+			result.method = UVMethod::SmartProject;
+		}
 		else
 		{
 			result.method = UVMethod::None; // Skip UV generation			

@@ -54,15 +54,20 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
         "Uses basic shape detection (planar, cylindrical, spherical).\nFast, but less accurate.");
     _smartButton = new QRadioButton("Smart (Accurate)");
     _smartButton->setToolTip(
-        "Performs angle-based segmentation and PCA projection.\nMore accurate, similar to Blender's Smart UV Project.");
+        "Performs angle-based segmentation and PCA projection.\nMore accurate, seam/connectivity-based unwrapping.");
+    _smartProjectButton = new QRadioButton("Smart Project (Blender-style)");
+    _smartProjectButton->setToolTip(
+        "Ports Blender's Smart UV Project: clusters faces by normal similarity\n"
+        "(independent of mesh connectivity) and projects each cluster.\nGood for hard-surface/mechanical models.");
 
-    _buttonGroup = new QButtonGroup(this);    
+    _buttonGroup = new QButtonGroup(this);
     _buttonGroup->addButton(_planarButton, Planar);
     _buttonGroup->addButton(_cylindricalButton, Cylindrical);
     _buttonGroup->addButton(_sphericalButton, Spherical);
     _buttonGroup->addButton(_angleBasedButton, Angular);
     _buttonGroup->addButton(_hybridButton, Hybrid);
     _buttonGroup->addButton(_smartButton, Smart);
+    _buttonGroup->addButton(_smartProjectButton, SmartProject);
 
     radiolayout->addWidget(_planarButton);
     radiolayout->addWidget(_cylindricalButton);
@@ -70,6 +75,7 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
     radiolayout->addWidget(_angleBasedButton);
     radiolayout->addWidget(_hybridButton);
     radiolayout->addWidget(_smartButton);
+    radiolayout->addWidget(_smartProjectButton);
 
     layout->addWidget(uvMethodGroup);
 
