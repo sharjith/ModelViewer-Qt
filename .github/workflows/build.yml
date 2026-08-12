@@ -12,7 +12,7 @@ on:
         description: 'Limit to one OS (leave as "all" to run the full matrix)'
         type: choice
         default: 'all'
-        options: [ all, ubuntu-latest, windows-latest ]
+        options: [ all, ubuntu-26.04, windows-latest ]
       build_type:
         description: 'Limit to one build type (leave as "all" to run both)'
         type: choice
@@ -53,8 +53,17 @@ jobs:
         # macos-latest dropped: Apple deprecated OpenGL (this app's rendering
         # backend) with no further investment, so macOS CI coverage isn't
         # worth the vcpkg/toolchain flakiness it kept hitting.
+        #
+        # ubuntu-latest still resolves to 24.04 (GitHub hasn't flipped the
+        # -latest label to 26.04 yet), whose apt-packaged Qt6/Assimp/zstd
+        # trail what this project's Linux build actually needs (Qt6Svg's
+        # QImage::flipped(), Assimp's KHR_materials_anisotropy, a zstd config
+        # exposing the zstd::libzstd target) - repeatedly causing CI-only
+        # failures that don't reproduce on newer dev machines. Pinned to the
+        # already-GA ubuntu-26.04 image instead of chasing each gap
+        # individually.
         all_os = [
-            {"os": "ubuntu-latest", "triplet": "x64-linux", "mono": "mono"},
+            {"os": "ubuntu-26.04", "triplet": "x64-linux", "mono": "mono"},
             {"os": "windows-latest", "triplet": "x64-windows", "mono": ""},
         ]
         all_build_types = ["Release", "Debug"]
