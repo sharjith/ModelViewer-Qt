@@ -7,6 +7,12 @@ find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)
 find_package(meshoptimizer REQUIRED)
+# basisu's exported basisu-targets.cmake references zstd::libzstd in
+# basisu_encoder's link interface without a find_dependency(zstd) call of its
+# own, so that target must already exist by CMake's generate phase. It's
+# usually pulled in transitively by Qt6Core's own zstd feature dependency,
+# but that's not guaranteed across Qt6 builds/versions - find it explicitly.
+find_package(zstd CONFIG REQUIRED)
 find_package(basisu CONFIG REQUIRED)
 find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)

@@ -133,6 +133,7 @@ jobs:
           libwebp-dev \
           libjpeg-turbo8-dev \
           libtbb-dev \
+          libzstd-dev \
           imagemagick \
           dpkg-dev
 
