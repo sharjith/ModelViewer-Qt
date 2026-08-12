@@ -199,11 +199,15 @@ jobs:
       # replicated here as raw flags rather than `cmake --preset` to keep
       # this step's build/install directory layout consistent with the
       # Windows leg's steps below, which don't use presets either).
-      # CMAKE_PREFIX_PATH only needs to point at the two vendored packages.
+      # CMAKE_PREFIX_PATH points at the vendored packages, plus zstd - apt's
+      # libzstd-dev on some Ubuntu versions doesn't define the zstd::libzstd
+      # interface-alias target that basisu's exported config requires, so
+      # the vendored vcpkg zstd config (a basisu transitive dependency,
+      # already present in the vendor install) is used instead.
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
-          -DCMAKE_PREFIX_PATH="${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise" \
+          -DCMAKE_PREFIX_PATH="${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise;${{ github.workspace }}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/zstd" \
           -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install" \
           -G Ninja
 
