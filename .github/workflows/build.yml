@@ -1,11 +1,12 @@
 name: CI Build
 
 on:
-  push:
-    branches: [ master, dev ]
-    tags: [ 'Release-*' ]
-  pull_request:
-    branches: [ master, dev ]
+  # No automatic push/PR trigger: this project builds and packages release
+  # artifacts locally now (both platforms) and publishes them straight to
+  # GitHub Releases via `gh release create`/`gh release upload`/`gh release
+  # edit --draft=false` - see the release process notes. This workflow is
+  # kept only as an on-demand manual sanity check (workflow_dispatch), not
+  # as part of the release pipeline.
   workflow_dispatch:
     inputs:
       os:
@@ -312,33 +313,3 @@ jobs:
       with:
         limit-access-to-actor: true
       timeout-minutes: 30
-
-  publish-release:
-    name: Publish GitHub Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/Release-')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Download Windows installer
-      uses: actions/download-artifact@v4
-      with:
-        name: modelviewer-windows-installer
-        path: release-assets
-
-    - name: Download Linux Debian package
-      uses: actions/download-artifact@v4
-      with:
-        name: modelviewer-linux-deb
-        path: release-assets
-
-    - name: Create/update GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        body_path: CHANGELOG.md
-        files: release-assets/*
