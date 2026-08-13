@@ -44,7 +44,9 @@ TutorialDialog::TutorialDialog(QWidget* parent)
     , _currentListIndex(0)
 {
     setupUI();
+#ifndef HAVE_WEBENGINE
     populateLessonList();
+#endif
     setWindowTitle(tr("ModelViewer Tutorial"));
 
     // Set dialog size to 80% of screen
@@ -55,15 +57,40 @@ TutorialDialog::TutorialDialog(QWidget* parent)
     resize(width, height);
 
     // Select index page by default (first item)
+#ifdef HAVE_WEBENGINE
+    loadIndexPage();
+#else
     _lessonList->setCurrentRow(0);
+#endif
 }
 
 void TutorialDialog::setupUI()
 {
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
+    // Content viewer
+#ifdef HAVE_WEBENGINE
+    qDebug() << "Using QWebEngineView for tutorial display";
+
+    _webView = new QWebEngineView();
+    _webPage = new TutorialWebPage(this);
+    _webView->setPage(_webPage);
+
+    // Connect custom page's linkClicked signal. Must be queued: it's emitted from inside
+    // acceptNavigationRequest(), which is itself called synchronously from Chromium's
+    // navigation machinery. onLinkClicked() ends up calling _webView->setUrl() to load the
+    // next lesson - starting a new navigation reentrantly on the same page, before
+    // acceptNavigationRequest() has even returned, crashes QtWebEngine. Queuing defers the
+    // navigation to the next event loop iteration, after the original request has resolved.
+    connect(_webPage, &TutorialWebPage::linkClicked,
+        this, &TutorialDialog::onLinkClicked, Qt::QueuedConnection);
+
+    mainLayout->addWidget(_webView);
+#else
+    qDebug() << "Using QTextBrowser for tutorial display";
+
     // Create splitter for lesson list and content
-    _splitter = new QSplitter(Qt::Horizontal, this);
+    QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
 
     // Lesson list on the left
     _lessonList = new QListWidget();
@@ -88,23 +115,6 @@ void TutorialDialog::setupUI()
         "}"
     );
 
-    // Content viewer on the right
-#ifdef HAVE_WEBENGINE
-    qDebug() << "Using QWebEngineView for tutorial display";
-
-    _webView = new QWebEngineView();
-    _webPage = new TutorialWebPage(this);
-    _webView->setPage(_webPage);
-
-    // Connect custom page's linkClicked signal
-    connect(_webPage, &TutorialWebPage::linkClicked,
-        this, &TutorialDialog::onLinkClicked);
-
-    _splitter->addWidget(_lessonList);
-    _splitter->addWidget(_webView);
-#else
-    qDebug() << "Using QTextBrowser for tutorial display";
-
     _textBrowser = new QTextBrowser();
     _textBrowser->setOpenExternalLinks(false);
 
@@ -126,22 +136,22 @@ void TutorialDialog::setupUI()
     connect(_textBrowser, &QTextBrowser::anchorClicked,
         this, &TutorialDialog::onLinkClicked);
 
-    _splitter->addWidget(_lessonList);
-    _splitter->addWidget(_textBrowser);
+    splitter->addWidget(_lessonList);
+    splitter->addWidget(_textBrowser);
+    splitter->setStretchFactor(0, 0); // Lesson list doesn't stretch
+    splitter->setStretchFactor(1, 1); // Content stretches
+
+    mainLayout->addWidget(splitter);
 #endif
-
-    _splitter->setStretchFactor(0, 0); // Lesson list doesn't stretch
-    _splitter->setStretchFactor(1, 1); // Content stretches
-
-    mainLayout->addWidget(_splitter);
 
     // Navigation buttons at bottom
     QHBoxLayout* buttonLayout = new QHBoxLayout();
 
+#ifndef HAVE_WEBENGINE
     _previousButton = new QPushButton(tr("◀ Previous"), this);
     _previousButton->setMinimumWidth(120);
-
     buttonLayout->addWidget(_previousButton);
+#endif
     buttonLayout->addStretch();
 
     _closeButton = new QPushButton(tr("Close"), this);
@@ -150,24 +160,28 @@ void TutorialDialog::setupUI()
     buttonLayout->addWidget(_closeButton);
     buttonLayout->addStretch();
 
+#ifndef HAVE_WEBENGINE
     _nextButton = new QPushButton(tr("Next ▶"), this);
     _nextButton->setMinimumWidth(120);
-
     buttonLayout->addWidget(_nextButton);
+#endif
 
     mainLayout->addLayout(buttonLayout);
 
     // Connect signals
+#ifndef HAVE_WEBENGINE
     connect(_lessonList, &QListWidget::currentItemChanged,
         this, &TutorialDialog::onLessonSelected);
     connect(_previousButton, &QPushButton::clicked,
         this, &TutorialDialog::onPreviousClicked);
     connect(_nextButton, &QPushButton::clicked,
         this, &TutorialDialog::onNextClicked);
+#endif
     connect(_closeButton, &QPushButton::clicked,
         this, &QDialog::close);
 }
 
+#ifndef HAVE_WEBENGINE
 void TutorialDialog::populateLessonList()
 {
     QStringList items;
@@ -197,6 +211,7 @@ void TutorialDialog::populateLessonList()
 
     _lessonList->addItems(items);
 }
+#endif
 
 QString TutorialDialog::getTutorialBasePath() const
 {
@@ -309,7 +324,9 @@ void TutorialDialog::loadIndexPage()
 #endif
 
     _currentListIndex = 0;
+#ifndef HAVE_WEBENGINE
     updateNavigationButtons();
+#endif
 }
 
 void TutorialDialog::loadLesson(int listIndex)
@@ -356,9 +373,12 @@ void TutorialDialog::loadLesson(int listIndex)
 #endif
 
     _currentListIndex = listIndex;
+#ifndef HAVE_WEBENGINE
     updateNavigationButtons();
+#endif
 }
 
+#ifndef HAVE_WEBENGINE
 void TutorialDialog::updateNavigationButtons()
 {
     _previousButton->setEnabled(_currentListIndex > 0);
@@ -393,6 +413,7 @@ void TutorialDialog::onNextClicked()
         _lessonList->setCurrentRow(_currentListIndex + 1);
     }
 }
+#endif
 
 void TutorialDialog::onLinkClicked(const QUrl& url)
 {
@@ -411,7 +432,11 @@ void TutorialDialog::onLinkClicked(const QUrl& url)
     if (fileName == "index.html")
     {
         qDebug() << "Navigating to index page";
+#ifdef HAVE_WEBENGINE
+        loadLesson(0);  // Index is at position 0
+#else
         _lessonList->setCurrentRow(0);  // Index is at position 0
+#endif
         return;
     }
 
@@ -428,8 +453,12 @@ void TutorialDialog::onLinkClicked(const QUrl& url)
 
             if (lessonNum > 0 && lessonNum <= TOTAL_LESSONS)
             {
-                // Set list index (lesson 1 is at index 1, lesson 2 at index 2, etc.)
+                // Lesson 1 is at list index 1, lesson 2 at index 2, etc.
+#ifdef HAVE_WEBENGINE
+                loadLesson(lessonNum);
+#else
                 _lessonList->setCurrentRow(lessonNum);
+#endif
             }
             else
             {

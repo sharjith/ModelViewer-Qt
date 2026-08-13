@@ -2,9 +2,7 @@
 
 
 #include <QDialog>
-#include <QListWidget>
 #include <QPushButton>
-#include <QSplitter>
 #include <QUrl>
 
 #ifdef HAVE_WEBENGINE
@@ -25,6 +23,8 @@ signals:
     void linkClicked(const QUrl& url);
 };
 #else
+#include <QListWidget>
+#include <QSplitter>
 #include <QTextBrowser>
 #endif
 
@@ -37,17 +37,21 @@ public:
     ~TutorialDialog() = default;
 
 private slots:
+#ifndef HAVE_WEBENGINE
     void onLessonSelected(QListWidgetItem* current, QListWidgetItem* previous);
     void onPreviousClicked();
     void onNextClicked();
+#endif
     void onLinkClicked(const QUrl& url);
 
 private:
     void setupUI();
-    void populateLessonList();
     void loadLesson(int listIndex);  // listIndex includes the index page
     void loadIndexPage();
+#ifndef HAVE_WEBENGINE
+    void populateLessonList();
     void updateNavigationButtons();
+#endif
 
     QString getTutorialBasePath() const;
     QString getLessonPath(int lessonIndex) const;  // lessonIndex is 1-18 for lessons, -1 for index
@@ -55,19 +59,20 @@ private:
     QString loadHtmlFile(const QString& filename);
     void showError(const QString& title, const QString& message);
 
-    QListWidget* _lessonList;
-
 #ifdef HAVE_WEBENGINE
+    // Each lesson page already has its own sidebar nav and Previous/Next footer
+    // links (see data/tutorials/common-styles.css), so there's no native list or
+    // button row here - it would just be a second, duplicate sidebar next to the
+    // one already rendered inside the page.
     QWebEngineView* _webView;
     TutorialWebPage* _webPage;
 #else
+    QListWidget* _lessonList;
     QTextBrowser* _textBrowser;
-#endif
-
     QPushButton* _previousButton;
     QPushButton* _nextButton;
+#endif
     QPushButton* _closeButton;
-    QSplitter* _splitter;
 
     int _currentListIndex;  // Current position in list (0=index, 1-18=lessons)
     static constexpr int TOTAL_LESSONS = 18;
