@@ -89,6 +89,12 @@
         <file>res/hide_bounding_box.png</file>
         <file>res/smooth_shaded.png</file>
         <file>res/ray_tracing_mode.png</file>
+        <file>res/sample-models/ANC101.png</file>
+        <file>res/sample-models/CAD.png</file>
+        <file>res/sample-models/CAD-Model.png</file>
+        <file>res/sample-models/Camera.png</file>
+        <file>res/sample-models/Skateboard-Assy.png</file>
+        <file>res/sample-models/Teapot.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

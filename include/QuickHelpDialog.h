@@ -20,6 +20,9 @@ public:
 private:
     void setupUI();
     void setupHomeTab();
+    QWidget* createSampleModelButton(QWidget* parent, const QString& iconResourcePath,
+        const QString& label, const QString& relativeModelPath);
+    void openSampleModel(const QString& relativeModelPath);
     void setupMouseControlsTab();
     void setupKeyboardShortcutsTab();
     void setupViewToolbarTab();

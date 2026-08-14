@@ -1,5 +1,6 @@
 #include "QuickHelpDialog.h"
 #include "MainWindow.h"
+#include "PathUtils.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QFont>
@@ -12,6 +13,9 @@
 #include <QPixmap>
 #include <QStackedLayout>
 #include <QPainter>
+#include <QPainterPath>
+#include <QAbstractButton>
+#include <QEvent>
 
 namespace
 {
@@ -42,6 +46,76 @@ protected:
 
 private:
 	QPixmap _source;
+};
+
+// Square, filleted (rounded-corner) button whose face is filled edge-to-edge
+// with a thumbnail image, with its label drawn as a translucent overlay
+// banner along the bottom edge instead of living below the icon.
+class SampleModelButton : public QAbstractButton
+{
+public:
+	SampleModelButton(const QPixmap& pixmap, const QString& label, QWidget* parent = nullptr)
+		: QAbstractButton(parent), _pixmap(pixmap)
+	{
+		setText(label);
+		setCursor(Qt::PointingHandCursor);
+		setFixedSize(104, 104);
+	}
+
+protected:
+	void paintEvent(QPaintEvent*) override
+	{
+		QPainter painter(this);
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
+
+		const QRectF bounds = rect().adjusted(0, 0, -1, -1);
+		QPainterPath clipPath;
+		clipPath.addRoundedRect(bounds, 12, 12);
+		painter.setClipPath(clipPath);
+
+		if (!_pixmap.isNull())
+		{
+			QPixmap scaled = _pixmap.scaled(size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+			const int x = (width() - scaled.width()) / 2;
+			const int y = (height() - scaled.height()) / 2;
+			painter.drawPixmap(x, y, scaled);
+		}
+		else
+		{
+			painter.fillRect(rect(), QColor("#dfe7ef"));
+		}
+
+		if (underMouse())
+			painter.fillRect(rect(), QColor(43, 108, 176, 60));
+
+		const qreal barHeight = 26;
+		const QRectF barRect(0, height() - barHeight, width(), barHeight);
+		QLinearGradient gradient(0, barRect.top(), 0, barRect.bottom());
+		gradient.setColorAt(0, QColor(15, 26, 38, 0));
+		gradient.setColorAt(1, QColor(15, 26, 38, 190));
+		painter.fillRect(barRect, gradient);
+
+		painter.setClipping(false);
+
+		QFont labelFont = painter.font();
+		labelFont.setPointSizeF(8.5);
+		labelFont.setBold(true);
+		painter.setFont(labelFont);
+		painter.setPen(Qt::white);
+		painter.drawText(barRect.adjusted(6, 0, -6, -5), Qt::AlignBottom | Qt::AlignHCenter, text());
+
+		QPen borderPen(underMouse() ? QColor("#2b6cb0") : QColor("#c5d0db"));
+		borderPen.setWidth(1);
+		painter.setPen(borderPen);
+		painter.drawRoundedRect(bounds, 12, 12);
+	}
+
+	void enterEvent(QEnterEvent*) override { update(); }
+	void leaveEvent(QEvent*) override { update(); }
+
+private:
+	QPixmap _pixmap;
 };
 }
 
@@ -151,7 +225,7 @@ void QuickHelpDialog::setupHomeTab()
 
 	QPixmap banner(":/icons/res/Splashscreen.png");
 	auto* heroFrame = new QFrame(_homeTab);
-	heroFrame->setMinimumHeight(340);
+	heroFrame->setMinimumHeight(180);
 	heroFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	heroFrame->setFrameShape(QFrame::NoFrame);
 	heroFrame->setObjectName("homeHero");
@@ -166,7 +240,7 @@ void QuickHelpDialog::setupHomeTab()
 	heroStack->setStackingMode(QStackedLayout::StackAll);
 
 	auto* heroBackground = new ScaledBackdropWidget(banner, heroFrame);
-	heroBackground->setMinimumHeight(240);
+	heroBackground->setMinimumHeight(150);
 	heroBackground->setStyleSheet(
 		"QWidget {"
 		"  border: 1px solid #d8e1ea;"
@@ -208,22 +282,21 @@ void QuickHelpDialog::setupHomeTab()
 	heroStack->addWidget(heroBackground);
 	heroStack->addWidget(heroOverlay);
 
-	homeLayout->addWidget(heroFrame, 3);
+	homeLayout->addWidget(heroFrame, 2);
 
 	auto* actionFrame = new QFrame(_homeTab);
 	actionFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 	actionFrame->setFrameShape(QFrame::StyledPanel);
 	actionFrame->setStyleSheet(
 		"QFrame { background: #f8fafc; border: 1px solid #d8e1ea; border-radius: 10px; }"
-		"QPushButton { min-height: 42px; padding: 0 16px; font-size: 11pt; border-radius: 8px; }"
+		"QPushButton { min-height: 36px; padding: 0 16px; font-size: 11pt; border-radius: 8px; }"
 		"QPushButton#primaryAction { background: #2b6cb0; color: white; border: none; }"
 		"QPushButton#primaryAction:hover { background: #245c98; }"
 		"QPushButton#secondaryAction { background: white; color: #1f2933; border: 1px solid #c5d0db; }"
 		"QPushButton#secondaryAction:hover { background: #f3f6f9; }");
-	auto* actionLayout = new QGridLayout(actionFrame);
-	actionLayout->setContentsMargins(16, 16, 16, 16);
-	actionLayout->setHorizontalSpacing(12);
-	actionLayout->setVerticalSpacing(12);
+	auto* actionLayout = new QHBoxLayout(actionFrame);
+	actionLayout->setContentsMargins(16, 12, 16, 12);
+	actionLayout->setSpacing(12);
 
 	auto* openModelButton = new QPushButton(tr("Open Model"), actionFrame);
 	openModelButton->setObjectName("primaryAction");
@@ -234,12 +307,46 @@ void QuickHelpDialog::setupHomeTab()
 	auto* mouseHelpButton = new QPushButton(tr("Mouse Controls"), actionFrame);
 	mouseHelpButton->setObjectName("secondaryAction");
 
-	actionLayout->addWidget(openModelButton, 0, 0);
-	actionLayout->addWidget(tutorialButton, 0, 1);
-	actionLayout->addWidget(shortcutsButton, 1, 0);
-	actionLayout->addWidget(mouseHelpButton, 1, 1);
+	actionLayout->addWidget(openModelButton);
+	actionLayout->addWidget(tutorialButton);
+	actionLayout->addWidget(shortcutsButton);
+	actionLayout->addWidget(mouseHelpButton);
 
-	homeLayout->addWidget(actionFrame, 1);
+	homeLayout->addWidget(actionFrame, 0);
+
+	auto* sampleModelsFrame = new QFrame(_homeTab);
+	sampleModelsFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+	sampleModelsFrame->setFrameShape(QFrame::StyledPanel);
+	sampleModelsFrame->setStyleSheet(
+		"QFrame { background: #ffffff; border: 1px solid #d8e1ea; border-radius: 10px; }"
+		"QLabel#sectionTitle { font-size: 13pt; font-weight: 600; color: #243b53; }");
+	auto* sampleModelsLayout = new QVBoxLayout(sampleModelsFrame);
+	sampleModelsLayout->setContentsMargins(16, 12, 16, 16);
+	sampleModelsLayout->setSpacing(10);
+
+	auto* sampleModelsTitle = new QLabel(tr("Sample Models"), sampleModelsFrame);
+	sampleModelsTitle->setObjectName("sectionTitle");
+	sampleModelsLayout->addWidget(sampleModelsTitle);
+
+	auto* sampleModelsRow = new QHBoxLayout();
+	sampleModelsRow->setSpacing(12);
+
+	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
+		":/icons/res/sample-models/ANC101.png", tr("ANC101"), "ANC101.step"));
+	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
+		":/icons/res/sample-models/CAD.png", tr("CAD"), "CAD.brep"));
+	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
+		":/icons/res/sample-models/CAD-Model.png", tr("CAD Model"), "CAD Model v0.step"));
+	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
+		":/icons/res/sample-models/Skateboard-Assy.png", tr("Skateboard Assy"), "Skate-Board-Assy/Skate-Board-Assy.stp"));
+	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
+		":/icons/res/sample-models/Teapot.png", tr("Teapot"), "Tea-Pot/Teapot.obj"));
+	sampleModelsRow->addWidget(createSampleModelButton(sampleModelsFrame,
+		":/icons/res/sample-models/Camera.png", tr("Camera"), "Camera/glTF/camera.glb"));
+
+	sampleModelsLayout->addLayout(sampleModelsRow);
+
+	homeLayout->addWidget(sampleModelsFrame, 2);
 
 	auto* firstStepsFrame = new QFrame(_homeTab);
 	firstStepsFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -271,7 +378,7 @@ void QuickHelpDialog::setupHomeTab()
 		firstStepsLayout->addWidget(stepLabel);
 	}
 
-	homeLayout->addWidget(firstStepsFrame, 2);
+	homeLayout->addWidget(firstStepsFrame, 1);
 
 	connect(openModelButton, &QPushButton::clicked, this, [this]() {
 		if (auto* mw = qobject_cast<MainWindow*>(parentWidget()))
@@ -295,6 +402,28 @@ void QuickHelpDialog::setupHomeTab()
 	connect(mouseHelpButton, &QPushButton::clicked, this, [this]() {
 		_tabWidget->setCurrentWidget(_mouseControlsBrowser);
 	});
+}
+
+QWidget* QuickHelpDialog::createSampleModelButton(QWidget* parent, const QString& iconResourcePath,
+	const QString& label, const QString& relativeModelPath)
+{
+	auto* button = new SampleModelButton(QPixmap(iconResourcePath), label, parent);
+
+	connect(button, &QAbstractButton::clicked, this, [this, relativeModelPath]() {
+		openSampleModel(relativeModelPath);
+	});
+
+	return button;
+}
+
+void QuickHelpDialog::openSampleModel(const QString& relativeModelPath)
+{
+	if (auto* mw = qobject_cast<MainWindow*>(parentWidget()))
+	{
+		const QString fullPath = PathUtils::getDataDirectory() + QString("/sample-models/") + relativeModelPath;
+		mw->openFile(fullPath);
+		accept();
+	}
 }
 
 void QuickHelpDialog::setupMouseControlsTab()

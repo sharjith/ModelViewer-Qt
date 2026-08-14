@@ -636,7 +636,7 @@ ModelViewer* MainWindow::createMdiChild()
 	// on_actionNew_triggered()'s identical construction for every
 	// subsequently created document, which already uses nullptr here.
 	ModelViewer* viewer = new ModelViewer(nullptr);
-	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/test-models");
+	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/sample-models");
 	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	QMdiSubWindow* subWindow = createDocumentSubWindow(viewer);

@@ -860,7 +860,7 @@ else()
     message(STATUS "No QM files to install")
 endif()
 
-install(DIRECTORY fonts shaders themes test-models data
+install(DIRECTORY fonts shaders themes sample-models data
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
 
