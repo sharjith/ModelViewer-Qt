@@ -59,7 +59,7 @@ public:
 	{
 		setText(label);
 		setCursor(Qt::PointingHandCursor);
-		setFixedSize(104, 104);
+		setFixedSize(150, 150);
 	}
 
 protected:
@@ -71,7 +71,7 @@ protected:
 
 		const QRectF bounds = rect().adjusted(0, 0, -1, -1);
 		QPainterPath clipPath;
-		clipPath.addRoundedRect(bounds, 12, 12);
+		clipPath.addRoundedRect(bounds, 16, 16);
 		painter.setClipPath(clipPath);
 
 		if (!_pixmap.isNull())
@@ -89,7 +89,7 @@ protected:
 		if (underMouse())
 			painter.fillRect(rect(), QColor(43, 108, 176, 60));
 
-		const qreal barHeight = 26;
+		const qreal barHeight = 34;
 		const QRectF barRect(0, height() - barHeight, width(), barHeight);
 		QLinearGradient gradient(0, barRect.top(), 0, barRect.bottom());
 		gradient.setColorAt(0, QColor(15, 26, 38, 0));
@@ -99,16 +99,16 @@ protected:
 		painter.setClipping(false);
 
 		QFont labelFont = painter.font();
-		labelFont.setPointSizeF(8.5);
+		labelFont.setPointSizeF(10);
 		labelFont.setBold(true);
 		painter.setFont(labelFont);
 		painter.setPen(Qt::white);
-		painter.drawText(barRect.adjusted(6, 0, -6, -5), Qt::AlignBottom | Qt::AlignHCenter, text());
+		painter.drawText(barRect.adjusted(8, 0, -8, -7), Qt::AlignBottom | Qt::AlignHCenter, text());
 
 		QPen borderPen(underMouse() ? QColor("#2b6cb0") : QColor("#c5d0db"));
 		borderPen.setWidth(1);
 		painter.setPen(borderPen);
-		painter.drawRoundedRect(bounds, 12, 12);
+		painter.drawRoundedRect(bounds, 16, 16);
 	}
 
 	void enterEvent(QEnterEvent*) override { update(); }
@@ -225,7 +225,7 @@ void QuickHelpDialog::setupHomeTab()
 
 	QPixmap banner(":/icons/res/Splashscreen.png");
 	auto* heroFrame = new QFrame(_homeTab);
-	heroFrame->setMinimumHeight(180);
+	heroFrame->setMinimumHeight(120);
 	heroFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	heroFrame->setFrameShape(QFrame::NoFrame);
 	heroFrame->setObjectName("homeHero");
@@ -240,7 +240,7 @@ void QuickHelpDialog::setupHomeTab()
 	heroStack->setStackingMode(QStackedLayout::StackAll);
 
 	auto* heroBackground = new ScaledBackdropWidget(banner, heroFrame);
-	heroBackground->setMinimumHeight(150);
+	heroBackground->setMinimumHeight(100);
 	heroBackground->setStyleSheet(
 		"QWidget {"
 		"  border: 1px solid #d8e1ea;"
@@ -282,7 +282,7 @@ void QuickHelpDialog::setupHomeTab()
 	heroStack->addWidget(heroBackground);
 	heroStack->addWidget(heroOverlay);
 
-	homeLayout->addWidget(heroFrame, 2);
+	homeLayout->addWidget(heroFrame, 1);
 
 	auto* actionFrame = new QFrame(_homeTab);
 	actionFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
@@ -346,7 +346,7 @@ void QuickHelpDialog::setupHomeTab()
 
 	sampleModelsLayout->addLayout(sampleModelsRow);
 
-	homeLayout->addWidget(sampleModelsFrame, 2);
+	homeLayout->addWidget(sampleModelsFrame, 3);
 
 	auto* firstStepsFrame = new QFrame(_homeTab);
 	firstStepsFrame->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
