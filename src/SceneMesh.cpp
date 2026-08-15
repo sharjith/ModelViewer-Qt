@@ -743,7 +743,24 @@ void SceneMesh::optimizeMesh()
 		// from the reordered vertex buffer, so the remap has to be computed
 		// once and applied explicitly to both.
 		std::vector<unsigned int> remap(vertexCount);
-		meshopt_optimizeVertexFetchRemap(remap.data(), _indices.data(), _indices.size(), vertexCount);
+		const size_t uniqueVertexCount = meshopt_optimizeVertexFetchRemap(remap.data(), _indices.data(), _indices.size(), vertexCount);
+
+		// meshopt_optimizeVertexFetchRemap only assigns a destination slot to
+		// vertices actually referenced by _indices - vertices never referenced
+		// by any surviving triangle (orphaned) are left as the ~0u sentinel,
+		// which meshopt_remapVertexBuffer below then silently skips writing,
+		// leaving that destination slot as a default-constructed (zero/origin)
+		// Vertex. CAD-tessellated STEP/IGES/BREP meshes genuinely have orphaned
+		// vertices - convertFaceGroupToMesh() keeps a face's vertices even when
+		// some of its triangles are filtered out as degenerate - so give every
+		// orphaned vertex a real tail slot instead of letting it rot into a
+		// phantom (0,0,0) vertex that silently corrupts the mesh's bounding box.
+		unsigned int nextOrphanSlot = static_cast<unsigned int>(uniqueVertexCount);
+		for (size_t i = 0; i < vertexCount; ++i)
+		{
+			if (remap[i] == ~0u)
+				remap[i] = nextOrphanSlot++;
+		}
 
 		std::vector<Vertex> remappedVertices(vertexCount);
 		meshopt_remapVertexBuffer(remappedVertices.data(), _vertices.data(), vertexCount, sizeof(Vertex), remap.data());
