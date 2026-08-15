@@ -26,6 +26,9 @@ public:
 		TranslateY,
 		TranslateZ,
 		UniformScale,
+		ScaleX,
+		ScaleY,
+		ScaleZ,
 		RotateXY,
 		RotateYZ,
 		RotateZX
@@ -82,6 +85,8 @@ private:
 	                     const QMatrix4x4& projectionMatrix, float worldScale);
 	void drawArcs(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
 	              const QMatrix4x4& projectionMatrix, float worldScale);
+	void drawAxisScaleHandles(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
+	                          const QMatrix4x4& projectionMatrix, float worldScale);
 
 	bool _visible = false;
 	bool _initialized = false;
@@ -100,6 +105,13 @@ private:
 	QOpenGLVertexArrayObject _scaleVao;
 	QOpenGLBuffer _scaleVertexBuffer;
 	QOpenGLBuffer _scaleColorBuffer;
+
+	// Shared unit-cube geometry (centered at origin, half-extent 0.5) reused
+	// for all three per-axis non-uniform scale handles - only its model
+	// matrix and flat color (via the "renderCone" uniform path) change per axis.
+	QOpenGLVertexArrayObject _axisScaleVao;
+	QOpenGLBuffer _axisScaleVertexBuffer;
+	int _axisScaleCubeVertexCount = 0;
 
 	int _arcVertexCount = 0;
 	int _xyArcOffset = 0;

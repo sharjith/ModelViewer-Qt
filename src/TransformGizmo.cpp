@@ -21,6 +21,43 @@ constexpr float kArcHitPixels = 12.0f;
 constexpr float kScaleHitPixels = 14.0f;
 constexpr float kArrowBaseScale = 0.86f;
 constexpr float kScaleCorner = 0.26f;
+// Per-axis non-uniform scale handles: small cubes strung out past the
+// rotation arcs (0.72) and the translate arrowheads (~1.22) so they sit in
+// their own clear screen-space region and never overlap those hit zones.
+constexpr float kAxisScaleHandleDistance = 1.35f;
+constexpr float kAxisScaleHandleSize = 0.12f;
+constexpr float kAxisScaleHitPixels = 12.0f;
+
+void appendCubeTriangles(std::vector<float>& vertices)
+{
+	// Unit cube centered at the origin, half-extent 0.5, as 12 unindexed
+	// triangles - matches the plain (non-indexed) vertex-list style used by
+	// the rest of this gizmo's geometry.
+	static const float c = 0.5f;
+	static const QVector3D corners[8] = {
+		{ -c, -c, -c }, {  c, -c, -c }, {  c,  c, -c }, { -c,  c, -c },
+		{ -c, -c,  c }, {  c, -c,  c }, {  c,  c,  c }, { -c,  c,  c }
+	};
+	static const int faces[6][4] = {
+		{ 0, 1, 2, 3 }, // -Z
+		{ 5, 4, 7, 6 }, // +Z
+		{ 4, 0, 3, 7 }, // -X
+		{ 1, 5, 6, 2 }, // +X
+		{ 4, 5, 1, 0 }, // -Y
+		{ 3, 2, 6, 7 }  // +Y
+	};
+	for (const auto& face : faces)
+	{
+		const QVector3D quad[4] = { corners[face[0]], corners[face[1]], corners[face[2]], corners[face[3]] };
+		const int triangleIndices[6] = { 0, 1, 2, 0, 2, 3 };
+		for (int idx : triangleIndices)
+		{
+			vertices.push_back(quad[idx].x());
+			vertices.push_back(quad[idx].y());
+			vertices.push_back(quad[idx].z());
+		}
+	}
+}
 
 float distancePointToSegment(const QVector2D& p, const QVector2D& a, const QVector2D& b)
 {
@@ -75,7 +112,8 @@ TransformGizmo::TransformGizmo(QObject* parent)
 	  _arcsVertexBuffer(QOpenGLBuffer::VertexBuffer),
 	  _arcsColorBuffer(QOpenGLBuffer::VertexBuffer),
 	  _scaleVertexBuffer(QOpenGLBuffer::VertexBuffer),
-	  _scaleColorBuffer(QOpenGLBuffer::VertexBuffer)
+	  _scaleColorBuffer(QOpenGLBuffer::VertexBuffer),
+	  _axisScaleVertexBuffer(QOpenGLBuffer::VertexBuffer)
 {
 }
 
@@ -162,6 +200,7 @@ void TransformGizmo::render(ShaderProgram* axisShader, ConeRenderable* axisCone,
 	drawAxes(axisShader, axisCone, viewMatrix, projectionMatrix, worldScale);
 	drawScaleHandle(axisShader, viewMatrix, projectionMatrix, worldScale);
 	drawArcs(axisShader, viewMatrix, projectionMatrix, worldScale);
+	drawAxisScaleHandles(axisShader, viewMatrix, projectionMatrix, worldScale);
 
 	if (depthWasEnabled)
 		glEnable(GL_DEPTH_TEST);
@@ -205,6 +244,29 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const Camera
 		{
 			bestDistance = distance;
 			bestHandle = axis.handle;
+		}
+	}
+
+	const struct AxisScaleCandidate
+	{
+		Handle handle;
+		QVector3D axisDir;
+	} axisScaleCandidates[] = {
+		{ Handle::ScaleX, QVector3D(1.0f, 0.0f, 0.0f) },
+		{ Handle::ScaleY, QVector3D(0.0f, 1.0f, 0.0f) },
+		{ Handle::ScaleZ, QVector3D(0.0f, 0.0f, 1.0f) }
+	};
+
+	for (const AxisScaleCandidate& axisScale : axisScaleCandidates)
+	{
+		const QVector3D centerWorld = _pivot + (axisScale.axisDir * (kAxisScaleHandleDistance * worldScale));
+		const QVector3D centerScreen3 = projectToScreen(centerWorld, viewMatrix, projectionMatrix, viewport);
+		const QVector2D centerScreen(centerScreen3.x(), centerScreen3.y());
+		const float distance = (screenPoint - centerScreen).length();
+		if (distance <= kAxisScaleHitPixels && distance < bestDistance)
+		{
+			bestDistance = distance;
+			bestHandle = axisScale.handle;
 		}
 	}
 
@@ -422,6 +484,20 @@ void TransformGizmo::restoreGpuResources()
 
 	_scaleVao.release();
 
+	std::vector<float> axisScaleCubeVertices;
+	appendCubeTriangles(axisScaleCubeVertices);
+	_axisScaleCubeVertexCount = static_cast<int>(axisScaleCubeVertices.size() / 3);
+
+	_axisScaleVao.create();
+	_axisScaleVao.bind();
+
+	_axisScaleVertexBuffer.create();
+	_axisScaleVertexBuffer.bind();
+	_axisScaleVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_axisScaleVertexBuffer.allocate(axisScaleCubeVertices.data(), static_cast<int>(axisScaleCubeVertices.size() * sizeof(float)));
+
+	_axisScaleVao.release();
+
 	_initialized = true;
 }
 
@@ -431,10 +507,10 @@ float TransformGizmo::computeWorldScale(const Camera* camera, float fallbackScal
 		return fallbackScale;
 
 	if (camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC)
-		return (std::max)(camera->getViewRange() * 0.18f, fallbackScale);
+		return (std::max)(camera->getViewRange() * 0.15f, fallbackScale);
 
 	const float distance = (camera->getRenderPosition() - _pivot).length();
-	return (std::max)(distance * 0.16f, fallbackScale);
+	return (std::max)(distance * 0.13f, fallbackScale);
 }
 
 void TransformGizmo::drawAxes(ShaderProgram* axisShader, ConeRenderable* axisCone,
@@ -626,6 +702,46 @@ void TransformGizmo::drawScaleHandle(ShaderProgram* axisShader, const QMatrix4x4
 	axisShader->release();
 }
 
+void TransformGizmo::drawAxisScaleHandles(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
+                                          const QMatrix4x4& projectionMatrix, float worldScale)
+{
+	axisShader->bind();
+	axisShader->setUniformValue("projectionMatrix", projectionMatrix);
+	axisShader->setUniformValue("renderCone", true);
+
+	const struct AxisScaleDraw
+	{
+		Handle handle;
+		QVector3D axisDir;
+		QColor baseColor;
+	} axisScaleDraws[] = {
+		{ Handle::ScaleX, QVector3D(1.0f, 0.0f, 0.0f), QColor::fromRgbF(1.0f, 0.0f, 0.0f) },
+		{ Handle::ScaleY, QVector3D(0.0f, 1.0f, 0.0f), QColor::fromRgbF(0.0f, 1.0f, 0.0f) },
+		{ Handle::ScaleZ, QVector3D(0.0f, 0.0f, 1.0f), QColor::fromRgbF(0.0f, 0.0f, 1.0f) }
+	};
+
+	_axisScaleVao.bind();
+	_axisScaleVertexBuffer.bind();
+	axisShader->enableAttributeArray("vertexPosition");
+	axisShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+	for (const AxisScaleDraw& axisScale : axisScaleDraws)
+	{
+		QMatrix4x4 model;
+		model.translate(_pivot + (axisScale.axisDir * (kAxisScaleHandleDistance * worldScale)));
+		model.scale(worldScale * kAxisScaleHandleSize);
+		axisShader->setUniformValue("modelViewMatrix", viewMatrix * model);
+
+		const QColor resolved = resolveHandleColor(axisScale.handle, axisScale.baseColor);
+		axisShader->setUniformValue("coneColor", QVector3D(resolved.redF(), resolved.greenF(), resolved.blueF()));
+
+		glDrawArrays(GL_TRIANGLES, 0, _axisScaleCubeVertexCount);
+	}
+
+	_axisScaleVao.release();
+	axisShader->release();
+}
+
 void TransformGizmo::releaseGpuResources()
 {
 	if (_axesVertexBuffer.isCreated())
@@ -647,6 +763,11 @@ void TransformGizmo::releaseGpuResources()
 		_scaleColorBuffer.destroy();
 	if (_scaleVao.isCreated())
 		_scaleVao.destroy();
+
+	if (_axisScaleVertexBuffer.isCreated())
+		_axisScaleVertexBuffer.destroy();
+	if (_axisScaleVao.isCreated())
+		_axisScaleVao.destroy();
 
 	_initialized = false;
 }

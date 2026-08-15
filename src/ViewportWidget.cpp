@@ -54,6 +54,16 @@
 constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
 
+// Degenerate-guard floor for TransformGizmo::computeWorldScale(), not a
+// mesh-relative size - the gizmo's on-screen size is meant to stay constant
+// (screen-space-proportional via camera distance / ortho view range) fully
+// independent of the selected mesh's own size, matching reference DCC/engine
+// gizmos (e.g. NVIDIA's vk_gltf_renderer, which sizes purely off view depth).
+// Tying this to selectionRadius previously let a close-zoom on a small part
+// pin the gizmo to that part's world size, which then ballooned on screen as
+// the camera moved closer still.
+constexpr float kTransformGizmoMinWorldScale = 0.01f;
+
 // Minimum wall-clock gap between interactive-GPU-session SLOW-path restarts
 // (startInteractiveRayTracedGpuSession()'s real start() call, not its
 // updateCamera() fast path) - a burst of camera-move events (mouseMoveEvent,
@@ -7316,12 +7326,7 @@ void ViewportWidget::drawTransformGizmo(Camera* camera)
 	if (!_transformGizmo->isVisible())
 		return;
 
-	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
-	const float selectionRadius = selectionSphere.getRadius() > 0.0f
-		? selectionSphere.getRadius()
-		: _viewCtrl.boundingSphere().getRadius();
-	const float fallbackScale = (std::max)(selectionRadius * 0.9f, 0.01f);
-	_transformGizmo->render(_renderCtrl.axisShader(), _axisCone, camera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), fallbackScale);
+	_transformGizmo->render(_renderCtrl.axisShader(), _axisCone, camera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), kTransformGizmoMinWorldScale);
 }
 
 BoundingSphere ViewportWidget::computeTransformGizmoSelectionSphere() const
@@ -7487,6 +7492,10 @@ bool ViewportWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, cons
 		return beginTransformGizmoTranslationDrag(handle, pixel);
 	case TransformGizmo::Handle::UniformScale:
 		return beginTransformGizmoScaleDrag(handle, pixel, true);
+	case TransformGizmo::Handle::ScaleX:
+	case TransformGizmo::Handle::ScaleY:
+	case TransformGizmo::Handle::ScaleZ:
+		return beginTransformGizmoScaleDrag(handle, pixel, false);
 	case TransformGizmo::Handle::RotateXY:
 	case TransformGizmo::Handle::RotateYZ:
 	case TransformGizmo::Handle::RotateZX:
@@ -7737,12 +7746,15 @@ bool ViewportWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle,
 	switch (handle)
 	{
 	case TransformGizmo::Handle::TranslateX:
+	case TransformGizmo::Handle::ScaleX:
 		axis = QVector3D(1.0f, 0.0f, 0.0f);
 		break;
 	case TransformGizmo::Handle::TranslateY:
+	case TransformGizmo::Handle::ScaleY:
 		axis = QVector3D(0.0f, 1.0f, 0.0f);
 		break;
 	case TransformGizmo::Handle::TranslateZ:
+	case TransformGizmo::Handle::ScaleZ:
 		axis = QVector3D(0.0f, 0.0f, 1.0f);
 		break;
 	case TransformGizmo::Handle::UniformScale:
@@ -11662,15 +11674,10 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
 		const QPoint clickPoint(e->position().x(), e->position().y());
-		const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
-		const float selectionRadius = selectionSphere.getRadius() > 0.0f
-			? selectionSphere.getRadius()
-			: _viewCtrl.boundingSphere().getRadius();
-		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
 		if (!(e->modifiers() & Qt::ControlModifier) &&
 			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
 			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
-				QRect(0, 0, width(), height()), gizmoScale))
+				QRect(0, 0, width(), height()), kTransformGizmoMinWorldScale))
 		{
 			if (beginTransformGizmoDrag(_transformGizmo->activeHandle(), clickPoint))
 			{
@@ -12184,15 +12191,10 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	bool gizmoHovered = false;
 	if (e->buttons() == Qt::NoButton)
 	{
-		const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
-		const float selectionRadius = selectionSphere.getRadius() > 0.0f
-			? selectionSphere.getRadius()
-			: _viewCtrl.boundingSphere().getRadius();
-		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
 		if (!(e->modifiers() & Qt::ControlModifier) &&
 			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
 			_transformGizmo->updateHover(e->pos(), _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
-				QRect(0, 0, width(), height()), gizmoScale))
+				QRect(0, 0, width(), height()), kTransformGizmoMinWorldScale))
 		{
 			gizmoHovered = true;
 			update();
@@ -12201,7 +12203,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		{
 			const bool hadHover = (_transformGizmo->hoveredHandle() != TransformGizmo::Handle::None);
 			_transformGizmo->updateHover(QPoint(-1, -1), _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
-				QRect(0, 0, width(), height()), gizmoScale);
+				QRect(0, 0, width(), height()), kTransformGizmoMinWorldScale);
 			if (hadHover)
 				update();
 		}
