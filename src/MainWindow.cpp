@@ -738,6 +738,16 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 {
 	if (!viewer)
 	{
+		// Closing the last document can drive this branch more than once for
+		// the same transition (synchronous destroyed() lambda, its deferred
+		// singleShot follow-up, and QMdiArea's own subWindowActivated(nullptr)
+		// all reach here independently) - only the first needs to do
+		// anything; repeated teardown against already-unbound panels is what
+		// produced an intermittent crash.
+		if (!_sharedPanelsBound)
+			return;
+		_sharedPanelsBound = false;
+
 		// No active document (last one just closed) - disabling isn't
 		// enough on its own: these panels are single shared instances that
 		// cache the ModelViewer/ViewportWidget/SceneGraph pointers they were
@@ -766,6 +776,15 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setSceneGraph(nullptr);
 		_camerasPanel->setViewportWidget(nullptr);
 
+		_materialVariantsPanel->refresh();
+		_animationsPanel->refresh();
+		_camerasPanel->refresh();
+
+		disconnect(_variantDataChangedConnection);
+		disconnect(_animationDataChangedConnection);
+		disconnect(_gltfCameraDataChangedConnection);
+		disconnect(_animationStateChangedConnection);
+
 		_materialPropertiesPanel->setEnabled(false);
 		_objectTransformPanel->setEnabled(false);
 		_visualizationEnvironmentPanel->setEnabled(false);
@@ -776,6 +795,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_checkBoxSelectionHighlight->setEnabled(false);
 		return;
 	}
+
+	_sharedPanelsBound = true;
 
 	_materialPropertiesPanel->setEnabled(true);
 	_objectTransformPanel->setEnabled(true);
@@ -875,6 +896,17 @@ void MainWindow::handleActiveDocumentChanged(QMdiSubWindow* subWindow)
 
 void MainWindow::activateDocument(ModelViewer* child)
 {
+	// _mdiArea's subWindowActivated signal is Qt's own and fires during
+	// app-shutdown cascading widget destruction too, independent of and
+	// unguarded by the _shuttingDown check in createDocumentSubWindow()'s
+	// destroyed() lambda (that lambda covers a different call path). By the
+	// time that cascade reaches _mdiArea, ~MainWindow()'s body has already
+	// set _shuttingDown - reaching rebindSharedPanelsTo()/updateMenus() from
+	// here after that point risks touching menus/panels mid-teardown, whose
+	// own destruction order relative to _mdiArea's isn't guaranteed.
+	if (_shuttingDown)
+		return;
+
 	// Called both from handleActiveDocumentChanged() (via _mdiArea's
 	// subWindowActivated signal) and directly, as a defensive safety net,
 	// from presentDocumentFullscreen()/openFile()/updateWindowMenu() for

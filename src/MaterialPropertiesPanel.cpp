@@ -540,18 +540,23 @@ void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, ViewportWidge
 
 	qDebug() << "MaterialPropertiesPanel::initialize called with modelViewer:" << (modelViewer ? "non-null" : "NULL");
 
-	// Pass ViewportWidget reference to preview widget for environment settings
-	if (_preview && _viewportWidget)
+	// Pass ViewportWidget reference to preview widget for environment settings.
+	// Must run even when _viewportWidget is null (last document closed) -
+	// MaterialPreviewWidget keeps painting while disabled (disabling only
+	// blocks input), so leaving its cached pointer pointed at the
+	// now-destroyed ViewportWidget crashes on the next repaint.
+	if (_preview)
 	{
 		_preview->setViewportWidget(_viewportWidget);
 	}
 
-	// Get reference to the MDI-scoped material cache from ModelViewer
-	if (_modelViewer)
-	{
-		_materialCacheRef = _modelViewer->getMaterialCache();
-		qDebug() << "MaterialPropertiesPanel::initialize - _materialCacheRef set to:" << (void*)_materialCacheRef;
-	}
+	// Get reference to the MDI-scoped material cache from ModelViewer. Must
+	// clear to null too (last document closed) - otherwise this keeps
+	// pointing at the freed ModelViewer's by-value _materialCache member,
+	// and a later reentrant call (see the note on preview widget rebinding
+	// above) would read or write through a dangling pointer into freed heap.
+	_materialCacheRef = _modelViewer ? _modelViewer->getMaterialCache() : nullptr;
+	qDebug() << "MaterialPropertiesPanel::initialize - _materialCacheRef set to:" << (void*)_materialCacheRef;
 }
 
 // ============================================================================

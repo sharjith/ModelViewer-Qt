@@ -195,6 +195,16 @@ private:
 	AnimationsPanel* _animationsPanel = nullptr;
 	CamerasPanel* _camerasPanel = nullptr;
 	ModelViewer* _lastBoundModelViewer = nullptr;
+	// Guards rebindSharedPanelsTo(nullptr) against running its teardown body
+	// more than once per "went from having an active document to having
+	// none" transition - QMdiArea's own subWindowActivated(nullptr), the
+	// synchronous destroyed() lambda, and its deferred singleShot follow-up
+	// can all independently reach rebindSharedPanelsTo(nullptr) for the same
+	// close, and activateDocument()'s reentrancy guard doesn't catch a null
+	// child. Without this, repeated invocations re-run disconnect()/refresh()
+	// against the same panels, interleaved with unrelated event-loop churn
+	// (window activation, tab clicks) - observed as an intermittent crash.
+	bool _sharedPanelsBound = false;
 	// Which document activeMdiChild() reports - kept up to date by
 	// handleActiveDocumentChanged(), connected to _mdiArea's single
 	// subWindowActivated() signal.

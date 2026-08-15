@@ -52,7 +52,14 @@ public:
     void refresh();
 
     // Enable / disable the frosted-glass rendering used when the navigation
-    // panel is floating as a ViewportWidget overlay.
+    // panel is floating as a ViewportWidget overlay. Styling only - does NOT
+    // reparent. Unlike SceneTreeWidget's per-document instances, this class
+    // is one of MainWindow's shared/singleton panels (see MainWindow.h); it
+    // must stay parented under MainWindow for its whole lifetime. Nothing
+    // currently calls this method or reparents this panel into a document's
+    // ViewportWidget - if that's ever wired up, note that Qt would then
+    // destroy this singleton along with whichever document it got reparented
+    // into, breaking every other document that still expects it to exist.
     void setDetachedOverlayMode(bool enabled);
     void refreshDetachedOverlayTheme();
 
