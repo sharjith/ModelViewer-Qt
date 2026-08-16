@@ -781,6 +781,38 @@ void SceneMesh::optimizeMesh()
 		// clone() can safely pass _baseVertices + _indices to a new constructor
 		// without index/vertex order mismatch.
 		_baseVertices = _vertices;
+
+		// Morph target position/normal/tangent deltas (MorphTargetData) are
+		// separate parallel arrays indexed the same way as _vertices, NOT
+		// part of the Vertex struct the remap above just reordered - each
+		// delta[i] must land at the SAME destination slot remap[i] its
+		// corresponding _vertices[i] did, or morph displacement ends up
+		// applied to the wrong vertex entirely once _vertices is reordered.
+		// eligibleForLod above already excludes morph-targeted meshes from
+		// Step 3's topology-changing SIMPLIFICATION (vertex COUNT changes
+		// there, genuinely incompatible with a fixed-size delta array), but
+		// that exclusion never covered this vertex-FETCH remap - an
+		// orthogonal concern that only REORDERS the existing vertices
+		// without changing how many there are, so it was never gated on
+		// hasMorphTargets() and silently desynced every sufficiently large
+		// morph-targeted mesh's deltas from their vertices. Found via a
+		// glTF-Sample-Assets regression sweep (MorphPrimitivesTest, whose
+		// two morph-displaced primitives showed the wrong proportion of
+		// each primitive's material visible after this pass ran).
+		for (MorphTargetData& target : _morphTargets)
+		{
+			auto remapDeltas = [&remap, vertexCount](std::vector<glm::vec3>& deltas)
+			{
+				if (deltas.size() != vertexCount)
+					return;
+				std::vector<glm::vec3> remappedDeltas(vertexCount);
+				meshopt_remapVertexBuffer(remappedDeltas.data(), deltas.data(), vertexCount, sizeof(glm::vec3), remap.data());
+				deltas = std::move(remappedDeltas);
+			};
+			remapDeltas(target.positionDeltas);
+			remapDeltas(target.normalDeltas);
+			remapDeltas(target.tangentDeltas);
+		}
 	}
 }
 
