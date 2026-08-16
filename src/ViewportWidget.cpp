@@ -14181,6 +14181,21 @@ void ViewportWidget::startOptixTestRayTracedSession(int fbWidth, int fbHeight)
 		return;
 	}
 
+	// An empty scene (e.g. every mesh just got deleted) is a valid, benign
+	// state, not a failure - RtOptixSceneTracer::buildScene() itself treats
+	// "no valid instances" as un-renderable and returns false, which would
+	// otherwise cascade into a THIRD stacked qWarning() here on top of its
+	// own and RtOptixRayTracingSession::start()'s (all three tracing back to
+	// this exact same root cause). Bailing out here first, silently, mirrors
+	// the !snapshot case immediately above and avoids ever reaching either
+	// of those warnings.
+	if (snapshot->instances.empty())
+	{
+		_preservePtPresenterOnNextStart = false;
+		update();
+		return;
+	}
+
 	// RtOptixRayTracingSession itself only rebuilds the GPU acceleration
 	// structure when the scene actually changed (see its start() doc
 	// comment) - camera-only movement reuses the existing GAS/IAS and just
@@ -14608,6 +14623,12 @@ bool ViewportWidget::renderRayTracedOfflineGpu(int width, int height, const RtSc
 	// identical fresh-RtEmbreeScene rationale above.
 	RtOptixSceneTracer tracer;
 	if (!tracer.isAvailable())
+		return false;
+	// An empty scene is a valid, benign state, not a failure - see
+	// startOptixTestRayTracedSession()'s identical check for the full
+	// write-up (this call site doesn't add its own qWarning() on top, but
+	// skipping the call entirely still avoids buildScene()'s own).
+	if (snapshot.instances.empty())
 		return false;
 	if (!tracer.buildScene(snapshot))
 		return false;

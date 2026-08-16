@@ -115,6 +115,16 @@ bool RtInteractiveRenderer::applySceneSnapshot(const std::shared_ptr<const RtSce
 	if (!snapshot || !_tracer.isAvailable())
 		return false;
 
+	// An empty scene (e.g. every mesh just got deleted while interactive RT
+	// preview is active) is a valid, benign state, not a failure -
+	// RtOptixSceneTracer::buildScene() itself treats "no valid instances" as
+	// un-renderable and returns false with its own qWarning(), which would
+	// otherwise cascade into a second, redundant one below tracing back to
+	// the exact same root cause. Bailing out here first, silently, mirrors
+	// the !snapshot check immediately above.
+	if (snapshot->instances.empty())
+		return false;
+
 	if (!_stream)
 	{
 		_stream = _tracer.createStream();
