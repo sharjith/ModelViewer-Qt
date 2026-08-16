@@ -707,6 +707,49 @@ bool loadMorphTargetsForAiMesh(const QString& gltfPath,
 						continue;
 
 					const QJsonObject primitiveObj = primitives[primitiveIndex].toObject();
+
+					// KHR_draco_mesh_compression: this primitive's base
+					// attributes (and indices) live only inside the
+					// compressed blob referenced by primitiveObj.extensions.
+					// KHR_draco_mesh_compression.bufferView - their "regular"
+					// accessor entries (POSITION/NORMAL/TEXCOORD_0 etc.,
+					// referenced from primitiveObj.attributes) intentionally
+					// omit bufferView/byteOffset, since the real data isn't
+					// there. readBasisAccessor() below reads those regular
+					// accessor entries directly via readFloatAccessorData(),
+					// which has no Draco decoder and simply fails (no
+					// bufferView to read), leaving outBaseBasis empty - which
+					// silently skips buildMorphVertexRemap()/
+					// reorderMorphTargetsToImportedVertexOrder() at the call
+					// site below, the exact step that exists to reconcile
+					// Assimp's decoded vertex order against this function's
+					// own raw-glTF-order reads. Draco compression reorders
+					// vertices as part of its encoding, so skipping that
+					// remap silently misapplies every morph delta read below
+					// to the wrong vertex - confirmed via glTF-Sample-Assets'
+					// MorphPrimitivesTest (glTF-Draco variant only; the
+					// uncompressed glTF/glb variants of the same asset render
+					// correctly, isolating this to Draco specifically).
+					//
+					// Bailing out here (before touching outTargets/
+					// outDefaultWeights/outBaseBasis at all) leaves the
+					// caller's ALREADY-POPULATED native-Assimp result (built
+					// from mesh->mAnimMeshes just before this function is
+					// called) standing uncontested instead of being
+					// overwritten with data this function cannot correctly
+					// order. That native path is reliable for exactly this
+					// case: Assimp's own glTF2 importer (glTF2Importer.cpp's
+					// target.position[0]->ExtractData(positionDiff,
+					// vertexRemappingTable) call) extracts morph deltas using
+					// the SAME vertexRemappingTable it uses for every other
+					// per-vertex attribute (positions, colors, texcoords),
+					// so it's internally consistent with whatever reordering
+					// Draco decompression performed - unlike this function,
+					// which has no visibility into that table at all.
+					const QJsonObject primitiveExtensions = primitiveObj.value("extensions").toObject();
+					if (primitiveExtensions.contains("KHR_draco_mesh_compression"))
+						return false;
+
 					const QJsonArray targets = primitiveObj.value("targets").toArray();
 					if (targets.isEmpty())
 						return false;
