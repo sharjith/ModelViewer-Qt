@@ -992,7 +992,9 @@ public slots:
 	void setFloorTexRepeatS(double floorTexRepeatS);
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
-	void setSkyBoxFOV(double fov) { _renderCtrl.setSkyBoxFOV(static_cast<float>(fov)); update(); }
+	// notifySceneContentMutated(): skyBoxFOV feeds the PT snapshot's
+	// environment scalars - see setBgGradientStyle()'s identical reasoning.
+	void setSkyBoxFOV(double fov) { _renderCtrl.setSkyBoxFOV(static_cast<float>(fov)); _rtInteractionCtrl->notifySceneContentMutated(); update(); }
 	void setPerspFOV(int fovDegrees);
 	void setSkyBoxZRotation(int index);
 	// Direct continuous-angle setter - VisualizationEnvironmentPanel's fine

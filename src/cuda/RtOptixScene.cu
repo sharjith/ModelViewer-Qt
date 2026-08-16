@@ -1508,22 +1508,22 @@ namespace
 	}
 
 	// ViewportWidget::drawSkyBox() always renders the skybox cube through a
-	// PERSPECTIVE projection (RtEnvironment::skyBoxFOV's doc comment), even
-	// under an orthographic scene camera - a deliberate cheat so the
-	// background still reads as a varied, panoramic backdrop instead of the
-	// flat, perfectly uniform color a true orthographic camera's parallel
-	// rays would otherwise sample (every such ray shares the exact same
-	// direction, differing only in origin). Mirrors that same cheat for the
-	// kernel's own directly-visible background sample - only ever called for
-	// the primary-ray-miss case (escapeRoughness == -1.0f), matching
-	// CpuPathTracer::tracePixel()'s identical backgroundDirection. su/sv are
-	// the same fixed pixel-center screen UVs __miss__ms()/traceBouncePath()'s
-	// shadow-catcher gate already compute for the fallback-gradient lookup,
-	// reused here rather than recomputing an equivalent NDC pair.
-	__forceinline__ __device__ float3 computeSkyboxBackgroundDirection(const float3& realDirection, float su, float sv)
+	// PERSPECTIVE projection built from skyBoxFOV (RtEnvironment::skyBoxFOV's
+	// doc comment) - UNCONDITIONALLY, for both a perspective AND an
+	// orthographic scene camera, so the user's Sky Box FOV control re-frames
+	// the visible backdrop regardless of the real camera's own lens settings
+	// (also the only way to get per-pixel directional variation at all under
+	// a true orthographic camera, whose parallel rays would otherwise all
+	// sample the exact same direction). Mirrors that same cheat
+	// unconditionally for the kernel's own directly-visible background
+	// sample - only ever called for the primary-ray-miss case
+	// (escapeRoughness == -1.0f), matching CpuPathTracer::tracePixel()'s
+	// identical backgroundDirection. su/sv are the same fixed pixel-center
+	// screen UVs __miss__ms()/traceBouncePath()'s shadow-catcher gate already
+	// compute for the fallback-gradient lookup, reused here rather than
+	// recomputing an equivalent NDC pair.
+	__forceinline__ __device__ float3 computeSkyboxBackgroundDirection(float su, float sv)
 	{
-		if (!params.camOrthographic)
-			return realDirection;
 		const float ndcX = 2.0f * su - 1.0f;
 		const float ndcY = 2.0f * sv - 1.0f;
 		const float tanHalfFovY = tanf(params.environment.skyBoxFOV * (kPi / 180.0f) * 0.5f);
@@ -1840,7 +1840,7 @@ namespace
 						const uint3 dimLaunch = optixGetLaunchDimensions();
 						const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
 						const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
-						envColor = sampleEnvironmentBackground(params.environment, computeSkyboxBackgroundDirection(direction, su, sv), su, sv);
+						envColor = sampleEnvironmentBackground(params.environment, computeSkyboxBackgroundDirection(su, sv), su, sv);
 					}
 					else
 					{
@@ -2661,7 +2661,7 @@ extern "C" __global__ void __miss__ms()
 		const uint3 dimLaunch = optixGetLaunchDimensions();
 		const float su = (static_cast<float>(idx.x) + 0.5f) / static_cast<float>(dimLaunch.x);
 		const float sv = 1.0f - (static_cast<float>(idx.y) + 0.5f) / static_cast<float>(dimLaunch.y);
-		result = sampleEnvironmentBackground(params.environment, computeSkyboxBackgroundDirection(dir, su, sv), su, sv);
+		result = sampleEnvironmentBackground(params.environment, computeSkyboxBackgroundDirection(su, sv), su, sv);
 	}
 	else if (escapeRoughness == kShadowCatcherSpecularEscapeSentinel)
 	{

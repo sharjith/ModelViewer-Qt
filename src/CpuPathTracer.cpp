@@ -2630,18 +2630,21 @@ namespace
 		}
 
 		// ViewportWidget::drawSkyBox() always renders the skybox through a
-		// PERSPECTIVE projection (RtEnvironment::skyBoxFOV's doc comment),
-		// even under an orthographic scene camera, so raster's background
-		// shows per-pixel directional variation a true orthographic camera's
-		// parallel rays never would. Mirror that same cheat here: the
-		// directly-visible background sample (bounce == 0 only, see
-		// sampleEnvironmentBackground()'s two call sites below) uses this
-		// synthetic perspective direction instead of the real (constant)
-		// ray.direction whenever the camera is orthographic - every other
-		// use of ray.direction (geometry intersection, bounce/reflection
-		// escapes, NEE) is untouched and stays physically correct.
-		glm::vec3 backgroundDirection = ray.direction;
-		if (cam.orthographic)
+		// PERSPECTIVE projection built from skyBoxFOV (RtEnvironment::
+		// skyBoxFOV's doc comment) - UNCONDITIONALLY, for both a perspective
+		// AND an orthographic scene camera, so the user's Sky Box FOV control
+		// re-frames the visible backdrop regardless of the real camera's own
+		// lens settings (also the only way to get per-pixel directional
+		// variation at all under a true orthographic camera, whose parallel
+		// rays would otherwise all sample the exact same direction). Mirror
+		// that same cheat unconditionally here too: the directly-visible
+		// background sample (bounce == 0 only, see
+		// sampleEnvironmentBackground()'s two call sites below) always uses
+		// this synthetic skyBoxFOV-based direction instead of the real
+		// ray.direction - every other use of ray.direction (geometry
+		// intersection, bounce/reflection escapes, NEE) is untouched and
+		// stays physically correct.
+		glm::vec3 backgroundDirection;
 		{
 			const float skyBoxTanHalfFovY = std::tan(glm::radians(snapshot.environment.skyBoxFOV) * 0.5f);
 			backgroundDirection = glm::normalize(
