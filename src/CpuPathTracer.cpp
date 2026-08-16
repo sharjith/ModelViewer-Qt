@@ -242,6 +242,65 @@ namespace
 		return F0 + (F90 - F0) * std::pow(std::clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
 	}
 
+	// NVIDIA vk_gltf_renderer's roughness-aware cosine remap
+	// (nvpro_core2/nvshaders/bsdf_functions.h.slang's
+	// fresnelCosineApproximation()), used ONLY for the transmission
+	// reflect-vs-refract lobe-selection Fresnel below (tracePixel()'s
+	// transmission branch) - GGX-VNDF-sampled half-vectors are, by
+	// construction, biased away from the most extreme grazing angles for a
+	// rough surface (the visible-normal distribution suppresses near-zero
+	// VdotHm outcomes), which was leaving that branch's VdotHm-based Schlick
+	// term pinned near F0 (near-floor reflectProb) across an entire
+	// moderately-rough transmissive surface, INCLUDING near its true
+	// geometric silhouette - confirmed via debug visualization against
+	// glTF-Sample-Assets' LightsPunctualLamp (whose shade, roughness~0.32,
+	// showed a converged, non-noisy, too-transparent result matching this
+	// exactly). This remaps the MACRO-normal VdotN toward a less-grazing-
+	// looking effective cosine as roughness increases - the reference
+	// renderer's own documented compensation for that same VNDF bias,
+	// evaluated at the macro normal rather than the microfacet half-vector.
+	// No-op at roughness=0 (returns VdotN unchanged, since a perfectly
+	// smooth surface's Hm==N exactly, no bias to compensate for).
+	float fresnelCosineApproximation(float VdotN, float roughness)
+	{
+		return glm::mix(VdotN, std::sqrt(0.5f + 0.5f * VdotN), std::sqrt(std::clamp(roughness, 0.0f, 1.0f)));
+	}
+
+	// NVIDIA vk_gltf_renderer's exact (unpolarized - equal mix of both
+	// polarizations) dielectric Fresnel equation (nvpro_core2/nvshaders/
+	// pbr_ggx_microfacet.h.slang's ior_fresnel()), paired with
+	// fresnelCosineApproximation() above for the same transmission lobe-
+	// selection decision - Schlick's approximation (used elsewhere in this
+	// file for the ordinary F0/F90-tinted specular lobe, left as-is; that's
+	// a separate, deliberate simplification) is close enough there, but
+	// isn't why this differs from Schlick - the cosine remap above is the
+	// load-bearing fix; this formula is ported alongside it simply to match
+	// the reference exactly rather than mixing an exact-Fresnel input into
+	// an approximate-Fresnel formula. eta is n_transmitted/n_incident - the
+	// call site below deliberately passes a CONSTANT mat.ior regardless of
+	// hitBackface (see its own doc comment for why: flipping it below 1.0
+	// on a backface hit makes this function's own costheta<=0 TIR sentinel
+	// below trigger across a wide angle range, which is fine on a clean
+	// single surface but forces stray mirror reflectance on individual
+	// misclassified triangles of procedurally-shattered geometry). kh is
+	// the (already-remapped) cosine between the surface normal and
+	// incident direction.
+	float iorFresnelExact(float eta, float kh)
+	{
+		float costheta = 1.0f - (1.0f - kh * kh) / (eta * eta);
+		if (costheta <= 0.0f)
+			return 1.0f; // total internal reflection at this (remapped) angle
+
+		costheta = std::sqrt(costheta);
+		const float n1t1 = kh;
+		const float n1t2 = costheta;
+		const float n2t1 = kh * eta;
+		const float n2t2 = costheta * eta;
+		const float r_p = (n1t2 - n2t1) / (n1t2 + n2t1);
+		const float r_o = (n1t1 - n2t2) / (n1t1 + n2t2);
+		return std::clamp(0.5f * (r_p * r_p + r_o * r_o), 0.0f, 1.0f);
+	}
+
 	// Ported from computeDielectricF0()/computeF90() in main_scene.frag:
 	// KHR_materials_ior replaces the fixed 0.04 dielectric F0 with a value
 	// derived from the material's actual index of refraction, and
@@ -758,6 +817,36 @@ namespace
 		s.transmission = mat.transmission;
 		if (mat.transmissionTexture)
 			s.transmission *= applyChannelPacking(sampleTexture(*mat.transmissionTexture, texCoords, computeTextureLod(*mat.transmissionTexture, footprintInUvArea)), *mat.transmissionTexture);
+
+		// Metals don't transmit light - matches NVIDIA's vk_gltf_renderer
+		// reference (nvpro_core2/nvshaders/bsdf_functions.h.slang's
+		// getLobeWeights(): weightLobe[LOBE_METAL_REFLECTION] = weightBase *
+		// metallic; weightBase *= 1-metallic; weightLobe[LOBE_SPECULAR_
+		// TRANSMISSION] = weightBase * transmission - i.e. the metal lobe
+		// claims its share of the energy FIRST, and transmission only ever
+		// gets what's left over). This tracer instead treats transmission as
+		// a standalone binary branch (tracePixel()'s "if (surf.transmission >
+		// 0.001f)" bypasses the ordinary diffuse/specular/metal lobe scheme
+		// entirely - see that branch's own doc comment for why), so there's
+		// no separate lobe-weight array to insert a metal-first term into;
+		// scaling surf.transmission itself by (1-metalness) here reproduces
+		// the same energy split at the one place every downstream consumer
+		// (this branch's own entry gate, its Fresnel/reflectProb tint, the
+		// env-importance-sampling skip condition, and evaluateDirectBRDF()'s
+		// "(1-transmission)" opaque-response scaling) already reads it from.
+		// Found missing entirely (metalness had zero effect on transmission
+		// anywhere in this file) via a differential comparison against a
+		// specific glTF-Sample-Assets case (LightsPunctualLamp) whose
+		// transmissive lampshade shares a moderately metallic (avg ~0.62)
+		// texture with its opaque counterpart - without this, the camera ray
+		// itself transmitted straight through metallic-textured fragments
+		// that should instead reflect as ordinary opaque metal, reading as a
+		// sharp "leaked bulb" shape nothing else in this file's transmission
+		// handling produces. No-op (multiplies by ~1.0) for ordinary
+		// dielectric glass samples, metalness~0 nearly everywhere on their
+		// transmissive surface.
+		s.transmission *= (1.0f - s.metalness);
+
 		s.hasVolume           = mat.hasVolume;
 		s.attenuationColor    = mat.attenuationColor;
 		s.attenuationDistance = mat.attenuationDistance;
@@ -2366,7 +2455,42 @@ namespace
 						tint *= glm::vec3(sampleTexture(*mat.baseColorTexture, hit.texCoords));
 					if (mat.hasVolume)
 						tint *= calculateVolumeAttenuation(mat.attenuationColor, mat.attenuationDistance, mat.thicknessFactor);
-					transmittance *= tint * transmissionFactor;
+
+					// Metallic/roughness shadow-ray attenuation - matches
+					// NVIDIA's vk_gltf_renderer reference (pathtrace_functions.
+					// h.slang's getShadowTransmission()) exactly: transmission
+					// is physically zero through a metallic fragment (metals
+					// don't transmit light; a texture-mapped metallicFactor of
+					// 1 at this exact point means "this is metal here", same
+					// spatial resolution as the surface shading itself uses),
+					// plus a mild extra dimming as roughness increases. Found
+					// missing here (this shadow-ray path only, NOT the ordinary
+					// BSDF-sampled bounce-transmission branch elsewhere in this
+					// file, which already reads surf.metalness/roughness
+					// correctly) via a differential comparison against a
+					// specific glTF-Sample-Assets case (LightsPunctualLamp)
+					// whose transmissive shade shares a moderately metallic
+					// (avg ~0.62) texture with its opaque counterpart - without
+					// this gate, direct point-light NEE shone straight through
+					// those metallic-textured fragments undimmed, reading as a
+					// sharp "leaked bulb" shape nothing else in this file's
+					// transmission handling produces (ordinary dielectric glass
+					// samples, metalness~0 nearly everywhere on their
+					// transmissive surface, are unaffected by this addition).
+					float shadowMetalness = mat.metalness;
+					if (mat.metallicTexture)
+						shadowMetalness *= applyChannelPacking(sampleTexture(*mat.metallicTexture, hit.texCoords), *mat.metallicTexture);
+					shadowMetalness = std::clamp(shadowMetalness, 0.0f, 1.0f);
+
+					float shadowRoughness = mat.roughness;
+					if (mat.roughnessTexture)
+						shadowRoughness *= applyChannelPacking(sampleTexture(*mat.roughnessTexture, hit.texCoords), *mat.roughnessTexture);
+					shadowRoughness = std::clamp(shadowRoughness, 0.0f, 1.0f);
+
+					const float roughnessEffect = 1.0f - (shadowRoughness * shadowRoughness);
+					const float transmissionAttenuation = (1.0f - shadowMetalness) * glm::mix(0.65f, 1.0f, roughnessEffect);
+
+					transmittance *= tint * transmissionFactor * transmissionAttenuation;
 				}
 			}
 
@@ -4154,6 +4278,49 @@ namespace
 				const glm::vec3 Hm = localToWorld(hLocal, N, Ht, Bt);
 				const float VdotHm = std::clamp(glm::dot(V, Hm), 0.0f, 1.0f);
 
+				// Reflect-vs-refract lobe-selection Fresnel - NVIDIA vk_gltf_
+				// renderer's fresnelCosineApproximation()+ior_fresnel() (see
+				// their own doc comments above), NOT the VdotHm-based
+				// fresnelSchlick() this branch used previously. That
+				// VdotHm-based version is still exactly right for computing
+				// the ACTUAL reflected-ray throughput once "reflect" is
+				// chosen (Hm/VdotHm below is untouched, still driving
+				// bounceDir/bounceThroughput per Walter et al.) - the
+				// problem was specifically using it for THIS decision too:
+				// GGX-VNDF's visible-normal bias keeps VdotHm away from true
+				// grazing angles for a rough surface, so Schlick(VdotHm)
+				// stayed pinned near F0 across this branch's ENTIRE surface
+				// (verified via debug visualization on glTF-Sample-Assets'
+				// LightsPunctualLamp), converging to a too-transparent
+				// result no amount of sampling fixed.
+				//
+				// fresnelEta is a CONSTANT mat.ior, deliberately NOT
+				// hitBackface-flipped (REGRESSION FIX: an earlier version of
+				// this line used hitBackface ? (1/mat.ior) : mat.ior, by
+				// incorrect analogy with the actual refraction ray's own
+				// eta convention a few lines below - that's a different,
+				// separate use, and NVIDIA's own reference call this whole
+				// approach is ported from does NOT flip eta here:
+				// frDielectric = ior_fresnel(mat.ior2/mat.ior1, ...) uses a
+				// fixed ratio from the material's own authored IOR,
+				// regardless of which side got hit. With eta flipped below
+				// 1.0 on a backface hit, iorFresnelExact()'s TIR sentinel
+				// (costheta<=0 -> return 1.0, full mirror) triggers across a
+				// wide angle range - harmless on a single clean surface
+				// where backface hits are rare/never happen, but shattered-
+				// glass geometry (glTF-Sample-Assets' GlassBrokenWindow) is
+				// exactly the kind of procedurally-fractured mesh where
+				// individual shard triangles can have inconsistent winding,
+				// so some shards were misclassified as backface hits and
+				// forced to pure mirror reflectance - a sharp, shard-
+				// boundary-shaped reflective patch instead of a smooth
+				// Fresnel gradient. A constant eta=mat.ior (>=1, "entering"
+				// convention) never triggers that sentinel for any cosine in
+				// [0,1], matching NVIDIA's reference exactly.
+				const float fresnelRemappedCosine = fresnelCosineApproximation(NdotVTransmission, surf.roughness);
+				const float fresnelEta = mat.ior;
+				const float dielectricFresnelExact = iorFresnelExact(fresnelEta, fresnelRemappedCosine);
+
 				// KHR_materials_iridescence applies to the Fresnel reflectance
 				// at ANY dielectric interface, not just an opaque one - a
 				// transmissive material (soap bubble, iridescent glass) still
@@ -4162,10 +4329,36 @@ namespace
 				// fresnelSchlick() here, bypassing applyIridescenceToFresnel()
 				// entirely, so transmissive+iridescent materials showed no
 				// iridescence at all - a real gap, not a deliberate v1 cut.
-				// Evaluated at the microfacet normal (VdotHm), matching
-				// Walter et al.'s treatment, not the macro NdotV.
-				const glm::vec3 transmissionFresnel = applyIridescenceToFresnel(
-					fresnelSchlick(VdotHm, surf.dielectricF0, glm::vec3(1.0f)), VdotHm, surf.dielectricF0, surf);
+				// Evaluated at the (already roughness-remapped) macro cosine
+				// above, not the microfacet normal - iridescence's thin-film
+				// interference angle-dependence is a separate, much finer-
+				// grained effect than this VNDF-bias compensation; reusing
+				// the remapped cosine here is a reasonable approximation
+				// rather than computing yet another angle for this rare
+				// (this asset doesn't use it) extension.
+				// Clamped to the SAME [0.05,0.95] range reflectProb (its
+				// averaged copy, just below) is clamped to - this is what
+				// keeps the reflect branch's transmissionFresnel/reflectProb
+				// and the refract branch's (1-transmissionFresnel)/
+				// (1-reflectProb) weighting mathematically consistent by
+				// construction. Previously transmissionFresnel itself was
+				// left unclamped while only reflectProb (its average) was:
+				// harmless as long as the true Fresnel value stayed within
+				// [0.05,0.95], which Schlick's approximation (this branch's
+				// prior formula) rarely exceeded for ordinary IOR ranges -
+				// but the exact iorFresnelExact() above legitimately climbs
+				// past 0.95 well before true grazing incidence for a
+				// high-IOR dielectric (diamond's IOR=2.42 gives F0~17% at
+				// NORMAL incidence alone), and once transmissionFresnel
+				// exceeds reflectProb's clamped ceiling, the refract
+				// branch's (1-transmissionFresnel)/(1-reflectProb) divides a
+				// near-zero numerator by a not-nearly-as-small denominator,
+				// silently discounting the refracted contribution far below
+				// its true value - confirmed via glTF-Sample-Assets'
+				// TransmissionRoughnessTest/TransmissionTest (both show a
+				// too-dark high-IOR sphere without this clamp).
+				const glm::vec3 transmissionFresnel = glm::clamp(applyIridescenceToFresnel(
+					glm::vec3(dielectricFresnelExact), fresnelRemappedCosine, surf.dielectricF0, surf), 0.05f, 0.95f);
 				const float reflectProb = std::clamp((transmissionFresnel.r + transmissionFresnel.g + transmissionFresnel.b) / 3.0f, 0.05f, 0.95f);
 
 				// kDebugVisualizeTransmission - false-colors this hit's
@@ -4228,12 +4421,38 @@ namespace
 					// (thicknessFactor's own spec default is 0) means the
 					// surface is implicitly thin-walled - glTF's intent is a
 					// "hole"/idealized infinitely-thin film (a soap bubble,
-					// not a solid lens), so the transmitted ray passes
-					// straight through completely undeviated: no Snell bend,
-					// no interior medium to be "inside" or absorb through.
+					// not a solid lens), so there's no Snell bend and no
+					// interior medium to be "inside" or absorb through.
 					// Offsetting through Ng (not reflecting off it) still
 					// avoids immediately re-hitting the same surface.
 					//
+					// "Pseudo-BTDF" direction - NVIDIA vk_gltf_renderer's
+					// technique for rough thin-walled transmission
+					// (nvpro_core2/nvshaders/bsdf_functions.h.slang's
+					// btdf_ggx_smith_sample(), isThinWalled branch): reflect
+					// off the SAME rough, VNDF-sampled microfacet normal Hm
+					// the reflect branch above uses (so the transmitted
+					// direction gets the identical angular scatter a rough
+					// reflection would), then flip that direction through
+					// the MACRO surface plane (reflect again, about N this
+					// time) to send it to the transmission side instead of
+					// back toward the reflection side. Previously this was
+					// bounceDir = ray.direction (perfectly undeviated,
+					// zero diffusion) - only correct at roughness==0; for
+					// this asset's roughness (~0.32), that showed anything
+					// behind the material (lights, its own emissive
+					// texture) in perfectly sharp focus, with none of the
+					// softening a real frosted/rough thin film would show -
+					// confirmed against glTF-Sample-Assets' LightsPunctualLamp,
+					// whose shade stayed hard-edged and "too transparent"-
+					// looking through several other fixes that didn't touch
+					// this direction at all.
+					const glm::vec3 microfacetReflectDir = glm::reflect(ray.direction, Hm);
+					bounceDir = glm::reflect(microfacetReflectDir, N);
+					if (glm::dot(N, bounceDir) >= 0.0f)
+						break; // degenerate at high roughness: landed back on the reflection side instead of transmission - matches NVIDIA's own BSDF_EVENT_ABSORB gate on this same condition
+					ray.origin = hit.position - Ng * eps;
+
 					// Tinted by surf.baseColor, matching glTF spec intent - a
 					// thin-walled transparent material's baseColor (including
 					// any pattern/text baked into a baseColorTexture, e.g. a
@@ -4254,9 +4473,7 @@ namespace
 					// special-cases this), so correctness for the common,
 					// spec-intended case (a single- or few-crossing colored/
 					// patterned film) takes priority over that rarer edge case.
-					bounceDir = ray.direction;
 					bounceThroughput = surf.baseColor * (glm::vec3(1.0f) - transmissionFresnel) / (1.0f - reflectProb);
-					ray.origin = hit.position - Ng * eps;
 				}
 				else
 				{

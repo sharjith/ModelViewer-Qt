@@ -144,6 +144,28 @@ namespace
 	constexpr bool kDebugVisualizeVolumeScatterBounces = false;
 	constexpr float kVolumeScatterDebugRampCap = 32.0f;
 
+	// Debug-visualization toggle, mirroring CpuPathTracer.cpp's identical
+	// kDebugVisualizeTransmission (simplified: flat red/green rather than
+	// CPU's "real sampled content per branch" version, and no TIR/yellow
+	// case - not worth duplicating the volumetric-refraction math here for a
+	// debug-only hook). False-colors the PRIMARY ray's reflect-vs-refract
+	// decision at a KHR_materials_transmission hit: red = reflected off the
+	// surface, green = refracted/passed through (thin-walled or genuine
+	// volumetric transmission alike). Written directly into the radiance
+	// payload with hitFlag forced to 2 (a terminal opaque hit, NOT 0 - see
+	// the use site's own doc comment for why hitFlag=0 silently discards
+	// this color in favor of the raster background here), same early-
+	// terminate-the-bounce-loop intent as kDebugVisualizeClearcoat/
+	// kDebugVisualizeShadowTransmittance above - see __closesthit__ch()'s
+	// transmission branch for the use site.
+	//
+	// TEMPORARY: was enabled for an in-progress LightsPunctualLamp diagnostic
+	// (reflectProb/NdotV/worldNormal visualizations, all in this block's use
+	// site) - the reflect/refract split and normal field both checked out as
+	// physically plausible for a transmissionFactor=1 material, so the
+	// investigation moved elsewhere. Flip back to true here if resuming it.
+	constexpr bool kDebugVisualizeTransmission = false;  
+
 	__forceinline__ __device__ float3 operator+(const float3& a, const float3& b)
 	{
 		return make_float3(a.x + b.x, a.y + b.y, a.z + b.z);
@@ -606,6 +628,51 @@ namespace
 	{
 		const float t = powf(fminf(fmaxf(1.0f - cosTheta, 0.0f), 1.0f), 5.0f);
 		return lerp3(F0, F90, t);
+	}
+
+	// NVIDIA vk_gltf_renderer's roughness-aware cosine remap
+	// (nvpro_core2/nvshaders/bsdf_functions.h.slang's
+	// fresnelCosineApproximation()) - see CpuPathTracer.cpp's identical
+	// addition (fresnelCosineApproximation()'s own doc comment there) for
+	// the full write-up of why this is needed: GGX-VNDF-sampled half-vectors
+	// are biased away from true grazing angles for a rough surface, pinning
+	// a VdotHm-based Schlick term near F0 across the WHOLE visible surface
+	// of a moderately-rough transmissive material, converging to a too-
+	// transparent result. This remaps the MACRO-normal VdotN toward a less-
+	// grazing-looking effective cosine as roughness increases, compensating
+	// for that bias. No-op at roughness=0.
+	__forceinline__ __device__ float fresnelCosineApproximation(float VdotN, float roughness)
+	{
+		const float t = sqrtf(fminf(fmaxf(roughness, 0.0f), 1.0f));
+		return VdotN + (sqrtf(0.5f + 0.5f * VdotN) - VdotN) * t;
+	}
+
+	// NVIDIA vk_gltf_renderer's exact (unpolarized) dielectric Fresnel
+	// equation (nvpro_core2/nvshaders/pbr_ggx_microfacet.h.slang's
+	// ior_fresnel()) - see CpuPathTracer.cpp's identical iorFresnelExact()
+	// doc comment. eta is n_transmitted/n_incident - the __closesthit__ch()
+	// call site deliberately passes a CONSTANT data->ior regardless of
+	// hitBackface (see its own doc comment for why: flipping it below 1.0
+	// on a backface hit makes this function's own costheta<=0 TIR sentinel
+	// below trigger across a wide angle range, which is fine on a clean
+	// single surface but forces stray mirror reflectance on individual
+	// misclassified triangles of procedurally-shattered geometry). kh is
+	// the (already roughness-remapped) cosine between the surface normal
+	// and incident direction.
+	__forceinline__ __device__ float iorFresnelExact(float eta, float kh)
+	{
+		float costheta = 1.0f - (1.0f - kh * kh) / (eta * eta);
+		if (costheta <= 0.0f)
+			return 1.0f; // total internal reflection at this (remapped) angle
+
+		costheta = sqrtf(costheta);
+		const float n1t1 = kh;
+		const float n1t2 = costheta;
+		const float n2t1 = kh * eta;
+		const float n2t2 = costheta * eta;
+		const float r_p = (n1t2 - n2t1) / (n1t2 + n2t1);
+		const float r_o = (n1t1 - n2t2) / (n1t1 + n2t2);
+		return fminf(fmaxf(0.5f * (r_p * r_p + r_o * r_o), 0.0f), 1.0f);
 	}
 
 	// ---- Height-correlated Smith masking-shadowing (Heitz 2014), ported
@@ -2929,7 +2996,31 @@ extern "C" __global__ void __anyhit__ah()
 		}
 		if (data->hasVolume != 0)
 			tint = tint * calculateVolumeAttenuation(data->attenuationColor, data->attenuationDistance, data->thicknessFactor);
-		transmissionTint = tint * transmissionFactor;
+
+		// Metallic/roughness shadow-ray attenuation - matches NVIDIA's
+		// vk_gltf_renderer reference (pathtrace_functions.h.slang's
+		// getShadowTransmission()) exactly: transmission is physically zero
+		// through a metallic fragment, plus a mild extra dimming as roughness
+		// increases. See CpuPathTracer::traceShadowRay()'s identical addition
+		// for the full write-up (found missing via a differential comparison
+		// against glTF-Sample-Assets' LightsPunctualLamp, whose transmissive
+		// shade shares a moderately metallic texture with its opaque
+		// counterpart - plain dielectric glass samples, metalness~0
+		// everywhere on their transmissive surface, are unaffected).
+		float shadowMetalness = data->metalness;
+		if (data->metallicTexture.width > 0)
+			shadowMetalness *= applyChannelPacking(sampleTexture2D(data->metallicTexture, uv), data->metallicTexture);
+		shadowMetalness = fminf(fmaxf(shadowMetalness, 0.0f), 1.0f);
+
+		float shadowRoughness = data->roughness;
+		if (data->roughnessTexture.width > 0)
+			shadowRoughness *= applyChannelPacking(sampleTexture2D(data->roughnessTexture, uv), data->roughnessTexture);
+		shadowRoughness = fminf(fmaxf(shadowRoughness, 0.0f), 1.0f);
+
+		const float roughnessEffect = 1.0f - (shadowRoughness * shadowRoughness);
+		const float transmissionAttenuation = (1.0f - shadowMetalness) * (0.65f + (0.35f * roughnessEffect));
+
+		transmissionTint = tint * transmissionFactor * transmissionAttenuation;
 
 		const unsigned int seed = pcgHash(optixGetPayload_3());
 		optixSetPayload_3(seed);
@@ -3457,6 +3548,20 @@ extern "C" __global__ void __closesthit__ch()
 	float transmission = data->transmission;
 	if (data->transmissionTexture.width > 0)
 		transmission *= applyChannelPacking(sampleTexture2D(data->transmissionTexture, uv, computeTextureLod(data->transmissionTexture, footprintInUvArea)), data->transmissionTexture);
+
+	// Metals don't transmit light - matches NVIDIA's vk_gltf_renderer
+	// reference (nvpro_core2/nvshaders/bsdf_functions.h.slang's
+	// getLobeWeights(): the metal lobe claims its share of the energy FIRST,
+	// weightBase *= 1-metallic, and transmission only ever gets what's left
+	// over). See CpuPathTracer::evaluateSurface()'s identical addition for
+	// the full write-up - this scales the one `transmission` value every
+	// downstream consumer in this shader (the transmission-bounce branch's
+	// entry gate below, its Fresnel/reflectProb tint, and the env-importance-
+	// sampling skip condition) already reads, so a single multiply here
+	// reproduces the same energy split everywhere at once. No-op for
+	// ordinary dielectric glass (metalness~0).
+	transmission *= (1.0f - metalness);
+
 	const int hasVolume = data->hasVolume;
 	const float3 attenuationColor = data->attenuationColor;
 	const float attenuationDistance = data->attenuationDistance;
@@ -4102,18 +4207,134 @@ extern "C" __global__ void __closesthit__ch()
 		const float3 Hm = normalizeF3(Ht * hLocal.x + Bt * hLocal.y + worldNormal * hLocal.z);
 		const float VdotHm = fminf(fmaxf(dot3(V, Hm), 0.0f), 1.0f);
 
+		// Reflect-vs-refract lobe-selection Fresnel - NVIDIA vk_gltf_
+		// renderer's fresnelCosineApproximation()+ior_fresnel(), NOT the
+		// VdotHm-based fresnelSchlick() this branch used previously. See
+		// CpuPathTracer::tracePixel()'s identical addition for the full
+		// write-up: GGX-VNDF's visible-normal bias keeps VdotHm away from
+		// true grazing angles for a rough surface, so Schlick(VdotHm) stayed
+		// pinned near F0 across this branch's ENTIRE visible surface
+		// (verified via this file's own debug visualization on glTF-Sample-
+		// Assets' LightsPunctualLamp), converging to a too-transparent
+		// result no amount of sampling fixed. VdotHm/Hm below are untouched -
+		// still exactly right for the ACTUAL reflected-ray throughput once
+		// "reflect" is chosen.
+		//
+		// fresnelEta is n_transmitted/n_incident - REGRESSION FIX: this used
+		// to be hitBackface ? (1/data->ior) : data->ior, by incorrect analogy
+		// with the actual refraction ray's own eta convention a few lines
+		// below (a different, separate use) - NVIDIA's own reference call
+		// this whole approach is ported from does NOT flip eta here
+		// (frDielectric = ior_fresnel(mat.ior2/mat.ior1, ...) uses a fixed
+		// ratio from the material's own authored IOR, regardless of which
+		// side got hit). With eta flipped below 1.0 on a backface hit,
+		// iorFresnelExact()'s TIR sentinel (costheta<=0 -> return 1.0, full
+		// mirror) triggers across a wide angle range - harmless on a clean
+		// single surface, but glTF-Sample-Assets' GlassBrokenWindow (shard-
+		// fractured geometry, individual triangles can have inconsistent
+		// winding) showed a sharp, shard-boundary-shaped reflective patch
+		// instead of a smooth Fresnel gradient, wherever a shard triangle
+		// got misclassified as a backface hit. A constant eta=data->ior
+		// (>=1, "entering" convention) never triggers that sentinel for any
+		// cosine in [0,1], matching NVIDIA's reference exactly.
+		const float fresnelRemappedCosine = fresnelCosineApproximation(NdotVTransmission, roughness);
+		const float fresnelEta = data->ior;
+		const float dielectricFresnelExact = iorFresnelExact(fresnelEta, fresnelRemappedCosine);
+
 		// KHR_materials_iridescence applies to the Fresnel reflectance at
 		// ANY dielectric interface, not just an opaque one - a transmissive
 		// material (soap bubble, iridescent glass) still shows the same
 		// thin-film color shift on its reflected portion. Evaluated at the
-		// microfacet normal (VdotHm), matching Walter et al.'s treatment.
-		const float3 transmissionFresnel = applyIridescenceToFresnel(
-			fresnelSchlick(VdotHm, dielectricF0, make_float3(1.0f, 1.0f, 1.0f)), VdotHm, dielectricF0,
+		// (already roughness-remapped) macro cosine above, not the
+		// microfacet normal - a reasonable approximation for this rare
+		// (this asset doesn't use it) extension rather than computing yet
+		// another angle.
+		// Clamped to the SAME [0.05,0.95] range reflectProb (its averaged
+		// copy, just below) is clamped to - see CpuPathTracer.cpp's identical
+		// clamp for the full write-up. Previously transmissionFresnel was
+		// left unclamped while only reflectProb (its average) was: harmless
+		// while this branch used Schlick's approximation (rarely exceeds
+		// 0.95 for ordinary IOR), but iorFresnelExact() above legitimately
+		// climbs past 0.95 well before true grazing for a high-IOR dielectric
+		// (diamond's IOR=2.42 gives F0~17% at NORMAL incidence alone) -
+		// without this clamp, the refract branch's (1-transmissionFresnel)/
+		// (1-reflectProb) divides a near-zero numerator by a not-nearly-as-
+		// small denominator, silently discounting the refracted contribution
+		// far below its true value (confirmed via glTF-Sample-Assets'
+		// TransmissionRoughnessTest/TransmissionTest).
+		const float3 rawTransmissionFresnel = applyIridescenceToFresnel(
+			make_float3(dielectricFresnelExact, dielectricFresnelExact, dielectricFresnelExact), fresnelRemappedCosine, dielectricF0,
 			iridescenceFactor, iridescenceIor, iridescenceThickness);
+		const float3 transmissionFresnel = make_float3(
+			fminf(fmaxf(rawTransmissionFresnel.x, 0.05f), 0.95f),
+			fminf(fmaxf(rawTransmissionFresnel.y, 0.05f), 0.95f),
+			fminf(fmaxf(rawTransmissionFresnel.z, 0.05f), 0.95f));
 		const float reflectProb = fminf(fmaxf((transmissionFresnel.x + transmissionFresnel.y + transmissionFresnel.z) / 3.0f, 0.05f), 0.95f);
 
 		rngState = pcgHash(rngState);
 		const float reflectXi = hashToUnitFloat(rngState);
+
+		if (kDebugVisualizeTransmission && primaryRaySentinel == -1.0f)
+		{
+			// hitFlag=0 would be WRONG here despite matching every other
+			// debug flag's early-return pattern (kDebugVisualizeClearcoat/
+			// kDebugVisualizeShadowTransmittance above) - the shadow-catcher
+			// code's own doc comment nearby spells out why: hitFlag=0 means
+			// "identical to a genuine miss" to __raygen__rg()'s accumulatedHits
+			// (this pixel's alpha), which lets RASTER'S OWN BACKGROUND show
+			// through instead of this payload's radiance in the interactive/
+			// hybrid raster+RT compositing path - exactly the "shade renders
+			// as fully invisible, background shows through untouched" symptom
+			// this flag produced before this fix. hitFlag=2 (a "terminal
+			// shadow-catcher hit" per that same nearby code) is the correct
+			// terminal state for an opaque debug color: it both breaks the
+			// bounce loop immediately (raygen's identical `hitFlag==0u ||
+			// hitFlag==2u` check) AND, via payload 17 as fractional alpha,
+			// can register full opaque coverage (1.0) so this color actually
+			// composites over the background instead of being discarded.
+			// PIVOT 2: reflectProb grayscale (previous version of this block)
+			// came back uniformly near-black (floored ~0.05) across the WHOLE
+			// visible shade including the silhouette, confirming the Fresnel
+			// term itself is broken, not something downstream discarding a
+			// correct value. fresnelSchlick()/applyIridescenceToFresnel() are
+			// both verified-correct standard formulas, so the bug must be in
+			// VdotHm staying near 1.0 (near-normal) everywhere it's fed. The
+			// shared `NdotV` this function computes at its top (line ~3298)
+			// is ALREADY clamped non-negative right at its definition
+			// (fmaxf(dot3(worldNormal, V), 0.0f)) - it can never reveal an
+			// inverted-normal bug (worldNormal facing away from the camera
+			// over the visible surface, common with inconsistent triangle
+			// winding on an inward-facing diffuser like this asset's shade),
+			// since a genuinely negative raw dot product would already read
+			// as a false, floor-clamped 0 by the time anything downstream
+			// sees it. That raw dot(worldNormal, V) came back UNIFORMLY near
+			// +1 (bright, not dark) across the whole visible shade though -
+			// ruling out inversion (which would read dark) while still not
+			// explaining the missing angle variation, since a concave
+			// interior-facing surface CAN legitimately show high NdotV over
+			// a wide visible area depending on framing - can't tell "genuinely
+			// correct geometry" from "broken normal data" from a single dot
+			// product alone. PIVOT 3: visualize worldNormal itself directly
+			// as a standard RGB normal map (normal*0.5+0.5) so it's possible
+			// to SEE whether it varies smoothly across the dome's curvature
+			// (correct) or is flat/banded/discontinuous (corrupted per-vertex
+			// data, e.g. from this asset's RapidCompact export).
+			const float3 debugColor = worldNormal * 0.5f + make_float3(0.5f, 0.5f, 0.5f);
+			optixSetPayload_0(__float_as_uint(debugColor.x));
+			optixSetPayload_1(__float_as_uint(debugColor.y));
+			optixSetPayload_2(__float_as_uint(debugColor.z));
+			optixSetPayload_3(2u);
+			optixSetPayload_4(__float_as_uint(worldNormal.x));
+			optixSetPayload_5(__float_as_uint(worldNormal.y));
+			optixSetPayload_6(__float_as_uint(worldNormal.z));
+			optixSetPayload_7(__float_as_uint(optixGetRayTmax()));
+			optixSetPayload_14(__float_as_uint(debugColor.x));
+			optixSetPayload_15(__float_as_uint(debugColor.y));
+			optixSetPayload_16(__float_as_uint(debugColor.z));
+			optixSetPayload_17(__float_as_uint(1.0f));
+			optixSetPayload_19(0u);
+			return;
+		}
 
 		float3 bounceDir = make_float3(0.0f, 0.0f, 0.0f);
 		float3 bounceThroughput = make_float3(0.0f, 0.0f, 0.0f);
@@ -4142,13 +4363,28 @@ extern "C" __global__ void __closesthit__ch()
 		{
 			// KHR_materials_transmission WITHOUT KHR_materials_volume means
 			// the surface is implicitly thin-walled (glTF's "hole"/idealized
-			// infinitely-thin-film intent) - the transmitted ray passes
-			// straight through completely undeviated, tinted by baseColor
-			// (matches CpuPathTracer's identical thin-walled branch exactly,
-			// including its baseColor tint rationale).
-			bounceDir = rayDir;
-			bounceThroughput = baseColor * (make_float3(1.0f, 1.0f, 1.0f) - transmissionFresnel) * (1.0f / (1.0f - reflectProb));
-			valid = true;
+			// infinitely-thin-film intent) - no Snell bend, no interior
+			// medium. "Pseudo-BTDF" direction (matches CpuPathTracer's
+			// identical thin-walled branch exactly - see its doc comment for
+			// the full write-up): reflect off the SAME rough, VNDF-sampled
+			// Hm the reflect branch above uses, then flip that direction
+			// through the MACRO surface plane (reflect again, about
+			// worldNormal) to send it to the transmission side - NVIDIA
+			// vk_gltf_renderer's technique (bsdf_functions.h.slang's
+			// btdf_ggx_smith_sample(), isThinWalled branch) for giving rough
+			// thin-walled transmission real diffusion/blur, rather than the
+			// perfectly undeviated (zero-blur, roughness-independent) pass-
+			// through this branch used previously.
+			const float3 microfacetReflectDir = reflectF3(rayDir, Hm);
+			bounceDir = reflectF3(microfacetReflectDir, worldNormal);
+			if (dot3(worldNormal, bounceDir) < 0.0f)
+			{
+				bounceThroughput = baseColor * (make_float3(1.0f, 1.0f, 1.0f) - transmissionFresnel) * (1.0f / (1.0f - reflectProb));
+				valid = true;
+			}
+			// else: degenerate at high roughness - landed back on the
+			// reflection side instead of transmission; leave valid=false,
+			// same dead-end handling the reflect branch above uses.
 		}
 		else
 		{
