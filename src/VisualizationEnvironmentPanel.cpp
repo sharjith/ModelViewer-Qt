@@ -292,8 +292,21 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 			QSignalBlocker b1(ui->doubleSpinBoxScreenGamma), b2(ui->doubleSpinBoxEnvMapExposure),
 				b3(ui->doubleSpinBoxIBLExposure), b4(ui->doubleSpinBoxSkyBoxFOV), b5(ui->sliderSkyBoxBlur);
 			ui->doubleSpinBoxScreenGamma->setValue(_viewportWidget->getScreenGamma());
-			ui->doubleSpinBoxEnvMapExposure->setValue(_viewportWidget->getEnvMapExposure());
-			ui->doubleSpinBoxIBLExposure->setValue(_viewportWidget->getIBLExposure());
+			// getEnvMapExposure()/getIBLExposure() return the LINEAR
+			// multiplier SceneRenderController actually stores (1.0f =
+			// neutral by default), but these spinboxes are in STOPS (see
+			// ViewportWidget::setEnvMapExposure()/setIBLExposure(), which
+			// convert stops->linear via std::pow(2.0f, exposure) before
+			// storing) - std::log2() is the inverse, matching the same
+			// conversion ModelViewer.cpp's project save/load code already
+			// uses for these exact two fields (envMapExposureStops/
+			// iblExposureStops). Without this, the panel showed "1.0"
+			// (misread as if it were already in stops) for the neutral
+			// linear-1.0 default, when it should show "0.0" (0 stops).
+			// 1.0e-6f floor avoids log2(0) = -infinity for a
+			// theoretically-possible zero/negative stored value.
+			ui->doubleSpinBoxEnvMapExposure->setValue(std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f)));
+			ui->doubleSpinBoxIBLExposure->setValue(std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f)));
 			ui->doubleSpinBoxSkyBoxFOV->setValue(_viewportWidget->getSkyBoxFOV());
 			ui->sliderSkyBoxBlur->setValue(_viewportWidget->getSkyBoxBlurPercent());
 		}
@@ -1392,6 +1405,13 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 	ui->doubleSpinBoxRepeatS->setValue(1.0);
 	ui->doubleSpinBoxRepeatT->setValue(1.0);
 	ui->comboBoxHDRToneMappingMode->setCurrentIndex(0);
+	// 0.0 is correct here - these spinboxes are in STOPS (see their tooltips
+	// and ViewportWidget::setEnvMapExposure()/setIBLExposure(), which convert
+	// via std::pow(2.0f, exposure) before storing the linear multiplier in
+	// SceneRenderController), so 0 stops = pow(2,0) = 1.0 linear = neutral.
+	// (An earlier version of this comment/fix mistakenly changed these to
+	// 1.0, before the stops->linear conversion in the setters above was
+	// found - reverted.)
 	ui->doubleSpinBoxEnvMapExposure->setValue(0.0);
 	ui->doubleSpinBoxIBLExposure->setValue(0.0);
 	ui->doubleSpinBoxScreenGamma->setValue(2.2);
