@@ -1786,16 +1786,17 @@ namespace
 	// the roughness-or-sentinel to feed back in as the NEXT call's
 	// escapeRoughness input.
 	__forceinline__ __device__ void traceBouncePath(const float3& origin, const float3& direction,
-		unsigned int rngSeed, float escapeRoughness, float previousBsdfPdf,
+		unsigned int rngSeed, float escapeRoughness, float previousBsdfPdf, float coneWidth,
 		float3& outRadiance, unsigned int& outHitFlag, float3& outWorldNormal, float& outHitDistance,
 		float3& outNextDirection, float3& outThroughputWeight, float3& outGuideAlbedo, float& outEscapeRoughness,
-		float& outNextBsdfPdf, float3& outGuideNormal)
+		float& outNextBsdfPdf, float3& outGuideNormal, float& outConeWidth)
 	{
 		unsigned int p0 = 0u, p1 = 0u, p2 = 0u, p3 = 0u, p4 = 0u, p5 = 0u, p6 = 0u, p7 = 0u, p8 = 0u;
 		unsigned int p9 = 0u, p10 = 0u, p11 = 0u, p12 = 0u, p13 = 0u, p14 = 0u, p15 = 0u, p16 = 0u;
 		unsigned int p17 = rngSeed;
 		unsigned int p18 = __float_as_uint(escapeRoughness);
 		unsigned int p19 = __float_as_uint(previousBsdfPdf);
+		unsigned int p20 = __float_as_uint(coneWidth);
 		optixTrace(
 			params.handle,
 			origin,
@@ -1808,7 +1809,7 @@ namespace
 			0, // SBT offset
 			1, // SBT stride
 			0, // missSBTIndex
-			p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19);
+			p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20);
 		outRadiance = make_float3(__uint_as_float(p0), __uint_as_float(p1), __uint_as_float(p2));
 		outHitFlag = p3;
 		outWorldNormal = make_float3(__uint_as_float(p4), __uint_as_float(p5), __uint_as_float(p6));
@@ -1818,6 +1819,7 @@ namespace
 		outGuideAlbedo = make_float3(__uint_as_float(p14), __uint_as_float(p15), __uint_as_float(p16));
 		outEscapeRoughness = __uint_as_float(p17);
 		outNextBsdfPdf = __uint_as_float(p19);
+		outConeWidth = __uint_as_float(p20);
 		// outWorldNormal (p4-6) is repurposed to carry KHR_materials_
 		// volume_scatter's free-flight-walk scatter POSITION when
 		// outHitFlag==4 (see __closesthit__ch()'s hasExplicitContinuationOrigin) -
@@ -1830,6 +1832,12 @@ namespace
 		// scatter medium - an accepted v1 gap, matching this feature's plan
 		// doc.
 		outGuideNormal = outWorldNormal;
+
+		// Mirrors __closesthit__ch()'s identical coneSpreadAngle derivation -
+		// only needed here for the analytic infinite-plane branch below,
+		// which bypasses __closesthit__ch() entirely.
+		const float coneSpreadAngle = (params.camOrthographic != 0) ? 0.0f
+			: (2.0f * params.camTanHalfFovY / static_cast<float>(params.imageHeight));
 
 		// CPU parity for NVIDIA-style analytic infinite-plane shadow
 		// catcher: when enabled, the plane competes with BVH geometry by
@@ -2093,6 +2101,18 @@ namespace
 					outRadiance = resultColor;
 					outWorldNormal = planeNormal;
 					outHitDistance = tPlane;
+					// Ray-cone parity for the analytic infinite plane, which
+					// never runs through __closesthit__ch() (it's a distance
+					// test here in traceBouncePath(), not real BVH geometry) -
+					// see CpuPathTracer.cpp's identical hitInfinitePlane
+					// handling inside its own unified footprint block: the
+					// plane has no texture of its own (isShadowCatcher || no
+					// baseColorTexture), so this doesn't feed a texture LOD
+					// here, but the accumulated cone width must still be kept
+					// current for whatever hit comes after this bounce.
+					// planeNormal is axis-aligned, so dot(planeNormal,
+					// -direction) reduces to |dirUp|.
+					outConeWidth = (coneWidth + coneSpreadAngle * tPlane) / fmaxf(fabsf(dirUp), 1e-3f);
 					// REVERTED back to the flat params.infinitePlaneBaseColor
 					// placeholder - see CpuPathTracer.cpp's identical
 					// isShadowCatcher gate for the full write-up. A prior
@@ -2280,7 +2300,7 @@ namespace
 		unsigned int trY = __float_as_uint(1.0f);
 		unsigned int trZ = __float_as_uint(1.0f);
 		unsigned int p7 = 0u, p8 = 0u, p9 = 0u, p10 = 0u, p11 = 0u, p12 = 0u, p13 = 0u;
-		unsigned int p14 = 0u, p15 = 0u, p16 = 0u, p17 = 0u, p18 = 0u, p19 = 0u;
+		unsigned int p14 = 0u, p15 = 0u, p16 = 0u, p17 = 0u, p18 = 0u, p19 = 0u, p20 = 0u; // p20 unused - shadow rays never reach __closesthit__ch()
 		optixTrace(
 			params.handle,
 			origin,
@@ -2294,7 +2314,7 @@ namespace
 			1, // SBT stride
 			0, // missSBTIndex
 			occluded, selfInstanceId, selfShadowsEnabled, alphaRngSeed, trX, trY, trZ,
-			p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19);
+			p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20);
 		if (occluded != 0u)
 			return make_float3(0.0f, 0.0f, 0.0f);
 		return make_float3(__uint_as_float(trX), __uint_as_float(trY), __uint_as_float(trZ));
@@ -2441,6 +2461,13 @@ extern "C" __global__ void __raygen__rg()
 		unsigned int rngState = pcgHash(seed ^ 0x68bc21ebu); // decorrelated from the AA-jitter stream above
 		float escapeRoughness = -1.0f;
 		float previousBsdfPdf = 0.0f;
+		// Ray-cone accumulated footprint length, threaded through the bounce
+		// loop the same way escapeRoughness/previousBsdfPdf are - see
+		// traceBouncePath()'s and __closesthit__ch()'s doc comments, and
+		// CpuPathTracer::tracePixel()'s identical coneWidth/coneSpreadAngle
+		// for the technique this ports (NVIDIA vk_gltf_renderer's RayCone).
+		float coneWidth = params.camOrthographic
+			? (2.0f * params.camOrthoHalfHeight / static_cast<float>(params.imageHeight)) : 0.0f;
 		float3 curOrigin = rayOrigin;
 		float3 curDirection = rayDirection;
 
@@ -2474,10 +2501,10 @@ extern "C" __global__ void __raygen__rg()
 			rngState = pcgHash(rngState + (bounce + transmissionDepth) * 0x9e3779b9u);
 
 			float3 hitRadiance, worldNormal, nextDirection, throughputWeight, guideAlbedo, guideNormal;
-			float hitDistance, nextEscapeRoughness, nextBsdfPdf;
+			float hitDistance, nextEscapeRoughness, nextBsdfPdf, nextConeWidth;
 			unsigned int hitFlag;
-			traceBouncePath(curOrigin, curDirection, rngState, escapeRoughness, previousBsdfPdf,
-				hitRadiance, hitFlag, worldNormal, hitDistance, nextDirection, throughputWeight, guideAlbedo, nextEscapeRoughness, nextBsdfPdf, guideNormal);
+			traceBouncePath(curOrigin, curDirection, rngState, escapeRoughness, previousBsdfPdf, coneWidth,
+				hitRadiance, hitFlag, worldNormal, hitDistance, nextDirection, throughputWeight, guideAlbedo, nextEscapeRoughness, nextBsdfPdf, guideNormal, nextConeWidth);
 
 			sampleRadiance = sampleRadiance + throughput * hitRadiance;
 			if (bounce == 0 && transmissionDepth == 0)
@@ -2557,6 +2584,7 @@ extern "C" __global__ void __raygen__rg()
 			curDirection = nextDirection;
 			escapeRoughness = nextEscapeRoughness;
 			previousBsdfPdf = nextBsdfPdf;
+			coneWidth = nextConeWidth;
 
 			if (hitFlag == 3u)
 			{
@@ -3145,33 +3173,45 @@ extern "C" __global__ void __closesthit__ch()
 
 	// Camera pixel footprint at this hit, converted to this hit's own UV
 	// space via the triangle's own UV(channel 0)/world-area ratio - device
-	// counterpart of CpuPathTracer::tracePixel()'s identical computation and
-	// RtHit::uvAreaPerWorldArea's doc comment. Restricted to primary rays
-	// only (escapeRoughness==-1.0f - see traceBouncePath()'s doc comment):
-	// this backend keys "primary ray" off the same escape sentinel used by
-	// the miss shader. Non-primary and transmission-continuation hits pass
-	// footprintInUvArea=0.0f, which computeTextureLod() treats as "no LOD
-	// info" (base mip only) - same pragmatic simplification CPU makes for
-	// its own indirect hits.
+	// counterpart of CpuPathTracer::tracePixel()'s identical ray-cone
+	// computation (Akenine-Möller et al. 2019, "Improved Shader and Texture
+	// Level of Detail Using Ray Cones", ported from NVIDIA vk_gltf_renderer's
+	// RayCone/rayConeWorldFootprint()). coneWidthIn (payload 20) is the
+	// accumulated footprint LENGTH the ray arrives with, threaded in from
+	// traceBouncePath()'s caller (__raygen__rg()'s bounce loop) - see
+	// CpuPathTracer.cpp's coneWidth/coneSpreadAngle doc comment for why this
+	// must run for EVERY hit, not just the primary one: forcing mip 0 on
+	// every indirect/transmission hit is what caused visible texture
+	// aliasing looking THROUGH a refractive material (e.g. CompareDispersion's
+	// glTF text backdrop seen through the dispersive glass sphere).
+	const float coneWidthIn = __uint_as_float(optixGetPayload_20());
+	const float coneSpreadAngle = (params.camOrthographic != 0) ? 0.0f
+		: (2.0f * params.camTanHalfFovY / static_cast<float>(params.imageHeight));
+	const float hitDistanceForCone = optixGetRayTmax();
+	const float NdotVForFootprint = fmaxf(fabsf(dot3(worldFlatNormal, rayDir)), 1e-3f);
+	const float slantCorrectedFootprintLength = (coneWidthIn + coneSpreadAngle * hitDistanceForCone) / NdotVForFootprint;
+
+	const float3 worldP0 = optixTransformPointFromObjectToWorldSpace(objectTri[0]);
+	const float3 worldP1 = optixTransformPointFromObjectToWorldSpace(objectTri[1]);
+	const float3 worldP2 = optixTransformPointFromObjectToWorldSpace(objectTri[2]);
+	const float worldArea = 0.5f * length3(cross3(worldP1 - worldP0, worldP2 - worldP0));
+
+	const float2 uv0 = data->texCoords[tri.x * 4 + 0];
+	const float2 uv1 = data->texCoords[tri.y * 4 + 0];
+	const float2 uv2 = data->texCoords[tri.z * 4 + 0];
+	const float uvArea = 0.5f * fabsf((uv1.x - uv0.x) * (uv2.y - uv0.y) - (uv2.x - uv0.x) * (uv1.y - uv0.y));
+	const float uvAreaPerWorldArea = worldArea > 1e-12f ? (uvArea / worldArea) : 0.0f;
+
 	float footprintInUvArea = 0.0f;
-	if (__uint_as_float(optixGetPayload_18()) == -1.0f)
-	{
-		const float3 worldP0 = optixTransformPointFromObjectToWorldSpace(objectTri[0]);
-		const float3 worldP1 = optixTransformPointFromObjectToWorldSpace(objectTri[1]);
-		const float3 worldP2 = optixTransformPointFromObjectToWorldSpace(objectTri[2]);
-		const float worldArea = 0.5f * length3(cross3(worldP1 - worldP0, worldP2 - worldP0));
+	if (uvAreaPerWorldArea > 0.0f)
+		footprintInUvArea = uvAreaPerWorldArea * slantCorrectedFootprintLength * slantCorrectedFootprintLength;
 
-		const float2 uv0 = data->texCoords[tri.x * 4 + 0];
-		const float2 uv1 = data->texCoords[tri.y * 4 + 0];
-		const float2 uv2 = data->texCoords[tri.z * 4 + 0];
-		const float uvArea = 0.5f * fabsf((uv1.x - uv0.x) * (uv2.y - uv0.y) - (uv2.x - uv0.x) * (uv1.y - uv0.y));
-		const float uvAreaPerWorldArea = worldArea > 1e-12f ? (uvArea / worldArea) : 0.0f;
-
-		const float pixelWorldSize = (params.camOrthographic != 0)
-			? (2.0f * params.camOrthoHalfHeight / static_cast<float>(params.imageHeight))
-			: (optixGetRayTmax() * 2.0f * params.camTanHalfFovY / static_cast<float>(params.imageHeight));
-		footprintInUvArea = uvAreaPerWorldArea * pixelWorldSize * pixelWorldSize;
-	}
+	// Propagate for whatever segment leaves this hit next - written early,
+	// unconditionally, exactly once, matching NVIDIA's own single
+	// `pt.cone.width = worldFoot;` insertion point so every downstream
+	// continuation (ordinary bounce, transmission, TIR, alpha pass-through,
+	// volume-scatter re-entry) inherits it regardless of which one fires.
+	optixSetPayload_20(__float_as_uint(slantCorrectedFootprintLength));
 
 	// Object-space tangent + handedness, barycentrically interpolated then
 	// transformed to world space via the plain-model-matrix direction
@@ -3561,6 +3601,30 @@ extern "C" __global__ void __closesthit__ch()
 	// reproduces the same energy split everywhere at once. No-op for
 	// ordinary dielectric glass (metalness~0).
 	transmission *= (1.0f - metalness);
+
+	// Stochastic transmission-lobe pick for THIS sample, drawn once and
+	// reused everywhere below that needs to know which mode this particular
+	// sample rendered in (the env-NEE gate and the main transmit-vs-opaque
+	// branch) - mirrors CpuPathTracer::tracePixel()'s identical
+	// takeTransmissionLobe (see its doc comment there for the full write-
+	// up: NVIDIA vk_gltf_renderer's own bsdfSample()/computeLobeWeights()
+	// treats transmission as a genuine lobe WEIGHT, stochastically
+	// selected, rather than a hard existence threshold - a fixed threshold
+	// discarded a properly mip-filtered, smoothly-graded transmissionTexture
+	// edge (e.g. glTF-Sample-Assets' CompareDispersion) straight back to a
+	// hard binary classification, jagged no matter how well the texture
+	// sample itself was filtered). Bounded to [0.001,0.999] for the same
+	// reason CPU's version is: outside that band this reproduces the prior
+	// deterministic threshold bit-for-bit, keeping the unbounded-variance
+	// risk of stacking this against the opaque branch's own rare-specular-
+	// lobe weighting confined to a narrow, actually-needed middle band.
+	// Independent XOR constant from every other payload-17-derived draw
+	// below (env-NEE, volume-scatter, shadow rays, reflect/refract, hero-
+	// channel dispersion pick) so this new draw doesn't correlate with them.
+	const unsigned int transmissionLobeRng = pcgHash(optixGetPayload_17() ^ 0x1B56C4E9u);
+	const bool takeTransmissionLobe = (transmission >= 0.999f) ? true
+		: (transmission <= 0.001f) ? false
+		: (hashToUnitFloat(transmissionLobeRng) < transmission);
 
 	const int hasVolume = data->hasVolume;
 	const float3 attenuationColor = data->attenuationColor;
@@ -4063,7 +4127,7 @@ extern "C" __global__ void __closesthit__ch()
 		&& params.environment.envTotalWeight > 0.0f
 		&& params.environment.envFlatCdf != nullptr
 		&& params.environment.envTexelPdf != nullptr
-		&& transmission <= 0.001f
+		&& !takeTransmissionLobe
 		&& NdotV > 0.0f)
 	{
 		unsigned int envRng = optixGetPayload_17() ^ 0x6D2B79F5u;
@@ -4187,7 +4251,7 @@ extern "C" __global__ void __closesthit__ch()
 	// as smooth dielectrics (with GGX-VNDF roughness support per Walter et
 	// al. 2007, same as CPU).
 	bool isTransmissionBounce = false;
-	if (transmission > 0.001f)
+	if (takeTransmissionLobe)
 	{
 		isTransmissionBounce = true;
 		unsigned int rngState = optixGetPayload_17();
@@ -4478,7 +4542,12 @@ extern "C" __global__ void __closesthit__ch()
 		if (valid)
 		{
 			nextDirection = bounceDir;
-			throughputWeight = bounceThroughput;
+			// Unbiased Monte Carlo weighting for takeTransmissionLobe's own
+			// selection probability - a no-op (divides by ~1.0) for the
+			// overwhelmingly common untextured case (transmission exactly 0
+			// or 1), only meaningfully >1 within the bounded [0.001,0.999)
+			// stochastic band - see takeTransmissionLobe's own doc comment.
+			throughputWeight = bounceThroughput * (1.0f / fmaxf(transmission, 1e-4f));
 			// Transmission-branch sentinel - raw/sharp env map on a miss,
 			// matching CpuPathTracer's lastBsdfSamplePdf=0 -> sampleEnvironmentMiss()
 			// treatment for this same "deterministic Fresnel pick, not a
@@ -4742,7 +4811,13 @@ extern "C" __global__ void __closesthit__ch()
 	// branch's - sheen+transmission combined materials are a rare, largely
 	// untested combination in either engine).
 	if (!isTransmissionBounce)
-		throughputWeight = throughputWeight * sheenIndirectDampening;
+	{
+		// Unbiased Monte Carlo weighting for takeTransmissionLobe's own
+		// (1 - transmission) selection probability - see the transmission
+		// branch's identical /transmission comment above; a no-op here for
+		// the overwhelmingly common non-transmissive case (transmission==0).
+		throughputWeight = throughputWeight * sheenIndirectDampening * (1.0f / fmaxf(1.0f - transmission, 1e-4f));
+	}
 
 	// KHR_materials_volume's Beer-Lambert absorption applies to EVERYTHING
 	// this hit contributes from this point onward - both its own direct/

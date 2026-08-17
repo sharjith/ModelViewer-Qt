@@ -2881,6 +2881,23 @@ namespace
 		// nearly every walk in dense regions before it could converge.
 		int scatterBounces = 0;
 
+		// Ray-cone texture footprint (Akenine-Möller et al. 2019, "Improved
+		// Shader and Texture Level of Detail Using Ray Cones") - ports NVIDIA
+		// vk_gltf_renderer's own implementation exactly (pathtrace_functions.
+		// h.slang's RayCone struct / rayConeWorldFootprint()). coneSpreadAngle
+		// is fixed for the whole path (the camera's per-pixel angular size;
+		// 0 for an orthographic camera, whose parallel rays don't diverge with
+		// distance - matching this tracer's own cam.orthographic ? ... : ...
+		// convention used elsewhere for the primary ray's world-space pixel
+		// size). coneWidth is the accumulated footprint LENGTH at the current
+		// ray's origin, updated after every hit - ANY kind: diffuse, specular
+		// reflect, thin-walled pass-through, volumetric refract alike - so the
+		// next segment inherits the full accumulated spread, exactly like
+		// NVIDIA's pt.cone.width = worldFoot runs unconditionally after every
+		// hit regardless of what bounce follows it.
+		const float coneSpreadAngle = cam.orthographic ? 0.0f : (2.0f * cam.tanHalfFovY / static_cast<float>(height));
+		float coneWidth = cam.orthographic ? (2.0f * cam.orthoHalfHeight / static_cast<float>(height)) : 0.0f;
+
 		while (true)
 		{
 			if (bounce > settings.maxBounces)
@@ -2977,25 +2994,81 @@ namespace
 			// Camera pixel footprint at this hit, converted to this hit's own
 			// UV space via hit.uvAreaPerWorldArea (see its doc comment) -
 			// computeTextureLod() then combines this with each individual
-			// texture's own width/height. Deliberately restricted to primary
-			// (bounce==0, transmissionDepth==0) hits only: propagating a
-			// proper footprint through bounces/transmission needs full ray
-			// differentials, which this tracer doesn't carry - indirect hits
-			// just sample the base mip level (footprintInUvArea=0.0f),
-			// matching this tracer's pre-mipmap behavior there. Primary hits
-			// are what the reported minification-aliasing "smudge" artifact
-			// actually affects, so this is the case that matters.
+			// texture's own width/height. Ray-cone accumulated across EVERY
+			// hit (not just the primary one) - see coneWidth/coneSpreadAngle's
+			// own doc comment above for the technique this ports (NVIDIA
+			// vk_gltf_renderer's RayCone). Slant-corrected by NdotV (grazing
+			// angles stretch a pixel's footprint across more surface area),
+			// matching rayConeWorldFootprint() exactly - previously missing
+			// even for the primary hit this replaces, so surfaces viewed
+			// near-edge-on now also pick a correspondingly blurrier mip there
+			// too, not just at bounces/through transmission. This is what
+			// fixes minification aliasing on a texture seen THROUGH a
+			// refractive material (e.g. a high-IOR glass sphere acting as a
+			// converging lens on a background texture) - previously forced to
+			// mip 0 (footprintInUvArea=0.0f) for any non-primary hit, since
+			// propagating a proper footprint through bounces/transmission
+			// needs exactly this kind of accumulated-footprint tracking,
+			// which this tracer didn't carry before.
+			const float NdotVForFootprint = std::max(std::abs(glm::dot(hit.geometricNormal, -ray.direction)), 1e-3f);
+			const float slantCorrectedFootprintLength = (coneWidth + coneSpreadAngle * hit.distance) / NdotVForFootprint;
+
 			float footprintInUvArea = 0.0f;
-			if (bounce == 0 && transmissionDepth == 0 && hit.uvAreaPerWorldArea > 0.0f)
-			{
-				const float pixelWorldSize = cam.orthographic
-					? (2.0f * cam.orthoHalfHeight / static_cast<float>(height))
-					: (hit.distance * 2.0f * cam.tanHalfFovY / static_cast<float>(height));
-				footprintInUvArea = hit.uvAreaPerWorldArea * pixelWorldSize * pixelWorldSize;
-			}
+			if (hit.uvAreaPerWorldArea > 0.0f)
+				footprintInUvArea = hit.uvAreaPerWorldArea * slantCorrectedFootprintLength * slantCorrectedFootprintLength;
+
+			coneWidth = slantCorrectedFootprintLength; // propagate for whatever segment leaves this hit next
 
 			SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor, footprintInUvArea);
 			lastHitAO = surf.ao;
+
+			// Stochastic transmission-lobe pick for THIS sample, drawn once
+			// per hit and reused everywhere below that needs to know which
+			// mode this particular sample rendered in (the env-NEE gate, the
+			// OIDN primary-hit guide-buffer choice, and the main transmit-
+			// vs-opaque branch) - mirrors NVIDIA vk_gltf_renderer's own
+			// bsdfSample()/computeLobeWeights() treatment of transmission as
+			// a genuine lobe WEIGHT, stochastically selected like any other
+			// lobe, rather than a hard existence threshold. Replaces the
+			// previous `surf.transmission > 0.001f` gate, which discarded
+			// surf.transmission's own value once past that threshold -
+			// harmless for the common case (transmission is usually exactly
+			// 0 or 1 for an untextured factor, where this reduces to the
+			// exact same deterministic choice: rng.next01() is always < 1.0
+			// and never < 0.0), but for a graded transmissionTexture value
+			// (KHR_materials_transmission's R channel painting partial
+			// transmission directly onto the surface, e.g. glTF-Sample-
+			// Assets' CompareDispersion, whose glass sphere's own
+			// transmissionTexture paints the opaque "glTF" logo mark) a
+			// fixed threshold collapsed every properly mip-filtered,
+			// smoothly-graded edge texel straight back to a hard binary
+			// classification - so even a perfectly antialiased texture
+			// sample produced a hard-edged, jagged result, since the ONLY
+			// thing that mattered was "above or below 0.001", not the
+			// texture's own smooth gradient. Stochastic selection instead
+			// lets many AA samples/passes average into a genuine blend
+			// across that gradient, the same way reflectProb's own reflect-
+			// vs-refract pick a few lines below already does.
+			//
+			// Bounded to the genuinely-ambiguous middle band, exactly like
+			// the old >0.001f threshold at the edges: outside [0.001,0.999]
+			// this reproduces the prior deterministic choice bit-for-bit (no
+			// antialiasing benefit exists there anyway - those texels aren't
+			// near an edge), which matters because the opaque branch below
+			// (sampleBSDFBounce()) already inverse-weights its OWN rare
+			// specular lobe by 1/specProb; stacking an UNBOUNDED second
+			// inverse-probability factor on top of that for the whole [0,1]
+			// range is the exact extreme-variance firefly compounding this
+			// file's transmission branch doc comment already warns about
+			// (see the "earlier version... stacking a second, independent
+			// rare-branch inverse-probability" note below) - keeping this
+			// stochastic treatment confined to a bounded middle band, where
+			// it's actually needed (a mip-filtered edge is only ever a few
+			// texels wide), avoids reintroducing that failure mode while
+			// still fixing the reported aliasing.
+			const bool takeTransmissionLobe = (surf.transmission >= 0.999f) ? true
+				: (surf.transmission <= 0.001f) ? false
+				: (rng.next01() < surf.transmission);
 
 			// Path regularization (Muller et al. 2018), per the RayTrophi
 			// study: floor the effective roughness used for GGX specular/
@@ -3844,7 +3917,15 @@ namespace
 				if (outPrimaryAlbedo || outPrimaryNormal)
 				{
 					glm::vec3 throughAlbedo(0.0f), throughNormal(0.0f);
-					const bool haveThroughGuide = (surf.transmission > 0.001f) &&
+					// takeTransmissionLobe, not a fresh surf.transmission
+					// threshold check - keeps the guide buffer consistent
+					// with which mode THIS sample actually rendered in (see
+					// takeTransmissionLobe's own doc comment above): a
+					// partially-transmissive edge texel's guide value then
+					// blends between the two representative guides across
+					// accumulated samples, the same way the beauty image
+					// itself now blends.
+					const bool haveThroughGuide = takeTransmissionLobe &&
 						(surf.roughness <= kMaxRoughnessForSeeThroughGuide) &&
 						!surf.hasVolume && // solid/volumetric dielectrics (spheres, lenses, the
 						                   // IOR-cube/dragon test scenes) bend the real refracted
@@ -3862,7 +3943,7 @@ namespace
 					{
 						const float clearcoatGuideStrength = std::max(surf.clearcoat,
 							std::clamp((clearcoatBlend.r + clearcoatBlend.g + clearcoatBlend.b) / 3.0f, 0.0f, 1.0f));
-						*outPrimaryAlbedo = (surf.transmission > 0.001f)
+						*outPrimaryAlbedo = takeTransmissionLobe
 							? throughAlbedo // zero if haveThroughGuide is false, matching prior neutral fallback
 							: glm::mix(surf.baseColor, glm::vec3(1.0f), clearcoatGuideStrength);
 					}
@@ -3871,7 +3952,7 @@ namespace
 						const glm::vec3 guideNormal = mat.clearcoatNormalTexture
 							? glm::normalize(glm::mix(N, Ncoat, surf.clearcoat))
 							: N;
-						*outPrimaryNormal = (surf.transmission > 0.001f) ? throughNormal : guideNormal;
+						*outPrimaryNormal = takeTransmissionLobe ? throughNormal : guideNormal;
 					}
 				}
 
@@ -4124,11 +4205,15 @@ namespace
 			// lastBsdfSamplePdf) - each direction's total weight is exactly
 			// 1 regardless of which technique(s) could have produced it, so
 			// this never double-counts the environment's contribution.
-			// Skipped for transmissive materials (surf.transmission has its
-			// own dedicated deterministic reflect/refract handling below,
-			// entirely bypassing the diffuse/specular/coat mixture this
-			// pdf models - see evaluateBsdfPdf()'s doc comment).
-			if (settings.enableEnvironmentImportanceSampling && envSampler.isValid() && surf.transmission <= 0.001f)
+			// Skipped for THIS sample when it took the transmission lobe
+			// (takeTransmissionLobe - see its own doc comment above): that
+			// lobe has its own dedicated deterministic reflect/refract
+			// handling below, entirely bypassing the diffuse/specular/coat
+			// mixture this pdf models (see evaluateBsdfPdf()'s doc comment).
+			// A partially-transmissive texel that rolled the OPAQUE lobe
+			// this sample still needs its ordinary env-NEE, same as any
+			// other opaque hit.
+			if (settings.enableEnvironmentImportanceSampling && envSampler.isValid() && !takeTransmissionLobe)
 			{
 				glm::vec3 envDir;
 				float envPdf;
@@ -4223,7 +4308,13 @@ namespace
 			// transmission and interaction with clearcoat/sheen/anisotropy
 			// are out of scope for this v1 - transmissive materials are
 			// treated as smooth dielectrics.
-			if (surf.transmission > 0.001f)
+			//
+			// takeTransmissionLobe (see its own doc comment above), not a
+			// fresh surf.transmission threshold re-check - reproduces this
+			// exact gate bit-for-bit outside the [0.001,0.999] band, and
+			// stochastically blends within it for a graded transmission
+			// texture edge.
+			if (takeTransmissionLobe)
 			{
 				// This branch's continuing ray is a deterministic Fresnel
 				// reflect/refract pick, not a diffuse/specular/coat mixture
@@ -4617,7 +4708,12 @@ namespace
 					}
 				}
 
-				throughput *= bounceThroughput;
+				// Unbiased Monte Carlo weighting for takeTransmissionLobe's
+				// own selection probability - a no-op (divides by ~1.0) for
+				// the overwhelmingly common untextured case (surf.
+				// transmission exactly 0 or 1), only meaningfully >1 within
+				// the bounded [0.001,0.999) stochastic band above.
+				throughput *= bounceThroughput / std::max(surf.transmission, 1e-4f);
 				if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
 					break;
 				ray.direction = bounceDir;
@@ -4687,7 +4783,12 @@ namespace
 				lastBsdfSamplePdf = evaluateBsdfPdf(N, Ncoat, V, bounceDir, surf, hasAniso, anisoT, anisoB, anisoAlphaT, anisoAlphaB, specProbForPdf, coatProbForPdf);
 			}
 
-			throughput *= bounceThroughput * sheenIndirectDampening;
+			// Unbiased Monte Carlo weighting for takeTransmissionLobe's own
+			// (1 - surf.transmission) selection probability - see the
+			// transmission branch's identical /surf.transmission comment
+			// above; a no-op here for the overwhelmingly common non-
+			// transmissive case (surf.transmission==0).
+			throughput *= bounceThroughput * sheenIndirectDampening / std::max(1.0f - surf.transmission, 1e-4f);
 			if (throughput.r <= 0.0f && throughput.g <= 0.0f && throughput.b <= 0.0f)
 				break;
 

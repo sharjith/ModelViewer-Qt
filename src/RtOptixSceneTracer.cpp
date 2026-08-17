@@ -1385,11 +1385,14 @@ RtOptixSceneTracer::RtOptixSceneTracer() : _impl(std::make_unique<Impl>())
 	// direction, p14-p16 = OIDN guide albedo (baseColor at the hit), p17 =
 	// RNG seed in / this hit's own escape-roughness out, p18 = escape-
 	// roughness in (for the miss shader, if THIS ray escapes), p19 =
-	// previous-BSDF pdf in / next-BSDF pdf out for env-MIS - see
+	// previous-BSDF pdf in / next-BSDF pdf out for env-MIS, p20 = ray-cone
+	// width in / out for texture-footprint LOD (Akenine-Möller et al. 2019
+	// ray cones, ported from NVIDIA vk_gltf_renderer's RayCone) - see
 	// RtOptixScene.cu's traceBouncePath()/__closesthit__ch() doc comments.
 	// Shadow rays reuse p0 as an occluded bool and p1/p2 for self-shadow
-	// filtering (see traceShadowRay()/__anyhit__ah()).
-	pipelineCompileOptions.numPayloadValues = 20;
+	// filtering (see traceShadowRay()/__anyhit__ah()); p20 is an unused
+	// placeholder there since shadow rays never call __closesthit__ch().
+	pipelineCompileOptions.numPayloadValues = 21;
 	pipelineCompileOptions.numAttributeValues = 3;
 	pipelineCompileOptions.exceptionFlags = OPTIX_EXCEPTION_FLAG_NONE;
 	pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
