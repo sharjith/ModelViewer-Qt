@@ -1047,37 +1047,78 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					// Extract image bytes from binary buffer
 					QByteArray imageData(reinterpret_cast<const char*>(glbBinaryBuffer.data() + byteOffset), byteLength);
 
-					// Load image from bytes
-					QImage qImg;
-					if (!qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size()))
-					{
-						qWarning() << "processGltf2CoreAndExtensions: Failed to load image" << imgIdx << "from GLB buffer";
-						continue;
-					}
+					// KTX2/Basis Universal (KHR_texture_basisu) - QImage has
+					// no decoder for this container format at all, so
+					// qImg.loadFromData() below would always fail for these.
+					// Write the raw bytes straight to a cached .ktx2 file
+					// instead (same on-disk-cache convention as the PNG path
+					// below, just skipping the QImage round-trip entirely -
+					// there's nothing for QImage to decode here) and route
+					// through _ktx2TextureUploader, the SAME transcode/
+					// upload path already used for externally-referenced
+					// .ktx2 files (see loadAndAddTexture()'s
+					// texturePath.endsWith(".ktx2") branch below). Without
+					// this, every embedded (bufferView-referenced, not
+					// external-file) KTX2 image silently failed
+					// QImage::loadFromData() and was dropped with only a
+					// debug-log warning - see glTF-Sample-Assets'
+					// ABeautifulGame glTF-Binary-KTX-ETC1S-Draco variant,
+					// which embeds all 33 of its textures this way.
+					const bool isKtx2Image = imgObj.value("mimeType").toString() == QLatin1String("image/ktx2");
 
 					QString cacheDir = getGlbCacheDir(gltfPath);
+					QImage qImg;
+					bool hasAlpha = false;
+					QString diskPath;
 
-					// Choose format (preserve or standardize)
-					QString fileName = QString("image_%1.png").arg(imgIdx);
-					QString fullPath = cacheDir + "/" + fileName;
-
-					// Save if not already cached
-					if (!QFile::exists(fullPath))
+					if (isKtx2Image)
 					{
-						qImg.save(fullPath);
+						diskPath = cacheDir + "/" + QString("image_%1.ktx2").arg(imgIdx);
+						if (!QFile::exists(diskPath))
+						{
+							QFile outFile(diskPath);
+							if (!outFile.open(QIODevice::WriteOnly))
+							{
+								qWarning() << "processGltf2CoreAndExtensions: Failed to write cached KTX2 file for image" << imgIdx;
+								continue;
+							}
+							outFile.write(imageData);
+							outFile.close();
+						}
+						// hasAlpha stays false here (KTX2/Basis has no cheap
+						// CPU-side alpha check without transcoding first) -
+						// matches loadAndAddTexture()'s existing external-
+						// .ktx2-file branch, which leaves it at the
+						// Material::Texture default too.
+					}
+					else
+					{
+						// Load image from bytes
+						if (!qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size()))
+						{
+							qWarning() << "processGltf2CoreAndExtensions: Failed to load image" << imgIdx << "from GLB buffer";
+							continue;
+						}
+
+						// Choose format (preserve or standardize)
+						QString fileName = QString("image_%1.png").arg(imgIdx);
+						diskPath = cacheDir + "/" + fileName;
+
+						// Save if not already cached
+						if (!QFile::exists(diskPath))
+						{
+							qImg.save(diskPath);
+						}
+
+						// Check alpha before conversion
+						hasAlpha = checkImageForAlpha(qImg);  // Check original image
+
+						// Prepare for OpenGL
+						qImg = convertToGLFormat(qImg);
 					}
 
-					// Replace path with disk path
-					QString diskPath = fullPath;
-
-					// Check alpha before conversion
-					bool hasAlpha = checkImageForAlpha(qImg);  // Check original image
-
-					// Prepare for OpenGL
-					qImg = convertToGLFormat(qImg);
-
 					// Create texture struct with embedded marker (not a file path)
-					Material::Texture tex;					
+					Material::Texture tex;
 					tex.path = diskPath.toStdString(); //"glb://" + gltfPath.toStdString() + "::image_" + std::to_string(imgIdx);
 					QString glbKey = "glb://" + gltfPath + "::image_" + QString::number(imgIdx);
 					s_glbCachedTexturePaths[glbKey] = diskPath;
@@ -1142,17 +1183,42 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					tex.magFilter = magFilter;
 					tex.minFilter = minFilter;
 
-					tex.imageData = qImg;
 					unsigned int textureID = 0;
-					if (_imageTextureUploader)
+					if (isKtx2Image)
 					{
-						textureID = _imageTextureUploader(tex, qImg);
-					}
+						// _ktx2TextureUploader reads tex.wrapS/wrapT/magFilter/
+						// minFilter (already set above) to build its sampler
+						// settings - mapType is passed empty since it isn't
+						// actually consumed by KTX2Loader::loadKTX2() yet
+						// (verified: the parameter exists but nothing reads
+						// it), matching this same tex.type="" placeholder
+						// convention the PNG branch below already uses - the
+						// real per-material-slot type gets resolved later via
+						// loadAndAddTexture()'s path-based alias matching.
+						if (_ktx2TextureUploader)
+						{
+							textureID = _ktx2TextureUploader(diskPath, std::string(), tex);
+						}
 
-					if (_imageTextureUploader && textureID == 0)
+						if (_ktx2TextureUploader && textureID == 0)
+						{
+							qWarning() << "processGltf2CoreAndExtensions: Failed to upload pre-loaded embedded KTX2 image" << imgIdx;
+							continue;
+						}
+					}
+					else
 					{
-						qWarning() << "processGltf2CoreAndExtensions: Failed to upload pre-loaded GLB image" << imgIdx;
-						continue;
+						tex.imageData = qImg;
+						if (_imageTextureUploader)
+						{
+							textureID = _imageTextureUploader(tex, qImg);
+						}
+
+						if (_imageTextureUploader && textureID == 0)
+						{
+							qWarning() << "processGltf2CoreAndExtensions: Failed to upload pre-loaded GLB image" << imgIdx;
+							continue;
+						}
 					}
 
 					tex.id = textureID;
