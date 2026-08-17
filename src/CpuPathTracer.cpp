@@ -40,6 +40,49 @@ namespace
 	// small fixed cap distinct from settings.maxVolumeScatterBounces, chosen
 	// purely for a useful visualization range.
 	constexpr bool kDebugVisualizeVolumeScatterBounces = false;
+	// False-colors EVERY hit past the primary one (R = surf.roughness, G =
+	// surf.metalness, B = 0) and returns immediately. Originally checked
+	// metalness/transmission specifically (both proved clean, pure green,
+	// no bleeding) - repurposed to check ROUGHNESS too, since metalness
+	// being clean doesn't guarantee roughness is (a different channel of
+	// the same ORM texture; nothing says it's spatially uniform just
+	// because metalness happens to be near the sampled hits). Roughness
+	// feeds the GGX microfacet spread (transmissionAlpha) AND the Fresnel/
+	// reflectProb reflect-vs-refract split directly - a blur-induced
+	// increase there could plausibly explain both the elevated bounce
+	// counts seen at grazing silhouette edges and the overall saturation
+	// increase, without ever touching metalness/transmission/baseColor.
+	// Near-black (both channels near 0) = clean/expected (this material's
+	// glass region authored roughness is very low); red creeping in (R
+	// channel) is the leak. See tracePixel()'s use site.
+	constexpr bool kDebugVisualizeMetalnessTransmissionLeak = false;
+	// False-colors EVERY hit past the primary one with surf.baseColor
+	// directly (RGB) and returns immediately - added after
+	// kDebugVisualizeMetalnessTransmissionLeak proved metalness/transmission
+	// are NOT bleeding (pure green throughout the glass), ruling that theory
+	// out. baseColor is a SEPARATE texture from the ORM one, and directly/
+	// multiplicatively tints refracted throughput at EVERY internal
+	// TIR/refraction crossing (bounceThroughput = baseColor * ...,
+	// compounding as baseColor^N across N crossings per this file's own
+	// existing comment on that). GlassHurricaneCandleHolder_basecolor.png
+	// has the glTF/Khronos attribution watermark (colored text) baked in
+	// near where the glass mesh's own UV footprint sits - if ray-cone's
+	// blur on internal hits pulls any of that color in, compounding across
+	// crossings could plausibly explain a broad saturation shift. Pure
+	// white (1,1,1) = clean; any tint identifies exactly what's leaking in.
+	constexpr bool kDebugVisualizeInternalBaseColor = false;
+	// Kill switch: forces footprintInUvArea=0.0f (mip 0 / sharpest level,
+	// no LOD blur at all) for every non-primary hit, fully reverting to
+	// pre-ray-cone behavior for those hits - added after tightening the
+	// NdotVForFootprint anisotropy cap (16x -> 4x) had ZERO visible effect
+	// on GlassHurricaneCandleHolder's residual candle-edge blue tint,
+	// which means grazing-angle amplification specifically isn't the
+	// lever. This decisively tests whether the residual is texture-LOD-
+	// related AT ALL: if the tint is STILL present with this flag on, it's
+	// something else entirely (e.g. Beer-Lambert absorption over the real
+	// TIR path length - unrelated to ray-cone), not a footprint/roughness
+	// issue. See tracePixel()'s use site (footprintInUvArea's assignment).
+	constexpr bool kDebugForceMip0OnSecondaryHits = false;
 
 	// KHR_materials_volume_scatter free-flight random-walk constants,
 	// matching NVIDIA's vk_gltf_renderer reference exactly
@@ -2997,27 +3040,79 @@ namespace
 			// texture's own width/height. Ray-cone accumulated across EVERY
 			// hit (not just the primary one) - see coneWidth/coneSpreadAngle's
 			// own doc comment above for the technique this ports (NVIDIA
-			// vk_gltf_renderer's RayCone). Slant-corrected by NdotV (grazing
-			// angles stretch a pixel's footprint across more surface area),
-			// matching rayConeWorldFootprint() exactly - previously missing
-			// even for the primary hit this replaces, so surfaces viewed
-			// near-edge-on now also pick a correspondingly blurrier mip there
-			// too, not just at bounces/through transmission. This is what
-			// fixes minification aliasing on a texture seen THROUGH a
-			// refractive material (e.g. a high-IOR glass sphere acting as a
-			// converging lens on a background texture) - previously forced to
-			// mip 0 (footprintInUvArea=0.0f) for any non-primary hit, since
-			// propagating a proper footprint through bounces/transmission
-			// needs exactly this kind of accumulated-footprint tracking,
-			// which this tracer didn't carry before.
-			const float NdotVForFootprint = std::max(std::abs(glm::dot(hit.geometricNormal, -ray.direction)), 1e-3f);
-			const float slantCorrectedFootprintLength = (coneWidth + coneSpreadAngle * hit.distance) / NdotVForFootprint;
+			// vk_gltf_renderer's RayCone) - fixes minification aliasing on a
+			// texture seen THROUGH a refractive material (e.g. a high-IOR
+			// glass sphere acting as a converging lens on a background
+			// texture; glTF-Sample-Assets' CompareDispersion).
+			//
+			// coneWidth itself accumulates ADDITIVELY ONLY (no NdotV divide
+			// fed back into it) - a deliberate departure from NVIDIA's own
+			// literal pt.cone.width = worldFoot, which propagates the NdotV-
+			// DIVIDED value forward as the next segment's starting width.
+			// That's fine across a couple of ordinary bounces, but confirmed
+			// (via targeted debug visualization) to compound multiplicatively
+			// across MANY internal TIR bounces confined to one continuous
+			// transmissive medium - glTF-Sample-Assets' GlassHurricaneCandle
+			// Holder's "candle" reflection pattern is exactly this: even a
+			// modest per-hit NdotV ratio compounds across several internal
+			// bounces into a wildly inflated footprint, sampling roughness
+			// far above its authored near-zero value across the ENTIRE
+			// vessel surface (not just a localized seam - confirmed by
+			// false-coloring surf.roughness directly at every internal hit),
+			// which visibly changed the render (more TIR/diffusion, more
+			// accumulated Beer-Lambert absorption, reading as excess color
+			// saturation spreading across the whole surface). The NdotV
+			// slant correction (grazing angles stretch a pixel's footprint
+			// across more surface area, per rayConeWorldFootprint()) is
+			// still applied below, just LOCALLY - for THIS hit's own texture
+			// lookup only, never written back into coneWidth for the next
+			// segment. Still correctly grows footprint across a single
+			// crossing or a couple of ordinary bounces (what the original
+			// CompareDispersion fix needs); only the runaway multi-bounce
+			// compounding is what this avoids. Floored at 1/4 (a 4x max
+			// anisotropy ratio) as an independent safety margin, still
+			// well above the unclamped 1e-3 rayConeWorldFootprint() itself
+			// uses.
+			//
+			// An earlier attempt at the GlassHurricaneCandleHolder residual
+			// (freezing coneWidth's own growth for segments traveled
+			// inside a continuous transmissive medium) had NO effect - a
+			// debug kill switch (forcing footprintInUvArea=0 unconditionally
+			// on every non-primary hit) proved the tint disappears
+			// completely, but merely freezing further ACCUMULATION didn't,
+			// meaning the footprint is ALREADY large enough to matter at
+			// the very FIRST interior/exit hit (from the camera-to-vessel
+			// distance alone), not something that builds up ACROSS
+			// multiple bounces the way the compounding bug above did.
+			// Freezing an already-too-large value changes nothing.
+			//
+			// The actual fix: materials with KHR_materials_volume never
+			// apply footprint-driven LOD blur to THEIR OWN texture
+			// sampling at all (see hasVolumeSkipsOwnFootprint below,
+			// forced unconditionally, not just on interior hits) -
+			// matching how this always worked pre-ray-cone (mip 0/
+			// sharpest) for this exact case, since a volumetric
+			// material's own surface detail isn't the thing ray-cone's
+			// technique is meant to blur; the technique is for content
+			// seen AT A DISTANCE or THROUGH minification, like
+			// CompareDispersion's backdrop seen through the glass.
+			// coneWidth itself still accumulates/propagates normally
+			// underneath (no freeze) so that backdrop-through-glass case
+			// keeps working: only the LOCAL LOD APPLIED TO THIS material's
+			// own textures is suppressed, not the propagated state used
+			// for whatever comes after.
+			coneWidth = coneWidth + coneSpreadAngle * hit.distance; // additive-only propagation - see above
 
+			const float NdotVForFootprint = std::max(std::abs(glm::dot(hit.geometricNormal, -ray.direction)), 1.0f / 4.0f);
+			const float slantCorrectedFootprintLength = coneWidth / NdotVForFootprint;
+
+			const bool hasVolumeSkipsOwnFootprint = !hitInfinitePlane && mat.hasVolume;
 			float footprintInUvArea = 0.0f;
-			if (hit.uvAreaPerWorldArea > 0.0f)
+			if (!hasVolumeSkipsOwnFootprint && hit.uvAreaPerWorldArea > 0.0f)
 				footprintInUvArea = hit.uvAreaPerWorldArea * slantCorrectedFootprintLength * slantCorrectedFootprintLength;
 
-			coneWidth = slantCorrectedFootprintLength; // propagate for whatever segment leaves this hit next
+			if (kDebugForceMip0OnSecondaryHits && (bounce > 0 || transmissionDepth > 0))
+				footprintInUvArea = 0.0f;
 
 			SurfaceParams surf = evaluateSurface(mat, hit.texCoords, hit.vertexColor, footprintInUvArea);
 			lastHitAO = surf.ao;
@@ -3069,6 +3164,12 @@ namespace
 			const bool takeTransmissionLobe = (surf.transmission >= 0.999f) ? true
 				: (surf.transmission <= 0.001f) ? false
 				: (rng.next01() < surf.transmission);
+
+			if (kDebugVisualizeMetalnessTransmissionLeak && (bounce > 0 || transmissionDepth > 0))
+				return glm::vec3(surf.roughness, surf.metalness, 0.0f);
+
+			if (kDebugVisualizeInternalBaseColor && (bounce > 0 || transmissionDepth > 0))
+				return surf.baseColor;
 
 			// Path regularization (Muller et al. 2018), per the RayTrophi
 			// study: floor the effective roughness used for GGX specular/

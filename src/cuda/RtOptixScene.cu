@@ -164,7 +164,36 @@ namespace
 	// site) - the reflect/refract split and normal field both checked out as
 	// physically plausible for a transmissionFactor=1 material, so the
 	// investigation moved elsewhere. Flip back to true here if resuming it.
-	constexpr bool kDebugVisualizeTransmission = false;  
+	constexpr bool kDebugVisualizeTransmission = false;
+
+	// False-colors every non-primary hit (R = roughness, G = metalness,
+	// B = 0) and returns immediately - see CpuPathTracer.cpp's identical
+	// kDebugVisualizeMetalnessTransmissionLeak doc comment (repurposed to
+	// check roughness after metalness/transmission proved clean).
+	constexpr bool kDebugVisualizeMetalnessTransmissionLeak = false;
+
+	// False-colors every non-primary hit with baseColor directly (RGB) and
+	// returns immediately - see CpuPathTracer.cpp's identical
+	// kDebugVisualizeInternalBaseColor doc comment for why (metalness/
+	// transmission proved clean; baseColor directly/multiplicatively tints
+	// refracted throughput at every internal crossing and is a SEPARATE
+	// texture from the ORM one that has the glTF/Khronos attribution
+	// watermark baked in near the glass mesh's own UV footprint).
+	constexpr bool kDebugVisualizeInternalBaseColor = false;
+	// Kill switch: forces footprintInUvArea=0.0f for every non-primary hit -
+	// see CpuPathTracer.cpp's identical kDebugForceMip0OnSecondaryHits doc
+	// comment for why (tightening the anisotropy cap 16x->4x had zero
+	// effect on the residual candle-edge tint, so this decisively tests
+	// whether the residual is texture-LOD-related at all).
+	constexpr bool kDebugForceMip0OnSecondaryHits = false;
+	// Heat-ramp of transmissionDepth's final value (black->blue->green->
+	// yellow->red->white), normalized against params.maxTransmissionBounces -
+	// mirrors CpuPathTracer.cpp's identical kDebugVisualizeTransmissionBounceCount
+	// exactly (see __raygen__rg()'s use site, after the bounce loop ends).
+	// Added to test whether GlassHurricaneCandleHolder's regression is a
+	// bounce-count/path-length change rather than a texture-sampling one -
+	// baseColor/metalness/transmission all proved clean at individual hits.
+	constexpr bool kDebugVisualizeTransmissionBounceCount = false;
 
 	__forceinline__ __device__ float3 operator+(const float3& a, const float3& b)
 	{
@@ -2110,9 +2139,12 @@ namespace
 					// baseColorTexture), so this doesn't feed a texture LOD
 					// here, but the accumulated cone width must still be kept
 					// current for whatever hit comes after this bounce.
-					// planeNormal is axis-aligned, so dot(planeNormal,
-					// -direction) reduces to |dirUp|.
-					outConeWidth = (coneWidth + coneSpreadAngle * tPlane) / fmaxf(fabsf(dirUp), 1e-3f);
+					// Additive-only, no NdotV divide fed back - matches
+					// __closesthit__ch()'s coneWidthOut exactly (see its doc
+					// comment for the full write-up on why the divided value
+					// must never propagate forward). The plane itself has no
+					// texture to slant-correct for here anyway.
+					outConeWidth = coneWidth + coneSpreadAngle * tPlane;
 					// REVERTED back to the flat params.infinitePlaneBaseColor
 					// placeholder - see CpuPathTracer.cpp's identical
 					// isShadowCatcher gate for the full write-up. A prior
@@ -2634,6 +2666,25 @@ extern "C" __global__ void __raygen__rg()
 		if (kDebugVisualizeVolumeScatterBounces && scatterBounces > 0)
 		{
 			const float t = fminf(fmaxf(static_cast<float>(scatterBounces) / kVolumeScatterDebugRampCap, 0.0f), 1.0f);
+			if (t < 0.25f)
+				sampleRadiance = lerp3(make_float3(0.0f, 0.0f, 0.0f), make_float3(0.0f, 0.0f, 1.0f), t / 0.25f);
+			else if (t < 0.5f)
+				sampleRadiance = lerp3(make_float3(0.0f, 0.0f, 1.0f), make_float3(0.0f, 1.0f, 0.0f), (t - 0.25f) / 0.25f);
+			else if (t < 0.75f)
+				sampleRadiance = lerp3(make_float3(0.0f, 1.0f, 0.0f), make_float3(1.0f, 1.0f, 0.0f), (t - 0.5f) / 0.25f);
+			else
+				sampleRadiance = lerp3(make_float3(1.0f, 1.0f, 0.0f), make_float3(1.0f, 1.0f, 1.0f), (t - 0.75f) / 0.25f);
+		}
+
+		// kDebugVisualizeTransmissionBounceCount - see its own declaration
+		// doc comment / CpuPathTracer.cpp's identical flag for what this is
+		// for. Same heat-ramp pattern as kDebugVisualizeVolumeScatterBounces
+		// just above, over transmissionDepth's final value instead,
+		// normalized against params.maxTransmissionBounces.
+		if (kDebugVisualizeTransmissionBounceCount && transmissionDepth > 0)
+		{
+			const float t = fminf(fmaxf(static_cast<float>(transmissionDepth) /
+				static_cast<float>(max(1u, params.maxTransmissionBounces)), 0.0f), 1.0f);
 			if (t < 0.25f)
 				sampleRadiance = lerp3(make_float3(0.0f, 0.0f, 0.0f), make_float3(0.0f, 0.0f, 1.0f), t / 0.25f);
 			else if (t < 0.5f)
@@ -3188,8 +3239,21 @@ extern "C" __global__ void __closesthit__ch()
 	const float coneSpreadAngle = (params.camOrthographic != 0) ? 0.0f
 		: (2.0f * params.camTanHalfFovY / static_cast<float>(params.imageHeight));
 	const float hitDistanceForCone = optixGetRayTmax();
-	const float NdotVForFootprint = fmaxf(fabsf(dot3(worldFlatNormal, rayDir)), 1e-3f);
-	const float slantCorrectedFootprintLength = (coneWidthIn + coneSpreadAngle * hitDistanceForCone) / NdotVForFootprint;
+	// coneWidthOut accumulates ADDITIVELY ONLY (no NdotV divide fed back) -
+	// a deliberate departure from NVIDIA's own literal pt.cone.width =
+	// worldFoot, which propagates the NdotV-DIVIDED value forward as the
+	// next segment's starting width. See CpuPathTracer.cpp's identical
+	// coneWidth doc comment for the full write-up: that compounds
+	// multiplicatively across many internal TIR bounces confined to one
+	// continuous transmissive medium (GlassHurricaneCandleHolder's "candle"
+	// reflection pattern). The NdotV slant correction (grazing angles
+	// stretch a pixel's footprint across more surface area) is still
+	// applied below, just LOCALLY for THIS hit's own texture lookup -
+	// never written back into the propagated coneWidth. Floored at 1/4 (a
+	// 4x max anisotropy ratio) as an independent safety margin.
+	const float coneWidthOut = coneWidthIn + coneSpreadAngle * hitDistanceForCone;
+	const float NdotVForFootprint = fmaxf(fabsf(dot3(worldFlatNormal, rayDir)), 1.0f / 4.0f);
+	const float slantCorrectedFootprintLength = coneWidthOut / NdotVForFootprint;
 
 	const float3 worldP0 = optixTransformPointFromObjectToWorldSpace(objectTri[0]);
 	const float3 worldP1 = optixTransformPointFromObjectToWorldSpace(objectTri[1]);
@@ -3202,16 +3266,43 @@ extern "C" __global__ void __closesthit__ch()
 	const float uvArea = 0.5f * fabsf((uv1.x - uv0.x) * (uv2.y - uv0.y) - (uv2.x - uv0.x) * (uv1.y - uv0.y));
 	const float uvAreaPerWorldArea = worldArea > 1e-12f ? (uvArea / worldArea) : 0.0f;
 
+	// An earlier attempt at the GlassHurricaneCandleHolder residual
+	// (freezing coneWidthOut's own growth for segments traveled inside a
+	// continuous transmissive medium) had NO effect - a debug kill switch
+	// (forcing footprintInUvArea=0 unconditionally on every non-primary
+	// hit) proved the tint disappears completely, but merely freezing
+	// further ACCUMULATION didn't, meaning the footprint is ALREADY large
+	// enough to matter at the very FIRST interior/exit hit (from the
+	// camera-to-vessel distance alone), not something that builds up
+	// ACROSS multiple bounces the way the compounding bug above did.
+	//
+	// The actual fix: materials with KHR_materials_volume never apply
+	// footprint-driven LOD blur to THEIR OWN texture sampling at all (see
+	// hasVolumeSkipsOwnFootprint below, forced unconditionally, not just
+	// on interior hits) - matching how this always worked pre-ray-cone
+	// (mip 0/sharpest) for this exact case, since a volumetric material's
+	// own surface detail isn't the thing ray-cone's technique is meant to
+	// blur; the technique is for content seen AT A DISTANCE or THROUGH
+	// minification, like CompareDispersion's backdrop seen through the
+	// glass. coneWidthOut itself still propagates normally underneath (no
+	// freeze) so that backdrop-through-glass case keeps working: only the
+	// LOCAL LOD APPLIED TO THIS material's own textures is suppressed.
+	const bool hasVolumeSkipsOwnFootprint = data->hasVolume != 0;
 	float footprintInUvArea = 0.0f;
-	if (uvAreaPerWorldArea > 0.0f)
+	if (!hasVolumeSkipsOwnFootprint && uvAreaPerWorldArea > 0.0f)
 		footprintInUvArea = uvAreaPerWorldArea * slantCorrectedFootprintLength * slantCorrectedFootprintLength;
 
-	// Propagate for whatever segment leaves this hit next - written early,
-	// unconditionally, exactly once, matching NVIDIA's own single
-	// `pt.cone.width = worldFoot;` insertion point so every downstream
+	if (kDebugForceMip0OnSecondaryHits && __uint_as_float(optixGetPayload_18()) != -1.0f)
+		footprintInUvArea = 0.0f;
+
+	// Propagate the UN-slanted coneWidthOut (not slantCorrectedFootprintLength -
+	// see its own doc comment above) for whatever segment leaves this hit
+	// next - written early, unconditionally, exactly once, mirroring
+	// NVIDIA's single `pt.cone.width = worldFoot;` insertion point (modulo
+	// the deliberate additive-only deviation) so every downstream
 	// continuation (ordinary bounce, transmission, TIR, alpha pass-through,
 	// volume-scatter re-entry) inherits it regardless of which one fires.
-	optixSetPayload_20(__float_as_uint(slantCorrectedFootprintLength));
+	optixSetPayload_20(__float_as_uint(coneWidthOut));
 
 	// Object-space tangent + handedness, barycentrically interpolated then
 	// transformed to world space via the plain-model-matrix direction
@@ -3625,6 +3716,43 @@ extern "C" __global__ void __closesthit__ch()
 	const bool takeTransmissionLobe = (transmission >= 0.999f) ? true
 		: (transmission <= 0.001f) ? false
 		: (hashToUnitFloat(transmissionLobeRng) < transmission);
+
+	if (kDebugVisualizeMetalnessTransmissionLeak && __uint_as_float(optixGetPayload_18()) != -1.0f)
+	{
+		const float3 debugColor = make_float3(roughness, metalness, 0.0f);
+		optixSetPayload_0(__float_as_uint(debugColor.x));
+		optixSetPayload_1(__float_as_uint(debugColor.y));
+		optixSetPayload_2(__float_as_uint(debugColor.z));
+		optixSetPayload_3(2u);
+		optixSetPayload_4(__float_as_uint(worldNormal.x));
+		optixSetPayload_5(__float_as_uint(worldNormal.y));
+		optixSetPayload_6(__float_as_uint(worldNormal.z));
+		optixSetPayload_7(__float_as_uint(optixGetRayTmax()));
+		optixSetPayload_14(__float_as_uint(debugColor.x));
+		optixSetPayload_15(__float_as_uint(debugColor.y));
+		optixSetPayload_16(__float_as_uint(debugColor.z));
+		optixSetPayload_17(__float_as_uint(1.0f));
+		optixSetPayload_19(0u);
+		return;
+	}
+
+	if (kDebugVisualizeInternalBaseColor && __uint_as_float(optixGetPayload_18()) != -1.0f)
+	{
+		optixSetPayload_0(__float_as_uint(baseColor.x));
+		optixSetPayload_1(__float_as_uint(baseColor.y));
+		optixSetPayload_2(__float_as_uint(baseColor.z));
+		optixSetPayload_3(2u);
+		optixSetPayload_4(__float_as_uint(worldNormal.x));
+		optixSetPayload_5(__float_as_uint(worldNormal.y));
+		optixSetPayload_6(__float_as_uint(worldNormal.z));
+		optixSetPayload_7(__float_as_uint(optixGetRayTmax()));
+		optixSetPayload_14(__float_as_uint(baseColor.x));
+		optixSetPayload_15(__float_as_uint(baseColor.y));
+		optixSetPayload_16(__float_as_uint(baseColor.z));
+		optixSetPayload_17(__float_as_uint(1.0f));
+		optixSetPayload_19(0u);
+		return;
+	}
 
 	const int hasVolume = data->hasVolume;
 	const float3 attenuationColor = data->attenuationColor;
