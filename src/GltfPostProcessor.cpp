@@ -9,6 +9,7 @@
 #include <QMap>
 
 #include <glm/gtc/quaternion.hpp>
+#include <glm/mat3x3.hpp>
 
 // Default texture subfolder name - overridden per export by postProcessGltfJsonWithMaterials
 QString GltfPostProcessor::_textureSubfolder = "textures";
@@ -1350,6 +1351,60 @@ bool GltfPostProcessor::writeGltfCameras(
         }
 
         camerasArray.append(camDef);
+
+        // --- Captured-view cameras: no existing node to match against,
+        // so build a brand-new root-level node from the world-space pose
+        // instead (mirrors how KHR_lights_punctual nodes are synthesized
+        // from GPULight position/direction in writePunctualLights() above).
+        if (cam.needsNewNode)
+        {
+            const glm::vec3 dir = glm::normalize(
+                glm::vec3(cam.worldDirection.x(), cam.worldDirection.y(), cam.worldDirection.z()));
+            glm::vec3 up(cam.worldUp.x(), cam.worldUp.y(), cam.worldUp.z());
+            glm::vec3 right = glm::normalize(glm::cross(dir, up));
+            up = glm::normalize(glm::cross(right, dir));
+
+            // glTF cameras look down local -Z with local +Y up, +X right -
+            // build that basis as matrix columns and read off the rotation.
+            const glm::mat3 basis(right, up, -dir);
+            const glm::quat rot = glm::quat_cast(basis);
+
+            QJsonObject newNode;
+            newNode["name"] = camDef["name"];
+            newNode["camera"] = cameraIndex;
+            newNode["translation"] = QJsonArray{
+                static_cast<double>(cam.worldPosition.x()),
+                static_cast<double>(cam.worldPosition.y()),
+                static_cast<double>(cam.worldPosition.z()) };
+            newNode["rotation"] = QJsonArray{
+                static_cast<double>(rot.x), static_cast<double>(rot.y),
+                static_cast<double>(rot.z), static_cast<double>(rot.w) };
+
+            const int newNodeIndex = nodesArray.size();
+            nodesArray.append(newNode);
+
+            if (gltfJson.contains("scenes"))
+            {
+                QJsonArray scenes = gltfJson["scenes"].toArray();
+                const int sceneIdx = gltfJson.value("scene").toInt(0);
+                if (sceneIdx >= 0 && sceneIdx < scenes.size())
+                {
+                    QJsonObject scene = scenes[sceneIdx].toObject();
+                    QJsonArray sceneNodes = scene.value("nodes").toArray();
+                    sceneNodes.append(newNodeIndex);
+                    scene["nodes"] = sceneNodes;
+                    scenes[sceneIdx] = scene;
+                    gltfJson["scenes"] = scenes;
+                }
+            }
+
+            log(QString("  -> Camera '%1' (%2) written to new node[%3]")
+                .arg(camDef["name"].toString())
+                .arg(cam.type == GltfCameraType::Perspective ? "perspective" : "orthographic")
+                .arg(newNodeIndex), logCallback);
+            ++injectedCount;
+            continue;
+        }
 
         // --- Wire the camera to its hosting node ---
         const QString targetNode = cam.nodeName.isEmpty() ? cam.name : cam.nodeName;

@@ -301,6 +301,17 @@ public:
 	QString activeGltfCameraFile()  const { return _animCtrl.activeGltfCameraFile(); }
 	int     activeGltfCameraIndex() const { return _animCtrl.activeGltfCameraIndex(); }
 
+	// Snapshot the live Camera state into a GltfCameraEntry ("Capture View"
+	// in the Cameras tab). The entry has needsNewNode = true and no source
+	// file of its own - ModelViewer stores it under the synthetic
+	// capturedViewsSourceFileKey() bucket in SceneGraph, so activation,
+	// deletion, MVF save/load, and glTF/GLB export all reuse the exact same
+	// per-file glTF camera machinery as an authored camera - notably
+	// activateGltfCamera()'s system-camera save/restore latch, which a
+	// separate bookmark-specific code path used to skip (bug: couldn't
+	// return to System Camera after activating a captured view).
+	GltfCameraEntry captureCurrentCameraEntry(const QString& name) const;
+
 public:
 	QVector4D getDefaultLightColor() const;
 	void setDefaultLightColor(const QVector4D& defaultLightColor);

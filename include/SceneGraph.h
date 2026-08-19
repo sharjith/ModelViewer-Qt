@@ -140,6 +140,14 @@ public:
 
     SceneNode* findFileNode(const QString& sourceFile) const;
 
+    // Every currently loaded source file (one entry per synthetic top-level
+    // file node), regardless of format or whether it carries any
+    // KHR_materials_variants data yet - unlike filesWithVariants(), this
+    // includes STEP/OBJ/etc. files so the Variants tab can offer "Capture
+    // Current as Variant..." on them too, not just files that already
+    // arrived with the extension.
+    QStringList allSourceFiles() const;
+
     // -----------------------------------------------------------------------
     // KHR_materials_variants
     // -----------------------------------------------------------------------
@@ -289,6 +297,7 @@ private:
     QHash<QString, GltfAnimationData> _animationDataByFile;
     QHash<QString, int> _activeAnimationClipByFile;
 
-    // glTF cameras: one entry per source file that declares cameras.
+    // glTF cameras: one entry per source file that declares cameras (this
+    // includes the synthetic capturedViewsSourceFileKey() bucket).
     QHash<QString, GltfCameraData> _gltfCameraDataByFile;
 };

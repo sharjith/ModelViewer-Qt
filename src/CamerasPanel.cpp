@@ -5,10 +5,13 @@
 
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 // ---------------------------------------------------------------------------
@@ -47,7 +50,7 @@ CamerasPanel::CamerasPanel(QWidget* parent)
 {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setSpacing(8);
 
     _tree = new QTreeWidget(this);
     _tree->setHeaderHidden(true);
@@ -58,12 +61,29 @@ CamerasPanel::CamerasPanel(QWidget* parent)
     _tree->setSelectionMode(QAbstractItemView::NoSelection);
     _tree->setFocusPolicy(Qt::NoFocus);
     _tree->setContextMenuPolicy(Qt::CustomContextMenu);
-    layout->addWidget(_tree);
+    layout->addWidget(_tree, 1);
+
+    _captureViewButton = new QPushButton(tr("Capture View..."), this);
+    _captureViewButton->setToolTip(tr("Save the current viewport camera pose as a new view"));
+    _deleteButton = new QPushButton(tr("Delete"), this);
+    _deleteButton->setToolTip(tr("Delete the last selected camera"));
+
+    auto* buttonRow = new QHBoxLayout();
+    buttonRow->setContentsMargins(8, 0, 8, 8);
+    buttonRow->setSpacing(8);
+    buttonRow->addWidget(_captureViewButton);
+    buttonRow->addStretch(1);
+    buttonRow->addWidget(_deleteButton);
+    layout->addLayout(buttonRow);
 
     connect(_tree, &QTreeWidget::itemClicked,
             this,  &CamerasPanel::onItemClicked);
     connect(_tree, &QWidget::customContextMenuRequested,
             this, &CamerasPanel::onTreeContextMenuRequested);
+    connect(_captureViewButton, &QPushButton::clicked, this, &CamerasPanel::onCaptureViewButtonClicked);
+    connect(_deleteButton, &QPushButton::clicked, this, &CamerasPanel::onDeleteButtonClicked);
+
+    updateButtonStates();
 }
 
 void CamerasPanel::setSceneGraph(SceneGraph* sg)
@@ -84,8 +104,19 @@ void CamerasPanel::refresh()
 {
     _tree->clear();
 
+    // Camera indices can shift on add or delete, so a tracked target could
+    // silently point at the wrong item after a data change. Safest is to
+    // require a fresh click before Delete is usable again; this only fires
+    // on actual data changes, not on ordinary activation clicks (those
+    // don't call refresh()).
+    _lastDeletableFile.clear();
+    _lastDeletableIndex = -1;
+
     if (!_sceneGraph)
+    {
+        updateButtonStates();
         return;
+    }
 
     // Determine the currently active camera so we can pre-mark it.
     const bool systemCamActive = !_viewportWidget || !_viewportWidget->isGltfCameraActive();
@@ -96,15 +127,24 @@ void CamerasPanel::refresh()
     QTreeWidgetItem* sysItem = makeSystemCameraItem(systemCamActive);
     _tree->addTopLevelItem(sysItem);
 
-    // --- Per-file glTF camera groups ---
-    const QStringList files = _sceneGraph->filesWithGltfCameras();
+    // --- Per-file glTF camera groups (includes the synthetic
+    // capturedViewsSourceFileKey() bucket for user-captured views, pulled
+    // to the front so it reads like a dedicated group right after System
+    // Camera - same spot the old Bookmarks group used to occupy). ---
+    QStringList files = _sceneGraph->filesWithGltfCameras();
+    const QString capturedKey = capturedViewsSourceFileKey();
+    if (files.removeOne(capturedKey))
+        files.prepend(capturedKey);
+
     for (const QString& sourceFile : files)
     {
         const GltfCameraData cd = _sceneGraph->gltfCameraDataForFile(sourceFile);
         if (cd.isEmpty())
             continue;
 
-        const QString displayName = QFileInfo(sourceFile).fileName();
+        const QString displayName = (sourceFile == capturedKey)
+            ? tr("Captured Views")
+            : QFileInfo(sourceFile).fileName();
         QTreeWidgetItem* fileItem = makeFileItem(sourceFile, displayName);
         _tree->addTopLevelItem(fileItem);
 
@@ -118,6 +158,8 @@ void CamerasPanel::refresh()
 
         fileItem->setExpanded(true);
     }
+
+    updateButtonStates();
 }
 
 void CamerasPanel::setDetachedOverlayMode(bool enabled)
@@ -229,7 +271,7 @@ void CamerasPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
     if (!item)
         return;
 
-    // File-group items are not clickable
+    // File-group items (including "Captured Views") are not clickable
     if (item->data(0, IsFileItemRole).toBool())
         return;
 
@@ -238,11 +280,16 @@ void CamerasPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
     if (isSystemCam)
     {
         markActive(QString(), -1, /*isSystemCam=*/true);
+        // System Camera isn't deletable - clear any previously-tracked target.
+        _lastDeletableFile.clear();
+        _lastDeletableIndex = -1;
+        updateButtonStates();
         emit systemCameraRequested();
         return;
     }
 
-    // glTF camera item: SourceFileRole is stored directly on camera items too
+    // glTF camera item (authored or captured): SourceFileRole is stored
+    // directly on camera items too.
     const QString sourceFile  = item->data(0, SourceFileRole).toString();
     const int     cameraIndex = item->data(0, CameraIndexRole).toInt();
 
@@ -250,6 +297,9 @@ void CamerasPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
         return;
 
     markActive(sourceFile, cameraIndex, /*isSystemCam=*/false);
+    _lastDeletableFile = sourceFile;
+    _lastDeletableIndex = cameraIndex;
+    updateButtonStates();
     emit gltfCameraActivated(sourceFile, cameraIndex);
 }
 
@@ -263,7 +313,14 @@ void CamerasPanel::onTreeContextMenuRequested(const QPoint& pos)
         return;
 
     if (item->data(0, IsSystemCamRole).toBool())
+    {
+        QMenu menu(this);
+        QAction* captureAction = menu.addAction(tr("Capture Camera View..."));
+        QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
+        if (chosen == captureAction)
+            promptCaptureCameraView();
         return;
+    }
 
     const bool isFileItem = item->data(0, IsFileItemRole).toBool();
     const QString sourceFile = isFileItem
@@ -279,6 +336,39 @@ void CamerasPanel::onTreeContextMenuRequested(const QPoint& pos)
     QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
     if (chosen == deleteAction)
         emit gltfCameraDeleteRequested(sourceFile, cameraIndex);
+}
+
+void CamerasPanel::onCaptureViewButtonClicked()
+{
+    promptCaptureCameraView();
+}
+
+void CamerasPanel::onDeleteButtonClicked()
+{
+    if (_lastDeletableFile.isEmpty() || _lastDeletableIndex < 0)
+        return;
+    emit gltfCameraDeleteRequested(_lastDeletableFile, _lastDeletableIndex);
+}
+
+void CamerasPanel::promptCaptureCameraView()
+{
+    const int existingCount = _sceneGraph
+        ? _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras.size()
+        : 0;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Capture Camera"),
+        tr("View name:"), QLineEdit::Normal,
+        tr("View %1").arg(existingCount + 1), &ok).trimmed();
+    if (ok && !name.isEmpty())
+        emit captureViewRequested(name);
+}
+
+void CamerasPanel::updateButtonStates()
+{
+    if (_captureViewButton)
+        _captureViewButton->setEnabled(_sceneGraph != nullptr && _viewportWidget != nullptr);
+    if (_deleteButton)
+        _deleteButton->setEnabled(!_lastDeletableFile.isEmpty() && _lastDeletableIndex >= 0);
 }
 
 // ---------------------------------------------------------------------------

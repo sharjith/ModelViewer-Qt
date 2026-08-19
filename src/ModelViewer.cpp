@@ -1,5 +1,8 @@
 ﻿#include "FloatingPanelDialog.h"
 #include "AssImpModelLoader.h"
+#include "CaptureCameraCommand.h"
+#include "CaptureVariantCommand.h"
+#include "SetDefaultVariantCommand.h"
 #include "CutCommand.h"
 #include "DeleteMeshCommand.h"
 #include "MetadataDeleteCommand.h"
@@ -953,6 +956,27 @@ void ModelViewer::deleteGltfCamera(const QString& sourceFile, int cameraIndex)
 	_undoStack->push(new MetadataDeleteCommand(
 		this, _viewportWidget, MetadataDeleteCommand::Kind::Camera,
 		sourceFile, cameraIndex, tr("Delete Camera")));
+}
+
+void ModelViewer::captureVariant(const QString& sourceFile, const QString& variantName)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty() || variantName.isEmpty())
+		return;
+	_undoStack->push(new CaptureVariantCommand(this, _viewportWidget, sourceFile, variantName));
+}
+
+void ModelViewer::setVariantAsDefault(const QString& sourceFile, int variantIndex)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || sourceFile.isEmpty() || variantIndex < 0)
+		return;
+	_undoStack->push(new SetDefaultVariantCommand(this, _viewportWidget, sourceFile, variantIndex));
+}
+
+void ModelViewer::captureCameraView(const QString& name)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || name.isEmpty())
+		return;
+	_undoStack->push(new CaptureCameraCommand(this, _viewportWidget, name));
 }
 
 void ModelViewer::setupUndoStackMonitoring()
@@ -3094,6 +3118,12 @@ void ModelViewer::onFileExport()
 		}
 	}
 
+	// Note: user-captured views ("Capture View" in the Cameras tab) are
+	// already included by the loop above - they're stored as regular
+	// GltfCameraEntry data under SceneGraph's synthetic
+	// capturedViewsSourceFileKey() bucket, which filesWithGltfCameras()
+	// naturally picks up like any other file. See GltfCameraData.h.
+
 	// Collect variant names so KHR_materials_variants is preserved on glTF export.
 	{
 		// Use variant data from the selected source file if known, else first available.
@@ -3462,6 +3492,19 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 					cameraObj[QStringLiteral("needsModelTransformCompensation")].toBool(false);
 				if (isDirectGltfCameraSource)
 					camera.needsModelTransformCompensation = false;
+				camera.capturedViewRange = static_cast<float>(
+					cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+
+				// needsNewNode isn't itself persisted - every camera in the
+				// captured-views bucket is synthetic by construction (no
+				// authored glTF node backs it), so re-derive the flag from
+				// which bucket it's loading into rather than needing a new
+				// JSON field. Without this, a captured view would still
+				// export after an MVF round-trip, but as an orphaned camera
+				// definition unwired to any node (writeGltfCameras() would
+				// try - and fail - to name-match it like an authored one).
+				camera.needsNewNode = (sourceFile == capturedViewsSourceFileKey());
+
 				cameraData.cameras.append(camera);
 			}
 
@@ -4231,6 +4274,12 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			QStringLiteral("activeGltfCameraIndex"),
 			_viewportWidget->activeGltfCameraIndex());
 	}
+
+	// Note: user-captured views ("Capture View" in the Cameras tab) need no
+	// separate save block - they're regular GltfCameraData under
+	// SceneGraph's synthetic capturedViewsSourceFileKey() bucket, so the
+	// cameraDataByFile collection above (built from filesWithGltfCameras())
+	// already includes and saves them like any other file's cameras.
 
 	// Whole block guarded, not each call individually (confirmed via
 	// clang-analyzer: fixing the getMeshStore() null-deref above let its

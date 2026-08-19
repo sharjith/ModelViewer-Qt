@@ -8,6 +8,7 @@
 #include "GltfVariantData.h"
 
 class SceneGraph;
+class QPushButton;
 
 // ---------------------------------------------------------------------------
 // MaterialVariantsPanel
@@ -70,9 +71,20 @@ signals:
     void variantActivated(const QString& sourceFile, int variantIndex);
     void variantDeleteRequested(const QString& sourceFile, int variantIndex);
 
+    // Emitted when the user captures the file's current live material state
+    // as a new variant via the file item's context menu.
+    void captureVariantRequested(const QString& sourceFile, const QString& variantName);
+
+    // Emitted when the user sets a named variant as the file's Default
+    // (fallback) material via that variant item's context menu.
+    void setDefaultVariantRequested(const QString& sourceFile, int variantIndex);
+
 private slots:
     void onItemClicked(QTreeWidgetItem* item, int column);
     void onTreeContextMenuRequested(const QPoint& pos);
+    void onCaptureButtonClicked();
+    void onSetDefaultButtonClicked();
+    void onDeleteButtonClicked();
 
 private:
     void paintEvent(QPaintEvent* event) override;
@@ -85,12 +97,30 @@ private:
 
     void markActiveVariant(const QString& sourceFile, int variantIndex);
 
+    // Shared by the file item's context menu action and the bottom
+    // "Capture Variant..." button.
+    void promptCaptureVariant(const QString& sourceFile);
+
+    // Enables/disables the bottom buttons based on _currentFile and its
+    // currently-active variant. Called after refresh() and any click.
+    void updateButtonStates();
+
     QIcon activeIcon()   const;
     QIcon inactiveIcon() const;
 
     QTreeWidget* _tree        = nullptr;
+    QPushButton* _captureButton    = nullptr;
+    QPushButton* _setDefaultButton = nullptr;
+    QPushButton* _deleteButton     = nullptr;
     SceneGraph*  _sceneGraph  = nullptr;
     bool         _overlayMode = false;
+
+    // The file the bottom buttons act on - the last file interacted with
+    // (its own item, or any variant under it), defaulting to the first
+    // loaded file. There's no tree-selection concept here (NoSelection
+    // mode, single-click activates instead), so this is the closest
+    // equivalent to AnimationsPanel's _selectedSourceFile.
+    QString _currentFile;
 
     // Saved state for overlay mode toggle (mirrors SceneTreeWidget)
     QPalette _savedPalette;

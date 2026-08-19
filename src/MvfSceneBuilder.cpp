@@ -1246,6 +1246,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                                  QJsonArray{camera.worldUp.x(), camera.worldUp.y(), camera.worldUp.z()});
                 cameraObj.insert(QStringLiteral("needsModelTransformCompensation"),
                                  camera.needsModelTransformCompensation);
+                cameraObj.insert(QStringLiteral("capturedViewRange"), camera.capturedViewRange);
                 camerasArray.append(cameraObj);
             }
 

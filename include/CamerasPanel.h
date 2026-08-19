@@ -6,19 +6,28 @@
 
 class ViewportWidget;
 class SceneGraph;
+class QPushButton;
 
 // ---------------------------------------------------------------------------
 // CamerasPanel
 //
 // A tree widget that lets the user switch between the viewer's built-in
-// system camera and any glTF-defined cameras in the loaded file(s).
+// system camera and any glTF-defined cameras in the loaded file(s), plus
+// any views the user has captured live from the viewport ("Capture View").
+// Captured views are stored as regular glTF camera data under SceneGraph's
+// synthetic capturedViewsSourceFileKey() bucket (see GltfCameraData.h) -
+// they show up here as just another file-style group, not a separate kind
+// of item, so activation/deletion reuse the exact same code paths as an
+// authored camera.
 //
-// The panel is shown only when at least one glTF camera is present in the
-// current scene (it is a conditional navigation sub-tab, like Variants and
-// Animations).
+// The panel is shown only when at least one glTF camera (authored or
+// captured) is present in the current scene (it is a conditional
+// navigation sub-tab, like Variants and Animations).
 //
 // Tree structure:
 //   ◉ System Camera              (permanent top-level item)
+//   ▼ Captured Views             (synthetic group for user-captured views, if any)
+//       ○ Front Entrance
 //   ▼ Astronaut.glb              (top-level file group, bold, non-selectable)
 //       ○ CameraTop              (named glTF camera)
 //       ○ CameraClose
@@ -64,16 +73,22 @@ public:
     void refreshDetachedOverlayTheme();
 
 signals:
-    // Emitted when the user clicks a glTF camera item.
+    // Emitted when the user clicks a glTF camera item (authored or captured).
     void gltfCameraActivated(const QString& sourceFile, int cameraIndex);
     void gltfCameraDeleteRequested(const QString& sourceFile, int cameraIndex);
 
     // Emitted when the user clicks the System Camera item.
     void systemCameraRequested();
 
+    // Emitted when the user captures the live camera pose as a new view,
+    // via the System Camera item's context menu or the bottom button.
+    void captureViewRequested(const QString& name);
+
 private slots:
     void onItemClicked(QTreeWidgetItem* item, int column);
     void onTreeContextMenuRequested(const QPoint& pos);
+    void onCaptureViewButtonClicked();
+    void onDeleteButtonClicked();
 
 private:
     void paintEvent(QPaintEvent* event) override;
@@ -88,13 +103,31 @@ private:
 
     void markActive(const QString& sourceFile, int cameraIndex, bool isSystemCam);
 
+    // Shared by the System Camera item's context menu action and the
+    // bottom "Capture View..." button.
+    void promptCaptureCameraView();
+
+    // Enables/disables the bottom Delete button based on what was last
+    // clicked (mirrors MaterialVariantsPanel::updateButtonStates()).
+    void updateButtonStates();
+
     QIcon activeIcon()   const;
     QIcon inactiveIcon() const;
 
     QTreeWidget* _tree       = nullptr;
+    QPushButton* _captureViewButton = nullptr;
+    QPushButton* _deleteButton      = nullptr;
     SceneGraph*  _sceneGraph = nullptr;
     ViewportWidget*    _viewportWidget   = nullptr;
     bool         _overlayMode = false;
+
+    // What the Delete button targets - the last glTF camera item clicked
+    // (authored or captured; both are plain GltfCameraEntry items now).
+    // System Camera and file/group headers aren't deletable, so they clear
+    // this instead of setting it. Reset on every refresh() since indices
+    // can shift on add/delete - see refresh()'s comment.
+    QString _lastDeletableFile;
+    int     _lastDeletableIndex = -1;
 
     // Saved state for overlay mode toggle (mirrors MaterialVariantsPanel)
     QPalette _savedPalette;

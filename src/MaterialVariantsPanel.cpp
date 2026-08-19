@@ -3,10 +3,13 @@
 
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMenu>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
+#include <QPushButton>
 #include <QVBoxLayout>
 
 // ---------------------------------------------------------------------------
@@ -44,7 +47,7 @@ MaterialVariantsPanel::MaterialVariantsPanel(QWidget* parent)
 {
     auto* layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
-    layout->setSpacing(0);
+    layout->setSpacing(8);
 
     _tree = new QTreeWidget(this);
     _tree->setHeaderHidden(true);
@@ -55,12 +58,33 @@ MaterialVariantsPanel::MaterialVariantsPanel(QWidget* parent)
     _tree->setSelectionMode(QAbstractItemView::NoSelection);
     _tree->setFocusPolicy(Qt::NoFocus);
     _tree->setContextMenuPolicy(Qt::CustomContextMenu);
-    layout->addWidget(_tree);
+    layout->addWidget(_tree, 1);
+
+    _captureButton = new QPushButton(tr("Add Variant..."), this);
+    _captureButton->setToolTip(tr("Capture the current file's live material state as a new variant"));
+    _setDefaultButton = new QPushButton(tr("Set as Default"), this);
+    _setDefaultButton->setToolTip(tr("Make the active variant's material the file's fallback/default"));
+    _deleteButton = new QPushButton(tr("Delete"), this);
+    _deleteButton->setToolTip(tr("Delete the active variant"));
+
+    auto* buttonRow = new QHBoxLayout();
+    buttonRow->setContentsMargins(8, 0, 8, 8);
+    buttonRow->setSpacing(8);
+    buttonRow->addWidget(_captureButton);
+    buttonRow->addStretch(1);
+    buttonRow->addWidget(_setDefaultButton);
+    buttonRow->addWidget(_deleteButton);
+    layout->addLayout(buttonRow);
 
     connect(_tree, &QTreeWidget::itemClicked,
             this,  &MaterialVariantsPanel::onItemClicked);
     connect(_tree, &QWidget::customContextMenuRequested,
             this, &MaterialVariantsPanel::onTreeContextMenuRequested);
+    connect(_captureButton, &QPushButton::clicked, this, &MaterialVariantsPanel::onCaptureButtonClicked);
+    connect(_setDefaultButton, &QPushButton::clicked, this, &MaterialVariantsPanel::onSetDefaultButtonClicked);
+    connect(_deleteButton, &QPushButton::clicked, this, &MaterialVariantsPanel::onDeleteButtonClicked);
+
+    updateButtonStates();
 }
 
 void MaterialVariantsPanel::setSceneGraph(SceneGraph* sg)
@@ -77,9 +101,20 @@ void MaterialVariantsPanel::refresh()
     _tree->clear();
 
     if (!_sceneGraph)
+    {
+        _currentFile.clear();
+        updateButtonStates();
         return;
+    }
 
-    const QStringList files = _sceneGraph->filesWithVariants();
+    // Every loaded file gets a row, not just ones that already carry
+    // KHR_materials_variants - "Capture Current as Variant..." needs to be
+    // reachable on plain STEP/OBJ/etc. files too, so users can build up
+    // variants from scratch before exporting to glTF/GLB.
+    const QStringList files = _sceneGraph->allSourceFiles();
+    if (!files.contains(_currentFile))
+        _currentFile = files.isEmpty() ? QString() : files.first();
+
     for (const QString& sourceFile : files)
     {
         const GltfVariantData vd  = _sceneGraph->variantDataForFile(sourceFile);
@@ -98,6 +133,8 @@ void MaterialVariantsPanel::refresh()
 
         fileItem->setExpanded(true);
     }
+
+    updateButtonStates();
 }
 
 void MaterialVariantsPanel::setDetachedOverlayMode(bool enabled)
@@ -211,7 +248,14 @@ void MaterialVariantsPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
 
     const bool isFileItem = item->data(0, IsFileItemRole).toBool();
     if (isFileItem)
-        return;  // clicking the file label does nothing
+    {
+        // Clicking the file label doesn't activate anything, but it's still
+        // how the user points the bottom buttons at a file with no variants
+        // of its own yet.
+        _currentFile = item->data(0, SourceFileRole).toString();
+        updateButtonStates();
+        return;
+    }
 
     // SourceFileRole is stored on the file-level parent, not on variant items.
     QTreeWidgetItem* parentItem = item->parent();
@@ -223,8 +267,11 @@ void MaterialVariantsPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
     if (sourceFile.isEmpty())
         return;
 
+    _currentFile = sourceFile;
+
     // Update radio icons for this file's children
     markActiveVariant(sourceFile, variantIndex);
+    updateButtonStates();
 
     emit variantActivated(sourceFile, variantIndex);
 }
@@ -250,10 +297,80 @@ void MaterialVariantsPanel::onTreeContextMenuRequested(const QPoint& pos)
         return;
 
     QMenu menu(this);
+    QAction* captureAction = isFileItem ? menu.addAction(tr("Capture Current as Variant...")) : nullptr;
+    QAction* setDefaultAction = !isFileItem ? menu.addAction(tr("Set as Default")) : nullptr;
+    menu.addSeparator();
     QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
     QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
+
     if (chosen == deleteAction)
+    {
         emit variantDeleteRequested(sourceFile, variantIndex);
+    }
+    else if (chosen == captureAction)
+    {
+        promptCaptureVariant(sourceFile);
+    }
+    else if (chosen == setDefaultAction)
+    {
+        emit setDefaultVariantRequested(sourceFile, variantIndex);
+    }
+}
+
+void MaterialVariantsPanel::onCaptureButtonClicked()
+{
+    promptCaptureVariant(_currentFile);
+}
+
+void MaterialVariantsPanel::onSetDefaultButtonClicked()
+{
+    if (!_sceneGraph || _currentFile.isEmpty())
+        return;
+
+    const int activeVariant = _sceneGraph->activeVariantForFile(_currentFile);
+    if (activeVariant < 0)
+        return;
+
+    emit setDefaultVariantRequested(_currentFile, activeVariant);
+}
+
+void MaterialVariantsPanel::onDeleteButtonClicked()
+{
+    if (!_sceneGraph || _currentFile.isEmpty())
+        return;
+
+    const int activeVariant = _sceneGraph->activeVariantForFile(_currentFile);
+    if (activeVariant < 0)
+        return;
+
+    emit variantDeleteRequested(_currentFile, activeVariant);
+}
+
+void MaterialVariantsPanel::promptCaptureVariant(const QString& sourceFile)
+{
+    if (sourceFile.isEmpty())
+        return;
+
+    const int existingCount = _sceneGraph ? _sceneGraph->variantDataForFile(sourceFile).variantNames.size() : 0;
+    bool ok = false;
+    const QString name = QInputDialog::getText(this, tr("Capture Variant"),
+        tr("Variant name:"), QLineEdit::Normal,
+        tr("Variant %1").arg(existingCount + 1), &ok).trimmed();
+    if (ok && !name.isEmpty())
+        emit captureVariantRequested(sourceFile, name);
+}
+
+void MaterialVariantsPanel::updateButtonStates()
+{
+    const bool hasFile = _sceneGraph && !_currentFile.isEmpty();
+    const int activeVariant = hasFile ? _sceneGraph->activeVariantForFile(_currentFile) : -1;
+
+    if (_captureButton)
+        _captureButton->setEnabled(hasFile);
+    if (_setDefaultButton)
+        _setDefaultButton->setEnabled(hasFile && activeVariant >= 0);
+    if (_deleteButton)
+        _deleteButton->setEnabled(hasFile && activeVariant >= 0);
 }
 
 // ---------------------------------------------------------------------------

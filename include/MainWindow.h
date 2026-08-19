@@ -220,6 +220,7 @@ private:
 	QMetaObject::Connection _variantDataChangedConnection;
 	QMetaObject::Connection _animationDataChangedConnection;
 	QMetaObject::Connection _gltfCameraDataChangedConnection;
+	QMetaObject::Connection _structureChangedForVariantsConnection;
 	QMetaObject::Connection _animationStateChangedConnection;
 
 	// Dims (or restores) a Document dock tab's label to signal whether the

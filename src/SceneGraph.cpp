@@ -491,6 +491,20 @@ SceneNode* SceneGraph::findFileNode(const QString& sourceFile) const
     return nullptr;
 }
 
+QStringList SceneGraph::allSourceFiles() const
+{
+    QStringList files;
+    if (!_root)
+        return files;
+
+    for (SceneNode* child : _root->children)
+    {
+        if (child && child->isSynthetic && !child->sourceFile.isEmpty())
+            files.append(child->sourceFile);
+    }
+    return files;
+}
+
 QList<QUuid> SceneGraph::collectMeshUuids(const SceneNode* node) const
 {
     QList<QUuid> result;

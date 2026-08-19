@@ -10119,6 +10119,60 @@ void ViewportWidget::resetToSystemCamera()
 	_rtInteractionCtrl->notifyCameraJumpNonInteractive();
 }
 
+GltfCameraEntry ViewportWidget::captureCurrentCameraEntry(const QString& name) const
+{
+	GltfCameraEntry entry;
+	entry.name = name;
+	entry.nodeName = name;
+	entry.needsNewNode = true;
+	entry.needsModelTransformCompensation = false;
+
+	if (_primaryCamera)
+	{
+		// _primaryCamera->getProjectionType() is NOT the authoritative
+		// answer here: the toolbar's Perspective/Ortho toggle
+		// (ViewportWidget::setProjection()) only ever updates
+		// _viewCtrl.setProjection() - it never touches _primaryCamera's own
+		// projectionType field, which stays wherever applyGltfCameraEntryTransform()/
+		// resetToSystemCamera() last explicitly set it (typically Perspective,
+		// its default). resizeGL() and the rest of the render path all read
+		// _viewCtrl.projection() to decide what's actually on screen, so
+		// that's what a capture needs to match too.
+		entry.type = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
+			? GltfCameraType::Perspective
+			: GltfCameraType::Orthographic;
+		entry.fovYRadians = qDegreesToRadians(_primaryCamera->getFOV());
+
+		// xMag/yMag are the spec-correct glTF orthographic half-extents
+		// (also what gets exported), but capturedViewRange is what
+		// applyGltfCameraEntryTransform() actually uses to restore this
+		// exact pose in either projection - see GltfCameraData.h.
+		const float viewRange = _primaryCamera->getViewRange();
+		entry.xMag = std::max(viewRange * 0.5f, 0.0001f);
+		entry.yMag = entry.xMag;
+		entry.capturedViewRange = viewRange;
+
+		// getPosition() is NOT the eye position in Orbit mode - it's the
+		// look-at pivot/target (Camera::updateViewMatrix() explicitly uses
+		// getRenderPosition() as eye and _position as the lookAt point for
+		// CameraMode::Orbit). worldPosition here means true eye position,
+		// matching how an authored glTF camera's node transform works and
+		// what applyGltfCameraEntryTransform()'s pivotPos = worldPos +
+		// worldDir*orbitDist reconstruction expects - feeding it the pivot
+		// instead double-shifts the math and lands the reactivated camera
+		// back at the original look-at target instead of where it was
+		// actually standing. This also matters for export: the node
+		// GltfPostProcessor::writeGltfCameras() creates uses worldPosition
+		// as a literal glTF node translation, which external viewers read
+		// as eye position with no concept of an "orbit pivot" at all.
+		entry.worldPosition  = _primaryCamera->getRenderPosition();
+		entry.worldDirection = _primaryCamera->getViewDir();
+		entry.worldUp        = _primaryCamera->getUpVector();
+	}
+
+	return entry;
+}
+
 GltfCameraData ViewportWidget::cameraDataForMvfSave(const GltfCameraData& source) const
 {
 	GltfCameraData result = source;
@@ -10188,25 +10242,39 @@ void ViewportWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 		_primaryCamera->setProjectionType(Camera::ProjectionType::PERSPECTIVE);
 		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
 
-		// Set the view range so the orbit pivot lands at the scene centre and
-		// navigation feel matches the glTF author's framing intent.
-		// orbitDist ≈ viewRange * 1.25 (maxShiftFactor clamp in computeViewShift),
-		// so: viewRange = distToScene / 1.25.
-		const QVector3D sceneCenter(
-			static_cast<float>(_viewCtrl.boundingSphere().getCenter().x()),
-			static_cast<float>(_viewCtrl.boundingSphere().getCenter().y()),
-			static_cast<float>(_viewCtrl.boundingSphere().getCenter().z()));
-		const float distToScene = QVector3D::dotProduct(sceneCenter - worldPos, worldDir);
-		// Clamp to at least scene radius so we never zoom in past the model.
-		const float clampedDist = std::max(distToScene, _viewCtrl.boundingSphere().getRadius());
-		_primaryCamera->setViewRange(clampedDist / 1.25f);
+		if (cam.capturedViewRange >= 0.0f)
+		{
+			// Captured view: restore the exact range recorded at capture
+			// time rather than re-deriving one - see GltfCameraData.h for
+			// why the heuristic below isn't reliable for an arbitrarily
+			// navigated view.
+			_primaryCamera->setViewRange(cam.capturedViewRange);
+		}
+		else
+		{
+			// Authored glTF camera: no recorded range to restore, so derive
+			// one that lands the orbit pivot at the scene centre, matching
+			// the glTF author's framing intent.
+			// orbitDist ≈ viewRange * 1.25 (maxShiftFactor clamp in computeViewShift),
+			// so: viewRange = distToScene / 1.25.
+			const QVector3D sceneCenter(
+				static_cast<float>(_viewCtrl.boundingSphere().getCenter().x()),
+				static_cast<float>(_viewCtrl.boundingSphere().getCenter().y()),
+				static_cast<float>(_viewCtrl.boundingSphere().getCenter().z()));
+			const float distToScene = QVector3D::dotProduct(sceneCenter - worldPos, worldDir);
+			// Clamp to at least scene radius so we never zoom in past the model.
+			const float clampedDist = std::max(distToScene, _viewCtrl.boundingSphere().getRadius());
+			_primaryCamera->setViewRange(clampedDist / 1.25f);
+		}
 		_viewCtrl.setProjection(ViewProjection::PERSPECTIVE);
 		_viewCtrl.setPreviousProjection(Camera::ProjectionType::PERSPECTIVE);
 	}
 	else
 	{
 		_primaryCamera->setProjectionType(Camera::ProjectionType::ORTHOGRAPHIC);
-		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * modelScale;
+		const float orthoRange = (cam.capturedViewRange >= 0.0f)
+			? cam.capturedViewRange
+			: std::max(cam.xMag, cam.yMag) * 2.0f * modelScale;
 		_primaryCamera->setViewRange(std::max(orthoRange, 0.0001f));
 		_viewCtrl.setProjection(ViewProjection::ORTHOGRAPHIC);
 		_viewCtrl.setPreviousProjection(Camera::ProjectionType::ORTHOGRAPHIC);

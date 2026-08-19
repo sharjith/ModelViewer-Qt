@@ -331,6 +331,16 @@ MainWindow::MainWindow(QWidget* parent)
 				if (ModelViewer* child = activeMdiChild())
 					child->deleteVariant(file, index);
 			});
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::captureVariantRequested, this,
+			[this](const QString& file, const QString& name) {
+				if (ModelViewer* child = activeMdiChild())
+					child->captureVariant(file, name);
+			});
+		connect(_materialVariantsPanel, &MaterialVariantsPanel::setDefaultVariantRequested, this,
+			[this](const QString& file, int index) {
+				if (ModelViewer* child = activeMdiChild())
+					child->setVariantAsDefault(file, index);
+			});
 
 		connect(_animationsPanel, &AnimationsPanel::clipActivated, this,
 			[this](const QString& file, int clip) {
@@ -377,6 +387,11 @@ MainWindow::MainWindow(QWidget* parent)
 			[this](const QString& file, int index) {
 				if (ModelViewer* child = activeMdiChild())
 					child->deleteGltfCamera(file, index);
+			});
+		connect(_camerasPanel, &CamerasPanel::captureViewRequested, this,
+			[this](const QString& name) {
+				if (ModelViewer* child = activeMdiChild())
+					child->captureCameraView(name);
 			});
 
 		// Closing a QDockWidget only hides it, but with nothing wired to its
@@ -872,13 +887,24 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	disconnect(_variantDataChangedConnection);
 	disconnect(_animationDataChangedConnection);
 	disconnect(_gltfCameraDataChangedConnection);
+	disconnect(_structureChangedForVariantsConnection);
 	disconnect(_animationStateChangedConnection);
 	if (sceneGraph)
 	{
 		_variantDataChangedConnection = connect(sceneGraph, &SceneGraph::variantDataChanged, this,
 			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		// The Variants tab now lists every loaded file (not just ones that
+		// already carry KHR_materials_variants), so it needs to refresh
+		// whenever the scene structure changes too - e.g. a new file just
+		// finished importing - not only when variant data itself changes.
+		_structureChangedForVariantsConnection = connect(sceneGraph, &SceneGraph::structureChanged, this,
+			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
 		_animationDataChangedConnection = connect(sceneGraph, &SceneGraph::animationDataChanged, this,
 			[this]() { _animationsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		// gltfCameraDataChanged also covers user-captured views ("Capture
+		// View" in the Cameras tab) - they're stored as regular per-file
+		// glTF camera data under SceneGraph's synthetic
+		// capturedViewsSourceFileKey() bucket, not a separate concept.
 		_gltfCameraDataChangedConnection = connect(sceneGraph, &SceneGraph::gltfCameraDataChanged, this,
 			[this]() { _camerasPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
 	}
@@ -1039,8 +1065,14 @@ void MainWindow::refreshDocumentDockTabStyling(ModelViewer* viewer)
 		return;
 
 	SceneGraph* sceneGraph = viewer ? viewer->sceneGraph() : nullptr;
-	const bool hasVariants = sceneGraph && !sceneGraph->filesWithVariants().isEmpty();
+	// Not gated on filesWithVariants(): the Variants tab now lists every
+	// loaded file so "Capture Current as Variant..." is reachable even
+	// before any variant exists yet (e.g. a freshly loaded STEP/OBJ file).
+	const bool hasVariants = sceneGraph && !sceneGraph->allSourceFiles().isEmpty();
 	const bool hasAnimations = sceneGraph && !sceneGraph->filesWithAnimations().isEmpty();
+	// User-captured views ("Capture View" in the Cameras tab) are already
+	// included here - they're stored as regular glTF camera data under
+	// SceneGraph's synthetic capturedViewsSourceFileKey() bucket.
 	const bool hasCameras = sceneGraph && !sceneGraph->filesWithGltfCameras().isEmpty();
 
 	setDocumentTabDimmed(0, !hasVariants);

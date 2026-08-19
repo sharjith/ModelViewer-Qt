@@ -193,6 +193,26 @@ public:
 	void deleteAnimationClip(const QString& sourceFile, int clipIndex);
 	void deleteGltfCamera(const QString& sourceFile, int cameraIndex);
 
+	// Capture the live material state of every mesh in sourceFile as a new
+	// named KHR_materials_variants variant ("Capture Current as Variant..."
+	// in the Variants tab). Undoable via CaptureVariantCommand.
+	void captureVariant(const QString& sourceFile, const QString& variantName);
+
+	// Replace sourceFile's "Default" (fallback) material with variantIndex's
+	// material, for every mesh in that file ("Set as Default" in the
+	// Variants tab). This is what glTF/GLB export writes as each
+	// primitive's base material. Undoable via SetDefaultVariantCommand.
+	void setVariantAsDefault(const QString& sourceFile, int variantIndex);
+
+	// Capture the live camera pose as a new named view ("Capture View" in
+	// the Cameras tab), stored as a GltfCameraEntry under SceneGraph's
+	// synthetic capturedViewsSourceFileKey() bucket. Activation and
+	// deletion reuse the existing glTF-camera signals/methods
+	// (gltfCameraActivated -> ViewportWidget::activateGltfCamera(),
+	// deleteGltfCamera()) - no separate bookmark path, see GltfCameraData.h.
+	// Undoable via CaptureCameraCommand.
+	void captureCameraView(const QString& name);
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();
