@@ -10216,6 +10216,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 	_pendingMeasurementAnchors.clear();
 	_measurementClickCandidate = false;
 	_measurementHoverAnchor = MeshSurfaceAnchor();
+	_hoveredMeasurementId = QUuid();
 	update();
 	emit measurementToolChanged(_measurementTool);
 }
@@ -10372,7 +10373,7 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 	const QVector3D pendingColor(1.0f, 1.0f, 1.0f);
 	const QVector3D hoverSnapColor(0.25f, 1.0f, 0.35f);  // will snap to this vertex
 	const QVector3D hoverRawColor(0.65f, 0.65f, 0.65f);  // raw surface pick, no snap nearby
-	const QVector3D selectedColor(1.0f, 0.35f, 0.05f);   // orange - overrides type color when selected
+	const QVector3D selectedColor(1.0f, 0.35f, 0.05f);   // orange - already selected
 
 	auto addSegment = [&lineVertices](const QVector3D& a, const QVector3D& b, const QVector3D& color) {
 		lineVertices.insert(lineVertices.end(), { a.x(), a.y(), a.z(), color.x(), color.y(), color.z() });
@@ -10381,22 +10382,34 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 
 	// Marker cross size scales with the camera's current view range so it
 	// stays a sensible on-screen size whether the user is zoomed in on a
-	// small detail or looking at the whole model.
+	// small detail or looking at the whole model. sizeMultiplier gives
+	// hover/selection extra visual weight beyond just a color change.
 	const float markerSize = std::max(camera->getViewRange(), 0.0001f) * 0.01f;
-	auto addMarker = [&](const QVector3D& p, const QVector3D& color) {
-		addSegment(p - QVector3D(markerSize, 0, 0), p + QVector3D(markerSize, 0, 0), color);
-		addSegment(p - QVector3D(0, markerSize, 0), p + QVector3D(0, markerSize, 0), color);
-		addSegment(p - QVector3D(0, 0, markerSize), p + QVector3D(0, 0, markerSize), color);
+	auto addMarker = [&](const QVector3D& p, const QVector3D& color, float sizeMultiplier = 1.0f) {
+		const float s = markerSize * sizeMultiplier;
+		addSegment(p - QVector3D(s, 0, 0), p + QVector3D(s, 0, 0), color);
+		addSegment(p - QVector3D(0, s, 0), p + QVector3D(0, s, 0), color);
+		addSegment(p - QVector3D(0, 0, s), p + QVector3D(0, 0, s), color);
 	};
 
 	for (const Measurement& m : measurements)
 	{
 		const bool isSelected = (m.id == _selectedMeasurementId);
+		// Selection is the stronger cue and wins if somehow both apply
+		// (shouldn't normally happen - hover-select only runs while nothing
+		// new is being placed - but a stale hover from just before a click
+		// landed is a real possibility for one frame).
+		const bool isHovered = !isSelected && (m.id == _hoveredMeasurementId);
+
+		QVector3D color = isSelected ? selectedColor : (m.type == MeasurementType::Distance ? distanceColor : pointColor);
+		if (isHovered)
+			color = color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f;  // blend toward white - a lighter preview than full selection
+		const float sizeMultiplier = isSelected ? 1.5f : (isHovered ? 1.25f : 1.0f);
 
 		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
 		{
 			const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
-			addMarker(p, isSelected ? selectedColor : pointColor);
+			addMarker(p, color, sizeMultiplier);
 			labels.append({ p, QString("(%1, %2, %3)")
 				.arg(p.x(), 0, 'f', 2).arg(p.y(), 0, 'f', 2).arg(p.z(), 0, 'f', 2) });
 		}
@@ -10404,10 +10417,9 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		{
 			const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
 			const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
-			const QVector3D color = isSelected ? selectedColor : distanceColor;
 			addSegment(a, b, color);
-			addMarker(a, color);
-			addMarker(b, color);
+			addMarker(a, color, sizeMultiplier);
+			addMarker(b, color, sizeMultiplier);
 			labels.append({ (a + b) * 0.5f, QString::number(a.distanceToPoint(b), 'f', 3) });
 		}
 	}
@@ -12658,7 +12670,21 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	// say WHERE a click will land - show the actual snap-able point instead
 	// (drawMeasurementOverlay() renders _measurementHoverAnchor).
 	if (e->buttons() == Qt::NoButton && _measurementTool != MeasurementTool::None && _selectionManager)
+	{
 		_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+	}
+	// No tool armed: preview which EXISTING measurement a click would
+	// select/delete, before the user commits to clicking - same idea as the
+	// snap-point preview above, just for the "select to delete" workflow
+	// instead of the "place a new point" one. Gated the same as
+	// mousePressEvent()'s select-a-measurement branch (buttons() ==
+	// NoButton here stands in for "not mid-navigation-drag", since a real
+	// drag always has a button held).
+	else if (e->buttons() == Qt::NoButton && _measurementTool == MeasurementTool::None && !gizmoHovered
+		&& (!_viewCtrl.showViewCubeOverride() || !viewCubeScreenRect().contains(e->pos())))
+	{
+		_hoveredMeasurementId = hitTestMeasurement(e->pos(), _primaryCamera, 8);
+	}
 
 	update();
 

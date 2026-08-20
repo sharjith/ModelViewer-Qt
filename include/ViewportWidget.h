@@ -1907,6 +1907,11 @@ private:
 	// Selected measurement (independent of tool-armed state and of mesh
 	// selection) - see selectedMeasurementId()'s doc comment.
 	QUuid _selectedMeasurementId;
+	// Hovered-but-not-yet-selected measurement (no tool armed, mouse not
+	// pressed) - a lighter preview than the selection highlight, so the
+	// user can see what a click will select/delete before committing to it.
+	// Updated in mouseMoveEvent(), drawn in drawMeasurementOverlay().
+	QUuid _hoveredMeasurementId;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
