@@ -22,6 +22,15 @@ public:
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint) = 0;
 
+	// Barycentric weights (u,v,w; sum to 1) of `point` with respect to this
+	// triangle's vertex0/vertex1/vertex2, in that order. Assumes `point`
+	// lies on (or very near) the triangle's plane - e.g. a hit point
+	// already returned by intersectsWithRay(). Non-virtual and generic
+	// (re-derives from the known vertices + point rather than reusing the
+	// per-algorithm intersection math), so every Triangle subclass gets it
+	// for free without touching their intersectsWithRay() implementations.
+	void computeBarycentric(const QVector3D& point, float& outU, float& outV, float& outW) const;
+
 signals:
 
 protected:

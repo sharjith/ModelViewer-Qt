@@ -2,6 +2,7 @@
 
 
 #include "SceneMeshRecord.h"
+#include "MeshSurfaceAnchor.h"
 
 #include <QObject>
 #include <QPoint>
@@ -65,6 +66,16 @@ public:
     void deselect(int id);
     void syncMeshSelectionVisualState();
     int processSelection(const QPoint& pixel);
+
+    // Pick a precise surface anchor at the given pixel: the closest
+    // ray-triangle hit across all visible meshes, with vertex-snapping
+    // (nearest of the hit triangle's 3 vertices, if within snapPixelRadius
+    // screen pixels). For Measurement/Annotation point picking - unlike
+    // clickSelect()/hoverSelect(), this returns geometric detail (triangle
+    // index + barycentric weights), not just a mesh id, and it does not
+    // touch selection state. Returns an anchor with triangleIndex == -1
+    // (isValid() == false) if nothing was hit.
+    MeshSurfaceAnchor pickSurfaceAnchor(const QPoint& pixel, int snapPixelRadius = 8);
 
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }

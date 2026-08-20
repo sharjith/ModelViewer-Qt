@@ -685,3 +685,47 @@ bool MeshInstanceState::intersectsWithRay(const QVector3D& rayPos,
     }
     return false;
 }
+
+bool MeshInstanceState::intersectsWithRayDetailed(const QVector3D& rayPos,
+    const QVector3D& rayDir,
+    QVector3D& outIntersectionPoint,
+    int& outTriangleIndex,
+    QVector3D& outBarycentric)
+{
+    // Mirrors intersectsWithRay() above - see its comment for why the ray
+    // is adjusted into non-exploded space before testing.
+    const QVector3D adjustedRayPos = _explosionOffset.isNull()
+        ? rayPos : rayPos - _explosionOffset;
+
+    float closestDistance = std::numeric_limits<float>::max();
+    bool  found            = false;
+    QVector3D bestIntersection;
+    int bestIndex = -1;
+
+    for (int i = 0; i < static_cast<int>(_triangles.size()); ++i)
+    {
+        QVector3D hitPoint;
+        if (_triangles[i]->intersectsWithRay(adjustedRayPos, rayDir, hitPoint))
+        {
+            const float dist = (hitPoint - adjustedRayPos).length();
+            if (dist < closestDistance)
+            {
+                closestDistance  = dist;
+                bestIntersection = hitPoint;
+                bestIndex        = i;
+                found            = true;
+            }
+        }
+    }
+
+    if (!found)
+        return false;
+
+    outIntersectionPoint = bestIntersection + _explosionOffset;
+    outTriangleIndex = bestIndex;
+
+    float u, v, w;
+    _triangles[bestIndex]->computeBarycentric(bestIntersection, u, v, w);
+    outBarycentric = QVector3D(u, v, w);
+    return true;
+}

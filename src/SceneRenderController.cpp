@@ -140,6 +140,15 @@ void SceneRenderController::releaseGpuResources()
         _debugOverlayBoxVBO = 0;
     }
 
+    // Measurement overlay
+    if (_measurementOverlayVAO != 0)
+    {
+        glDeleteBuffers(1, &_measurementOverlayVBO);
+        glDeleteVertexArrays(1, &_measurementOverlayVAO);
+        _measurementOverlayVAO = 0;
+        _measurementOverlayVBO = 0;
+    }
+
     if (!shareContexts && _punctualLights)
         _punctualLights->cleanup();
 
@@ -229,6 +238,21 @@ void SceneRenderController::initDebugOverlayGeometry(const std::vector<float>& v
 
     glBindVertexArray(_debugOverlayBoxVAO);
     glBindBuffer(GL_ARRAY_BUFFER, _debugOverlayBoxVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                 vertices.data(),
+                 GL_DYNAMIC_DRAW);
+}
+
+void SceneRenderController::initMeasurementOverlayGeometry(const std::vector<float>& vertices)
+{
+    if (_measurementOverlayVAO == 0)
+        glGenVertexArrays(1, &_measurementOverlayVAO);
+    if (_measurementOverlayVBO == 0)
+        glGenBuffers(1, &_measurementOverlayVBO);
+
+    glBindVertexArray(_measurementOverlayVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, _measurementOverlayVBO);
     glBufferData(GL_ARRAY_BUFFER,
                  static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                  vertices.data(),

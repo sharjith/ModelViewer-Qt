@@ -6,6 +6,7 @@
 #include "GltfCameraData.h"
 #include "GltfLightData.h"
 #include "GltfVariantData.h"
+#include "MeasurementData.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -188,6 +189,15 @@ public:
     QStringList filesWithGltfCameras() const;
 
     // -----------------------------------------------------------------------
+    // Measurements ("Measure" tool). Document-level, not per-file - see
+    // MeasurementData.h.
+    // -----------------------------------------------------------------------
+    void addMeasurement(const Measurement& measurement);
+    void removeMeasurementAt(int index);
+    void clearMeasurements();
+    const QVector<Measurement>& measurements() const { return _measurements; }
+
+    // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------
 
@@ -253,6 +263,9 @@ signals:
     void animationDataChanged();
     void gltfCameraDataChanged();
 
+    // Emitted when a measurement is added or removed.
+    void measurementsChanged();
+
     // Emitted when punctual light data is added, removed, or an individual
     // light's enabled state changes.  PunctualLightsPanel connects to this
     // to refresh its tree; ViewportWidget connects to rebuild the GPU light list.
@@ -300,4 +313,7 @@ private:
     // glTF cameras: one entry per source file that declares cameras (this
     // includes the synthetic capturedViewsSourceFileKey() bucket).
     QHash<QString, GltfCameraData> _gltfCameraDataByFile;
+
+    // Document-level, not per-file - see MeasurementData.h.
+    QVector<Measurement> _measurements;
 };

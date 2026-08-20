@@ -14,6 +14,7 @@
 #include <QVector4D>
 #include <algorithm>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <vector>
 
@@ -116,6 +117,112 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     emit selectionChanged(_selectedMeshIds);
 
     return selectedId;
+}
+
+MeshSurfaceAnchor SelectionManager::pickSurfaceAnchor(const QPoint& pixel, int snapPixelRadius)
+{
+    MeshSurfaceAnchor anchor;
+
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
+    if (ids.empty())
+        return anchor;
+
+    const QRect viewport = PickingHelper::viewportRectForPoint(
+        pixel, _viewportWidget->width(), _viewportWidget->height(), _viewportWidget->isMultiViewActive());
+
+    Camera* camera = _viewportWidget->getCameraForPoint(pixel);
+
+    QVector3D rayPos, rayDir;
+    convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
+    if (rayDir.isNull())
+        return anchor;
+    rayDir.normalize();
+
+    // === Closest ray-triangle hit across all visible meshes ===
+    float closestDist = std::numeric_limits<float>::max();
+    SceneMesh* bestMesh = nullptr;
+    QVector3D bestPoint;
+    int bestTriangleIndex = -1;
+    QVector3D bestBary;
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+        if (!mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
+            continue;
+
+        QVector3D hitPoint, bary;
+        int triIndex = -1;
+        if (mesh->intersectsWithRayDetailed(rayPos, rayDir, hitPoint, triIndex, bary))
+        {
+            const float dist = hitPoint.distanceToPoint(rayPos);
+            if (dist < closestDist)
+            {
+                closestDist       = dist;
+                bestMesh          = mesh;
+                bestPoint         = hitPoint;
+                bestTriangleIndex = triIndex;
+                bestBary          = bary;
+            }
+        }
+    }
+
+    if (!bestMesh || bestTriangleIndex < 0)
+        return anchor;
+
+    anchor.meshUuid      = bestMesh->uuid();
+    anchor.triangleIndex = bestTriangleIndex;
+    anchor.barycentric   = bestBary;
+    anchor.worldPosition = bestPoint;
+
+    // === Vertex snapping: project the hit triangle's 3 vertices to screen
+    // space and snap to the nearest one if within snapPixelRadius pixels. ===
+    if (camera && snapPixelRadius > 0)
+    {
+        const std::vector<unsigned int> meshIndices = bestMesh->indices();
+        const size_t base = static_cast<size_t>(bestTriangleIndex) * 3;
+        if (base + 2 < meshIndices.size())
+        {
+            const unsigned int triVertexIndices[3] = {
+                meshIndices[base], meshIndices[base + 1], meshIndices[base + 2] };
+            const std::vector<float>& trsfPoints = bestMesh->getTrsfPoints();
+
+            const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+            const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+            const float snapRadiusPx = static_cast<float>(snapPixelRadius);
+            float bestVertDistSq = snapRadiusPx * snapRadiusPx;
+
+            for (unsigned int vIdx : triVertexIndices)
+            {
+                const size_t p = static_cast<size_t>(vIdx) * 3;
+                if (p + 2 >= trsfPoints.size())
+                    continue;
+
+                const QVector3D worldVert(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+                const QVector3D screenVert = worldVert.project(viewMatrix, projMatrix, viewport);
+                // QVector3D::project() returns y measured from the bottom of
+                // the viewport (OpenGL convention); pixel is measured from
+                // the top (Qt convention) - flip before comparing, same fix
+                // already applied to mouse deltas in the transform-gizmo
+                // drag code (see updateTransformGizmoTranslationDrag()).
+                const float screenY = static_cast<float>(viewport.height()) - screenVert.y();
+                const float dx = screenVert.x() - static_cast<float>(pixel.x());
+                const float dy = screenY - static_cast<float>(pixel.y());
+                const float distSq = dx * dx + dy * dy;
+
+                if (distSq < bestVertDistSq)
+                {
+                    bestVertDistSq = distSq;
+                    anchor.snappedVertexIndex = static_cast<int>(vIdx);
+                    anchor.worldPosition = worldVert;
+                }
+            }
+        }
+    }
+
+    return anchor;
 }
 
 int SelectionManager::hoverSelect(const QPoint& pixel)

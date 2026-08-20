@@ -861,6 +861,32 @@ QStringList SceneGraph::filesWithGltfCameras() const
 }
 
 // ---------------------------------------------------------------------------
+// Measurements
+// ---------------------------------------------------------------------------
+
+void SceneGraph::addMeasurement(const Measurement& measurement)
+{
+    _measurements.append(measurement);
+    emit measurementsChanged();
+}
+
+void SceneGraph::removeMeasurementAt(int index)
+{
+    if (index < 0 || index >= _measurements.size())
+        return;
+    _measurements.removeAt(index);
+    emit measurementsChanged();
+}
+
+void SceneGraph::clearMeasurements()
+{
+    if (_measurements.isEmpty())
+        return;
+    _measurements.clear();
+    emit measurementsChanged();
+}
+
+// ---------------------------------------------------------------------------
 // KHR_lights_punctual
 // ---------------------------------------------------------------------------
 

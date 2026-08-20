@@ -317,6 +317,14 @@ public:
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
+	// Same closest-hit search, but also reports which triangle won and its
+	// barycentric weights there - see MeshInstanceState::intersectsWithRayDetailed().
+	bool intersectsWithRayDetailed(const QVector3D& rayPos, const QVector3D& rayDir,
+		QVector3D& outIntersectionPoint, int& outTriangleIndex, QVector3D& outBarycentric)
+	{
+		return _instanceState.intersectsWithRayDetailed(rayPos, rayDir, outIntersectionPoint, outTriangleIndex, outBarycentric);
+	}
+
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
 	virtual void setNormalPBRMap(unsigned int normalMap);
 	virtual void setMetallicPBRMap(unsigned int metallicMap);

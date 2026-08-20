@@ -17,6 +17,7 @@
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
 #include "Camera.h"
+#include "MeasurementData.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
@@ -311,6 +312,21 @@ public:
 	// separate bookmark-specific code path used to skip (bug: couldn't
 	// return to System Camera after activating a captured view).
 	GltfCameraEntry captureCurrentCameraEntry(const QString& name) const;
+
+	// ---- Measurement tool ----------------------------------------------------
+	// "Measure Point"/"Measure Distance": while a tool is active, left-clicks
+	// place measurement points (via SelectionManager::pickSurfaceAnchor())
+	// instead of doing normal selection - see handleMeasurementClick() in
+	// mousePressEvent(). v1 scope: static meshes, MVF-only (see MeasurementData.h).
+	void setMeasurementTool(MeasurementTool tool);
+	MeasurementTool measurementTool() const { return _measurementTool; }
+
+	// Resolves a saved anchor's CURRENT world position by re-deriving it from
+	// the referenced mesh's live geometry (getTrsfPoints()), not a frozen
+	// value - stays correct if the mesh's transform changes after the
+	// measurement was taken. Returns a null QVector3D if the mesh no longer
+	// exists (deleted) or the anchor is otherwise unresolvable.
+	QVector3D resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const;
 
 public:
 	QVector4D getDefaultLightColor() const;
@@ -975,6 +991,11 @@ signals:
 	void renderingModeChanged(int);
 	void animationStateChanged();
 	void explodedViewManualPlacementChanged();
+	// Emitted whenever the armed measurement tool changes - including from
+	// inside this widget (Escape cancels it) - so MainWindow's toolbar
+	// actions can stay in sync without it having to be the ONLY thing that
+	// ever sets the tool.
+	void measurementToolChanged(MeasurementTool tool);
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
@@ -1853,6 +1874,28 @@ private:
 	ConeRenderable* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
 	TransformGizmo* _transformGizmo = nullptr;
+
+	// ---- Measurement tool state -----------------------------------------
+	MeasurementTool _measurementTool = MeasurementTool::None;
+	// Distance measurement's first click, waiting on the second.
+	QVector<MeasurementAnchorRef> _pendingMeasurementAnchors;
+	// Live hover preview (updated in mouseMoveEvent while a tool is armed) -
+	// the specific point a click would place, including vertex snap, so the
+	// user sees exactly where they're about to click instead of an
+	// ambiguous whole-mesh highlight (see setMeasurementTool()'s
+	// hover-highlight-mode save/restore for why the normal one is suppressed).
+	MeshSurfaceAnchor _measurementHoverAnchor;
+	HoverHighlightMode _savedHoverHighlightModeBeforeMeasurement = HoverHighlightMode::RaycastOnly;
+	// Press-vs-drag disambiguation: a plain left-press while a tool is armed
+	// only arms a pending click, which mouseReleaseEvent commits (as
+	// handleMeasurementClick()) if the mouse hasn't moved past a small pixel
+	// threshold since - otherwise the gesture was a drag (rotate/pan/sweep),
+	// not a click, and gets ignored. Committing immediately on press instead
+	// (the first cut) placed a spurious point every time the user started an
+	// unrelated drag gesture.
+	bool _measurementClickCandidate = false;
+	QPoint _measurementClickPressPos;
+
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
 	// _showLights â†’ SceneRenderController (Phase 12)
@@ -1907,4 +1950,7 @@ private:
 	void updateOverlayEditorTheme();
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
+
+	void handleMeasurementClick(const QPoint& clickPoint);
+	void drawMeasurementOverlay(Camera* camera);
 };

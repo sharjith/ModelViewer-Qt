@@ -225,6 +225,19 @@ public:
                            const QVector3D& rayDir,
                            QVector3D& outIntersectionPoint);
 
+    // Same closest-hit search as intersectsWithRay(), but also reports
+    // which triangle won and its barycentric weights there - the two
+    // pieces intersectsWithRay() computes internally and discards. Triangle
+    // index k corresponds to indices[3k], indices[3k+1], indices[3k+2] of
+    // whichever indices buffer buildTriangles() was last called with (i.e.
+    // the same one the caller already has, from SceneMesh). Used to build
+    // a MeshSurfaceAnchor for Measurement/Annotation point picking.
+    bool intersectsWithRayDetailed(const QVector3D& rayPos,
+                                   const QVector3D& rayDir,
+                                   QVector3D& outIntersectionPoint,
+                                   int& outTriangleIndex,
+                                   QVector3D& outBarycentric);
+
     // ---- Static: monotonic counter incremented whenever bounds change --------
     // Read by the scene runtime to invalidate the visibility BVH.
     static quint64 currentRuntimeBoundsRevision();

@@ -222,6 +222,7 @@ private:
 	QMetaObject::Connection _gltfCameraDataChangedConnection;
 	QMetaObject::Connection _structureChangedForVariantsConnection;
 	QMetaObject::Connection _animationStateChangedConnection;
+	QMetaObject::Connection _measurementToolChangedConnection;
 
 	// Dims (or restores) a Document dock tab's label to signal whether the
 	// active document currently has any data for it - see the tab-styling

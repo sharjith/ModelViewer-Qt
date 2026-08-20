@@ -5335,6 +5335,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 	render(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
+	drawMeasurementOverlay(_primaryCamera);
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -9277,6 +9278,12 @@ void ViewportWidget::render(Camera* camera)
 	// worry about and still wants its own per-viewport axis indicator here.
 	if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride() && !_capturingCleanFrame && _viewCtrl.multiViewActive())
 		drawAxis(camera);
+	// Same reasoning as drawAxis() just above: renderSingleView() already
+	// draws this once for the single-view case (after render() returns), so
+	// only draw it here for multi-view's per-sub-viewport pass to avoid
+	// double-drawing.
+	if (_viewCtrl.multiViewActive())
+		drawMeasurementOverlay(camera);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -10171,6 +10178,240 @@ GltfCameraEntry ViewportWidget::captureCurrentCameraEntry(const QString& name) c
 	}
 
 	return entry;
+}
+
+// ---------------------------------------------------------------------------
+// Measurement tool
+// ---------------------------------------------------------------------------
+
+void ViewportWidget::setMeasurementTool(MeasurementTool tool)
+{
+	if (_measurementTool == tool)
+		return;
+
+	const bool wasArmed = (_measurementTool != MeasurementTool::None);
+	const bool nowArmed = (tool != MeasurementTool::None);
+
+	if (_selectionManager)
+	{
+		if (nowArmed && !wasArmed)
+		{
+			// Suppress the normal whole-mesh hover highlight while a tool is
+			// armed - it's ambiguous (doesn't say WHERE a click will land).
+			// mouseMoveEvent() shows the actual snap-able point instead via
+			// _measurementHoverAnchor. Reuses the existing hover-mode
+			// mechanism rather than a parallel "don't highlight" flag, and
+			// its own Disabled-transition handling clears any highlight
+			// that was already showing right when the tool got armed.
+			_savedHoverHighlightModeBeforeMeasurement = _selectionManager->getHoverMode();
+			_selectionManager->setHoverHighlightMode(HoverHighlightMode::Disabled);
+		}
+		else if (!nowArmed && wasArmed)
+		{
+			_selectionManager->setHoverHighlightMode(_savedHoverHighlightModeBeforeMeasurement);
+		}
+	}
+
+	_measurementTool = tool;
+	_pendingMeasurementAnchors.clear();
+	_measurementClickCandidate = false;
+	_measurementHoverAnchor = MeshSurfaceAnchor();
+	update();
+	emit measurementToolChanged(_measurementTool);
+}
+
+QVector3D ViewportWidget::resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const
+{
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return QVector3D();
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto vertexPos = [&trsfPoints](int vIdx) -> QVector3D {
+		if (vIdx < 0)
+			return QVector3D();
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+
+	if (ref.snappedVertexIndex >= 0)
+		return vertexPos(ref.snappedVertexIndex);
+
+	if (ref.triangleIndex < 0)
+		return QVector3D();
+
+	const std::vector<unsigned int> indices = mesh->indices();
+	const size_t base = static_cast<size_t>(ref.triangleIndex) * 3;
+	if (base + 2 >= indices.size())
+		return QVector3D();
+
+	const QVector3D p0 = vertexPos(static_cast<int>(indices[base]));
+	const QVector3D p1 = vertexPos(static_cast<int>(indices[base + 1]));
+	const QVector3D p2 = vertexPos(static_cast<int>(indices[base + 2]));
+	return p0 * ref.barycentric.x() + p1 * ref.barycentric.y() + p2 * ref.barycentric.z();
+}
+
+void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
+{
+	if (!_selectionManager || !_viewer || !_viewer->sceneGraph())
+		return;
+
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
+	if (!anchor.isValid())
+		return;  // clicked empty space - stay armed, don't cancel the tool
+
+	MeasurementAnchorRef ref;
+	ref.meshUuid           = anchor.meshUuid;
+	ref.triangleIndex      = anchor.triangleIndex;
+	ref.barycentric        = anchor.barycentric;
+	ref.snappedVertexIndex = anchor.snappedVertexIndex;
+
+	if (_measurementTool == MeasurementTool::Point)
+	{
+		Measurement m;
+		m.id = QUuid::createUuid();
+		m.type = MeasurementType::Point;
+		m.anchors.append(ref);
+		_viewer->sceneGraph()->addMeasurement(m);
+		return;
+	}
+
+	if (_measurementTool == MeasurementTool::Distance)
+	{
+		_pendingMeasurementAnchors.append(ref);
+		if (_pendingMeasurementAnchors.size() >= 2)
+		{
+			Measurement m;
+			m.id = QUuid::createUuid();
+			m.type = MeasurementType::Distance;
+			m.anchors = _pendingMeasurementAnchors;
+			_viewer->sceneGraph()->addMeasurement(m);
+			_pendingMeasurementAnchors.clear();
+		}
+	}
+}
+
+void ViewportWidget::drawMeasurementOverlay(Camera* camera)
+{
+	if (!camera || !_renderCtrl.axisShader() || !_viewer || !_viewer->sceneGraph())
+		return;
+
+	const QVector<Measurement>& measurements = _viewer->sceneGraph()->measurements();
+	if (measurements.isEmpty() && _pendingMeasurementAnchors.isEmpty() && !_measurementHoverAnchor.isValid())
+		return;
+
+	struct LabelEntry { QVector3D worldPos; QString text; };
+	std::vector<float> lineVertices;
+	QVector<LabelEntry> labels;
+
+	const QVector3D pointColor(0.15f, 0.85f, 1.0f);
+	const QVector3D distanceColor(1.0f, 0.82f, 0.15f);
+	const QVector3D pendingColor(1.0f, 1.0f, 1.0f);
+	const QVector3D hoverSnapColor(0.25f, 1.0f, 0.35f);  // will snap to this vertex
+	const QVector3D hoverRawColor(0.65f, 0.65f, 0.65f);  // raw surface pick, no snap nearby
+
+	auto addSegment = [&lineVertices](const QVector3D& a, const QVector3D& b, const QVector3D& color) {
+		lineVertices.insert(lineVertices.end(), { a.x(), a.y(), a.z(), color.x(), color.y(), color.z() });
+		lineVertices.insert(lineVertices.end(), { b.x(), b.y(), b.z(), color.x(), color.y(), color.z() });
+	};
+
+	// Marker cross size scales with the camera's current view range so it
+	// stays a sensible on-screen size whether the user is zoomed in on a
+	// small detail or looking at the whole model.
+	const float markerSize = std::max(camera->getViewRange(), 0.0001f) * 0.01f;
+	auto addMarker = [&](const QVector3D& p, const QVector3D& color) {
+		addSegment(p - QVector3D(markerSize, 0, 0), p + QVector3D(markerSize, 0, 0), color);
+		addSegment(p - QVector3D(0, markerSize, 0), p + QVector3D(0, markerSize, 0), color);
+		addSegment(p - QVector3D(0, 0, markerSize), p + QVector3D(0, 0, markerSize), color);
+	};
+
+	for (const Measurement& m : measurements)
+	{
+		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
+		{
+			const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
+			addMarker(p, pointColor);
+			labels.append({ p, QString("(%1, %2, %3)")
+				.arg(p.x(), 0, 'f', 2).arg(p.y(), 0, 'f', 2).arg(p.z(), 0, 'f', 2) });
+		}
+		else if (m.type == MeasurementType::Distance && m.anchors.size() >= 2)
+		{
+			const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
+			addSegment(a, b, distanceColor);
+			addMarker(a, distanceColor);
+			addMarker(b, distanceColor);
+			labels.append({ (a + b) * 0.5f, QString::number(a.distanceToPoint(b), 'f', 3) });
+		}
+	}
+
+	// In-progress Distance measurement: first point already picked, waiting
+	// on the second click.
+	if (!_pendingMeasurementAnchors.isEmpty())
+	{
+		const QVector3D p = resolveMeasurementAnchor(_pendingMeasurementAnchors[0]);
+		addMarker(p, pendingColor);
+		labels.append({ p, tr("Pick 2nd point...") });
+	}
+
+	// Live hover preview: the exact point a click would place right now,
+	// including vertex snap (see mouseMoveEvent()'s _measurementHoverAnchor
+	// update). Distinct color and a larger cross when it WILL snap, so the
+	// snap itself reads unambiguously rather than looking like just another
+	// raw surface point.
+	if (_measurementHoverAnchor.isValid())
+	{
+		const bool snapped = _measurementHoverAnchor.snappedVertexIndex >= 0;
+		const QVector3D hp = _measurementHoverAnchor.worldPosition;
+		const QVector3D hoverColor = snapped ? hoverSnapColor : hoverRawColor;
+		const float hoverMarkerSize = markerSize * (snapped ? 1.6f : 1.0f);
+		addSegment(hp - QVector3D(hoverMarkerSize, 0, 0), hp + QVector3D(hoverMarkerSize, 0, 0), hoverColor);
+		addSegment(hp - QVector3D(0, hoverMarkerSize, 0), hp + QVector3D(0, hoverMarkerSize, 0), hoverColor);
+		addSegment(hp - QVector3D(0, 0, hoverMarkerSize), hp + QVector3D(0, 0, hoverMarkerSize), hoverColor);
+	}
+
+	if (!lineVertices.empty())
+	{
+		// Mirrors drawBoundingBoxOverlay()'s exact upload/draw pattern.
+		_renderCtrl.initMeasurementOverlayGeometry(lineVertices);
+		glBindVertexArray(_renderCtrl.measurementOverlayVAO());
+		glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.measurementOverlayVBO());
+		glBufferData(GL_ARRAY_BUFFER,
+		             static_cast<GLsizeiptr>(lineVertices.size() * sizeof(float)),
+		             lineVertices.data(),
+		             GL_DYNAMIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+		_renderCtrl.axisShader()->bind();
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", camera->getViewMatrix());
+		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
+		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		glLineWidth(2.0f);
+		glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(lineVertices.size() / 6));
+		glLineWidth(1.0f);
+		_renderCtrl.axisShader()->release();
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+	if (_axisTextRenderer)
+	{
+		const QRect viewportRect(0, 0, width(), height());
+		for (const LabelEntry& entry : labels)
+		{
+			const QVector3D projected = entry.worldPos.project(
+				camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+			_axisTextRenderer->RenderText(entry.text.toStdString(),
+				projected.x(), height() - projected.y(), 1,
+				QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
+		}
+	}
 }
 
 GltfCameraData ViewportWidget::cameraDataForMvfSave(const GltfCameraData& source) const
@@ -11742,6 +11983,27 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
 		const QPoint clickPoint(e->position().x(), e->position().y());
+
+		// While a measurement tool is armed, a plain left click arms a
+		// pending point (committed in mouseReleaseEvent() only if the mouse
+		// didn't drag - see _measurementClickCandidate's doc comment). Same
+		// gate clickSelect() uses below, and for the same reason: without
+		// it, starting an unrelated drag gesture (Ctrl+drag rotate, an
+		// explicit Rotate/Pan/Zoom mode, a window-zoom drag) also placed a
+		// spurious point right at the press location before the gesture
+		// even got going. When one of those IS in progress, fall through
+		// instead of intercepting, so the gesture works exactly as if no
+		// tool were armed - the tool simply doesn't register a point for it.
+		if (_measurementTool != MeasurementTool::None
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			_measurementClickCandidate = true;
+			_measurementClickPressPos = clickPoint;
+			return;
+		}
+
 		if (!(e->modifiers() & Qt::ControlModifier) &&
 			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
 			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
@@ -11825,6 +12087,21 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoRotating())
 	{
 		finishTransformGizmoRotationDrag(true);
+		update();
+		return;
+	}
+
+	if ((e->button() & Qt::LeftButton) && _measurementClickCandidate)
+	{
+		_measurementClickCandidate = false;
+		// Only commit if this was genuinely a click, not a drag that
+		// happened to end without matching one of the navigation-mode
+		// checks mousePressEvent already gated on (e.g. plain rubber-band-
+		// style movement with no modifier) - same small-motion tolerance
+		// convention as kCameraDragThresholdPx elsewhere in this file.
+		constexpr int kMeasurementClickThresholdPx = 4;
+		if ((e->pos() - _measurementClickPressPos).manhattanLength() < kMeasurementClickThresholdPx)
+			handleMeasurementClick(_measurementClickPressPos);
 		update();
 		return;
 	}
@@ -12287,6 +12564,14 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 	}
 
+	// Measurement tool's own hover preview: the whole-mesh highlight above
+	// is suppressed while a tool is armed (setMeasurementTool() switches
+	// _selectionManager to HoverHighlightMode::Disabled) since it doesn't
+	// say WHERE a click will land - show the actual snap-able point instead
+	// (drawMeasurementOverlay() renders _measurementHoverAnchor).
+	if (e->buttons() == Qt::NoButton && _measurementTool != MeasurementTool::None && _selectionManager)
+		_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+
 	update();
 
 	_viewCtrl.setLastMousePos(currentPos);
@@ -12402,6 +12687,12 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	QWidget::keyPressEvent(event);
 
 	const auto key = event->key();
+
+	if (key == Qt::Key_Escape && _measurementTool != MeasurementTool::None)
+	{
+		setMeasurementTool(MeasurementTool::None);
+		return;
+	}
 	const bool modifierOnlyKey =
 		key == Qt::Key_Control ||
 		key == Qt::Key_Shift ||

@@ -68,6 +68,12 @@ public:
     // Creates / reallocates the debug overlay bounding-box VAO/VBO with given vertex data.
     void initDebugOverlayGeometry(const std::vector<float>& vertices);
 
+    // Creates / reallocates the measurement overlay VAO/VBO with given vertex
+    // data (pos(3)+color(3) interleaved, GL_LINES) - same pattern as
+    // initDebugOverlayGeometry(), kept separate rather than shared so the two
+    // features' buffers can't stomp on each other mid-frame.
+    void initMeasurementOverlayGeometry(const std::vector<float>& vertices);
+
     // Creates the ViewCube label quad VAO/VBO (geometry only; textures uploaded by caller).
     void initViewCubeLabelGeometry();
 
@@ -284,6 +290,9 @@ public:
     GLuint& debugOverlayBoxVAO() { return _debugOverlayBoxVAO; }
     GLuint  debugOverlayBoxVAO() const { return _debugOverlayBoxVAO; }
     GLuint& debugOverlayBoxVBO() { return _debugOverlayBoxVBO; }
+
+    GLuint measurementOverlayVAO() const { return _measurementOverlayVAO; }
+    GLuint measurementOverlayVBO() const { return _measurementOverlayVBO; }
 
     QOpenGLVertexArrayObject& bgVAO()      { return _bgVAO; }
     QOpenGLVertexArrayObject& bgSplitVAO() { return _bgSplitVAO; }
@@ -673,6 +682,8 @@ private:
     // ---- Utility render geometry -------------------------------------------
     unsigned int _debugOverlayBoxVAO = 0;
     unsigned int _debugOverlayBoxVBO = 0;
+    unsigned int _measurementOverlayVAO = 0;
+    unsigned int _measurementOverlayVBO = 0;
 
     QOpenGLVertexArrayObject _bgVAO;
     QOpenGLVertexArrayObject _bgSplitVAO;
