@@ -337,6 +337,11 @@ public:
 	QUuid selectedMeasurementId() const { return _selectedMeasurementId; }
 	void setSelectedMeasurementId(const QUuid& id);
 
+	// Human-readable result string for one measurement, e.g. "Distance:
+	// 12.345" or "3-Point Arc Radius: 5.678" - shared by the in-viewport
+	// label and the Measurement dialog's results list so both agree.
+	QString measurementSummaryText(const Measurement& m) const;
+
 public:
 	QVector4D getDefaultLightColor() const;
 	void setDefaultLightColor(const QVector4D& defaultLightColor);
@@ -1001,10 +1006,20 @@ signals:
 	void animationStateChanged();
 	void explodedViewManualPlacementChanged();
 	// Emitted whenever the armed measurement tool changes - including from
-	// inside this widget (Escape cancels it) - so MainWindow's toolbar
-	// actions can stay in sync without it having to be the ONLY thing that
+	// inside this widget (Escape cancels it) - so the Measurement dialog's
+	// combo box can stay in sync without it having to be the ONLY thing that
 	// ever sets the tool.
 	void measurementToolChanged(MeasurementTool tool);
+	// Fires whenever the in-progress pick count changes for the active
+	// tool (a click added an anchor, or the pending set was cleared/reset)
+	// so the Measurement dialog can show "click the 2nd point" etc.
+	// `picked`/`required` are both 0 when no tool is armed.
+	void measurementProgressChanged(int picked, int required);
+	// Fires whenever the selected measurement changes - including from
+	// clicking one directly in the viewport (setSelectedMeasurementId()'s
+	// other caller besides the Measurement dialog) - so the dialog's results
+	// list can keep its highlighted row in sync either way.
+	void measurementSelectionChanged(const QUuid& id);
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.

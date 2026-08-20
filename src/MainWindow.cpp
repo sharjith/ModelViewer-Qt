@@ -26,6 +26,7 @@
 #include <utility>
 
 #include "PathUtils.h"
+#include "MeasurementDialog.h"
 #include "RtRenderDialog.h"
 
 #include <QMdiArea>
@@ -597,31 +598,27 @@ MainWindow::MainWindow(QWidget* parent)
 		dialog->show();
 		});
 
-	// Tools → Measure Point / Measure Distance - mutually exclusive tool
-	// modes armed on the active document's viewport (see
-	// ViewportWidget::setMeasurementTool()). Not a QActionGroup: that would
-	// force exactly one of the two always checked, but clicking the already-
-	// armed tool again should disarm it (standard toggle-button behavior) -
-	// so exclusivity is handled by hand instead, silently unchecking the
-	// sibling action (QSignalBlocker) rather than letting its own toggled
-	// handler fire and race this one's "which tool is now active" write.
-	connect(ui->actionMeasurePoint, &QAction::toggled, this, [this](bool checked) {
-		if (checked)
+	// Tools → Measure... - opens the non-modal Measurement dialog (combo box
+	// covering every MeasurementTool - Point, Distance, and the arc-radius
+	// tools, with room for Face/Edge/Edge-radius tools later - see
+	// MeasurementData.h). Same non-modal, per-document, findChild-reuse
+	// pattern as actionRayTracing above: parented to the active document so
+	// it closes with it, WA_DeleteOnClose, reused/raised rather than
+	// stacking a new instance per click.
+	connect(ui->actionMeasure, &QAction::triggered, this, [this]() {
+		if (!activeMdiChild())
+			return;
+		ModelViewer* child = activeMdiChild();
+		if (MeasurementDialog* existing = child->findChild<MeasurementDialog*>(QString(), Qt::FindDirectChildrenOnly))
 		{
-			const QSignalBlocker blocker(ui->actionMeasureDistance);
-			ui->actionMeasureDistance->setChecked(false);
+			existing->show();
+			existing->raise();
+			existing->activateWindow();
+			return;
 		}
-		if (ModelViewer* child = activeMdiChild())
-			child->getViewportWidget()->setMeasurementTool(checked ? MeasurementTool::Point : MeasurementTool::None);
-		});
-	connect(ui->actionMeasureDistance, &QAction::toggled, this, [this](bool checked) {
-		if (checked)
-		{
-			const QSignalBlocker blocker(ui->actionMeasurePoint);
-			ui->actionMeasurePoint->setChecked(false);
-		}
-		if (ModelViewer* child = activeMdiChild())
-			child->getViewportWidget()->setMeasurementTool(checked ? MeasurementTool::Distance : MeasurementTool::None);
+		MeasurementDialog* dialog = new MeasurementDialog(child, child);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->show();
 		});
 
 	updateMenus();
@@ -927,7 +924,6 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	disconnect(_gltfCameraDataChangedConnection);
 	disconnect(_structureChangedForVariantsConnection);
 	disconnect(_animationStateChangedConnection);
-	disconnect(_measurementToolChangedConnection);
 	if (sceneGraph)
 	{
 		_variantDataChangedConnection = connect(sceneGraph, &SceneGraph::variantDataChanged, this,
@@ -949,25 +945,6 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	}
 	_animationStateChangedConnection = connect(viewport, &ViewportWidget::animationStateChanged,
 		_animationsPanel, &AnimationsPanel::refresh);
-
-	// Keeps the Tools menu's Measure Point/Distance checked state in sync
-	// with the viewport's actual armed tool - it isn't the only thing that
-	// can change it (Escape cancels it directly in ViewportWidget), and it
-	// also needs resetting when switching to a document where nothing is
-	// armed, so the toolbar doesn't show a stale check from the previous one.
-	_measurementToolChangedConnection = connect(viewport, &ViewportWidget::measurementToolChanged, this,
-		[this](MeasurementTool tool) {
-			const QSignalBlocker pointBlocker(ui->actionMeasurePoint);
-			const QSignalBlocker distanceBlocker(ui->actionMeasureDistance);
-			ui->actionMeasurePoint->setChecked(tool == MeasurementTool::Point);
-			ui->actionMeasureDistance->setChecked(tool == MeasurementTool::Distance);
-		});
-	{
-		const QSignalBlocker pointBlocker(ui->actionMeasurePoint);
-		const QSignalBlocker distanceBlocker(ui->actionMeasureDistance);
-		ui->actionMeasurePoint->setChecked(viewport->measurementTool() == MeasurementTool::Point);
-		ui->actionMeasureDistance->setChecked(viewport->measurementTool() == MeasurementTool::Distance);
-	}
 
 	refreshDocumentDockTabStyling(viewer);
 }
@@ -1945,8 +1922,7 @@ void MainWindow::updateMenus()
 	// permanent, non-debug entry - only the Texture Debugger action (and
 	// its separator) stay gated behind the Settings debug flag.
 	ui->actionRayTracing->setEnabled(hasMdiChild);
-	ui->actionMeasurePoint->setEnabled(hasMdiChild);
-	ui->actionMeasureDistance->setEnabled(hasMdiChild);
+	ui->actionMeasure->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

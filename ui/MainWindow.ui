@@ -83,8 +83,7 @@
     </property>
     <addaction name="actionRayTracing"/>
     <addaction name="separator"/>
-    <addaction name="actionMeasurePoint"/>
-    <addaction name="actionMeasureDistance"/>
+    <addaction name="actionMeasure"/>
     <addaction name="actionToolsSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
@@ -342,26 +341,12 @@
     <string>Open ray tracing settings and start a render</string>
    </property>
   </action>
-  <action name="actionMeasurePoint">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
+  <action name="actionMeasure">
    <property name="text">
-    <string>Measure Point</string>
+    <string>Measure...</string>
    </property>
    <property name="statusTip">
-    <string>Click a point on a mesh to read off its position. Esc to cancel.</string>
-   </property>
-  </action>
-  <action name="actionMeasureDistance">
-   <property name="checkable">
-    <bool>true</bool>
-   </property>
-   <property name="text">
-    <string>Measure Distance</string>
-   </property>
-   <property name="statusTip">
-    <string>Click two points on a mesh to measure the distance between them. Esc to cancel.</string>
+    <string>Open the measurement tool - point, distance, and arc-radius tools</string>
    </property>
   </action>
   <action name="actionToolsSeparator">

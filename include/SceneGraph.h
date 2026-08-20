@@ -200,6 +200,9 @@ public:
     void clearMeasurements();
     const QVector<Measurement>& measurements() const { return _measurements; }
     int measurementIndexById(const QUuid& id) const;
+    // Show/hide toggle (the Measurement dialog's results-list checkboxes) -
+    // not undoable, same convention as mesh-visibility checkboxes elsewhere.
+    void setMeasurementVisible(const QUuid& id, bool visible);
 
     // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)

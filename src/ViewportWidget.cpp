@@ -10,6 +10,7 @@
 #include "CoordinateSystemHelper.h"
 #include "FloorPlane.h"
 #include "GltfCameraData.h"
+#include "MeasurementGeometry.h"
 #include "ViewportWidget.h"
 #include "PickingHelper.h"
 #include "RtSceneBuilder.h"
@@ -10219,6 +10220,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 	_hoveredMeasurementId = QUuid();
 	update();
 	emit measurementToolChanged(_measurementTool);
+	emit measurementProgressChanged(0, measurementToolRequiredAnchorCount(_measurementTool));
 }
 
 QVector3D ViewportWidget::resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const
@@ -10254,9 +10256,59 @@ QVector3D ViewportWidget::resolveMeasurementAnchor(const MeasurementAnchorRef& r
 	return p0 * ref.barycentric.x() + p1 * ref.barycentric.y() + p2 * ref.barycentric.z();
 }
 
+QString ViewportWidget::measurementSummaryText(const Measurement& m) const
+{
+	switch (m.type)
+	{
+	case MeasurementType::Point:
+	{
+		if (m.anchors.isEmpty())
+			return QString();
+		const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
+		return tr("Point: (%1, %2, %3)")
+			.arg(p.x(), 0, 'f', 3).arg(p.y(), 0, 'f', 3).arg(p.z(), 0, 'f', 3);
+	}
+	case MeasurementType::Distance:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
+		const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
+		return tr("Distance: %1").arg(a.distanceToPoint(b), 0, 'f', 3);
+	}
+	case MeasurementType::ArcRadius3Point:
+	{
+		if (m.anchors.size() < 3)
+			return QString();
+		const QVector3D p0 = resolveMeasurementAnchor(m.anchors[0]);
+		const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+		const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+		QVector3D center, normal;
+		float radius = 0.0f;
+		if (!MeasurementGeometry::circumcircle3Point(p0, p1, p2, center, normal, radius))
+			return tr("3-Point Arc Radius: (degenerate - points are collinear)");
+		return tr("3-Point Arc Radius: %1").arg(radius, 0, 'f', 3);
+	}
+	case MeasurementType::ArcRadiusCenterPoint:
+	{
+		if (m.anchors.size() < 3)
+			return QString();
+		const QVector3D center = resolveMeasurementAnchor(m.anchors[0]);
+		const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+		const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+		QVector3D normal;
+		float radius = 0.0f;
+		if (!MeasurementGeometry::circleFromCenterAndTwoPoints(center, p1, p2, normal, radius))
+			return tr("Center + 2-Point Arc Radius: (degenerate - points are collinear)");
+		return tr("Center + 2-Point Arc Radius: %1").arg(radius, 0, 'f', 3);
+	}
+	}
+	return QString();
+}
+
 void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 {
-	if (!_selectionManager || !_viewer || !_viewer->sceneGraph())
+	if (!_selectionManager || !_viewer || !_viewer->sceneGraph() || _measurementTool == MeasurementTool::None)
 		return;
 
 	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
@@ -10269,28 +10321,20 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	ref.barycentric        = anchor.barycentric;
 	ref.snappedVertexIndex = anchor.snappedVertexIndex;
 
-	if (_measurementTool == MeasurementTool::Point)
+	_pendingMeasurementAnchors.append(ref);
+
+	const int required = measurementToolRequiredAnchorCount(_measurementTool);
+	emit measurementProgressChanged(_pendingMeasurementAnchors.size(), required);
+
+	if (_pendingMeasurementAnchors.size() >= required)
 	{
 		Measurement m;
 		m.id = QUuid::createUuid();
-		m.type = MeasurementType::Point;
-		m.anchors.append(ref);
+		m.type = measurementTypeForTool(_measurementTool);
+		m.anchors = _pendingMeasurementAnchors;
 		_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
-		return;
-	}
-
-	if (_measurementTool == MeasurementTool::Distance)
-	{
-		_pendingMeasurementAnchors.append(ref);
-		if (_pendingMeasurementAnchors.size() >= 2)
-		{
-			Measurement m;
-			m.id = QUuid::createUuid();
-			m.type = MeasurementType::Distance;
-			m.anchors = _pendingMeasurementAnchors;
-			_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
-			_pendingMeasurementAnchors.clear();
-		}
+		_pendingMeasurementAnchors.clear();
+		emit measurementProgressChanged(0, required);
 	}
 }
 
@@ -10300,6 +10344,7 @@ void ViewportWidget::setSelectedMeasurementId(const QUuid& id)
 		return;
 	_selectedMeasurementId = id;
 	update();
+	emit measurementSelectionChanged(_selectedMeasurementId);
 }
 
 QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, int pixelRadius) const
@@ -10329,6 +10374,9 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 
 	for (const Measurement& m : _viewer->sceneGraph()->measurements())
 	{
+		if (!m.visible)
+			continue;
+
 		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
 		{
 			const QVector2D sp = toScreen(resolveMeasurementAnchor(m.anchors[0]));
@@ -10348,6 +10396,66 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 			{
 				bestDist = d;
 				bestId = m.id;
+			}
+		}
+		else if (m.type == MeasurementType::ArcRadius3Point && m.anchors.size() >= 3)
+		{
+			const QVector3D p0 = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+			const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+			QVector3D center, normal;
+			float radius = 0.0f;
+			if (MeasurementGeometry::circumcircle3Point(p0, p1, p2, center, normal, radius))
+			{
+				const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(center, normal, radius);
+				for (int i = 0; i < circle.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle[i]), toScreen(circle[(i + 1) % circle.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
+				const float dc = (clickPt - toScreen(center)).length();
+				if (dc < bestDist)
+				{
+					bestDist = dc;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::ArcRadiusCenterPoint && m.anchors.size() >= 3)
+		{
+			const QVector3D center = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+			const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+			QVector3D normal;
+			float radius = 0.0f;
+			if (MeasurementGeometry::circleFromCenterAndTwoPoints(center, p1, p2, normal, radius))
+			{
+				const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(center, normal, radius);
+				for (int i = 0; i < circle.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle[i]), toScreen(circle[(i + 1) % circle.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
+				// Also test the two center-to-point spokes and the center
+				// marker itself - clicking directly on a spoke or the center
+				// dot should select the measurement too, not just the rim.
+				const float dSpoke1 = distPointToSegment(clickPt, toScreen(center), toScreen(p1));
+				const float dSpoke2 = distPointToSegment(clickPt, toScreen(center), toScreen(p2));
+				const float dCenter = (clickPt - toScreen(center)).length();
+				const float dBest = std::min({ dSpoke1, dSpoke2, dCenter });
+				if (dBest < bestDist)
+				{
+					bestDist = dBest;
+					bestId = m.id;
+				}
 			}
 		}
 	}
@@ -10392,8 +10500,17 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		addSegment(p - QVector3D(0, 0, s), p + QVector3D(0, 0, s), color);
 	};
 
+	auto addCircleOutline = [&](const QVector3D& center, const QVector3D& normal, float radius, const QVector3D& color) {
+		const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(center, normal, radius);
+		for (int i = 0; i < circle.size(); ++i)
+			addSegment(circle[i], circle[(i + 1) % circle.size()], color);
+	};
+
 	for (const Measurement& m : measurements)
 	{
+		if (!m.visible)
+			continue;
+
 		const bool isSelected = (m.id == _selectedMeasurementId);
 		// Selection is the stronger cue and wins if somehow both apply
 		// (shouldn't normally happen - hover-select only runs while nothing
@@ -10401,17 +10518,18 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		// landed is a real possibility for one frame).
 		const bool isHovered = !isSelected && (m.id == _hoveredMeasurementId);
 
-		QVector3D color = isSelected ? selectedColor : (m.type == MeasurementType::Distance ? distanceColor : pointColor);
+		QVector3D color = isSelected ? selectedColor
+			: (m.type == MeasurementType::Point ? pointColor : distanceColor);
 		if (isHovered)
 			color = color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f;  // blend toward white - a lighter preview than full selection
 		const float sizeMultiplier = isSelected ? 1.5f : (isHovered ? 1.25f : 1.0f);
+		const QString summary = measurementSummaryText(m);
 
 		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
 		{
 			const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
 			addMarker(p, color, sizeMultiplier);
-			labels.append({ p, QString("(%1, %2, %3)")
-				.arg(p.x(), 0, 'f', 2).arg(p.y(), 0, 'f', 2).arg(p.z(), 0, 'f', 2) });
+			labels.append({ p, summary });
 		}
 		else if (m.type == MeasurementType::Distance && m.anchors.size() >= 2)
 		{
@@ -10420,17 +10538,62 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			addSegment(a, b, color);
 			addMarker(a, color, sizeMultiplier);
 			addMarker(b, color, sizeMultiplier);
-			labels.append({ (a + b) * 0.5f, QString::number(a.distanceToPoint(b), 'f', 3) });
+			labels.append({ (a + b) * 0.5f, summary });
+		}
+		else if (m.type == MeasurementType::ArcRadius3Point && m.anchors.size() >= 3)
+		{
+			const QVector3D p0 = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+			const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+			QVector3D center, normal;
+			float radius = 0.0f;
+			if (MeasurementGeometry::circumcircle3Point(p0, p1, p2, center, normal, radius))
+			{
+				addMarker(p0, color, sizeMultiplier);
+				addMarker(p1, color, sizeMultiplier);
+				addMarker(p2, color, sizeMultiplier);
+				addMarker(center, color, sizeMultiplier * 0.6f);
+				addCircleOutline(center, normal, radius, color);
+				labels.append({ center, summary });
+			}
+		}
+		else if (m.type == MeasurementType::ArcRadiusCenterPoint && m.anchors.size() >= 3)
+		{
+			const QVector3D center = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+			const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+			QVector3D normal;
+			float radius = 0.0f;
+			if (MeasurementGeometry::circleFromCenterAndTwoPoints(center, p1, p2, normal, radius))
+			{
+				addMarker(center, color, sizeMultiplier * 0.6f);
+				addMarker(p1, color, sizeMultiplier);
+				addMarker(p2, color, sizeMultiplier);
+				addSegment(center, p1, color);
+				addSegment(center, p2, color);
+				addCircleOutline(center, normal, radius, color);
+				labels.append({ center, summary });
+			}
 		}
 	}
 
-	// In-progress Distance measurement: first point already picked, waiting
-	// on the second click.
+	// In-progress measurement: N of the required anchors already picked,
+	// waiting on the next click. Works uniformly for every tool - a plain
+	// marker per pick already made, a straight preview line connecting
+	// consecutive picks (useful feedback even for a 3rd arc point that
+	// hasn't landed yet), and a prompt for what to click next.
 	if (!_pendingMeasurementAnchors.isEmpty())
 	{
-		const QVector3D p = resolveMeasurementAnchor(_pendingMeasurementAnchors[0]);
-		addMarker(p, pendingColor);
-		labels.append({ p, tr("Pick 2nd point...") });
+		QVector3D lastPicked;
+		for (int i = 0; i < _pendingMeasurementAnchors.size(); ++i)
+		{
+			const QVector3D p = resolveMeasurementAnchor(_pendingMeasurementAnchors[i]);
+			addMarker(p, pendingColor);
+			if (i > 0)
+				addSegment(lastPicked, p, pendingColor);
+			lastPicked = p;
+		}
+		labels.append({ lastPicked, measurementToolPickPrompt(_measurementTool, _pendingMeasurementAnchors.size()) });
 	}
 
 	// Live hover preview: the exact point a click would place right now,

@@ -892,6 +892,15 @@ void SceneGraph::clearMeasurements()
     emit measurementsChanged();
 }
 
+void SceneGraph::setMeasurementVisible(const QUuid& id, bool visible)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).visible == visible)
+        return;
+    _measurements[index].visible = visible;
+    emit measurementsChanged();
+}
+
 int SceneGraph::measurementIndexById(const QUuid& id) const
 {
     for (int i = 0; i < _measurements.size(); ++i)
