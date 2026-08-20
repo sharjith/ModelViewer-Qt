@@ -213,6 +213,21 @@ public:
 	// Undoable via CaptureCameraCommand.
 	void captureCameraView(const QString& name);
 
+	// Add a completed Measurement (Point or Distance) to SceneGraph's
+	// document-level list. Undoable via AddMeasurementCommand. Called from
+	// ViewportWidget::handleMeasurementClick() once a click finishes a
+	// measurement, instead of writing to SceneGraph directly.
+	void addMeasurement(const Measurement& measurement);
+
+	// Delete one measurement by id. Undoable via DeleteMeasurementCommand.
+	void deleteMeasurement(const QUuid& measurementId);
+
+	// Deletes whichever measurement is currently selected in the viewport
+	// (see ViewportWidget::selectedMeasurementId()), if any. Wired to the
+	// same Key_Delete shortcut as mesh deletion in MainWindow - a selected
+	// measurement takes priority over a selected mesh.
+	void deleteSelectedMeasurement();
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();

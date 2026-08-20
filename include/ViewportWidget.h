@@ -328,6 +328,15 @@ public:
 	// exists (deleted) or the anchor is otherwise unresolvable.
 	QVector3D resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const;
 
+	// Currently selected measurement in the viewport (independent of mesh
+	// selection) - clicking near a measurement's marker/line while no tool
+	// is armed selects it (see mousePressEvent()'s hitTestMeasurement()
+	// call); Delete removes it (MainWindow's Key_Delete shortcut checks
+	// this before falling back to normal mesh deletion). A null QUuid means
+	// nothing is selected.
+	QUuid selectedMeasurementId() const { return _selectedMeasurementId; }
+	void setSelectedMeasurementId(const QUuid& id);
+
 public:
 	QVector4D getDefaultLightColor() const;
 	void setDefaultLightColor(const QVector4D& defaultLightColor);
@@ -1895,6 +1904,9 @@ private:
 	// unrelated drag gesture.
 	bool _measurementClickCandidate = false;
 	QPoint _measurementClickPressPos;
+	// Selected measurement (independent of tool-armed state and of mesh
+	// selection) - see selectedMeasurementId()'s doc comment.
+	QUuid _selectedMeasurementId;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
@@ -1953,4 +1965,10 @@ private:
 
 	void handleMeasurementClick(const QPoint& clickPoint);
 	void drawMeasurementOverlay(Camera* camera);
+	// Screen-space hit test against every saved measurement's marker(s) -
+	// for Point, distance to the single anchor; for Distance, distance to
+	// the line segment between its two anchors (so clicking anywhere along
+	// the dimension line selects it, not just its endpoints). Returns a
+	// null QUuid if nothing is within pixelRadius of pixel.
+	QUuid hitTestMeasurement(const QPoint& pixel, Camera* camera, int pixelRadius) const;
 };

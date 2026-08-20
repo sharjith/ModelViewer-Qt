@@ -193,9 +193,13 @@ public:
     // MeasurementData.h.
     // -----------------------------------------------------------------------
     void addMeasurement(const Measurement& measurement);
+    // Re-inserts at a specific position (undo of removeMeasurementAt) rather
+    // than appending, so undo/redo round-trips preserve display order.
+    void insertMeasurementAt(int index, const Measurement& measurement);
     void removeMeasurementAt(int index);
     void clearMeasurements();
     const QVector<Measurement>& measurements() const { return _measurements; }
+    int measurementIndexById(const QUuid& id) const;
 
     // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)

@@ -10274,7 +10274,7 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		m.id = QUuid::createUuid();
 		m.type = MeasurementType::Point;
 		m.anchors.append(ref);
-		_viewer->sceneGraph()->addMeasurement(m);
+		_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
 		return;
 	}
 
@@ -10287,10 +10287,71 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 			m.id = QUuid::createUuid();
 			m.type = MeasurementType::Distance;
 			m.anchors = _pendingMeasurementAnchors;
-			_viewer->sceneGraph()->addMeasurement(m);
+			_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
 			_pendingMeasurementAnchors.clear();
 		}
 	}
+}
+
+void ViewportWidget::setSelectedMeasurementId(const QUuid& id)
+{
+	if (_selectedMeasurementId == id)
+		return;
+	_selectedMeasurementId = id;
+	update();
+}
+
+QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, int pixelRadius) const
+{
+	if (!camera || !_viewer || !_viewer->sceneGraph())
+		return QUuid();
+
+	const QRect viewportRect(0, 0, width(), height());
+	auto toScreen = [&](const QVector3D& worldPos) -> QVector2D {
+		const QVector3D projected = worldPos.project(camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+		// Same y-flip as pickSurfaceAnchor()'s vertex-snap projection -
+		// project() is OpenGL (bottom-up), pixel is Qt (top-down).
+		return QVector2D(projected.x(), static_cast<float>(height()) - projected.y());
+	};
+
+	auto distPointToSegment = [](const QVector2D& p, const QVector2D& a, const QVector2D& b) -> float {
+		const QVector2D ab = b - a;
+		const float abLenSq = QVector2D::dotProduct(ab, ab);
+		float t = abLenSq > 1.0e-6f ? QVector2D::dotProduct(p - a, ab) / abLenSq : 0.0f;
+		t = std::clamp(t, 0.0f, 1.0f);
+		return (p - (a + ab * t)).length();
+	};
+
+	const QVector2D clickPt(static_cast<float>(pixel.x()), static_cast<float>(pixel.y()));
+	QUuid bestId;
+	float bestDist = static_cast<float>(pixelRadius);
+
+	for (const Measurement& m : _viewer->sceneGraph()->measurements())
+	{
+		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
+		{
+			const QVector2D sp = toScreen(resolveMeasurementAnchor(m.anchors[0]));
+			const float d = (clickPt - sp).length();
+			if (d < bestDist)
+			{
+				bestDist = d;
+				bestId = m.id;
+			}
+		}
+		else if (m.type == MeasurementType::Distance && m.anchors.size() >= 2)
+		{
+			const QVector2D sa = toScreen(resolveMeasurementAnchor(m.anchors[0]));
+			const QVector2D sb = toScreen(resolveMeasurementAnchor(m.anchors[1]));
+			const float d = distPointToSegment(clickPt, sa, sb);
+			if (d < bestDist)
+			{
+				bestDist = d;
+				bestId = m.id;
+			}
+		}
+	}
+
+	return bestId;
 }
 
 void ViewportWidget::drawMeasurementOverlay(Camera* camera)
@@ -10311,6 +10372,7 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 	const QVector3D pendingColor(1.0f, 1.0f, 1.0f);
 	const QVector3D hoverSnapColor(0.25f, 1.0f, 0.35f);  // will snap to this vertex
 	const QVector3D hoverRawColor(0.65f, 0.65f, 0.65f);  // raw surface pick, no snap nearby
+	const QVector3D selectedColor(1.0f, 0.35f, 0.05f);   // orange - overrides type color when selected
 
 	auto addSegment = [&lineVertices](const QVector3D& a, const QVector3D& b, const QVector3D& color) {
 		lineVertices.insert(lineVertices.end(), { a.x(), a.y(), a.z(), color.x(), color.y(), color.z() });
@@ -10329,10 +10391,12 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 
 	for (const Measurement& m : measurements)
 	{
+		const bool isSelected = (m.id == _selectedMeasurementId);
+
 		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
 		{
 			const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
-			addMarker(p, pointColor);
+			addMarker(p, isSelected ? selectedColor : pointColor);
 			labels.append({ p, QString("(%1, %2, %3)")
 				.arg(p.x(), 0, 'f', 2).arg(p.y(), 0, 'f', 2).arg(p.z(), 0, 'f', 2) });
 		}
@@ -10340,9 +10404,10 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		{
 			const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
 			const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
-			addSegment(a, b, distanceColor);
-			addMarker(a, distanceColor);
-			addMarker(b, distanceColor);
+			const QVector3D color = isSelected ? selectedColor : distanceColor;
+			addSegment(a, b, color);
+			addMarker(a, color);
+			addMarker(b, color);
 			labels.append({ (a + b) * 0.5f, QString::number(a.distanceToPoint(b), 'f', 3) });
 		}
 	}
@@ -12002,6 +12067,29 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			_measurementClickCandidate = true;
 			_measurementClickPressPos = clickPoint;
 			return;
+		}
+
+		// No tool armed: a plain click can instead SELECT an existing
+		// measurement (independent of mesh selection) so it can be deleted -
+		// same navigation gate as above and as clickSelect() below, so this
+		// doesn't fire mid-rotate/pan/zoom either. Hitting a measurement
+		// consumes the click (skips normal gizmo/view-cube/mesh selection
+		// below) since the user is clearly aiming at the measurement, not
+		// whatever mesh happens to be behind it; missing clears any previous
+		// measurement selection and falls through to normal handling.
+		else if (_measurementTool == MeasurementTool::None
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			const QUuid hitMeasurement = hitTestMeasurement(clickPoint, _primaryCamera, 8);
+			setSelectedMeasurementId(hitMeasurement);
+			if (!hitMeasurement.isNull())
+			{
+				if (_selectionManager)
+					_selectionManager->setSelectedIds({});
+				return;
+			}
 		}
 
 		if (!(e->modifiers() & Qt::ControlModifier) &&

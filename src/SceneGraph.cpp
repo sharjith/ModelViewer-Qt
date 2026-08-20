@@ -870,6 +870,12 @@ void SceneGraph::addMeasurement(const Measurement& measurement)
     emit measurementsChanged();
 }
 
+void SceneGraph::insertMeasurementAt(int index, const Measurement& measurement)
+{
+    _measurements.insert(qBound(0, index, _measurements.size()), measurement);
+    emit measurementsChanged();
+}
+
 void SceneGraph::removeMeasurementAt(int index)
 {
     if (index < 0 || index >= _measurements.size())
@@ -884,6 +890,16 @@ void SceneGraph::clearMeasurements()
         return;
     _measurements.clear();
     emit measurementsChanged();
+}
+
+int SceneGraph::measurementIndexById(const QUuid& id) const
+{
+    for (int i = 0; i < _measurements.size(); ++i)
+    {
+        if (_measurements.at(i).id == id)
+            return i;
+    }
+    return -1;
 }
 
 // ---------------------------------------------------------------------------

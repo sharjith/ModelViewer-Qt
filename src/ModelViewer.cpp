@@ -1,7 +1,9 @@
 ﻿#include "FloatingPanelDialog.h"
+#include "AddMeasurementCommand.h"
 #include "AssImpModelLoader.h"
 #include "CaptureCameraCommand.h"
 #include "CaptureVariantCommand.h"
+#include "DeleteMeasurementCommand.h"
 #include "SetDefaultVariantCommand.h"
 #include "CutCommand.h"
 #include "DeleteMeshCommand.h"
@@ -977,6 +979,33 @@ void ModelViewer::captureCameraView(const QString& name)
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || name.isEmpty())
 		return;
 	_undoStack->push(new CaptureCameraCommand(this, _viewportWidget, name));
+}
+
+void ModelViewer::addMeasurement(const Measurement& measurement)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || measurement.anchors.isEmpty())
+		return;
+	_undoStack->push(new AddMeasurementCommand(this, _viewportWidget, measurement));
+}
+
+void ModelViewer::deleteMeasurement(const QUuid& measurementId)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || measurementId.isNull())
+		return;
+	_undoStack->push(new DeleteMeasurementCommand(this, _viewportWidget, measurementId));
+}
+
+void ModelViewer::deleteSelectedMeasurement()
+{
+	if (!_viewportWidget)
+		return;
+
+	const QUuid selected = _viewportWidget->selectedMeasurementId();
+	if (selected.isNull())
+		return;
+
+	deleteMeasurement(selected);
+	_viewportWidget->setSelectedMeasurementId(QUuid());
 }
 
 void ModelViewer::setupUndoStackMonitoring()

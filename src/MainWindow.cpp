@@ -503,7 +503,17 @@ MainWindow::MainWindow(QWidget* parent)
 		QWidget* viewport = child->getViewportWidget();
 		if (focusWidget && ((tree && (focusWidget == tree || tree->isAncestorOf(focusWidget))) ||
 		                     focusWidget == viewport))
-			child->deleteSelectedItems();
+		{
+			// A selected measurement (see ViewportWidget::selectedMeasurementId(),
+			// set by clicking one in the viewport) is independent of mesh
+			// selection and takes priority - the user just clicked it
+			// specifically, so Delete should act on that, not on whatever
+			// mesh selection happens to still be sitting around from before.
+			if (!child->getViewportWidget()->selectedMeasurementId().isNull())
+				child->deleteSelectedMeasurement();
+			else
+				child->deleteSelectedItems();
+		}
 		});
 	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this), &QShortcut::activated, this, [this]() {
 		if (ModelViewer* child = activeMdiChild())
