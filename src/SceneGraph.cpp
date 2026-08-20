@@ -901,6 +901,32 @@ void SceneGraph::setMeasurementVisible(const QUuid& id, bool visible)
     emit measurementsChanged();
 }
 
+void SceneGraph::setMeasurementOffsetDistance(const QUuid& id, float offsetDistance)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).offsetDistance == offsetDistance)
+        return;
+    _measurements[index].offsetDistance = offsetDistance;
+    // Deliberately NOT emitting measurementsChanged() - offsetDistance is a
+    // purely cosmetic/geometric property that measurementSummaryText() never
+    // reads, so the Measurement dialog's results list has nothing to refresh
+    // for it. This setter is called on every mouse-move during a dimension-
+    // line drag (see ViewportWidget::updateDimensionLineDrag()), which
+    // already calls its own update() directly for the viewport repaint -
+    // emitting here too would mean the dialog's list rebuilds itself dozens
+    // of times per second for no visible change, for no reason.
+}
+
+void SceneGraph::setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).offsetVector == offsetVector)
+        return;
+    _measurements[index].offsetVector = offsetVector;
+    // Same reasoning as setMeasurementOffsetDistance() above for not
+    // emitting measurementsChanged().
+}
+
 int SceneGraph::measurementIndexById(const QUuid& id) const
 {
     for (int i = 0; i < _measurements.size(); ++i)

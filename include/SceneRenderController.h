@@ -74,6 +74,13 @@ public:
     // features' buffers can't stomp on each other mid-frame.
     void initMeasurementOverlayGeometry(const std::vector<float>& vertices);
 
+    // Sibling to initMeasurementOverlayGeometry() for solid-color triangle
+    // geometry (dimension-line arrowhead cones) - same pos(3)+color(3)
+    // interleaved layout and same rebuild-every-frame pattern, just a
+    // separate buffer/VAO since the draw call needs GL_TRIANGLES instead of
+    // GL_LINES and the two shouldn't be interleaved in one buffer.
+    void initMeasurementConeGeometry(const std::vector<float>& vertices);
+
     // Creates the ViewCube label quad VAO/VBO (geometry only; textures uploaded by caller).
     void initViewCubeLabelGeometry();
 
@@ -293,6 +300,8 @@ public:
 
     GLuint measurementOverlayVAO() const { return _measurementOverlayVAO; }
     GLuint measurementOverlayVBO() const { return _measurementOverlayVBO; }
+    GLuint measurementConeVAO() const { return _measurementConeVAO; }
+    GLuint measurementConeVBO() const { return _measurementConeVBO; }
 
     QOpenGLVertexArrayObject& bgVAO()      { return _bgVAO; }
     QOpenGLVertexArrayObject& bgSplitVAO() { return _bgSplitVAO; }
@@ -684,6 +693,8 @@ private:
     unsigned int _debugOverlayBoxVBO = 0;
     unsigned int _measurementOverlayVAO = 0;
     unsigned int _measurementOverlayVBO = 0;
+    unsigned int _measurementConeVAO = 0;
+    unsigned int _measurementConeVBO = 0;
 
     QOpenGLVertexArrayObject _bgVAO;
     QOpenGLVertexArrayObject _bgSplitVAO;

@@ -7,6 +7,9 @@
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <GCPnts_TangentialDeflection.hxx>
+#include <GeomAbs_CurveType.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Dir.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -512,6 +515,26 @@ BRepToAssimpConverter::extractEdgesFromFaceGroup(
 
 			// Record where this topological edge starts in the flat array.
 			result.bounds.push_back(static_cast<int>(result.segments.size() / 3));
+
+			// Analytic circle data (Edge Radius measurement tool) - cheap to
+			// pull here since `adaptor` already exists for tessellation
+			// below; every other curve type just leaves isCircle false.
+			OccEdgeCircle circleInfo;
+			if (adaptor.GetType() == GeomAbs_Circle)
+			{
+				const gp_Circ circ = adaptor.Circle();
+				const gp_Pnt center = circ.Location();
+				const gp_Dir axis = circ.Axis().Direction();
+				circleInfo.isCircle = true;
+				circleInfo.centerX = center.X();
+				circleInfo.centerY = center.Y();
+				circleInfo.centerZ = center.Z();
+				circleInfo.axisX = axis.X();
+				circleInfo.axisY = axis.Y();
+				circleInfo.axisZ = axis.Z();
+				circleInfo.radius = circ.Radius();
+			}
+			result.circles.push_back(circleInfo);
 
 			for (int i = 1; i < nPts; ++i)
 			{

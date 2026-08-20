@@ -6,6 +6,23 @@
 #include <QVector>
 #include <vector>
 
+// Analytic circle for one topological B-Rep edge (Edge Radius measurement
+// tool) - mirrors BRepToAssimpConverter::OccEdgeCircle/AssImpMeshData::
+// PrecomputedEdgeCircle, carried as plain data through this same CPU-copy
+// hop (see MeshImportAdaptor's class doc comment: retained for clone(),
+// MVF serialization, and edge picking). isCircle is false for any other
+// curve type (line, spline, ...); centerX/Y/Z and axisX/Y/Z are in the
+// mesh's local/model space, same frame as occEdgeSegments() - a caller
+// must apply the mesh's current world transform, same convention as
+// MeshSurfaceAnchor::worldPosition.
+struct OccEdgeCircleInfo
+{
+    bool   isCircle = false;
+    double centerX = 0.0, centerY = 0.0, centerZ = 0.0;
+    double axisX = 0.0, axisY = 0.0, axisZ = 1.0;
+    double radius = 0.0;
+};
+
 // Import provenance for a mesh — source file, scene/material indices, skin joint
 // definitions, and per-joint runtime palette.
 //
@@ -52,10 +69,12 @@ public:
     // CPU copies retained for clone(), MVF serialization, and edge picking.
     // The corresponding GL resources (vertex buffer, VAO) live in SceneMesh/MeshVizAdaptor.
     void setOccEdgeData(const std::vector<float>& segments,
-                        const std::vector<int>&   boundaries)
-        { _occEdgeSegments = segments; _occEdgeBoundaries = boundaries; }
+                        const std::vector<int>&   boundaries,
+                        const std::vector<OccEdgeCircleInfo>& circles = {})
+        { _occEdgeSegments = segments; _occEdgeBoundaries = boundaries; _occEdgeCircles = circles; }
     const std::vector<float>& occEdgeSegments()   const { return _occEdgeSegments; }
     const std::vector<int>&   occEdgeBoundaries() const { return _occEdgeBoundaries; }
+    const std::vector<OccEdgeCircleInfo>& occEdgeCircles() const { return _occEdgeCircles; }
     bool hasOccEdges() const { return !_occEdgeSegments.empty(); }
 
 private:
@@ -68,4 +87,5 @@ private:
     // _jointPalette → MeshAnimationState (Phase 6)
     std::vector<float>      _occEdgeSegments;
     std::vector<int>        _occEdgeBoundaries;
+    std::vector<OccEdgeCircleInfo> _occEdgeCircles;
 };

@@ -1,5 +1,6 @@
 #include "MeasurementGeometry.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace MeasurementGeometry
@@ -11,6 +12,7 @@ namespace
 // <cmath>) - defined locally to avoid that portability trap, same reasoning
 // as Camera.h's own PI macro.
 constexpr float kTwoPi = 6.283185307179586f;
+constexpr float kRadToDeg = 57.29577951308232f; // 180 / pi
 }
 
 bool circumcircle3Point(const QVector3D& a, const QVector3D& b, const QVector3D& c,
@@ -78,6 +80,37 @@ QVector<QVector3D> circlePolyline(const QVector3D& center, const QVector3D& norm
         points.append(center + (u * std::cos(theta) + v * std::sin(theta)) * radius);
     }
     return points;
+}
+
+FaceToFaceResult compareFaces(const QVector3D& p1, const QVector3D& n1,
+    const QVector3D& p2, const QVector3D& n2, float parallelToleranceDegrees)
+{
+    FaceToFaceResult result;
+
+    const QVector3D n1n = n1.normalized();
+    const QVector3D n2n = n2.normalized();
+    // abs() before acos: two planes are equally "parallel" whether their
+    // picked normals point the same way or opposite ways - only the planes'
+    // relative orientation matters, not which side each triangle winds to.
+    const float dot = std::clamp(std::abs(QVector3D::dotProduct(n1n, n2n)), 0.0f, 1.0f);
+    const float angleBetweenNormals = std::acos(dot) * kRadToDeg;  // already in [0, 90]
+
+    if (angleBetweenNormals < parallelToleranceDegrees)
+    {
+        result.isParallel = true;
+        result.distance = std::abs(QVector3D::dotProduct(p2 - p1, n1n));
+    }
+    else
+    {
+        result.isParallel = false;
+        result.angleDegrees = angleBetweenNormals;
+    }
+    return result;
+}
+
+float pointToPlaneDistance(const QVector3D& point, const QVector3D& planePoint, const QVector3D& planeNormal)
+{
+    return std::abs(QVector3D::dotProduct(point - planePoint, planeNormal.normalized()));
 }
 
 }

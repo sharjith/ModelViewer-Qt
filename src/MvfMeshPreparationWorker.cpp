@@ -477,6 +477,25 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 			document.bufferViews, extras[QStringLiteral("occEdgeAccessor")].toInt(-1));
 		for (const QJsonValue& bv : extras[QStringLiteral("occEdgeBounds")].toArray())
 			prepared.occEdgeBoundaries.push_back(bv.toInt());
+		for (const QJsonValue& cv : extras[QStringLiteral("occEdgeCircles")].toArray())
+		{
+			OccEdgeCircleInfo info;
+			if (cv.isObject())
+			{
+				const QJsonObject co = cv.toObject();
+				info.isCircle = true;
+				info.centerX = co[QStringLiteral("cx")].toDouble();
+				info.centerY = co[QStringLiteral("cy")].toDouble();
+				info.centerZ = co[QStringLiteral("cz")].toDouble();
+				info.axisX   = co[QStringLiteral("ax")].toDouble();
+				info.axisY   = co[QStringLiteral("ay")].toDouble();
+				info.axisZ   = co[QStringLiteral("az")].toDouble();
+				info.radius  = co[QStringLiteral("r")].toDouble();
+			}
+			// else: JSON null placeholder for a non-circle edge - info stays
+			// default-constructed (isCircle = false).
+			prepared.occEdgeCircles.push_back(info);
+		}
 
 		for (const QJsonValue& jointValue : extras[QStringLiteral("skinJoints")].toArray())
 		{

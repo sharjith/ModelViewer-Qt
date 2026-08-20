@@ -11,6 +11,7 @@
 #include <QListWidget>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QMouseEvent>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
@@ -29,6 +30,37 @@ namespace
 		}
 		return nullptr;
 	}
+
+	// QListWidget's default SingleSelection behavior treats clicking the
+	// already-selected row as a no-op - it stays selected, there's no way to
+	// get back to "nothing selected" except selecting a different row. This
+	// list needs an explicit deselect (Delete should then fall back to
+	// whatever's selected directly in the viewport, not whatever measurement
+	// happened to be selected in the dialog last). Must intercept in
+	// mousePressEvent BEFORE the base class updates the selection model - by
+	// the time any of QListWidget's own selection signals fire (itemPressed,
+	// itemClicked, itemSelectionChanged), the click has already been applied,
+	// so there is no signal-based way to tell "this hit an already-selected
+	// item" from "this click is what just selected it".
+	class MeasurementResultsList : public QListWidget
+	{
+	public:
+		explicit MeasurementResultsList(QWidget* parent) : QListWidget(parent) {}
+
+	protected:
+		void mousePressEvent(QMouseEvent* event) override
+		{
+			const QModelIndex index = indexAt(event->pos());
+			if (event->button() == Qt::LeftButton && index.isValid() && selectionModel()
+				&& selectionModel()->isSelected(index))
+			{
+				clearSelection();
+				setCurrentIndex(QModelIndex());
+				return;
+			}
+			QListWidget::mousePressEvent(event);
+		}
+	};
 }
 
 MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
@@ -40,7 +72,9 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 
 	_toolCombo = new QComboBox(this);
 	for (MeasurementTool tool : { MeasurementTool::Point, MeasurementTool::Distance,
-	                               MeasurementTool::ArcRadius3Point, MeasurementTool::ArcRadiusCenterPoint })
+	                               MeasurementTool::ArcRadius3Point, MeasurementTool::ArcRadiusCenterPoint,
+	                               MeasurementTool::EdgeRadius,
+	                               MeasurementTool::FaceToFace, MeasurementTool::PointToFace })
 	{
 		_toolCombo->addItem(measurementToolDisplayName(tool), static_cast<int>(tool));
 	}
@@ -51,11 +85,17 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::ArcRadiusCenterPoint)),
 		tr("Center must land on real geometry (e.g. a boss's flat cap face) - won't work for a through-hole's center, which is empty space"),
 		Qt::ToolTipRole);
+	// CAD-only (see MeasurementData.h's EdgeRadius doc comment) - glTF/OBJ
+	// meshes have no OCC edge data, so nothing is ever pickable for them.
+	// Works correctly for through-holes too, unlike Center + 2-Point above.
+	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeRadius)),
+		tr("STEP/IGES/BREP parts only - click directly on a circular edge (hole or boss). Not available for glTF/OBJ meshes."),
+		Qt::ToolTipRole);
 
 	_statusLabel = new QLabel(this);
 	_statusLabel->setWordWrap(true);
 
-	_resultsList = new QListWidget(this);
+	_resultsList = new MeasurementResultsList(this);
 	_resultsList->setSelectionMode(QAbstractItemView::SingleSelection);
 
 	_deleteButton = new QPushButton(tr("Delete"), this);

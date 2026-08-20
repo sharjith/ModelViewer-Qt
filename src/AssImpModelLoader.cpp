@@ -1878,6 +1878,17 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	{
 		meshData.precomputedOccEdges           = occData->segments;
 		meshData.precomputedOccEdgeBoundaries  = occData->bounds;
+
+		meshData.precomputedOccEdgeCircles.reserve(occData->circles.size());
+		for (const BRepToAssimpConverter::OccEdgeCircle& c : occData->circles)
+		{
+			AssImpMeshData::PrecomputedEdgeCircle pc;
+			pc.isCircle = c.isCircle;
+			pc.centerX = c.centerX; pc.centerY = c.centerY; pc.centerZ = c.centerZ;
+			pc.axisX = c.axisX;     pc.axisY = c.axisY;     pc.axisZ = c.axisZ;
+			pc.radius = c.radius;
+			meshData.precomputedOccEdgeCircles.push_back(pc);
+		}
 	}
 
 	return meshData;

@@ -3,6 +3,7 @@
 #include "Material.h"
 #include "GltfAnimationData.h"
 #include "GltfVariantData.h"
+#include "MeshImportAdaptor.h"
 #include "MeshVertex.h"
 #include "MvfDocument.h"
 
@@ -41,6 +42,9 @@ struct PreparedMvfMesh
 	// OCC B-Rep edge segments and per-topological-edge boundaries.
 	std::vector<float> occEdgeSegments;
 	std::vector<int>   occEdgeBoundaries;
+	// Analytic circle data (Edge Radius measurement tool), 1:1 with
+	// occEdgeBoundaries - see OccEdgeCircleInfo's doc comment.
+	std::vector<OccEdgeCircleInfo> occEdgeCircles;
 
 	// Per-mesh user transform (gizmo TRS) preserved across MVF save/load.
 	QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);

@@ -204,6 +204,20 @@ public:
     // not undoable, same convention as mesh-visibility checkboxes elsewhere.
     void setMeasurementVisible(const QUuid& id, bool visible);
 
+    // Direct mutator for an angle dimension's arc-radius override - called
+    // on every mouse-move during a drag (for live preview) AND from
+    // MeasurementOffsetCommand::redo()/undo() (for the single commit pushed
+    // at drag-end) - see Measurement::offsetDistance's doc comment. Not
+    // itself undo-aware; the command class is what makes the FINAL value
+    // undoable, same "direct mutator + separate command wraps it" split
+    // TransformCommand uses for gizmo drags.
+    void setMeasurementOffsetDistance(const QUuid& id, float offsetDistance);
+
+    // Same role as setMeasurementOffsetDistance() above, but for a linear
+    // dimension's full offset vector (pivot + extend) - see
+    // Measurement::offsetVector's doc comment.
+    void setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector);
+
     // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------

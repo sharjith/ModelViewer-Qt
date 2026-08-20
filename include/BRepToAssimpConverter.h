@@ -69,10 +69,31 @@ public:
 	// bounds.back() == segments.size()/3 (sentinel).  Length == numTopoEdges + 1.
 	using OccEdgeBoundaries = std::vector<int>;
 
-	// Combined payload: flat segment array + per-topological-edge boundary table.
+	// Analytic circle parameters for one topological edge, in the same
+	// model-space frame as `segments` (i.e. NOT yet transformed by the
+	// mesh's node/instance placement - callers apply that themselves, same
+	// convention as MeshSurfaceAnchor::worldPosition). isCircle is false
+	// (all other fields left at their default) for any edge whose curve
+	// type isn't GeomAbs_Circle - e.g. lines, splines - so this is only
+	// meaningful for the Edge Radius measurement tool, nothing else reads it.
+	struct OccEdgeCircle {
+		bool   isCircle = false;
+		double centerX = 0.0, centerY = 0.0, centerZ = 0.0;
+		double axisX = 0.0, axisY = 0.0, axisZ = 1.0;
+		double radius = 0.0;
+	};
+
+	// Parallel to `bounds`: circles[i] describes topological edge i (one
+	// entry per edge that got a `bounds` entry, same order, so
+	// circles.size() == bounds.size() - 1 when non-empty).
+	using OccEdgeCircles = std::vector<OccEdgeCircle>;
+
+	// Combined payload: flat segment array + per-topological-edge boundary
+	// table + per-topological-edge analytic circle data (for Edge Radius).
 	struct OccEdgeData {
 		OccEdgeSegments  segments;  // flat {x0,y0,z0, x1,y1,z1, ...}
 		OccEdgeBoundaries bounds;   // bounds[i] = first vec3-index of topo-edge i
+		OccEdgeCircles   circles;   // circles[i] = analytic circle for topo-edge i, if any
 	};
 
 	// Returns precomputed B-Rep edge data for the given aiMesh*, or nullptr if

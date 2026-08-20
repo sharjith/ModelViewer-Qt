@@ -196,8 +196,22 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
     if (meshData.preserveNodeTransform)
         mesh->setSceneRenderTransform(meshData.nodeWorldTransform);
     if (!meshData.precomputedOccEdges.empty())
+    {
+        std::vector<OccEdgeCircleInfo> circles;
+        circles.reserve(meshData.precomputedOccEdgeCircles.size());
+        for (const AssImpMeshData::PrecomputedEdgeCircle& c : meshData.precomputedOccEdgeCircles)
+        {
+            OccEdgeCircleInfo info;
+            info.isCircle = c.isCircle;
+            info.centerX = c.centerX; info.centerY = c.centerY; info.centerZ = c.centerZ;
+            info.axisX = c.axisX;     info.axisY = c.axisY;     info.axisZ = c.axisZ;
+            info.radius = c.radius;
+            circles.push_back(info);
+        }
         mesh->setPrecomputedOccEdges(meshData.precomputedOccEdges,
-                                     meshData.precomputedOccEdgeBoundaries);
+                                     meshData.precomputedOccEdgeBoundaries,
+                                     circles);
+    }
     if (!meshData.variantMappings.isEmpty())
     {
         mesh->setVariantMappings(meshData.variantMappings);

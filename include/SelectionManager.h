@@ -2,6 +2,7 @@
 
 
 #include "SceneMeshRecord.h"
+#include "MeshEdgeCircleAnchor.h"
 #include "MeshSurfaceAnchor.h"
 
 #include <QObject>
@@ -76,6 +77,16 @@ public:
     // touch selection state. Returns an anchor with triangleIndex == -1
     // (isValid() == false) if nothing was hit.
     MeshSurfaceAnchor pickSurfaceAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+
+    // Pick the nearest CIRCULAR B-Rep edge (Edge Radius measurement tool)
+    // within snapPixelRadius screen pixels of the given pixel, across all
+    // visible OCC-sourced meshes. Non-circular edges (lines, splines) are
+    // never candidates - this tool only ever measures a circle, so there is
+    // nothing useful to return for them. Screen-space proximity against the
+    // same tessellated polyline the edge-wireframe overlay already renders -
+    // not a 3D ray test like pickSurfaceAnchor(): OCC edges are a flat
+    // segment buffer with no meaningful "surface" to ray-cast against.
+    MeshEdgeCircleAnchor pickEdgeCircleAnchor(const QPoint& pixel, int snapPixelRadius = 8);
 
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }

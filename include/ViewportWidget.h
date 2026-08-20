@@ -328,6 +328,96 @@ public:
 	// exists (deleted) or the anchor is otherwise unresolvable.
 	QVector3D resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const;
 
+	// Resolves an Edge Radius anchor's CURRENT analytic circle (center/axis/
+	// radius), re-deriving it from the referenced mesh's precomputed OCC
+	// edge data (SceneMesh::getOccEdgeCircles()) and its CURRENT world
+	// transform (combinedRenderTransform()) - same "live, not frozen"
+	// convention as resolveMeasurementAnchor(). Returns false (outputs left
+	// untouched) if the mesh no longer exists, ref isn't an edge anchor, or
+	// the referenced edge isn't a circle (shouldn't happen in practice -
+	// pickEdgeCircleAnchor() only ever returns circular edges - but a saved
+	// measurement could in principle outlive a mesh reload that changes
+	// topology).
+	bool resolveMeasurementEdgeCircle(const MeasurementAnchorRef& ref,
+		QVector3D& outCenter, QVector3D& outAxis, float& outRadius) const;
+
+	// Resolves a face-pick anchor's CURRENT position + face normal (Face to
+	// Face / Point to Face) - "face" here means the picked triangle's own
+	// plane (cross product of two of its edges), not a grouped CAD face, so
+	// this works on any mesh with no B-Rep topology needed. Same "live, not
+	// frozen" convention as resolveMeasurementAnchor() (derives from
+	// getTrsfPoints(), so it tracks transform-panel/exploded-view changes).
+	// Returns false if ref has no triangle recorded (edge anchor, or a
+	// vertex-only anchor with no triangle - shouldn't happen in practice
+	// since pickSurfaceAnchor() always records the hit triangle even when it
+	// also snaps to a vertex).
+	bool resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
+		QVector3D& outPosition, QVector3D& outNormal) const;
+
+	// ---- Dimension-line drag (Distance/FaceToFace-parallel/PointToFace,
+	//      and FaceToFace's angle/arc case) -----------------------------------
+	// The raw (un-offset) [a,b] a LINEAR dimension spans, resolved per
+	// MeasurementType the same way drawMeasurementOverlay()'s render loop
+	// does inline for each case - a small, deliberate duplication so this
+	// stays a plain query usable outside the render loop (hit-testing,
+	// dragging), rather than threading render-loop state through here.
+	// Returns false for types with no straight dimension line at all
+	// (Point, both arc types, EdgeRadius, and FaceToFace's non-parallel/
+	// angle case - see resolveMeasurementAngleGeometry() for that one instead).
+	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
+
+	// The DEFAULT perpendicular direction a linear dimension's offset leans,
+	// before the user has ever dragged it (Measurement::offsetVector still
+	// zero) - given the raw segment and the measurement's captured
+	// offsetReferenceDir (falls back to the live camera if unset - see
+	// Measurement::offsetReferenceDir's doc comment).
+	QVector3D dimensionLinePerp(const QVector3D& a, const QVector3D& b,
+		const QVector3D& referenceDir, Camera* camera) const;
+
+	// View-range-relative default magnitude shared by both the linear
+	// dimension's default offset (dimensionLinePerp() direction times this)
+	// and the angle dimension's default arc radius, so an as-yet-unplaced
+	// dimension of either kind looks reasonable regardless of scene scale.
+	float defaultDimensionOffsetMagnitude(Camera* camera) const;
+
+	// The full world-space offset a LINEAR dimension line currently sits at
+	// (see Measurement::offsetVector's doc comment) - the user's exact
+	// dragged vector if they've ever dragged it (both direction AND
+	// magnitude - "pivot and extend" combined), else
+	// dimensionLinePerp()*defaultDimensionOffsetMagnitude(). Shared by
+	// rendering and hit-testing/dragging so all three agree on where the
+	// dimension line actually is.
+	QVector3D resolveDimensionOffsetVector(const QVector3D& a, const QVector3D& b,
+		const Measurement& m, Camera* camera) const;
+
+	// The angle dimension's full construction - vertex, in-plane orthonormal
+	// basis (u = first face's normal, v completing the plane), the measured
+	// angle in radians, AND the resolved arc radius (Measurement::
+	// offsetDistance if the user has dragged it, else a default tied to the
+	// distance between the two picked face points) - the single
+	// authoritative source for all of it, used by rendering, hit-testing,
+	// AND dragging alike so none of them can ever disagree about where the
+	// arc actually is (unlike computing the default radius independently in
+	// more than one place, which is exactly the kind of thing that quietly
+	// drifts out of sync over time). Returns false for any other
+	// MeasurementType, or if the two face normals turn out to be parallel
+	// after all (degenerate - no well-defined plane to sweep an arc in).
+	bool resolveMeasurementAngleGeometry(const Measurement& m, Camera* camera, QVector3D& outVertex,
+		QVector3D& outU, QVector3D& outV, float& outAngleRad, float& outRadius) const;
+
+	// Which kind of draggable dimension geometry a hit corresponds to -
+	// the two kinds need different drag math (see updateDimensionLineDrag()'s
+	// doc comment), so callers need to know which one they grabbed.
+	enum class DimensionDragKind { None, Linear, AngleRadius };
+	struct DimensionHit { QUuid measurementId; DimensionDragKind kind = DimensionDragKind::None; };
+
+	// Screen-space hit-test against every visible measurement's draggable
+	// dimension geometry - a LINEAR dimension's offset line specifically
+	// (not the raw measured segment, and not markers/labels), or an ANGLE
+	// dimension's arc - whichever is closer wins. Returns a hit with
+	// DimensionDragKind::None if nothing is within pixelRadius.
+	DimensionHit hitTestDimensionLine(const QPoint& pixel, Camera* camera, int pixelRadius = 8) const;
+
 	// Currently selected measurement in the viewport (independent of mesh
 	// selection) - clicking near a measurement's marker/line while no tool
 	// is armed selects it (see mousePressEvent()'s hitTestMeasurement()
@@ -1909,6 +1999,11 @@ private:
 	// ambiguous whole-mesh highlight (see setMeasurementTool()'s
 	// hover-highlight-mode save/restore for why the normal one is suppressed).
 	MeshSurfaceAnchor _measurementHoverAnchor;
+	// Same idea as _measurementHoverAnchor above, but for the Edge Radius
+	// tool - previews the nearest circular edge (as a full circle outline,
+	// see drawMeasurementOverlay()) rather than a single point, since the
+	// whole edge IS the pick target for this tool.
+	MeshEdgeCircleAnchor _measurementEdgeHoverAnchor;
 	HoverHighlightMode _savedHoverHighlightModeBeforeMeasurement = HoverHighlightMode::RaycastOnly;
 	// Press-vs-drag disambiguation: a plain left-press while a tool is armed
 	// only arms a pending click, which mouseReleaseEvent commits (as
@@ -1927,6 +2022,47 @@ private:
 	// user can see what a click will select/delete before committing to it.
 	// Updated in mouseMoveEvent(), drawn in drawMeasurementOverlay().
 	QUuid _hoveredMeasurementId;
+
+	// ---- Dimension-line drag state ---------------------------------------
+	// Press-vs-drag disambiguation, same idea as _measurementClickCandidate
+	// above, but for grabbing an already-PLACED measurement's dimension line
+	// or angle arc (no tool armed) and repositioning it, instead of placing
+	// a new point.
+	bool _dimensionDragCandidate = false;
+	QPoint _dimensionDragStartPixel;
+	QUuid _dimensionDragCandidateId;
+	DimensionDragKind _dimensionDragKind = DimensionDragKind::None;
+	// True once the candidate press has moved past the click threshold and a
+	// real drag is underway - distinct from the candidate flag above so
+	// mouseMoveEvent() can tell "might become a drag" from "is dragging".
+	bool _dimensionDragActive = false;
+	// Fixed world-space pivot both drag kinds share (segment midpoint for
+	// Linear, angle vertex for AngleRadius).
+	QVector3D _dimensionDragPivot;
+	// Linear: the dimension-line's own direction (a-to-b), i.e. the NORMAL
+	// of the plane the drag freely repositions the offset within - this is
+	// what makes the drag "pivot AND extend" rather than slide along one
+	// fixed axis. AngleRadius: the bisector direction the 1D radius drag
+	// measures magnitude along (screen-space-ratio technique, same as
+	// updateTransformGizmoTranslationDrag() - no plane/pivot freedom needed
+	// since an angle's plane is already fixed).
+	QVector3D _dimensionDragAxis;
+	// AngleRadius only: world-per-screen-pixel reference length for the
+	// ratio-based 1D drag (see _dimensionDragAxis's doc comment) - unused
+	// for Linear, which uses a true ray/plane intersection instead.
+	float _dimensionDragRefLength = 1.0f;
+	// Starting values at drag-begin, for the undo command pushed at drag-end.
+	QVector3D _dimensionDragStartOffsetVector;  // Linear
+	float _dimensionDragStartOffsetScalar = 0.0f;  // AngleRadius
+
+	// Hover preview for the drag interaction above (mouse not pressed) -
+	// lets the user see exactly what a click-drag would grab before
+	// committing to it, same "preview before you act" idea as
+	// _hoveredMeasurementId. Updated in mouseMoveEvent(), drawn in
+	// drawMeasurementOverlay() as a color highlight on the specific
+	// dimension line/arc (not the whole measurement).
+	QUuid _hoveredDimensionId;
+	DimensionDragKind _hoveredDimensionKind = DimensionDragKind::None;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
@@ -1991,4 +2127,31 @@ private:
 	// the dimension line selects it, not just its endpoints). Returns a
 	// null QUuid if nothing is within pixelRadius of pixel.
 	QUuid hitTestMeasurement(const QPoint& pixel, Camera* camera, int pixelRadius) const;
+
+	// Begins a dimension-drag session (either kind) once
+	// _dimensionDragCandidate's press has moved past the click threshold -
+	// resolves and FIXES the pivot/axis/starting-value for the rest of the
+	// drag (recomputed once here, not every move, so they don't wander even
+	// though their screen projection naturally changes as the mouse moves).
+	void beginDimensionLineDrag(const QUuid& measurementId, DimensionDragKind kind, Camera* camera);
+	// Called from mouseMoveEvent() while dragging - dispatches on
+	// _dimensionDragKind:
+	//  - Linear: a true ray/camera-through-mouse-pixel intersection against
+	//    the plane (pivot, normal=_dimensionDragAxis) - the resulting point
+	//    minus the pivot IS the new offset vector directly, so this
+	//    naturally captures both direction ("pivot") and magnitude
+	//    ("extend") from wherever the mouse actually points, in one step.
+	//  - AngleRadius: the same screen-space-projection ratio technique as
+	//    TransformGizmo's single-axis translate drag (see
+	//    updateTransformGizmoTranslationDrag()) - extension only, along the
+	//    fixed bisector axis, no pivot freedom (the angle's plane is
+	//    already fixed by the two face normals).
+	// Either way, live-writes the result via SceneGraph::
+	// setMeasurementOffsetVector()/setMeasurementOffsetDistance() for
+	// immediate visual feedback.
+	void updateDimensionLineDrag(const QPoint& pixel, Camera* camera);
+	// Ends the drag - pushes one MeasurementOffsetCommand capturing the
+	// offset from before the drag to its final value (only if it actually
+	// changed), mirroring TransformCommand's "one command on release" pattern.
+	void finishDimensionLineDrag();
 };

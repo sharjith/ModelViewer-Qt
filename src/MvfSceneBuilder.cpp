@@ -1070,6 +1070,34 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                         boundsJson.append(b);
                     primitiveExtras.insert(QStringLiteral("occEdgeBounds"), boundsJson);
                 }
+
+                // Analytic circle data (Edge Radius measurement tool) - one
+                // entry per topological edge, positionally 1:1 with
+                // occEdgeBounds; null for any edge that isn't a circle
+                // (line, spline, ...) so position stays meaningful.
+                const std::vector<OccEdgeCircleInfo>& occCircles = assImpMeshForEdges->getOccEdgeCircles();
+                if (!occCircles.empty())
+                {
+                    QJsonArray circlesJson;
+                    for (const OccEdgeCircleInfo& c : occCircles)
+                    {
+                        if (!c.isCircle)
+                        {
+                            circlesJson.append(QJsonValue());
+                            continue;
+                        }
+                        QJsonObject co;
+                        co.insert(QStringLiteral("cx"), c.centerX);
+                        co.insert(QStringLiteral("cy"), c.centerY);
+                        co.insert(QStringLiteral("cz"), c.centerZ);
+                        co.insert(QStringLiteral("ax"), c.axisX);
+                        co.insert(QStringLiteral("ay"), c.axisY);
+                        co.insert(QStringLiteral("az"), c.axisZ);
+                        co.insert(QStringLiteral("r"), c.radius);
+                        circlesJson.append(co);
+                    }
+                    primitiveExtras.insert(QStringLiteral("occEdgeCircles"), circlesJson);
+                }
             }
         }
 

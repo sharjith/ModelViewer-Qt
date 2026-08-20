@@ -33,4 +33,24 @@ namespace MeasurementGeometry
     // that need the outline to visually pass near a specific picked point
     // should not rely on point ordering here, only on the circle's shape.
     QVector<QVector3D> circlePolyline(const QVector3D& center, const QVector3D& normal, float radius, int segments = 48);
+
+    // Result of comparing two face planes ("Face to Face") - exactly one of
+    // distance/angleDegrees is meaningful, indicated by isParallel. Planes
+    // within parallelToleranceDegrees of each other (by the ACUTE angle
+    // between their normals - sign/winding-independent, so a flipped normal
+    // on an otherwise-parallel face still reads as parallel) report a
+    // perpendicular distance instead of a near-zero angle, since that's
+    // almost always what's actually wanted for two flat faces.
+    struct FaceToFaceResult
+    {
+        bool  isParallel = false;
+        float distance = 0.0f;      // meaningful only if isParallel
+        float angleDegrees = 0.0f;  // meaningful only if !isParallel, range [0, 90]
+    };
+    FaceToFaceResult compareFaces(const QVector3D& p1, const QVector3D& n1,
+        const QVector3D& p2, const QVector3D& n2, float parallelToleranceDegrees = 5.0f);
+
+    // Perpendicular distance from `point` to the plane through `planePoint`
+    // with (not-necessarily-normalized) normal `planeNormal` ("Point to Face").
+    float pointToPlaneDistance(const QVector3D& point, const QVector3D& planePoint, const QVector3D& planeNormal);
 }

@@ -53,9 +53,14 @@ public:
 	// topological edge i (bounds.back() = total count, sentinel).
 	// When set, renderFeatureEdgesFast() uses this buffer instead of the heuristic classifier.
 	void setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
-	                            const std::vector<int>& bounds = {});
+	                            const std::vector<int>& bounds = {},
+	                            const std::vector<OccEdgeCircleInfo>& circles = {});
 	const std::vector<float>& getOccEdgeSegments()    const { return _importState.occEdgeSegments(); }
 	const std::vector<int>&   getOccEdgeBoundaries()  const { return _importState.occEdgeBoundaries(); }
+	// circles[i] describes the analytic circle for topological edge i (Edge
+	// Radius measurement tool), 1:1 with getOccEdgeBoundaries()[i] - see
+	// OccEdgeCircleInfo's doc comment (MeshImportAdaptor.h) for the frame it's in.
+	const std::vector<OccEdgeCircleInfo>& getOccEdgeCircles() const { return _importState.occEdgeCircles(); }
 
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }

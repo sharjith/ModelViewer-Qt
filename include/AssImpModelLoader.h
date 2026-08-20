@@ -138,6 +138,18 @@ struct AssImpMeshData
 	std::vector<float> precomputedOccEdges;
 	// Boundary table: bounds[i] = first vec3-index of topological edge i; bounds.back() = total.
 	std::vector<int>   precomputedOccEdgeBoundaries;
+	// Analytic circle data for topological edge i (Edge Radius measurement
+	// tool) - circles[i] corresponds 1:1 to precomputedOccEdgeBoundaries[i],
+	// same order. Plain mirror of BRepToAssimpConverter::OccEdgeCircle so
+	// this header doesn't need OCC's gp_Circ/BRepAdaptor_Curve includes.
+	struct PrecomputedEdgeCircle
+	{
+		bool   isCircle = false;
+		double centerX = 0.0, centerY = 0.0, centerZ = 0.0;
+		double axisX = 0.0, axisY = 0.0, axisZ = 1.0;
+		double radius = 0.0;
+	};
+	std::vector<PrecomputedEdgeCircle> precomputedOccEdgeCircles;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;

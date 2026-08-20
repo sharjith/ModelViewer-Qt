@@ -127,7 +127,7 @@ SceneMesh* SceneMesh::clone()
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
 	if (_importState.hasOccEdges())
-		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles());
 
 	// Copy import provenance so export, skinning, animation and variant paths
 	// behave identically on the clone.
@@ -1106,13 +1106,14 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 }
 
 void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
-                                        const std::vector<int>& bounds)
+                                        const std::vector<int>& bounds,
+                                        const std::vector<OccEdgeCircleInfo>& circles)
 {
 	if (!wireframeFeaturesEnabled())
 		return;
 	if (edgeVerts.empty()) return;
 
-	_importState.setOccEdgeData(edgeVerts, bounds);
+	_importState.setOccEdgeData(edgeVerts, bounds, circles);
 	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
 
 	if (!_occEdgeVertexBuffer.isCreated())
@@ -2386,7 +2387,7 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 		if (wireframeFeaturesEnabled())
 		{
 			if (_importState.hasOccEdges())
-				setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+				setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles());
 			else if (!_featureEdgeIndices.empty())
 			{
 				_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
@@ -2404,7 +2405,7 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 	if (wireframeFeaturesEnabled())
 	{
 		if (_importState.hasOccEdges())
-			setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+			setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles());
 		else if (!_featureEdgeIndices.empty())
 		{
 			_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());

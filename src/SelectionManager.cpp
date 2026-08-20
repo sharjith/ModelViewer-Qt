@@ -11,6 +11,7 @@
 #include <QRect>
 #include <QMatrix4x4>
 #include <QVariant>
+#include <QVector2D>
 #include <QVector4D>
 #include <algorithm>
 #include <iostream>
@@ -223,6 +224,90 @@ MeshSurfaceAnchor SelectionManager::pickSurfaceAnchor(const QPoint& pixel, int s
     }
 
     return anchor;
+}
+
+MeshEdgeCircleAnchor SelectionManager::pickEdgeCircleAnchor(const QPoint& pixel, int snapPixelRadius)
+{
+    MeshEdgeCircleAnchor result;
+
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
+    if (ids.empty())
+        return result;
+
+    Camera* camera = _viewportWidget->getCameraForPoint(pixel);
+    if (!camera)
+        return result;
+
+    const QRect viewport = PickingHelper::viewportRectForPoint(
+        pixel, _viewportWidget->width(), _viewportWidget->height(), _viewportWidget->isMultiViewActive());
+    const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+    const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+
+    auto toScreen = [&](const QVector3D& worldPos) -> QVector2D {
+        const QVector3D projected = worldPos.project(viewMatrix, projMatrix, viewport);
+        // Same y-flip as pickSurfaceAnchor()'s vertex-snap projection -
+        // project() is OpenGL (bottom-up), pixel is Qt (top-down).
+        return QVector2D(projected.x(), static_cast<float>(viewport.height()) - projected.y());
+    };
+    auto distPointToSegment = [](const QVector2D& p, const QVector2D& a, const QVector2D& b) -> float {
+        const QVector2D ab = b - a;
+        const float abLenSq = QVector2D::dotProduct(ab, ab);
+        float t = abLenSq > 1.0e-6f ? QVector2D::dotProduct(p - a, ab) / abLenSq : 0.0f;
+        t = std::clamp(t, 0.0f, 1.0f);
+        return (p - (a + ab * t)).length();
+    };
+
+    const QVector2D clickPt(static_cast<float>(pixel.x()), static_cast<float>(pixel.y()));
+    float bestDist = static_cast<float>(snapPixelRadius);
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+
+        const std::vector<OccEdgeCircleInfo>& circles = mesh->getOccEdgeCircles();
+        if (circles.empty())
+            continue;
+        const std::vector<float>& segments = mesh->getOccEdgeSegments();
+        const std::vector<int>& bounds = mesh->getOccEdgeBoundaries();
+        if (segments.empty() || bounds.size() < 2)
+            continue;
+
+        const QMatrix4x4 combined = mesh->combinedRenderTransform();
+        const int numEdges = std::min(static_cast<int>(bounds.size()) - 1, static_cast<int>(circles.size()));
+
+        for (int e = 0; e < numEdges; ++e)
+        {
+            if (!circles[e].isCircle)
+                continue;
+
+            const int startVec3 = bounds[e];
+            const int endVec3 = bounds[e + 1];
+            // Segments are flat GL_LINES pairs (see OccEdgeData's doc
+            // comment) - each pair of consecutive vec3 entries is one
+            // independent segment, so step by 2, not 1.
+            for (int v = startVec3; v + 1 < endVec3; v += 2)
+            {
+                const size_t p0 = static_cast<size_t>(v) * 3;
+                const size_t p1 = static_cast<size_t>(v + 1) * 3;
+                if (p1 + 2 >= segments.size())
+                    break;
+
+                const QVector3D worldA = combined.map(QVector3D(segments[p0], segments[p0 + 1], segments[p0 + 2]));
+                const QVector3D worldB = combined.map(QVector3D(segments[p1], segments[p1 + 1], segments[p1 + 2]));
+                const float d = distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB));
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    result.meshUuid = mesh->uuid();
+                    result.edgeIndex = e;
+                }
+            }
+        }
+    }
+
+    return result;
 }
 
 int SelectionManager::hoverSelect(const QPoint& pixel)

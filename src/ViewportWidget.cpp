@@ -11,6 +11,8 @@
 #include "FloorPlane.h"
 #include "GltfCameraData.h"
 #include "MeasurementGeometry.h"
+#include "MeasurementOffsetCommand.h"
+#include "MeasurementOffsetVectorCommand.h"
 #include "ViewportWidget.h"
 #include "PickingHelper.h"
 #include "RtSceneBuilder.h"
@@ -10217,6 +10219,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 	_pendingMeasurementAnchors.clear();
 	_measurementClickCandidate = false;
 	_measurementHoverAnchor = MeshSurfaceAnchor();
+	_measurementEdgeHoverAnchor = MeshEdgeCircleAnchor();
 	_hoveredMeasurementId = QUuid();
 	update();
 	emit measurementToolChanged(_measurementTool);
@@ -10302,8 +10305,230 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			return tr("Center + 2-Point Arc Radius: (degenerate - points are collinear)");
 		return tr("Center + 2-Point Arc Radius: %1").arg(radius, 0, 'f', 3);
 	}
+	case MeasurementType::EdgeRadius:
+	{
+		if (m.anchors.isEmpty())
+			return QString();
+		QVector3D center, axis;
+		float radius = 0.0f;
+		if (!resolveMeasurementEdgeCircle(m.anchors[0], center, axis, radius))
+			return tr("Edge Radius: (edge no longer available)");
+		return tr("Edge Radius: %1").arg(radius, 0, 'f', 3);
+	}
+	case MeasurementType::FaceToFace:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		QVector3D p1, n1, p2, n2;
+		if (!resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) || !resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
+			return tr("Face to Face: (face no longer available)");
+		const MeasurementGeometry::FaceToFaceResult result = MeasurementGeometry::compareFaces(p1, n1, p2, n2);
+		return result.isParallel
+			? tr("Face to Face: %1").arg(result.distance, 0, 'f', 3)
+			: tr("Face to Face: %1°").arg(result.angleDegrees, 0, 'f', 2);
+	}
+	case MeasurementType::PointToFace:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		const QVector3D point = resolveMeasurementAnchor(m.anchors[0]);
+		QVector3D facePos, faceNormal;
+		if (!resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			return tr("Point to Face: (face no longer available)");
+		return tr("Point to Face: %1").arg(MeasurementGeometry::pointToPlaneDistance(point, facePos, faceNormal), 0, 'f', 3);
+	}
 	}
 	return QString();
+}
+
+bool ViewportWidget::resolveMeasurementEdgeCircle(const MeasurementAnchorRef& ref,
+	QVector3D& outCenter, QVector3D& outAxis, float& outRadius) const
+{
+	if (ref.edgeIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	const std::vector<OccEdgeCircleInfo>& circles = mesh->getOccEdgeCircles();
+	if (ref.edgeIndex >= static_cast<int>(circles.size()) || !circles[ref.edgeIndex].isCircle)
+		return false;
+
+	const OccEdgeCircleInfo& c = circles[ref.edgeIndex];
+	const QVector3D centerLocal(static_cast<float>(c.centerX), static_cast<float>(c.centerY), static_cast<float>(c.centerZ));
+	const QVector3D axisLocal(static_cast<float>(c.axisX), static_cast<float>(c.axisY), static_cast<float>(c.axisZ));
+
+	// Derive the world-space center/axis/radius purely via the mesh's
+	// current combinedRenderTransform() - the same matrix getTrsfPoints()
+	// uses for every other measurement anchor, so this stays correct under
+	// mesh transform-panel edits/exploded view exactly like they do. Radius
+	// is recovered by transforming an arbitrary in-plane rim point too and
+	// measuring its distance from the transformed center, rather than just
+	// scaling the local radius by a scalar - exact for the common uniform-
+	// scale case, and degrades gracefully (an "effective" radius) under a
+	// non-uniform scale, where a true circle wouldn't stay a circle anyway.
+	const QVector3D axisNormalizedLocal = axisLocal.normalized();
+	const QVector3D reference = (std::abs(QVector3D::dotProduct(axisNormalizedLocal, QVector3D(0.0f, 1.0f, 0.0f))) < 0.9f)
+		? QVector3D(0.0f, 1.0f, 0.0f)
+		: QVector3D(1.0f, 0.0f, 0.0f);
+	const QVector3D u = QVector3D::crossProduct(axisNormalizedLocal, reference).normalized();
+	const QVector3D rimLocal = centerLocal + u * static_cast<float>(c.radius);
+
+	const QMatrix4x4 combined = mesh->combinedRenderTransform();
+	outCenter = combined.map(centerLocal);
+	const QVector3D rimWorld = combined.map(rimLocal);
+	outRadius = outCenter.distanceToPoint(rimWorld);
+	outAxis = combined.mapVector(axisLocal).normalized();
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
+	QVector3D& outPosition, QVector3D& outNormal) const
+{
+	if (ref.triangleIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto vertexPos = [&trsfPoints](int vIdx) -> QVector3D {
+		if (vIdx < 0)
+			return QVector3D();
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+
+	const std::vector<unsigned int> indices = mesh->indices();
+	const size_t base = static_cast<size_t>(ref.triangleIndex) * 3;
+	if (base + 2 >= indices.size())
+		return false;
+
+	const QVector3D p0 = vertexPos(static_cast<int>(indices[base]));
+	const QVector3D p1 = vertexPos(static_cast<int>(indices[base + 1]));
+	const QVector3D p2 = vertexPos(static_cast<int>(indices[base + 2]));
+
+	const QVector3D normal = QVector3D::crossProduct(p1 - p0, p2 - p0);
+	if (normal.lengthSquared() < 1.0e-12f)
+		return false;  // degenerate (near-zero-area) triangle
+
+	outPosition = resolveMeasurementAnchor(ref);  // respects vertex snap, same as every other tool
+	outNormal = normal.normalized();
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const
+{
+	switch (m.type)
+	{
+	case MeasurementType::Distance:
+	{
+		if (m.anchors.size() < 2)
+			return false;
+		outA = resolveMeasurementAnchor(m.anchors[0]);
+		outB = resolveMeasurementAnchor(m.anchors[1]);
+		return true;
+	}
+	case MeasurementType::PointToFace:
+	{
+		if (m.anchors.size() < 2)
+			return false;
+		const QVector3D point = resolveMeasurementAnchor(m.anchors[0]);
+		QVector3D facePos, faceNormal;
+		if (!resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			return false;
+		outA = point;
+		outB = point - faceNormal * QVector3D::dotProduct(point - facePos, faceNormal);
+		return true;
+	}
+	case MeasurementType::FaceToFace:
+	{
+		if (m.anchors.size() < 2)
+			return false;
+		QVector3D p1, n1, p2, n2;
+		if (!resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) || !resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
+			return false;
+		const MeasurementGeometry::FaceToFaceResult result = MeasurementGeometry::compareFaces(p1, n1, p2, n2);
+		if (!result.isParallel)
+			return false;  // angle case has an arc, not a straight dimension line to drag
+		outA = p1;
+		outB = p1 + n1 * QVector3D::dotProduct(p2 - p1, n1);
+		return true;
+	}
+	default:
+		return false;
+	}
+}
+
+QVector3D ViewportWidget::dimensionLinePerp(const QVector3D& a, const QVector3D& b,
+	const QVector3D& referenceDir, Camera* camera) const
+{
+	const QVector3D delta = b - a;
+	if (delta.lengthSquared() < 1.0e-12f || !camera)
+		return QVector3D(0.0f, 1.0f, 0.0f);
+	const QVector3D dirN = delta.normalized();
+
+	const bool haveReference = referenceDir.lengthSquared() > 1.0e-8f;
+	QVector3D perp = QVector3D::crossProduct(dirN, haveReference ? referenceDir : camera->getViewDir());
+	if (perp.lengthSquared() < 1.0e-8f)
+		perp = QVector3D::crossProduct(dirN, camera->getUpVector());
+	if (perp.lengthSquared() < 1.0e-8f)
+		perp = QVector3D::crossProduct(dirN, QVector3D(0.0f, 1.0f, 0.0f));
+	return perp.normalized();
+}
+
+float ViewportWidget::defaultDimensionOffsetMagnitude(Camera* camera) const
+{
+	const float markerSize = camera ? std::max(camera->getViewRange(), 0.0001f) * 0.01f : 0.01f;
+	return markerSize * 6.0f;
+}
+
+QVector3D ViewportWidget::resolveDimensionOffsetVector(const QVector3D& a, const QVector3D& b,
+	const Measurement& m, Camera* camera) const
+{
+	if (m.offsetVector.lengthSquared() > 1.0e-10f)
+		return m.offsetVector;  // user has dragged this - use the exact vector (direction + magnitude)
+	return dimensionLinePerp(a, b, m.offsetReferenceDir, camera) * defaultDimensionOffsetMagnitude(camera);
+}
+
+bool ViewportWidget::resolveMeasurementAngleGeometry(const Measurement& m, Camera* camera, QVector3D& outVertex,
+	QVector3D& outU, QVector3D& outV, float& outAngleRad, float& outRadius) const
+{
+	if (m.type != MeasurementType::FaceToFace || m.anchors.size() < 2)
+		return false;
+
+	QVector3D p1, n1, p2, n2;
+	if (!resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) || !resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
+		return false;
+
+	const MeasurementGeometry::FaceToFaceResult result = MeasurementGeometry::compareFaces(p1, n1, p2, n2);
+	if (result.isParallel)
+		return false;  // parallel case has a straight dimension line instead - see resolveMeasurementDimensionSegment()
+
+	outVertex = (p1 + p2) * 0.5f;
+	const QVector3D n2Effective = (QVector3D::dotProduct(n1, n2) >= 0.0f) ? n2 : -n2;
+	outU = n1;
+	QVector3D v = n2Effective - outU * QVector3D::dotProduct(n2Effective, outU);
+	if (v.lengthSquared() < 1.0e-8f)
+		return false;  // degenerate - shouldn't happen given compareFaces() already ruled out parallel
+	outV = v.normalized();
+	outAngleRad = result.angleDegrees * 0.017453292519943295f;  // deg -> rad, same constant as kDegToRadLocal
+
+	// outRadius is the ARC's radius specifically (what hit-testing/dragging
+	// treat as "the" draggable value) - the legs themselves extend a bit
+	// further out than the arc (see drawMeasurementOverlay()'s
+	// legLength = outRadius / 0.85f), matching the original fixed 85%
+	// arc-inset-from-leg-tip look, now expressed the other way around so a
+	// dragged value means exactly what the user grabbed (the arc).
+	const float markerSize = camera ? std::max(camera->getViewRange(), 0.0001f) * 0.01f : 0.01f;
+	const float defaultLegLength = std::max((p1 - p2).length() * 0.5f, markerSize * 4.0f);
+	const float defaultRadius = defaultLegLength * 0.85f;
+	outRadius = (m.offsetDistance >= 0.0f) ? m.offsetDistance : defaultRadius;
+	return true;
 }
 
 void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
@@ -10311,15 +10536,30 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	if (!_selectionManager || !_viewer || !_viewer->sceneGraph() || _measurementTool == MeasurementTool::None)
 		return;
 
-	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
-	if (!anchor.isValid())
-		return;  // clicked empty space - stay armed, don't cancel the tool
-
 	MeasurementAnchorRef ref;
-	ref.meshUuid           = anchor.meshUuid;
-	ref.triangleIndex      = anchor.triangleIndex;
-	ref.barycentric        = anchor.barycentric;
-	ref.snappedVertexIndex = anchor.snappedVertexIndex;
+
+	if (_measurementTool == MeasurementTool::EdgeRadius)
+	{
+		// A wholly different pick from every other tool - identifies a
+		// topological B-Rep edge, not a surface point (see
+		// MeshEdgeCircleAnchor's doc comment).
+		const MeshEdgeCircleAnchor edgeAnchor = _selectionManager->pickEdgeCircleAnchor(clickPoint);
+		if (!edgeAnchor.isValid())
+			return;  // no circular edge under the cursor - stay armed, don't cancel the tool
+		ref.meshUuid  = edgeAnchor.meshUuid;
+		ref.edgeIndex = edgeAnchor.edgeIndex;
+	}
+	else
+	{
+		const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
+		if (!anchor.isValid())
+			return;  // clicked empty space - stay armed, don't cancel the tool
+
+		ref.meshUuid           = anchor.meshUuid;
+		ref.triangleIndex      = anchor.triangleIndex;
+		ref.barycentric        = anchor.barycentric;
+		ref.snappedVertexIndex = anchor.snappedVertexIndex;
+	}
 
 	_pendingMeasurementAnchors.append(ref);
 
@@ -10332,6 +10572,11 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		m.id = QUuid::createUuid();
 		m.type = measurementTypeForTool(_measurementTool);
 		m.anchors = _pendingMeasurementAnchors;
+		// Captured once, here, at creation - see Measurement::offsetReferenceDir's
+		// doc comment for why this must NOT be re-derived from the live
+		// camera on every render frame.
+		if (_primaryCamera)
+			m.offsetReferenceDir = _primaryCamera->getViewDir();
 		_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
 		_pendingMeasurementAnchors.clear();
 		emit measurementProgressChanged(0, required);
@@ -10458,9 +10703,309 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 				}
 			}
 		}
+		else if (m.type == MeasurementType::EdgeRadius && !m.anchors.isEmpty())
+		{
+			QVector3D center, axis;
+			float radius = 0.0f;
+			if (resolveMeasurementEdgeCircle(m.anchors[0], center, axis, radius))
+			{
+				const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(center, axis, radius);
+				for (int i = 0; i < circle.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle[i]), toScreen(circle[(i + 1) % circle.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
+				const float dCenter = (clickPt - toScreen(center)).length();
+				if (dCenter < bestDist)
+				{
+					bestDist = dCenter;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::FaceToFace && m.anchors.size() >= 2)
+		{
+			QVector3D p1, n1, p2, n2;
+			if (resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) && resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
+			{
+				const float d1 = (clickPt - toScreen(p1)).length();
+				const float d2 = (clickPt - toScreen(p2)).length();
+				const float dSeg = distPointToSegment(clickPt, toScreen(p1), toScreen(p2));
+				const float dBest = std::min({ d1, d2, dSeg });
+				if (dBest < bestDist)
+				{
+					bestDist = dBest;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::PointToFace && m.anchors.size() >= 2)
+		{
+			const QVector3D point = resolveMeasurementAnchor(m.anchors[0]);
+			QVector3D facePos, faceNormal;
+			if (resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			{
+				const float dSeg = distPointToSegment(clickPt, toScreen(point), toScreen(facePos));
+				if (dSeg < bestDist)
+				{
+					bestDist = dSeg;
+					bestId = m.id;
+				}
+			}
+		}
 	}
 
 	return bestId;
+}
+
+ViewportWidget::DimensionHit ViewportWidget::hitTestDimensionLine(const QPoint& pixel, Camera* camera, int pixelRadius) const
+{
+	DimensionHit hit;
+	if (!camera || !_viewer || !_viewer->sceneGraph())
+		return hit;
+
+	const QRect viewportRect(0, 0, width(), height());
+	auto toScreen = [&](const QVector3D& worldPos) -> QVector2D {
+		const QVector3D projected = worldPos.project(camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+		return QVector2D(projected.x(), static_cast<float>(height()) - projected.y());
+	};
+	auto distPointToSegment = [](const QVector2D& p, const QVector2D& a, const QVector2D& b) -> float {
+		const QVector2D ab = b - a;
+		const float abLenSq = QVector2D::dotProduct(ab, ab);
+		float t = abLenSq > 1.0e-6f ? QVector2D::dotProduct(p - a, ab) / abLenSq : 0.0f;
+		t = std::clamp(t, 0.0f, 1.0f);
+		return (p - (a + ab * t)).length();
+	};
+
+	const QVector2D clickPt(static_cast<float>(pixel.x()), static_cast<float>(pixel.y()));
+	float bestDist = static_cast<float>(pixelRadius);
+
+	for (const Measurement& m : _viewer->sceneGraph()->measurements())
+	{
+		if (!m.visible)
+			continue;
+
+		QVector3D a, b;
+		if (resolveMeasurementDimensionSegment(m, a, b))
+		{
+			const QVector3D offsetVec = resolveDimensionOffsetVector(a, b, m, camera);
+			const QVector3D aOff = a + offsetVec;
+			const QVector3D bOff = b + offsetVec;
+
+			const float d = distPointToSegment(clickPt, toScreen(aOff), toScreen(bOff));
+			if (d < bestDist)
+			{
+				bestDist = d;
+				hit.measurementId = m.id;
+				hit.kind = DimensionDragKind::Linear;
+			}
+			continue;
+		}
+
+		QVector3D vertex, u, v;
+		float angleRad = 0.0f;
+		float radius = 0.0f;
+		if (resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, radius))
+		{
+			// Walk just the arc segment [0, angleRad] directly in the (u,v)
+			// basis - circlePolyline() sweeps a full circle in a basis with
+			// no relation to u/v's angular origin, so it isn't reusable here.
+			constexpr int arcSegments = 24;
+			QVector3D prevPoint = vertex + u * radius;
+			for (int i = 1; i <= arcSegments; ++i)
+			{
+				const float t = angleRad * (static_cast<float>(i) / static_cast<float>(arcSegments));
+				const QVector3D nextPoint = vertex + (u * std::cos(t) + v * std::sin(t)) * radius;
+				const float d = distPointToSegment(clickPt, toScreen(prevPoint), toScreen(nextPoint));
+				if (d < bestDist)
+				{
+					bestDist = d;
+					hit.measurementId = m.id;
+					hit.kind = DimensionDragKind::AngleRadius;
+				}
+				prevPoint = nextPoint;
+			}
+		}
+	}
+
+	return hit;
+}
+
+void ViewportWidget::beginDimensionLineDrag(const QUuid& measurementId, DimensionDragKind kind, Camera* camera)
+{
+	if (!camera || !_viewer || !_viewer->sceneGraph() || kind == DimensionDragKind::None)
+		return;
+
+	const int index = _viewer->sceneGraph()->measurementIndexById(measurementId);
+	if (index < 0)
+		return;
+	const Measurement& m = _viewer->sceneGraph()->measurements().at(index);
+
+	_dimensionDragKind = kind;
+
+	if (kind == DimensionDragKind::Linear)
+	{
+		QVector3D a, b;
+		if (!resolveMeasurementDimensionSegment(m, a, b))
+		{
+			_dimensionDragKind = DimensionDragKind::None;
+			return;
+		}
+		_dimensionDragPivot = (a + b) * 0.5f;
+		// The dimension line's own direction - the NORMAL of the plane the
+		// drag freely repositions the offset within (see
+		// updateDimensionLineDrag()'s ray/plane intersection).
+		_dimensionDragAxis = (b - a).normalized();
+		_dimensionDragStartOffsetVector = resolveDimensionOffsetVector(a, b, m, camera);
+	}
+	else  // AngleRadius
+	{
+		QVector3D vertex, u, v;
+		float angleRad = 0.0f;
+		float radius = 0.0f;
+		if (!resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, radius))
+		{
+			_dimensionDragKind = DimensionDragKind::None;
+			return;
+		}
+		_dimensionDragPivot = vertex;
+		// Bisector of the two legs - the 1D direction the radius drag
+		// measures magnitude along.
+		const QVector3D bisector = (u * std::cos(angleRad * 0.5f) + v * std::sin(angleRad * 0.5f));
+		_dimensionDragAxis = bisector.lengthSquared() > 1.0e-8f ? bisector.normalized() : u;
+		_dimensionDragStartOffsetScalar = radius;
+		// Reference length for the world-per-screen-pixel ratio (same
+		// technique as updateTransformGizmoTranslationDrag()'s dragScale).
+		_dimensionDragRefLength = std::max(_dimensionDragStartOffsetScalar, 0.01f);
+	}
+
+	_dimensionDragActive = true;
+}
+
+void ViewportWidget::updateDimensionLineDrag(const QPoint& pixel, Camera* camera)
+{
+	if (!camera || !_viewer || !_viewer->sceneGraph() || !_dimensionDragActive)
+		return;
+
+	const QRect viewport(0, 0, width(), height());
+	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+	const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+
+	if (_dimensionDragKind == DimensionDragKind::Linear)
+	{
+		// True ray/plane intersection: cast a ray from the camera through
+		// the current mouse pixel, intersect it with the plane through
+		// _dimensionDragPivot whose normal is the dimension line's own
+		// direction (_dimensionDragAxis) - i.e. the plane containing every
+		// valid perpendicular offset. The intersection point minus the
+		// pivot IS the new offset vector directly - this is what lets the
+		// drag both "pivot" (change direction) and "extend" (change
+		// magnitude) in one continuous motion, unlike a single-axis ratio
+		// drag which can only ever change magnitude along one fixed axis.
+		const int glX = pixel.x();
+		const int glY = height() - pixel.y() - 1;  // Qt top-down -> GL bottom-up, same convention used elsewhere for unproject()
+		const QVector3D rayOrigin = QVector3D(static_cast<float>(glX), static_cast<float>(glY), 0.0f).unproject(viewMatrix, projMatrix, viewport);
+		QVector3D rayDir = QVector3D(static_cast<float>(glX), static_cast<float>(glY), 1.0f).unproject(viewMatrix, projMatrix, viewport) - rayOrigin;
+		if (rayDir.lengthSquared() < 1.0e-12f)
+			return;
+		rayDir.normalize();
+
+		const float denom = QVector3D::dotProduct(rayDir, _dimensionDragAxis);
+		if (std::abs(denom) < 1.0e-6f)
+			return;  // ray parallel to the plane (viewing exactly edge-on) - leave the offset unchanged this frame rather than divide by ~0
+
+		const float t = QVector3D::dotProduct(_dimensionDragPivot - rayOrigin, _dimensionDragAxis) / denom;
+		if (t < 0.0f)
+			return;  // intersection behind the camera - degenerate, ignore this frame
+
+		const QVector3D hitPoint = rayOrigin + rayDir * t;
+		QVector3D newOffset = hitPoint - _dimensionDragPivot;
+		// Project out any residual component along the dimension-line axis
+		// (should already be ~0 since hitPoint lies in the plane, but keep
+		// this exact against floating-point drift) so the dimension line
+		// stays exactly parallel to the measured segment.
+		newOffset -= _dimensionDragAxis * QVector3D::dotProduct(newOffset, _dimensionDragAxis);
+
+		// Floored magnitude, not allowed to collapse to ~0 - that would put
+		// the dimension line on top of the actual measured geometry,
+		// defeating the point of having one. Direction is preserved.
+		const float mag = newOffset.length();
+		constexpr float kMinOffsetMagnitude = 0.01f;
+		if (mag < kMinOffsetMagnitude)
+			newOffset = (mag > 1.0e-8f ? newOffset / mag : _dimensionDragAxis) * kMinOffsetMagnitude;
+
+		_viewer->sceneGraph()->setMeasurementOffsetVector(_dimensionDragCandidateId, newOffset);
+	}
+	else  // AngleRadius
+	{
+		// Screen-space axis projection + world-per-pixel rescaling -
+		// identical technique to updateTransformGizmoTranslationDrag()'s
+		// single-axis translate drag: project two known points on the fixed
+		// drag axis to screen space, dot the mouse's pixel delta against
+		// that 2D direction, then rescale by (refLength / axisScreenLength)
+		// to recover a world-space distance. Extension only, along the
+		// fixed bisector - no plane/pivot freedom for the angle case.
+		const QVector3D pivotScreen3 = _dimensionDragPivot.project(viewMatrix, projMatrix, viewport);
+		const QVector3D axisEndWorld = _dimensionDragPivot + _dimensionDragAxis * _dimensionDragRefLength;
+		const QVector3D axisEndScreen3 = axisEndWorld.project(viewMatrix, projMatrix, viewport);
+
+		const QVector2D pivotScreen(pivotScreen3.x(), pivotScreen3.y());
+		const QVector2D axisScreen = QVector2D(axisEndScreen3.x(), axisEndScreen3.y()) - pivotScreen;
+		const float axisScreenLength = axisScreen.length();
+		if (axisScreenLength <= 1.0e-4f)
+			return;
+
+		const QVector2D axisScreenDir = axisScreen / axisScreenLength;
+		const QVector2D mouseDelta(static_cast<float>(pixel.x() - _dimensionDragStartPixel.x()),
+			static_cast<float>(_dimensionDragStartPixel.y() - pixel.y()));  // Y-flip, same convention as updateTransformGizmoTranslationDrag()
+		const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
+		const float worldDelta = (projectedPixels / axisScreenLength) * _dimensionDragRefLength;
+
+		const float newOffset = std::max(_dimensionDragStartOffsetScalar + worldDelta, 0.01f);
+		_viewer->sceneGraph()->setMeasurementOffsetDistance(_dimensionDragCandidateId, newOffset);
+	}
+
+	update();
+}
+
+void ViewportWidget::finishDimensionLineDrag()
+{
+	if (_dimensionDragActive && _viewer && _viewer->sceneGraph())
+	{
+		const int index = _viewer->sceneGraph()->measurementIndexById(_dimensionDragCandidateId);
+		const Measurement* mm = (index >= 0) ? &_viewer->sceneGraph()->measurements().at(index) : nullptr;
+
+		// Redundant re-apply of the same final value on redo() (it's already
+		// live from the drag) but establishes the undo edge - same "one
+		// command on release" shape as TransformCommand's gizmo-drag pattern.
+		if (_dimensionDragKind == DimensionDragKind::Linear)
+		{
+			const QVector3D finalOffset = mm ? mm->offsetVector : _dimensionDragStartOffsetVector;
+			if ((finalOffset - _dimensionDragStartOffsetVector).lengthSquared() > 1.0e-10f && _viewer->getUndoStack())
+			{
+				_viewer->getUndoStack()->push(new MeasurementOffsetVectorCommand(_viewer, this,
+					_dimensionDragCandidateId, _dimensionDragStartOffsetVector, finalOffset));
+			}
+		}
+		else if (_dimensionDragKind == DimensionDragKind::AngleRadius)
+		{
+			const float finalOffset = mm ? mm->offsetDistance : _dimensionDragStartOffsetScalar;
+			if (std::abs(finalOffset - _dimensionDragStartOffsetScalar) > 1.0e-5f && _viewer->getUndoStack())
+			{
+				_viewer->getUndoStack()->push(new MeasurementOffsetCommand(_viewer, this,
+					_dimensionDragCandidateId, _dimensionDragStartOffsetScalar, finalOffset));
+			}
+		}
+	}
+
+	_dimensionDragActive = false;
+	_dimensionDragCandidate = false;
+	_dimensionDragCandidateId = QUuid();
+	_dimensionDragKind = DimensionDragKind::None;
 }
 
 void ViewportWidget::drawMeasurementOverlay(Camera* camera)
@@ -10469,12 +11014,18 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		return;
 
 	const QVector<Measurement>& measurements = _viewer->sceneGraph()->measurements();
-	if (measurements.isEmpty() && _pendingMeasurementAnchors.isEmpty() && !_measurementHoverAnchor.isValid())
+	if (measurements.isEmpty() && _pendingMeasurementAnchors.isEmpty()
+		&& !_measurementHoverAnchor.isValid() && !_measurementEdgeHoverAnchor.isValid())
 		return;
 
 	struct LabelEntry { QVector3D worldPos; QString text; };
 	std::vector<float> lineVertices;
+	std::vector<float> triangleVertices;  // dimension-line arrowhead cones - see addCone() below
 	QVector<LabelEntry> labels;
+
+	// M_PI isn't guaranteed available (MSVC needs _USE_MATH_DEFINES before
+	// <cmath>) - same local-constant convention as MeasurementGeometry.cpp.
+	constexpr float kTwoPiLocal = 6.283185307179586f;
 
 	const QVector3D pointColor(0.15f, 0.85f, 1.0f);
 	const QVector3D distanceColor(1.0f, 0.82f, 0.15f);
@@ -10506,6 +11057,88 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			addSegment(circle[i], circle[(i + 1) % circle.size()], color);
 	};
 
+	// CAD-style dimension-line arrowhead: a solid cone with its apex at
+	// `apex`, pointing along `direction` (base sits behind the apex, at
+	// apex - direction*height). Emits triangleVertices, not lineVertices -
+	// a flat-shaded cone needs real triangles, not GL_LINES, so this is
+	// drawn in a separate pass/buffer below (see the GL_TRIANGLES block near
+	// the end of this function).
+	auto addCone = [&](const QVector3D& apex, const QVector3D& direction, float radius, float height, const QVector3D& color) {
+		const QVector3D dir = direction.normalized();
+		const QVector3D reference = (std::abs(QVector3D::dotProduct(dir, QVector3D(0.0f, 1.0f, 0.0f))) < 0.9f)
+			? QVector3D(0.0f, 1.0f, 0.0f)
+			: QVector3D(1.0f, 0.0f, 0.0f);
+		const QVector3D u = QVector3D::crossProduct(dir, reference).normalized();
+		const QVector3D v = QVector3D::crossProduct(dir, u).normalized();
+		const QVector3D base = apex - dir * height;
+
+		constexpr int coneSegments = 10;
+		auto ringPoint = [&](int i) {
+			const float theta = (kTwoPiLocal * static_cast<float>(i)) / static_cast<float>(coneSegments);
+			return base + (u * std::cos(theta) + v * std::sin(theta)) * radius;
+		};
+		auto pushTri = [&](const QVector3D& a, const QVector3D& b, const QVector3D& c) {
+			triangleVertices.insert(triangleVertices.end(), { a.x(), a.y(), a.z(), color.x(), color.y(), color.z() });
+			triangleVertices.insert(triangleVertices.end(), { b.x(), b.y(), b.z(), color.x(), color.y(), color.z() });
+			triangleVertices.insert(triangleVertices.end(), { c.x(), c.y(), c.z(), color.x(), color.y(), color.z() });
+		};
+		for (int i = 0; i < coneSegments; ++i)
+		{
+			const QVector3D b0 = ringPoint(i);
+			const QVector3D b1 = ringPoint(i + 1);
+			pushTri(apex, b0, b1);   // lateral surface
+			pushTri(base, b1, b0);   // base cap (visible when viewed from behind)
+		}
+	};
+
+	// A measured segment rendered with CAD-style arrowheads: the connecting
+	// line plus a cone at each end, tip touching the endpoint and pointing
+	// outward, base set back toward the opposite end. 1:3 radius:height
+	// ratio per CAD convention (a slender arrow, not a fat one). Capped so
+	// arrowheads on a very short dimension don't overlap each other.
+	auto addDimensionLine = [&](const QVector3D& a, const QVector3D& b, const QVector3D& color) {
+		addSegment(a, b, color);
+		const QVector3D delta = b - a;
+		const float len = delta.length();
+		if (len < 1.0e-6f)
+			return;
+		const QVector3D dirN = delta / len;
+		const float coneRadius = markerSize * 1.2f;
+		const float coneHeight = std::min(coneRadius * 3.0f, len * 0.4f);
+		addCone(a, -dirN, coneRadius, coneHeight, color);
+		addCone(b, dirN, coneRadius, coneHeight, color);
+	};
+
+	// Full CAD-style linear dimension: the dimension line itself is offset
+	// away from the actual measured points [a,b] (not coincident with them),
+	// connected back via thin extension ("witness") lines - the standard CAD
+	// drafting convention, and the reason a dimension floats clear of the
+	// part instead of embedding in/behind it. The offset vector comes from
+	// resolveDimensionOffsetVector() - the same query hitTestDimensionLine()/
+	// the drag interaction use, so rendering and interaction can never
+	// disagree about where the dimension line actually is (and, once
+	// dragged, the extension lines "pivot" to match - see
+	// Measurement::offsetVector's doc comment). Returns the offset
+	// dimension line's midpoint, for label placement.
+	auto addOffsetDimension = [&](const QVector3D& a, const QVector3D& b, const QVector3D& color, const Measurement& mm) -> QVector3D {
+		const QVector3D delta = b - a;
+		const float len = delta.length();
+		if (len < 1.0e-6f)
+		{
+			addMarker(a, color);
+			return a;
+		}
+
+		const QVector3D offsetVec = resolveDimensionOffsetVector(a, b, mm, camera);
+		const QVector3D aOff = a + offsetVec;
+		const QVector3D bOff = b + offsetVec;
+
+		addSegment(a, aOff, color);  // extension line at a
+		addSegment(b, bOff, color);  // extension line at b
+		addDimensionLine(aOff, bOff, color);
+		return (aOff + bOff) * 0.5f;
+	};
+
 	for (const Measurement& m : measurements)
 	{
 		if (!m.visible)
@@ -10525,6 +11158,16 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		const float sizeMultiplier = isSelected ? 1.5f : (isHovered ? 1.25f : 1.0f);
 		const QString summary = measurementSummaryText(m);
 
+		// Separate, stronger hover cue for the draggable dimension line/arc
+		// specifically (see mouseMoveEvent()'s _hoveredDimensionId update) -
+		// distinct from `color` above (used for markers/legs/normal-
+		// indicators, which don't change) so the exact grabbable part reads
+		// clearly, not the whole measurement.
+		const bool isDimensionHovered = !isSelected && (m.id == _hoveredDimensionId);
+		const QVector3D dimensionColor = isDimensionHovered
+			? (color * 0.4f + QVector3D(1.0f, 1.0f, 1.0f) * 0.6f)
+			: color;
+
 		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
 		{
 			const QVector3D p = resolveMeasurementAnchor(m.anchors[0]);
@@ -10535,10 +11178,10 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		{
 			const QVector3D a = resolveMeasurementAnchor(m.anchors[0]);
 			const QVector3D b = resolveMeasurementAnchor(m.anchors[1]);
-			addSegment(a, b, color);
 			addMarker(a, color, sizeMultiplier);
 			addMarker(b, color, sizeMultiplier);
-			labels.append({ (a + b) * 0.5f, summary });
+			const QVector3D labelPos = addOffsetDimension(a, b, dimensionColor, m);
+			labels.append({ labelPos, summary });
 		}
 		else if (m.type == MeasurementType::ArcRadius3Point && m.anchors.size() >= 3)
 		{
@@ -10573,6 +11216,118 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				addSegment(center, p2, color);
 				addCircleOutline(center, normal, radius, color);
 				labels.append({ center, summary });
+			}
+		}
+		else if (m.type == MeasurementType::EdgeRadius && !m.anchors.isEmpty())
+		{
+			QVector3D center, axis;
+			float radius = 0.0f;
+			if (resolveMeasurementEdgeCircle(m.anchors[0], center, axis, radius))
+			{
+				addMarker(center, color, sizeMultiplier * 0.6f);
+				addCircleOutline(center, axis, radius, color);
+				labels.append({ center, summary });
+			}
+		}
+		else if (m.type == MeasurementType::FaceToFace && m.anchors.size() >= 2)
+		{
+			QVector3D p1, n1, p2, n2;
+			if (resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) && resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
+			{
+				const float normalLen = markerSize * 3.0f;
+				addMarker(p1, color, sizeMultiplier);
+				addMarker(p2, color, sizeMultiplier);
+				addSegment(p1, p1 + n1 * normalLen, color);
+				addSegment(p2, p2 + n2 * normalLen, color);
+
+				const MeasurementGeometry::FaceToFaceResult result = MeasurementGeometry::compareFaces(p1, n1, p2, n2);
+				if (result.isParallel)
+				{
+					// Dimension line between the two (near-)parallel planes:
+					// from p1, straight along n1, to the point that's
+					// coplanar with p2 - offset + extension lines +
+					// arrowheads via addOffsetDimension().
+					const QVector3D projected = p1 + n1 * QVector3D::dotProduct(p2 - p1, n1);
+					const QVector3D labelPos = addOffsetDimension(p1, projected, dimensionColor, m);
+					labels.append({ labelPos, summary });
+				}
+				else
+				{
+					// Angular dimension: since two arbitrary faces have no
+					// natural shared vertex/edge, the angle is shown
+					// "floating" at the midpoint between the two picks -
+					// extension lines (legs) run from there along each
+					// face's normal out to an arc that sweeps the acute
+					// angle compareFaces() already reported, with an
+					// arrowhead cone at each end of the arc (tangent to it,
+					// pointing outward along the sweep) and the angle text
+					// at the arc's midpoint. Vertex/basis/angle/radius all
+					// come from resolveMeasurementAngleGeometry() - the same
+					// query hitTestDimensionLine()/the drag interaction use,
+					// so this can't disagree with either about where the
+					// arc actually is.
+					QVector3D vertex, u, v;
+					float angleRad = 0.0f;
+					float arcRadius = 0.0f;
+					if (resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, arcRadius))
+					{
+						const float legLength = arcRadius / 0.85f;
+						const QVector3D n2Effective = (QVector3D::dotProduct(n1, n2) >= 0.0f) ? n2 : -n2;
+
+						addSegment(vertex, vertex + n1 * legLength, dimensionColor);
+						addSegment(vertex, vertex + n2Effective * legLength, dimensionColor);
+
+						constexpr int arcSegments = 24;
+						QVector3D prevPoint = vertex + u * arcRadius;
+						for (int i = 1; i <= arcSegments; ++i)
+						{
+							const float t = angleRad * (static_cast<float>(i) / static_cast<float>(arcSegments));
+							const QVector3D nextPoint = vertex + (u * std::cos(t) + v * std::sin(t)) * arcRadius;
+							addSegment(prevPoint, nextPoint, dimensionColor);
+							prevPoint = nextPoint;
+						}
+
+						// Arrowheads tangent to the arc at each end, pointing
+						// outward (away from the arc's middle) - mirrors
+						// addDimensionLine()'s "tips touch the endpoints,
+						// pointing away from the middle" convention.
+						const float coneRadius = markerSize * 1.2f;
+						const float coneHeight = std::min(coneRadius * 3.0f, arcRadius * 0.3f);
+						const QVector3D startPoint = vertex + u * arcRadius;
+						const QVector3D startTangentOutward = -v;  // derivative at t=0 is +v; outward is reversed
+						addCone(startPoint, startTangentOutward, coneRadius, coneHeight, dimensionColor);
+						const QVector3D endPoint = vertex + (u * std::cos(angleRad) + v * std::sin(angleRad)) * arcRadius;
+						const QVector3D endTangentOutward = -std::sin(angleRad) * u + std::cos(angleRad) * v;  // derivative at t=angleRad
+						addCone(endPoint, endTangentOutward, coneRadius, coneHeight, dimensionColor);
+
+						const float midT = angleRad * 0.5f;
+						const QVector3D labelPos = vertex + (u * std::cos(midT) + v * std::sin(midT)) * (arcRadius * 1.15f);
+						labels.append({ labelPos, summary });
+					}
+					else
+					{
+						labels.append({ vertex, summary });
+					}
+				}
+			}
+		}
+		else if (m.type == MeasurementType::PointToFace && m.anchors.size() >= 2)
+		{
+			const QVector3D point = resolveMeasurementAnchor(m.anchors[0]);
+			QVector3D facePos, faceNormal;
+			if (resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			{
+				const float normalLen = markerSize * 3.0f;
+				addMarker(point, color, sizeMultiplier);
+				addMarker(facePos, color, sizeMultiplier);
+				addSegment(facePos, facePos + faceNormal * normalLen, color);
+
+				// Dimension line from the point straight down to its
+				// projection onto the face's plane, offset + extension
+				// lines + arrowheads via addOffsetDimension().
+				const QVector3D projected = point - faceNormal * QVector3D::dotProduct(point - facePos, faceNormal);
+				const QVector3D labelPos = addOffsetDimension(point, projected, dimensionColor, m);
+				labels.append({ labelPos, summary });
 			}
 		}
 	}
@@ -10612,6 +11367,36 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		addSegment(hp - QVector3D(0, 0, hoverMarkerSize), hp + QVector3D(0, 0, hoverMarkerSize), hoverColor);
 	}
 
+	// Live hover preview for the Edge Radius tool: the nearest circular edge
+	// under the cursor, shown as a full circle outline before the click
+	// commits - there's no single "point" to preview here, the whole edge
+	// IS the pick target (see mouseMoveEvent()'s _measurementEdgeHoverAnchor
+	// update).
+	if (_measurementEdgeHoverAnchor.isValid())
+	{
+		MeasurementAnchorRef hoverRef;
+		hoverRef.meshUuid  = _measurementEdgeHoverAnchor.meshUuid;
+		hoverRef.edgeIndex = _measurementEdgeHoverAnchor.edgeIndex;
+		QVector3D center, axis;
+		float radius = 0.0f;
+		if (resolveMeasurementEdgeCircle(hoverRef, center, axis, radius))
+		{
+			addCircleOutline(center, axis, radius, hoverSnapColor);
+			const float s = markerSize * 1.6f;
+			addSegment(center - QVector3D(s, 0, 0), center + QVector3D(s, 0, 0), hoverSnapColor);
+			addSegment(center - QVector3D(0, s, 0), center + QVector3D(0, s, 0), hoverSnapColor);
+			addSegment(center - QVector3D(0, 0, s), center + QVector3D(0, 0, s), hoverSnapColor);
+		}
+	}
+
+	// Dimension geometry (lines + arrowhead cones) must never be hidden
+	// behind shaded model surfaces - the whole point of a CAD-style
+	// dimension is that it stays legible regardless of what's in front of
+	// it at that depth. Saved/restored (not just force-disabled) so this
+	// doesn't leak into whatever renders after this function.
+	const GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+	glDisable(GL_DEPTH_TEST);
+
 	if (!lineVertices.empty())
 	{
 		// Mirrors drawBoundingBoxOverlay()'s exact upload/draw pattern.
@@ -10639,6 +11424,48 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 	}
+
+	if (!triangleVertices.empty())
+	{
+		// Dimension-line arrowhead cones - same shader/upload pattern as the
+		// line pass above, separate buffer/draw call since these are solid
+		// GL_TRIANGLES, not GL_LINES (see addCone()). Cull state is saved/
+		// restored rather than assumed, matching this file's existing
+		// convention elsewhere (e.g. drawSelectionOutline()) - addCone()'s
+		// winding isn't guaranteed consistent from every possible viewing
+		// direction, and the shader is fully unlit/flat-color regardless of
+		// facing, so there's no correctness reason to cull either face here.
+		const GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+		glDisable(GL_CULL_FACE);
+
+		_renderCtrl.initMeasurementConeGeometry(triangleVertices);
+		glBindVertexArray(_renderCtrl.measurementConeVAO());
+		glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.measurementConeVBO());
+		glBufferData(GL_ARRAY_BUFFER,
+		             static_cast<GLsizeiptr>(triangleVertices.size() * sizeof(float)),
+		             triangleVertices.data(),
+		             GL_DYNAMIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+		_renderCtrl.axisShader()->bind();
+		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", camera->getViewMatrix());
+		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
+		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(triangleVertices.size() / 6));
+		_renderCtrl.axisShader()->release();
+
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+
+		if (cullWasEnabled)
+			glEnable(GL_CULL_FACE);
+	}
+
+	if (depthWasEnabled)
+		glEnable(GL_DEPTH_TEST);
 
 	if (_axisTextRenderer)
 	{
@@ -12257,6 +13084,24 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
 			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
+			// A click directly on a dimension line's own drawn (offset)
+			// position - not just anywhere on the measurement - arms a drag
+			// candidate first, resolved in mouseMoveEvent()/mouseReleaseEvent()
+			// into either a real drag (mouse crosses the click threshold) or
+			// a plain select-click (it doesn't) - same press-vs-drag
+			// disambiguation shape as _measurementClickCandidate above, for
+			// point placement. Works even on a not-yet-selected measurement,
+			// matching how real CAD tools let you grab a dimension directly.
+			const DimensionHit hitDimension = hitTestDimensionLine(clickPoint, _primaryCamera, 8);
+			if (hitDimension.kind != DimensionDragKind::None)
+			{
+				_dimensionDragCandidate = true;
+				_dimensionDragCandidateId = hitDimension.measurementId;
+				_dimensionDragKind = hitDimension.kind;
+				_dimensionDragStartPixel = clickPoint;
+				return;
+			}
+
 			const QUuid hitMeasurement = hitTestMeasurement(clickPoint, _primaryCamera, 8);
 			setSelectedMeasurementId(hitMeasurement);
 			if (!hitMeasurement.isNull())
@@ -12350,6 +13195,30 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoRotating())
 	{
 		finishTransformGizmoRotationDrag(true);
+		update();
+		return;
+	}
+
+	if ((e->button() & Qt::LeftButton) && _dimensionDragCandidate)
+	{
+		if (_dimensionDragActive)
+		{
+			finishDimensionLineDrag();
+		}
+		else
+		{
+			// No real drag happened (mouse never crossed the threshold in
+			// mouseMoveEvent()) - treat as a plain select-click on the
+			// measurement whose dimension line was pressed, same as
+			// hitTestMeasurement()'s select branch just below handles for
+			// every other part of a measurement.
+			setSelectedMeasurementId(_dimensionDragCandidateId);
+			if (_selectionManager)
+				_selectionManager->setSelectedIds({});
+			_dimensionDragCandidate = false;
+			_dimensionDragCandidateId = QUuid();
+			_dimensionDragKind = DimensionDragKind::None;
+		}
 		update();
 		return;
 	}
@@ -12487,6 +13356,24 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 	QPoint downPoint(e->position().x(), e->position().y());
 	constexpr int kCameraDragThresholdPx = 3;
+
+	if (_dimensionDragCandidate && (e->buttons() & Qt::LeftButton))
+	{
+		if (!_dimensionDragActive)
+		{
+			const QPoint moved = e->pos() - _dimensionDragStartPixel;
+			if (moved.manhattanLength() >= kCameraDragThresholdPx)
+				beginDimensionLineDrag(_dimensionDragCandidateId, _dimensionDragKind, _primaryCamera);
+		}
+		if (_dimensionDragActive)
+		{
+			updateDimensionLineDrag(e->pos(), _primaryCamera);
+			_viewCtrl.setLastMousePos(currentPos);
+			_viewCtrl.setLastMouseTime(currentTime);
+			return;
+		}
+	}
+
 	if (_viewCtrl.transformGizmoTranslating() && (e->buttons() & Qt::LeftButton))
 	{
 		notifyRayTracedSceneMutated();
@@ -12834,7 +13721,16 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	// (drawMeasurementOverlay() renders _measurementHoverAnchor).
 	if (e->buttons() == Qt::NoButton && _measurementTool != MeasurementTool::None && _selectionManager)
 	{
-		_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+		if (_measurementTool == MeasurementTool::EdgeRadius)
+		{
+			_measurementEdgeHoverAnchor = _selectionManager->pickEdgeCircleAnchor(e->pos());
+			_measurementHoverAnchor = MeshSurfaceAnchor();
+		}
+		else
+		{
+			_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+			_measurementEdgeHoverAnchor = MeshEdgeCircleAnchor();
+		}
 	}
 	// No tool armed: preview which EXISTING measurement a click would
 	// select/delete, before the user commits to clicking - same idea as the
@@ -12846,7 +13742,17 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	else if (e->buttons() == Qt::NoButton && _measurementTool == MeasurementTool::None && !gizmoHovered
 		&& (!_viewCtrl.showViewCubeOverride() || !viewCubeScreenRect().contains(e->pos())))
 	{
-		_hoveredMeasurementId = hitTestMeasurement(e->pos(), _primaryCamera, 8);
+		// A dimension-line/arc hover is more specific than a whole-
+		// measurement hover - it's telling the user exactly what they can
+		// grab and drag (see beginDimensionLineDrag()) - so it takes
+		// priority; only fall back to the whole-measurement preview when
+		// nothing more specific is under the cursor.
+		const DimensionHit hoveredDimension = hitTestDimensionLine(e->pos(), _primaryCamera, 8);
+		_hoveredDimensionId = hoveredDimension.measurementId;
+		_hoveredDimensionKind = hoveredDimension.kind;
+		_hoveredMeasurementId = (hoveredDimension.kind != DimensionDragKind::None)
+			? QUuid()
+			: hitTestMeasurement(e->pos(), _primaryCamera, 8);
 	}
 
 	update();
@@ -16288,7 +17194,7 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
 
         // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
         if (!pm.occEdgeSegments.empty())
-            mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries);
+            mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles);
 
         const Material resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
@@ -16377,7 +17283,7 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 
     // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
     if (!pm.occEdgeSegments.empty())
-        mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries);
+        mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles);
 
     // Resolve textures and set material
     const Material resolved = resolveMaterialTextures(this, pm.material);
