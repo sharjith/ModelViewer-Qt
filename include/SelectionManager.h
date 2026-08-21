@@ -88,6 +88,19 @@ public:
     // segment buffer with no meaningful "surface" to ray-cast against.
     MeshEdgeCircleAnchor pickEdgeCircleAnchor(const QPoint& pixel, int snapPixelRadius = 8);
 
+    // Pick the nearest edge of ANY kind (Edge Length/Edge-to-Edge/Edge-to-
+    // Face/Edge-to-Vertex measurement tools) - unlike pickEdgeCircleAnchor()
+    // above, every OCC edge is a candidate here (lines/splines included,
+    // not just circles), and on a mesh with no OCC data at all (glTF/OBJ)
+    // this falls back to the heuristic feature-edge list instead
+    // (SceneMesh::getFeatureEdgeIndices()) so edge picking works on any
+    // mesh type, not just CAD ones. Reuses MeshEdgeCircleAnchor's shape
+    // (meshUuid + edgeIndex) even though nothing here is necessarily a
+    // circle - see ViewportWidget::resolveMeasurementEdgeSegment() for how
+    // edgeIndex is interpreted differently depending on which of the two
+    // edge sources the target mesh actually has.
+    MeshEdgeCircleAnchor pickStraightEdgeAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }
     int getHoveredId() const { return _hoveredMeshId; }

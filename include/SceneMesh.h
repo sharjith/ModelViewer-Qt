@@ -62,6 +62,20 @@ public:
 	// OccEdgeCircleInfo's doc comment (MeshImportAdaptor.h) for the frame it's in.
 	const std::vector<OccEdgeCircleInfo>& getOccEdgeCircles() const { return _importState.occEdgeCircles(); }
 
+	// Heuristic feature-edge list (dihedral-angle/seam-aware classifier,
+	// see buildAndUploadFeatureEdges()) - flat pairs of indices into THIS
+	// mesh's own vertex array (indices()/getTrsfPoints()), i.e. edge k runs
+	// from vertex getFeatureEdgeIndices()[2k] to [2k+1]. Populated for every
+	// mesh type (glTF/OBJ included, not just OCC-sourced ones) as part of
+	// normal mesh setup - originally only consumed for GL-context-loss
+	// recovery, now also the general-purpose (non-CAD) counterpart to
+	// getOccEdgeSegments()/getOccEdgeBoundaries() for Edge Length/Edge-to-
+	// Edge/Edge-to-Face/Edge-to-Vertex measurement picking (see
+	// ViewportWidget::resolveMeasurementEdgeSegment()). Unlike the OCC
+	// edges, there is no separate boundary/grouping table needed - each
+	// pair already IS one discrete straight edge.
+	const std::vector<uint32_t>& getFeatureEdgeIndices() const { return _featureEdgeIndices; }
+
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }
 	const MeshImportAdaptor&  importState() const { return _importState; }

@@ -10337,6 +10337,16 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			return tr("Point to Face: (face no longer available)");
 		return tr("Point to Face: %1").arg(MeasurementGeometry::pointToPlaneDistance(point, facePos, faceNormal), 0, 'f', 3);
 	}
+	case MeasurementType::EdgeLength:
+	{
+		if (m.anchors.isEmpty())
+			return QString();
+		QVector3D start, end;
+		float length = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], start, end, length))
+			return tr("Edge Length: (edge no longer available)");
+		return tr("Edge Length: %1").arg(length, 0, 'f', 3);
+	}
 	}
 	return QString();
 }
@@ -10380,6 +10390,65 @@ bool ViewportWidget::resolveMeasurementEdgeCircle(const MeasurementAnchorRef& re
 	const QVector3D rimWorld = combined.map(rimLocal);
 	outRadius = outCenter.distanceToPoint(rimWorld);
 	outAxis = combined.mapVector(axisLocal).normalized();
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementEdgeGeometry(const MeasurementAnchorRef& ref,
+	QVector3D& outStart, QVector3D& outEnd, float& outLength) const
+{
+	if (ref.edgeIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	const std::vector<int>& occBounds = mesh->getOccEdgeBoundaries();
+	if (!occBounds.empty())
+	{
+		// CAD mesh - sum the OCC edge's tessellated segment lengths (works
+		// for any curve type, no classification needed).
+		if (ref.edgeIndex + 1 >= static_cast<int>(occBounds.size()))
+			return false;
+
+		const std::vector<float>& segments = mesh->getOccEdgeSegments();
+		const int startVec3 = occBounds[ref.edgeIndex];
+		const int endVec3 = occBounds[ref.edgeIndex + 1];
+		if (startVec3 < 0 || endVec3 <= startVec3 || static_cast<size_t>(endVec3) * 3 > segments.size())
+			return false;
+
+		const QMatrix4x4 combined = mesh->combinedRenderTransform();
+		auto worldPointAt = [&](int v) -> QVector3D {
+			const size_t p = static_cast<size_t>(v) * 3;
+			return combined.map(QVector3D(segments[p], segments[p + 1], segments[p + 2]));
+		};
+
+		outStart = worldPointAt(startVec3);
+		outEnd = worldPointAt(endVec3 - 1);
+		outLength = 0.0f;
+		for (int v = startVec3; v + 1 < endVec3; v += 2)
+			outLength += worldPointAt(v).distanceToPoint(worldPointAt(v + 1));
+		return true;
+	}
+
+	// Non-CAD mesh - a single straight feature edge (see
+	// SceneMesh::getFeatureEdgeIndices()'s doc comment).
+	const std::vector<uint32_t>& featureEdges = mesh->getFeatureEdgeIndices();
+	const size_t base = static_cast<size_t>(ref.edgeIndex) * 2;
+	if (base + 1 >= featureEdges.size())
+		return false;
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto vertexPos = [&trsfPoints](uint32_t vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+
+	outStart = vertexPos(featureEdges[base]);
+	outEnd = vertexPos(featureEdges[base + 1]);
+	outLength = outStart.distanceToPoint(outEnd);
 	return true;
 }
 
@@ -10458,6 +10527,13 @@ bool ViewportWidget::resolveMeasurementDimensionSegment(const Measurement& m, QV
 		outA = p1;
 		outB = p1 + n1 * QVector3D::dotProduct(p2 - p1, n1);
 		return true;
+	}
+	case MeasurementType::EdgeLength:
+	{
+		if (m.anchors.isEmpty())
+			return false;
+		float length = 0.0f;
+		return resolveMeasurementEdgeGeometry(m.anchors[0], outA, outB, length);
 	}
 	default:
 		return false;
@@ -10546,6 +10622,14 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		const MeshEdgeCircleAnchor edgeAnchor = _selectionManager->pickEdgeCircleAnchor(clickPoint);
 		if (!edgeAnchor.isValid())
 			return;  // no circular edge under the cursor - stay armed, don't cancel the tool
+		ref.meshUuid  = edgeAnchor.meshUuid;
+		ref.edgeIndex = edgeAnchor.edgeIndex;
+	}
+	else if (_measurementTool == MeasurementTool::EdgeLength)
+	{
+		const MeshEdgeCircleAnchor edgeAnchor = _selectionManager->pickStraightEdgeAnchor(clickPoint);
+		if (!edgeAnchor.isValid())
+			return;  // no edge under the cursor - stay armed, don't cancel the tool
 		ref.meshUuid  = edgeAnchor.meshUuid;
 		ref.edgeIndex = edgeAnchor.edgeIndex;
 	}
@@ -10750,6 +10834,20 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 			if (resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
 			{
 				const float dSeg = distPointToSegment(clickPt, toScreen(point), toScreen(facePos));
+				if (dSeg < bestDist)
+				{
+					bestDist = dSeg;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::EdgeLength && !m.anchors.isEmpty())
+		{
+			QVector3D start, end;
+			float length = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], start, end, length))
+			{
+				const float dSeg = distPointToSegment(clickPt, toScreen(start), toScreen(end));
 				if (dSeg < bestDist)
 				{
 					bestDist = dSeg;
@@ -11330,6 +11428,24 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				labels.append({ labelPos, summary });
 			}
 		}
+		else if (m.type == MeasurementType::EdgeLength && !m.anchors.isEmpty())
+		{
+			QVector3D start, end;
+			float length = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], start, end, length))
+			{
+				// Same offset + extension-line + drag treatment as every
+				// other linear dimension (see addOffsetDimension()) -
+				// consistent with Distance/Point-to-Face/Face-to-Face even
+				// though the edge itself is already visible geometry, so
+				// the dimension doesn't have to sit exactly on top of the
+				// model's own edge to be measured.
+				addMarker(start, color, sizeMultiplier);
+				addMarker(end, color, sizeMultiplier);
+				const QVector3D labelPos = addOffsetDimension(start, end, dimensionColor, m);
+				labels.append({ labelPos, summary });
+			}
+		}
 	}
 
 	// In-progress measurement: N of the required anchors already picked,
@@ -11367,25 +11483,37 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		addSegment(hp - QVector3D(0, 0, hoverMarkerSize), hp + QVector3D(0, 0, hoverMarkerSize), hoverColor);
 	}
 
-	// Live hover preview for the Edge Radius tool: the nearest circular edge
-	// under the cursor, shown as a full circle outline before the click
-	// commits - there's no single "point" to preview here, the whole edge
-	// IS the pick target (see mouseMoveEvent()'s _measurementEdgeHoverAnchor
-	// update).
+	// Live hover preview for the edge-based tools: the nearest edge under
+	// the cursor, shown before the click commits - there's no single
+	// "point" to preview here, the whole edge IS the pick target (see
+	// mouseMoveEvent()'s _measurementEdgeHoverAnchor update). Edge Radius
+	// previews the resolved circle; Edge Length (and future edge tools)
+	// preview the edge's own chord as a straight line instead.
 	if (_measurementEdgeHoverAnchor.isValid())
 	{
 		MeasurementAnchorRef hoverRef;
 		hoverRef.meshUuid  = _measurementEdgeHoverAnchor.meshUuid;
 		hoverRef.edgeIndex = _measurementEdgeHoverAnchor.edgeIndex;
-		QVector3D center, axis;
-		float radius = 0.0f;
-		if (resolveMeasurementEdgeCircle(hoverRef, center, axis, radius))
+
+		if (_measurementTool == MeasurementTool::EdgeRadius)
 		{
-			addCircleOutline(center, axis, radius, hoverSnapColor);
-			const float s = markerSize * 1.6f;
-			addSegment(center - QVector3D(s, 0, 0), center + QVector3D(s, 0, 0), hoverSnapColor);
-			addSegment(center - QVector3D(0, s, 0), center + QVector3D(0, s, 0), hoverSnapColor);
-			addSegment(center - QVector3D(0, 0, s), center + QVector3D(0, 0, s), hoverSnapColor);
+			QVector3D center, axis;
+			float radius = 0.0f;
+			if (resolveMeasurementEdgeCircle(hoverRef, center, axis, radius))
+			{
+				addCircleOutline(center, axis, radius, hoverSnapColor);
+				const float s = markerSize * 1.6f;
+				addSegment(center - QVector3D(s, 0, 0), center + QVector3D(s, 0, 0), hoverSnapColor);
+				addSegment(center - QVector3D(0, s, 0), center + QVector3D(0, s, 0), hoverSnapColor);
+				addSegment(center - QVector3D(0, 0, s), center + QVector3D(0, 0, s), hoverSnapColor);
+			}
+		}
+		else
+		{
+			QVector3D start, end;
+			float length = 0.0f;
+			if (resolveMeasurementEdgeGeometry(hoverRef, start, end, length))
+				addSegment(start, end, hoverSnapColor);
 		}
 	}
 
@@ -13724,6 +13852,11 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		if (_measurementTool == MeasurementTool::EdgeRadius)
 		{
 			_measurementEdgeHoverAnchor = _selectionManager->pickEdgeCircleAnchor(e->pos());
+			_measurementHoverAnchor = MeshSurfaceAnchor();
+		}
+		else if (_measurementTool == MeasurementTool::EdgeLength)
+		{
+			_measurementEdgeHoverAnchor = _selectionManager->pickStraightEdgeAnchor(e->pos());
 			_measurementHoverAnchor = MeshSurfaceAnchor();
 		}
 		else

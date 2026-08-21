@@ -341,6 +341,18 @@ public:
 	bool resolveMeasurementEdgeCircle(const MeasurementAnchorRef& ref,
 		QVector3D& outCenter, QVector3D& outAxis, float& outRadius) const;
 
+	// Resolves a GENERAL edge anchor (see MeshEdgeCircleAnchor::edgeIndex's
+	// doc comment - any OCC edge on a CAD mesh, or a heuristic feature edge
+	// on a non-CAD one) to its chord endpoints and its true length (the sum
+	// of its tessellated segment lengths, not just the straight chord
+	// distance - works identically for a straight feature edge, a straight
+	// OCC line, or a curved OCC edge, with zero curve-type-awareness
+	// needed). Used by Edge Length directly, and by the chord endpoints for
+	// Edge-to-Edge/Edge-to-Face/Edge-to-Vertex once those exist. Returns
+	// false if the mesh no longer exists or ref isn't an edge anchor.
+	bool resolveMeasurementEdgeGeometry(const MeasurementAnchorRef& ref,
+		QVector3D& outStart, QVector3D& outEnd, float& outLength) const;
+
 	// Resolves a face-pick anchor's CURRENT position + face normal (Face to
 	// Face / Point to Face) - "face" here means the picked triangle's own
 	// plane (cross product of two of its edges), not a grouped CAD face, so
@@ -354,13 +366,18 @@ public:
 	bool resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
 		QVector3D& outPosition, QVector3D& outNormal) const;
 
-	// ---- Dimension-line drag (Distance/FaceToFace-parallel/PointToFace,
-	//      and FaceToFace's angle/arc case) -----------------------------------
+	// ---- Dimension-line drag (Distance/FaceToFace-parallel/PointToFace/
+	//      EdgeLength, and FaceToFace's angle/arc case) -----------------------
 	// The raw (un-offset) [a,b] a LINEAR dimension spans, resolved per
 	// MeasurementType the same way drawMeasurementOverlay()'s render loop
 	// does inline for each case - a small, deliberate duplication so this
 	// stays a plain query usable outside the render loop (hit-testing,
 	// dragging), rather than threading render-loop state through here.
+	// EdgeLength's [a,b] is its chord (resolveMeasurementEdgeGeometry()) -
+	// same offset/extension/drag treatment as every other linear dimension,
+	// even though the edge itself is already real, visible geometry, for
+	// consistency (and so the dimension doesn't have to compete for
+	// legibility with the model's own edges/wireframe at the same position).
 	// Returns false for types with no straight dimension line at all
 	// (Point, both arc types, EdgeRadius, and FaceToFace's non-parallel/
 	// angle case - see resolveMeasurementAngleGeometry() for that one instead).

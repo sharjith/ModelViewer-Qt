@@ -74,7 +74,8 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	for (MeasurementTool tool : { MeasurementTool::Point, MeasurementTool::Distance,
 	                               MeasurementTool::ArcRadius3Point, MeasurementTool::ArcRadiusCenterPoint,
 	                               MeasurementTool::EdgeRadius,
-	                               MeasurementTool::FaceToFace, MeasurementTool::PointToFace })
+	                               MeasurementTool::FaceToFace, MeasurementTool::PointToFace,
+	                               MeasurementTool::EdgeLength })
 	{
 		_toolCombo->addItem(measurementToolDisplayName(tool), static_cast<int>(tool));
 	}

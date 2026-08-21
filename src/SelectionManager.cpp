@@ -310,6 +310,117 @@ MeshEdgeCircleAnchor SelectionManager::pickEdgeCircleAnchor(const QPoint& pixel,
     return result;
 }
 
+MeshEdgeCircleAnchor SelectionManager::pickStraightEdgeAnchor(const QPoint& pixel, int snapPixelRadius)
+{
+    MeshEdgeCircleAnchor result;
+
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
+    if (ids.empty())
+        return result;
+
+    Camera* camera = _viewportWidget->getCameraForPoint(pixel);
+    if (!camera)
+        return result;
+
+    const QRect viewport = PickingHelper::viewportRectForPoint(
+        pixel, _viewportWidget->width(), _viewportWidget->height(), _viewportWidget->isMultiViewActive());
+    const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+    const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+
+    auto toScreen = [&](const QVector3D& worldPos) -> QVector2D {
+        const QVector3D projected = worldPos.project(viewMatrix, projMatrix, viewport);
+        return QVector2D(projected.x(), static_cast<float>(viewport.height()) - projected.y());
+    };
+    auto distPointToSegment = [](const QVector2D& p, const QVector2D& a, const QVector2D& b) -> float {
+        const QVector2D ab = b - a;
+        const float abLenSq = QVector2D::dotProduct(ab, ab);
+        float t = abLenSq > 1.0e-6f ? QVector2D::dotProduct(p - a, ab) / abLenSq : 0.0f;
+        t = std::clamp(t, 0.0f, 1.0f);
+        return (p - (a + ab * t)).length();
+    };
+
+    const QVector2D clickPt(static_cast<float>(pixel.x()), static_cast<float>(pixel.y()));
+    float bestDist = static_cast<float>(snapPixelRadius);
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+
+        const std::vector<int>& occBounds = mesh->getOccEdgeBoundaries();
+        if (!occBounds.empty())
+        {
+            // CAD mesh - every OCC edge is a candidate (not just circles,
+            // unlike pickEdgeCircleAnchor()).
+            const std::vector<float>& segments = mesh->getOccEdgeSegments();
+            if (segments.empty() || occBounds.size() < 2)
+                continue;
+
+            const QMatrix4x4 combined = mesh->combinedRenderTransform();
+            const int numEdges = static_cast<int>(occBounds.size()) - 1;
+            for (int e = 0; e < numEdges; ++e)
+            {
+                const int startVec3 = occBounds[e];
+                const int endVec3 = occBounds[e + 1];
+                // Segments are flat GL_LINES pairs - step by 2, not 1 (see
+                // OccEdgeData's doc comment).
+                for (int v = startVec3; v + 1 < endVec3; v += 2)
+                {
+                    const size_t p0 = static_cast<size_t>(v) * 3;
+                    const size_t p1 = static_cast<size_t>(v + 1) * 3;
+                    if (p1 + 2 >= segments.size())
+                        break;
+
+                    const QVector3D worldA = combined.map(QVector3D(segments[p0], segments[p0 + 1], segments[p0 + 2]));
+                    const QVector3D worldB = combined.map(QVector3D(segments[p1], segments[p1 + 1], segments[p1 + 2]));
+                    const float d = distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB));
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        result.meshUuid = mesh->uuid();
+                        result.edgeIndex = e;
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Non-CAD mesh - fall back to the heuristic feature-edge list.
+            // Each pair of indices IS one discrete straight edge already
+            // (real mesh vertices, not tessellated floats), so this is
+            // actually simpler than the OCC path above - no boundary table,
+            // no local-to-world transform needed (getTrsfPoints() is
+            // already world-space).
+            const std::vector<uint32_t>& featureEdges = mesh->getFeatureEdgeIndices();
+            if (featureEdges.empty())
+                continue;
+            const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+
+            const int numEdges = static_cast<int>(featureEdges.size()) / 2;
+            for (int e = 0; e < numEdges; ++e)
+            {
+                const size_t p0 = static_cast<size_t>(featureEdges[e * 2]) * 3;
+                const size_t p1 = static_cast<size_t>(featureEdges[e * 2 + 1]) * 3;
+                if (p0 + 2 >= trsfPoints.size() || p1 + 2 >= trsfPoints.size())
+                    continue;
+
+                const QVector3D worldA(trsfPoints[p0], trsfPoints[p0 + 1], trsfPoints[p0 + 2]);
+                const QVector3D worldB(trsfPoints[p1], trsfPoints[p1 + 1], trsfPoints[p1 + 2]);
+                const float d = distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB));
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    result.meshUuid = mesh->uuid();
+                    result.edgeIndex = e;
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
 int SelectionManager::hoverSelect(const QPoint& pixel)
 {
     int hoveredId = -1;

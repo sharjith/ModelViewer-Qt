@@ -104,6 +104,17 @@ enum class MeasurementType
     // to the face's plane. Same anchor mechanism as FaceToFace, just one
     // anchor read as a position instead of a plane.
     PointToFace,
+
+    // A single pick on any edge (see MeshEdgeCircleAnchor/
+    // pickStraightEdgeAnchor() - CAD edges of any curve type, or the
+    // heuristic feature-edge list on non-CAD meshes). Length is the sum of
+    // the edge's tessellated segment lengths within its range - this works
+    // identically for a straight feature edge (one segment) or a curved
+    // OCC edge (line/circle/spline alike) with zero curve-type-awareness
+    // needed, unlike Edge Radius which specifically needs the analytic
+    // circle. Works on any mesh - the first of the general edge-measurement
+    // tools that isn't CAD-only (see this header's top comment).
+    EdgeLength,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -120,6 +131,7 @@ enum class MeasurementTool
     EdgeRadius,
     FaceToFace,
     PointToFace,
+    EdgeLength,
 };
 
 struct Measurement
@@ -201,6 +213,7 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::EdgeRadius:           return 1;
     case MeasurementTool::FaceToFace:           return 2;
     case MeasurementTool::PointToFace:          return 2;
+    case MeasurementTool::EdgeLength:           return 1;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -220,6 +233,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::EdgeRadius:           return MeasurementType::EdgeRadius;
     case MeasurementTool::FaceToFace:           return MeasurementType::FaceToFace;
     case MeasurementTool::PointToFace:          return MeasurementType::PointToFace;
+    case MeasurementTool::EdgeLength:           return MeasurementType::EdgeLength;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -237,6 +251,7 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::EdgeRadius:           return QStringLiteral("Edge Radius (CAD only)");
     case MeasurementTool::FaceToFace:           return QStringLiteral("Face to Face");
     case MeasurementTool::PointToFace:          return QStringLiteral("Point to Face");
+    case MeasurementTool::EdgeLength:           return QStringLiteral("Edge Length");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -275,6 +290,8 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
     case MeasurementTool::PointToFace:
         return alreadyPicked == 0 ? QStringLiteral("Click a point")
                                    : QStringLiteral("Click a face");
+    case MeasurementTool::EdgeLength:
+        return QStringLiteral("Click an edge");
     case MeasurementTool::None:
         return QString();
     }
