@@ -101,6 +101,20 @@ public:
     // edge sources the target mesh actually has.
     MeshEdgeCircleAnchor pickStraightEdgeAnchor(const QPoint& pixel, int snapPixelRadius = 8);
 
+    // Pick the nearest circular B-Rep edge by its CENTER's screen position,
+    // not its rim (Center + 2-Point Arc Radius's center pick) - a
+    // through-hole's center is empty space with no geometry to ray-cast
+    // against (see MeasurementData.h's ArcRadiusCenterPoint doc comment for
+    // why that tool was boss-only up to now), so this tests proximity to
+    // each circular edge's analytic center projected to screen space
+    // directly, the same way vertex-snapping already works off a projected
+    // point rather than a ray hit. A hit here is preferred over the
+    // ordinary triangle-surface pick (see ViewportWidget::
+    // handleMeasurementClick()'s ArcRadiusCenterPoint branch) - exact beats
+    // approximate when both are available (e.g. a boss whose cap face
+    // happens to be near a hole's center too).
+    MeshEdgeCircleAnchor pickCircularEdgeCenterAnchor(const QPoint& pixel, int snapPixelRadius = 8);
+
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }
     int getHoveredId() const { return _hoveredMeshId; }

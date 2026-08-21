@@ -75,16 +75,16 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	                               MeasurementTool::ArcRadius3Point, MeasurementTool::ArcRadiusCenterPoint,
 	                               MeasurementTool::EdgeRadius,
 	                               MeasurementTool::FaceToFace, MeasurementTool::PointToFace,
-	                               MeasurementTool::EdgeLength })
+	                               MeasurementTool::EdgeLength, MeasurementTool::EdgeToVertex,
+	                               MeasurementTool::EdgeToEdge, MeasurementTool::EdgeToFace })
 	{
 		_toolCombo->addItem(measurementToolDisplayName(tool), static_cast<int>(tool));
 	}
-	// Boss-only limitation (see MeasurementData.h's ArcRadiusCenterPoint doc
-	// comment) - surfaced here so it's discoverable without reading code: a
-	// through-hole's center has no geometry to click, only a raised boss's
-	// flat cap face does.
+	// See MeasurementData.h's ArcRadiusCenterPoint doc comment - surfaced
+	// here so the remaining glTF/OBJ limitation is discoverable without
+	// reading code.
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::ArcRadiusCenterPoint)),
-		tr("Center must land on real geometry (e.g. a boss's flat cap face) - won't work for a through-hole's center, which is empty space"),
+		tr("On STEP/IGES/BREP parts, snaps to a circular edge's exact center (holes included). On glTF/OBJ meshes, the center must land on real geometry (e.g. a boss's flat cap face) - won't work for a through-hole's center, which is empty space"),
 		Qt::ToolTipRole);
 	// CAD-only (see MeasurementData.h's EdgeRadius doc comment) - glTF/OBJ
 	// meshes have no OCC edge data, so nothing is ever pickable for them.

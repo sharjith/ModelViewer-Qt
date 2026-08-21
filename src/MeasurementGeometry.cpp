@@ -113,4 +113,71 @@ float pointToPlaneDistance(const QVector3D& point, const QVector3D& planePoint, 
     return std::abs(QVector3D::dotProduct(point - planePoint, planeNormal.normalized()));
 }
 
+QVector3D closestPointOnLine(const QVector3D& point, const QVector3D& linePoint, const QVector3D& lineDir)
+{
+    const QVector3D dirN = lineDir.normalized();
+    return linePoint + dirN * QVector3D::dotProduct(point - linePoint, dirN);
+}
+
+float pointToLineDistance(const QVector3D& point, const QVector3D& linePoint, const QVector3D& lineDir)
+{
+    return point.distanceToPoint(closestPointOnLine(point, linePoint, lineDir));
+}
+
+EdgeToEdgeResult compareLines(const QVector3D& p1, const QVector3D& d1,
+    const QVector3D& p2, const QVector3D& d2, float parallelToleranceDegrees)
+{
+    EdgeToEdgeResult result;
+
+    const QVector3D d1n = d1.normalized();
+    const QVector3D d2n = d2.normalized();
+    // abs() before acos: two edges are equally "parallel" whether their
+    // picked directions point the same way or opposite ways - only the
+    // lines' relative orientation matters, same reasoning as compareFaces().
+    const float dot = std::clamp(std::abs(QVector3D::dotProduct(d1n, d2n)), 0.0f, 1.0f);
+    const float angleBetweenDirs = std::acos(dot) * kRadToDeg;  // already in [0, 90]
+
+    if (angleBetweenDirs < parallelToleranceDegrees)
+    {
+        result.isParallel = true;
+        result.distance = pointToLineDistance(p2, p1, d1n);
+    }
+    else
+    {
+        result.isParallel = false;
+        result.angleDegrees = angleBetweenDirs;
+    }
+    return result;
+}
+
+EdgeToFaceResult compareEdgeToFace(const QVector3D& edgePoint, const QVector3D& edgeDir,
+    const QVector3D& facePoint, const QVector3D& faceNormal, float parallelToleranceDegrees)
+{
+    EdgeToFaceResult result;
+
+    const QVector3D dN = edgeDir.normalized();
+    const QVector3D nN = faceNormal.normalized();
+    // dot = cos(angle between the edge direction and the face NORMAL).
+    // The angle between the edge and the face PLANE is the complement of
+    // that: 90 - acos(dot) degrees, which is the same as asin(dot) degrees
+    // (acos(x) + asin(x) == 90 degrees for x in [0,1]) - 0 when the edge is
+    // perpendicular to the normal (lying flat against/parallel to the
+    // plane), 90 when the edge IS the normal direction (perpendicular to
+    // the plane).
+    const float dot = std::clamp(std::abs(QVector3D::dotProduct(dN, nN)), 0.0f, 1.0f);
+    const float angleToPlaneDeg = std::asin(dot) * kRadToDeg;
+
+    if (angleToPlaneDeg < parallelToleranceDegrees)
+    {
+        result.isParallel = true;
+        result.distance = pointToPlaneDistance(edgePoint, facePoint, nN);
+    }
+    else
+    {
+        result.isParallel = false;
+        result.angleDegrees = angleToPlaneDeg;
+    }
+    return result;
+}
+
 }

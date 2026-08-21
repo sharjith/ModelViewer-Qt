@@ -71,15 +71,15 @@ enum class MeasurementType
     Distance,
     ArcRadius3Point,        // 3 points on the arc; radius/center via circumcircle fit
     // Center point, then 2 points on the arc; radius = avg(center-to-point
-    // distance). Boss-only for now: the center pick goes through the same
-    // pickSurfaceAnchor() ray-triangle test as every other anchor, which
-    // requires an actual triangle under the cursor - fine for a raised boss
-    // (its flat cap face IS geometry at the center), but a through-hole's
-    // center is empty space with nothing to hit. Fixing that for holes needs
-    // an analytic center from real BRep topology (TopoDS_Edge circle
-    // Location()), which is the same STEP/IGES/BREP-only topology-extraction
-    // work already deferred for Face/Edge/Edge-radius measurements - see this
-    // header's top comment. Revisit once that infra exists.
+    // distance). The center pick prefers snapping to a nearby circular
+    // B-Rep edge's exact analytic center (see
+    // SelectionManager::pickCircularEdgeCenterAnchor() and
+    // ViewportWidget::resolveMeasurementAnchor()'s edgeIndex handling) -
+    // works correctly for a through-hole this way, not just a boss, on
+    // STEP/IGES/BREP parts. Falls back to the ordinary pickSurfaceAnchor()
+    // ray-triangle test (requiring an actual triangle under the cursor) if
+    // no circular edge center is nearby - still boss-only on glTF/OBJ
+    // meshes, which have no B-Rep topology to detect a center from at all.
     ArcRadiusCenterPoint,
 
     // A single pick directly on a circular B-Rep edge (see
@@ -115,6 +115,34 @@ enum class MeasurementType
     // circle. Works on any mesh - the first of the general edge-measurement
     // tools that isn't CAD-only (see this header's top comment).
     EdgeLength,
+
+    // An edge-pick and a point-pick - perpendicular distance from the point
+    // to the edge's INFINITE line (not clamped to the finite chord), same
+    // "infinite, not clamped" convention PointToFace already uses for a
+    // face's plane. anchors[0] is the edge, anchors[1] is the point -
+    // reading order matches the tool's name.
+    EdgeToVertex,
+
+    // Two edge-picks - if the two edges' directions are near-parallel,
+    // reports the perpendicular distance between their (infinite) lines;
+    // otherwise the acute angle (0-90) between them - same distance/angle
+    // split as FaceToFace, applied to lines instead of planes. The angle
+    // case (including skew, non-intersecting edges - the common case in
+    // 3D) reports only the angle, same as FaceToFace's non-parallel case
+    // not also attempting a distance figure. anchors[0]/[1] are the two
+    // edges, in pick order.
+    EdgeToEdge,
+
+    // An edge-pick and a face-pick - if the edge's direction is near-
+    // perpendicular to the face's normal (i.e. the edge lies within a
+    // plane parallel to the face), reports the perpendicular distance from
+    // the edge to the face's plane; otherwise the angle (0-90) between the
+    // edge and the face. Note the "parallel" test here is the OPPOSITE
+    // alignment check from FaceToFace/EdgeToEdge (which test near-zero
+    // angle between two normals/directions of the same kind) - see
+    // MeasurementGeometry::compareEdgeToFace()'s doc comment. anchors[0]
+    // is the edge, anchors[1] is the face.
+    EdgeToFace,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -132,6 +160,9 @@ enum class MeasurementTool
     FaceToFace,
     PointToFace,
     EdgeLength,
+    EdgeToVertex,
+    EdgeToEdge,
+    EdgeToFace,
 };
 
 struct Measurement
@@ -214,6 +245,9 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::FaceToFace:           return 2;
     case MeasurementTool::PointToFace:          return 2;
     case MeasurementTool::EdgeLength:           return 1;
+    case MeasurementTool::EdgeToVertex:         return 2;
+    case MeasurementTool::EdgeToEdge:           return 2;
+    case MeasurementTool::EdgeToFace:           return 2;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -234,6 +268,9 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::FaceToFace:           return MeasurementType::FaceToFace;
     case MeasurementTool::PointToFace:          return MeasurementType::PointToFace;
     case MeasurementTool::EdgeLength:           return MeasurementType::EdgeLength;
+    case MeasurementTool::EdgeToVertex:         return MeasurementType::EdgeToVertex;
+    case MeasurementTool::EdgeToEdge:           return MeasurementType::EdgeToEdge;
+    case MeasurementTool::EdgeToFace:           return MeasurementType::EdgeToFace;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -252,6 +289,9 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::FaceToFace:           return QStringLiteral("Face to Face");
     case MeasurementTool::PointToFace:          return QStringLiteral("Point to Face");
     case MeasurementTool::EdgeLength:           return QStringLiteral("Edge Length");
+    case MeasurementTool::EdgeToVertex:         return QStringLiteral("Edge to Vertex");
+    case MeasurementTool::EdgeToEdge:           return QStringLiteral("Edge to Edge");
+    case MeasurementTool::EdgeToFace:           return QStringLiteral("Edge to Face");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -292,6 +332,15 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
                                    : QStringLiteral("Click a face");
     case MeasurementTool::EdgeLength:
         return QStringLiteral("Click an edge");
+    case MeasurementTool::EdgeToVertex:
+        return alreadyPicked == 0 ? QStringLiteral("Click an edge")
+                                   : QStringLiteral("Click a vertex or point");
+    case MeasurementTool::EdgeToEdge:
+        return alreadyPicked == 0 ? QStringLiteral("Click the 1st edge")
+                                   : QStringLiteral("Click the 2nd edge");
+    case MeasurementTool::EdgeToFace:
+        return alreadyPicked == 0 ? QStringLiteral("Click an edge")
+                                   : QStringLiteral("Click a face");
     case MeasurementTool::None:
         return QString();
     }

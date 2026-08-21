@@ -10228,6 +10228,26 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 
 QVector3D ViewportWidget::resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const
 {
+	if (ref.edgeIndex >= 0)
+	{
+		// A circular-edge-derived point anchor - e.g. Center + 2-Point Arc
+		// Radius's center pick, snapped to a nearby circular OCC edge's
+		// exact analytic center instead of requiring a literal surface hit
+		// at that position (a through-hole's center is empty space - see
+		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment).
+		// Falls through to the ordinary triangle/vertex resolution below if
+		// this isn't actually a circle (shouldn't happen in practice, since
+		// only pickCircularEdgeCenterAnchor() ever produces this kind of
+		// anchor, but a saved measurement could in principle outlive a mesh
+		// reload that changes topology) - that path correctly returns a
+		// null QVector3D since triangleIndex/snappedVertexIndex are also
+		// unset for a pure edge anchor.
+		QVector3D center, axis;
+		float radius = 0.0f;
+		if (resolveMeasurementEdgeCircle(ref, center, axis, radius))
+			return center;
+	}
+
 	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
 	if (!mesh)
 		return QVector3D();
@@ -10346,6 +10366,50 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 		if (!resolveMeasurementEdgeGeometry(m.anchors[0], start, end, length))
 			return tr("Edge Length: (edge no longer available)");
 		return tr("Edge Length: %1").arg(length, 0, 'f', 3);
+	}
+	case MeasurementType::EdgeToVertex:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		QVector3D edgeStart, edgeEnd;
+		float edgeLength = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			return tr("Edge to Vertex: (edge no longer available)");
+		const QVector3D point = resolveMeasurementAnchor(m.anchors[1]);
+		return tr("Edge to Vertex: %1").arg(
+			MeasurementGeometry::pointToLineDistance(point, edgeStart, edgeEnd - edgeStart), 0, 'f', 3);
+	}
+	case MeasurementType::EdgeToEdge:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		QVector3D start1, end1, start2, end2;
+		float len1 = 0.0f, len2 = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], start1, end1, len1)
+			|| !resolveMeasurementEdgeGeometry(m.anchors[1], start2, end2, len2))
+			return tr("Edge to Edge: (edge no longer available)");
+		const MeasurementGeometry::EdgeToEdgeResult result =
+			MeasurementGeometry::compareLines(start1, end1 - start1, start2, end2 - start2);
+		return result.isParallel
+			? tr("Edge to Edge: %1").arg(result.distance, 0, 'f', 3)
+			: tr("Edge to Edge: %1°").arg(result.angleDegrees, 0, 'f', 2);
+	}
+	case MeasurementType::EdgeToFace:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		QVector3D edgeStart, edgeEnd;
+		float edgeLength = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			return tr("Edge to Face: (edge no longer available)");
+		QVector3D facePos, faceNormal;
+		if (!resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			return tr("Edge to Face: (face no longer available)");
+		const MeasurementGeometry::EdgeToFaceResult result =
+			MeasurementGeometry::compareEdgeToFace(edgeStart, edgeEnd - edgeStart, facePos, faceNormal);
+		return result.isParallel
+			? tr("Edge to Face: %1").arg(result.distance, 0, 'f', 3)
+			: tr("Edge to Face: %1°").arg(result.angleDegrees, 0, 'f', 2);
 	}
 	}
 	return QString();
@@ -10535,6 +10599,54 @@ bool ViewportWidget::resolveMeasurementDimensionSegment(const Measurement& m, QV
 		float length = 0.0f;
 		return resolveMeasurementEdgeGeometry(m.anchors[0], outA, outB, length);
 	}
+	case MeasurementType::EdgeToVertex:
+	{
+		if (m.anchors.size() < 2)
+			return false;
+		QVector3D edgeStart, edgeEnd;
+		float edgeLength = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			return false;
+		outA = resolveMeasurementAnchor(m.anchors[1]);
+		outB = MeasurementGeometry::closestPointOnLine(outA, edgeStart, edgeEnd - edgeStart);
+		return true;
+	}
+	case MeasurementType::EdgeToEdge:
+	{
+		if (m.anchors.size() < 2)
+			return false;
+		QVector3D start1, end1, start2, end2;
+		float len1 = 0.0f, len2 = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], start1, end1, len1)
+			|| !resolveMeasurementEdgeGeometry(m.anchors[1], start2, end2, len2))
+			return false;
+		const MeasurementGeometry::EdgeToEdgeResult result =
+			MeasurementGeometry::compareLines(start1, end1 - start1, start2, end2 - start2);
+		if (!result.isParallel)
+			return false;  // angle case has legs+arc instead, not a straight dimension line to drag
+		outA = start1;
+		outB = MeasurementGeometry::closestPointOnLine(start1, start2, end2 - start2);
+		return true;
+	}
+	case MeasurementType::EdgeToFace:
+	{
+		if (m.anchors.size() < 2)
+			return false;
+		QVector3D edgeStart, edgeEnd;
+		float edgeLength = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			return false;
+		QVector3D facePos, faceNormal;
+		if (!resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			return false;
+		const MeasurementGeometry::EdgeToFaceResult result =
+			MeasurementGeometry::compareEdgeToFace(edgeStart, edgeEnd - edgeStart, facePos, faceNormal);
+		if (!result.isParallel)
+			return false;  // angle case has legs+arc instead, not a straight dimension line to drag
+		outA = edgeStart;
+		outB = edgeStart - faceNormal.normalized() * QVector3D::dotProduct(edgeStart - facePos, faceNormal.normalized());
+		return true;
+	}
 	default:
 		return false;
 	}
@@ -10574,37 +10686,100 @@ QVector3D ViewportWidget::resolveDimensionOffsetVector(const QVector3D& a, const
 bool ViewportWidget::resolveMeasurementAngleGeometry(const Measurement& m, Camera* camera, QVector3D& outVertex,
 	QVector3D& outU, QVector3D& outV, float& outAngleRad, float& outRadius) const
 {
-	if (m.type != MeasurementType::FaceToFace || m.anchors.size() < 2)
+	if (m.anchors.size() < 2)
 		return false;
 
-	QVector3D p1, n1, p2, n2;
-	if (!resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) || !resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
-		return false;
-
-	const MeasurementGeometry::FaceToFaceResult result = MeasurementGeometry::compareFaces(p1, n1, p2, n2);
-	if (result.isParallel)
-		return false;  // parallel case has a straight dimension line instead - see resolveMeasurementDimensionSegment()
-
-	outVertex = (p1 + p2) * 0.5f;
-	const QVector3D n2Effective = (QVector3D::dotProduct(n1, n2) >= 0.0f) ? n2 : -n2;
-	outU = n1;
-	QVector3D v = n2Effective - outU * QVector3D::dotProduct(n2Effective, outU);
-	if (v.lengthSquared() < 1.0e-8f)
-		return false;  // degenerate - shouldn't happen given compareFaces() already ruled out parallel
-	outV = v.normalized();
-	outAngleRad = result.angleDegrees * 0.017453292519943295f;  // deg -> rad, same constant as kDegToRadLocal
+	// deg -> rad, same constant used throughout this file (kDegToRadLocal).
+	constexpr float kDegToRad = 0.017453292519943295f;
+	const float markerSize = camera ? std::max(camera->getViewRange(), 0.0001f) * 0.01f : 0.01f;
 
 	// outRadius is the ARC's radius specifically (what hit-testing/dragging
 	// treat as "the" draggable value) - the legs themselves extend a bit
 	// further out than the arc (see drawMeasurementOverlay()'s
 	// legLength = outRadius / 0.85f), matching the original fixed 85%
 	// arc-inset-from-leg-tip look, now expressed the other way around so a
-	// dragged value means exactly what the user grabbed (the arc).
-	const float markerSize = camera ? std::max(camera->getViewRange(), 0.0001f) * 0.01f : 0.01f;
-	const float defaultLegLength = std::max((p1 - p2).length() * 0.5f, markerSize * 4.0f);
-	const float defaultRadius = defaultLegLength * 0.85f;
-	outRadius = (m.offsetDistance >= 0.0f) ? m.offsetDistance : defaultRadius;
-	return true;
+	// dragged value means exactly what the user grabbed (the arc). Shared by
+	// all three cases below.
+	auto finishBasis = [&](const QVector3D& u, const QVector3D& secondDir, float angleDegrees,
+		float defaultLegLength) -> bool
+	{
+		outU = u;
+		QVector3D v = secondDir - u * QVector3D::dotProduct(secondDir, u);
+		if (v.lengthSquared() < 1.0e-8f)
+			return false;  // degenerate - shouldn't happen given the parallel case was already ruled out
+		outV = v.normalized();
+		outAngleRad = angleDegrees * kDegToRad;
+		const float defaultRadius = std::max(defaultLegLength, markerSize * 4.0f) * 0.85f;
+		outRadius = (m.offsetDistance >= 0.0f) ? m.offsetDistance : defaultRadius;
+		return true;
+	};
+
+	switch (m.type)
+	{
+	case MeasurementType::FaceToFace:
+	{
+		QVector3D p1, n1, p2, n2;
+		if (!resolveMeasurementAnchorPlane(m.anchors[0], p1, n1) || !resolveMeasurementAnchorPlane(m.anchors[1], p2, n2))
+			return false;
+		const MeasurementGeometry::FaceToFaceResult result = MeasurementGeometry::compareFaces(p1, n1, p2, n2);
+		if (result.isParallel)
+			return false;  // parallel case has a straight dimension line instead - see resolveMeasurementDimensionSegment()
+
+		outVertex = (p1 + p2) * 0.5f;
+		const QVector3D n2Effective = (QVector3D::dotProduct(n1, n2) >= 0.0f) ? n2 : -n2;
+		return finishBasis(n1, n2Effective, result.angleDegrees, (p1 - p2).length() * 0.5f);
+	}
+	case MeasurementType::EdgeToEdge:
+	{
+		QVector3D start1, end1, start2, end2;
+		float len1 = 0.0f, len2 = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], start1, end1, len1)
+			|| !resolveMeasurementEdgeGeometry(m.anchors[1], start2, end2, len2))
+			return false;
+		const QVector3D d1 = end1 - start1;
+		const QVector3D d2 = end2 - start2;
+		const MeasurementGeometry::EdgeToEdgeResult result = MeasurementGeometry::compareLines(start1, d1, start2, d2);
+		if (result.isParallel)
+			return false;  // parallel case has a straight dimension line instead - see resolveMeasurementDimensionSegment()
+
+		outVertex = ((start1 + end1) * 0.5f + (start2 + end2) * 0.5f) * 0.5f;
+		const QVector3D d1n = d1.normalized();
+		const QVector3D d2nRaw = d2.normalized();
+		const QVector3D d2n = (QVector3D::dotProduct(d1n, d2nRaw) >= 0.0f) ? d2nRaw : -d2nRaw;
+		return finishBasis(d1n, d2n, result.angleDegrees, std::max(len1, len2) * 0.5f);
+	}
+	case MeasurementType::EdgeToFace:
+	{
+		QVector3D edgeStart, edgeEnd;
+		float edgeLength = 0.0f;
+		if (!resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			return false;
+		QVector3D facePos, faceNormal;
+		if (!resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+			return false;
+		const QVector3D edgeDir = edgeEnd - edgeStart;
+		const MeasurementGeometry::EdgeToFaceResult result =
+			MeasurementGeometry::compareEdgeToFace(edgeStart, edgeDir, facePos, faceNormal);
+		if (result.isParallel)
+			return false;  // parallel case has a straight dimension line instead - see resolveMeasurementDimensionSegment()
+
+		// Grounded at the edge's own start point (a real point, unlike
+		// FaceToFace/EdgeToEdge's "floating midpoint") - one leg along the
+		// edge itself, the other along the edge's own projection onto the
+		// face's plane, sweeping the angle between them.
+		const QVector3D dN = edgeDir.normalized();
+		const QVector3D nN = faceNormal.normalized();
+		QVector3D projectedDir = dN - nN * QVector3D::dotProduct(dN, nN);
+		if (projectedDir.lengthSquared() < 1.0e-8f)
+			return false;
+		projectedDir.normalize();
+
+		outVertex = edgeStart;
+		return finishBasis(dN, projectedDir, result.angleDegrees, edgeLength * 0.5f);
+	}
+	default:
+		return false;
+	}
 }
 
 void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
@@ -10625,13 +10800,49 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		ref.meshUuid  = edgeAnchor.meshUuid;
 		ref.edgeIndex = edgeAnchor.edgeIndex;
 	}
-	else if (_measurementTool == MeasurementTool::EdgeLength)
+	else if (_measurementTool == MeasurementTool::EdgeLength
+		|| _measurementTool == MeasurementTool::EdgeToEdge
+		|| (_measurementTool == MeasurementTool::EdgeToVertex && _pendingMeasurementAnchors.isEmpty())
+		|| (_measurementTool == MeasurementTool::EdgeToFace && _pendingMeasurementAnchors.isEmpty()))
 	{
+		// EdgeLength and EdgeToEdge always pick an edge (both anchors, for
+		// EdgeToEdge); EdgeToVertex/EdgeToFace only pick one for their FIRST
+		// anchor - the second (a vertex/point or a face) falls through to
+		// the normal pickSurfaceAnchor branch below, same as every other
+		// point/face pick.
 		const MeshEdgeCircleAnchor edgeAnchor = _selectionManager->pickStraightEdgeAnchor(clickPoint);
 		if (!edgeAnchor.isValid())
 			return;  // no edge under the cursor - stay armed, don't cancel the tool
 		ref.meshUuid  = edgeAnchor.meshUuid;
 		ref.edgeIndex = edgeAnchor.edgeIndex;
+	}
+	else if (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && _pendingMeasurementAnchors.isEmpty())
+	{
+		// The center pick specifically: prefer snapping to a nearby
+		// circular B-Rep edge's exact analytic center (see
+		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment -
+		// this is what makes the tool work correctly for a through-hole,
+		// not just a boss). Falls back to the ordinary triangle-surface
+		// pick if no circular edge center is nearby, preserving the
+		// original boss-only behavior for glTF/OBJ meshes and for CAD parts
+		// with no circular edge at this position.
+		const MeshEdgeCircleAnchor centerAnchor = _selectionManager->pickCircularEdgeCenterAnchor(clickPoint);
+		if (centerAnchor.isValid())
+		{
+			ref.meshUuid  = centerAnchor.meshUuid;
+			ref.edgeIndex = centerAnchor.edgeIndex;
+		}
+		else
+		{
+			const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
+			if (!anchor.isValid())
+				return;  // clicked empty space - stay armed, don't cancel the tool
+
+			ref.meshUuid           = anchor.meshUuid;
+			ref.triangleIndex      = anchor.triangleIndex;
+			ref.barycentric        = anchor.barycentric;
+			ref.snappedVertexIndex = anchor.snappedVertexIndex;
+		}
 	}
 	else
 	{
@@ -10852,6 +11063,60 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 				{
 					bestDist = dSeg;
 					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::EdgeToVertex && m.anchors.size() >= 2)
+		{
+			QVector3D edgeStart, edgeEnd;
+			float edgeLength = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			{
+				const QVector3D point = resolveMeasurementAnchor(m.anchors[1]);
+				const float dEdge = distPointToSegment(clickPt, toScreen(edgeStart), toScreen(edgeEnd));
+				const float dPoint = (clickPt - toScreen(point)).length();
+				const float dBest = std::min(dEdge, dPoint);
+				if (dBest < bestDist)
+				{
+					bestDist = dBest;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::EdgeToEdge && m.anchors.size() >= 2)
+		{
+			QVector3D start1, end1, start2, end2;
+			float len1 = 0.0f, len2 = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], start1, end1, len1)
+				&& resolveMeasurementEdgeGeometry(m.anchors[1], start2, end2, len2))
+			{
+				const float d1 = distPointToSegment(clickPt, toScreen(start1), toScreen(end1));
+				const float d2 = distPointToSegment(clickPt, toScreen(start2), toScreen(end2));
+				const float dBest = std::min(d1, d2);
+				if (dBest < bestDist)
+				{
+					bestDist = dBest;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::EdgeToFace && m.anchors.size() >= 2)
+		{
+			QVector3D edgeStart, edgeEnd;
+			float edgeLength = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			{
+				QVector3D facePos, faceNormal;
+				if (resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+				{
+					const float dEdge = distPointToSegment(clickPt, toScreen(edgeStart), toScreen(edgeEnd));
+					const float dFace = (clickPt - toScreen(facePos)).length();
+					const float dBest = std::min(dEdge, dFace);
+					if (dBest < bestDist)
+					{
+						bestDist = dBest;
+						bestId = m.id;
+					}
 				}
 			}
 		}
@@ -11237,6 +11502,50 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		return (aOff + bOff) * 0.5f;
 	};
 
+	// The floating-vertex angular dimension's full visual: two legs from
+	// `vertex` (one along `u`, the other along whatever direction is
+	// exactly `angleRad` around from `u` toward `v` - by construction that's
+	// the original second direction the angle was measured against, so it
+	// doesn't need to be passed in separately), a swept arc at `radius`
+	// between them, tangent arrowhead cones at each end, and the angle text
+	// at the arc's midpoint. Shared by every measurement type whose non-
+	// parallel case renders this way (FaceToFace, EdgeToEdge, EdgeToFace) -
+	// geometry comes from resolveMeasurementAngleGeometry(), the same query
+	// hitTestDimensionLine()/the drag interaction use, so none of them can
+	// ever disagree about where the arc actually is. Returns the label
+	// position.
+	auto addAngleArc = [&](const QVector3D& vertex, const QVector3D& u, const QVector3D& v,
+		float angleRad, float radius, const QVector3D& color) -> QVector3D {
+		const float legLength = radius / 0.85f;
+		const QVector3D secondDir = u * std::cos(angleRad) + v * std::sin(angleRad);
+		addSegment(vertex, vertex + u * legLength, color);
+		addSegment(vertex, vertex + secondDir * legLength, color);
+
+		constexpr int arcSegments = 24;
+		QVector3D prevPoint = vertex + u * radius;
+		for (int i = 1; i <= arcSegments; ++i)
+		{
+			const float t = angleRad * (static_cast<float>(i) / static_cast<float>(arcSegments));
+			const QVector3D nextPoint = vertex + (u * std::cos(t) + v * std::sin(t)) * radius;
+			addSegment(prevPoint, nextPoint, color);
+			prevPoint = nextPoint;
+		}
+
+		// Arrowheads tangent to the arc at each end, pointing outward (away
+		// from the arc's middle) - mirrors addDimensionLine()'s "tips touch
+		// the endpoints, pointing away from the middle" convention.
+		const float coneRadius = markerSize * 1.2f;
+		const float coneHeight = std::min(coneRadius * 3.0f, radius * 0.3f);
+		const QVector3D startPoint = vertex + u * radius;
+		addCone(startPoint, -v, coneRadius, coneHeight, color);  // derivative at t=0 is +v; outward is reversed
+		const QVector3D endPoint = vertex + secondDir * radius;
+		const QVector3D endTangentOutward = -std::sin(angleRad) * u + std::cos(angleRad) * v;  // derivative at t=angleRad
+		addCone(endPoint, endTangentOutward, coneRadius, coneHeight, color);
+
+		const float midT = angleRad * 0.5f;
+		return vertex + (u * std::cos(midT) + v * std::sin(midT)) * (radius * 1.15f);
+	};
+
 	for (const Measurement& m : measurements)
 	{
 		if (!m.visible)
@@ -11353,58 +11662,19 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				{
 					// Angular dimension: since two arbitrary faces have no
 					// natural shared vertex/edge, the angle is shown
-					// "floating" at the midpoint between the two picks -
-					// extension lines (legs) run from there along each
-					// face's normal out to an arc that sweeps the acute
-					// angle compareFaces() already reported, with an
-					// arrowhead cone at each end of the arc (tangent to it,
-					// pointing outward along the sweep) and the angle text
-					// at the arc's midpoint. Vertex/basis/angle/radius all
-					// come from resolveMeasurementAngleGeometry() - the same
-					// query hitTestDimensionLine()/the drag interaction use,
-					// so this can't disagree with either about where the
-					// arc actually is.
+					// "floating" at the midpoint between the two picks.
+					// Vertex/basis/angle/radius all come from
+					// resolveMeasurementAngleGeometry() - the same query
+					// hitTestDimensionLine()/the drag interaction use, so
+					// this can't disagree with either about where the arc
+					// actually is.
 					QVector3D vertex, u, v;
 					float angleRad = 0.0f;
 					float arcRadius = 0.0f;
 					if (resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, arcRadius))
 					{
-						const float legLength = arcRadius / 0.85f;
-						const QVector3D n2Effective = (QVector3D::dotProduct(n1, n2) >= 0.0f) ? n2 : -n2;
-
-						addSegment(vertex, vertex + n1 * legLength, dimensionColor);
-						addSegment(vertex, vertex + n2Effective * legLength, dimensionColor);
-
-						constexpr int arcSegments = 24;
-						QVector3D prevPoint = vertex + u * arcRadius;
-						for (int i = 1; i <= arcSegments; ++i)
-						{
-							const float t = angleRad * (static_cast<float>(i) / static_cast<float>(arcSegments));
-							const QVector3D nextPoint = vertex + (u * std::cos(t) + v * std::sin(t)) * arcRadius;
-							addSegment(prevPoint, nextPoint, dimensionColor);
-							prevPoint = nextPoint;
-						}
-
-						// Arrowheads tangent to the arc at each end, pointing
-						// outward (away from the arc's middle) - mirrors
-						// addDimensionLine()'s "tips touch the endpoints,
-						// pointing away from the middle" convention.
-						const float coneRadius = markerSize * 1.2f;
-						const float coneHeight = std::min(coneRadius * 3.0f, arcRadius * 0.3f);
-						const QVector3D startPoint = vertex + u * arcRadius;
-						const QVector3D startTangentOutward = -v;  // derivative at t=0 is +v; outward is reversed
-						addCone(startPoint, startTangentOutward, coneRadius, coneHeight, dimensionColor);
-						const QVector3D endPoint = vertex + (u * std::cos(angleRad) + v * std::sin(angleRad)) * arcRadius;
-						const QVector3D endTangentOutward = -std::sin(angleRad) * u + std::cos(angleRad) * v;  // derivative at t=angleRad
-						addCone(endPoint, endTangentOutward, coneRadius, coneHeight, dimensionColor);
-
-						const float midT = angleRad * 0.5f;
-						const QVector3D labelPos = vertex + (u * std::cos(midT) + v * std::sin(midT)) * (arcRadius * 1.15f);
+						const QVector3D labelPos = addAngleArc(vertex, u, v, angleRad, arcRadius, dimensionColor);
 						labels.append({ labelPos, summary });
-					}
-					else
-					{
-						labels.append({ vertex, summary });
 					}
 				}
 			}
@@ -11444,6 +11714,134 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				addMarker(end, color, sizeMultiplier);
 				const QVector3D labelPos = addOffsetDimension(start, end, dimensionColor, m);
 				labels.append({ labelPos, summary });
+			}
+		}
+		else if (m.type == MeasurementType::EdgeToVertex && m.anchors.size() >= 2)
+		{
+			QVector3D edgeStart, edgeEnd;
+			float edgeLength = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			{
+				const QVector3D point = resolveMeasurementAnchor(m.anchors[1]);
+				const QVector3D projected = MeasurementGeometry::closestPointOnLine(point, edgeStart, edgeEnd - edgeStart);
+
+				// The edge itself, highlighted as reference context (not
+				// draggable - only the point-to-edge dimension line is).
+				addSegment(edgeStart, edgeEnd, color);
+				addMarker(edgeStart, color, sizeMultiplier);
+				addMarker(edgeEnd, color, sizeMultiplier);
+				addMarker(point, color, sizeMultiplier);
+
+				// Dimension line from the point to its perpendicular foot on
+				// the edge's infinite line, offset + extension lines +
+				// arrowheads via addOffsetDimension().
+				const QVector3D labelPos = addOffsetDimension(point, projected, dimensionColor, m);
+				labels.append({ labelPos, summary });
+			}
+		}
+		else if (m.type == MeasurementType::EdgeToEdge && m.anchors.size() >= 2)
+		{
+			QVector3D start1, end1, start2, end2;
+			float len1 = 0.0f, len2 = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], start1, end1, len1)
+				&& resolveMeasurementEdgeGeometry(m.anchors[1], start2, end2, len2))
+			{
+				// Both edges, highlighted as reference context (not
+				// draggable themselves - only the resulting dimension is).
+				addSegment(start1, end1, color);
+				addSegment(start2, end2, color);
+				addMarker(start1, color, sizeMultiplier);
+				addMarker(end1, color, sizeMultiplier);
+				addMarker(start2, color, sizeMultiplier);
+				addMarker(end2, color, sizeMultiplier);
+
+				const QVector3D d1 = end1 - start1;
+				const QVector3D d2 = end2 - start2;
+				const MeasurementGeometry::EdgeToEdgeResult result =
+					MeasurementGeometry::compareLines(start1, d1, start2, d2);
+
+				if (result.isParallel)
+				{
+					// Dimension line from a point on edge1 to its
+					// projection onto edge2's infinite line - offset +
+					// extension lines + arrowheads via addOffsetDimension().
+					const QVector3D projected = MeasurementGeometry::closestPointOnLine(start1, start2, d2);
+					const QVector3D labelPos = addOffsetDimension(start1, projected, dimensionColor, m);
+					labels.append({ labelPos, summary });
+				}
+				else
+				{
+					// Angular dimension - same visual language as Face to
+					// Face's angle case (floating vertex + legs + arc +
+					// tangent arrowheads), now drag-adjustable the same way
+					// too. Vertex/basis/angle/radius all come from
+					// resolveMeasurementAngleGeometry() - the same query
+					// hitTestDimensionLine()/the drag interaction use.
+					QVector3D vertex, u, v;
+					float angleRad = 0.0f;
+					float arcRadius = 0.0f;
+					if (resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, arcRadius))
+					{
+						const QVector3D labelPos = addAngleArc(vertex, u, v, angleRad, arcRadius, dimensionColor);
+						labels.append({ labelPos, summary });
+					}
+				}
+			}
+		}
+		else if (m.type == MeasurementType::EdgeToFace && m.anchors.size() >= 2)
+		{
+			QVector3D edgeStart, edgeEnd;
+			float edgeLength = 0.0f;
+			if (resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
+			{
+				QVector3D facePos, faceNormal;
+				if (resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
+				{
+					const float normalLen = markerSize * 3.0f;
+
+					// Both the edge and the face, highlighted as reference context.
+					addSegment(edgeStart, edgeEnd, color);
+					addMarker(edgeStart, color, sizeMultiplier);
+					addMarker(edgeEnd, color, sizeMultiplier);
+					addMarker(facePos, color, sizeMultiplier);
+					addSegment(facePos, facePos + faceNormal.normalized() * normalLen, color);
+
+					const QVector3D edgeDir = edgeEnd - edgeStart;
+					const MeasurementGeometry::EdgeToFaceResult result =
+						MeasurementGeometry::compareEdgeToFace(edgeStart, edgeDir, facePos, faceNormal);
+
+					if (result.isParallel)
+					{
+						// Dimension line from the edge straight down to its
+						// projection onto the face's plane, offset +
+						// extension lines + arrowheads via addOffsetDimension().
+						const QVector3D nN = faceNormal.normalized();
+						const QVector3D projected = edgeStart - nN * QVector3D::dotProduct(edgeStart - facePos, nN);
+						const QVector3D labelPos = addOffsetDimension(edgeStart, projected, dimensionColor, m);
+						labels.append({ labelPos, summary });
+					}
+					else
+					{
+						// Angular dimension: grounded at the edge's own
+						// start point (a real point, unlike Face-to-Face/
+						// Edge-to-Edge's "floating midpoint") - one leg
+						// along the edge itself, the other along the
+						// edge's own projection onto the face's plane,
+						// sweeping the angle between them. Vertex/basis/
+						// angle/radius all come from
+						// resolveMeasurementAngleGeometry() - the same
+						// query hitTestDimensionLine()/the drag
+						// interaction use.
+						QVector3D vertex, u, v;
+						float angleRad = 0.0f;
+						float arcRadius = 0.0f;
+						if (resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, arcRadius))
+						{
+							const QVector3D labelPos = addAngleArc(vertex, u, v, angleRad, arcRadius, dimensionColor);
+							labels.append({ labelPos, summary });
+						}
+					}
+				}
 			}
 		}
 	}
@@ -11487,8 +11885,9 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 	// the cursor, shown before the click commits - there's no single
 	// "point" to preview here, the whole edge IS the pick target (see
 	// mouseMoveEvent()'s _measurementEdgeHoverAnchor update). Edge Radius
-	// previews the resolved circle; Edge Length (and future edge tools)
-	// preview the edge's own chord as a straight line instead.
+	// previews the resolved circle; Center + 2-Point Arc Radius's center
+	// pick previews just the resolved center point; every other edge tool
+	// previews the edge's own chord as a straight line instead.
 	if (_measurementEdgeHoverAnchor.isValid())
 	{
 		MeasurementAnchorRef hoverRef;
@@ -11502,6 +11901,18 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			if (resolveMeasurementEdgeCircle(hoverRef, center, axis, radius))
 			{
 				addCircleOutline(center, axis, radius, hoverSnapColor);
+				const float s = markerSize * 1.6f;
+				addSegment(center - QVector3D(s, 0, 0), center + QVector3D(s, 0, 0), hoverSnapColor);
+				addSegment(center - QVector3D(0, s, 0), center + QVector3D(0, s, 0), hoverSnapColor);
+				addSegment(center - QVector3D(0, 0, s), center + QVector3D(0, 0, s), hoverSnapColor);
+			}
+		}
+		else if (_measurementTool == MeasurementTool::ArcRadiusCenterPoint)
+		{
+			QVector3D center, axis;
+			float radius = 0.0f;
+			if (resolveMeasurementEdgeCircle(hoverRef, center, axis, radius))
+			{
 				const float s = markerSize * 1.6f;
 				addSegment(center - QVector3D(s, 0, 0), center + QVector3D(s, 0, 0), hoverSnapColor);
 				addSegment(center - QVector3D(0, s, 0), center + QVector3D(0, s, 0), hoverSnapColor);
@@ -13854,10 +14265,24 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_measurementEdgeHoverAnchor = _selectionManager->pickEdgeCircleAnchor(e->pos());
 			_measurementHoverAnchor = MeshSurfaceAnchor();
 		}
-		else if (_measurementTool == MeasurementTool::EdgeLength)
+		else if (_measurementTool == MeasurementTool::EdgeLength
+			|| _measurementTool == MeasurementTool::EdgeToEdge
+			|| (_measurementTool == MeasurementTool::EdgeToVertex && _pendingMeasurementAnchors.isEmpty())
+			|| (_measurementTool == MeasurementTool::EdgeToFace && _pendingMeasurementAnchors.isEmpty()))
 		{
 			_measurementEdgeHoverAnchor = _selectionManager->pickStraightEdgeAnchor(e->pos());
 			_measurementHoverAnchor = MeshSurfaceAnchor();
+		}
+		else if (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && _pendingMeasurementAnchors.isEmpty())
+		{
+			// Prefer the circular-edge-center preview; fall back to the
+			// ordinary surface-hover preview (boss case) if nothing's
+			// nearby - mirrors handleMeasurementClick()'s own fallback.
+			_measurementEdgeHoverAnchor = _selectionManager->pickCircularEdgeCenterAnchor(e->pos());
+			if (_measurementEdgeHoverAnchor.isValid())
+				_measurementHoverAnchor = MeshSurfaceAnchor();
+			else
+				_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
 		}
 		else
 		{

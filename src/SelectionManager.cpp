@@ -421,6 +421,64 @@ MeshEdgeCircleAnchor SelectionManager::pickStraightEdgeAnchor(const QPoint& pixe
     return result;
 }
 
+MeshEdgeCircleAnchor SelectionManager::pickCircularEdgeCenterAnchor(const QPoint& pixel, int snapPixelRadius)
+{
+    MeshEdgeCircleAnchor result;
+
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
+    if (ids.empty())
+        return result;
+
+    Camera* camera = _viewportWidget->getCameraForPoint(pixel);
+    if (!camera)
+        return result;
+
+    const QRect viewport = PickingHelper::viewportRectForPoint(
+        pixel, _viewportWidget->width(), _viewportWidget->height(), _viewportWidget->isMultiViewActive());
+    const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+    const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+
+    auto toScreen = [&](const QVector3D& worldPos) -> QVector2D {
+        const QVector3D projected = worldPos.project(viewMatrix, projMatrix, viewport);
+        return QVector2D(projected.x(), static_cast<float>(viewport.height()) - projected.y());
+    };
+
+    const QVector2D clickPt(static_cast<float>(pixel.x()), static_cast<float>(pixel.y()));
+    float bestDist = static_cast<float>(snapPixelRadius);
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+
+        const std::vector<OccEdgeCircleInfo>& circles = mesh->getOccEdgeCircles();
+        if (circles.empty())
+            continue;
+
+        const QMatrix4x4 combined = mesh->combinedRenderTransform();
+        for (int e = 0; e < static_cast<int>(circles.size()); ++e)
+        {
+            if (!circles[e].isCircle)
+                continue;
+
+            const QVector3D centerLocal(static_cast<float>(circles[e].centerX),
+                                         static_cast<float>(circles[e].centerY),
+                                         static_cast<float>(circles[e].centerZ));
+            const QVector3D centerWorld = combined.map(centerLocal);
+            const float d = (clickPt - toScreen(centerWorld)).length();
+            if (d < bestDist)
+            {
+                bestDist = d;
+                result.meshUuid = mesh->uuid();
+                result.edgeIndex = e;
+            }
+        }
+    }
+
+    return result;
+}
+
 int SelectionManager::hoverSelect(const QPoint& pixel)
 {
     int hoveredId = -1;

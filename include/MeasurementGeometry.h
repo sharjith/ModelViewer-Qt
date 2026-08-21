@@ -53,4 +53,50 @@ namespace MeasurementGeometry
     // Perpendicular distance from `point` to the plane through `planePoint`
     // with (not-necessarily-normalized) normal `planeNormal` ("Point to Face").
     float pointToPlaneDistance(const QVector3D& point, const QVector3D& planePoint, const QVector3D& planeNormal);
+
+    // Perpendicular distance from `point` to the INFINITE line through
+    // `linePoint` with (not-necessarily-normalized) direction `lineDir`
+    // ("Edge to Vertex") - not clamped to a finite segment, same convention
+    // as pointToPlaneDistance() treating a face as an infinite plane rather
+    // than stopping at the picked triangle's edges.
+    float pointToLineDistance(const QVector3D& point, const QVector3D& linePoint, const QVector3D& lineDir);
+
+    // The point on the INFINITE line through `linePoint`/`lineDir` closest
+    // to `point` - the perpendicular foot, used for rendering the Edge to
+    // Vertex dimension's connector.
+    QVector3D closestPointOnLine(const QVector3D& point, const QVector3D& linePoint, const QVector3D& lineDir);
+
+    // Result of comparing two edge directions ("Edge to Edge") - the line
+    // analog of FaceToFaceResult, same "exactly one field meaningful"
+    // convention and same sign/winding-independent parallel test. Distance
+    // for the parallel case is the perpendicular distance between the two
+    // (infinite) lines; the non-parallel (including skew) case reports only
+    // the angle between them, same as FaceToFace's non-parallel case
+    // reporting only an angle rather than also attempting a minimum-
+    // distance-between-skew-lines figure.
+    struct EdgeToEdgeResult
+    {
+        bool  isParallel = false;
+        float distance = 0.0f;      // meaningful only if isParallel
+        float angleDegrees = 0.0f;  // meaningful only if !isParallel, range [0, 90]
+    };
+    EdgeToEdgeResult compareLines(const QVector3D& p1, const QVector3D& d1,
+        const QVector3D& p2, const QVector3D& d2, float parallelToleranceDegrees = 5.0f);
+
+    // Result of comparing an edge direction against a face plane ("Edge to
+    // Face") - same "exactly one field meaningful" convention. Note this is
+    // a LINE-vs-PLANE comparison, not line-vs-line/plane-vs-plane like the
+    // other compare*() helpers, so "parallel" means the edge lies within a
+    // plane parallel to the face (direction perpendicular to the face
+    // normal) - the opposite alignment condition from compareFaces()/
+    // compareLines(), which both test for near-zero angle between two
+    // normals/directions of the SAME kind.
+    struct EdgeToFaceResult
+    {
+        bool  isParallel = false;
+        float distance = 0.0f;      // meaningful only if isParallel
+        float angleDegrees = 0.0f;  // meaningful only if !isParallel - angle between the edge and the face plane, range [0, 90]
+    };
+    EdgeToFaceResult compareEdgeToFace(const QVector3D& edgePoint, const QVector3D& edgeDir,
+        const QVector3D& facePoint, const QVector3D& faceNormal, float parallelToleranceDegrees = 5.0f);
 }

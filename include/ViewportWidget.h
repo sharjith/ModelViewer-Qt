@@ -366,8 +366,9 @@ public:
 	bool resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
 		QVector3D& outPosition, QVector3D& outNormal) const;
 
-	// ---- Dimension-line drag (Distance/FaceToFace-parallel/PointToFace/
-	//      EdgeLength, and FaceToFace's angle/arc case) -----------------------
+	// ---- Dimension-line drag (Distance/PointToFace/EdgeLength/EdgeToVertex/
+	//      FaceToFace-parallel/EdgeToEdge-parallel/EdgeToFace-parallel, and
+	//      FaceToFace/EdgeToEdge/EdgeToFace's shared angle/arc case) --------
 	// The raw (un-offset) [a,b] a LINEAR dimension spans, resolved per
 	// MeasurementType the same way drawMeasurementOverlay()'s render loop
 	// does inline for each case - a small, deliberate duplication so this
@@ -379,8 +380,9 @@ public:
 	// consistency (and so the dimension doesn't have to compete for
 	// legibility with the model's own edges/wireframe at the same position).
 	// Returns false for types with no straight dimension line at all
-	// (Point, both arc types, EdgeRadius, and FaceToFace's non-parallel/
-	// angle case - see resolveMeasurementAngleGeometry() for that one instead).
+	// (Point, both arc types, EdgeRadius, and FaceToFace/EdgeToEdge/
+	// EdgeToFace's non-parallel/angle case - see
+	// resolveMeasurementAngleGeometry() for that one instead).
 	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
 
 	// The DEFAULT perpendicular direction a linear dimension's offset leans,
@@ -408,17 +410,25 @@ public:
 		const Measurement& m, Camera* camera) const;
 
 	// The angle dimension's full construction - vertex, in-plane orthonormal
-	// basis (u = first face's normal, v completing the plane), the measured
+	// basis (u = the first direction, v completing the plane), the measured
 	// angle in radians, AND the resolved arc radius (Measurement::
 	// offsetDistance if the user has dragged it, else a default tied to the
-	// distance between the two picked face points) - the single
-	// authoritative source for all of it, used by rendering, hit-testing,
-	// AND dragging alike so none of them can ever disagree about where the
-	// arc actually is (unlike computing the default radius independently in
-	// more than one place, which is exactly the kind of thing that quietly
-	// drifts out of sync over time). Returns false for any other
-	// MeasurementType, or if the two face normals turn out to be parallel
-	// after all (degenerate - no well-defined plane to sweep an arc in).
+	// geometry's own size) - the single authoritative source for all of it,
+	// used by rendering, hit-testing, AND dragging alike so none of them can
+	// ever disagree about where the arc actually is (unlike computing the
+	// default radius independently in more than one place, which is exactly
+	// the kind of thing that quietly drifts out of sync over time). Covers
+	// every measurement type whose non-parallel case renders as a floating-
+	// vertex angle arc - FaceToFace (u = anchor0's face normal), EdgeToEdge
+	// (u = anchor0's edge direction), EdgeToFace (u = the edge direction,
+	// vertex grounded at the edge's own start point rather than a floating
+	// midpoint). The second leg's direction isn't returned separately - it's
+	// always exactly u*cos(outAngleRad) + v*sin(outAngleRad), by
+	// construction of v via Gram-Schmidt against the angle already computed
+	// from the same two inputs. Returns false for any other MeasurementType,
+	// for the parallel case of any of the three (that has a straight
+	// dimension line instead - see resolveMeasurementDimensionSegment()), or
+	// for degenerate input (no well-defined plane to sweep an arc in).
 	bool resolveMeasurementAngleGeometry(const Measurement& m, Camera* camera, QVector3D& outVertex,
 		QVector3D& outU, QVector3D& outV, float& outAngleRad, float& outRadius) const;
 
