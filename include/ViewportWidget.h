@@ -390,9 +390,11 @@ public:
 	// consistency (and so the dimension doesn't have to compete for
 	// legibility with the model's own edges/wireframe at the same position).
 	// Returns false for types with no straight dimension line at all
-	// (Point, all three arc types including PitchCircle, EdgeRadius, and
-	// FaceToFace/EdgeToEdge/EdgeToFace's non-parallel/angle case - see
-	// resolveMeasurementAngleGeometry() for that one instead).
+	// (Point, all three arc types including PitchCircle, EdgeRadius,
+	// Concentricity, AngleThreePoint (always an angle, never a distance -
+	// unlike FaceToFace/EdgeToEdge/EdgeToFace it has no "parallel" case to
+	// fall into), and FaceToFace/EdgeToEdge/EdgeToFace's own non-parallel/
+	// angle case - see resolveMeasurementAngleGeometry() for those instead).
 	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
 
 	// The DEFAULT perpendicular direction a linear dimension's offset leans,
@@ -432,13 +434,21 @@ public:
 	// vertex angle arc - FaceToFace (u = anchor0's face normal), EdgeToEdge
 	// (u = anchor0's edge direction), EdgeToFace (u = the edge direction,
 	// vertex grounded at the edge's own start point rather than a floating
-	// midpoint). The second leg's direction isn't returned separately - it's
-	// always exactly u*cos(outAngleRad) + v*sin(outAngleRad), by
-	// construction of v via Gram-Schmidt against the angle already computed
-	// from the same two inputs. Returns false for any other MeasurementType,
-	// for the parallel case of any of the three (that has a straight
-	// dimension line instead - see resolveMeasurementDimensionSegment()), or
-	// for degenerate input (no well-defined plane to sweep an arc in).
+	// midpoint) - plus AngleThreePoint, which is ALWAYS this shape (u =
+	// anchor0-to-anchor1's ray direction, vertex = anchor0 itself, no
+	// parallel/distance case to fall into at all - unlike the other three,
+	// it reports the FULL [0, 180] angle, not the acute [0, 90] one, since
+	// its rays have a genuine picked direction with no sign ambiguity to
+	// fold away - see MeasurementGeometry::angleBetweenRays()). The second
+	// leg's direction isn't returned separately - it's always exactly
+	// u*cos(outAngleRad) + v*sin(outAngleRad), by construction of v via
+	// Gram-Schmidt against the angle already computed from the same two
+	// inputs. Returns false for any other MeasurementType, for the
+	// parallel case of FaceToFace/EdgeToEdge/EdgeToFace (that has a
+	// straight dimension line instead - see
+	// resolveMeasurementDimensionSegment()), or for degenerate input (no
+	// well-defined plane to sweep an arc in - e.g. AngleThreePoint's 3
+	// picks being exactly collinear).
 	bool resolveMeasurementAngleGeometry(const Measurement& m, Camera* camera, QVector3D& outVertex,
 		QVector3D& outU, QVector3D& outV, float& outAngleRad, float& outRadius) const;
 

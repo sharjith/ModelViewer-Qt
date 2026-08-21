@@ -139,4 +139,17 @@ namespace MeasurementGeometry
     };
     ConcentricityResult compareCircles(const QVector3D& center1, const QVector3D& axis1,
         const QVector3D& center2, const QVector3D& axis2);
+
+    // The FULL angle [0, 180] at `vertex` between the rays to `p1` and
+    // `p2` ("3-Point Angle") - deliberately NOT clamped to the acute
+    // [0, 90] range compareFaces()/compareLines()/compareEdgeToFace() use.
+    // Those compare UNDIRECTED lines/planes, where a flipped normal/
+    // direction is exactly as "parallel", so folding to the acute angle is
+    // correct there; a ray from a real picked vertex to another real
+    // picked point has a genuine, unambiguous direction with no such sign
+    // ambiguity to fold away, so e.g. two rays 150 degrees apart reports
+    // 150, not 30. Undefined (result is unspecified) if p1 or p2 coincides
+    // with vertex - callers should treat that as a zero-length ray and not
+    // call this at all.
+    float angleBetweenRays(const QVector3D& vertex, const QVector3D& p1, const QVector3D& p2);
 }

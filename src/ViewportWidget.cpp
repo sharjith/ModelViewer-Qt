@@ -10477,6 +10477,17 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			MeasurementGeometry::compareCircles(center1, axis1, center2, axis2);
 		return tr("Concentricity: %1 offset, %2° axis").arg(result.centerOffset, 0, 'f', 3).arg(result.axisAngleDegrees, 0, 'f', 2);
 	}
+	case MeasurementType::AngleThreePoint:
+	{
+		if (m.anchors.size() < 3)
+			return QString();
+		const QVector3D vertex = resolveMeasurementAnchor(m.anchors[0]);
+		const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+		const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+		if ((p1 - vertex).lengthSquared() < 1.0e-8f || (p2 - vertex).lengthSquared() < 1.0e-8f)
+			return tr("3-Point Angle: (degenerate - a ray point coincides with the vertex)");
+		return tr("3-Point Angle: %1°").arg(MeasurementGeometry::angleBetweenRays(vertex, p1, p2), 0, 'f', 2);
+	}
 	}
 	return QString();
 }
@@ -10862,6 +10873,23 @@ bool ViewportWidget::resolveMeasurementAngleGeometry(const Measurement& m, Camer
 		outVertex = edgeStart;
 		return finishBasis(dN, projectedDir, result.angleDegrees, edgeLength * 0.5f);
 	}
+	case MeasurementType::AngleThreePoint:
+	{
+		if (m.anchors.size() < 3)
+			return false;
+		const QVector3D vertex = resolveMeasurementAnchor(m.anchors[0]);
+		const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+		const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+		const QVector3D v1 = p1 - vertex;
+		const QVector3D v2 = p2 - vertex;
+		if (v1.lengthSquared() < 1.0e-8f || v2.lengthSquared() < 1.0e-8f)
+			return false;  // a ray needs a real length - one of the picks landed on (or failed to resolve away from) the vertex itself
+
+		outVertex = vertex;
+		const QVector3D u = v1.normalized();
+		const float angleDeg = MeasurementGeometry::angleBetweenRays(vertex, p1, p2);
+		return finishBasis(u, v2, angleDeg, std::max(v1.length(), v2.length()) * 0.5f);
+	}
 	default:
 		return false;
 	}
@@ -10939,8 +10967,9 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		// "must be a distinct point on this rim" constraint (Point,
 		// Distance, Point-to-Face's point anchor, Edge-to-Vertex's vertex
 		// anchor, Center+2-Point Arc Radius's own CENTER anchor
-		// specifically - its p1/p2 are excluded above - and every one of
-		// Pitch Circle's hole-center picks). Prefer snapping to a nearby
+		// specifically - its p1/p2 are excluded above - every one of
+		// Pitch Circle's hole-center picks, and every one of 3-Point
+		// Angle's vertex/ray picks). Prefer snapping to a nearby
 		// circular B-Rep edge's exact analytic center (see
 		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment) -
 		// a hole/boss center is very often exactly the point actually
@@ -11317,6 +11346,20 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 					bestDist = dc2;
 					bestId = m.id;
 				}
+			}
+		}
+		else if (m.type == MeasurementType::AngleThreePoint && m.anchors.size() >= 3)
+		{
+			const QVector3D vertex = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+			const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+			const float d1 = distPointToSegment(clickPt, toScreen(vertex), toScreen(p1));
+			const float d2 = distPointToSegment(clickPt, toScreen(vertex), toScreen(p2));
+			const float dBest = std::min(d1, d2);
+			if (dBest < bestDist)
+			{
+				bestDist = dBest;
+				bestId = m.id;
 			}
 		}
 	}
@@ -12107,6 +12150,30 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				// measurement's actual result, not just reference context.
 				addSegment(center1, center2, dimensionColor);
 				labels.append({ (center1 + center2) * 0.5f, summary });
+			}
+		}
+		else if (m.type == MeasurementType::AngleThreePoint && m.anchors.size() >= 3)
+		{
+			const QVector3D vertex = resolveMeasurementAnchor(m.anchors[0]);
+			const QVector3D p1 = resolveMeasurementAnchor(m.anchors[1]);
+			const QVector3D p2 = resolveMeasurementAnchor(m.anchors[2]);
+
+			// The actual picked rays, as reference context - not the
+			// dimension arc's own legs below, which are drawn at a fixed
+			// CAD-style radius (see resolveMeasurementAngleGeometry()), not
+			// the true pick-to-pick distance.
+			addMarker(vertex, color, sizeMultiplier);
+			addMarker(p1, color, sizeMultiplier);
+			addMarker(p2, color, sizeMultiplier);
+			addSegment(vertex, p1, color);
+			addSegment(vertex, p2, color);
+
+			QVector3D angleVertex, u, v;
+			float angleRad = 0.0f, arcRadius = 0.0f;
+			if (resolveMeasurementAngleGeometry(m, camera, angleVertex, u, v, angleRad, arcRadius))
+			{
+				const QVector3D labelPos = addAngleArc(angleVertex, u, v, angleRad, arcRadius, dimensionColor);
+				labels.append({ labelPos, summary });
 			}
 		}
 	}

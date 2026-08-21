@@ -108,6 +108,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		addGroupHeader(tr("Point & Distance"));
 		addTool(MeasurementTool::Point);
 		addTool(MeasurementTool::Distance);
+		addTool(MeasurementTool::AngleThreePoint);
 
 		addGroupHeader(tr("Arcs & Circles"));
 		addTool(MeasurementTool::ArcRadius3Point);

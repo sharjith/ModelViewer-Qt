@@ -173,6 +173,22 @@ enum class MeasurementType
     // true concentricity needs both near zero at once - see
     // MeasurementGeometry::compareCircles().
     Concentricity,
+
+    // A vertex pick plus two more arbitrary point picks - reports the FULL
+    // angle [0, 180] at the vertex between the ray to each of the other two
+    // points (see MeasurementGeometry::angleBetweenRays()), unlike
+    // FaceToFace/EdgeToEdge/EdgeToFace's acute [0, 90] results, since those
+    // compare UNDIRECTED lines/planes (a flipped normal/direction is
+    // exactly as "parallel"), while a ray from a real picked vertex to
+    // another real picked point has a genuine, unambiguous direction - no
+    // sign ambiguity to fold away. All 3 anchors are plain point picks
+    // (same center-snap preference as Point/Distance - see
+    // ViewportWidget::handleMeasurementClick()'s point-pick branch), not
+    // restricted to landing on a specific circle's rim the way the arc
+    // tools' points are, so e.g. measuring the angle between two hole
+    // centers as seen from a third point works directly. anchors[0] is the
+    // vertex, anchors[1]/[2] are the two ray endpoints.
+    AngleThreePoint,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -195,6 +211,7 @@ enum class MeasurementTool
     EdgeToFace,
     PitchCircle,
     Concentricity,
+    AngleThreePoint,
 };
 
 struct Measurement
@@ -211,10 +228,11 @@ struct Measurement
     // (MeasurementAnchorRef::edgeIndex >= 0), not a triangle/vertex anchor.
     // For PointToFace, anchors[0] is the point and anchors[1] is the face.
     // For Concentricity, both anchors are edge anchors (same convention as
-    // EdgeRadius, one per circle being compared). PitchCircle is the one
-    // exception to "count is determined by type" - it's 3 OR MORE,
-    // unordered (any pick order fits the same circle) - see
-    // measurementToolHasVariableAnchorCount().
+    // EdgeRadius, one per circle being compared). For AngleThreePoint,
+    // anchors[0] is the vertex and anchors[1]/[2] are the two ray
+    // endpoints. PitchCircle is the one exception to "count is determined
+    // by type" - it's 3 OR MORE, unordered (any pick order fits the same
+    // circle) - see measurementToolHasVariableAnchorCount().
     QVector<MeasurementAnchorRef>  anchors;
 
     // Show/hide toggle from the Measurement dialog's results list checkbox -
@@ -293,6 +311,7 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::EdgeToFace:           return 2;
     case MeasurementTool::PitchCircle:          return 3;
     case MeasurementTool::Concentricity:        return 2;
+    case MeasurementTool::AngleThreePoint:      return 3;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -329,6 +348,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::EdgeToFace:           return MeasurementType::EdgeToFace;
     case MeasurementTool::PitchCircle:          return MeasurementType::PitchCircle;
     case MeasurementTool::Concentricity:        return MeasurementType::Concentricity;
+    case MeasurementTool::AngleThreePoint:      return MeasurementType::AngleThreePoint;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -352,6 +372,7 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::EdgeToFace:           return QStringLiteral("Edge to Face");
     case MeasurementTool::PitchCircle:          return QStringLiteral("Pitch Circle");
     case MeasurementTool::Concentricity:        return QStringLiteral("Concentricity");
+    case MeasurementTool::AngleThreePoint:      return QStringLiteral("3-Point Angle");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -412,6 +433,13 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
     case MeasurementTool::Concentricity:
         return alreadyPicked == 0 ? QStringLiteral("Click the 1st circular edge")
                                    : QStringLiteral("Click the 2nd circular edge");
+    case MeasurementTool::AngleThreePoint:
+        switch (alreadyPicked)
+        {
+        case 0:  return QStringLiteral("Click the vertex");
+        case 1:  return QStringLiteral("Click the 1st ray point");
+        default: return QStringLiteral("Click the 2nd ray point");
+        }
     case MeasurementTool::None:
         return QString();
     }

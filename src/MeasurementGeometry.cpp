@@ -440,4 +440,14 @@ ConcentricityResult compareCircles(const QVector3D& center1, const QVector3D& ax
     return result;
 }
 
+float angleBetweenRays(const QVector3D& vertex, const QVector3D& p1, const QVector3D& p2)
+{
+    const QVector3D v1 = (p1 - vertex).normalized();
+    const QVector3D v2 = (p2 - vertex).normalized();
+    // NOT abs()'d, unlike compareFaces()/compareLines()/compareCircles() -
+    // see this function's doc comment for why the sign matters here.
+    const float dot = std::clamp(QVector3D::dotProduct(v1, v2), -1.0f, 1.0f);
+    return std::acos(dot) * kRadToDeg;
+}
+
 }
