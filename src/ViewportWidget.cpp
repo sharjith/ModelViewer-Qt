@@ -10220,6 +10220,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 	_measurementClickCandidate = false;
 	_measurementHoverAnchor = MeshSurfaceAnchor();
 	_measurementEdgeHoverAnchor = MeshEdgeCircleAnchor();
+	_measurementEdgeHoverIsCenterPick = false;
 	_hoveredMeasurementId = QUuid();
 	update();
 	emit measurementToolChanged(_measurementTool);
@@ -10230,18 +10231,19 @@ QVector3D ViewportWidget::resolveMeasurementAnchor(const MeasurementAnchorRef& r
 {
 	if (ref.edgeIndex >= 0)
 	{
-		// A circular-edge-derived point anchor - e.g. Center + 2-Point Arc
-		// Radius's center pick, snapped to a nearby circular OCC edge's
-		// exact analytic center instead of requiring a literal surface hit
-		// at that position (a through-hole's center is empty space - see
-		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment).
-		// Falls through to the ordinary triangle/vertex resolution below if
-		// this isn't actually a circle (shouldn't happen in practice, since
-		// only pickCircularEdgeCenterAnchor() ever produces this kind of
-		// anchor, but a saved measurement could in principle outlive a mesh
-		// reload that changes topology) - that path correctly returns a
-		// null QVector3D since triangleIndex/snappedVertexIndex are also
-		// unset for a pure edge anchor.
+		// A circular-edge-derived point anchor - any arbitrary-point pick
+		// (Point, Distance, both arc tools, Point-to-Face's point anchor,
+		// Edge-to-Vertex's vertex anchor) snapped to a nearby circular OCC
+		// edge's exact analytic center instead of requiring a literal
+		// surface hit at that position (a through-hole's center is empty
+		// space - see SelectionManager::pickCircularEdgeCenterAnchor()'s
+		// doc comment). Falls through to the ordinary triangle/vertex
+		// resolution below if this isn't actually a circle (shouldn't
+		// happen in practice, since only pickCircularEdgeCenterAnchor()
+		// ever produces this kind of anchor, but a saved measurement could
+		// in principle outlive a mesh reload that changes topology) - that
+		// path correctly returns a null QVector3D since triangleIndex/
+		// snappedVertexIndex are also unset for a pure edge anchor.
 		QVector3D center, axis;
 		float radius = 0.0f;
 		if (resolveMeasurementEdgeCircle(ref, center, axis, radius))
@@ -10816,16 +10818,50 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		ref.meshUuid  = edgeAnchor.meshUuid;
 		ref.edgeIndex = edgeAnchor.edgeIndex;
 	}
-	else if (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && _pendingMeasurementAnchors.isEmpty())
+	else if (_measurementTool == MeasurementTool::FaceToFace
+		|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
+			&& !_pendingMeasurementAnchors.isEmpty())
+		|| _measurementTool == MeasurementTool::ArcRadius3Point
+		|| (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && !_pendingMeasurementAnchors.isEmpty()))
 	{
-		// The center pick specifically: prefer snapping to a nearby
-		// circular B-Rep edge's exact analytic center (see
-		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment -
-		// this is what makes the tool work correctly for a through-hole,
-		// not just a boss). Falls back to the ordinary triangle-surface
-		// pick if no circular edge center is nearby, preserving the
-		// original boss-only behavior for glTF/OBJ meshes and for CAD parts
-		// with no circular edge at this position.
+		// Two different reasons land here, but both need the same plain
+		// surface pick with no circular-edge-center snap attempted:
+		//  - FACE picks (FaceToFace's two anchors; PointToFace/EdgeToFace's
+		//    second anchor - their first is a point/edge, already routed
+		//    above) need real triangle/normal data to resolve a plane
+		//    from - a circle's center has none.
+		//  - ARC-RIM picks (3-Point Arc Radius's 3 points; Center+2-Point
+		//    Arc Radius's own p1/p2, as opposed to its CENTER anchor at
+		//    index 0, handled below) must land on distinct points actually
+		//    ON the circle - snapping any of them to the shared center
+		//    instead would collapse the fit (circumcircle3Point() sees
+		//    near-coincident points; circleFromCenterAndTwoPoints() sees a
+		//    zero-length center-to-point vector) rather than measuring the
+		//    circle at all.
+		const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
+		if (!anchor.isValid())
+			return;  // clicked empty space - stay armed, don't cancel the tool
+
+		ref.meshUuid           = anchor.meshUuid;
+		ref.triangleIndex      = anchor.triangleIndex;
+		ref.barycentric        = anchor.barycentric;
+		ref.snappedVertexIndex = anchor.snappedVertexIndex;
+	}
+	else
+	{
+		// Every remaining pick genuinely wants an arbitrary POINT with no
+		// "must be a distinct point on this rim" constraint (Point,
+		// Distance, Point-to-Face's point anchor, Edge-to-Vertex's vertex
+		// anchor, and Center+2-Point Arc Radius's own CENTER anchor
+		// specifically - its p1/p2 are excluded above). Prefer snapping to
+		// a nearby circular B-Rep edge's exact analytic center (see
+		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment) -
+		// a hole/boss center is very often exactly the point actually
+		// wanted, and there's no other way to land on one precisely (it's
+		// often empty space, not real geometry a plain surface pick could
+		// ever hit). Falls back to the ordinary triangle-surface pick if no
+		// circular edge is nearby, preserving plain point-picking on
+		// glTF/OBJ meshes and everywhere else on CAD parts.
 		const MeshEdgeCircleAnchor centerAnchor = _selectionManager->pickCircularEdgeCenterAnchor(clickPoint);
 		if (centerAnchor.isValid())
 		{
@@ -10843,17 +10879,6 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 			ref.barycentric        = anchor.barycentric;
 			ref.snappedVertexIndex = anchor.snappedVertexIndex;
 		}
-	}
-	else
-	{
-		const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(clickPoint);
-		if (!anchor.isValid())
-			return;  // clicked empty space - stay armed, don't cancel the tool
-
-		ref.meshUuid           = anchor.meshUuid;
-		ref.triangleIndex      = anchor.triangleIndex;
-		ref.barycentric        = anchor.barycentric;
-		ref.snappedVertexIndex = anchor.snappedVertexIndex;
 	}
 
 	_pendingMeasurementAnchors.append(ref);
@@ -11881,13 +11906,15 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		addSegment(hp - QVector3D(0, 0, hoverMarkerSize), hp + QVector3D(0, 0, hoverMarkerSize), hoverColor);
 	}
 
-	// Live hover preview for the edge-based tools: the nearest edge under
-	// the cursor, shown before the click commits - there's no single
-	// "point" to preview here, the whole edge IS the pick target (see
-	// mouseMoveEvent()'s _measurementEdgeHoverAnchor update). Edge Radius
-	// previews the resolved circle; Center + 2-Point Arc Radius's center
-	// pick previews just the resolved center point; every other edge tool
-	// previews the edge's own chord as a straight line instead.
+	// Live hover preview for edge-based picks and circular-edge-center
+	// point picks alike (see mouseMoveEvent()'s _measurementEdgeHoverAnchor/
+	// _measurementEdgeHoverIsCenterPick update). Edge Radius previews the
+	// resolved circle; any POINT pick that's snapping to a circular edge's
+	// center (Point, Distance, both arc tools, Point-to-Face's point
+	// anchor, Edge-to-Vertex's vertex anchor) previews just the resolved
+	// center point; every genuine edge-target tool (EdgeLength/EdgeToEdge/
+	// EdgeToVertex's first anchor/EdgeToFace's first anchor) previews the
+	// edge's own chord as a straight line instead.
 	if (_measurementEdgeHoverAnchor.isValid())
 	{
 		MeasurementAnchorRef hoverRef;
@@ -11907,7 +11934,7 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				addSegment(center - QVector3D(0, 0, s), center + QVector3D(0, 0, s), hoverSnapColor);
 			}
 		}
-		else if (_measurementTool == MeasurementTool::ArcRadiusCenterPoint)
+		else if (_measurementEdgeHoverIsCenterPick)
 		{
 			QVector3D center, axis;
 			float radius = 0.0f;
@@ -14260,6 +14287,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	// (drawMeasurementOverlay() renders _measurementHoverAnchor).
 	if (e->buttons() == Qt::NoButton && _measurementTool != MeasurementTool::None && _selectionManager)
 	{
+		_measurementEdgeHoverIsCenterPick = false;
 		if (_measurementTool == MeasurementTool::EdgeRadius)
 		{
 			_measurementEdgeHoverAnchor = _selectionManager->pickEdgeCircleAnchor(e->pos());
@@ -14273,21 +14301,34 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_measurementEdgeHoverAnchor = _selectionManager->pickStraightEdgeAnchor(e->pos());
 			_measurementHoverAnchor = MeshSurfaceAnchor();
 		}
-		else if (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && _pendingMeasurementAnchors.isEmpty())
+		else if (_measurementTool == MeasurementTool::FaceToFace
+			|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
+				&& !_pendingMeasurementAnchors.isEmpty())
+			|| _measurementTool == MeasurementTool::ArcRadius3Point
+			|| (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && !_pendingMeasurementAnchors.isEmpty()))
 		{
-			// Prefer the circular-edge-center preview; fall back to the
-			// ordinary surface-hover preview (boss case) if nothing's
-			// nearby - mirrors handleMeasurementClick()'s own fallback.
-			_measurementEdgeHoverAnchor = _selectionManager->pickCircularEdgeCenterAnchor(e->pos());
-			if (_measurementEdgeHoverAnchor.isValid())
-				_measurementHoverAnchor = MeshSurfaceAnchor();
-			else
-				_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+			// A FACE pick, or an ARC-RIM pick that must land on the circle
+			// itself (not its center) - no circular-edge-center preview,
+			// same reasoning as handleMeasurementClick()'s matching branch.
+			_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+			_measurementEdgeHoverAnchor = MeshEdgeCircleAnchor();
 		}
 		else
 		{
-			_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
-			_measurementEdgeHoverAnchor = MeshEdgeCircleAnchor();
+			// Every remaining pick genuinely wants an arbitrary POINT -
+			// prefer the circular-edge-center preview; fall back to the
+			// ordinary surface-hover preview if nothing's nearby - mirrors
+			// handleMeasurementClick()'s own fallback.
+			_measurementEdgeHoverAnchor = _selectionManager->pickCircularEdgeCenterAnchor(e->pos());
+			if (_measurementEdgeHoverAnchor.isValid())
+			{
+				_measurementEdgeHoverIsCenterPick = true;
+				_measurementHoverAnchor = MeshSurfaceAnchor();
+			}
+			else
+			{
+				_measurementHoverAnchor = _selectionManager->pickSurfaceAnchor(e->pos());
+			}
 		}
 	}
 	// No tool armed: preview which EXISTING measurement a click would

@@ -2031,6 +2031,16 @@ private:
 	// see drawMeasurementOverlay()) rather than a single point, since the
 	// whole edge IS the pick target for this tool.
 	MeshEdgeCircleAnchor _measurementEdgeHoverAnchor;
+	// Which of the two pick functions that both populate
+	// _measurementEdgeHoverAnchor produced the current value -
+	// pickCircularEdgeCenterAnchor() (true, a POINT preview at the
+	// resolved center) vs pickStraightEdgeAnchor()/pickEdgeCircleAnchor()
+	// (false, an EDGE preview - chord or full circle). Needed because the
+	// same edgeIndex-bearing anchor type is reused for both, and a
+	// circular edge's own segments resolve to a real (but wrong-for-this-
+	// preview) chord, so drawMeasurementOverlay() can't tell them apart
+	// from the anchor's contents alone.
+	bool _measurementEdgeHoverIsCenterPick = false;
 	HoverHighlightMode _savedHoverHighlightModeBeforeMeasurement = HoverHighlightMode::RaycastOnly;
 	// Press-vs-drag disambiguation: a plain left-press while a tool is armed
 	// only arms a pending click, which mouseReleaseEvent commits (as

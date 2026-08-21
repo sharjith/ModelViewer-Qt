@@ -71,8 +71,11 @@ enum class MeasurementType
     Distance,
     ArcRadius3Point,        // 3 points on the arc; radius/center via circumcircle fit
     // Center point, then 2 points on the arc; radius = avg(center-to-point
-    // distance). The center pick prefers snapping to a nearby circular
-    // B-Rep edge's exact analytic center (see
+    // distance). The center pick - like every other arbitrary-point pick
+    // across the whole measurement toolset that isn't itself required to
+    // land ON a specific circle (Point, Distance, Point-to-Face's point
+    // anchor, Edge-to-Vertex's vertex anchor) - prefers snapping to a
+    // nearby circular B-Rep edge's exact analytic center (see
     // SelectionManager::pickCircularEdgeCenterAnchor() and
     // ViewportWidget::resolveMeasurementAnchor()'s edgeIndex handling) -
     // works correctly for a through-hole this way, not just a boss, on
@@ -80,6 +83,10 @@ enum class MeasurementType
     // ray-triangle test (requiring an actual triangle under the cursor) if
     // no circular edge center is nearby - still boss-only on glTF/OBJ
     // meshes, which have no B-Rep topology to detect a center from at all.
+    // This tool's OWN p1/p2 points are deliberately excluded from the
+    // center-snap (see ViewportWidget::handleMeasurementClick()'s ARC-RIM
+    // branch) - they must land on distinct points actually on the circle,
+    // not collapse onto its center.
     ArcRadiusCenterPoint,
 
     // A single pick directly on a circular B-Rep edge (see
