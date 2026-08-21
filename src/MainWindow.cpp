@@ -403,7 +403,7 @@ MainWindow::MainWindow(QWidget* parent)
 		viewMenu->addAction(documentDock->toggleViewAction());
 		viewMenu->addAction(_propertiesDock->toggleViewAction());
 		viewMenu->addAction(_environmentDock->toggleViewAction());
-		menuBar()->insertMenu(ui->menuHelp->menuAction(), viewMenu);
+		menuBar()->insertMenu(ui->menuTools->menuAction(), viewMenu);
 	}
 
 	// Set the application theme based on user settings
