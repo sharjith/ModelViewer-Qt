@@ -363,6 +363,25 @@ public:
 	bool resolveMeasurementEdgeGeometry(const MeasurementAnchorRef& ref,
 		QVector3D& outStart, QVector3D& outEnd, float& outLength) const;
 
+	// The same edge anchor as resolveMeasurementEdgeGeometry(), but every
+	// tessellated point along it in order (not collapsed to just the two
+	// endpoints) - for callers that need to draw or hit-test the edge's
+	// TRUE path rather than a straight chord between its ends. The chord-
+	// only behavior above is deliberate for its own callers (an offset
+	// dimension line is conventionally straight regardless of the
+	// underlying feature's shape - see addOffsetDimension()), but Chain
+	// Length's highlighted reference edges draw directly on/near the part,
+	// where a chord across a curved or filleted edge reads as if the wrong
+	// edge got picked even though the length is correct. Consecutive
+	// points are guaranteed connected head-to-tail (by construction of the
+	// OCC tessellation - see BRepToAssimpConverter::
+	// extractEdgesFromFaceGroup()), so the whole vector can be drawn/
+	// tested as one continuous polyline with no gaps or duplicates.
+	// Returns false under the same conditions resolveMeasurementEdgeGeometry()
+	// does (mesh gone, or ref isn't an edge anchor).
+	bool resolveMeasurementEdgePolyline(const MeasurementAnchorRef& ref,
+		QVector<QVector3D>& outPoints) const;
+
 	// Resolves a face-pick anchor's CURRENT position + face normal (Face to
 	// Face / Point to Face) - "face" here means the picked triangle's own
 	// plane (cross product of two of its edges), not a grouped CAD face, so

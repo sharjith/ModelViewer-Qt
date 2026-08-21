@@ -126,6 +126,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		addTool(MeasurementTool::EdgeToVertex);
 		addTool(MeasurementTool::EdgeToEdge);
 		addTool(MeasurementTool::EdgeToFace);
+		addTool(MeasurementTool::EdgeChain);
 
 		// Index 0 is now a disabled header, not a real tool - the combo
 		// otherwise defaults its current index there, which would leave no
@@ -154,6 +155,11 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// Same CAD-only pick as Edge Radius above (both circular-edge anchors).
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
 		tr("STEP/IGES/BREP parts only - click directly on two circular edges (holes or bosses) to compare their centers and axes. Not available for glTF/OBJ meshes."),
+		Qt::ToolTipRole);
+	// The other variable-pick-count tool alongside Pitch Circle above - same
+	// note about it not auto-completing at a fixed click count.
+	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeChain)),
+		tr("Click every edge you want summed (2 or more, any order, don't need to connect end-to-end) - a running total that works for an open chain (e.g. a weld seam) or a closed perimeter alike. Press Enter or the Finish button once you've clicked them all."),
 		Qt::ToolTipRole);
 
 	_statusLabel = new QLabel(this);

@@ -189,6 +189,18 @@ enum class MeasurementType
     // centers as seen from a third point works directly. anchors[0] is the
     // vertex, anchors[1]/[2] are the two ray endpoints.
     AngleThreePoint,
+
+    // 2 or more edge picks (variable count, no fixed target - see
+    // measurementToolHasVariableAnchorCount(), same "click more, or finish"
+    // workflow as PitchCircle), summing each edge's own length (see
+    // EdgeLength's doc comment - same resolveMeasurementEdgeGeometry() call,
+    // works on any mesh, any curve type). Doesn't require or verify the
+    // edges connect end-to-end or close into a loop - a running total over
+    // whatever's picked serves both an open chain (e.g. a weld seam spread
+    // across several edges) and a closed perimeter (a loop of edges) alike
+    // without needing connectivity-tracing logic neither use case actually
+    // needs.
+    EdgeChain,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -212,6 +224,7 @@ enum class MeasurementTool
     PitchCircle,
     Concentricity,
     AngleThreePoint,
+    EdgeChain,
 };
 
 struct Measurement
@@ -230,9 +243,11 @@ struct Measurement
     // For Concentricity, both anchors are edge anchors (same convention as
     // EdgeRadius, one per circle being compared). For AngleThreePoint,
     // anchors[0] is the vertex and anchors[1]/[2] are the two ray
-    // endpoints. PitchCircle is the one exception to "count is determined
-    // by type" - it's 3 OR MORE, unordered (any pick order fits the same
-    // circle) - see measurementToolHasVariableAnchorCount().
+    // endpoints. PitchCircle and EdgeChain are the two exceptions to
+    // "count is determined by type" - both are 2/3 OR MORE respectively,
+    // unordered (PitchCircle - any pick order fits the same circle;
+    // EdgeChain - a running total doesn't care what order the edges were
+    // picked in either) - see measurementToolHasVariableAnchorCount().
     QVector<MeasurementAnchorRef>  anchors;
 
     // Show/hide toggle from the Measurement dialog's results list checkbox -
@@ -312,20 +327,22 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::PitchCircle:          return 3;
     case MeasurementTool::Concentricity:        return 2;
     case MeasurementTool::AngleThreePoint:      return 3;
+    case MeasurementTool::EdgeChain:            return 2;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
 }
 
-// True only for tools whose anchor count isn't fixed (currently just
-// PitchCircle - a bolt pattern can have any number of holes) - distinguishes
+// True only for tools whose anchor count isn't fixed (PitchCircle - a bolt
+// pattern can have any number of holes; EdgeChain - a chain/perimeter can
+// have any number of edges) - distinguishes
 // "measurementToolRequiredAnchorCount() is an auto-complete target" (every
 // other tool) from "...is a minimum, wait for an explicit finish gesture"
 // (see ViewportWidget::handleMeasurementClick()'s completion check and
 // finishVariableLengthMeasurement()).
 inline bool measurementToolHasVariableAnchorCount(MeasurementTool tool)
 {
-    return tool == MeasurementTool::PitchCircle;
+    return tool == MeasurementTool::PitchCircle || tool == MeasurementTool::EdgeChain;
 }
 
 // The MeasurementType a completed pick sequence for `tool` should be saved
@@ -349,6 +366,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::PitchCircle:          return MeasurementType::PitchCircle;
     case MeasurementTool::Concentricity:        return MeasurementType::Concentricity;
     case MeasurementTool::AngleThreePoint:      return MeasurementType::AngleThreePoint;
+    case MeasurementTool::EdgeChain:            return MeasurementType::EdgeChain;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -373,6 +391,7 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::PitchCircle:          return QStringLiteral("Pitch Circle");
     case MeasurementTool::Concentricity:        return QStringLiteral("Concentricity");
     case MeasurementTool::AngleThreePoint:      return QStringLiteral("3-Point Angle");
+    case MeasurementTool::EdgeChain:            return QStringLiteral("Chain Length");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -439,6 +458,13 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
         case 0:  return QStringLiteral("Click the vertex");
         case 1:  return QStringLiteral("Click the 1st ray point");
         default: return QStringLiteral("Click the 2nd ray point");
+        }
+    case MeasurementTool::EdgeChain:
+        switch (alreadyPicked)
+        {
+        case 0:  return QStringLiteral("Click 1st edge");
+        case 1:  return QStringLiteral("Click 2nd edge");
+        default: return QStringLiteral("%1 edges picked - click more, or press Enter to finish").arg(alreadyPicked);
         }
     case MeasurementTool::None:
         return QString();

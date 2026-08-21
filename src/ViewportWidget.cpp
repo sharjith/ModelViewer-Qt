@@ -10488,6 +10488,28 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			return tr("3-Point Angle: (degenerate - a ray point coincides with the vertex)");
 		return tr("3-Point Angle: %1°").arg(MeasurementGeometry::angleBetweenRays(vertex, p1, p2), 0, 'f', 2);
 	}
+	case MeasurementType::EdgeChain:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		float total = 0.0f;
+		int resolvedCount = 0;
+		for (const MeasurementAnchorRef& a : m.anchors)
+		{
+			QVector3D start, end;
+			float length = 0.0f;
+			if (resolveMeasurementEdgeGeometry(a, start, end, length))
+			{
+				total += length;
+				++resolvedCount;
+			}
+		}
+		if (resolvedCount == 0)
+			return tr("Chain Length: (no edges available)");
+		if (resolvedCount < m.anchors.size())
+			return tr("Chain Length: %1, %2 of %3 edges available").arg(total, 0, 'f', 3).arg(resolvedCount).arg(m.anchors.size());
+		return tr("Chain Length: %1, %2 edges").arg(total, 0, 'f', 3).arg(resolvedCount);
+	}
 	}
 	return QString();
 }
@@ -10590,6 +10612,67 @@ bool ViewportWidget::resolveMeasurementEdgeGeometry(const MeasurementAnchorRef& 
 	outStart = vertexPos(featureEdges[base]);
 	outEnd = vertexPos(featureEdges[base + 1]);
 	outLength = outStart.distanceToPoint(outEnd);
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementEdgePolyline(const MeasurementAnchorRef& ref, QVector<QVector3D>& outPoints) const
+{
+	outPoints.clear();
+	if (ref.edgeIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	const std::vector<int>& occBounds = mesh->getOccEdgeBoundaries();
+	if (!occBounds.empty())
+	{
+		if (ref.edgeIndex + 1 >= static_cast<int>(occBounds.size()))
+			return false;
+
+		const std::vector<float>& segments = mesh->getOccEdgeSegments();
+		const int startVec3 = occBounds[ref.edgeIndex];
+		const int endVec3 = occBounds[ref.edgeIndex + 1];
+		if (startVec3 < 0 || endVec3 <= startVec3 || static_cast<size_t>(endVec3) * 3 > segments.size())
+			return false;
+
+		const QMatrix4x4 combined = mesh->combinedRenderTransform();
+		auto worldPointAt = [&](int v) -> QVector3D {
+			const size_t p = static_cast<size_t>(v) * 3;
+			return combined.map(QVector3D(segments[p], segments[p + 1], segments[p + 2]));
+		};
+
+		// Segments within one OCC edge's range are emitted in connected,
+		// head-to-tail order along the curve by construction (see
+		// BRepToAssimpConverter::extractEdgesFromFaceGroup()'s
+		// GCPnts_TangentialDeflection walk) - segment N's second point and
+		// segment N+1's first point are the same value, so one point per
+		// pair plus a final closing point traces the whole path with no
+		// duplicates.
+		outPoints.reserve((endVec3 - startVec3) / 2 + 1);
+		for (int v = startVec3; v + 1 < endVec3; v += 2)
+			outPoints.append(worldPointAt(v));
+		outPoints.append(worldPointAt(endVec3 - 1));
+		return true;
+	}
+
+	// Non-CAD mesh - a single straight feature edge, so its "polyline" is
+	// just its two endpoints.
+	const std::vector<uint32_t>& featureEdges = mesh->getFeatureEdgeIndices();
+	const size_t base = static_cast<size_t>(ref.edgeIndex) * 2;
+	if (base + 1 >= featureEdges.size())
+		return false;
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto vertexPos = [&trsfPoints](uint32_t vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+	outPoints.append(vertexPos(featureEdges[base]));
+	outPoints.append(vertexPos(featureEdges[base + 1]));
 	return true;
 }
 
@@ -10918,14 +11001,16 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	}
 	else if (_measurementTool == MeasurementTool::EdgeLength
 		|| _measurementTool == MeasurementTool::EdgeToEdge
+		|| _measurementTool == MeasurementTool::EdgeChain
 		|| (_measurementTool == MeasurementTool::EdgeToVertex && _pendingMeasurementAnchors.isEmpty())
 		|| (_measurementTool == MeasurementTool::EdgeToFace && _pendingMeasurementAnchors.isEmpty()))
 	{
-		// EdgeLength and EdgeToEdge always pick an edge (both anchors, for
-		// EdgeToEdge); EdgeToVertex/EdgeToFace only pick one for their FIRST
-		// anchor - the second (a vertex/point or a face) falls through to
-		// the normal pickSurfaceAnchor branch below, same as every other
-		// point/face pick.
+		// EdgeLength, EdgeToEdge, and EdgeChain always pick an edge (every
+		// anchor - EdgeChain's count is variable, but every one of them is
+		// still an edge, same as EdgeToEdge's fixed two); EdgeToVertex/
+		// EdgeToFace only pick one for their FIRST anchor - the second (a
+		// vertex/point or a face) falls through to the normal
+		// pickSurfaceAnchor branch below, same as every other point/face pick.
 		const MeshEdgeCircleAnchor edgeAnchor = _selectionManager->pickStraightEdgeAnchor(clickPoint);
 		if (!edgeAnchor.isValid())
 			return;  // no edge under the cursor - stay armed, don't cancel the tool
@@ -11002,8 +11087,8 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	const int required = measurementToolRequiredAnchorCount(_measurementTool);
 	emit measurementProgressChanged(_pendingMeasurementAnchors.size(), required);
 
-	// A variable-length tool (PitchCircle) never auto-completes at
-	// `required` - that's its MINIMUM, not a target - it stays armed
+	// A variable-length tool (PitchCircle, EdgeChain) never auto-completes
+	// at `required` - that's its MINIMUM, not a target - it stays armed
 	// regardless of count until finishVariableLengthMeasurement() is
 	// called explicitly (Enter, or the dialog's Finish button).
 	if (measurementToolHasVariableAnchorCount(_measurementTool))
@@ -11360,6 +11445,28 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 			{
 				bestDist = dBest;
 				bestId = m.id;
+			}
+		}
+		else if (m.type == MeasurementType::EdgeChain && m.anchors.size() >= 2)
+		{
+			// Same true-path tracing as the render branch below (see
+			// resolveMeasurementEdgePolyline()'s doc comment) - hit-testing
+			// against just the chord would miss clicks along a curved or
+			// filleted edge's actual (highlighted) path.
+			for (const MeasurementAnchorRef& a : m.anchors)
+			{
+				QVector<QVector3D> polyline;
+				if (!resolveMeasurementEdgePolyline(a, polyline) || polyline.size() < 2)
+					continue;
+				for (int i = 0; i + 1 < polyline.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(polyline[i]), toScreen(polyline[i + 1]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
 			}
 		}
 	}
@@ -12176,6 +12283,40 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				labels.append({ labelPos, summary });
 			}
 		}
+		else if (m.type == MeasurementType::EdgeChain && m.anchors.size() >= 2)
+		{
+			// No single "dimension line" to offset+drag the way EdgeLength's
+			// one edge gets (see addOffsetDimension()) - a sum over N edges
+			// has no one line to put it on, so each edge is just highlighted
+			// directly, and the label sits at the centroid of all their
+			// midpoints. Traces each edge's TRUE tessellated path (see
+			// resolveMeasurementEdgePolyline()'s doc comment), not a
+			// straight chord between its two ends - unlike EdgeLength's own
+			// offset dimension line (deliberately straight, floating clear
+			// of the part), this draws directly on/near the part, where a
+			// chord across a curved or filleted edge reads as if the wrong
+			// edge got picked even though the length is correct.
+			QVector3D labelCentroid;
+			int resolvedCount = 0;
+			for (const MeasurementAnchorRef& a : m.anchors)
+			{
+				QVector<QVector3D> polyline;
+				if (!resolveMeasurementEdgePolyline(a, polyline) || polyline.size() < 2)
+					continue;
+
+				for (int i = 0; i + 1 < polyline.size(); ++i)
+					addSegment(polyline[i], polyline[i + 1], color);
+				addMarker(polyline.first(), color, sizeMultiplier);
+				addMarker(polyline.last(), color, sizeMultiplier);
+				labelCentroid += (polyline.first() + polyline.last()) * 0.5f;
+				++resolvedCount;
+			}
+			if (resolvedCount > 0)
+			{
+				labelCentroid /= static_cast<float>(resolvedCount);
+				labels.append({ labelCentroid, summary });
+			}
+		}
 	}
 
 	// In-progress measurement: N of the required anchors already picked,
@@ -12199,6 +12340,7 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			{
 			case MeasurementTool::EdgeLength:
 			case MeasurementTool::EdgeToEdge:
+			case MeasurementTool::EdgeChain:
 				return true;  // every anchor is an edge
 			case MeasurementTool::EdgeToVertex:
 			case MeasurementTool::EdgeToFace:
@@ -12215,14 +12357,19 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			QVector3D p;
 			if (isEdgeChordAnchor(_measurementTool, i))
 			{
-				QVector3D edgeStart, edgeEnd;
-				float edgeLength = 0.0f;
-				if (resolveMeasurementEdgeGeometry(pendingRef, edgeStart, edgeEnd, edgeLength))
+				// True tessellated path, not just the chord (see
+				// resolveMeasurementEdgePolyline()'s doc comment) - a
+				// curved or filleted edge should preview as itself while
+				// still being picked, same reasoning as Chain Length's
+				// completed-measurement rendering below.
+				QVector<QVector3D> polyline;
+				if (resolveMeasurementEdgePolyline(pendingRef, polyline) && polyline.size() >= 2)
 				{
-					addSegment(edgeStart, edgeEnd, pendingColor);
-					addMarker(edgeStart, pendingColor);
-					addMarker(edgeEnd, pendingColor);
-					p = (edgeStart + edgeEnd) * 0.5f;
+					for (int seg = 0; seg + 1 < polyline.size(); ++seg)
+						addSegment(polyline[seg], polyline[seg + 1], pendingColor);
+					addMarker(polyline.first(), pendingColor);
+					addMarker(polyline.last(), pendingColor);
+					p = (polyline.first() + polyline.last()) * 0.5f;
 				}
 			}
 			else
@@ -12297,10 +12444,15 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		}
 		else
 		{
-			QVector3D start, end;
-			float length = 0.0f;
-			if (resolveMeasurementEdgeGeometry(hoverRef, start, end, length))
-				addSegment(start, end, hoverSnapColor);
+			// True tessellated path, not just the chord - same reasoning as
+			// the pending-pick and completed-measurement previews (see
+			// resolveMeasurementEdgePolyline()'s doc comment).
+			QVector<QVector3D> polyline;
+			if (resolveMeasurementEdgePolyline(hoverRef, polyline) && polyline.size() >= 2)
+			{
+				for (int i = 0; i + 1 < polyline.size(); ++i)
+					addSegment(polyline[i], polyline[i + 1], hoverSnapColor);
+			}
 		}
 	}
 
@@ -14664,6 +14816,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		else if (_measurementTool == MeasurementTool::EdgeLength
 			|| _measurementTool == MeasurementTool::EdgeToEdge
+			|| _measurementTool == MeasurementTool::EdgeChain
 			|| (_measurementTool == MeasurementTool::EdgeToVertex && _pendingMeasurementAnchors.isEmpty())
 			|| (_measurementTool == MeasurementTool::EdgeToFace && _pendingMeasurementAnchors.isEmpty()))
 		{
