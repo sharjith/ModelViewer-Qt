@@ -124,4 +124,19 @@ namespace MeasurementGeometry
         QVector<float> gapAnglesDegrees;  // one gap per input point, in angleSortedIndices order
     };
     PitchCircleResult fitPitchCircle(const QVector<QVector3D>& points);
+
+    // Result of comparing two analytic circles ("Concentricity") - unlike
+    // compareFaces()/compareLines()/compareEdgeToFace(), which each report
+    // exactly ONE of a distance or an angle depending on the input's
+    // relative orientation, both numbers here are always meaningful
+    // together: true concentricity needs the centers coincident AND the
+    // axes parallel at once, so there's no single isParallel-style gate to
+    // collapse this to one value.
+    struct ConcentricityResult
+    {
+        float centerOffset = 0.0f;      // distance between the two circles' centers
+        float axisAngleDegrees = 0.0f;  // angle between the two circles' axes, range [0, 90]
+    };
+    ConcentricityResult compareCircles(const QVector3D& center1, const QVector3D& axis1,
+        const QVector3D& center2, const QVector3D& axis2);
 }

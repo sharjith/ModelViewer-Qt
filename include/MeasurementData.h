@@ -162,6 +162,17 @@ enum class MeasurementType
     // deliberately keyed for one-way assembly - reads as unequal gaps
     // instead of silently averaging them away).
     PitchCircle,
+
+    // Two circular-edge picks (see MeshEdgeCircleAnchor/pickEdgeCircleAnchor() -
+    // same CAD-only pick as EdgeRadius, not a point pick, so this shares
+    // EdgeRadius's glTF/OBJ limitation) - reports the distance between the
+    // two circles' analytic centers and the angle between their axes, the
+    // two numbers that together answer "are these two holes/bosses on the
+    // same axis". Both are always reported together (unlike FaceToFace/
+    // EdgeToEdge/EdgeToFace's isParallel-gated single-value results) since
+    // true concentricity needs both near zero at once - see
+    // MeasurementGeometry::compareCircles().
+    Concentricity,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -183,6 +194,7 @@ enum class MeasurementTool
     EdgeToEdge,
     EdgeToFace,
     PitchCircle,
+    Concentricity,
 };
 
 struct Measurement
@@ -198,8 +210,10 @@ struct Measurement
     // points on the arc. For EdgeRadius, anchors[0] is an edge anchor
     // (MeasurementAnchorRef::edgeIndex >= 0), not a triangle/vertex anchor.
     // For PointToFace, anchors[0] is the point and anchors[1] is the face.
-    // PitchCircle is the one exception to "count is determined by type" -
-    // it's 3 OR MORE, unordered (any pick order fits the same circle) - see
+    // For Concentricity, both anchors are edge anchors (same convention as
+    // EdgeRadius, one per circle being compared). PitchCircle is the one
+    // exception to "count is determined by type" - it's 3 OR MORE,
+    // unordered (any pick order fits the same circle) - see
     // measurementToolHasVariableAnchorCount().
     QVector<MeasurementAnchorRef>  anchors;
 
@@ -278,6 +292,7 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::EdgeToEdge:           return 2;
     case MeasurementTool::EdgeToFace:           return 2;
     case MeasurementTool::PitchCircle:          return 3;
+    case MeasurementTool::Concentricity:        return 2;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -313,6 +328,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::EdgeToEdge:           return MeasurementType::EdgeToEdge;
     case MeasurementTool::EdgeToFace:           return MeasurementType::EdgeToFace;
     case MeasurementTool::PitchCircle:          return MeasurementType::PitchCircle;
+    case MeasurementTool::Concentricity:        return MeasurementType::Concentricity;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -335,6 +351,7 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::EdgeToEdge:           return QStringLiteral("Edge to Edge");
     case MeasurementTool::EdgeToFace:           return QStringLiteral("Edge to Face");
     case MeasurementTool::PitchCircle:          return QStringLiteral("Pitch Circle");
+    case MeasurementTool::Concentricity:        return QStringLiteral("Concentricity");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -392,6 +409,9 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
         case 2:  return QStringLiteral("Click 3rd hole center");
         default: return QStringLiteral("%1 holes picked - click more, or press Enter to finish").arg(alreadyPicked);
         }
+    case MeasurementTool::Concentricity:
+        return alreadyPicked == 0 ? QStringLiteral("Click the 1st circular edge")
+                                   : QStringLiteral("Click the 2nd circular edge");
     case MeasurementTool::None:
         return QString();
     }

@@ -11,10 +11,12 @@
 #include <QListWidget>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QFont>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStandardItemModel>
 #include <QVBoxLayout>
 
 namespace
@@ -78,15 +80,57 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	_toolCombo = new QComboBox(this);
-	for (MeasurementTool tool : { MeasurementTool::Point, MeasurementTool::Distance,
-	                               MeasurementTool::ArcRadius3Point, MeasurementTool::ArcRadiusCenterPoint,
-	                               MeasurementTool::EdgeRadius,
-	                               MeasurementTool::FaceToFace, MeasurementTool::PointToFace,
-	                               MeasurementTool::EdgeLength, MeasurementTool::EdgeToVertex,
-	                               MeasurementTool::EdgeToEdge, MeasurementTool::EdgeToFace,
-	                               MeasurementTool::PitchCircle })
 	{
-		_toolCombo->addItem(measurementToolDisplayName(tool), static_cast<int>(tool));
+		// Grouped with non-selectable category headers rather than one flat
+		// list - a dozen-plus similarly-named tools (EdgeToVertex/EdgeToEdge/
+		// EdgeToFace and friends) stop being scannable as a plain dropdown
+		// well before this many entries. Groups follow the tools' own
+		// naming/picking-infrastructure families (see MeasurementData.h),
+		// not "reports a distance" vs "reports an angle" - several tools
+		// (Face to Face, Edge to Edge, Edge to Face) report either
+		// depending on the picked geometry's own relative orientation, so
+		// there's no distance-vs-angle split that would actually hold up.
+		auto addGroupHeader = [this](const QString& title) {
+			_toolCombo->addItem(title);
+			if (auto* model = qobject_cast<QStandardItemModel*>(_toolCombo->model()))
+			{
+				QStandardItem* item = model->item(_toolCombo->count() - 1);
+				item->setFlags(item->flags() & ~(Qt::ItemIsSelectable | Qt::ItemIsEnabled));
+				QFont font = item->font();
+				font.setBold(true);
+				item->setFont(font);
+			}
+		};
+		auto addTool = [this](MeasurementTool tool) {
+			_toolCombo->addItem("    " + measurementToolDisplayName(tool), static_cast<int>(tool));
+		};
+
+		addGroupHeader(tr("Point & Distance"));
+		addTool(MeasurementTool::Point);
+		addTool(MeasurementTool::Distance);
+
+		addGroupHeader(tr("Arcs & Circles"));
+		addTool(MeasurementTool::ArcRadius3Point);
+		addTool(MeasurementTool::ArcRadiusCenterPoint);
+		addTool(MeasurementTool::EdgeRadius);
+		addTool(MeasurementTool::PitchCircle);
+		addTool(MeasurementTool::Concentricity);
+
+		addGroupHeader(tr("Faces"));
+		addTool(MeasurementTool::FaceToFace);
+		addTool(MeasurementTool::PointToFace);
+
+		addGroupHeader(tr("Edges"));
+		addTool(MeasurementTool::EdgeLength);
+		addTool(MeasurementTool::EdgeToVertex);
+		addTool(MeasurementTool::EdgeToEdge);
+		addTool(MeasurementTool::EdgeToFace);
+
+		// Index 0 is now a disabled header, not a real tool - the combo
+		// otherwise defaults its current index there, which would leave no
+		// tool armed at all when the dialog opens (see the currentIndex()
+		// re-arm call at the end of this constructor).
+		_toolCombo->setCurrentIndex(_toolCombo->findData(static_cast<int>(MeasurementTool::Point)));
 	}
 	// Surfaces the variable-pick-count workflow up front, since it's the one
 	// tool in the list that doesn't auto-complete at a fixed number of
@@ -105,6 +149,10 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// Works correctly for through-holes too, unlike Center + 2-Point above.
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeRadius)),
 		tr("STEP/IGES/BREP parts only - click directly on a circular edge (hole or boss). Not available for glTF/OBJ meshes."),
+		Qt::ToolTipRole);
+	// Same CAD-only pick as Edge Radius above (both circular-edge anchors).
+	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
+		tr("STEP/IGES/BREP parts only - click directly on two circular edges (holes or bosses) to compare their centers and axes. Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
 
 	_statusLabel = new QLabel(this);

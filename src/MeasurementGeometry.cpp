@@ -423,4 +423,21 @@ PitchCircleResult fitPitchCircle(const QVector<QVector3D>& points)
     return result;
 }
 
+ConcentricityResult compareCircles(const QVector3D& center1, const QVector3D& axis1,
+    const QVector3D& center2, const QVector3D& axis2)
+{
+    ConcentricityResult result;
+    result.centerOffset = (center2 - center1).length();
+
+    const QVector3D a1 = axis1.normalized();
+    const QVector3D a2 = axis2.normalized();
+    // abs() before acos: an axis direction is arbitrary in sign (nothing
+    // about a circular edge picks which way its axis "points"), same
+    // reasoning as compareFaces()/compareLines() treating a flipped
+    // normal/direction as no less parallel.
+    const float dot = std::clamp(std::abs(QVector3D::dotProduct(a1, a2)), 0.0f, 1.0f);
+    result.axisAngleDegrees = std::acos(dot) * kRadToDeg;
+    return result;
+}
+
 }

@@ -10464,6 +10464,19 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 
 		return headline + "\n" + tr("gaps %1°-%2° (not uniform)").arg(minGap, 0, 'f', 2).arg(maxGap, 0, 'f', 2);
 	}
+	case MeasurementType::Concentricity:
+	{
+		if (m.anchors.size() < 2)
+			return QString();
+		QVector3D center1, axis1, center2, axis2;
+		float radius1 = 0.0f, radius2 = 0.0f;
+		if (!resolveMeasurementEdgeCircle(m.anchors[0], center1, axis1, radius1)
+			|| !resolveMeasurementEdgeCircle(m.anchors[1], center2, axis2, radius2))
+			return tr("Concentricity: (circle no longer available)");
+		const MeasurementGeometry::ConcentricityResult result =
+			MeasurementGeometry::compareCircles(center1, axis1, center2, axis2);
+		return tr("Concentricity: %1 offset, %2° axis").arg(result.centerOffset, 0, 'f', 3).arg(result.axisAngleDegrees, 0, 'f', 2);
+	}
 	}
 	return QString();
 }
@@ -10824,8 +10837,27 @@ bool ViewportWidget::resolveMeasurementAngleGeometry(const Measurement& m, Camer
 		const QVector3D nN = faceNormal.normalized();
 		QVector3D projectedDir = dN - nN * QVector3D::dotProduct(dN, nN);
 		if (projectedDir.lengthSquared() < 1.0e-8f)
-			return false;
-		projectedDir.normalize();
+		{
+			// The edge is (very close to) exactly perpendicular to the
+			// face - the 90-degree case, and a common one in practice (a
+			// hole's axis edge square to the face it's drilled into isn't
+			// a rare configuration). There's no uniquely-defined
+			// "projection direction" within the face's plane at exactly
+			// 90 degrees - every in-plane direction is equally valid - so
+			// rather than bailing out with no arc at all (which is what
+			// used to happen here), pick an arbitrary but deterministic
+			// one, same construction as MeasurementGeometry::
+			// orthonormalBasis(): whichever world axis is least parallel
+			// to the face normal, cross product to land in-plane.
+			const QVector3D reference = (std::abs(QVector3D::dotProduct(nN, QVector3D(0.0f, 1.0f, 0.0f))) < 0.9f)
+				? QVector3D(0.0f, 1.0f, 0.0f)
+				: QVector3D(1.0f, 0.0f, 0.0f);
+			projectedDir = QVector3D::crossProduct(nN, reference).normalized();
+		}
+		else
+		{
+			projectedDir.normalize();
+		}
 
 		outVertex = edgeStart;
 		return finishBasis(dN, projectedDir, result.angleDegrees, edgeLength * 0.5f);
@@ -10842,11 +10874,14 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 
 	MeasurementAnchorRef ref;
 
-	if (_measurementTool == MeasurementTool::EdgeRadius)
+	if (_measurementTool == MeasurementTool::EdgeRadius || _measurementTool == MeasurementTool::Concentricity)
 	{
 		// A wholly different pick from every other tool - identifies a
 		// topological B-Rep edge, not a surface point (see
-		// MeshEdgeCircleAnchor's doc comment).
+		// MeshEdgeCircleAnchor's doc comment). Concentricity needs this for
+		// BOTH its anchors, unconditionally (same as EdgeToEdge always
+		// picking an edge for both of its anchors below) - it compares two
+		// real analytic circles, not two arbitrary points.
 		const MeshEdgeCircleAnchor edgeAnchor = _selectionManager->pickEdgeCircleAnchor(clickPoint);
 		if (!edgeAnchor.isValid())
 			return;  // no circular edge under the cursor - stay armed, don't cancel the tool
@@ -11239,6 +11274,47 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 				if (dc < bestDist)
 				{
 					bestDist = dc;
+					bestId = m.id;
+				}
+			}
+		}
+		else if (m.type == MeasurementType::Concentricity && m.anchors.size() >= 2)
+		{
+			QVector3D center1, axis1, center2, axis2;
+			float radius1 = 0.0f, radius2 = 0.0f;
+			if (resolveMeasurementEdgeCircle(m.anchors[0], center1, axis1, radius1)
+				&& resolveMeasurementEdgeCircle(m.anchors[1], center2, axis2, radius2))
+			{
+				const QVector<QVector3D> circle1 = MeasurementGeometry::circlePolyline(center1, axis1, radius1);
+				for (int i = 0; i < circle1.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle1[i]), toScreen(circle1[(i + 1) % circle1.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
+				const QVector<QVector3D> circle2 = MeasurementGeometry::circlePolyline(center2, axis2, radius2);
+				for (int i = 0; i < circle2.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle2[i]), toScreen(circle2[(i + 1) % circle2.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
+				const float dc1 = (clickPt - toScreen(center1)).length();
+				if (dc1 < bestDist)
+				{
+					bestDist = dc1;
+					bestId = m.id;
+				}
+				const float dc2 = (clickPt - toScreen(center2)).length();
+				if (dc2 < bestDist)
+				{
+					bestDist = dc2;
 					bestId = m.id;
 				}
 			}
@@ -12014,6 +12090,25 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				labels.append({ result.center, summary });
 			}
 		}
+		else if (m.type == MeasurementType::Concentricity && m.anchors.size() >= 2)
+		{
+			QVector3D center1, axis1, center2, axis2;
+			float radius1 = 0.0f, radius2 = 0.0f;
+			if (resolveMeasurementEdgeCircle(m.anchors[0], center1, axis1, radius1)
+				&& resolveMeasurementEdgeCircle(m.anchors[1], center2, axis2, radius2))
+			{
+				addCircleOutline(center1, axis1, radius1, color);
+				addCircleOutline(center2, axis2, radius2, color);
+				addMarker(center1, color, sizeMultiplier * 0.6f);
+				addMarker(center2, color, sizeMultiplier * 0.6f);
+				// The connecting line between the two centers IS the
+				// measured quantity (its length is the reported offset) -
+				// dimensionColor/hover-highlighted like every other
+				// measurement's actual result, not just reference context.
+				addSegment(center1, center2, dimensionColor);
+				labels.append({ (center1 + center2) * 0.5f, summary });
+			}
+		}
 	}
 
 	// In-progress measurement: N of the required anchors already picked,
@@ -12094,20 +12189,21 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 
 	// Live hover preview for edge-based picks and circular-edge-center
 	// point picks alike (see mouseMoveEvent()'s _measurementEdgeHoverAnchor/
-	// _measurementEdgeHoverIsCenterPick update). Edge Radius previews the
-	// resolved circle; any POINT pick that's snapping to a circular edge's
-	// center (Point, Distance, both arc tools, Point-to-Face's point
-	// anchor, Edge-to-Vertex's vertex anchor) previews just the resolved
-	// center point; every genuine edge-target tool (EdgeLength/EdgeToEdge/
-	// EdgeToVertex's first anchor/EdgeToFace's first anchor) previews the
-	// edge's own chord as a straight line instead.
+	// _measurementEdgeHoverIsCenterPick update). Edge Radius and
+	// Concentricity (both circular-edge picks) preview the resolved circle;
+	// any POINT pick that's snapping to a circular edge's center (Point,
+	// Distance, both arc tools, Point-to-Face's point anchor, Edge-to-
+	// Vertex's vertex anchor) previews just the resolved center point;
+	// every genuine edge-target tool (EdgeLength/EdgeToEdge/EdgeToVertex's
+	// first anchor/EdgeToFace's first anchor) previews the edge's own
+	// chord as a straight line instead.
 	if (_measurementEdgeHoverAnchor.isValid())
 	{
 		MeasurementAnchorRef hoverRef;
 		hoverRef.meshUuid  = _measurementEdgeHoverAnchor.meshUuid;
 		hoverRef.edgeIndex = _measurementEdgeHoverAnchor.edgeIndex;
 
-		if (_measurementTool == MeasurementTool::EdgeRadius)
+		if (_measurementTool == MeasurementTool::EdgeRadius || _measurementTool == MeasurementTool::Concentricity)
 		{
 			QVector3D center, axis;
 			float radius = 0.0f;
@@ -14494,7 +14590,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	if (e->buttons() == Qt::NoButton && _measurementTool != MeasurementTool::None && _selectionManager)
 	{
 		_measurementEdgeHoverIsCenterPick = false;
-		if (_measurementTool == MeasurementTool::EdgeRadius)
+		if (_measurementTool == MeasurementTool::EdgeRadius || _measurementTool == MeasurementTool::Concentricity)
 		{
 			_measurementEdgeHoverAnchor = _selectionManager->pickEdgeCircleAnchor(e->pos());
 			_measurementHoverAnchor = MeshSurfaceAnchor();
