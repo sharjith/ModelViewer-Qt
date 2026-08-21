@@ -47,6 +47,7 @@ private slots:
 	void onToolComboChanged(int index);
 	void onResultsSelectionChanged();
 	void onDeleteClicked();
+	void onFinishClicked();
 	void onMeasurementProgressChanged(int picked, int required);
 	void onMeasurementToolChangedExternally(MeasurementTool tool);
 	void onMeasurementsChanged();
@@ -76,9 +77,24 @@ private:
 	// the one driving the change.
 	void setComboToolSilently(MeasurementTool tool);
 
+	// Window position/size, under QSettings key "measurement/geometry" -
+	// same saveGeometry()/restoreGeometry() pattern as RtRenderDialog's
+	// loadSettings()/saveSettings(). loadSettings() runs at the end of the
+	// constructor (after every widget exists, since restoreGeometry() can
+	// resize them); saveSettings() runs from closeEvent().
+	void loadSettings();
+	void saveSettings();
+
 	ModelViewer*  _modelViewer; // not owned - dialog is a child of the ModelViewer's window
 	QComboBox*    _toolCombo;
 	QLabel*       _statusLabel;
+	// Completes a variable-anchor-count tool's in-progress pick sequence
+	// (currently only Pitch Circle) with whatever's been picked so far -
+	// see ViewportWidget::finishVariableLengthMeasurement(). Visible only
+	// while such a tool is armed, enabled only once its minimum anchor
+	// count is reached; the Enter/Return key does the same thing directly
+	// in the viewport, this is just the discoverable/clickable form of it.
+	QPushButton*  _finishButton;
 	QListWidget*  _resultsList;
 	QPushButton*  _deleteButton;
 

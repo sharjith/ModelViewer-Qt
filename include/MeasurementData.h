@@ -150,6 +150,18 @@ enum class MeasurementType
     // MeasurementGeometry::compareEdgeToFace()'s doc comment. anchors[0]
     // is the edge, anchors[1] is the face.
     EdgeToFace,
+
+    // Pitch Circle Diameter - 3 or more hole-center picks (variable count,
+    // no fixed target - see measurementToolHasVariableAnchorCount()), all
+    // arbitrary point picks like Point/Distance (so clicking a hole's rim
+    // snaps to its exact analytic center, same as everywhere else that
+    // matters - see MeasurementGeometry::fitPitchCircle()). Reports the
+    // diameter of the best-fit circle through all the picked centers, plus
+    // the angular gap between each pair of angularly-adjacent holes (a
+    // uniform bolt pattern reads as N equal gaps; a non-uniform one - e.g.
+    // deliberately keyed for one-way assembly - reads as unequal gaps
+    // instead of silently averaging them away).
+    PitchCircle,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -170,6 +182,7 @@ enum class MeasurementTool
     EdgeToVertex,
     EdgeToEdge,
     EdgeToFace,
+    PitchCircle,
 };
 
 struct Measurement
@@ -185,6 +198,9 @@ struct Measurement
     // points on the arc. For EdgeRadius, anchors[0] is an edge anchor
     // (MeasurementAnchorRef::edgeIndex >= 0), not a triangle/vertex anchor.
     // For PointToFace, anchors[0] is the point and anchors[1] is the face.
+    // PitchCircle is the one exception to "count is determined by type" -
+    // it's 3 OR MORE, unordered (any pick order fits the same circle) - see
+    // measurementToolHasVariableAnchorCount().
     QVector<MeasurementAnchorRef>  anchors;
 
     // Show/hide toggle from the Measurement dialog's results list checkbox -
@@ -238,7 +254,13 @@ struct Measurement
     QVector3D                      offsetVector;
 };
 
-// How many anchor picks a tool needs before a Measurement is complete.
+// How many anchor picks a tool needs before a Measurement is complete - for
+// every tool except PitchCircle, this is a fixed target that auto-completes
+// the measurement the instant it's reached. For PitchCircle (see
+// measurementToolHasVariableAnchorCount()) it's instead the MINIMUM - the
+// tool stays armed past this count, accepting more picks until the user
+// explicitly finishes (Enter, or the Measurement dialog's Finish button -
+// see ViewportWidget::finishVariableLengthMeasurement()).
 // Returns 0 for MeasurementTool::None.
 inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
 {
@@ -255,9 +277,21 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::EdgeToVertex:         return 2;
     case MeasurementTool::EdgeToEdge:           return 2;
     case MeasurementTool::EdgeToFace:           return 2;
+    case MeasurementTool::PitchCircle:          return 3;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
+}
+
+// True only for tools whose anchor count isn't fixed (currently just
+// PitchCircle - a bolt pattern can have any number of holes) - distinguishes
+// "measurementToolRequiredAnchorCount() is an auto-complete target" (every
+// other tool) from "...is a minimum, wait for an explicit finish gesture"
+// (see ViewportWidget::handleMeasurementClick()'s completion check and
+// finishVariableLengthMeasurement()).
+inline bool measurementToolHasVariableAnchorCount(MeasurementTool tool)
+{
+    return tool == MeasurementTool::PitchCircle;
 }
 
 // The MeasurementType a completed pick sequence for `tool` should be saved
@@ -278,6 +312,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::EdgeToVertex:         return MeasurementType::EdgeToVertex;
     case MeasurementTool::EdgeToEdge:           return MeasurementType::EdgeToEdge;
     case MeasurementTool::EdgeToFace:           return MeasurementType::EdgeToFace;
+    case MeasurementTool::PitchCircle:          return MeasurementType::PitchCircle;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -299,6 +334,7 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::EdgeToVertex:         return QStringLiteral("Edge to Vertex");
     case MeasurementTool::EdgeToEdge:           return QStringLiteral("Edge to Edge");
     case MeasurementTool::EdgeToFace:           return QStringLiteral("Edge to Face");
+    case MeasurementTool::PitchCircle:          return QStringLiteral("Pitch Circle");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -348,6 +384,14 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
     case MeasurementTool::EdgeToFace:
         return alreadyPicked == 0 ? QStringLiteral("Click an edge")
                                    : QStringLiteral("Click a face");
+    case MeasurementTool::PitchCircle:
+        switch (alreadyPicked)
+        {
+        case 0:  return QStringLiteral("Click 1st hole center");
+        case 1:  return QStringLiteral("Click 2nd hole center");
+        case 2:  return QStringLiteral("Click 3rd hole center");
+        default: return QStringLiteral("%1 holes picked - click more, or press Enter to finish").arg(alreadyPicked);
+        }
     case MeasurementTool::None:
         return QString();
     }

@@ -321,6 +321,16 @@ public:
 	void setMeasurementTool(MeasurementTool tool);
 	MeasurementTool measurementTool() const { return _measurementTool; }
 
+	// Completes a variable-anchor-count measurement (currently only
+	// PitchCircle - see measurementToolHasVariableAnchorCount()) with
+	// whatever's been picked so far, instead of waiting for a fixed count
+	// to auto-complete it. No-op if the armed tool isn't variable-length,
+	// or if fewer than measurementToolRequiredAnchorCount() (the MINIMUM
+	// for such a tool) anchors are pending yet. Called from the
+	// Measurement dialog's Finish button and from keyPressEvent()'s
+	// Enter/Return handling.
+	void finishVariableLengthMeasurement();
+
 	// Resolves a saved anchor's CURRENT world position by re-deriving it from
 	// the referenced mesh's live geometry (getTrsfPoints()), not a frozen
 	// value - stays correct if the mesh's transform changes after the
@@ -380,8 +390,8 @@ public:
 	// consistency (and so the dimension doesn't have to compete for
 	// legibility with the model's own edges/wireframe at the same position).
 	// Returns false for types with no straight dimension line at all
-	// (Point, both arc types, EdgeRadius, and FaceToFace/EdgeToEdge/
-	// EdgeToFace's non-parallel/angle case - see
+	// (Point, all three arc types including PitchCircle, EdgeRadius, and
+	// FaceToFace/EdgeToEdge/EdgeToFace's non-parallel/angle case - see
 	// resolveMeasurementAngleGeometry() for that one instead).
 	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
 
@@ -2160,6 +2170,14 @@ private:
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 
 	void handleMeasurementClick(const QPoint& clickPoint);
+
+	// Builds the Measurement from _pendingMeasurementAnchors as they stand
+	// right now, pushes it (undoable - see AddMeasurementCommand), and
+	// clears the pending set - the shared tail end of both a fixed-count
+	// tool's auto-complete (handleMeasurementClick(), the instant the
+	// required count is reached) and a variable-count tool's explicit
+	// finish (finishVariableLengthMeasurement()).
+	void finalizePendingMeasurement();
 	void drawMeasurementOverlay(Camera* camera);
 	// Screen-space hit test against every saved measurement's marker(s) -
 	// for Point, distance to the single anchor; for Distance, distance to

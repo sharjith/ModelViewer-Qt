@@ -13,6 +13,7 @@
 #include <QMdiSubWindow>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QSettings>
 #include <QSignalBlocker>
 #include <QVBoxLayout>
 
@@ -82,10 +83,17 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	                               MeasurementTool::EdgeRadius,
 	                               MeasurementTool::FaceToFace, MeasurementTool::PointToFace,
 	                               MeasurementTool::EdgeLength, MeasurementTool::EdgeToVertex,
-	                               MeasurementTool::EdgeToEdge, MeasurementTool::EdgeToFace })
+	                               MeasurementTool::EdgeToEdge, MeasurementTool::EdgeToFace,
+	                               MeasurementTool::PitchCircle })
 	{
 		_toolCombo->addItem(measurementToolDisplayName(tool), static_cast<int>(tool));
 	}
+	// Surfaces the variable-pick-count workflow up front, since it's the one
+	// tool in the list that doesn't auto-complete at a fixed number of
+	// clicks (see MeasurementData.h's measurementToolHasVariableAnchorCount()).
+	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::PitchCircle)),
+		tr("Click every hole center around the pattern (3 or more, any order) - snaps to a circular edge's exact center same as Point/Distance. Press Enter or the Finish button once you've clicked them all."),
+		Qt::ToolTipRole);
 	// See MeasurementData.h's ArcRadiusCenterPoint doc comment - surfaced
 	// here so the remaining glTF/OBJ limitation is discoverable without
 	// reading code.
@@ -101,6 +109,9 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 
 	_statusLabel = new QLabel(this);
 	_statusLabel->setWordWrap(true);
+
+	_finishButton = new QPushButton(tr("Finish"), this);
+	_finishButton->setVisible(false);
 
 	_resultsList = new MeasurementResultsList(this);
 	// Ctrl/Shift multi-select, so several measurements can be reviewed or
@@ -119,6 +130,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	layout->addWidget(new QLabel(tr("Tool:"), this));
 	layout->addWidget(_toolCombo);
 	layout->addWidget(_statusLabel);
+	layout->addWidget(_finishButton);
 	layout->addWidget(new QLabel(tr("Measurements:"), this));
 	layout->addWidget(_resultsList);
 	layout->addLayout(buttonRow);
@@ -128,6 +140,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	connect(_resultsList, &QListWidget::itemSelectionChanged, this, &MeasurementDialog::onResultsSelectionChanged);
 	connect(_resultsList, &QListWidget::itemChanged, this, &MeasurementDialog::onResultItemChanged);
 	connect(_deleteButton, &QPushButton::clicked, this, &MeasurementDialog::onDeleteClicked);
+	connect(_finishButton, &QPushButton::clicked, this, &MeasurementDialog::onFinishClicked);
 
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
 	connect(viewport, &ViewportWidget::measurementProgressChanged, this, &MeasurementDialog::onMeasurementProgressChanged);
@@ -146,6 +159,8 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 
 	if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
 		connect(mdiArea, &QMdiArea::subWindowActivated, this, &MeasurementDialog::onActiveSubWindowChanged);
+
+	loadSettings();  // restores window geometry, if any was saved - after resize(320, 400) above so it can override that default
 }
 
 MeasurementDialog::~MeasurementDialog()
@@ -159,7 +174,22 @@ void MeasurementDialog::closeEvent(QCloseEvent* event)
 	// in the viewport silently still placing measurement points.
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
 		viewport->setMeasurementTool(MeasurementTool::None);
+	saveSettings();
 	QDialog::closeEvent(event);
+}
+
+void MeasurementDialog::loadSettings()
+{
+	QSettings settings;
+	const QByteArray geometry = settings.value("measurement/geometry", QByteArray()).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+}
+
+void MeasurementDialog::saveSettings()
+{
+	QSettings settings;
+	settings.setValue("measurement/geometry", saveGeometry());
 }
 
 void MeasurementDialog::onToolComboChanged(int index)
@@ -173,9 +203,25 @@ void MeasurementDialog::onToolComboChanged(int index)
 
 void MeasurementDialog::onMeasurementProgressChanged(int picked, int required)
 {
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	if (!viewport)
+		return;
+	const MeasurementTool tool = viewport->measurementTool();
+	_statusLabel->setText(measurementToolPickPrompt(tool, picked));
+
+	// The Finish button only makes sense for a variable-anchor-count tool
+	// (currently just Pitch Circle) - every other tool already auto-
+	// completes the instant `required` is reached, so there's never
+	// anything left to "finish" for them.
+	const bool variableLength = measurementToolHasVariableAnchorCount(tool);
+	_finishButton->setVisible(variableLength);
+	_finishButton->setEnabled(variableLength && picked >= required);
+}
+
+void MeasurementDialog::onFinishClicked()
+{
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
-		_statusLabel->setText(measurementToolPickPrompt(viewport->measurementTool(), picked));
-	Q_UNUSED(required);
+		viewport->finishVariableLengthMeasurement();
 }
 
 void MeasurementDialog::onMeasurementToolChangedExternally(MeasurementTool tool)

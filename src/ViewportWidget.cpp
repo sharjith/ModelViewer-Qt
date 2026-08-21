@@ -10413,6 +10413,57 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			? tr("Edge to Face: %1").arg(result.distance, 0, 'f', 3)
 			: tr("Edge to Face: %1°").arg(result.angleDegrees, 0, 'f', 2);
 	}
+	case MeasurementType::PitchCircle:
+	{
+		if (m.anchors.size() < 3)
+			return QString();
+		QVector<QVector3D> points;
+		points.reserve(m.anchors.size());
+		for (const MeasurementAnchorRef& a : m.anchors)
+			points.append(resolveMeasurementAnchor(a));
+		const MeasurementGeometry::PitchCircleResult result = MeasurementGeometry::fitPitchCircle(points);
+		if (!result.valid)
+			return tr("Pitch Circle: (degenerate - points are collinear or coincident)");
+
+		const int n = result.gapAnglesDegrees.size();
+		float minGap = result.gapAnglesDegrees.first();
+		float maxGap = minGap;
+		for (float g : result.gapAnglesDegrees)
+		{
+			minGap = std::min(minGap, g);
+			maxGap = std::max(maxGap, g);
+		}
+		// Tight on purpose: a bolt pattern can be deliberately keyed with
+		// one hole shifted a few degrees so the part only assembles one
+		// way - a loose tolerance would silently call that "uniform" and
+		// hide exactly the thing this measurement exists to catch.
+		constexpr float kUniformToleranceDegrees = 0.5f;
+		const float diameter = result.radius * 2.0f;
+
+		// Always a headline (diameter + hole count) plus a spacing detail
+		// line, joined with '\n' - two short lines read far better than
+		// one long one, both as a floating 3D label (see
+		// drawMeasurementOverlay()'s label loop, which splits on '\n') and
+		// as the Measurement dialog's list row (Qt's default item drawing
+		// already honors an embedded '\n' as a line break).
+		const QString headline = tr("Pitch Circle: %1, %2 holes").arg(diameter, 0, 'f', 3).arg(n);
+
+		if (maxGap - minGap <= kUniformToleranceDegrees)
+			return headline + "\n" + tr("@ %1° spacing").arg(360.0f / static_cast<float>(n), 0, 'f', 2);
+
+		// Itemized gaps read fine for a small pattern but would grow
+		// unbounded with hole count - a compact min-max range takes over
+		// past a handful of holes.
+		if (n <= 6)
+		{
+			QStringList gapStrs;
+			for (float g : result.gapAnglesDegrees)
+				gapStrs << QString::number(g, 'f', 2) + QChar(0xB0);
+			return headline + "\n" + tr("gaps: %1").arg(gapStrs.join(", "));
+		}
+
+		return headline + "\n" + tr("gaps %1°-%2° (not uniform)").arg(minGap, 0, 'f', 2).arg(maxGap, 0, 'f', 2);
+	}
 	}
 	return QString();
 }
@@ -10852,9 +10903,10 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		// Every remaining pick genuinely wants an arbitrary POINT with no
 		// "must be a distinct point on this rim" constraint (Point,
 		// Distance, Point-to-Face's point anchor, Edge-to-Vertex's vertex
-		// anchor, and Center+2-Point Arc Radius's own CENTER anchor
-		// specifically - its p1/p2 are excluded above). Prefer snapping to
-		// a nearby circular B-Rep edge's exact analytic center (see
+		// anchor, Center+2-Point Arc Radius's own CENTER anchor
+		// specifically - its p1/p2 are excluded above - and every one of
+		// Pitch Circle's hole-center picks). Prefer snapping to a nearby
+		// circular B-Rep edge's exact analytic center (see
 		// SelectionManager::pickCircularEdgeCenterAnchor()'s doc comment) -
 		// a hole/boss center is very often exactly the point actually
 		// wanted, and there's no other way to land on one precisely (it's
@@ -10886,21 +10938,40 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	const int required = measurementToolRequiredAnchorCount(_measurementTool);
 	emit measurementProgressChanged(_pendingMeasurementAnchors.size(), required);
 
+	// A variable-length tool (PitchCircle) never auto-completes at
+	// `required` - that's its MINIMUM, not a target - it stays armed
+	// regardless of count until finishVariableLengthMeasurement() is
+	// called explicitly (Enter, or the dialog's Finish button).
+	if (measurementToolHasVariableAnchorCount(_measurementTool))
+		return;
+
 	if (_pendingMeasurementAnchors.size() >= required)
-	{
-		Measurement m;
-		m.id = QUuid::createUuid();
-		m.type = measurementTypeForTool(_measurementTool);
-		m.anchors = _pendingMeasurementAnchors;
-		// Captured once, here, at creation - see Measurement::offsetReferenceDir's
-		// doc comment for why this must NOT be re-derived from the live
-		// camera on every render frame.
-		if (_primaryCamera)
-			m.offsetReferenceDir = _primaryCamera->getViewDir();
-		_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
-		_pendingMeasurementAnchors.clear();
-		emit measurementProgressChanged(0, required);
-	}
+		finalizePendingMeasurement();
+}
+
+void ViewportWidget::finalizePendingMeasurement()
+{
+	Measurement m;
+	m.id = QUuid::createUuid();
+	m.type = measurementTypeForTool(_measurementTool);
+	m.anchors = _pendingMeasurementAnchors;
+	// Captured once, here, at creation - see Measurement::offsetReferenceDir's
+	// doc comment for why this must NOT be re-derived from the live
+	// camera on every render frame.
+	if (_primaryCamera)
+		m.offsetReferenceDir = _primaryCamera->getViewDir();
+	_viewer->addMeasurement(m);  // undoable - see AddMeasurementCommand
+	_pendingMeasurementAnchors.clear();
+	emit measurementProgressChanged(0, measurementToolRequiredAnchorCount(_measurementTool));
+}
+
+void ViewportWidget::finishVariableLengthMeasurement()
+{
+	if (!_viewer || !_viewer->sceneGraph() || !measurementToolHasVariableAnchorCount(_measurementTool))
+		return;
+	if (_pendingMeasurementAnchors.size() < measurementToolRequiredAnchorCount(_measurementTool))
+		return;  // below the minimum - the Finish button should be disabled in this state anyway
+	finalizePendingMeasurement();
 }
 
 void ViewportWidget::setSelectedMeasurementIds(const QSet<QUuid>& ids)
@@ -11142,6 +11213,33 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 						bestDist = dBest;
 						bestId = m.id;
 					}
+				}
+			}
+		}
+		else if (m.type == MeasurementType::PitchCircle && m.anchors.size() >= 3)
+		{
+			QVector<QVector3D> points;
+			points.reserve(m.anchors.size());
+			for (const MeasurementAnchorRef& a : m.anchors)
+				points.append(resolveMeasurementAnchor(a));
+			const MeasurementGeometry::PitchCircleResult result = MeasurementGeometry::fitPitchCircle(points);
+			if (result.valid)
+			{
+				const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(result.center, result.normal, result.radius);
+				for (int i = 0; i < circle.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle[i]), toScreen(circle[(i + 1) % circle.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
+				}
+				const float dc = (clickPt - toScreen(result.center)).length();
+				if (dc < bestDist)
+				{
+					bestDist = dc;
+					bestId = m.id;
 				}
 			}
 		}
@@ -11900,6 +11998,22 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				}
 			}
 		}
+		else if (m.type == MeasurementType::PitchCircle && m.anchors.size() >= 3)
+		{
+			QVector<QVector3D> points;
+			points.reserve(m.anchors.size());
+			for (const MeasurementAnchorRef& a : m.anchors)
+				points.append(resolveMeasurementAnchor(a));
+			const MeasurementGeometry::PitchCircleResult result = MeasurementGeometry::fitPitchCircle(points);
+			if (result.valid)
+			{
+				for (const QVector3D& p : points)
+					addMarker(p, color, sizeMultiplier);
+				addMarker(result.center, color, sizeMultiplier * 0.6f);
+				addCircleOutline(result.center, result.normal, result.radius, color);
+				labels.append({ result.center, summary });
+			}
+		}
 	}
 
 	// In-progress measurement: N of the required anchors already picked,
@@ -12108,13 +12222,29 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 	if (_axisTextRenderer)
 	{
 		const QRect viewportRect(0, 0, width(), height());
+		// RenderText() has no concept of a line break (see its doc comment
+		// in TextRenderer.h) - a label containing '\n' (currently just
+		// Pitch Circle's headline/detail summary) is split here and its
+		// lines stacked upward from the anchor point, one fontSize()-tall
+		// step apart, so the LAST line lands exactly where a single-line
+		// label always has (VBOTTOM's usual anchor) and earlier lines sit
+		// above it - single-line labels render identically to before
+		// (the loop below just runs once, at zero offset).
+		const float lineHeight = static_cast<float>(_axisTextRenderer->fontSize()) * 1.2f;
 		for (const LabelEntry& entry : labels)
 		{
 			const QVector3D projected = entry.worldPos.project(
 				camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
-			_axisTextRenderer->RenderText(entry.text.toStdString(),
-				projected.x(), height() - projected.y(), 1,
-				QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
+			const float baseY = height() - projected.y();
+
+			const QStringList textLines = entry.text.split(QChar('\n'));
+			for (int i = 0; i < textLines.size(); ++i)
+			{
+				const float y = baseY - lineHeight * static_cast<float>(textLines.size() - 1 - i);
+				_axisTextRenderer->RenderText(textLines[i].toStdString(),
+					projected.x(), y, 1,
+					QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
+			}
 		}
 	}
 }
@@ -14549,6 +14679,11 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	if (key == Qt::Key_Escape && _measurementTool != MeasurementTool::None)
 	{
 		setMeasurementTool(MeasurementTool::None);
+		return;
+	}
+	if ((key == Qt::Key_Return || key == Qt::Key_Enter) && measurementToolHasVariableAnchorCount(_measurementTool))
+	{
+		finishVariableLengthMeasurement();
 		return;
 	}
 	const bool modifierOnlyKey =

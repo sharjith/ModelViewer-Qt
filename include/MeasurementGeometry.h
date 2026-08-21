@@ -99,4 +99,29 @@ namespace MeasurementGeometry
     };
     EdgeToFaceResult compareEdgeToFace(const QVector3D& edgePoint, const QVector3D& edgeDir,
         const QVector3D& facePoint, const QVector3D& faceNormal, float parallelToleranceDegrees = 5.0f);
+
+    // Best-fit circle through N (>= 3) points that aren't necessarily exactly
+    // coplanar/concyclic ("Pitch Circle") - unlike circumcircle3Point()'s
+    // exact 3-point solve, this least-squares fits a plane through the
+    // points first (order-independent - correct regardless of the order
+    // they were picked in), then a 2D circle within that plane. Also reports
+    // each input point's angular position sorted around the circle, and the
+    // gaps between angularly-consecutive points (wrapping, sums to exactly
+    // 360 by construction) - the actual "is this bolt pattern uniformly
+    // spaced" answer a pitch circle measurement exists to give. The fit
+    // itself is pick-order-independent, but the REPORTED list is rotated to
+    // start at points[0] (the first point the caller passed in) - purely a
+    // display convention, so "gap 1" reads as "the gap right after your
+    // first pick" instead of landing at an arbitrary point tied to the
+    // internal plane basis.
+    struct PitchCircleResult
+    {
+        bool  valid = false;
+        QVector3D center;
+        QVector3D normal;
+        float radius = 0.0f;              // PCD = 2 * radius
+        QVector<int> angleSortedIndices;  // input indices, angle-sorted, rotated to start at index 0
+        QVector<float> gapAnglesDegrees;  // one gap per input point, in angleSortedIndices order
+    };
+    PitchCircleResult fitPitchCircle(const QVector<QVector3D>& points);
 }

@@ -214,3 +214,8 @@ void TextRenderer::setHeight(const unsigned int& height)
 {
 	_height = height;
 }
+
+unsigned int TextRenderer::fontSize() const
+{
+	return _fontSize;
+}

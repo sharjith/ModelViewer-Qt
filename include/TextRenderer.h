@@ -30,7 +30,12 @@ public:
 	void deleteTextures();
 	// Pre-compiles a list of characters from the given font
 	void Load(std::string font, unsigned int fontSize);
-	// Renders a string of text using the precompiled list of characters
+	// Renders a string of text using the precompiled list of characters.
+	// Single-line only - any '\n' in `text` looks up a (nonexistent) glyph
+	// for it rather than starting a new line, so a caller wanting
+	// multi-line text must split on '\n' itself and call this once per
+	// line, offsetting y by fontSize() (see ViewportWidget::
+	// drawMeasurementOverlay()'s label loop for the pattern).
 	void RenderText(std::string text, float x, float y, float scale, QVector3D color = QVector3D(1.0f, 1.0f, 1.0f),
 		VAlignment vAlignment = VAlignment::VTOP, HAlignment _hAlignment = HAlignment::HLEFT);
 
@@ -43,6 +48,12 @@ public:
 
 	unsigned int height() const;
 	void setHeight(const unsigned int& height);
+
+	// The loaded font's nominal size in pixels - RenderText() has no
+	// built-in concept of a line break (see its doc comment), so a caller
+	// that wants multi-line text needs this to space successive
+	// RenderText() calls vertically itself.
+	unsigned int fontSize() const;
 
 private:
 	// Holds a list of pre-compiled Characters
