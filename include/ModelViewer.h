@@ -130,7 +130,7 @@ public:
 	void redo();
 
 	// Opens (or raises) the Texture Debug Panel for the current selection.
-	// Called by MainWindow when Tools → Texture Debugger is triggered.
+	// Called by MainWindow when Visualization → Texture Debugger is triggered.
 	void showTextureDebugPanel();
 
 	// Undo stack access
@@ -222,11 +222,14 @@ public:
 	// Delete one measurement by id. Undoable via DeleteMeasurementCommand.
 	void deleteMeasurement(const QUuid& measurementId);
 
-	// Deletes whichever measurement is currently selected in the viewport
-	// (see ViewportWidget::selectedMeasurementId()), if any. Wired to the
-	// same Key_Delete shortcut as mesh deletion in MainWindow - a selected
-	// measurement takes priority over a selected mesh.
-	void deleteSelectedMeasurement();
+	// Deletes every measurement currently selected in the viewport (see
+	// ViewportWidget::selectedMeasurementIds()) - the Measurement dialog's
+	// results list supports multi/shift-select, so this can be more than
+	// one. Wrapped in a single undo macro when there's more than one, so
+	// one Undo restores the whole batch rather than needing N presses.
+	// Wired to the same Key_Delete shortcut as mesh deletion in MainWindow -
+	// a selected measurement takes priority over a selected mesh.
+	void deleteSelectedMeasurements();
 
 public slots:
 	void updateDisplayList();

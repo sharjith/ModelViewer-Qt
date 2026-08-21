@@ -445,14 +445,17 @@ public:
 	// DimensionDragKind::None if nothing is within pixelRadius.
 	DimensionHit hitTestDimensionLine(const QPoint& pixel, Camera* camera, int pixelRadius = 8) const;
 
-	// Currently selected measurement in the viewport (independent of mesh
+	// Currently selected measurement(s) in the viewport (independent of mesh
 	// selection) - clicking near a measurement's marker/line while no tool
 	// is armed selects it (see mousePressEvent()'s hitTestMeasurement()
-	// call); Delete removes it (MainWindow's Key_Delete shortcut checks
-	// this before falling back to normal mesh deletion). A null QUuid means
-	// nothing is selected.
-	QUuid selectedMeasurementId() const { return _selectedMeasurementId; }
-	void setSelectedMeasurementId(const QUuid& id);
+	// call, which always replaces the whole set with a single id - multi-
+	// select is a Measurement-dialog-only affordance, via its list's
+	// ExtendedSelection mode); Delete removes all of them (MainWindow's
+	// Key_Delete shortcut checks hasSelectedMeasurements() before falling
+	// back to normal mesh deletion). An empty set means nothing is selected.
+	const QSet<QUuid>& selectedMeasurementIds() const { return _selectedMeasurementIds; }
+	bool hasSelectedMeasurements() const { return !_selectedMeasurementIds.isEmpty(); }
+	void setSelectedMeasurementIds(const QSet<QUuid>& ids);
 
 	// Human-readable result string for one measurement, e.g. "Distance:
 	// 12.345" or "3-Point Arc Radius: 5.678" - shared by the in-viewport
@@ -1132,11 +1135,11 @@ signals:
 	// so the Measurement dialog can show "click the 2nd point" etc.
 	// `picked`/`required` are both 0 when no tool is armed.
 	void measurementProgressChanged(int picked, int required);
-	// Fires whenever the selected measurement changes - including from
-	// clicking one directly in the viewport (setSelectedMeasurementId()'s
+	// Fires whenever the selected measurement set changes - including from
+	// clicking one directly in the viewport (setSelectedMeasurementIds()'s
 	// other caller besides the Measurement dialog) - so the dialog's results
-	// list can keep its highlighted row in sync either way.
-	void measurementSelectionChanged(const QUuid& id);
+	// list can keep its highlighted rows in sync either way.
+	void measurementSelectionChanged(const QSet<QUuid>& ids);
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
@@ -2051,9 +2054,9 @@ private:
 	// unrelated drag gesture.
 	bool _measurementClickCandidate = false;
 	QPoint _measurementClickPressPos;
-	// Selected measurement (independent of tool-armed state and of mesh
-	// selection) - see selectedMeasurementId()'s doc comment.
-	QUuid _selectedMeasurementId;
+	// Selected measurement(s) (independent of tool-armed state and of mesh
+	// selection) - see selectedMeasurementIds()'s doc comment.
+	QSet<QUuid> _selectedMeasurementIds;
 	// Hovered-but-not-yet-selected measurement (no tool armed, mouse not
 	// pressed) - a lighter preview than the selection highlight, so the
 	// user can see what a click will select/delete before committing to it.

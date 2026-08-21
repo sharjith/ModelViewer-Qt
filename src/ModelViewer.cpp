@@ -280,7 +280,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	}
 
 	// Texture Debug Panel — created once per viewer, shown on demand via
-	// Tools → Texture Debugger (visible only when the setting is enabled).
+	// Visualization → Texture Debugger (visible only when the setting is enabled).
 	{
 		_textureDebugPanel = new TextureDebugPanel(this);
 		_textureDebugPanel->setViewportWidget(_viewportWidget);
@@ -995,17 +995,26 @@ void ModelViewer::deleteMeasurement(const QUuid& measurementId)
 	_undoStack->push(new DeleteMeasurementCommand(this, _viewportWidget, measurementId));
 }
 
-void ModelViewer::deleteSelectedMeasurement()
+void ModelViewer::deleteSelectedMeasurements()
 {
 	if (!_viewportWidget)
 		return;
 
-	const QUuid selected = _viewportWidget->selectedMeasurementId();
-	if (selected.isNull())
+	const QSet<QUuid> selected = _viewportWidget->selectedMeasurementIds();
+	if (selected.isEmpty())
 		return;
 
-	deleteMeasurement(selected);
-	_viewportWidget->setSelectedMeasurementId(QUuid());
+	const bool multiple = selected.size() > 1;
+	if (multiple && _undoStack)
+		_undoStack->beginMacro(tr("Delete %1 Measurements").arg(selected.size()));
+
+	for (const QUuid& id : selected)
+		deleteMeasurement(id);
+
+	if (multiple && _undoStack)
+		_undoStack->endMacro();
+
+	_viewportWidget->setSelectedMeasurementIds({});
 }
 
 void ModelViewer::setupUndoStackMonitoring()

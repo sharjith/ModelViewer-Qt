@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QSet>
 #include "MeasurementData.h"
 
 class ModelViewer;
@@ -27,7 +28,7 @@ class QMdiSubWindow;
 //
 // Owns no measurement state itself - every control is a thin read/write onto
 // the target ModelViewer's ViewportWidget (setMeasurementTool()/
-// measurementTool()/selectedMeasurementId()/measurementSummaryText()) and
+// measurementTool()/selectedMeasurementIds()/measurementSummaryText()) and
 // SceneGraph (measurements()/measurementsChanged), the same "thin front-end"
 // relationship RtRenderDialog has with ray tracing.
 // ---------------------------------------------------------------------------
@@ -52,8 +53,8 @@ private slots:
 	// Viewport -> dialog direction of selection sync (a measurement was
 	// clicked directly in the 3D view) - distinct from onResultsSelectionChanged()
 	// (dialog -> viewport), which reads the list's own selection rather than
-	// this signal's id, so the two can't just share a slot.
-	void onViewportSelectionChanged(const QUuid& id);
+	// this signal's ids, so the two can't just share a slot.
+	void onViewportSelectionChanged(const QSet<QUuid>& ids);
 	// Fires for both the checkbox (show/hide) and, harmlessly, any other
 	// per-item change QListWidget might report - only the check state is
 	// acted on (see setMeasurementVisible()'s not-undoable, plain-display-
@@ -83,8 +84,8 @@ private:
 
 	// True while this dialog is programmatically updating _resultsList's
 	// selection or check-state from a full refreshResultsList() rebuild or a
-	// setSelectedMeasurementId() sync - guards both onResultsSelectionChanged()
-	// (which would otherwise redundantly call setSelectedMeasurementId()
+	// setSelectedMeasurementIds() sync - guards both onResultsSelectionChanged()
+	// (which would otherwise redundantly call setSelectedMeasurementIds()
 	// again) and onResultItemChanged() (which would otherwise call
 	// setMeasurementVisible() while just reflecting the model, not changing
 	// it) - same one-flag reentrancy guard pattern as RtRenderDialog's

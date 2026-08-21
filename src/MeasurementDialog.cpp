@@ -31,9 +31,10 @@ namespace
 		return nullptr;
 	}
 
-	// QListWidget's default SingleSelection behavior treats clicking the
-	// already-selected row as a no-op - it stays selected, there's no way to
-	// get back to "nothing selected" except selecting a different row. This
+	// QListWidget's default behavior (in either SingleSelection or, now,
+	// ExtendedSelection mode) treats a plain click on the sole already-
+	// selected row as a no-op - it stays selected, there's no way to get
+	// back to "nothing selected" except selecting a different row. This
 	// list needs an explicit deselect (Delete should then fall back to
 	// whatever's selected directly in the viewport, not whatever measurement
 	// happened to be selected in the dialog last). Must intercept in
@@ -41,7 +42,11 @@ namespace
 	// the time any of QListWidget's own selection signals fire (itemPressed,
 	// itemClicked, itemSelectionChanged), the click has already been applied,
 	// so there is no signal-based way to tell "this hit an already-selected
-	// item" from "this click is what just selected it".
+	// item" from "this click is what just selected it". Scoped to the
+	// no-modifier, exactly-one-item-selected case only - a Ctrl/Shift click,
+	// or a plain click on one item within a larger multi-selection (which
+	// Qt's own ExtendedSelection handling correctly collapses to just that
+	// item), both fall through to the base class unchanged.
 	class MeasurementResultsList : public QListWidget
 	{
 	public:
@@ -51,8 +56,9 @@ namespace
 		void mousePressEvent(QMouseEvent* event) override
 		{
 			const QModelIndex index = indexAt(event->pos());
-			if (event->button() == Qt::LeftButton && index.isValid() && selectionModel()
-				&& selectionModel()->isSelected(index))
+			if (event->button() == Qt::LeftButton && index.isValid() && event->modifiers() == Qt::NoModifier
+				&& selectionModel() && selectionModel()->isSelected(index)
+				&& selectionModel()->selectedIndexes().size() == 1)
 			{
 				clearSelection();
 				setCurrentIndex(QModelIndex());
@@ -97,7 +103,10 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	_statusLabel->setWordWrap(true);
 
 	_resultsList = new MeasurementResultsList(this);
-	_resultsList->setSelectionMode(QAbstractItemView::SingleSelection);
+	// Ctrl/Shift multi-select, so several measurements can be reviewed or
+	// deleted together (see ModelViewer::deleteSelectedMeasurements()'s
+	// undo-macro batching).
+	_resultsList->setSelectionMode(QAbstractItemView::ExtendedSelection);
 
 	_deleteButton = new QPushButton(tr("Delete"), this);
 	_deleteButton->setEnabled(false);
@@ -198,7 +207,7 @@ void MeasurementDialog::refreshResultsList()
 	if (!sceneGraph || !viewport)
 		return;
 
-	const QUuid selectedId = viewport->selectedMeasurementId();
+	const QSet<QUuid> selectedIds = viewport->selectedMeasurementIds();
 
 	_updatingSelectionFromViewport = true;
 	_resultsList->clear();
@@ -208,12 +217,12 @@ void MeasurementDialog::refreshResultsList()
 		item->setData(Qt::UserRole, m.id);
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
 		item->setCheckState(m.visible ? Qt::Checked : Qt::Unchecked);
-		if (m.id == selectedId)
+		if (selectedIds.contains(m.id))
 			item->setSelected(true);
 	}
 	_updatingSelectionFromViewport = false;
 
-	_deleteButton->setEnabled(!selectedId.isNull());
+	_deleteButton->setEnabled(!selectedIds.isEmpty());
 }
 
 void MeasurementDialog::onResultsSelectionChanged()
@@ -225,39 +234,40 @@ void MeasurementDialog::onResultsSelectionChanged()
 	if (!viewport)
 		return;
 
-	const QList<QListWidgetItem*> selected = _resultsList->selectedItems();
-	const QUuid id = selected.isEmpty() ? QUuid() : selected.first()->data(Qt::UserRole).toUuid();
+	QSet<QUuid> ids;
+	for (QListWidgetItem* item : _resultsList->selectedItems())
+		ids.insert(item->data(Qt::UserRole).toUuid());
 
 	_updatingSelectionFromViewport = true;
-	viewport->setSelectedMeasurementId(id);
+	viewport->setSelectedMeasurementIds(ids);
 	_updatingSelectionFromViewport = false;
 
-	_deleteButton->setEnabled(!id.isNull());
+	_deleteButton->setEnabled(!ids.isEmpty());
 }
 
-void MeasurementDialog::onViewportSelectionChanged(const QUuid& id)
+void MeasurementDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
 {
 	if (_updatingSelectionFromViewport)
 		return;
 
 	_updatingSelectionFromViewport = true;
 	_resultsList->clearSelection();
-	if (!id.isNull())
+	QListWidgetItem* firstMatch = nullptr;
+	for (int i = 0; i < _resultsList->count(); ++i)
 	{
-		for (int i = 0; i < _resultsList->count(); ++i)
+		QListWidgetItem* item = _resultsList->item(i);
+		if (ids.contains(item->data(Qt::UserRole).toUuid()))
 		{
-			QListWidgetItem* item = _resultsList->item(i);
-			if (item->data(Qt::UserRole).toUuid() == id)
-			{
-				item->setSelected(true);
-				_resultsList->scrollToItem(item);
-				break;
-			}
+			item->setSelected(true);
+			if (!firstMatch)
+				firstMatch = item;
 		}
 	}
+	if (firstMatch)
+		_resultsList->scrollToItem(firstMatch);
 	_updatingSelectionFromViewport = false;
 
-	_deleteButton->setEnabled(!id.isNull());
+	_deleteButton->setEnabled(!ids.isEmpty());
 }
 
 void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
@@ -278,7 +288,7 @@ void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
 	// doesn't touch the GL viewport at all, so nothing else repaints it.
 	// Every other measurement state change happens to trigger a repaint as a
 	// side effect of some ViewportWidget method call along the way (e.g.
-	// setSelectedMeasurementId()'s own update()); visibility has no such
+	// setSelectedMeasurementIds()'s own update()); visibility has no such
 	// path, so it's requested explicitly here.
 	if (viewport)
 		viewport->update();
@@ -287,7 +297,7 @@ void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
 void MeasurementDialog::onDeleteClicked()
 {
 	if (_modelViewer)
-		_modelViewer->deleteSelectedMeasurement();
+		_modelViewer->deleteSelectedMeasurements();
 }
 
 void MeasurementDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)

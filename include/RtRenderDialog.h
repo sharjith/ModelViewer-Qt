@@ -20,7 +20,7 @@ class QMdiSubWindow;
 // RtRenderDialog
 //
 // Non-modal settings/progress/export dialog for the CPU path tracer, opened
-// from the Tools menu (see MainWindow::on_actionRayTracing_triggered()).
+// from the Visualization menu (see MainWindow::on_actionRayTracing_triggered()).
 // Non-modal deliberately - unlike SettingsDialog, the user is expected to
 // watch the main viewport update live while adjusting settings and pressing
 // Render, not fill out a form and close it.

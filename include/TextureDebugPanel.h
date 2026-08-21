@@ -21,8 +21,8 @@ class ModelViewer;
 // TextureDebugPanel
 //
 // Floating Qt::Tool window that shows the GPU-side texture bindings for the
-// currently selected mesh.  Activated via Tools → Texture Debugger (visible
-// only when "Enable Texture Debugger" is checked in Settings → Debug).
+// currently selected mesh.  Activated via Visualization → Texture Debugger
+// (visible only when "Enable Texture Debugger" is checked in Settings → Debug).
 //
 // Layout:
 //   ┌──────────────────────────────────────────────┐

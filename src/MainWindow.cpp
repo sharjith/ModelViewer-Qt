@@ -505,13 +505,14 @@ MainWindow::MainWindow(QWidget* parent)
 		if (focusWidget && ((tree && (focusWidget == tree || tree->isAncestorOf(focusWidget))) ||
 		                     focusWidget == viewport))
 		{
-			// A selected measurement (see ViewportWidget::selectedMeasurementId(),
-			// set by clicking one in the viewport) is independent of mesh
-			// selection and takes priority - the user just clicked it
-			// specifically, so Delete should act on that, not on whatever
-			// mesh selection happens to still be sitting around from before.
-			if (!child->getViewportWidget()->selectedMeasurementId().isNull())
-				child->deleteSelectedMeasurement();
+			// A selected measurement (see ViewportWidget::selectedMeasurementIds(),
+			// set by clicking one in the viewport or multi/shift-selecting in
+			// the Measurement dialog's list) is independent of mesh selection
+			// and takes priority - the user just selected it specifically, so
+			// Delete should act on that, not on whatever mesh selection
+			// happens to still be sitting around from before.
+			if (child->getViewportWidget()->hasSelectedMeasurements())
+				child->deleteSelectedMeasurements();
 			else
 				child->deleteSelectedItems();
 		}
@@ -548,13 +549,13 @@ MainWindow::MainWindow(QWidget* parent)
 			activeMdiChild()->redo();
 		});
 
-	// Tools → Texture Debugger
+	// Visualization → Texture Debugger
 	connect(ui->actionTextureDebugger, &QAction::triggered, this, [this]() {
 		if (activeMdiChild())
 			activeMdiChild()->showTextureDebugPanel();
 		});
 
-	// Tools → Ray Tracing - non-modal, at most one instance per document
+	// Visualization → Ray Tracing - non-modal, at most one instance per document
 	// (mirrors SettingsDialog's WA_DeleteOnClose pattern for auto-cleanup,
 	// but reuses/raises an already-open dialog instead of stacking a new one
 	// on each click - repeatedly triggering the menu/shortcut used to spawn
@@ -1828,7 +1829,7 @@ void MainWindow::on_actionSettings_triggered()
 	connect(settingsDialog, &SettingsDialog::textureDebugPanelVisibilityChanged,
 	        this, [this](bool enabled) {
 		const bool hasMdiChild = (activeMdiChild() != nullptr);
-		ui->actionToolsSeparator->setVisible(enabled && hasMdiChild);
+		ui->actionVisualizationSeparator->setVisible(enabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(enabled && hasMdiChild);
 	});
 
@@ -1918,15 +1919,15 @@ void MainWindow::updateMenus()
 
 	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
 
-	// Tools menu is always visible now that Ray Tracing gives it a
-	// permanent, non-debug entry - only the Texture Debugger action (and
+	// The Visualization menu is always visible - Ray Tracing is a
+	// permanent, non-debug entry; only the Texture Debugger action (and
 	// its separator) stay gated behind the Settings debug flag.
 	ui->actionRayTracing->setEnabled(hasMdiChild);
 	ui->actionMeasure->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();
-		ui->actionToolsSeparator->setVisible(debugEnabled && hasMdiChild);
+		ui->actionVisualizationSeparator->setVisible(debugEnabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(debugEnabled && hasMdiChild);
 	}
 	ui->actionTile->setEnabled(hasMdiChild);

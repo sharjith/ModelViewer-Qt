@@ -81,15 +81,20 @@
     <property name="title">
      <string>Tools</string>
     </property>
-    <addaction name="actionRayTracing"/>
-    <addaction name="separator"/>
     <addaction name="actionMeasure"/>
-    <addaction name="actionToolsSeparator"/>
+   </widget>
+   <widget class="QMenu" name="menuVisualization">
+    <property name="title">
+     <string>Visualization</string>
+    </property>
+    <addaction name="actionRayTracing"/>
+    <addaction name="actionVisualizationSeparator"/>
     <addaction name="actionTextureDebugger"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuTools"/>
+   <addaction name="menuVisualization"/>
    <addaction name="menuWindows"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -349,7 +354,7 @@
     <string>Open the measurement tool - point, distance, and arc-radius tools</string>
    </property>
   </action>
-  <action name="actionToolsSeparator">
+  <action name="actionVisualizationSeparator">
    <property name="separator">
     <bool>true</bool>
    </property>

@@ -10903,13 +10903,13 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	}
 }
 
-void ViewportWidget::setSelectedMeasurementId(const QUuid& id)
+void ViewportWidget::setSelectedMeasurementIds(const QSet<QUuid>& ids)
 {
-	if (_selectedMeasurementId == id)
+	if (_selectedMeasurementIds == ids)
 		return;
-	_selectedMeasurementId = id;
+	_selectedMeasurementIds = ids;
 	update();
-	emit measurementSelectionChanged(_selectedMeasurementId);
+	emit measurementSelectionChanged(_selectedMeasurementIds);
 }
 
 QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, int pixelRadius) const
@@ -11432,6 +11432,24 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 	// small detail or looking at the whole model. sizeMultiplier gives
 	// hover/selection extra visual weight beyond just a color change.
 	const float markerSize = std::max(camera->getViewRange(), 0.0001f) * 0.01f;
+
+	// Arrowhead cones use a per-point constant-screen-size scale instead -
+	// mirrors TransformGizmo::computeWorldScale()'s exact technique (same
+	// ortho-vs-perspective split, same idea of reacting to THIS point's own
+	// depth rather than a single scene-wide value). markerSize above is
+	// scene-wide (camera->getViewRange() alone), which is fine for small
+	// point-cross markers but wrong for a dimension's arrowheads under
+	// perspective projection: a dimension sitting much closer to the
+	// camera than the current orbit pivot would get an oversized cone,
+	// and one much farther away an undersized one, even though the
+	// overall "zoom" (viewRange) hasn't changed at all.
+	auto coneScaleAt = [&](const QVector3D& worldPos) -> float {
+		if (camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC)
+			return markerSize;
+		const float distance = (camera->getRenderPosition() - worldPos).length();
+		return std::max(distance * 0.01f, 0.0001f);
+	};
+
 	auto addMarker = [&](const QVector3D& p, const QVector3D& color, float sizeMultiplier = 1.0f) {
 		const float s = markerSize * sizeMultiplier;
 		addSegment(p - QVector3D(s, 0, 0), p + QVector3D(s, 0, 0), color);
@@ -11491,7 +11509,16 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		if (len < 1.0e-6f)
 			return;
 		const QVector3D dirN = delta / len;
-		const float coneRadius = markerSize * 1.2f;
+		// One shared scale for both cones (evaluated at the line's own
+		// midpoint) rather than one per end - a dimension line is short
+		// relative to camera distance in practice, so the two ends'
+		// individual depths rarely differ enough to matter, and matching
+		// cone sizes at both ends reads better than two subtly different
+		// ones on the same line.
+		// 0.6f = half of the original 1.2f base radius factor (1:3
+		// radius:height ratio preserved below, since coneHeight is derived
+		// straight from coneRadius).
+		const float coneRadius = coneScaleAt((a + b) * 0.5f) * 0.6f;
 		const float coneHeight = std::min(coneRadius * 3.0f, len * 0.4f);
 		addCone(a, -dirN, coneRadius, coneHeight, color);
 		addCone(b, dirN, coneRadius, coneHeight, color);
@@ -11558,8 +11585,12 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 
 		// Arrowheads tangent to the arc at each end, pointing outward (away
 		// from the arc's middle) - mirrors addDimensionLine()'s "tips touch
-		// the endpoints, pointing away from the middle" convention.
-		const float coneRadius = markerSize * 1.2f;
+		// the endpoints, pointing away from the middle" convention. Scaled
+		// at the arc's own vertex (both cones share it, same reasoning as
+		// addDimensionLine()'s shared midpoint scale).
+		// 0.6f = half of the original 1.2f base radius factor, same as
+		// addDimensionLine()'s cones (1:3 ratio preserved below).
+		const float coneRadius = coneScaleAt(vertex) * 0.6f;
 		const float coneHeight = std::min(coneRadius * 3.0f, radius * 0.3f);
 		const QVector3D startPoint = vertex + u * radius;
 		addCone(startPoint, -v, coneRadius, coneHeight, color);  // derivative at t=0 is +v; outward is reversed
@@ -11576,7 +11607,7 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		if (!m.visible)
 			continue;
 
-		const bool isSelected = (m.id == _selectedMeasurementId);
+		const bool isSelected = _selectedMeasurementIds.contains(m.id);
 		// Selection is the stronger cue and wins if somehow both apply
 		// (shouldn't normally happen - hover-select only runs while nothing
 		// new is being placed - but a stale hover from just before a click
@@ -11873,16 +11904,57 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 
 	// In-progress measurement: N of the required anchors already picked,
 	// waiting on the next click. Works uniformly for every tool - a plain
-	// marker per pick already made, a straight preview line connecting
-	// consecutive picks (useful feedback even for a 3rd arc point that
-	// hasn't landed yet), and a prompt for what to click next.
+	// marker (or, for an edge pick, the edge's own highlighted chord) per
+	// pick already made, a straight preview line connecting consecutive
+	// picks (useful feedback even for a 3rd arc point that hasn't landed
+	// yet), and a prompt for what to click next.
 	if (!_pendingMeasurementAnchors.isEmpty())
 	{
+		// Mirrors handleMeasurementClick()'s own tool/anchor-index dispatch
+		// for which picks came from pickStraightEdgeAnchor() rather than
+		// pickSurfaceAnchor()/pickCircularEdgeCenterAnchor() - an edge
+		// anchor has no single "point" to resolve (resolveMeasurementAnchor()
+		// would only find one for a CIRCULAR edge, via its center; a
+		// straight edge anchor has neither triangleIndex/snappedVertexIndex
+		// nor a circle to resolve, so it would silently render at the
+		// origin instead of showing the edge that was actually picked).
+		auto isEdgeChordAnchor = [](MeasurementTool tool, int anchorIndex) -> bool {
+			switch (tool)
+			{
+			case MeasurementTool::EdgeLength:
+			case MeasurementTool::EdgeToEdge:
+				return true;  // every anchor is an edge
+			case MeasurementTool::EdgeToVertex:
+			case MeasurementTool::EdgeToFace:
+				return anchorIndex == 0;  // only the first anchor is an edge; the second is a point/face
+			default:
+				return false;
+			}
+		};
+
 		QVector3D lastPicked;
 		for (int i = 0; i < _pendingMeasurementAnchors.size(); ++i)
 		{
-			const QVector3D p = resolveMeasurementAnchor(_pendingMeasurementAnchors[i]);
-			addMarker(p, pendingColor);
+			const MeasurementAnchorRef& pendingRef = _pendingMeasurementAnchors[i];
+			QVector3D p;
+			if (isEdgeChordAnchor(_measurementTool, i))
+			{
+				QVector3D edgeStart, edgeEnd;
+				float edgeLength = 0.0f;
+				if (resolveMeasurementEdgeGeometry(pendingRef, edgeStart, edgeEnd, edgeLength))
+				{
+					addSegment(edgeStart, edgeEnd, pendingColor);
+					addMarker(edgeStart, pendingColor);
+					addMarker(edgeEnd, pendingColor);
+					p = (edgeStart + edgeEnd) * 0.5f;
+				}
+			}
+			else
+			{
+				p = resolveMeasurementAnchor(pendingRef);
+				addMarker(p, pendingColor);
+			}
+
 			if (i > 0)
 				addSegment(lastPicked, p, pendingColor);
 			lastPicked = p;
@@ -13669,7 +13741,11 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			}
 
 			const QUuid hitMeasurement = hitTestMeasurement(clickPoint, _primaryCamera, 8);
-			setSelectedMeasurementId(hitMeasurement);
+			// A plain click in the 3D view always replaces the whole
+			// selection with (at most) one id - multi-select is a
+			// Measurement-dialog-only affordance (its list's
+			// ExtendedSelection mode), not wired to viewport clicks.
+			setSelectedMeasurementIds(hitMeasurement.isNull() ? QSet<QUuid>() : QSet<QUuid>{ hitMeasurement });
 			if (!hitMeasurement.isNull())
 			{
 				if (_selectionManager)
@@ -13778,7 +13854,7 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 			// measurement whose dimension line was pressed, same as
 			// hitTestMeasurement()'s select branch just below handles for
 			// every other part of a measurement.
-			setSelectedMeasurementId(_dimensionDragCandidateId);
+			setSelectedMeasurementIds({ _dimensionDragCandidateId });
 			if (_selectionManager)
 				_selectionManager->setSelectedIds({});
 			_dimensionDragCandidate = false;

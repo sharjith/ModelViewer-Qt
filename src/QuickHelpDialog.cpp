@@ -823,11 +823,11 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 	};
 	content += createSection(tr("Edit Menu"), "") + createTable(headers, editRows);
 
-	// Tools Menu
-	QList<QStringList> toolsRows = {
-		{tr("Tools → Texture Debugger"), tr(""), tr("Open the texture debugger panel")}
+	// Visualization Menu
+	QList<QStringList> visualizationRows = {
+		{tr("Visualization → Texture Debugger"), tr(""), tr("Open the texture debugger panel")}
 	};
-	content += createSection(tr("Tools Menu"), "") + createTable(headers, toolsRows);
+	content += createSection(tr("Visualization Menu"), "") + createTable(headers, visualizationRows);
 
 	// Window Menu
 	QList<QStringList> windowRows = {
