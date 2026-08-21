@@ -210,7 +210,8 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         }
         mesh->setPrecomputedOccEdges(meshData.precomputedOccEdges,
                                      meshData.precomputedOccEdgeBoundaries,
-                                     circles);
+                                     circles,
+                                     meshData.precomputedOccEdgeVertexTolerance);
     }
     if (!meshData.variantMappings.isEmpty())
     {

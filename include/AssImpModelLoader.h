@@ -150,6 +150,9 @@ struct AssImpMeshData
 		double radius = 0.0;
 	};
 	std::vector<PrecomputedEdgeCircle> precomputedOccEdgeCircles;
+	// Mesh-wide max BRep vertex tolerance - mirrors
+	// BRepToAssimpConverter::OccEdgeData::vertexTolerance's doc comment.
+	double precomputedOccEdgeVertexTolerance = 0.0;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;

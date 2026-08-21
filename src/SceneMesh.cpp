@@ -127,7 +127,7 @@ SceneMesh* SceneMesh::clone()
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
 	if (_importState.hasOccEdges())
-		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles());
+		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles(), _importState.occEdgeVertexTolerance());
 
 	// Copy import provenance so export, skinning, animation and variant paths
 	// behave identically on the clone.
@@ -904,16 +904,13 @@ void SceneMesh::uploadLodTier()
 	_pendingLod1Indices.clear();
 }
 
-void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 {
-	// Only valid for indexed triangle meshes.
-	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
-		return;
-
 	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
-	const uint32_t triCount  = static_cast<uint32_t>(_indices.size() / 3);
+	std::vector<uint32_t> weld(vertCount);
+	if (vertCount == 0)
+		return weld;
 
-	// --- Step 1: Position weld ---
 	// Vertices at UV seams or hard-edge splits share the same 3D position but have
 	// different indices. Quantizing by a small epsilon groups them so adjacency is
 	// correctly detected across the seam.
@@ -930,7 +927,6 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	};
 	std::unordered_map<QPos, uint32_t, QPosHash> posMap;
 	posMap.reserve(vertCount);
-	std::vector<uint32_t> weld(vertCount);
 	for (uint32_t i = 0; i < vertCount; ++i)
 	{
 		const glm::vec3& p = _vertices[i].Position;
@@ -940,6 +936,23 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		auto [it, inserted] = posMap.emplace(q, static_cast<uint32_t>(posMap.size()));
 		weld[i] = it->second;
 	}
+	return weld;
+}
+
+void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+{
+	// Only valid for indexed triangle meshes.
+	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+		return;
+
+	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
+	const uint32_t triCount  = static_cast<uint32_t>(_indices.size() / 3);
+
+	// --- Step 1: Position weld ---
+	// Vertices at UV seams or hard-edge splits share the same 3D position but have
+	// different indices. Quantizing by a small epsilon groups them so adjacency is
+	// correctly detected across the seam.
+	const std::vector<uint32_t> weld = buildPositionWeldMap();
 
 	// --- Step 2: Build edge adjacency storing vertex normals at each endpoint ---
 	// Key: packed sorted pair of welded vertex indices.
@@ -1105,15 +1118,84 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	bindFeatureEdgeVertexState();
 }
 
+const std::vector<std::array<int, 3>>& SceneMesh::getTriangleAdjacency() const
+{
+	if (!_triangleAdjacencyCacheBuilt)
+		buildTriangleAdjacency();
+	return _triangleAdjacencyCache;
+}
+
+void SceneMesh::buildTriangleAdjacency() const
+{
+	_triangleAdjacencyCacheBuilt = true;  // set even below's early-returns, so an invalid mesh isn't retried on every call
+	_triangleAdjacencyCache.clear();
+
+	// Only valid for indexed triangle meshes - same guard as
+	// buildAndUploadFeatureEdges().
+	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+		return;
+
+	const uint32_t triCount = static_cast<uint32_t>(_indices.size() / 3);
+	const std::vector<uint32_t> weld = buildPositionWeldMap();
+
+	_triangleAdjacencyCache.assign(triCount, std::array<int, 3>{ -1, -1, -1 });
+
+	// Key: packed sorted pair of welded vertex indices, same packing as
+	// buildAndUploadFeatureEdges(). Value: which triangle(s) and which
+	// local edge index (0/1/2, edge e running from local vertex e to
+	// (e+1)%3) touch this edge - up to 2 for a manifold mesh; a 3rd+
+	// touch (non-manifold) is ignored, same tolerance-of-imperfect-input
+	// spirit as the feature-edge classifier.
+	struct EdgeSide { int triangle = -1; int localEdge = -1; };
+	struct EdgeTouch { EdgeSide sides[2]; uint8_t count = 0; };
+	std::unordered_map<uint64_t, EdgeTouch> edgeMap;
+	edgeMap.reserve(_indices.size());
+
+	for (uint32_t t = 0; t < triCount; ++t)
+	{
+		const uint32_t oi[3] = { _indices[t*3], _indices[t*3+1], _indices[t*3+2] };
+		const uint32_t wi[3] = { weld[oi[0]], weld[oi[1]], weld[oi[2]] };
+
+		for (int e = 0; e < 3; ++e)
+		{
+			uint32_t wA = wi[e], wB = wi[(e + 1) % 3];
+			if (wA == wB)
+				continue;  // degenerate
+			if (wA > wB)
+				std::swap(wA, wB);
+			const uint64_t key = (uint64_t)wA << 32 | wB;
+
+			EdgeTouch& touch = edgeMap[key];
+			if (touch.count < 2)
+			{
+				touch.sides[touch.count] = { static_cast<int>(t), e };
+				++touch.count;
+			}
+		}
+	}
+
+	for (const auto& entry : edgeMap)
+	{
+		const EdgeTouch& touch = entry.second;
+		if (touch.count != 2)
+			continue;  // a mesh boundary (count == 1) leaves the -1 default
+		const EdgeSide& a = touch.sides[0];
+		const EdgeSide& b = touch.sides[1];
+		_triangleAdjacencyCache[a.triangle][a.localEdge] = b.triangle;
+		_triangleAdjacencyCache[b.triangle][b.localEdge] = a.triangle;
+	}
+}
+
 void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
                                         const std::vector<int>& bounds,
-                                        const std::vector<OccEdgeCircleInfo>& circles)
+                                        const std::vector<OccEdgeCircleInfo>& circles,
+                                        double vertexTolerance)
 {
 	if (!wireframeFeaturesEnabled())
 		return;
 	if (edgeVerts.empty()) return;
 
-	_importState.setOccEdgeData(edgeVerts, bounds, circles);
+	_importState.setOccEdgeData(edgeVerts, bounds, circles, vertexTolerance);
 	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
 
 	if (!_occEdgeVertexBuffer.isCreated())
@@ -2387,7 +2469,7 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 		if (wireframeFeaturesEnabled())
 		{
 			if (_importState.hasOccEdges())
-				setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles());
+				setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles(), _importState.occEdgeVertexTolerance());
 			else if (!_featureEdgeIndices.empty())
 			{
 				_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
@@ -2405,7 +2487,7 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 	if (wireframeFeaturesEnabled())
 	{
 		if (_importState.hasOccEdges())
-			setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles());
+			setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles(), _importState.occEdgeVertexTolerance());
 		else if (!_featureEdgeIndices.empty())
 		{
 			_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());

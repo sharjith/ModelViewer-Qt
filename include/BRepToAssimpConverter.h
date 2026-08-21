@@ -94,6 +94,16 @@ public:
 		OccEdgeSegments  segments;  // flat {x0,y0,z0, x1,y1,z1, ...}
 		OccEdgeBoundaries bounds;   // bounds[i] = first vec3-index of topo-edge i
 		OccEdgeCircles   circles;   // circles[i] = analytic circle for topo-edge i, if any
+		// Largest BRep_Tool::Tolerance() found across every vertex touched by
+		// these edges - the real OCC notion of "how far apart can two points
+		// be and still count as the same topological vertex" for this shape,
+		// used by the Chain Length measurement tool to decide whether two
+		// picked edges are actually connected (see
+		// ViewportWidget::measurementChainEdgeConnects()) rather than
+		// inventing an arbitrary epsilon. A single mesh-wide value rather
+		// than one per vertex - real per-vertex tolerance variation is rare
+		// in practice and not worth threading a whole parallel array for.
+		double vertexTolerance = 0.0;
 	};
 
 	// Returns precomputed B-Rep edge data for the given aiMesh*, or nullptr if

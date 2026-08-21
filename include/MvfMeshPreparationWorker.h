@@ -45,6 +45,10 @@ struct PreparedMvfMesh
 	// Analytic circle data (Edge Radius measurement tool), 1:1 with
 	// occEdgeBoundaries - see OccEdgeCircleInfo's doc comment.
 	std::vector<OccEdgeCircleInfo> occEdgeCircles;
+	// Mesh-wide max BRep vertex tolerance (Chain Length's connectivity
+	// check) - see OccEdgeData::vertexTolerance's doc comment
+	// (BRepToAssimpConverter.h).
+	double occEdgeVertexTolerance = 0.0;
 
 	// Per-mesh user transform (gizmo TRS) preserved across MVF save/load.
 	QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);

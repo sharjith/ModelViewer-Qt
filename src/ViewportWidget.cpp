@@ -10510,6 +10510,17 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			return tr("Chain Length: %1, %2 of %3 edges available").arg(total, 0, 'f', 3).arg(resolvedCount).arg(m.anchors.size());
 		return tr("Chain Length: %1, %2 edges").arg(total, 0, 'f', 3).arg(resolvedCount);
 	}
+	case MeasurementType::FaceArea:
+	{
+		if (m.anchors.isEmpty())
+			return QString();
+		QVector<int> triangles;
+		float area = 0.0f;
+		QVector3D centroid;
+		if (!resolveMeasurementFaceArea(m.anchors[0], triangles, area, centroid))
+			return tr("Face Area: (face no longer available)");
+		return tr("Face Area: %1, %2 triangles").arg(area, 0, 'f', 3).arg(triangles.size());
+	}
 	}
 	return QString();
 }
@@ -10676,6 +10687,89 @@ bool ViewportWidget::resolveMeasurementEdgePolyline(const MeasurementAnchorRef& 
 	return true;
 }
 
+bool ViewportWidget::measurementChainEdgeConnects(const QVector<MeasurementAnchorRef>& chainSoFar,
+	const MeasurementAnchorRef& candidate) const
+{
+	if (chainSoFar.isEmpty())
+		return true;  // first edge always starts the chain
+
+	QVector<QVector3D> candidatePts;
+	if (!resolveMeasurementEdgePolyline(candidate, candidatePts) || candidatePts.size() < 2)
+		return false;
+
+	// "Same point" tolerance in world units for one edge, derived from the
+	// real OCC B-Rep tolerance at its mesh's vertices (see
+	// MeshImportAdaptor::occEdgeVertexTolerance()'s doc comment) rather
+	// than an invented constant - scaled by the mesh's current transform
+	// since the stored value is in local/model space (same "average axis
+	// scale is good enough for an epsilon" reasoning as
+	// resolveMeasurementEdgeCircle()'s radius recovery). Floored at a
+	// small absolute constant, both as a safety margin against float
+	// truncation in the tessellated data and as the whole answer for non-
+	// CAD meshes (tolerance always 0 there - fine, since a non-CAD edge is
+	// only ever its 2 raw vertex positions, with no curve-evaluation
+	// drift to absorb in the first place).
+	constexpr float kFallbackTol = 1.0e-4f;
+	auto edgeTolerance = [&](const MeasurementAnchorRef& ref) -> float {
+		SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+		const double localTol = mesh ? mesh->getOccEdgeVertexTolerance() : 0.0;
+		if (localTol <= 0.0 || !mesh)
+			return kFallbackTol;
+		const QMatrix4x4 t = mesh->combinedRenderTransform();
+		const float scale = (t.mapVector(QVector3D(1, 0, 0)).length()
+			+ t.mapVector(QVector3D(0, 1, 0)).length()
+			+ t.mapVector(QVector3D(0, 0, 1)).length()) / 3.0f;
+		return std::max(kFallbackTol, static_cast<float>(localTol) * scale);
+	};
+	const float candidateTol = edgeTolerance(candidate);
+
+	// A chain edge's "loose ends" are whichever of its two true endpoints
+	// isn't shared with a neighbor already in the chain - XOR across every
+	// edge picked so far (a point touched by exactly two edges is
+	// interior to the chain, not something a new edge could still attach
+	// to). A single edge that's already a closed loop on its own (a full
+	// circle, where its own two "ends" coincide) cancels itself out here,
+	// correctly leaving zero loose ends - see this function's doc comment
+	// for why that's exactly what blocks a second, unrelated circle from
+	// silently joining the same chain.
+	struct LooseEnd { QVector3D point; float tolerance; };
+	QVector<LooseEnd> looseEnds;
+	auto toggleEnd = [&looseEnds](const QVector3D& p, float tol) {
+		for (int i = 0; i < looseEnds.size(); ++i)
+		{
+			const float t = std::max(tol, looseEnds[i].tolerance);
+			if ((looseEnds[i].point - p).lengthSquared() < t * t)
+			{
+				looseEnds.removeAt(i);
+				return;
+			}
+		}
+		looseEnds.append({ p, tol });
+	};
+
+	for (const MeasurementAnchorRef& a : chainSoFar)
+	{
+		QVector<QVector3D> pts;
+		if (!resolveMeasurementEdgePolyline(a, pts) || pts.size() < 2)
+			continue;
+		const float tol = edgeTolerance(a);
+		toggleEnd(pts.first(), tol);
+		toggleEnd(pts.last(), tol);
+	}
+
+	if (looseEnds.isEmpty())
+		return false;  // chain already closed into a loop - nothing left to attach to
+
+	for (const LooseEnd& end : looseEnds)
+	{
+		const float t = std::max(candidateTol, end.tolerance);
+		if ((candidatePts.first() - end.point).lengthSquared() < t * t
+			|| (candidatePts.last() - end.point).lengthSquared() < t * t)
+			return true;
+	}
+	return false;
+}
+
 bool ViewportWidget::resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
 	QVector3D& outPosition, QVector3D& outNormal) const
 {
@@ -10711,6 +10805,102 @@ bool ViewportWidget::resolveMeasurementAnchorPlane(const MeasurementAnchorRef& r
 
 	outPosition = resolveMeasurementAnchor(ref);  // respects vertex snap, same as every other tool
 	outNormal = normal.normalized();
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementFaceArea(const MeasurementAnchorRef& ref,
+	QVector<int>& outTriangleIndices, float& outArea, QVector3D& outCentroid) const
+{
+	outTriangleIndices.clear();
+	outArea = 0.0f;
+	outCentroid = QVector3D();
+
+	if (ref.triangleIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	const std::vector<unsigned int> indices = mesh->indices();
+	const size_t triCount = indices.size() / 3;
+	if (static_cast<size_t>(ref.triangleIndex) >= triCount)
+		return false;
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto vertexPos = [&trsfPoints](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+	auto triangleNormal = [&](int t) -> QVector3D {
+		const size_t base = static_cast<size_t>(t) * 3;
+		const QVector3D p0 = vertexPos(indices[base]);
+		const QVector3D p1 = vertexPos(indices[base + 1]);
+		const QVector3D p2 = vertexPos(indices[base + 2]);
+		return QVector3D::crossProduct(p1 - p0, p2 - p0);
+	};
+
+	const QVector3D seedNormalRaw = triangleNormal(ref.triangleIndex);
+	if (seedNormalRaw.lengthSquared() < 1.0e-12f)
+		return false;  // degenerate (near-zero-area) seed triangle
+	const QVector3D seedNormal = seedNormalRaw.normalized();
+
+	// Tight on purpose (see this function's doc comment in ViewportWidget.h) -
+	// a genuinely flat CAD face's triangles agree to a small fraction of a
+	// degree in practice; this needs to reliably stop at any REAL angle
+	// change (even a shallow one) while still absorbing floating-point
+	// tessellation noise, the opposite bias from buildAndUploadFeatureEdges()'s
+	// much looser ~30 degree "is this a sharp edge" threshold.
+	constexpr float kCoplanarToleranceDegrees = 2.0f;
+	const float cosThreshold = std::cos(kCoplanarToleranceDegrees * 0.017453292519943295f);
+
+	const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+	if (static_cast<size_t>(ref.triangleIndex) >= adjacency.size())
+		return false;  // adjacency build failed (non-triangle-mesh guard in buildTriangleAdjacency())
+
+	std::vector<bool> visited(triCount, false);
+	QVector<int> queue;
+	queue.append(ref.triangleIndex);
+	visited[static_cast<size_t>(ref.triangleIndex)] = true;
+
+	QVector3D areaWeightedCentroidSum;
+	for (int qi = 0; qi < queue.size(); ++qi)
+	{
+		const int t = queue[qi];
+		const size_t base = static_cast<size_t>(t) * 3;
+		const float area = triangleNormal(t).length() * 0.5f;
+		const QVector3D centroid = (vertexPos(indices[base]) + vertexPos(indices[base + 1]) + vertexPos(indices[base + 2])) / 3.0f;
+
+		outArea += area;
+		areaWeightedCentroidSum += centroid * area;
+		outTriangleIndices.append(t);
+
+		// Every candidate is compared against the SEED's normal directly,
+		// not its immediate predecessor in the flood-fill - comparing to
+		// an ever-drifting "current" normal would let many small (each
+		// individually within-tolerance) steps accumulate into a large
+		// total misalignment across a big face; comparing to one fixed
+		// reference keeps the whole region within the stated tolerance of
+		// the point the user actually clicked.
+		for (int neighbor : adjacency[static_cast<size_t>(t)])
+		{
+			if (neighbor < 0 || visited[static_cast<size_t>(neighbor)])
+				continue;
+			const QVector3D n = triangleNormal(neighbor);
+			if (n.lengthSquared() < 1.0e-12f)
+				continue;  // skip a degenerate triangle rather than letting it break the chain
+			if (QVector3D::dotProduct(n.normalized(), seedNormal) < cosThreshold)
+				continue;  // not coplanar enough - a real face boundary
+			visited[static_cast<size_t>(neighbor)] = true;
+			queue.append(neighbor);
+		}
+	}
+
+	outCentroid = (outArea > 1.0e-9f)
+		? areaWeightedCentroidSum / outArea
+		: vertexPos(indices[static_cast<size_t>(ref.triangleIndex) * 3]);
 	return true;
 }
 
@@ -10755,6 +10945,14 @@ bool ViewportWidget::resolveMeasurementDimensionSegment(const Measurement& m, QV
 	case MeasurementType::EdgeLength:
 	{
 		if (m.anchors.isEmpty())
+			return false;
+		// A draggable offset dimension line is only meaningful for a
+		// genuinely straight edge - see drawMeasurementOverlay()'s
+		// EdgeLength branch for why a curved/filleted one skips it
+		// entirely (a straight line's own on-screen length wouldn't
+		// match the curve-length value it would be labeled with).
+		QVector<QVector3D> polyline;
+		if (resolveMeasurementEdgePolyline(m.anchors[0], polyline) && polyline.size() > 2)
 			return false;
 		float length = 0.0f;
 		return resolveMeasurementEdgeGeometry(m.anchors[0], outA, outB, length);
@@ -11018,6 +11216,7 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 		ref.edgeIndex = edgeAnchor.edgeIndex;
 	}
 	else if (_measurementTool == MeasurementTool::FaceToFace
+		|| _measurementTool == MeasurementTool::FaceArea
 		|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
 			&& !_pendingMeasurementAnchors.isEmpty())
 		|| _measurementTool == MeasurementTool::ArcRadius3Point
@@ -11025,10 +11224,11 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	{
 		// Two different reasons land here, but both need the same plain
 		// surface pick with no circular-edge-center snap attempted:
-		//  - FACE picks (FaceToFace's two anchors; PointToFace/EdgeToFace's
-		//    second anchor - their first is a point/edge, already routed
-		//    above) need real triangle/normal data to resolve a plane
-		//    from - a circle's center has none.
+		//  - FACE picks (FaceToFace's two anchors; FaceArea's one anchor;
+		//    PointToFace/EdgeToFace's second anchor - their first is a
+		//    point/edge, already routed above) need real triangle/normal
+		//    data to resolve a plane (or a flood-fill seed) from - a
+		//    circle's center has none.
 		//  - ARC-RIM picks (3-Point Arc Radius's 3 points; Center+2-Point
 		//    Arc Radius's own p1/p2, as opposed to its CENTER anchor at
 		//    index 0, handled below) must land on distinct points actually
@@ -11080,6 +11280,17 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 			ref.barycentric        = anchor.barycentric;
 			ref.snappedVertexIndex = anchor.snappedVertexIndex;
 		}
+	}
+
+	// Chain Length must stay one contiguous path/loop - reject a pick that
+	// doesn't share an endpoint with the chain so far (see
+	// measurementChainEdgeConnects()'s doc comment), e.g. two concentric
+	// but otherwise unconnected circles.
+	if (_measurementTool == MeasurementTool::EdgeChain
+		&& !measurementChainEdgeConnects(_pendingMeasurementAnchors, ref))
+	{
+		MainWindow::showStatusMessage(tr("Edge doesn't connect to the chain - pick one sharing an endpoint with it"), 2500);
+		return;  // stay armed, don't add this edge
 	}
 
 	_pendingMeasurementAnchors.append(ref);
@@ -11151,6 +11362,23 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 		float t = abLenSq > 1.0e-6f ? QVector2D::dotProduct(p - a, ab) / abLenSq : 0.0f;
 		t = std::clamp(t, 0.0f, 1.0f);
 		return (p - (a + ab * t)).length();
+	};
+
+	// Minimum on-screen distance to an edge anchor's TRUE tessellated path
+	// (see resolveMeasurementEdgePolyline()'s doc comment) rather than just
+	// its chord - for a straight edge this is identical to before; for a
+	// curved/filleted one, testing only the chord would miss clicks along
+	// the actual highlighted curve. Returns false (leaving outDist
+	// untouched) if the edge can't be resolved.
+	auto minDistToEdgeTrace = [&](const MeasurementAnchorRef& ref, const QVector2D& p, float& outDist) -> bool {
+		QVector<QVector3D> polyline;
+		if (!resolveMeasurementEdgePolyline(ref, polyline) || polyline.size() < 2)
+			return false;
+		float best = std::numeric_limits<float>::max();
+		for (int i = 0; i + 1 < polyline.size(); ++i)
+			best = std::min(best, distPointToSegment(p, toScreen(polyline[i]), toScreen(polyline[i + 1])));
+		outDist = best;
+		return true;
 	};
 
 	const QVector2D clickPt(static_cast<float>(pixel.x()), static_cast<float>(pixel.y()));
@@ -11299,15 +11527,23 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 		}
 		else if (m.type == MeasurementType::EdgeLength && !m.anchors.isEmpty())
 		{
-			QVector3D start, end;
-			float length = 0.0f;
-			if (resolveMeasurementEdgeGeometry(m.anchors[0], start, end, length))
+			// True tessellated path, not just the chord (see
+			// resolveMeasurementEdgePolyline()'s doc comment) - for a
+			// straight edge this is the same 2-point segment as before, so
+			// no change there; for a curved/filleted one, hit-testing
+			// against just the chord would miss clicks along the actual
+			// highlighted curve (see the render branch below).
+			QVector<QVector3D> polyline;
+			if (resolveMeasurementEdgePolyline(m.anchors[0], polyline) && polyline.size() >= 2)
 			{
-				const float dSeg = distPointToSegment(clickPt, toScreen(start), toScreen(end));
-				if (dSeg < bestDist)
+				for (int i = 0; i + 1 < polyline.size(); ++i)
 				{
-					bestDist = dSeg;
-					bestId = m.id;
+					const float d = distPointToSegment(clickPt, toScreen(polyline[i]), toScreen(polyline[i + 1]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
+					}
 				}
 			}
 		}
@@ -11318,7 +11554,8 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 			if (resolveMeasurementEdgeGeometry(m.anchors[0], edgeStart, edgeEnd, edgeLength))
 			{
 				const QVector3D point = resolveMeasurementAnchor(m.anchors[1]);
-				const float dEdge = distPointToSegment(clickPt, toScreen(edgeStart), toScreen(edgeEnd));
+				float dEdge = distPointToSegment(clickPt, toScreen(edgeStart), toScreen(edgeEnd));
+				minDistToEdgeTrace(m.anchors[0], clickPt, dEdge);
 				const float dPoint = (clickPt - toScreen(point)).length();
 				const float dBest = std::min(dEdge, dPoint);
 				if (dBest < bestDist)
@@ -11335,8 +11572,10 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 			if (resolveMeasurementEdgeGeometry(m.anchors[0], start1, end1, len1)
 				&& resolveMeasurementEdgeGeometry(m.anchors[1], start2, end2, len2))
 			{
-				const float d1 = distPointToSegment(clickPt, toScreen(start1), toScreen(end1));
-				const float d2 = distPointToSegment(clickPt, toScreen(start2), toScreen(end2));
+				float d1 = distPointToSegment(clickPt, toScreen(start1), toScreen(end1));
+				minDistToEdgeTrace(m.anchors[0], clickPt, d1);
+				float d2 = distPointToSegment(clickPt, toScreen(start2), toScreen(end2));
+				minDistToEdgeTrace(m.anchors[1], clickPt, d2);
 				const float dBest = std::min(d1, d2);
 				if (dBest < bestDist)
 				{
@@ -11354,7 +11593,8 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 				QVector3D facePos, faceNormal;
 				if (resolveMeasurementAnchorPlane(m.anchors[1], facePos, faceNormal))
 				{
-					const float dEdge = distPointToSegment(clickPt, toScreen(edgeStart), toScreen(edgeEnd));
+					float dEdge = distPointToSegment(clickPt, toScreen(edgeStart), toScreen(edgeEnd));
+					minDistToEdgeTrace(m.anchors[0], clickPt, dEdge);
 					const float dFace = (clickPt - toScreen(facePos)).length();
 					const float dBest = std::min(dEdge, dFace);
 					if (dBest < bestDist)
@@ -11465,6 +11705,53 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 					{
 						bestDist = d;
 						bestId = m.id;
+					}
+				}
+			}
+		}
+		else if (m.type == MeasurementType::FaceArea && !m.anchors.isEmpty())
+		{
+			// Same boundary-outline computation as the render loop below
+			// (see its comment) - tests proximity to the region's actual
+			// boundary, not just the centroid label.
+			QVector<int> triangles;
+			float area = 0.0f;
+			QVector3D centroid;
+			SceneMesh* mesh = getMeshByUuid(m.anchors[0].meshUuid);
+			if (mesh && resolveMeasurementFaceArea(m.anchors[0], triangles, area, centroid))
+			{
+				const std::vector<unsigned int> faceIndices = mesh->indices();
+				const std::vector<float>& faceTrsfPoints = mesh->getTrsfPoints();
+				auto faceVertexPos = [&faceTrsfPoints](unsigned int vIdx) -> QVector3D {
+					const size_t p = static_cast<size_t>(vIdx) * 3;
+					if (p + 2 >= faceTrsfPoints.size())
+						return QVector3D();
+					return QVector3D(faceTrsfPoints[p], faceTrsfPoints[p + 1], faceTrsfPoints[p + 2]);
+				};
+				const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+
+				QSet<int> triangleSet;
+				for (int t : triangles)
+					triangleSet.insert(t);
+
+				for (int t : triangles)
+				{
+					if (static_cast<size_t>(t) >= adjacency.size())
+						continue;
+					const size_t base = static_cast<size_t>(t) * 3;
+					for (int e = 0; e < 3; ++e)
+					{
+						const int neighbor = adjacency[static_cast<size_t>(t)][e];
+						if (neighbor >= 0 && triangleSet.contains(neighbor))
+							continue;  // interior edge, not on the boundary
+						const QVector3D pA = faceVertexPos(faceIndices[base + static_cast<size_t>(e)]);
+						const QVector3D pB = faceVertexPos(faceIndices[base + static_cast<size_t>((e + 1) % 3)]);
+						const float d = distPointToSegment(clickPt, toScreen(pA), toScreen(pB));
+						if (d < bestDist)
+						{
+							bestDist = d;
+							bestId = m.id;
+						}
 					}
 				}
 			}
@@ -11751,6 +12038,20 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		lineVertices.insert(lineVertices.end(), { b.x(), b.y(), b.z(), color.x(), color.y(), color.z() });
 	};
 
+	// Traces an edge anchor's TRUE tessellated path (see
+	// resolveMeasurementEdgePolyline()'s doc comment) rather than a chord
+	// between its two ends - for a straight edge this reduces to the exact
+	// same single segment as before, so this is a pure correctness upgrade
+	// for any caller that was previously drawing a chord unconditionally.
+	auto addEdgeTrace = [&](const MeasurementAnchorRef& ref, const QVector3D& segColor) {
+		QVector<QVector3D> polyline;
+		if (resolveMeasurementEdgePolyline(ref, polyline) && polyline.size() >= 2)
+		{
+			for (int i = 0; i + 1 < polyline.size(); ++i)
+				addSegment(polyline[i], polyline[i + 1], segColor);
+		}
+	};
+
 	// Marker cross size scales with the camera's current view range so it
 	// stays a sensible on-screen size whether the user is zoomed in on a
 	// small detail or looking at the whole model. sizeMultiplier gives
@@ -11876,6 +12177,75 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		addSegment(b, bOff, color);  // extension line at b
 		addDimensionLine(aOff, bOff, color);
 		return (aOff + bOff) * 0.5f;
+	};
+
+	// Curved analogue of addOffsetDimension(), for a curved EdgeLength pick
+	// whose underlying curve is a true circle (fillets/rounds - by far the
+	// common case, via resolveMeasurementEdgeCircle()). A straight offset
+	// line's own on-screen length wouldn't match the curve-length value
+	// it's labeled with (see the EdgeLength render branch below), so
+	// instead the dimension line is concentric with the edge itself,
+	// offset radially outward by the same default magnitude a straight
+	// dimension uses, with extension lines running radially from each true
+	// endpoint (exactly "normal to the edge" there, since a circle's
+	// radius direction is always perpendicular to its own tangent) out to
+	// the offset arc. `polyline` must already be the edge's true
+	// tessellated path in order (see resolveMeasurementEdgePolyline()) -
+	// each of its points is projected to the same angular position at the
+	// larger radius, so the offset arc traces the exact same path (and
+	// winds the same way around the circle) rather than a generic sweep
+	// between just the two ends. Static offset magnitude for now (not yet
+	// draggable, matching Chain Length/Pitch Circle/Concentricity's own
+	// "static report" precedent). Returns an on-arc label position.
+	auto addOffsetArcDimension = [&](const QVector<QVector3D>& polyline, const QVector3D& center,
+		const QVector3D& axis, const QVector3D& color) -> QVector3D {
+		if (polyline.size() < 2)
+			return polyline.isEmpty() ? QVector3D() : polyline.first();
+
+		const QVector3D n = axis.normalized();
+		const float offsetMag = defaultDimensionOffsetMagnitude(camera);
+
+		auto radialOffset = [&](const QVector3D& p) -> QVector3D {
+			const QVector3D toP = p - center;
+			const QVector3D alongAxis = n * QVector3D::dotProduct(toP, n);
+			const QVector3D inPlane = toP - alongAxis;
+			const float r = inPlane.length();
+			return (r < 1.0e-6f) ? p : center + alongAxis + inPlane * ((r + offsetMag) / r);
+		};
+
+		QVector<QVector3D> offsetPts;
+		offsetPts.reserve(polyline.size());
+		for (const QVector3D& p : polyline)
+			offsetPts.append(radialOffset(p));
+
+		addSegment(polyline.first(), offsetPts.first(), color);  // extension line at the start
+		addSegment(polyline.last(), offsetPts.last(), color);    // extension line at the end
+		for (int i = 0; i + 1 < offsetPts.size(); ++i)
+			addSegment(offsetPts[i], offsetPts[i + 1], color);
+
+		// Arrowheads tangent to the arc at each end, pointing outward (away
+		// from the arc's middle) - same "tip touches the endpoint, base
+		// set back toward the middle" convention as addDimensionLine(),
+		// using the LOCAL tangent direction there rather than the overall
+		// chord (visually correct even for a tight arc where the two
+		// diverge a lot).
+		const float coneRadius = coneScaleAt((offsetPts.first() + offsetPts.last()) * 0.5f) * 0.6f;
+		const QVector3D dirStart = offsetPts[1] - offsetPts[0];
+		if (dirStart.lengthSquared() > 1.0e-10f)
+		{
+			const QVector3D dirN = dirStart.normalized();
+			const float coneHeight = std::min(coneRadius * 3.0f, dirStart.length() * 0.4f);
+			addCone(offsetPts.first(), -dirN, coneRadius, coneHeight, color);
+		}
+		const QVector3D dirEnd = offsetPts[offsetPts.size() - 1] - offsetPts[offsetPts.size() - 2];
+		if (dirEnd.lengthSquared() > 1.0e-10f)
+		{
+			const QVector3D dirN = dirEnd.normalized();
+			const float coneHeight = std::min(coneRadius * 3.0f, dirEnd.length() * 0.4f);
+			addCone(offsetPts.last(), dirN, coneRadius, coneHeight, color);
+		}
+
+		return offsetPts[offsetPts.size() / 2];
 	};
 
 	// The floating-vertex angular dimension's full visual: two legs from
@@ -12089,10 +12459,45 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				// consistent with Distance/Point-to-Face/Face-to-Face even
 				// though the edge itself is already visible geometry, so
 				// the dimension doesn't have to sit exactly on top of the
-				// model's own edge to be measured.
+				// model's own edge to be measured. That reasoning only
+				// holds for a genuinely STRAIGHT edge, though: its offset
+				// line's own on-screen length equals the value it's
+				// labeled with. For a curved or filleted edge that's no
+				// longer true (the reported length is the CURVE's length,
+				// not the straight chord an offset line would show), so a
+				// floating STRAIGHT dimension line would visually
+				// misrepresent its own label. If the edge is a true circle
+				// (fillets/rounds - resolveMeasurementEdgeCircle()), a
+				// curved dimension line concentric with the edge itself
+				// solves that (see addOffsetArcDimension()); anything else
+				// (a general spline edge, rare in practice) falls back to
+				// just tracing the TRUE tessellated path (see
+				// resolveMeasurementEdgePolyline()'s doc comment) directly
+				// on the part with the label at its chord midpoint - the
+				// same treatment Chain Length uses. Gated to
+				// polyline.size() > 2 (more than one segment, i.e.
+				// genuinely non-linear) so a straight edge's look and
+				// draggable dimension line are unchanged from before.
+				QVector<QVector3D> polyline;
+				const bool isCurved = resolveMeasurementEdgePolyline(m.anchors[0], polyline) && polyline.size() > 2;
+				QVector3D labelPos;
+				if (isCurved)
+				{
+					for (int i = 0; i + 1 < polyline.size(); ++i)
+						addSegment(polyline[i], polyline[i + 1], color);
+
+					QVector3D circCenter, circAxis;
+					float circRadius = 0.0f;
+					labelPos = resolveMeasurementEdgeCircle(m.anchors[0], circCenter, circAxis, circRadius)
+						? addOffsetArcDimension(polyline, circCenter, circAxis, dimensionColor)
+						: (start + end) * 0.5f;
+				}
+				else
+				{
+					labelPos = addOffsetDimension(start, end, dimensionColor, m);
+				}
 				addMarker(start, color, sizeMultiplier);
 				addMarker(end, color, sizeMultiplier);
-				const QVector3D labelPos = addOffsetDimension(start, end, dimensionColor, m);
 				labels.append({ labelPos, summary });
 			}
 		}
@@ -12107,7 +12512,9 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 
 				// The edge itself, highlighted as reference context (not
 				// draggable - only the point-to-edge dimension line is).
-				addSegment(edgeStart, edgeEnd, color);
+				// Traced via its true tessellated path so a curved or
+				// filleted edge isn't shown as a straight chord.
+				addEdgeTrace(m.anchors[0], color);
 				addMarker(edgeStart, color, sizeMultiplier);
 				addMarker(edgeEnd, color, sizeMultiplier);
 				addMarker(point, color, sizeMultiplier);
@@ -12128,8 +12535,10 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			{
 				// Both edges, highlighted as reference context (not
 				// draggable themselves - only the resulting dimension is).
-				addSegment(start1, end1, color);
-				addSegment(start2, end2, color);
+				// Traced via their true tessellated paths so a curved or
+				// filleted edge isn't shown as a straight chord.
+				addEdgeTrace(m.anchors[0], color);
+				addEdgeTrace(m.anchors[1], color);
 				addMarker(start1, color, sizeMultiplier);
 				addMarker(end1, color, sizeMultiplier);
 				addMarker(start2, color, sizeMultiplier);
@@ -12179,8 +12588,11 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 				{
 					const float normalLen = markerSize * 3.0f;
 
-					// Both the edge and the face, highlighted as reference context.
-					addSegment(edgeStart, edgeEnd, color);
+					// Both the edge and the face, highlighted as reference
+					// context. The edge is traced via its true tessellated
+					// path so a curved or filleted edge isn't shown as a
+					// straight chord.
+					addEdgeTrace(m.anchors[0], color);
 					addMarker(edgeStart, color, sizeMultiplier);
 					addMarker(edgeEnd, color, sizeMultiplier);
 					addMarker(facePos, color, sizeMultiplier);
@@ -12315,6 +12727,57 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 			{
 				labelCentroid /= static_cast<float>(resolvedCount);
 				labels.append({ labelCentroid, summary });
+			}
+		}
+		else if (m.type == MeasurementType::FaceArea && !m.anchors.isEmpty())
+		{
+			QVector<int> triangles;
+			float area = 0.0f;
+			QVector3D centroid;
+			if (resolveMeasurementFaceArea(m.anchors[0], triangles, area, centroid))
+			{
+				// No single dimension line here either (same reasoning as
+				// Chain Length above) - the region's own boundary outline
+				// IS the measured quantity, so it's drawn directly rather
+				// than as a separate reference-vs-dimension pair. The
+				// boundary is a direct byproduct of the same adjacency
+				// data resolveMeasurementFaceArea() used to flood-fill:
+				// an included triangle's edge is on the boundary exactly
+				// when its neighbor across that edge is NOT also included
+				// (or doesn't exist - a genuine mesh boundary).
+				if (SceneMesh* mesh = getMeshByUuid(m.anchors[0].meshUuid))
+				{
+					const std::vector<unsigned int> faceIndices = mesh->indices();
+					const std::vector<float>& faceTrsfPoints = mesh->getTrsfPoints();
+					auto faceVertexPos = [&faceTrsfPoints](unsigned int vIdx) -> QVector3D {
+						const size_t p = static_cast<size_t>(vIdx) * 3;
+						if (p + 2 >= faceTrsfPoints.size())
+							return QVector3D();
+						return QVector3D(faceTrsfPoints[p], faceTrsfPoints[p + 1], faceTrsfPoints[p + 2]);
+					};
+					const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+
+					QSet<int> triangleSet;
+					for (int t : triangles)
+						triangleSet.insert(t);
+
+					for (int t : triangles)
+					{
+						if (static_cast<size_t>(t) >= adjacency.size())
+							continue;
+						const size_t base = static_cast<size_t>(t) * 3;
+						for (int e = 0; e < 3; ++e)
+						{
+							const int neighbor = adjacency[static_cast<size_t>(t)][e];
+							if (neighbor >= 0 && triangleSet.contains(neighbor))
+								continue;  // interior edge, not on the boundary
+							const QVector3D pA = faceVertexPos(faceIndices[base + static_cast<size_t>(e)]);
+							const QVector3D pB = faceVertexPos(faceIndices[base + static_cast<size_t>((e + 1) % 3)]);
+							addSegment(pA, pB, color);
+						}
+					}
+				}
+				labels.append({ centroid, summary });
 			}
 		}
 	}
@@ -14824,6 +15287,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_measurementHoverAnchor = MeshSurfaceAnchor();
 		}
 		else if (_measurementTool == MeasurementTool::FaceToFace
+			|| _measurementTool == MeasurementTool::FaceArea
 			|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
 				&& !_pendingMeasurementAnchors.isEmpty())
 			|| _measurementTool == MeasurementTool::ArcRadius3Point
@@ -18320,7 +18784,7 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
 
         // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
         if (!pm.occEdgeSegments.empty())
-            mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles);
+            mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles, pm.occEdgeVertexTolerance);
 
         const Material resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
@@ -18409,7 +18873,7 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 
     // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
     if (!pm.occEdgeSegments.empty())
-        mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles);
+        mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles, pm.occEdgeVertexTolerance);
 
     // Resolve textures and set material
     const Material resolved = resolveMaterialTextures(this, pm.material);

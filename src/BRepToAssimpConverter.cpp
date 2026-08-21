@@ -22,12 +22,14 @@
 #include <ShapeFix_Wire.hxx>
 #include <TDataStd_Name.hxx>
 #include <TDF_ChildIterator.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Solid.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <TopAbs_ShapeEnum.hxx>
 #include <vector>
 #include <XCAFDoc_DocumentTool.hxx>
@@ -535,6 +537,16 @@ BRepToAssimpConverter::extractEdgesFromFaceGroup(
 				circleInfo.radius = circ.Radius();
 			}
 			result.circles.push_back(circleInfo);
+
+			// Real OCC coincidence tolerance at this edge's two endpoints -
+			// see OccEdgeData::vertexTolerance's doc comment. Degenerate
+			// edges are skipped above, so both vertices always exist here.
+			TopoDS_Vertex v0, v1;
+			TopExp::Vertices(edge, v0, v1);
+			if (!v0.IsNull())
+				result.vertexTolerance = std::max(result.vertexTolerance, BRep_Tool::Tolerance(v0));
+			if (!v1.IsNull())
+				result.vertexTolerance = std::max(result.vertexTolerance, BRep_Tool::Tolerance(v1));
 
 			for (int i = 1; i < nPts; ++i)
 			{

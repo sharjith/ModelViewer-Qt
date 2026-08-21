@@ -194,13 +194,25 @@ enum class MeasurementType
     // measurementToolHasVariableAnchorCount(), same "click more, or finish"
     // workflow as PitchCircle), summing each edge's own length (see
     // EdgeLength's doc comment - same resolveMeasurementEdgeGeometry() call,
-    // works on any mesh, any curve type). Doesn't require or verify the
-    // edges connect end-to-end or close into a loop - a running total over
-    // whatever's picked serves both an open chain (e.g. a weld seam spread
-    // across several edges) and a closed perimeter (a loop of edges) alike
-    // without needing connectivity-tracing logic neither use case actually
-    // needs.
+    // works on any mesh, any curve type). Each newly picked edge must share
+    // a true endpoint with the chain so far (see
+    // ViewportWidget::measurementChainEdgeConnects()) - a running total
+    // serves both an open chain (e.g. a weld seam spread across several
+    // edges) and a closed perimeter (a loop of edges) alike, but two
+    // disconnected edges (e.g. two concentric but unrelated circles) are
+    // rejected rather than silently summed into one meaningless total.
     EdgeChain,
+
+    // A single face pick (plain triangle pick, same as FaceToFace's own
+    // anchors - excluded from circular-edge-center snap for the same
+    // reason: needs real triangle data, not a center point) - flood-fills
+    // through triangles connected to (share an edge with) and
+    // approximately coplanar with the picked one, and sums their area.
+    // Works on any mesh (CAD or not) since it's pure triangle geometry, no
+    // B-Rep topology needed - unlike EdgeRadius/Concentricity, this has no
+    // CAD-only limitation. See ViewportWidget::resolveMeasurementFaceArea()
+    // and SceneMesh::getTriangleAdjacency().
+    FaceArea,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -225,6 +237,7 @@ enum class MeasurementTool
     Concentricity,
     AngleThreePoint,
     EdgeChain,
+    FaceArea,
 };
 
 struct Measurement
@@ -243,11 +256,13 @@ struct Measurement
     // For Concentricity, both anchors are edge anchors (same convention as
     // EdgeRadius, one per circle being compared). For AngleThreePoint,
     // anchors[0] is the vertex and anchors[1]/[2] are the two ray
-    // endpoints. PitchCircle and EdgeChain are the two exceptions to
-    // "count is determined by type" - both are 2/3 OR MORE respectively,
-    // unordered (PitchCircle - any pick order fits the same circle;
-    // EdgeChain - a running total doesn't care what order the edges were
-    // picked in either) - see measurementToolHasVariableAnchorCount().
+    // endpoints. FaceArea is 1 (a plain face anchor, same as one of
+    // FaceToFace's two). PitchCircle and EdgeChain are the two exceptions to
+    // "count is determined by type" - both are 2/3 OR MORE respectively
+    // (PitchCircle - any pick order fits the same circle, order genuinely
+    // doesn't matter; EdgeChain - order matters in the sense that each new
+    // pick must connect to the chain so far, but which literal edge starts
+    // it is arbitrary) - see measurementToolHasVariableAnchorCount().
     QVector<MeasurementAnchorRef>  anchors;
 
     // Show/hide toggle from the Measurement dialog's results list checkbox -
@@ -328,6 +343,7 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::Concentricity:        return 2;
     case MeasurementTool::AngleThreePoint:      return 3;
     case MeasurementTool::EdgeChain:            return 2;
+    case MeasurementTool::FaceArea:             return 1;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -367,6 +383,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::Concentricity:        return MeasurementType::Concentricity;
     case MeasurementTool::AngleThreePoint:      return MeasurementType::AngleThreePoint;
     case MeasurementTool::EdgeChain:            return MeasurementType::EdgeChain;
+    case MeasurementTool::FaceArea:             return MeasurementType::FaceArea;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -392,6 +409,7 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::Concentricity:        return QStringLiteral("Concentricity");
     case MeasurementTool::AngleThreePoint:      return QStringLiteral("3-Point Angle");
     case MeasurementTool::EdgeChain:            return QStringLiteral("Chain Length");
+    case MeasurementTool::FaceArea:             return QStringLiteral("Face Area");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -466,6 +484,8 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
         case 1:  return QStringLiteral("Click 2nd edge");
         default: return QStringLiteral("%1 edges picked - click more, or press Enter to finish").arg(alreadyPicked);
         }
+    case MeasurementTool::FaceArea:
+        return QStringLiteral("Click a face");
     case MeasurementTool::None:
         return QString();
     }

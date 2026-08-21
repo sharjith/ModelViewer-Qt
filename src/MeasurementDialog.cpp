@@ -120,6 +120,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		addGroupHeader(tr("Faces"));
 		addTool(MeasurementTool::FaceToFace);
 		addTool(MeasurementTool::PointToFace);
+		addTool(MeasurementTool::FaceArea);
 
 		addGroupHeader(tr("Edges"));
 		addTool(MeasurementTool::EdgeLength);
@@ -159,7 +160,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// The other variable-pick-count tool alongside Pitch Circle above - same
 	// note about it not auto-completing at a fixed click count.
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeChain)),
-		tr("Click every edge you want summed (2 or more, any order, don't need to connect end-to-end) - a running total that works for an open chain (e.g. a weld seam) or a closed perimeter alike. Press Enter or the Finish button once you've clicked them all."),
+		tr("Click a contiguous run of edges to sum (2 or more, each one must share an endpoint with the last) - works for an open chain (e.g. a weld seam) or a closed perimeter alike. An edge that doesn't connect is rejected. Press Enter or the Finish button once you've clicked them all."),
 		Qt::ToolTipRole);
 
 	_statusLabel = new QLabel(this);

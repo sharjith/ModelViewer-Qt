@@ -496,6 +496,7 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 			// default-constructed (isCircle = false).
 			prepared.occEdgeCircles.push_back(info);
 		}
+		prepared.occEdgeVertexTolerance = extras[QStringLiteral("occEdgeVertexTolerance")].toDouble();
 
 		for (const QJsonValue& jointValue : extras[QStringLiteral("skinJoints")].toArray())
 		{

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include <vector>
 #include <initializer_list>
@@ -54,13 +55,17 @@ public:
 	// When set, renderFeatureEdgesFast() uses this buffer instead of the heuristic classifier.
 	void setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	                            const std::vector<int>& bounds = {},
-	                            const std::vector<OccEdgeCircleInfo>& circles = {});
+	                            const std::vector<OccEdgeCircleInfo>& circles = {},
+	                            double vertexTolerance = 0.0);
 	const std::vector<float>& getOccEdgeSegments()    const { return _importState.occEdgeSegments(); }
 	const std::vector<int>&   getOccEdgeBoundaries()  const { return _importState.occEdgeBoundaries(); }
 	// circles[i] describes the analytic circle for topological edge i (Edge
 	// Radius measurement tool), 1:1 with getOccEdgeBoundaries()[i] - see
 	// OccEdgeCircleInfo's doc comment (MeshImportAdaptor.h) for the frame it's in.
 	const std::vector<OccEdgeCircleInfo>& getOccEdgeCircles() const { return _importState.occEdgeCircles(); }
+	// Mesh-wide max BRep vertex tolerance (0.0 for non-OCC meshes) - see
+	// MeshImportAdaptor::occEdgeVertexTolerance()'s doc comment.
+	double getOccEdgeVertexTolerance() const { return _importState.occEdgeVertexTolerance(); }
 
 	// Heuristic feature-edge list (dihedral-angle/seam-aware classifier,
 	// see buildAndUploadFeatureEdges()) - flat pairs of indices into THIS
@@ -75,6 +80,20 @@ public:
 	// edges, there is no separate boundary/grouping table needed - each
 	// pair already IS one discrete straight edge.
 	const std::vector<uint32_t>& getFeatureEdgeIndices() const { return _featureEdgeIndices; }
+
+	// Per-triangle neighbor list, one entry per triangle (indices()[3k..3k+2]),
+	// giving the triangle index across each of its 3 edges in order
+	// (edge e runs from local vertex e to (e+1)%3) - -1 where there's no
+	// neighbor (a genuine mesh boundary) or the edge is non-manifold
+	// (shared by more than 2 triangles - ignored past the first 2, same
+	// tolerance-of-imperfect-input spirit as buildAndUploadFeatureEdges()).
+	// Built lazily on first call (not eagerly like _featureEdgeIndices -
+	// this is opt-in data, only needed by the Face Area measurement tool,
+	// so building it for every loaded mesh whether or not that tool is
+	// ever used would be wasted work) and cached forever after - safe
+	// because mesh topology is static post-import (see this header's own
+	// "v1: static meshes only" scope note elsewhere in this codebase).
+	const std::vector<std::array<int, 3>>& getTriangleAdjacency() const;
 
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }
@@ -169,6 +188,20 @@ private:
 	// Initializes all the buffer objects/arrays
 	void setupMesh();
 	void buildAndUploadFeatureEdges(float thresholdDegrees = 15.0f);
+	// Quantizes each vertex position to a small epsilon and hash-maps it to
+	// a canonical "welded" index - vertices at UV seams or hard-edge splits
+	// share a 3D position but have different raw indices, so adjacency
+	// (of edges OR triangles) has to be detected via this welded id, not
+	// the raw one, or it'll miss real connectivity across those splits.
+	// Shared by buildAndUploadFeatureEdges() (its own Step 1, extracted
+	// here) and buildTriangleAdjacency() - the two need different per-edge
+	// payloads (vertex normals vs. triangle indices) but the same weld.
+	std::vector<uint32_t> buildPositionWeldMap() const;
+	// Builds _triangleAdjacencyCache (mutable, safe to call from const
+	// context) - see getTriangleAdjacency()'s doc comment. Split out from
+	// the public accessor so the accessor itself stays a trivial "build
+	// once, then return" wrapper.
+	void buildTriangleAdjacency() const;
 	// Uploads the coarse LOD1 index tier optimizeMesh() staged into
 	// _pendingLod1Indices (if any) into RenderableMesh's _lodIndexBuffer.
 	// Called from setupMesh() so it covers both the constructor path and
@@ -212,6 +245,10 @@ protected:
 	std::vector<unsigned int> _pendingLod1Indices;
 	std::vector<unsigned int> _lod1Indices;
 	std::vector<uint32_t> _featureEdgeIndices;
+
+	// ---- Lazy triangle-adjacency cache (see getTriangleAdjacency()) -------------
+	mutable std::vector<std::array<int, 3>> _triangleAdjacencyCache;
+	mutable bool _triangleAdjacencyCacheBuilt = false;
 
 	// ---- Morph-target data (static after load) ----------------------------------
 	QVector<MorphTargetData> _morphTargets;

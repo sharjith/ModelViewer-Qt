@@ -382,6 +382,20 @@ public:
 	bool resolveMeasurementEdgePolyline(const MeasurementAnchorRef& ref,
 		QVector<QVector3D>& outPoints) const;
 
+	// Whether `candidate` may be appended to an in-progress Chain Length
+	// pick sequence (`chainSoFar`) - true only if it shares a true
+	// endpoint (see resolveMeasurementEdgePolyline()) with one of the
+	// chain's current "loose ends" (an empty chain always accepts its
+	// first edge; a chain that has already closed into a loop - 0 loose
+	// ends left - accepts nothing further). Enforces that a chain stays a
+	// single contiguous path/loop rather than silently summing unrelated
+	// edges (e.g. two concentric but unconnected circles). Endpoint
+	// coincidence is judged against the real OCC B-Rep tolerance at each
+	// edge's mesh (see MeshImportAdaptor::occEdgeVertexTolerance()'s doc
+	// comment), not an invented epsilon.
+	bool measurementChainEdgeConnects(const QVector<MeasurementAnchorRef>& chainSoFar,
+		const MeasurementAnchorRef& candidate) const;
+
 	// Resolves a face-pick anchor's CURRENT position + face normal (Face to
 	// Face / Point to Face) - "face" here means the picked triangle's own
 	// plane (cross product of two of its edges), not a grouped CAD face, so
@@ -394,6 +408,22 @@ public:
 	// also snaps to a vertex).
 	bool resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
 		QVector3D& outPosition, QVector3D& outNormal) const;
+
+	// Face Area: flood-fills from the picked triangle (ref.triangleIndex)
+	// through triangles connected to it (via SceneMesh::getTriangleAdjacency())
+	// that are also approximately coplanar with it (tight tolerance - a
+	// genuinely flat face's triangles agree to a small fraction of a
+	// degree in practice; this is deliberately much tighter than
+	// buildAndUploadFeatureEdges()'s ~30 degree feature-edge threshold,
+	// which is tuned for the opposite bias - catching real sharp edges,
+	// not stopping at ordinary tessellation noise). outTriangleIndices is
+	// every triangle included (used by the caller to trace the region's
+	// boundary for rendering/hit-testing); outArea is their summed area;
+	// outCentroid is the area-weighted centroid, for label placement.
+	// Returns false if ref has no triangle recorded, or the mesh no
+	// longer exists.
+	bool resolveMeasurementFaceArea(const MeasurementAnchorRef& ref,
+		QVector<int>& outTriangleIndices, float& outArea, QVector3D& outCentroid) const;
 
 	// ---- Dimension-line drag (Distance/PointToFace/EdgeLength/EdgeToVertex/
 	//      FaceToFace-parallel/EdgeToEdge-parallel/EdgeToFace-parallel, and

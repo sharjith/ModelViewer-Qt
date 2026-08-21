@@ -70,11 +70,18 @@ public:
     // The corresponding GL resources (vertex buffer, VAO) live in SceneMesh/MeshVizAdaptor.
     void setOccEdgeData(const std::vector<float>& segments,
                         const std::vector<int>&   boundaries,
-                        const std::vector<OccEdgeCircleInfo>& circles = {})
-        { _occEdgeSegments = segments; _occEdgeBoundaries = boundaries; _occEdgeCircles = circles; }
+                        const std::vector<OccEdgeCircleInfo>& circles = {},
+                        double vertexTolerance = 0.0)
+        { _occEdgeSegments = segments; _occEdgeBoundaries = boundaries; _occEdgeCircles = circles;
+          _occEdgeVertexTolerance = vertexTolerance; }
     const std::vector<float>& occEdgeSegments()   const { return _occEdgeSegments; }
     const std::vector<int>&   occEdgeBoundaries() const { return _occEdgeBoundaries; }
     const std::vector<OccEdgeCircleInfo>& occEdgeCircles() const { return _occEdgeCircles; }
+    // Mesh-wide max BRep vertex tolerance - see OccEdgeCircleInfo's doc
+    // comment section for how this CPU-copy hop works; used by the Chain
+    // Length measurement tool (ViewportWidget::measurementChainEdgeConnects())
+    // to decide whether two picked edges are actually connected.
+    double occEdgeVertexTolerance() const { return _occEdgeVertexTolerance; }
     bool hasOccEdges() const { return !_occEdgeSegments.empty(); }
 
 private:
@@ -88,4 +95,5 @@ private:
     std::vector<float>      _occEdgeSegments;
     std::vector<int>        _occEdgeBoundaries;
     std::vector<OccEdgeCircleInfo> _occEdgeCircles;
+    double                   _occEdgeVertexTolerance = 0.0;
 };

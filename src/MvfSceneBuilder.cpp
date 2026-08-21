@@ -1098,6 +1098,13 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                     }
                     primitiveExtras.insert(QStringLiteral("occEdgeCircles"), circlesJson);
                 }
+
+                // Mesh-wide max BRep vertex tolerance (Chain Length's
+                // connectivity check) - see OccEdgeData::vertexTolerance's
+                // doc comment (BRepToAssimpConverter.h).
+                const double vertexTolerance = assImpMeshForEdges->getOccEdgeVertexTolerance();
+                if (vertexTolerance > 0.0)
+                    primitiveExtras.insert(QStringLiteral("occEdgeVertexTolerance"), vertexTolerance);
             }
         }
 
