@@ -11,6 +11,7 @@ class QListWidget;
 class QListWidgetItem;
 class QPlainTextEdit;
 class QPushButton;
+class QSplitter;
 class QCloseEvent;
 class QMdiSubWindow;
 
@@ -24,9 +25,11 @@ class QMdiSubWindow;
 // smaller surface, since there's only one "tool" (place a note) rather than
 // Measure's 15-tool combo:
 //   - A single checkable "Place Note" button instead of a tool combo.
-//   - A details pane (QPlainTextEdit) below the results list, bound to the
-//     currently-selected row, committing via ModelViewer::setAnnotationText()
-//     on focus-out (see the nested AnnotationTextEdit class in the .cpp).
+//   - A details pane (QPlainTextEdit) below the results list, in a
+//     QSplitter with it (drag the handle to resize either) and bound to
+//     the currently-selected row, committing via ModelViewer::
+//     setAnnotationText() on focus-out (see the nested AnnotationTextEdit
+//     class in the .cpp).
 //
 // Owns no annotation state itself - every control is a thin read/write onto
 // the target ModelViewer's ViewportWidget (setAnnotationToolArmed()/
@@ -102,6 +105,11 @@ private:
     QLabel*         _statusLabel;
     QListWidget*    _resultsList;
     QPlainTextEdit* _textEdit;
+    // Lets the user drag the boundary between the results list and the
+    // details pane instead of a fixed 50/50 split - state persisted the
+    // same QSettings way as window geometry (see loadSettings()/
+    // saveSettings()).
+    QSplitter*      _splitter;
     QPushButton*    _deleteButton;
 
     // Which annotation the details pane currently reflects - QUuid() when

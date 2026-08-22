@@ -18,7 +18,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
-#include <QSizePolicy>
+#include <QSplitter>
 #include <QVBoxLayout>
 
 namespace
@@ -126,10 +126,6 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     _textEdit = new AnnotationTextEdit(this);
     _textEdit->setEnabled(false);
     _textEdit->setPlaceholderText(tr("Select a single note to edit its text"));
-    // No maximum height - grows with the dialog, same as _resultsList
-    // (see the stretch factors below), instead of staying pinned to a
-    // fixed size while only the list above it gets the extra space.
-    _textEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     _deleteButton = new QPushButton(tr("Delete"), this);
     _deleteButton->setEnabled(false);
@@ -138,18 +134,33 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     buttonRow->addStretch();
     buttonRow->addWidget(_deleteButton);
 
+    // A user-draggable boundary between the list and the details pane,
+    // instead of a fixed split - each pane is its own small container
+    // widget (label + control) so the label moves/resizes together with
+    // its control as the splitter handle is dragged.
+    QWidget* notesPane = new QWidget(this);
+    QVBoxLayout* notesLayout = new QVBoxLayout(notesPane);
+    notesLayout->setContentsMargins(0, 0, 0, 0);
+    notesLayout->addWidget(new QLabel(tr("Notes:"), notesPane));
+    notesLayout->addWidget(_resultsList);
+
+    QWidget* textPane = new QWidget(this);
+    QVBoxLayout* textPaneLayout = new QVBoxLayout(textPane);
+    textPaneLayout->setContentsMargins(0, 0, 0, 0);
+    textPaneLayout->addWidget(new QLabel(tr("Text:"), textPane));
+    textPaneLayout->addWidget(_textEdit);
+
+    _splitter = new QSplitter(Qt::Vertical, this);
+    _splitter->addWidget(notesPane);
+    _splitter->addWidget(textPane);
+    _splitter->setStretchFactor(0, 1);
+    _splitter->setStretchFactor(1, 1);
+
     QVBoxLayout* layout = new QVBoxLayout(this);
     layout->addWidget(_placeButton);
     layout->addWidget(_statusLabel);
-    layout->addWidget(new QLabel(tr("Notes:"), this));
-    layout->addWidget(_resultsList);
-    layout->addWidget(new QLabel(tr("Text:"), this));
-    layout->addWidget(_textEdit);
+    layout->addWidget(_splitter, 1);
     layout->addLayout(buttonRow);
-    // Both grow when the dialog is resized, not just the list - equal
-    // stretch factors split the extra space evenly between them.
-    layout->setStretchFactor(_resultsList, 1);
-    layout->setStretchFactor(_textEdit, 1);
     resize(320, 440);
 
     connect(_placeButton, &QPushButton::toggled, this, &AnnotationDialog::onPlaceButtonToggled);
@@ -199,12 +210,17 @@ void AnnotationDialog::loadSettings()
     const QByteArray geometry = settings.value("annotation/geometry", QByteArray()).toByteArray();
     if (!geometry.isEmpty())
         restoreGeometry(geometry);
+
+    const QByteArray splitterState = settings.value("annotation/splitterState", QByteArray()).toByteArray();
+    if (!splitterState.isEmpty())
+        _splitter->restoreState(splitterState);
 }
 
 void AnnotationDialog::saveSettings()
 {
     QSettings settings;
     settings.setValue("annotation/geometry", saveGeometry());
+    settings.setValue("annotation/splitterState", _splitter->saveState());
 }
 
 void AnnotationDialog::onPlaceButtonToggled(bool checked)
