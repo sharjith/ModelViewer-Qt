@@ -231,6 +231,18 @@ _floorPlane(nullptr),
 	connect(_measurementController, &MeasurementController::measurementStateChanged,
 		this, QOverload<>::of(&ViewportWidget::update));
 
+	// Same construction-time reasoning as _measurementController above -
+	// _annotationController doesn't take _axisTextRenderer as a dependency
+	// either (see AnnotationController's constructor doc comment).
+	_annotationController = new AnnotationController(_sceneRuntime, _viewer, _renderCtrl, this);
+	_gpuResourceRegistry.add(_annotationController, GpuResourcePhase::Decorations);
+	connect(_annotationController, &AnnotationController::annotationToolArmedChanged,
+		this, &ViewportWidget::annotationToolArmedChanged);
+	connect(_annotationController, &AnnotationController::annotationSelectionChanged,
+		this, &ViewportWidget::annotationSelectionChanged);
+	connect(_annotationController, &AnnotationController::annotationStateChanged,
+		this, QOverload<>::of(&ViewportWidget::update));
+
 
 	// Setup the view toolbar
 	_viewToolbar = new ViewToolbar(this);
@@ -821,6 +833,10 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	_gpuResourceRegistry.remove(_measurementController);
 	delete _measurementController;
 	_measurementController = nullptr;
+
+	_gpuResourceRegistry.remove(_annotationController);
+	delete _annotationController;
+	_annotationController = nullptr;
 
 	// &_renderCtrl is never delete'd here - it's a plain value member of
 	// this widget, destroyed automatically as part of ~ViewportWidget()'s
@@ -5360,6 +5376,8 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	drawTransformGizmo(_primaryCamera);
 	if (_measurementController)
 		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
+	if (_annotationController)
+		_annotationController->drawAnnotationOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -9308,6 +9326,8 @@ void ViewportWidget::render(Camera* camera)
 	// double-drawing.
 	if (_viewCtrl.multiViewActive() && _measurementController)
 		_measurementController->drawMeasurementOverlay(camera, QSize(width(), height()), _axisTextRenderer);
+	if (_viewCtrl.multiViewActive() && _annotationController)
+		_annotationController->drawAnnotationOverlay(camera, QSize(width(), height()), _axisTextRenderer);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -10216,6 +10236,11 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 {
 	if (!_measurementController)
 		return;
+	// Mutual exclusivity with the Annotate tool - see AnnotationController.h's
+	// doc comment. Only disarm when actually arming a tool (tool != None) so
+	// switching the Measure combo back to "None" doesn't touch Annotate state.
+	if (tool != MeasurementTool::None && _annotationController)
+		_annotationController->setAnnotationToolArmed(false, _selectionManager);
 	_measurementController->setMeasurementTool(tool, _selectionManager);
 }
 
@@ -10231,6 +10256,24 @@ void ViewportWidget::finishVariableLengthMeasurement()
 	if (!_measurementController)
 		return;
 	_measurementController->finishVariableLengthMeasurement(_primaryCamera);
+}
+
+void ViewportWidget::setAnnotationToolArmed(bool armed)
+{
+	if (!_annotationController)
+		return;
+	// Mutual exclusivity with the Measure tool - see setMeasurementTool()
+	// above and AnnotationController.h's doc comment.
+	if (armed && _measurementController)
+		_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+	_annotationController->setAnnotationToolArmed(armed, _selectionManager);
+}
+
+void ViewportWidget::setSelectedAnnotationIds(const QSet<QUuid>& ids)
+{
+	if (!_annotationController)
+		return;
+	_annotationController->setSelectedAnnotationIds(ids);
 }
 
 GltfCameraData ViewportWidget::cameraDataForMvfSave(const GltfCameraData& source) const
@@ -11813,6 +11856,20 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 		// even got going. When one of those IS in progress, fall through
 		// instead of intercepting, so the gesture works exactly as if no
 		// tool were armed - the tool simply doesn't register a point for it.
+		// Annotate tool armed: same press-vs-drag disambiguation as the
+		// Measure tool's own click-candidate arming just below - mutually
+		// exclusive with it (see AnnotationController.h's doc comment), so
+		// only one of these two branches can ever actually fire.
+		if (_annotationController->annotationToolArmed()
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			_annotationController->setAnnotationClickCandidate(true);
+			_annotationController->setAnnotationClickPressPos(clickPoint);
+			return;
+		}
+
 		if (_measurementController->measurementTool() != MeasurementTool::None
 			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
@@ -11867,6 +11924,25 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 					_selectionManager->setSelectedIds({});
 				return;
 			}
+
+			// Nothing measurement-related hit - try an annotation's
+			// leader/frame next (same drag-candidate-arming shape as
+			// hitTestDimensionLine() above, since an annotation's frame is
+			// always its own draggable part - see AnnotationController::
+			// hitTestAnnotationLeader()'s doc comment). A miss here clears
+			// annotation selection, same as the measurement miss above -
+			// without this, clicking empty space could never deselect an
+			// annotation (confirmed bug: at least one always stayed selected).
+			const QUuid hitAnnotation = _annotationController->hitTestAnnotationLeader(clickPoint, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
+			if (!hitAnnotation.isNull())
+			{
+				_annotationController->setLeaderDragCandidate(true);
+				_annotationController->setLeaderDragCandidateId(hitAnnotation);
+				_annotationController->setLeaderDragStartPixel(clickPoint);
+				return;
+			}
+
+			setSelectedAnnotationIds({});
 		}
 
 		if (!(e->modifiers() & Qt::ControlModifier) &&
@@ -11991,6 +12067,37 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		constexpr int kMeasurementClickThresholdPx = 4;
 		if ((e->pos() - _measurementController->measurementClickPressPos()).manhattanLength() < kMeasurementClickThresholdPx)
 			_measurementController->handleMeasurementClick(_measurementController->measurementClickPressPos(), _selectionManager, _primaryCamera);
+		update();
+		return;
+	}
+
+	if ((e->button() & Qt::LeftButton) && _annotationController->leaderDragCandidate())
+	{
+		if (_annotationController->leaderDragActive())
+		{
+			_annotationController->finishAnnotationLeaderDrag(this);
+		}
+		else
+		{
+			// No real drag happened - treat as a plain select-click on the
+			// annotation whose leader/label was pressed, same as
+			// _measurementController->dimensionDragCandidate()'s handling above.
+			setSelectedAnnotationIds({ _annotationController->leaderDragCandidateId() });
+			if (_selectionManager)
+				_selectionManager->setSelectedIds({});
+			_annotationController->setLeaderDragCandidate(false);
+			_annotationController->setLeaderDragCandidateId(QUuid());
+		}
+		update();
+		return;
+	}
+
+	if ((e->button() & Qt::LeftButton) && _annotationController->annotationClickCandidate())
+	{
+		_annotationController->setAnnotationClickCandidate(false);
+		constexpr int kAnnotationClickThresholdPx = 4;
+		if ((e->pos() - _annotationController->annotationClickPressPos()).manhattanLength() < kAnnotationClickThresholdPx)
+			_annotationController->handleAnnotationClick(_annotationController->annotationClickPressPos(), _selectionManager, _primaryCamera);
 		update();
 		return;
 	}
@@ -12126,6 +12233,23 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		if (_measurementController->dimensionDragActive())
 		{
 			_measurementController->updateDimensionLineDrag(e->pos(), _primaryCamera, QSize(width(), height()));
+			_viewCtrl.setLastMousePos(currentPos);
+			_viewCtrl.setLastMouseTime(currentTime);
+			return;
+		}
+	}
+
+	if (_annotationController->leaderDragCandidate() && (e->buttons() & Qt::LeftButton))
+	{
+		if (!_annotationController->leaderDragActive())
+		{
+			const QPoint moved = e->pos() - _annotationController->leaderDragStartPixel();
+			if (moved.manhattanLength() >= kCameraDragThresholdPx)
+				_annotationController->beginAnnotationLeaderDrag(_annotationController->leaderDragCandidateId(), _primaryCamera);
+		}
+		if (_annotationController->leaderDragActive())
+		{
+			_annotationController->updateAnnotationLeaderDrag(e->pos(), _primaryCamera, QSize(width(), height()));
 			_viewCtrl.setLastMousePos(currentPos);
 			_viewCtrl.setLastMouseTime(currentTime);
 			return;
@@ -12494,6 +12618,20 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_measurementController->updateHoverMeasurement(e->pos(), _primaryCamera, QSize(width(), height()));
 	}
 
+	// Same two-branch shape as the Measurement hover preview just above,
+	// mirrored for the Annotate tool (mutually exclusive with Measure - see
+	// AnnotationController.h's doc comment - so at most one tool's "armed"
+	// branch is ever live).
+	if (e->buttons() == Qt::NoButton && _annotationController->annotationToolArmed() && _selectionManager)
+	{
+		_annotationController->updateHoverAnchor(e->pos(), _selectionManager);
+	}
+	else if (e->buttons() == Qt::NoButton && !_annotationController->annotationToolArmed() && !gizmoHovered
+		&& (!_viewCtrl.showViewCubeOverride() || !viewCubeScreenRect().contains(e->pos())))
+	{
+		_annotationController->updateHoverAnnotation(e->pos(), _primaryCamera, QSize(width(), height()), _axisTextRenderer);
+	}
+
 	update();
 
 	_viewCtrl.setLastMousePos(currentPos);
@@ -12613,6 +12751,11 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	if (key == Qt::Key_Escape && _measurementController->measurementTool() != MeasurementTool::None)
 	{
 		setMeasurementTool(MeasurementTool::None);
+		return;
+	}
+	if (key == Qt::Key_Escape && _annotationController->annotationToolArmed())
+	{
+		setAnnotationToolArmed(false);
 		return;
 	}
 	if ((key == Qt::Key_Return || key == Qt::Key_Enter) && measurementToolHasVariableAnchorCount(_measurementController->measurementTool()))

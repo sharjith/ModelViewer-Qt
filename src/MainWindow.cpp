@@ -27,6 +27,7 @@
 
 #include "PathUtils.h"
 #include "MeasurementDialog.h"
+#include "AnnotationDialog.h"
 #include "RtRenderDialog.h"
 
 #include <QMdiArea>
@@ -510,8 +511,18 @@ MainWindow::MainWindow(QWidget* parent)
 			// the Measurement dialog's list) is independent of mesh selection
 			// and takes priority - the user just selected it specifically, so
 			// Delete should act on that, not on whatever mesh selection
-			// happens to still be sitting around from before.
-			if (child->getViewportWidget()->hasSelectedMeasurements())
+			// happens to still be sitting around from before. A selected
+			// annotation (see ViewportWidget::selectedAnnotationIds()) is
+			// checked first among the two, same reasoning, arbitrary order
+			// since a measurement and an annotation can't both be selected
+			// at once in practice (arming either tool disarms the other -
+			// see AnnotationController.h's doc comment - though their
+			// SELECTION sets, unlike their TOOL-armed state, aren't actually
+			// mutually exclusive by construction, this ordering is still a
+			// reasonable tie-break).
+			if (child->getViewportWidget()->hasSelectedAnnotations())
+				child->deleteSelectedAnnotations();
+			else if (child->getViewportWidget()->hasSelectedMeasurements())
 				child->deleteSelectedMeasurements();
 			else
 				child->deleteSelectedItems();
@@ -618,6 +629,25 @@ MainWindow::MainWindow(QWidget* parent)
 			return;
 		}
 		MeasurementDialog* dialog = new MeasurementDialog(child, child);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+		dialog->show();
+		});
+
+	// Tools → Annotate... - opens the non-modal Annotation dialog. Same
+	// non-modal, per-document, findChild-reuse pattern as actionMeasure
+	// above.
+	connect(ui->actionAnnotate, &QAction::triggered, this, [this]() {
+		if (!activeMdiChild())
+			return;
+		ModelViewer* child = activeMdiChild();
+		if (AnnotationDialog* existing = child->findChild<AnnotationDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		{
+			existing->show();
+			existing->raise();
+			existing->activateWindow();
+			return;
+		}
+		AnnotationDialog* dialog = new AnnotationDialog(child, child);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 		dialog->show();
 		});
@@ -1924,6 +1954,7 @@ void MainWindow::updateMenus()
 	// its separator) stay gated behind the Settings debug flag.
 	ui->actionRayTracing->setEnabled(hasMdiChild);
 	ui->actionMeasure->setEnabled(hasMdiChild);
+	ui->actionAnnotate->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

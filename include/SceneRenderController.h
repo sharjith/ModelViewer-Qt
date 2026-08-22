@@ -81,6 +81,14 @@ public:
     // GL_LINES and the two shouldn't be interleaved in one buffer.
     void initMeasurementConeGeometry(const std::vector<float>& vertices);
 
+    // Sibling to initMeasurementOverlayGeometry() for the Annotation
+    // overlay's leader lines/markers - same pos(3)+color(3) interleaved
+    // GL_LINES layout, kept as its own dedicated buffer for the same reason
+    // (so Measurement's and Annotation's overlays can't stomp on each other
+    // mid-frame). No cone-geometry sibling - annotation leaders have no
+    // arrowhead (see AnnotationController::drawAnnotationOverlay()).
+    void initAnnotationOverlayGeometry(const std::vector<float>& vertices);
+
     // Creates the ViewCube label quad VAO/VBO (geometry only; textures uploaded by caller).
     void initViewCubeLabelGeometry();
 
@@ -302,6 +310,8 @@ public:
     GLuint measurementOverlayVBO() const { return _measurementOverlayVBO; }
     GLuint measurementConeVAO() const { return _measurementConeVAO; }
     GLuint measurementConeVBO() const { return _measurementConeVBO; }
+    GLuint annotationOverlayVAO() const { return _annotationOverlayVAO; }
+    GLuint annotationOverlayVBO() const { return _annotationOverlayVBO; }
 
     QOpenGLVertexArrayObject& bgVAO()      { return _bgVAO; }
     QOpenGLVertexArrayObject& bgSplitVAO() { return _bgSplitVAO; }
@@ -695,6 +705,8 @@ private:
     unsigned int _measurementOverlayVBO = 0;
     unsigned int _measurementConeVAO = 0;
     unsigned int _measurementConeVBO = 0;
+    unsigned int _annotationOverlayVAO = 0;
+    unsigned int _annotationOverlayVBO = 0;
 
     QOpenGLVertexArrayObject _bgVAO;
     QOpenGLVertexArrayObject _bgSplitVAO;

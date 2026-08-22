@@ -156,6 +156,15 @@ void SceneRenderController::releaseGpuResources()
         _measurementConeVBO = 0;
     }
 
+    // Annotation overlay
+    if (_annotationOverlayVAO != 0)
+    {
+        glDeleteBuffers(1, &_annotationOverlayVBO);
+        glDeleteVertexArrays(1, &_annotationOverlayVAO);
+        _annotationOverlayVAO = 0;
+        _annotationOverlayVBO = 0;
+    }
+
     if (!shareContexts && _punctualLights)
         _punctualLights->cleanup();
 
@@ -275,6 +284,21 @@ void SceneRenderController::initMeasurementConeGeometry(const std::vector<float>
 
     glBindVertexArray(_measurementConeVAO);
     glBindBuffer(GL_ARRAY_BUFFER, _measurementConeVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                 vertices.data(),
+                 GL_DYNAMIC_DRAW);
+}
+
+void SceneRenderController::initAnnotationOverlayGeometry(const std::vector<float>& vertices)
+{
+    if (_annotationOverlayVAO == 0)
+        glGenVertexArrays(1, &_annotationOverlayVAO);
+    if (_annotationOverlayVBO == 0)
+        glGenBuffers(1, &_annotationOverlayVBO);
+
+    glBindVertexArray(_annotationOverlayVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, _annotationOverlayVBO);
     glBufferData(GL_ARRAY_BUFFER,
                  static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                  vertices.data(),

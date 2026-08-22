@@ -82,6 +82,7 @@
      <string>Tools</string>
     </property>
     <addaction name="actionMeasure"/>
+    <addaction name="actionAnnotate"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -352,6 +353,14 @@
    </property>
    <property name="statusTip">
     <string>Open the measurement tool - point, distance, and arc-radius tools</string>
+   </property>
+  </action>
+  <action name="actionAnnotate">
+   <property name="text">
+    <string>Annotate...</string>
+   </property>
+   <property name="statusTip">
+    <string>Open the annotation tool - place text notes anchored to points on the model</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">

@@ -42,6 +42,28 @@ public:
 	// drawMeasurementOverlay()'s label loop for the pattern).
 	void RenderText(std::string text, float x, float y, float scale, QVector3D color = QVector3D(1.0f, 1.0f, 1.0f),
 		VAlignment vAlignment = VAlignment::VTOP, HAlignment _hAlignment = HAlignment::HLEFT);
+	// Pixel width a single-line RenderText() call would occupy - the exact
+	// per-glyph advance sum RenderText() itself accumulates while drawing
+	// (not the rougher 'H'-glyph-times-count estimate RenderText() uses
+	// internally just for HCENTER/HRIGHT positioning). Used by callers that
+	// need to lay out something else (e.g. a bounding frame) around text
+	// before/without actually drawing it. Multi-line callers measure each
+	// line separately, same "caller splits on '\n'" convention as
+	// RenderText() itself.
+	float textWidth(const std::string& text, float scale = 1.0f) const;
+	// The vertical extent, in pixels, a RenderText(..., VAlignment::VBOTTOM)
+	// call for `text` actually occupies relative to the y it's given -
+	// mirrors RenderText()'s own per-glyph ypos math exactly (same
+	// 'H'-glyph baseline reference, same voffset), rather than a generic
+	// font-metrics ascent/descent, since VBOTTOM's y does NOT sit at the
+	// visual bottom of the glyphs (there's a gap - see this method's .cpp
+	// doc comment) - a caller that needs to bound the rendered text (e.g. a
+	// frame around it) needs THIS renderer's actual pixel math, not a
+	// generic guess. outAscentAboveY/outDescentBelowY are both non-negative
+	// distances (above/below y respectively, in this class's "smaller y is
+	// higher on screen" convention - see RenderText()'s doc comment).
+	void textVerticalExtentVBottom(const std::string& text, float scale,
+		float& outAscentAboveY, float& outDescentBelowY) const;
 
 	void render()
 	{

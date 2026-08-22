@@ -938,6 +938,79 @@ int SceneGraph::measurementIndexById(const QUuid& id) const
 }
 
 // ---------------------------------------------------------------------------
+// Annotations
+// ---------------------------------------------------------------------------
+
+void SceneGraph::addAnnotation(const Annotation& annotation)
+{
+    _annotations.append(annotation);
+    emit annotationsChanged();
+}
+
+void SceneGraph::insertAnnotationAt(int index, const Annotation& annotation)
+{
+    _annotations.insert(qBound(0, index, _annotations.size()), annotation);
+    emit annotationsChanged();
+}
+
+void SceneGraph::removeAnnotationAt(int index)
+{
+    if (index < 0 || index >= _annotations.size())
+        return;
+    _annotations.removeAt(index);
+    emit annotationsChanged();
+}
+
+void SceneGraph::clearAnnotations()
+{
+    if (_annotations.isEmpty())
+        return;
+    _annotations.clear();
+    emit annotationsChanged();
+}
+
+void SceneGraph::setAnnotationVisible(const QUuid& id, bool visible)
+{
+    const int index = annotationIndexById(id);
+    if (index < 0 || _annotations.at(index).visible == visible)
+        return;
+    _annotations[index].visible = visible;
+    emit annotationsChanged();
+}
+
+void SceneGraph::setAnnotationText(const QUuid& id, const QString& text)
+{
+    const int index = annotationIndexById(id);
+    if (index < 0 || _annotations.at(index).text == text)
+        return;
+    _annotations[index].text = text;
+    emit annotationsChanged();
+}
+
+void SceneGraph::setAnnotationLeaderOffset(const QUuid& id, const QVector3D& leaderOffset)
+{
+    const int index = annotationIndexById(id);
+    if (index < 0 || _annotations.at(index).leaderOffset == leaderOffset)
+        return;
+    _annotations[index].leaderOffset = leaderOffset;
+    // Deliberately NOT emitting annotationsChanged() - same reasoning as
+    // SceneGraph::setMeasurementOffsetVector(): called on every mouse-move
+    // during a leader-line drag, and the row label doesn't depend on this
+    // field, so emitting here would rebuild the dialog's list dozens of
+    // times per second for no visible change.
+}
+
+int SceneGraph::annotationIndexById(const QUuid& id) const
+{
+    for (int i = 0; i < _annotations.size(); ++i)
+    {
+        if (_annotations.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
 // KHR_lights_punctual
 // ---------------------------------------------------------------------------
 

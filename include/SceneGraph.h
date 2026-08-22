@@ -7,6 +7,7 @@
 #include "GltfLightData.h"
 #include "GltfVariantData.h"
 #include "MeasurementData.h"
+#include "AnnotationData.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -219,6 +220,34 @@ public:
     void setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector);
 
     // -----------------------------------------------------------------------
+    // Annotations ("Annotate" tool) - text notes with a leader line, anchored
+    // to a mesh surface point. Document-level, not per-file - see
+    // AnnotationData.h. Same shape as the Measurements API above.
+    // -----------------------------------------------------------------------
+    void addAnnotation(const Annotation& annotation);
+    // Re-inserts at a specific position (undo of removeAnnotationAt) rather
+    // than appending, so undo/redo round-trips preserve display order.
+    void insertAnnotationAt(int index, const Annotation& annotation);
+    void removeAnnotationAt(int index);
+    void clearAnnotations();
+    const QVector<Annotation>& annotations() const { return _annotations; }
+    int annotationIndexById(const QUuid& id) const;
+    // Show/hide toggle (the Annotation dialog's results-list checkboxes) -
+    // not undoable, same convention as setMeasurementVisible().
+    void setAnnotationVisible(const QUuid& id, bool visible);
+    // Undoable via AnnotationTextCommand (unlike visibility above) - text is
+    // core content, not a cosmetic toggle. This is the direct mutator the
+    // command class wraps; ModelViewer::setAnnotationText() is the undo-
+    // stack-pushing entry point callers should normally use instead.
+    void setAnnotationText(const QUuid& id, const QString& text);
+    // Direct mutator for a note's leader-line offset - called on every
+    // mouse-move during a drag (for live preview) AND from
+    // AnnotationOffsetCommand::redo()/undo() (for the single commit pushed
+    // at drag-end), same "direct mutator + separate command wraps it" split
+    // as setMeasurementOffsetVector().
+    void setAnnotationLeaderOffset(const QUuid& id, const QVector3D& leaderOffset);
+
+    // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------
 
@@ -287,6 +316,11 @@ signals:
     // Emitted when a measurement is added or removed.
     void measurementsChanged();
 
+    // Emitted when an annotation is added, removed, its visibility toggled,
+    // or its text edited - NOT for a leader-offset drag (see
+    // setAnnotationLeaderOffset()'s doc comment).
+    void annotationsChanged();
+
     // Emitted when punctual light data is added, removed, or an individual
     // light's enabled state changes.  PunctualLightsPanel connects to this
     // to refresh its tree; ViewportWidget connects to rebuild the GPU light list.
@@ -337,4 +371,7 @@ private:
 
     // Document-level, not per-file - see MeasurementData.h.
     QVector<Measurement> _measurements;
+
+    // Document-level, not per-file - see AnnotationData.h.
+    QVector<Annotation> _annotations;
 };

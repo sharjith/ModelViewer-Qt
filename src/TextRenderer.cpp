@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <vector>
 
@@ -268,6 +269,53 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, Q
 	_prog->release();
 	glDisable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
+}
+
+float TextRenderer::textWidth(const std::string& text, float scale) const
+{
+	float width = 0.0f;
+	for (char32_t cp : decodeUtf8(text))
+	{
+		const auto it = _characters.find(cp);
+		if (it == _characters.end())
+			continue;
+		width += static_cast<float>(it->second.Advance >> 6) * scale;
+	}
+	return width;
+}
+
+void TextRenderer::textVerticalExtentVBottom(const std::string& text, float scale,
+	float& outAscentAboveY, float& outDescentBelowY) const
+{
+	outAscentAboveY = 0.0f;
+	outDescentBelowY = 0.0f;
+
+	const auto hIt = _characters.find(static_cast<char32_t>('H'));
+	if (hIt == _characters.end())
+		return;
+	const float hBearingY = hIt->second.Bearing.y();
+	// Same voffset RenderText() itself uses for VAlignment::VBOTTOM.
+	const float voffset = static_cast<float>(_fontSize) * scale;
+
+	for (char32_t cp : decodeUtf8(text))
+	{
+		const auto it = _characters.find(cp);
+		if (it == _characters.end())
+			continue;
+		const Character& ch = it->second;
+
+		// Identical to RenderText()'s own ypos computation with x/y both
+		// zero (i.e. relative to the anchor the caller will pass) - top of
+		// the glyph's quad is at `top`, bottom at `top + h`, in this
+		// class's "smaller is higher on screen" convention.
+		const float top = -voffset + (hBearingY - ch.Bearing.y()) * scale;
+		const float h = ch.Size.y() * scale;
+		const float bottom = top + h;
+
+		outAscentAboveY = std::max(outAscentAboveY, -top);
+		outDescentBelowY = std::max(outDescentBelowY, bottom);
+	}
+	outDescentBelowY = std::max(outDescentBelowY, 0.0f);
 }
 
 unsigned int TextRenderer::width() const

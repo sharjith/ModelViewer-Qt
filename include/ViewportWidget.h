@@ -19,6 +19,7 @@
 #include "Camera.h"
 #include "MeasurementData.h"
 #include "MeasurementController.h"
+#include "AnnotationController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
@@ -328,6 +329,18 @@ public:
 	bool hasSelectedMeasurements() const { return _measurementController->hasSelectedMeasurements(); }
 	void setSelectedMeasurementIds(const QSet<QUuid>& ids);
 	QString measurementSummaryText(const Measurement& m) const { return _measurementController->measurementSummaryText(m); }
+
+	// ---- Annotation tool ----------------------------------------------------
+	// Thin forwards to _annotationController, which owns the entire
+	// Annotate toolset (state, picking, rendering, hit-testing, leader-line
+	// dragging - see AnnotationController.h). Same shape as the Measurement
+	// forwards above - AnnotationDialog.cpp talks to ViewportWidget directly,
+	// not the controller.
+	void setAnnotationToolArmed(bool armed);
+	bool annotationToolArmed() const { return _annotationController->annotationToolArmed(); }
+	const QSet<QUuid>& selectedAnnotationIds() const { return _annotationController->selectedAnnotationIds(); }
+	bool hasSelectedAnnotations() const { return _annotationController->hasSelectedAnnotations(); }
+	void setSelectedAnnotationIds(const QSet<QUuid>& ids);
 
 public:
 	QVector4D getDefaultLightColor() const;
@@ -1007,6 +1020,13 @@ signals:
 	// other caller besides the Measurement dialog) - so the dialog's results
 	// list can keep its highlighted rows in sync either way.
 	void measurementSelectionChanged(const QSet<QUuid>& ids);
+	// Emitted whenever the armed Annotate tool state changes - same reasoning
+	// as measurementToolChanged() above, so AnnotationDialog's "Place Note"
+	// button can stay in sync without being the ONLY thing that ever arms it.
+	void annotationToolArmedChanged(bool armed);
+	// Fires whenever the selected annotation set changes - same reasoning as
+	// measurementSelectionChanged() above.
+	void annotationSelectionChanged(const QSet<QUuid>& ids);
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
@@ -1890,6 +1910,10 @@ private:
 	// below) purely to re-resolve its own QOpenGLFunctions_4_5_Core
 	// pointers after context recreation - it owns no actual GL objects.
 	MeasurementController* _measurementController = nullptr;
+	// Owns the entire Annotate toolset - see AnnotationController.h. Same
+	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
+	// _measurementController above.
+	AnnotationController* _annotationController = nullptr;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;

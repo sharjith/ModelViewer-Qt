@@ -1,9 +1,12 @@
 ﻿#include "FloatingPanelDialog.h"
 #include "AddMeasurementCommand.h"
+#include "AddAnnotationCommand.h"
 #include "AssImpModelLoader.h"
 #include "CaptureCameraCommand.h"
 #include "CaptureVariantCommand.h"
 #include "DeleteMeasurementCommand.h"
+#include "DeleteAnnotationCommand.h"
+#include "AnnotationTextCommand.h"
 #include "SetDefaultVariantCommand.h"
 #include "CutCommand.h"
 #include "DeleteMeshCommand.h"
@@ -1015,6 +1018,58 @@ void ModelViewer::deleteSelectedMeasurements()
 		_undoStack->endMacro();
 
 	_viewportWidget->setSelectedMeasurementIds({});
+}
+
+void ModelViewer::addAnnotation(const Annotation& annotation)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || !annotation.anchor.isValid())
+		return;
+	_undoStack->push(new AddAnnotationCommand(this, _viewportWidget, annotation));
+}
+
+void ModelViewer::deleteAnnotation(const QUuid& annotationId)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || annotationId.isNull())
+		return;
+	_undoStack->push(new DeleteAnnotationCommand(this, _viewportWidget, annotationId));
+}
+
+void ModelViewer::deleteSelectedAnnotations()
+{
+	if (!_viewportWidget)
+		return;
+
+	const QSet<QUuid> selected = _viewportWidget->selectedAnnotationIds();
+	if (selected.isEmpty())
+		return;
+
+	const bool multiple = selected.size() > 1;
+	if (multiple && _undoStack)
+		_undoStack->beginMacro(tr("Delete %1 Annotations").arg(selected.size()));
+
+	for (const QUuid& id : selected)
+		deleteAnnotation(id);
+
+	if (multiple && _undoStack)
+		_undoStack->endMacro();
+
+	_viewportWidget->setSelectedAnnotationIds({});
+}
+
+void ModelViewer::setAnnotationText(const QUuid& annotationId, const QString& text)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || annotationId.isNull())
+		return;
+
+	const int index = _sceneGraph->annotationIndexById(annotationId);
+	if (index < 0)
+		return;
+
+	const QString oldText = _sceneGraph->annotations().at(index).text;
+	if (oldText == text)
+		return;
+
+	_undoStack->push(new AnnotationTextCommand(this, _viewportWidget, annotationId, oldText, text));
 }
 
 void ModelViewer::setupUndoStackMonitoring()
@@ -3357,6 +3412,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		int           activeGltfCameraIndex = -1;
 		QJsonObject   viewerState;
 		QVector<Measurement> measurements;
+		QVector<Annotation> annotations;
 		bool          ok       = false;
 		bool          badMagic = false;
 	};
@@ -3597,6 +3653,30 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 			if (!m.id.isNull() && !m.anchors.isEmpty())
 				result.measurements.append(m);
+		}
+
+		const QJsonArray annotationsArr = session[QStringLiteral("annotations")].toArray();
+		result.annotations.reserve(annotationsArr.size());
+		for (const QJsonValue& annotationVal : annotationsArr)
+		{
+			const QJsonObject annotationObj = annotationVal.toObject();
+
+			Annotation a;
+			a.id = QUuid(annotationObj[QStringLiteral("id")].toString());
+			a.text = annotationObj[QStringLiteral("text")].toString();
+			a.visible = annotationObj[QStringLiteral("visible")].toBool(true);
+			a.offsetReferenceDir = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("offsetReferenceDir")].toArray());
+			a.leaderOffset = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("leaderOffset")].toArray());
+
+			const QJsonObject anchorObj = annotationObj[QStringLiteral("anchor")].toObject();
+			a.anchor.meshUuid = QUuid(anchorObj[QStringLiteral("meshUuid")].toString());
+			a.anchor.triangleIndex = anchorObj[QStringLiteral("triangleIndex")].toInt(-1);
+			a.anchor.barycentric = jsonArrayToVec3Measurement(anchorObj[QStringLiteral("barycentric")].toArray());
+			a.anchor.snappedVertexIndex = anchorObj[QStringLiteral("snappedVertexIndex")].toInt(-1);
+			a.anchor.edgeIndex = anchorObj[QStringLiteral("edgeIndex")].toInt(-1);
+
+			if (!a.id.isNull() && a.anchor.isValid())
+				result.annotations.append(a);
 		}
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
@@ -4093,6 +4173,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	for (const Measurement& measurement : result.measurements)
 		_sceneGraph->addMeasurement(measurement);
 
+	// Same non-undoable reasoning as the measurements loop above.
+	for (const Annotation& annotation : result.annotations)
+		_sceneGraph->addAnnotation(annotation);
+
 	for (SceneNode* fileNode : _sceneGraph->root()->children)
 	{
 		if (fileNode && fileNode->isSynthetic && !fileNode->sourceFile.isEmpty())
@@ -4400,6 +4484,39 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			measurementsJson.append(measurementObj);
 		}
 		package.document.mvfSession.insert(QStringLiteral("measurements"), measurementsJson);
+	}
+
+	// ---- Annotations ----
+	// Document-level (see AnnotationData.h), same MVF-session-only v1 scope
+	// as Measurements above - mirrors that block exactly, just with a single
+	// anchor object (not an array) and text/leaderOffset instead of
+	// anchors/offsetDistance/offsetVector.
+	if (_sceneGraph && !_sceneGraph->annotations().isEmpty())
+	{
+		auto vec3ToJson = [](const QVector3D& v) {
+			return QJsonArray{ static_cast<double>(v.x()), static_cast<double>(v.y()), static_cast<double>(v.z()) };
+		};
+
+		QJsonArray annotationsJson;
+		for (const Annotation& a : _sceneGraph->annotations())
+		{
+			QJsonObject anchorObj;
+			anchorObj.insert(QStringLiteral("meshUuid"), a.anchor.meshUuid.toString(QUuid::WithoutBraces));
+			anchorObj.insert(QStringLiteral("triangleIndex"), a.anchor.triangleIndex);
+			anchorObj.insert(QStringLiteral("barycentric"), vec3ToJson(a.anchor.barycentric));
+			anchorObj.insert(QStringLiteral("snappedVertexIndex"), a.anchor.snappedVertexIndex);
+			anchorObj.insert(QStringLiteral("edgeIndex"), a.anchor.edgeIndex);
+
+			QJsonObject annotationObj;
+			annotationObj.insert(QStringLiteral("id"), a.id.toString(QUuid::WithoutBraces));
+			annotationObj.insert(QStringLiteral("text"), a.text);
+			annotationObj.insert(QStringLiteral("anchor"), anchorObj);
+			annotationObj.insert(QStringLiteral("visible"), a.visible);
+			annotationObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(a.offsetReferenceDir));
+			annotationObj.insert(QStringLiteral("leaderOffset"), vec3ToJson(a.leaderOffset));
+			annotationsJson.append(annotationObj);
+		}
+		package.document.mvfSession.insert(QStringLiteral("annotations"), annotationsJson);
 	}
 
 	// Note: user-captured views ("Capture View" in the Cameras tab) need no

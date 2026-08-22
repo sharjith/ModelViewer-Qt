@@ -231,6 +231,27 @@ public:
 	// a selected measurement takes priority over a selected mesh.
 	void deleteSelectedMeasurements();
 
+	// Add a completed Annotation to SceneGraph's document-level list.
+	// Undoable via AddAnnotationCommand. Called from
+	// AnnotationController::handleAnnotationClick() once a click places a
+	// note, instead of writing to SceneGraph directly. Same guard/shape as
+	// addMeasurement() above.
+	void addAnnotation(const Annotation& annotation);
+
+	// Delete one annotation by id. Undoable via DeleteAnnotationCommand.
+	void deleteAnnotation(const QUuid& annotationId);
+
+	// Deletes every annotation currently selected in the viewport - same
+	// multi-select/undo-macro shape as deleteSelectedMeasurements().
+	void deleteSelectedAnnotations();
+
+	// Commits an annotation's text edit. Undoable via AnnotationTextCommand
+	// (unlike SceneGraph::setAnnotationVisible()'s plain display toggle -
+	// text is core content). Called from AnnotationDialog's details pane on
+	// focus-out, not per-keystroke; no-ops if the text hasn't actually
+	// changed so an unedited focus-out doesn't push a no-op undo step.
+	void setAnnotationText(const QUuid& annotationId, const QString& text);
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();
