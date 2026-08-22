@@ -153,6 +153,25 @@ struct AssImpMeshData
 	// Mesh-wide max BRep vertex tolerance - mirrors
 	// BRepToAssimpConverter::OccEdgeData::vertexTolerance's doc comment.
 	double precomputedOccEdgeVertexTolerance = 0.0;
+
+	// Boundary table: bounds[i] = first TRIANGLE-index of topological face
+	// i; bounds.back() = total triangle count. Mirrors
+	// precomputedOccEdgeBoundaries but at triangle-range granularity - see
+	// BRepToAssimpConverter::OccFaceData's doc comment.
+	std::vector<int> precomputedOccFaceTriangleBounds;
+	// Analytic axis data for topological face i (Cylindrical/Conical
+	// Diameter measurement tool) - axes[i] corresponds 1:1 to
+	// precomputedOccFaceTriangleBounds[i]. Plain mirror of
+	// BRepToAssimpConverter::OccFaceAxis so this header doesn't need OCC's
+	// BRepAdaptor_Surface/gp_Cylinder/gp_Cone includes.
+	struct PrecomputedFaceAxis
+	{
+		bool   isCylinder = false;
+		bool   isCone = false;
+		double originX = 0.0, originY = 0.0, originZ = 0.0;
+		double axisX = 0.0, axisY = 0.0, axisZ = 1.0;
+	};
+	std::vector<PrecomputedFaceAxis> precomputedOccFaceAxes;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;

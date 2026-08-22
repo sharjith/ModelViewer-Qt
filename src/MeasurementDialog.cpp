@@ -116,11 +116,13 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		addTool(MeasurementTool::EdgeRadius);
 		addTool(MeasurementTool::PitchCircle);
 		addTool(MeasurementTool::Concentricity);
+		addTool(MeasurementTool::CylindricalDiameter);
 
 		addGroupHeader(tr("Faces"));
 		addTool(MeasurementTool::FaceToFace);
 		addTool(MeasurementTool::PointToFace);
 		addTool(MeasurementTool::FaceArea);
+		addTool(MeasurementTool::MinDistance);
 
 		addGroupHeader(tr("Edges"));
 		addTool(MeasurementTool::EdgeLength);
@@ -157,10 +159,23 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
 		tr("STEP/IGES/BREP parts only - click directly on two circular edges (holes or bosses) to compare their centers and axes. Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
+	// CAD-only for a different reason than Edge Radius/Concentricity above -
+	// this needs the FACE's own analytic surface data, not a circular edge.
+	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::CylindricalDiameter)),
+		tr("STEP/IGES/BREP parts only - click directly on a cylindrical or conical face's curved surface (not its rim edge - see Edge Radius for that). Reports the diameter at the exact point clicked, which varies along a cone's length. Not available for glTF/OBJ meshes."),
+		Qt::ToolTipRole);
 	// The other variable-pick-count tool alongside Pitch Circle above - same
 	// note about it not auto-completing at a fixed click count.
 	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeChain)),
 		tr("Click a contiguous run of edges to sum (2 or more, each one must share an endpoint with the last) - works for an open chain (e.g. a weld seam) or a closed perimeter alike. An edge that doesn't connect is rejected. Press Enter or the Finish button once you've clicked them all."),
+		Qt::ToolTipRole);
+	// Each pick expands to its whole smooth face (bounded by real feature
+	// edges, so a curved surface counts as one pick) - worth surfacing
+	// since it's a bigger region than the single triangle every other face
+	// pick in this dialog uses, and the closest-point search cost scales
+	// with it.
+	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::MinDistance)),
+		tr("Click two faces (flat or curved - each pick expands to its whole smooth face, bounded by real edges) to find the true closest points between them. Works on the same part (e.g. a wall-thickness check) or two different ones. May take a moment on a very large, finely-tessellated face."),
 		Qt::ToolTipRole);
 
 	_statusLabel = new QLabel(this);

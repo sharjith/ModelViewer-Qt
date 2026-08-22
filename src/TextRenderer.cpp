@@ -1,9 +1,51 @@
 #include <iostream>
+#include <vector>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
 #include "TextRenderer.h"
+
+namespace
+{
+// Decodes a UTF-8 byte string (what QString::toStdString() always
+// produces) into Unicode codepoints. Standard 1-4 byte UTF-8 decode; an
+// invalid leading byte or a truncated/malformed continuation sequence is
+// skipped rather than aborting the whole string, so one bad byte can't
+// blank out the rest of a label.
+std::vector<char32_t> decodeUtf8(const std::string& text)
+{
+	std::vector<char32_t> codepoints;
+	codepoints.reserve(text.size());
+	size_t i = 0;
+	while (i < text.size())
+	{
+		const unsigned char b0 = static_cast<unsigned char>(text[i]);
+		char32_t cp = 0;
+		int extraBytes = 0;
+		if ((b0 & 0x80) == 0x00)      { cp = b0;        extraBytes = 0; }
+		else if ((b0 & 0xE0) == 0xC0) { cp = b0 & 0x1F;  extraBytes = 1; }
+		else if ((b0 & 0xF0) == 0xE0) { cp = b0 & 0x0F;  extraBytes = 2; }
+		else if ((b0 & 0xF8) == 0xF0) { cp = b0 & 0x07;  extraBytes = 3; }
+		else { ++i; continue; }  // invalid leading byte - skip it
+
+		if (i + static_cast<size_t>(extraBytes) >= text.size())
+			break;  // truncated multi-byte sequence at the end of the string
+
+		bool valid = true;
+		for (int k = 1; k <= extraBytes; ++k)
+		{
+			const unsigned char bk = static_cast<unsigned char>(text[i + static_cast<size_t>(k)]);
+			if ((bk & 0xC0) != 0x80) { valid = false; break; }  // not a continuation byte
+			cp = (cp << 6) | (bk & 0x3F);
+		}
+		if (valid)
+			codepoints.push_back(cp);
+		i += static_cast<size_t>(extraBytes) + 1;
+	}
+	return codepoints;
+}
+}
 
 TextRenderer::TextRenderer(QOpenGLShaderProgram* prog, unsigned int width, unsigned int height) : _prog(prog), _width(width), _height(height)
 {
@@ -74,15 +116,39 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	// clear existing textures if any
 	deleteTextures();
-	// Then for the first 128 ASCII characters, pre-load/compile their characters and store them
-	for (unsigned char c = 0; c < 128; c++)
+
+	// ASCII (0-127) as before, plus the printable Latin-1 Supplement range
+	// (0xA0-0xFF - degree/plus-minus/superscript-2-3/multiplication sign/
+	// etc, common in measurement/engineering text) and the diameter sign
+	// (U+2300, Miscellaneous Technical block - outside Latin-1, needed for
+	// the Cylindrical/Conical Diameter measurement tool's "⌀" summary
+	// text). See this class's _characters doc comment (TextRenderer.h) for
+	// why the key is a Unicode codepoint, not a raw byte.
+	std::vector<char32_t> codepoints;
+	codepoints.reserve(128 + 96 + 1);
+	for (char32_t c = 0; c < 128; ++c)
+		codepoints.push_back(c);
+	for (char32_t c = 0xA0; c <= 0xFF; ++c)
+		codepoints.push_back(c);
+	codepoints.push_back(0x2300);  // '⌀' DIAMETER SIGN
+
+	for (char32_t c : codepoints)
 	{
-		// Load character glyph
-		if (FT_Load_Char(face, c, FT_LOAD_RENDER))
-		{
-			std::cout << "Error in FreeType: Failed to load Glyph" << std::endl;
+		// FT_Load_Char does NOT fail just because a codepoint isn't in
+		// the font's cmap - FT_Get_Char_Index() silently returns glyph
+		// index 0 (".notdef", a visible empty box in most fonts) for an
+		// unmapped codepoint, and FT_Load_Char happily loads THAT and
+		// reports success. Checking the index first is the only reliable
+		// way to tell "genuinely not in this font" apart from a real
+		// glyph, so an unsupported codepoint is skipped (renders as
+		// nothing, same as any other missing glyph) rather than showing
+		// a confusing box. Most of this range is GENUINELY optional/
+		// best-effort coverage (unlike the original ASCII-only loop,
+		// where a failure was always a real problem).
+		if (FT_Get_Char_Index(face, static_cast<FT_ULong>(c)) == 0)
 			continue;
-		}
+		if (FT_Load_Char(face, static_cast<FT_ULong>(c), FT_LOAD_RENDER))
+			continue;
 		// Generate texture
 		unsigned int texture;
 		glGenTextures(1, &texture);
@@ -112,7 +178,7 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 			QVector2D(face->glyph->bitmap_left, face->glyph->bitmap_top),
 			static_cast<unsigned int>(face->glyph->advance.x)
 		};
-		_characters.insert(std::pair<GLchar, Character>(c, character));
+		_characters.insert(std::pair<char32_t, Character>(c, character));
 	}
 	glBindTexture(GL_TEXTURE_2D, 0);
 	// Destroy FreeType once we're finished
@@ -143,18 +209,27 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, Q
 	else
 		voffset = _fontSize / 2 * scale;
 
+	// Decode the incoming UTF-8 bytes (QString::toStdString() always
+	// produces UTF-8) into actual Unicode codepoints - _characters is
+	// keyed by codepoint (see its doc comment in TextRenderer.h), and the
+	// alignment estimates below need the GLYPH count, not the raw BYTE
+	// count (a multi-byte glyph like '°'/'⌀' would otherwise overcount).
+	const std::vector<char32_t> codepoints = decodeUtf8(text);
+
 	if (hAlignment == HAlignment::HLEFT)
 		hoffset = 0;
 	else if (hAlignment == HAlignment::HRIGHT)
-		hoffset = static_cast<unsigned int>(_width - (text.length() * this->_characters['H'].Size.x()));
+		hoffset = static_cast<unsigned int>(_width - (codepoints.size() * this->_characters['H'].Size.x()));
 	else
-		hoffset = static_cast<unsigned int>(_width / 2 - (text.length() * this->_characters['H'].Size.x()) / 2);
+		hoffset = static_cast<unsigned int>(_width / 2 - (codepoints.size() * this->_characters['H'].Size.x()) / 2);
 
 	// Iterate through all characters
-	std::string::const_iterator c;
-	for (c = text.begin(); c != text.end(); c++)
+	for (char32_t cp : codepoints)
 	{
-		Character ch = _characters[*c];
+		const auto it = _characters.find(cp);
+		if (it == _characters.end())
+			continue;  // font has no glyph for this codepoint - skip silently
+		const Character& ch = it->second;
 
 		float xpos = x + hoffset + ch.Bearing.x() * scale;
 		float ypos = y - voffset + (this->_characters['H'].Bearing.y() - ch.Bearing.y()) * scale;

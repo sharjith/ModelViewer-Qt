@@ -140,6 +140,15 @@ namespace MeasurementGeometry
     ConcentricityResult compareCircles(const QVector3D& center1, const QVector3D& axis1,
         const QVector3D& center2, const QVector3D& axis2);
 
+    // The closest point on triangle (a, b, c) to `point` ("Minimum
+    // Distance") - the standard exact point-to-triangle closest-point
+    // routine (Ericson, "Real-Time Collision Detection" 5.1.5): handles
+    // every Voronoi region (the 3 vertices, the 3 edges, and the interior)
+    // rather than just projecting to the triangle's plane and clamping, so
+    // it's correct even when the projection falls outside the triangle.
+    QVector3D closestPointOnTriangle(const QVector3D& point,
+        const QVector3D& a, const QVector3D& b, const QVector3D& c);
+
     // The FULL angle [0, 180] at `vertex` between the rays to `p1` and
     // `p2` ("3-Point Angle") - deliberately NOT clamped to the acute
     // [0, 90] range compareFaces()/compareLines()/compareEdgeToFace() use.

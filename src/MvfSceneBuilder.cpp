@@ -1106,6 +1106,51 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 if (vertexTolerance > 0.0)
                     primitiveExtras.insert(QStringLiteral("occEdgeVertexTolerance"), vertexTolerance);
             }
+
+            // Per-face analytic axis data (Cylindrical/Conical Diameter
+            // measurement tool) - independent of the edge wireframe data
+            // above (captured unconditionally at import time, not gated
+            // behind the wireframe-features setting). Sparse (triangle,
+            // face) pairs, indices into THIS mesh's own CURRENT triangle
+            // order at save time (see MeshImportAdaptor::setOccFaceData()'s
+            // doc comment for why this can't be a per-face contiguous
+            // range table - optimizeMesh() reorders triangles) - re-derived
+            // by position on reload since the reload path's own
+            // construction may reorder differently (see
+            // SceneMesh::remapOccFaceTriangleIndicesByPosition()).
+            const std::vector<int>& occFaceTriIndices = assImpMeshForEdges->getOccFaceTriangleIndices();
+            if (!occFaceTriIndices.empty())
+            {
+                const std::vector<int>& occFaceIdxPerTri = assImpMeshForEdges->getOccFaceIndexPerTriangle();
+                QJsonArray triIndicesJson, faceIndicesJson;
+                for (size_t i = 0; i < occFaceTriIndices.size() && i < occFaceIdxPerTri.size(); ++i)
+                {
+                    triIndicesJson.append(occFaceTriIndices[i]);
+                    faceIndicesJson.append(occFaceIdxPerTri[i]);
+                }
+                primitiveExtras.insert(QStringLiteral("occFaceTriangleIndices"), triIndicesJson);
+                primitiveExtras.insert(QStringLiteral("occFaceIndexPerTriangle"), faceIndicesJson);
+
+                QJsonArray faceAxesJson;
+                for (const OccFaceAxisInfo& a : assImpMeshForEdges->getOccFaceAxes())
+                {
+                    if (!a.isCylinder && !a.isCone)
+                    {
+                        faceAxesJson.append(QJsonValue());
+                        continue;
+                    }
+                    QJsonObject ao;
+                    ao.insert(QStringLiteral("cyl"), a.isCylinder);
+                    ao.insert(QStringLiteral("ox"), a.originX);
+                    ao.insert(QStringLiteral("oy"), a.originY);
+                    ao.insert(QStringLiteral("oz"), a.originZ);
+                    ao.insert(QStringLiteral("ax"), a.axisX);
+                    ao.insert(QStringLiteral("ay"), a.axisY);
+                    ao.insert(QStringLiteral("az"), a.axisZ);
+                    faceAxesJson.append(ao);
+                }
+                primitiveExtras.insert(QStringLiteral("occFaceAxes"), faceAxesJson);
+            }
         }
 
         primitive.insert(QStringLiteral("extras"), primitiveExtras);

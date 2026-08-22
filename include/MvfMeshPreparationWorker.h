@@ -50,6 +50,18 @@ struct PreparedMvfMesh
 	// (BRepToAssimpConverter.h).
 	double occEdgeVertexTolerance = 0.0;
 
+	// Sparse per-triangle face axis data (Cylindrical/Conical Diameter
+	// measurement tool) - independent of the edge data above. Parallel
+	// arrays (occFaceTriangleIndices[i], occFaceIndexPerTriangle[i]) into
+	// the SAVE-TIME mesh's own triangle order - re-derived by position
+	// against this reload's own construction (see
+	// SceneMesh::remapOccFaceTriangleIndicesByPosition()) rather than
+	// trusted directly, since MVF reload's own SceneMesh construction may
+	// reorder triangles differently than the save-time instance did.
+	std::vector<int> occFaceTriangleIndices;
+	std::vector<int> occFaceIndexPerTriangle;
+	std::vector<OccFaceAxisInfo> occFaceAxes;
+
 	// Per-mesh user transform (gizmo TRS) preserved across MVF save/load.
 	QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);
 	QVector3D   meshRotation     = QVector3D(0.0f, 0.0f, 0.0f);

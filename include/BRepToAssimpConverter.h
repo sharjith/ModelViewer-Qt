@@ -106,9 +106,54 @@ public:
 		double vertexTolerance = 0.0;
 	};
 
+	// Analytic axis for one topological FACE, in the same model-space frame
+	// as OccEdgeCircle (callers apply the mesh's current transform
+	// themselves). isCylinder/isCone are mutually exclusive; both false
+	// (all other fields default) for any other surface type (plane,
+	// spline, ...) - only meaningful for the Cylindrical/Conical Diameter
+	// measurement tool. origin is the cylinder's Location() or the cone's
+	// Apex(); axis is the surface's own axis direction either way.
+	// Deliberately carries NO radius - a picked point's live perpendicular
+	// distance to this axis line gives the true diameter at that point for
+	// either surface type (constant for a cylinder, position-dependent for
+	// a cone), matching resolveMeasurementEdgeCircle()'s "re-derive from
+	// current geometry, don't trust a frozen import-time scalar" convention.
+	struct OccFaceAxis {
+		bool   isCylinder = false;
+		bool   isCone = false;
+		double originX = 0.0, originY = 0.0, originZ = 0.0;
+		double axisX = 0.0, axisY = 0.0, axisZ = 1.0;
+	};
+
+	// Boundary table: bounds[i] = first triangle-index (into the mesh's own
+	// mFaces/index buffer) of topological face i. bounds.back() == the
+	// mesh's total triangle count (sentinel). Length == numTopoFaces + 1 -
+	// same convention as OccEdgeBoundaries, just at triangle-range
+	// granularity instead of vec3-segment granularity, since a face's
+	// triangles are emitted in one contiguous run by convertFaceGroupToMesh().
+	using OccFaceTriangleBounds = std::vector<int>;
+
+	// Parallel to `bounds`: axes[i] describes topological face i (one entry
+	// per face that got a `bounds` entry, same order).
+	using OccFaceAxes = std::vector<OccFaceAxis>;
+
+	// Combined payload: per-topological-face triangle-range boundary table
+	// + per-topological-face analytic axis data (for Cylindrical/Conical
+	// Diameter). Separate from OccEdgeData/s_occEdges since this is keyed
+	// by TRIANGLE index, not a flat wireframe segment array.
+	struct OccFaceData {
+		OccFaceTriangleBounds bounds;
+		OccFaceAxes           axes;
+	};
+
 	// Returns precomputed B-Rep edge data for the given aiMesh*, or nullptr if
 	// this mesh was not produced by BRepToAssimpConverter (e.g. OBJ/glTF).
 	static const OccEdgeData* getPrecomputedEdges(const aiMesh* mesh);
+
+	// Returns precomputed B-Rep per-face axis data for the given aiMesh*, or
+	// nullptr if this mesh has none (OBJ/glTF, or no cylindrical/conical
+	// faces at all).
+	static const OccFaceData* getPrecomputedFaces(const aiMesh* mesh);
 
 	// Clears the edge segment cache.  Called from clearColorCache() before each load.
 	static void clearEdgeCache();
@@ -154,6 +199,10 @@ private:
 	// Per-document B-Rep edge data keyed by the aiMesh* they belong to.
 	// Cleared by clearEdgeCache() (called via clearColorCache()) before each load.
 	static std::unordered_map<const aiMesh*, OccEdgeData> s_occEdges;
+
+	// Per-document B-Rep per-face axis data keyed by the aiMesh* they
+	// belong to. Also cleared by clearEdgeCache().
+	static std::unordered_map<const aiMesh*, OccFaceData> s_occFaces;
 
 	// Tessellates all unique non-degenerate edges in faceGroup and returns them
 	// as a flat segment list plus per-topological-edge boundary table.

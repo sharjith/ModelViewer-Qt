@@ -23,6 +23,22 @@ struct OccEdgeCircleInfo
     double radius = 0.0;
 };
 
+// Analytic axis for one topological B-Rep FACE (Cylindrical/Conical
+// Diameter measurement tool) - mirrors BRepToAssimpConverter::OccFaceAxis/
+// AssImpMeshData::PrecomputedFaceAxis, same CPU-copy-hop convention as
+// OccEdgeCircleInfo above. isCylinder/isCone are mutually exclusive, both
+// false for any other surface type; originX/Y/Z and axisX/Y/Z are in the
+// mesh's local/model space - a caller must apply the mesh's current world
+// transform. No stored radius -
+// see OccFaceAxis's doc comment for why.
+struct OccFaceAxisInfo
+{
+    bool   isCylinder = false;
+    bool   isCone = false;
+    double originX = 0.0, originY = 0.0, originZ = 0.0;
+    double axisX = 0.0, axisY = 0.0, axisZ = 1.0;
+};
+
 // Import provenance for a mesh — source file, scene/material indices, skin joint
 // definitions, and per-joint runtime palette.
 //
@@ -84,6 +100,29 @@ public:
     double occEdgeVertexTolerance() const { return _occEdgeVertexTolerance; }
     bool hasOccEdges() const { return !_occEdgeSegments.empty(); }
 
+    // ---- OCC B-Rep per-face axis CPU data (import provenance) --------------
+    // Same retention convention as setOccEdgeData() above (clone(), MVF
+    // serialization, and Cylindrical/Conical Diameter picking). SPARSE
+    // parallel arrays: triangleIndices[i]/faceIndices[i] is one (triangle,
+    // face) association, only for triangles actually on a cylindrical/
+    // conical face (most CAD triangles aren't, so this is far smaller than
+    // one entry per mesh triangle). Deliberately NOT a per-topological-
+    // face contiguous range table - SceneMesh::optimizeMesh() reorders
+    // triangles for GPU cache locality, so a face's triangles are NOT
+    // contiguous in the mesh's final index buffer; these indices are
+    // always into THIS mesh's own CURRENT triangle order (re-derived via
+    // SceneMesh::remapOccFaceTriangleIndicesByPosition() whenever a new
+    // SceneMesh instance is built from the same source data - import,
+    // clone(), or MVF reload - since each may reorder differently).
+    void setOccFaceData(const std::vector<int>& triangleIndices,
+                        const std::vector<int>& faceIndices,
+                        const std::vector<OccFaceAxisInfo>& axes = {})
+        { _occFaceTriangleIndices = triangleIndices; _occFaceIndexPerTriangle = faceIndices; _occFaceAxes = axes; }
+    const std::vector<int>& occFaceTriangleIndices() const { return _occFaceTriangleIndices; }
+    const std::vector<int>& occFaceIndexPerTriangle() const { return _occFaceIndexPerTriangle; }
+    const std::vector<OccFaceAxisInfo>& occFaceAxes() const { return _occFaceAxes; }
+    bool hasOccFaces() const { return !_occFaceTriangleIndices.empty(); }
+
 private:
     bool    _skipOptimization      = false;
     int     _sceneIndex           = -1;
@@ -96,4 +135,7 @@ private:
     std::vector<int>        _occEdgeBoundaries;
     std::vector<OccEdgeCircleInfo> _occEdgeCircles;
     double                   _occEdgeVertexTolerance = 0.0;
+    std::vector<int>              _occFaceTriangleIndices;
+    std::vector<int>              _occFaceIndexPerTriangle;
+    std::vector<OccFaceAxisInfo>  _occFaceAxes;
 };

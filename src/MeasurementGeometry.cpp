@@ -440,6 +440,62 @@ ConcentricityResult compareCircles(const QVector3D& center1, const QVector3D& ax
     return result;
 }
 
+QVector3D closestPointOnTriangle(const QVector3D& point,
+    const QVector3D& a, const QVector3D& b, const QVector3D& c)
+{
+    // Ericson, "Real-Time Collision Detection" 5.1.5 - barycentric-region
+    // walk, cheaper and more direct than plane-project-then-clamp (which
+    // needs its own edge-by-edge clamping logic to handle the outside-the-
+    // triangle cases correctly anyway).
+    const QVector3D ab = b - a;
+    const QVector3D ac = c - a;
+    const QVector3D ap = point - a;
+
+    const float d1 = QVector3D::dotProduct(ab, ap);
+    const float d2 = QVector3D::dotProduct(ac, ap);
+    if (d1 <= 0.0f && d2 <= 0.0f)
+        return a;  // vertex region A
+
+    const QVector3D bp = point - b;
+    const float d3 = QVector3D::dotProduct(ab, bp);
+    const float d4 = QVector3D::dotProduct(ac, bp);
+    if (d3 >= 0.0f && d4 <= d3)
+        return b;  // vertex region B
+
+    const float vc = d1 * d4 - d3 * d2;
+    if (vc <= 0.0f && d1 >= 0.0f && d3 <= 0.0f)
+    {
+        const float v = d1 / (d1 - d3);
+        return a + ab * v;  // edge region AB
+    }
+
+    const QVector3D cp = point - c;
+    const float d5 = QVector3D::dotProduct(ab, cp);
+    const float d6 = QVector3D::dotProduct(ac, cp);
+    if (d6 >= 0.0f && d5 <= d6)
+        return c;  // vertex region C
+
+    const float vb = d5 * d2 - d1 * d6;
+    if (vb <= 0.0f && d2 >= 0.0f && d6 <= 0.0f)
+    {
+        const float w = d2 / (d2 - d6);
+        return a + ac * w;  // edge region AC
+    }
+
+    const float va = d3 * d6 - d5 * d4;
+    if (va <= 0.0f && (d4 - d3) >= 0.0f && (d5 - d6) >= 0.0f)
+    {
+        const float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return b + (c - b) * w;  // edge region BC
+    }
+
+    // Interior - barycentric projection onto the triangle's own plane.
+    const float denom = 1.0f / (va + vb + vc);
+    const float v = vb * denom;
+    const float w = vc * denom;
+    return a + ab * v + ac * w;
+}
+
 float angleBetweenRays(const QVector3D& vertex, const QVector3D& p1, const QVector3D& p2)
 {
     const QVector3D v1 = (p1 - vertex).normalized();

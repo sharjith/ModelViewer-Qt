@@ -425,6 +425,49 @@ public:
 	bool resolveMeasurementFaceArea(const MeasurementAnchorRef& ref,
 		QVector<int>& outTriangleIndices, float& outArea, QVector3D& outCentroid) const;
 
+	// Minimum Distance: flood-fills from the picked triangle through
+	// triangles connected to it (via SceneMesh::getTriangleAdjacency())
+	// that stay within a genuine feature/dihedral edge of it (LOOSE
+	// tolerance, ~30 degrees - matches SceneMesh::buildAndUploadFeatureEdges()'s
+	// "is this a real sharp edge" bias, evaluated neighbor-vs-neighbor
+	// during the walk rather than resolveMeasurementFaceArea()'s fixed-
+	// seed comparison, since a genuinely curved face's normal drifts
+	// continuously across its span). Unlike resolveMeasurementFaceArea()
+	// (tight ~2 degree coplanarity, for "planar area"), this correctly
+	// captures a WHOLE curved face - e.g. a full cylindrical boss - as one
+	// connected region, not just a coplanar sliver of it. Returns false
+	// under the same conditions resolveMeasurementFaceArea() does.
+	bool resolveMeasurementFaceRegion(const MeasurementAnchorRef& ref,
+		QVector<int>& outTriangleIndices) const;
+
+	// Minimum Distance: the true minimum distance between the two anchors'
+	// flood-filled face regions (resolveMeasurementFaceRegion()), via
+	// exact point-to-triangle closest-point queries
+	// (MeasurementGeometry::closestPointOnTriangle()) - brute-force over
+	// each region's own triangles (no spatial acceleration structure
+	// exists anywhere in this codebase; fine for a one-shot query bounded
+	// by one face's triangle count, not the whole scene). outPointA/
+	// outPointB are the closest point PAIR (one on each region); may be on
+	// the same mesh (e.g. a wall-thickness check) or two different ones.
+	// Returns false if either anchor's region can't be resolved.
+	bool resolveMeasurementMinDistance(const Measurement& m,
+		QVector3D& outPointA, QVector3D& outPointB, float& outDistance) const;
+
+	// Cylindrical/Conical Diameter: resolves a face-pick anchor landing on
+	// a cylindrical or conical B-Rep face (BRepToAssimpConverter::
+	// OccFaceAxis, captured at import time - CAD-only, same limitation as
+	// resolveMeasurementEdgeCircle()) to the diameter AT the picked point:
+	// twice its live perpendicular distance to the face's analytic axis
+	// line, transformed by the mesh's CURRENT transform (same "live, not
+	// frozen" convention as every other resolver here). outIsCone
+	// distinguishes a cylinder's constant diameter from a cone's position-
+	// dependent one, for the summary text. Returns false if the mesh has
+	// no OCC per-face data, or the picked triangle's face isn't
+	// cylindrical/conical.
+	bool resolveMeasurementCylindricalDiameter(const MeasurementAnchorRef& ref,
+		float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+		QVector3D& outPickedPoint, bool& outIsCone) const;
+
 	// ---- Dimension-line drag (Distance/PointToFace/EdgeLength/EdgeToVertex/
 	//      FaceToFace-parallel/EdgeToEdge-parallel/EdgeToFace-parallel, and
 	//      FaceToFace/EdgeToEdge/EdgeToFace's shared angle/arc case) --------

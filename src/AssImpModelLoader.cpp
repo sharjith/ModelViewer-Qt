@@ -1892,6 +1892,24 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 	}
 
+	// Attach precomputed B-Rep per-face axis data (Cylindrical/Conical
+	// Diameter measurement tool) - same nullptr-for-non-OCC convention.
+	if (const auto* occFaces = BRepToAssimpConverter::getPrecomputedFaces(mesh))
+	{
+		meshData.precomputedOccFaceTriangleBounds = occFaces->bounds;
+
+		meshData.precomputedOccFaceAxes.reserve(occFaces->axes.size());
+		for (const BRepToAssimpConverter::OccFaceAxis& a : occFaces->axes)
+		{
+			AssImpMeshData::PrecomputedFaceAxis pa;
+			pa.isCylinder = a.isCylinder;
+			pa.isCone     = a.isCone;
+			pa.originX = a.originX; pa.originY = a.originY; pa.originZ = a.originZ;
+			pa.axisX = a.axisX;     pa.axisY = a.axisY;     pa.axisZ = a.axisZ;
+			meshData.precomputedOccFaceAxes.push_back(pa);
+		}
+	}
+
 	return meshData;
 }
 

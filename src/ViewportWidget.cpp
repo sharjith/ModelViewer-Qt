@@ -10521,6 +10521,27 @@ QString ViewportWidget::measurementSummaryText(const Measurement& m) const
 			return tr("Face Area: (face no longer available)");
 		return tr("Face Area: %1, %2 triangles").arg(area, 0, 'f', 3).arg(triangles.size());
 	}
+	case MeasurementType::MinDistance:
+	{
+		QVector3D pointA, pointB;
+		float distance = 0.0f;
+		if (!resolveMeasurementMinDistance(m, pointA, pointB, distance))
+			return tr("Minimum Distance: (face no longer available)");
+		return tr("Minimum Distance: %1").arg(distance, 0, 'f', 3);
+	}
+	case MeasurementType::CylindricalDiameter:
+	{
+		if (m.anchors.isEmpty())
+			return QString();
+		float diameter = 0.0f;
+		QVector3D axisOrigin, axisDir, pickedPoint;
+		bool isCone = false;
+		if (!resolveMeasurementCylindricalDiameter(m.anchors[0], diameter, axisOrigin, axisDir, pickedPoint, isCone))
+			return tr("Diameter: (face no longer available)");
+		return isCone
+			? tr("Diameter (at picked point): ⌀ %1").arg(diameter, 0, 'f', 3)
+			: tr("Diameter: ⌀ %1").arg(diameter, 0, 'f', 3);
+	}
 	}
 	return QString();
 }
@@ -10904,6 +10925,246 @@ bool ViewportWidget::resolveMeasurementFaceArea(const MeasurementAnchorRef& ref,
 	return true;
 }
 
+bool ViewportWidget::resolveMeasurementFaceRegion(const MeasurementAnchorRef& ref,
+	QVector<int>& outTriangleIndices) const
+{
+	outTriangleIndices.clear();
+
+	if (ref.triangleIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	const std::vector<unsigned int> indices = mesh->indices();
+	const size_t triCount = indices.size() / 3;
+	if (static_cast<size_t>(ref.triangleIndex) >= triCount)
+		return false;
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto vertexPos = [&trsfPoints](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+	auto triangleNormal = [&](int t) -> QVector3D {
+		const size_t base = static_cast<size_t>(t) * 3;
+		const QVector3D p0 = vertexPos(indices[base]);
+		const QVector3D p1 = vertexPos(indices[base + 1]);
+		const QVector3D p2 = vertexPos(indices[base + 2]);
+		return QVector3D::crossProduct(p1 - p0, p2 - p0);
+	};
+
+	const QVector3D seedNormalRaw = triangleNormal(ref.triangleIndex);
+	if (seedNormalRaw.lengthSquared() < 1.0e-12f)
+		return false;  // degenerate (near-zero-area) seed triangle
+
+	// LOOSE on purpose (see this function's doc comment in ViewportWidget.h) -
+	// matches SceneMesh::buildAndUploadFeatureEdges()'s ~30 degree "is this
+	// a real sharp/dihedral edge" bias, the opposite of
+	// resolveMeasurementFaceArea()'s tight ~2 degree coplanarity test.
+	// Evaluated NEIGHBOR-vs-NEIGHBOR (the triangle being expanded from,
+	// not the fixed seed) rather than resolveMeasurementFaceArea()'s
+	// seed-relative test - a genuinely curved face's normal drifts
+	// continuously across its span, so comparing everything back to one
+	// fixed seed normal would incorrectly stop at the first bit of
+	// curvature instead of following the whole face out to its real edges.
+	constexpr float kFeatureEdgeToleranceDegrees = 30.0f;
+	const float cosThreshold = std::cos(kFeatureEdgeToleranceDegrees * 0.017453292519943295f);
+
+	const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+	if (static_cast<size_t>(ref.triangleIndex) >= adjacency.size())
+		return false;  // adjacency build failed (non-triangle-mesh guard in buildTriangleAdjacency())
+
+	std::vector<bool> visited(triCount, false);
+	QVector<int> queue;
+	queue.append(ref.triangleIndex);
+	visited[static_cast<size_t>(ref.triangleIndex)] = true;
+
+	std::vector<QVector3D> normalCache(triCount);
+	normalCache[static_cast<size_t>(ref.triangleIndex)] = seedNormalRaw.normalized();
+
+	for (int qi = 0; qi < queue.size(); ++qi)
+	{
+		const int t = queue[qi];
+		outTriangleIndices.append(t);
+		const QVector3D tNormal = normalCache[static_cast<size_t>(t)];
+
+		for (int neighbor : adjacency[static_cast<size_t>(t)])
+		{
+			if (neighbor < 0 || visited[static_cast<size_t>(neighbor)])
+				continue;
+			const QVector3D n = triangleNormal(neighbor);
+			if (n.lengthSquared() < 1.0e-12f)
+				continue;  // skip a degenerate triangle rather than letting it break the chain
+			const QVector3D nNorm = n.normalized();
+			if (QVector3D::dotProduct(nNorm, tNormal) < cosThreshold)
+				continue;  // a real feature/dihedral edge - the face boundary
+			visited[static_cast<size_t>(neighbor)] = true;
+			normalCache[static_cast<size_t>(neighbor)] = nNorm;
+			queue.append(neighbor);
+		}
+	}
+
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementMinDistance(const Measurement& m,
+	QVector3D& outPointA, QVector3D& outPointB, float& outDistance) const
+{
+	if (m.anchors.size() < 2)
+		return false;
+
+	QVector<int> trianglesA, trianglesB;
+	if (!resolveMeasurementFaceRegion(m.anchors[0], trianglesA) || trianglesA.isEmpty())
+		return false;
+	if (!resolveMeasurementFaceRegion(m.anchors[1], trianglesB) || trianglesB.isEmpty())
+		return false;
+
+	SceneMesh* meshA = getMeshByUuid(m.anchors[0].meshUuid);
+	SceneMesh* meshB = getMeshByUuid(m.anchors[1].meshUuid);
+	if (!meshA || !meshB)
+		return false;
+
+	const std::vector<unsigned int> indicesA = meshA->indices();
+	const std::vector<unsigned int> indicesB = meshB->indices();
+	const std::vector<float>& trsfA = meshA->getTrsfPoints();
+	const std::vector<float>& trsfB = meshB->getTrsfPoints();
+
+	auto vertexPosA = [&trsfA](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfA.size())
+			return QVector3D();
+		return QVector3D(trsfA[p], trsfA[p + 1], trsfA[p + 2]);
+	};
+	auto vertexPosB = [&trsfB](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfB.size())
+			return QVector3D();
+		return QVector3D(trsfB[p], trsfB[p + 1], trsfB[p + 2]);
+	};
+
+	// Unique vertex set per region (many triangles share vertices), each
+	// tested against every triangle of the OTHER region via the exact
+	// closest-point-on-triangle routine (MeasurementGeometry::
+	// closestPointOnTriangle()) - brute-force, since no spatial
+	// acceleration structure exists anywhere in this codebase, but bounded
+	// by a single flood-filled face's triangle count rather than the
+	// whole scene, so this is fine for a one-shot user action. Checking
+	// both directions (A's vertices vs B's triangles, and B's vertices vs
+	// A's triangles) covers every true closest-point case except a rare
+	// skew edge-edge minimum that misses every vertex on both sides -
+	// negligible at normal CAD/mesh tessellation density.
+	QSet<unsigned int> vertsA, vertsB;
+	for (int t : trianglesA)
+	{
+		const size_t base = static_cast<size_t>(t) * 3;
+		vertsA.insert(indicesA[base]);
+		vertsA.insert(indicesA[base + 1]);
+		vertsA.insert(indicesA[base + 2]);
+	}
+	for (int t : trianglesB)
+	{
+		const size_t base = static_cast<size_t>(t) * 3;
+		vertsB.insert(indicesB[base]);
+		vertsB.insert(indicesB[base + 1]);
+		vertsB.insert(indicesB[base + 2]);
+	}
+
+	float bestDistSq = std::numeric_limits<float>::max();
+	QVector3D bestA, bestB;
+
+	for (unsigned int vA : vertsA)
+	{
+		const QVector3D pA = vertexPosA(vA);
+		for (int t : trianglesB)
+		{
+			const size_t base = static_cast<size_t>(t) * 3;
+			const QVector3D closest = MeasurementGeometry::closestPointOnTriangle(pA,
+				vertexPosB(indicesB[base]), vertexPosB(indicesB[base + 1]), vertexPosB(indicesB[base + 2]));
+			const float d2 = (closest - pA).lengthSquared();
+			if (d2 < bestDistSq)
+			{
+				bestDistSq = d2;
+				bestA = pA;
+				bestB = closest;
+			}
+		}
+	}
+	for (unsigned int vB : vertsB)
+	{
+		const QVector3D pB = vertexPosB(vB);
+		for (int t : trianglesA)
+		{
+			const size_t base = static_cast<size_t>(t) * 3;
+			const QVector3D closest = MeasurementGeometry::closestPointOnTriangle(pB,
+				vertexPosA(indicesA[base]), vertexPosA(indicesA[base + 1]), vertexPosA(indicesA[base + 2]));
+			const float d2 = (closest - pB).lengthSquared();
+			if (d2 < bestDistSq)
+			{
+				bestDistSq = d2;
+				bestA = closest;
+				bestB = pB;
+			}
+		}
+	}
+
+	outPointA = bestA;
+	outPointB = bestB;
+	outDistance = std::sqrt(bestDistSq);
+	return true;
+}
+
+bool ViewportWidget::resolveMeasurementCylindricalDiameter(const MeasurementAnchorRef& ref,
+	float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+	QVector3D& outPickedPoint, bool& outIsCone) const
+{
+	if (ref.triangleIndex < 0)
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+	if (!mesh)
+		return false;
+
+	// Sparse per-triangle lookup (lazily built, cached on the mesh) - NOT
+	// a triangle-range table, since SceneMesh::optimizeMesh() reorders
+	// triangles for GPU cache locality and a face's triangles are no
+	// longer contiguous afterward (see MeshImportAdaptor::setOccFaceData()'s
+	// doc comment).
+	const int faceIdx = mesh->getOccTriangleFaceIndex(ref.triangleIndex);
+	if (faceIdx < 0)
+		return false;  // not on any captured cylindrical/conical face
+
+	const std::vector<OccFaceAxisInfo>& faceAxes = mesh->getOccFaceAxes();
+	if (static_cast<size_t>(faceIdx) >= faceAxes.size())
+		return false;
+
+	const OccFaceAxisInfo& axis = faceAxes[static_cast<size_t>(faceIdx)];
+	if (!axis.isCylinder && !axis.isCone)
+		return false;  // picked triangle's face isn't cylindrical/conical
+
+	// Live world-space picked point (same "current, not frozen" convention
+	// as every other resolver in this file) plus the axis, transformed by
+	// the mesh's current world transform.
+	outPickedPoint = resolveMeasurementAnchor(ref);
+	const QMatrix4x4 combined = mesh->combinedRenderTransform();
+	outAxisOrigin = combined.map(QVector3D(static_cast<float>(axis.originX), static_cast<float>(axis.originY), static_cast<float>(axis.originZ)));
+	outAxisDir = combined.mapVector(QVector3D(static_cast<float>(axis.axisX), static_cast<float>(axis.axisY), static_cast<float>(axis.axisZ))).normalized();
+	outIsCone = axis.isCone;
+
+	// The diameter AT the picked point: twice its perpendicular distance
+	// to the axis line - exact for a cylinder (constant everywhere on the
+	// face) and a cone (genuinely varies with position) alike, so no
+	// separate per-surface-type formula is needed - see OccFaceAxis's doc
+	// comment (BRepToAssimpConverter.h) for why no radius is stored at all.
+	const QVector3D toPoint = outPickedPoint - outAxisOrigin;
+	const QVector3D radial = toPoint - outAxisDir * QVector3D::dotProduct(toPoint, outAxisDir);
+	outDiameter = radial.length() * 2.0f;
+	return true;
+}
+
 bool ViewportWidget::resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const
 {
 	switch (m.type)
@@ -11217,6 +11478,8 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	}
 	else if (_measurementTool == MeasurementTool::FaceToFace
 		|| _measurementTool == MeasurementTool::FaceArea
+		|| _measurementTool == MeasurementTool::MinDistance
+		|| _measurementTool == MeasurementTool::CylindricalDiameter
 		|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
 			&& !_pendingMeasurementAnchors.isEmpty())
 		|| _measurementTool == MeasurementTool::ArcRadius3Point
@@ -11224,9 +11487,10 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	{
 		// Two different reasons land here, but both need the same plain
 		// surface pick with no circular-edge-center snap attempted:
-		//  - FACE picks (FaceToFace's two anchors; FaceArea's one anchor;
-		//    PointToFace/EdgeToFace's second anchor - their first is a
-		//    point/edge, already routed above) need real triangle/normal
+		//  - FACE picks (FaceToFace's two anchors; FaceArea's/MinDistance's/
+		//    CylindricalDiameter's own anchors; PointToFace/EdgeToFace's
+		//    second anchor - their first is a point/edge, already routed
+		//    above) need real triangle/normal
 		//    data to resolve a plane (or a flood-fill seed) from - a
 		//    circle's center has none.
 		//  - ARC-RIM picks (3-Point Arc Radius's 3 points; Center+2-Point
@@ -11291,6 +11555,24 @@ void ViewportWidget::handleMeasurementClick(const QPoint& clickPoint)
 	{
 		MainWindow::showStatusMessage(tr("Edge doesn't connect to the chain - pick one sharing an endpoint with it"), 2500);
 		return;  // stay armed, don't add this edge
+	}
+
+	// Cylindrical/Conical Diameter only accepts a pick that actually lands
+	// on a captured cylindrical or conical face - reject anything else
+	// (an ordinary flat/spline face) outright rather than creating a
+	// measurement that can never resolve (see
+	// resolveMeasurementCylindricalDiameter()) and would sit in the
+	// results list forever reading "(face no longer available)".
+	if (_measurementTool == MeasurementTool::CylindricalDiameter)
+	{
+		float diameter = 0.0f;
+		QVector3D axisOrigin, axisDir, pickedPoint;
+		bool isCone = false;
+		if (!resolveMeasurementCylindricalDiameter(ref, diameter, axisOrigin, axisDir, pickedPoint, isCone))
+		{
+			MainWindow::showStatusMessage(tr("Not a cylindrical or conical face - pick again"), 2500);
+			return;  // stay armed, don't create a measurement that can never resolve
+		}
 	}
 
 	_pendingMeasurementAnchors.append(ref);
@@ -11752,6 +12034,91 @@ QUuid ViewportWidget::hitTestMeasurement(const QPoint& pixel, Camera* camera, in
 							bestDist = d;
 							bestId = m.id;
 						}
+					}
+				}
+			}
+		}
+		else if (m.type == MeasurementType::MinDistance && m.anchors.size() >= 2)
+		{
+			// Same boundary-outline test as FaceArea above, run once per
+			// region (both anchors' flood-filled faces are click targets;
+			// the offset dimension line itself is handled generically by
+			// hitTestDimensionLine() elsewhere, same as every other linear
+			// dimension).
+			auto testRegionBoundary = [&](const MeasurementAnchorRef& ref) {
+				QVector<int> triangles;
+				SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+				if (!mesh || !resolveMeasurementFaceRegion(ref, triangles))
+					return;
+				const std::vector<unsigned int> faceIndices = mesh->indices();
+				const std::vector<float>& faceTrsfPoints = mesh->getTrsfPoints();
+				auto faceVertexPos = [&faceTrsfPoints](unsigned int vIdx) -> QVector3D {
+					const size_t p = static_cast<size_t>(vIdx) * 3;
+					if (p + 2 >= faceTrsfPoints.size())
+						return QVector3D();
+					return QVector3D(faceTrsfPoints[p], faceTrsfPoints[p + 1], faceTrsfPoints[p + 2]);
+				};
+				const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+
+				QSet<int> triangleSet;
+				for (int t : triangles)
+					triangleSet.insert(t);
+
+				for (int t : triangles)
+				{
+					if (static_cast<size_t>(t) >= adjacency.size())
+						continue;
+					const size_t base = static_cast<size_t>(t) * 3;
+					for (int e = 0; e < 3; ++e)
+					{
+						const int neighbor = adjacency[static_cast<size_t>(t)][e];
+						if (neighbor >= 0 && triangleSet.contains(neighbor))
+							continue;  // interior edge, not on the boundary
+						const QVector3D pA = faceVertexPos(faceIndices[base + static_cast<size_t>(e)]);
+						const QVector3D pB = faceVertexPos(faceIndices[base + static_cast<size_t>((e + 1) % 3)]);
+						const float d = distPointToSegment(clickPt, toScreen(pA), toScreen(pB));
+						if (d < bestDist)
+						{
+							bestDist = d;
+							bestId = m.id;
+						}
+					}
+				}
+			};
+			testRegionBoundary(m.anchors[0]);
+			testRegionBoundary(m.anchors[1]);
+		}
+		else if (m.type == MeasurementType::CylindricalDiameter && !m.anchors.isEmpty())
+		{
+			// Same geometry as the render loop below (see its comment) -
+			// tests proximity to the diameter line AND the full circle
+			// outline, same "whole circle is a click target" convention
+			// PitchCircle's own hit-test already uses.
+			float diameter = 0.0f;
+			QVector3D axisOrigin, axisDir, pickedPoint;
+			bool isCone = false;
+			if (resolveMeasurementCylindricalDiameter(m.anchors[0], diameter, axisOrigin, axisDir, pickedPoint, isCone))
+			{
+				const QVector3D toPoint = pickedPoint - axisOrigin;
+				const QVector3D center = axisOrigin + axisDir * QVector3D::dotProduct(toPoint, axisDir);
+				const float radius = diameter * 0.5f;
+				const QVector3D mirrored = center * 2.0f - pickedPoint;
+
+				const float dLine = distPointToSegment(clickPt, toScreen(mirrored), toScreen(pickedPoint));
+				if (dLine < bestDist)
+				{
+					bestDist = dLine;
+					bestId = m.id;
+				}
+
+				const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(center, axisDir, radius);
+				for (int i = 0; i < circle.size(); ++i)
+				{
+					const float d = distPointToSegment(clickPt, toScreen(circle[i]), toScreen(circle[(i + 1) % circle.size()]));
+					if (d < bestDist)
+					{
+						bestDist = d;
+						bestId = m.id;
 					}
 				}
 			}
@@ -12313,7 +12680,18 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 		if (isHovered)
 			color = color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f;  // blend toward white - a lighter preview than full selection
 		const float sizeMultiplier = isSelected ? 1.5f : (isHovered ? 1.25f : 1.0f);
-		const QString summary = measurementSummaryText(m);
+		// The bundled viewport font (TextRenderer, fonts/arialbd.ttf) has no
+		// glyph for '⌀' (U+2300 DIAMETER SIGN, a rare "Miscellaneous
+		// Technical" character many fonts skip - confirmed missing; '°'
+		// U+00B0 is a much more common glyph and renders fine) - substitute
+		// 'Ø' (U+00D8, Latin-1 "O with stroke") for on-screen labels only,
+		// a real, commonly-used CAD/drafting stand-in, visually close (a
+		// circle with a diagonal stroke) and confirmed renderable (same
+		// Latin-1 Supplement range the degree sign already uses). The
+		// Measurement dialog keeps the exact '⌀' - Qt's own text rendering
+		// has no such font limitation.
+		QString summary = measurementSummaryText(m);
+		summary.replace(QChar(0x2300), QChar(0x00D8));
 
 		// Separate, stronger hover cue for the draggable dimension line/arc
 		// specifically (see mouseMoveEvent()'s _hoveredDimensionId update) -
@@ -12778,6 +13156,92 @@ void ViewportWidget::drawMeasurementOverlay(Camera* camera)
 					}
 				}
 				labels.append({ centroid, summary });
+			}
+		}
+		else if (m.type == MeasurementType::MinDistance && m.anchors.size() >= 2)
+		{
+			QVector3D pointA, pointB;
+			float distance = 0.0f;
+			if (resolveMeasurementMinDistance(m, pointA, pointB, distance))
+			{
+				// Both regions' boundary outlines, highlighted as reference
+				// context (same technique as FaceArea above - a direct
+				// byproduct of the same adjacency data
+				// resolveMeasurementFaceRegion() flood-filled with), plus
+				// the standard offset dimension line for the distance
+				// itself (same convention every other linear dimension in
+				// this file uses - see addOffsetDimension()).
+				auto drawRegionOutline = [&](const MeasurementAnchorRef& ref) {
+					QVector<int> triangles;
+					SceneMesh* mesh = getMeshByUuid(ref.meshUuid);
+					if (!mesh || !resolveMeasurementFaceRegion(ref, triangles))
+						return;
+					const std::vector<unsigned int> faceIndices = mesh->indices();
+					const std::vector<float>& faceTrsfPoints = mesh->getTrsfPoints();
+					auto faceVertexPos = [&faceTrsfPoints](unsigned int vIdx) -> QVector3D {
+						const size_t p = static_cast<size_t>(vIdx) * 3;
+						if (p + 2 >= faceTrsfPoints.size())
+							return QVector3D();
+						return QVector3D(faceTrsfPoints[p], faceTrsfPoints[p + 1], faceTrsfPoints[p + 2]);
+					};
+					const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+
+					QSet<int> triangleSet;
+					for (int t : triangles)
+						triangleSet.insert(t);
+
+					for (int t : triangles)
+					{
+						if (static_cast<size_t>(t) >= adjacency.size())
+							continue;
+						const size_t base = static_cast<size_t>(t) * 3;
+						for (int e = 0; e < 3; ++e)
+						{
+							const int neighbor = adjacency[static_cast<size_t>(t)][e];
+							if (neighbor >= 0 && triangleSet.contains(neighbor))
+								continue;  // interior edge, not on the boundary
+							const QVector3D pA = faceVertexPos(faceIndices[base + static_cast<size_t>(e)]);
+							const QVector3D pB = faceVertexPos(faceIndices[base + static_cast<size_t>((e + 1) % 3)]);
+							addSegment(pA, pB, color);
+						}
+					}
+				};
+				drawRegionOutline(m.anchors[0]);
+				drawRegionOutline(m.anchors[1]);
+
+				const QVector3D labelPos = addOffsetDimension(pointA, pointB, dimensionColor, m);
+				labels.append({ labelPos, summary });
+			}
+		}
+		else if (m.type == MeasurementType::CylindricalDiameter && !m.anchors.isEmpty())
+		{
+			float diameter = 0.0f;
+			QVector3D axisOrigin, axisDir, pickedPoint;
+			bool isCone = false;
+			if (resolveMeasurementCylindricalDiameter(m.anchors[0], diameter, axisOrigin, axisDir, pickedPoint, isCone))
+			{
+				// The full circular cross-section through the picked point
+				// (MeasurementGeometry::circlePolyline(), same helper
+				// PitchCircle/EdgeRadius already use) plus a diameter line
+				// straight through the axis (mirrored point -> picked
+				// point) via addDimensionLine() directly - unlike every
+				// other linear dimension in this file, a diameter line
+				// canonically passes THROUGH the part (real CAD
+				// convention), so no offset/extension-line treatment.
+				const QVector3D toPoint = pickedPoint - axisOrigin;
+				const QVector3D center = axisOrigin + axisDir * QVector3D::dotProduct(toPoint, axisDir);
+				const float radius = diameter * 0.5f;
+				const QVector3D mirrored = center * 2.0f - pickedPoint;
+
+				const QVector<QVector3D> circle = MeasurementGeometry::circlePolyline(center, axisDir, radius);
+				for (int i = 0; i < circle.size(); ++i)
+					addSegment(circle[i], circle[(i + 1) % circle.size()], color);
+
+				addMarker(pickedPoint, color, sizeMultiplier);
+				addMarker(mirrored, color, sizeMultiplier);
+				addDimensionLine(mirrored, pickedPoint, dimensionColor);
+
+				labels.append({ pickedPoint, summary });
 			}
 		}
 	}
@@ -15288,6 +15752,8 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		else if (_measurementTool == MeasurementTool::FaceToFace
 			|| _measurementTool == MeasurementTool::FaceArea
+			|| _measurementTool == MeasurementTool::MinDistance
+			|| _measurementTool == MeasurementTool::CylindricalDiameter
 			|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
 				&& !_pendingMeasurementAnchors.isEmpty())
 			|| _measurementTool == MeasurementTool::ArcRadius3Point
@@ -18785,6 +19251,19 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
         // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
         if (!pm.occEdgeSegments.empty())
             mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles, pm.occEdgeVertexTolerance);
+        // Restore OCC B-Rep per-face axis data (Cylindrical/Conical Diameter) -
+        // independent of the edge data above. Re-derived by position against
+        // THIS reload's own (possibly differently-reordered) triangle order
+        // rather than trusted directly - see
+        // SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc comment.
+        if (!pm.occFaceTriangleIndices.empty())
+        {
+            std::vector<int> remappedTriangleIndices, remappedFaceIndices;
+            SceneMesh::remapOccFaceTriangleIndicesByPosition(
+                pm.vertices, pm.indices, pm.occFaceTriangleIndices, pm.occFaceIndexPerTriangle,
+                mesh, remappedTriangleIndices, remappedFaceIndices);
+            mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, pm.occFaceAxes);
+        }
 
         const Material resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
@@ -18874,6 +19353,19 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
     if (!pm.occEdgeSegments.empty())
         mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries, pm.occEdgeCircles, pm.occEdgeVertexTolerance);
+    // Restore OCC B-Rep per-face axis data (Cylindrical/Conical Diameter) -
+    // independent of the edge data above. Re-derived by position against
+    // THIS reload's own (possibly differently-reordered) triangle order
+    // rather than trusted directly - see
+    // SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc comment.
+    if (!pm.occFaceTriangleIndices.empty())
+    {
+        std::vector<int> remappedTriangleIndices, remappedFaceIndices;
+        SceneMesh::remapOccFaceTriangleIndicesByPosition(
+            pm.vertices, pm.indices, pm.occFaceTriangleIndices, pm.occFaceIndexPerTriangle,
+            mesh, remappedTriangleIndices, remappedFaceIndices);
+        mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, pm.occFaceAxes);
+    }
 
     // Resolve textures and set material
     const Material resolved = resolveMaterialTextures(this, pm.material);

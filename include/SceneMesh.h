@@ -2,6 +2,7 @@
 
 #include <array>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <initializer_list>
 
@@ -66,6 +67,55 @@ public:
 	// Mesh-wide max BRep vertex tolerance (0.0 for non-OCC meshes) - see
 	// MeshImportAdaptor::occEdgeVertexTolerance()'s doc comment.
 	double getOccEdgeVertexTolerance() const { return _importState.occEdgeVertexTolerance(); }
+
+	// Precomputed B-Rep per-face axis data (Cylindrical/Conical Diameter
+	// measurement tool) - pure CPU data, no GL upload needed (unlike
+	// setPrecomputedOccEdges()'s vertex buffer). Sparse (triangleIndices[i],
+	// faceIndices[i]) parallel arrays, indices into THIS mesh's OWN current
+	// triangle order - see MeshImportAdaptor::setOccFaceData()'s doc
+	// comment for why a per-face contiguous range table doesn't work here
+	// (optimizeMesh() reorders triangles). Invalidates the lazy triangle->
+	// face lookup cache below so a later getOccTriangleFaceIndex() call
+	// rebuilds it from the new data.
+	void setPrecomputedOccFaceAxes(const std::vector<int>& triangleIndices,
+	                               const std::vector<int>& faceIndices,
+	                               const std::vector<OccFaceAxisInfo>& axes = {})
+		{ _importState.setOccFaceData(triangleIndices, faceIndices, axes);
+		  _occTriangleFaceLookupBuilt = false; _occTriangleFaceLookup.clear(); }
+	// Raw sparse pass-through (MVF serialization, clone()'s own re-derivation
+	// via remapOccFaceTriangleIndicesByPosition() below) - most callers
+	// wanting "which face is triangle N on" should use
+	// getOccTriangleFaceIndex() instead.
+	const std::vector<int>& getOccFaceTriangleIndices() const { return _importState.occFaceTriangleIndices(); }
+	const std::vector<int>& getOccFaceIndexPerTriangle() const { return _importState.occFaceIndexPerTriangle(); }
+	// axes[i] describes the analytic axis for topological face i (see
+	// OccFaceAxisInfo's doc comment) - look up i via getOccTriangleFaceIndex().
+	const std::vector<OccFaceAxisInfo>& getOccFaceAxes() const { return _importState.occFaceAxes(); }
+	// Returns the getOccFaceAxes() index for triangle `triangleIndex` in
+	// THIS mesh's own current triangle order, or -1 if that triangle isn't
+	// on a captured cylindrical/conical face. Lazily builds a hash-map from
+	// the sparse arrays above on first call (same lazy-cache pattern as
+	// getTriangleAdjacency()) rather than a linear scan per query, since
+	// this is called from interactive picking/hover.
+	int getOccTriangleFaceIndex(int triangleIndex) const;
+
+	// Re-identifies which of THIS mesh's own CURRENT triangles correspond
+	// to the (triangleIndices[i], faceIndices[i]) pairs captured against a
+	// SOURCE mesh with the SAME vertex positions but possibly a DIFFERENT
+	// triangle/vertex order - e.g. src is the pre-optimization geometry
+	// this mesh was just built from (optimizeMesh() reorders during
+	// construction), or a parent mesh being clone()'d (whose own
+	// optimization pass may not reorder identically on the clone). Uses
+	// exact position matching: optimizeMesh() only ever permutes/relabels
+	// triangles and vertices, never recomputes their positions, so a
+	// triangle's 3 vertex positions (sorted, so winding-order-independent)
+	// are a reliable identity key across any such reordering. Static since
+	// callers (AssImpMeshBuilder, SceneMesh::clone()) supply their own
+	// "source" vertex/index arrays rather than an existing SceneMesh.
+	static void remapOccFaceTriangleIndicesByPosition(
+		const std::vector<Vertex>& srcVertices, const std::vector<unsigned int>& srcIndices,
+		const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
+		SceneMesh* dst, std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices);
 
 	// Heuristic feature-edge list (dihedral-angle/seam-aware classifier,
 	// see buildAndUploadFeatureEdges()) - flat pairs of indices into THIS
@@ -249,6 +299,10 @@ protected:
 	// ---- Lazy triangle-adjacency cache (see getTriangleAdjacency()) -------------
 	mutable std::vector<std::array<int, 3>> _triangleAdjacencyCache;
 	mutable bool _triangleAdjacencyCacheBuilt = false;
+
+	// ---- Lazy triangle->face lookup cache (see getOccTriangleFaceIndex()) -------
+	mutable std::unordered_map<int, int> _occTriangleFaceLookup;
+	mutable bool _occTriangleFaceLookupBuilt = false;
 
 	// ---- Morph-target data (static after load) ----------------------------------
 	QVector<MorphTargetData> _morphTargets;

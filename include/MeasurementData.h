@@ -213,6 +213,34 @@ enum class MeasurementType
     // CAD-only limitation. See ViewportWidget::resolveMeasurementFaceArea()
     // and SceneMesh::getTriangleAdjacency().
     FaceArea,
+
+    // Two face picks (plain triangle picks, same as FaceToFace's own
+    // anchors) - each flood-fills to its WHOLE smooth region (bounded by
+    // genuine feature/dihedral edges, not FaceArea's much tighter
+    // coplanarity test, so a curved face like a cylindrical boss counts as
+    // one region, not just a coplanar sliver of it - see
+    // ViewportWidget::resolveMeasurementFaceRegion()), then reports the
+    // true minimum distance between the two regions via exact point-to-
+    // triangle closest-point queries (MeasurementGeometry::
+    // closestPointOnTriangle()), brute-force (no spatial acceleration
+    // structure exists anywhere in this codebase - fine for a one-shot
+    // per-face query, no CAD-only limitation either). Anchors may be on
+    // the same mesh (e.g. a wall-thickness check) or two different ones.
+    MinDistance,
+
+    // A single face pick landing on a cylindrical or conical B-Rep face
+    // (the curved lateral surface itself - a hole/boss's rim is an EDGE
+    // pick, see EdgeRadius, not this). Reports the diameter AT the picked
+    // point: the picked world point's live perpendicular distance to the
+    // face's analytic axis line (BRepToAssimpConverter::OccFaceAxis,
+    // captured at import time), doubled - one formula correct for both a
+    // cylinder (constant everywhere on the face) and a cone (genuinely
+    // varies with position, so the reported value is explicitly "at this
+    // point", not a single constant like a cylinder's). CAD-only (STEP/
+    // IGES/BREP) - needs real B-Rep surface-type data no other mesh format
+    // has, same limitation as EdgeRadius/Concentricity. See
+    // ViewportWidget::resolveMeasurementCylindricalDiameter().
+    CylindricalDiameter,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -238,6 +266,8 @@ enum class MeasurementTool
     AngleThreePoint,
     EdgeChain,
     FaceArea,
+    MinDistance,
+    CylindricalDiameter,
 };
 
 struct Measurement
@@ -257,7 +287,9 @@ struct Measurement
     // EdgeRadius, one per circle being compared). For AngleThreePoint,
     // anchors[0] is the vertex and anchors[1]/[2] are the two ray
     // endpoints. FaceArea is 1 (a plain face anchor, same as one of
-    // FaceToFace's two). PitchCircle and EdgeChain are the two exceptions to
+    // FaceToFace's two). MinDistance is 2 (both plain face anchors, same
+    // convention as FaceToFace's two). CylindricalDiameter is 1 (a plain
+    // face anchor landing on a cylindrical/conical face). PitchCircle and EdgeChain are the two exceptions to
     // "count is determined by type" - both are 2/3 OR MORE respectively
     // (PitchCircle - any pick order fits the same circle, order genuinely
     // doesn't matter; EdgeChain - order matters in the sense that each new
@@ -344,6 +376,8 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::AngleThreePoint:      return 3;
     case MeasurementTool::EdgeChain:            return 2;
     case MeasurementTool::FaceArea:             return 1;
+    case MeasurementTool::MinDistance:          return 2;
+    case MeasurementTool::CylindricalDiameter:  return 1;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -384,6 +418,8 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::AngleThreePoint:      return MeasurementType::AngleThreePoint;
     case MeasurementTool::EdgeChain:            return MeasurementType::EdgeChain;
     case MeasurementTool::FaceArea:             return MeasurementType::FaceArea;
+    case MeasurementTool::MinDistance:          return MeasurementType::MinDistance;
+    case MeasurementTool::CylindricalDiameter:  return MeasurementType::CylindricalDiameter;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -410,6 +446,8 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::AngleThreePoint:      return QStringLiteral("3-Point Angle");
     case MeasurementTool::EdgeChain:            return QStringLiteral("Chain Length");
     case MeasurementTool::FaceArea:             return QStringLiteral("Face Area");
+    case MeasurementTool::MinDistance:          return QStringLiteral("Minimum Distance");
+    case MeasurementTool::CylindricalDiameter:  return QStringLiteral("Cylindrical/Conical Diameter (CAD only)");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -486,6 +524,11 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
         }
     case MeasurementTool::FaceArea:
         return QStringLiteral("Click a face");
+    case MeasurementTool::MinDistance:
+        return alreadyPicked == 0 ? QStringLiteral("Click the 1st face")
+                                   : QStringLiteral("Click the 2nd face");
+    case MeasurementTool::CylindricalDiameter:
+        return QStringLiteral("Click a cylindrical or conical face");
     case MeasurementTool::None:
         return QString();
     }

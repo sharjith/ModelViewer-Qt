@@ -6,9 +6,13 @@
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
 #include <GCPnts_TangentialDeflection.hxx>
 #include <GeomAbs_CurveType.hxx>
+#include <GeomAbs_SurfaceType.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Cone.hxx>
+#include <gp_Cylinder.hxx>
 #include <gp_Dir.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
@@ -43,6 +47,10 @@ BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_stepColorMap;
 // Per-document B-Rep edge data, keyed by aiMesh* produced during this load.
 std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeData>
     BRepToAssimpConverter::s_occEdges;
+
+// Per-document B-Rep per-face axis data, keyed by aiMesh* produced during this load.
+std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccFaceData>
+    BRepToAssimpConverter::s_occFaces;
 
 namespace {
 bool wireframeFeaturesEnabled()
@@ -473,6 +481,7 @@ void BRepToAssimpConverter::clearColorCache()
 void BRepToAssimpConverter::clearEdgeCache()
 {
 	s_occEdges.clear();
+	s_occFaces.clear();
 }
 
 const BRepToAssimpConverter::OccEdgeData*
@@ -480,6 +489,13 @@ BRepToAssimpConverter::getPrecomputedEdges(const aiMesh* mesh)
 {
 	auto it = s_occEdges.find(mesh);
 	return (it != s_occEdges.end()) ? &it->second : nullptr;
+}
+
+const BRepToAssimpConverter::OccFaceData*
+BRepToAssimpConverter::getPrecomputedFaces(const aiMesh* mesh)
+{
+	auto it = s_occFaces.find(mesh);
+	return (it != s_occFaces.end()) ? &it->second : nullptr;
 }
 
 // Tessellates all unique non-degenerate B-Rep edges in faceGroup and returns
@@ -971,6 +987,13 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	std::vector<aiVector3D> normalAccum;
 	std::vector<int>        normalCount;
 
+	// Per-topological-face analytic axis data (Cylindrical/Conical Diameter
+	// measurement tool) - see OccFaceData's doc comment. bounds[f] is
+	// recorded as faces.size() right before face f's own triangles are
+	// appended below, so it's the first triangle index that face
+	// contributes; a final sentinel is appended once the whole loop ends.
+	OccFaceData faceData;
+
 	for (int f = 1; f <= faceCount; ++f)
 	{
 		TopoDS_Face face = TopoDS::Face(faceGroup(f));
@@ -1029,6 +1052,57 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		const int nTriangles = triangulation->NbTriangles();
 
 		if (nNodes <= 0 || nTriangles <= 0) continue;
+
+		// Record this face's starting triangle index + analytic surface
+		// data (Cylindrical/Conical Diameter measurement tool) before its
+		// triangles are appended below - cheap (one extra OCC surface-type
+		// query per face, reusing the tessellation work already underway),
+		// so unlike the edge-wireframe extraction this isn't gated behind
+		// the wireframe-features setting.
+		faceData.bounds.push_back(static_cast<int>(faces.size()));
+		{
+			OccFaceAxis faceAxis;
+			auto classifySurface = [&faceAxis](const TopoDS_Face& f) -> bool {
+				try
+				{
+					BRepAdaptor_Surface surfAdaptor(f);
+					if (surfAdaptor.GetType() == GeomAbs_Cylinder)
+					{
+						const gp_Cylinder cyl = surfAdaptor.Cylinder();
+						const gp_Pnt origin = cyl.Location();
+						const gp_Dir axis = cyl.Axis().Direction();
+						faceAxis.isCylinder = true;
+						faceAxis.originX = origin.X(); faceAxis.originY = origin.Y(); faceAxis.originZ = origin.Z();
+						faceAxis.axisX = axis.X();     faceAxis.axisY = axis.Y();     faceAxis.axisZ = axis.Z();
+						return true;
+					}
+					if (surfAdaptor.GetType() == GeomAbs_Cone)
+					{
+						const gp_Cone cone = surfAdaptor.Cone();
+						const gp_Pnt apex = cone.Apex();
+						const gp_Dir axis = cone.Axis().Direction();
+						faceAxis.isCone = true;
+						faceAxis.originX = apex.X(); faceAxis.originY = apex.Y(); faceAxis.originZ = apex.Z();
+						faceAxis.axisX = axis.X();   faceAxis.axisY = axis.Y();   faceAxis.axisZ = axis.Z();
+						return true;
+					}
+				}
+				catch (...) { /* fall through - try the other candidate face, or give up */ }
+				return false;
+			};
+			// Prefer the actual triangulated face, but fall back to the
+			// ORIGINAL (pre-heal) face if healing rebuilt its surface as
+			// something else (e.g. a B-spline approximation of a cone -
+			// ShapeFix/healing can do this for geometry that needed
+			// repair, even though the original analytic surface was a
+			// clean cone). The axis geometry only depends on the
+			// surface's own placement, not the face's boundary/trim, so
+			// the original face's answer is exactly as valid whenever the
+			// two differ.
+			if (!classifySurface(processedFace) && !processedFace.IsSame(face))
+				classifySurface(face);
+			faceData.axes.push_back(faceAxis);
+		}
 
 		// OPTIMIZATION 4: Single allocation for local data
 		std::vector<aiVector3D> localVertices;
@@ -1211,6 +1285,15 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		OccEdgeData edges = extractEdgesFromFaceGroup(faceGroup, deflection);
 		if (!edges.segments.empty())
 			s_occEdges[result] = std::move(edges);
+	}
+
+	// Cache the per-face axis data collected during the triangle loop above
+	// (Cylindrical/Conical Diameter measurement tool) - sentinel closes the
+	// last face's triangle range, same convention as OccEdgeBoundaries.
+	if (!faceData.bounds.empty())
+	{
+		faceData.bounds.push_back(static_cast<int>(faces.size()));
+		s_occFaces[result] = std::move(faceData);
 	}
 
 	return result;

@@ -498,6 +498,31 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		}
 		prepared.occEdgeVertexTolerance = extras[QStringLiteral("occEdgeVertexTolerance")].toDouble();
 
+		for (const QJsonValue& tv : extras[QStringLiteral("occFaceTriangleIndices")].toArray())
+			prepared.occFaceTriangleIndices.push_back(tv.toInt());
+		for (const QJsonValue& fv : extras[QStringLiteral("occFaceIndexPerTriangle")].toArray())
+			prepared.occFaceIndexPerTriangle.push_back(fv.toInt());
+		for (const QJsonValue& av : extras[QStringLiteral("occFaceAxes")].toArray())
+		{
+			OccFaceAxisInfo info;
+			if (av.isObject())
+			{
+				const QJsonObject ao = av.toObject();
+				const bool isCyl = ao[QStringLiteral("cyl")].toBool();
+				info.isCylinder = isCyl;
+				info.isCone     = !isCyl;
+				info.originX = ao[QStringLiteral("ox")].toDouble();
+				info.originY = ao[QStringLiteral("oy")].toDouble();
+				info.originZ = ao[QStringLiteral("oz")].toDouble();
+				info.axisX   = ao[QStringLiteral("ax")].toDouble();
+				info.axisY   = ao[QStringLiteral("ay")].toDouble();
+				info.axisZ   = ao[QStringLiteral("az")].toDouble();
+			}
+			// else: JSON null placeholder for a non-cylindrical/conical face -
+			// info stays default-constructed (isCylinder = isCone = false).
+			prepared.occFaceAxes.push_back(info);
+		}
+
 		for (const QJsonValue& jointValue : extras[QStringLiteral("skinJoints")].toArray())
 		{
 			const QJsonObject jointObj = jointValue.toObject();

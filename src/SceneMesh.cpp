@@ -128,6 +128,23 @@ SceneMesh* SceneMesh::clone()
 		mesh->applyMorphWeights(_currentMorphWeights);
 	if (_importState.hasOccEdges())
 		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries(), _importState.occEdgeCircles(), _importState.occEdgeVertexTolerance());
+	if (_importState.hasOccFaces())
+	{
+		// Re-derive against the CLONE's own triangle order rather than
+		// blindly copying this mesh's sparse mapping - the clone's own
+		// optimizeMesh() pass (triggered by the constructor call above,
+		// same skipOptimization setting) isn't guaranteed to reorder
+		// triangles identically to this mesh's, even given the same input
+		// (see SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc
+		// comment). _baseVertices/_indices are exactly what was just
+		// passed into the clone's constructor above, so they're the
+		// correct "source" reference to re-match against.
+		std::vector<int> remappedTriangleIndices, remappedFaceIndices;
+		SceneMesh::remapOccFaceTriangleIndicesByPosition(
+			_baseVertices, _indices, _importState.occFaceTriangleIndices(), _importState.occFaceIndexPerTriangle(),
+			mesh, remappedTriangleIndices, remappedFaceIndices);
+		mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, _importState.occFaceAxes());
+	}
 
 	// Copy import provenance so export, skinning, animation and variant paths
 	// behave identically on the clone.
@@ -1123,6 +1140,93 @@ const std::vector<std::array<int, 3>>& SceneMesh::getTriangleAdjacency() const
 	if (!_triangleAdjacencyCacheBuilt)
 		buildTriangleAdjacency();
 	return _triangleAdjacencyCache;
+}
+
+int SceneMesh::getOccTriangleFaceIndex(int triangleIndex) const
+{
+	if (!_occTriangleFaceLookupBuilt)
+	{
+		const std::vector<int>& tris = _importState.occFaceTriangleIndices();
+		const std::vector<int>& faces = _importState.occFaceIndexPerTriangle();
+		_occTriangleFaceLookup.reserve(tris.size());
+		for (size_t i = 0; i < tris.size() && i < faces.size(); ++i)
+			_occTriangleFaceLookup[tris[i]] = faces[i];
+		_occTriangleFaceLookupBuilt = true;
+	}
+	const auto it = _occTriangleFaceLookup.find(triangleIndex);
+	return (it != _occTriangleFaceLookup.end()) ? it->second : -1;
+}
+
+void SceneMesh::remapOccFaceTriangleIndicesByPosition(
+	const std::vector<Vertex>& srcVertices, const std::vector<unsigned int>& srcIndices,
+	const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
+	SceneMesh* dst, std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices)
+{
+	outTriangleIndices.clear();
+	outFaceIndices.clear();
+	if (!dst || srcTriangleIndices.empty())
+		return;
+
+	// Quantized-position triangle signature - see this function's doc
+	// comment (SceneMesh.h) for why exact position matching is safe here
+	// (optimizeMesh() only permutes/relabels, never recomputes, vertex
+	// positions). Sorted so the signature doesn't depend on the triangle's
+	// own winding/vertex order, only which 3 positions it spans - the same
+	// "quantize then hash" spirit as buildPositionWeldMap(), just per-
+	// triangle (3 positions) instead of per-vertex (1).
+	auto quantize = [](float v) -> int64_t { return static_cast<int64_t>(std::lround(v * 100000.0f)); };
+	auto triangleKey = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) -> uint64_t {
+		std::array<std::array<int64_t, 3>, 3> pts = { {
+			{ quantize(a.x), quantize(a.y), quantize(a.z) },
+			{ quantize(b.x), quantize(b.y), quantize(b.z) },
+			{ quantize(c.x), quantize(c.y), quantize(c.z) }
+		} };
+		std::sort(pts.begin(), pts.end());
+		uint64_t h = 1469598103934665603ull;  // FNV-1a offset basis
+		for (const auto& p : pts)
+		{
+			for (int64_t v : p)
+			{
+				h ^= static_cast<uint64_t>(v);
+				h *= 1099511628211ull;  // FNV-1a prime
+			}
+		}
+		return h;
+	};
+
+	std::unordered_map<uint64_t, int> signatureToFace;
+	signatureToFace.reserve(srcTriangleIndices.size());
+	for (size_t i = 0; i < srcTriangleIndices.size(); ++i)
+	{
+		const size_t base = static_cast<size_t>(srcTriangleIndices[i]) * 3;
+		if (base + 2 >= srcIndices.size())
+			continue;
+		const glm::vec3& p0 = srcVertices[srcIndices[base]].Position;
+		const glm::vec3& p1 = srcVertices[srcIndices[base + 1]].Position;
+		const glm::vec3& p2 = srcVertices[srcIndices[base + 2]].Position;
+		signatureToFace[triangleKey(p0, p1, p2)] = srcFaceIndices[i];
+	}
+
+	std::vector<Vertex> dstVertices;
+	std::vector<unsigned int> dstIndices;
+	dst->getMeshData(dstVertices, dstIndices);
+
+	const size_t dstTriCount = dstIndices.size() / 3;
+	outTriangleIndices.reserve(signatureToFace.size());
+	outFaceIndices.reserve(signatureToFace.size());
+	for (size_t t = 0; t < dstTriCount; ++t)
+	{
+		const size_t base = t * 3;
+		const glm::vec3& p0 = dstVertices[dstIndices[base]].Position;
+		const glm::vec3& p1 = dstVertices[dstIndices[base + 1]].Position;
+		const glm::vec3& p2 = dstVertices[dstIndices[base + 2]].Position;
+		const auto it = signatureToFace.find(triangleKey(p0, p1, p2));
+		if (it != signatureToFace.end())
+		{
+			outTriangleIndices.push_back(static_cast<int>(t));
+			outFaceIndices.push_back(it->second);
+		}
+	}
 }
 
 void SceneMesh::buildTriangleAdjacency() const

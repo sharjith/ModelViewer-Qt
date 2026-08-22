@@ -213,6 +213,53 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
                                      circles,
                                      meshData.precomputedOccEdgeVertexTolerance);
     }
+    if (!meshData.precomputedOccFaceTriangleBounds.empty())
+    {
+        std::vector<OccFaceAxisInfo> axes;
+        axes.reserve(meshData.precomputedOccFaceAxes.size());
+        for (const AssImpMeshData::PrecomputedFaceAxis& a : meshData.precomputedOccFaceAxes)
+        {
+            OccFaceAxisInfo info;
+            info.isCylinder = a.isCylinder;
+            info.isCone     = a.isCone;
+            info.originX = a.originX; info.originY = a.originY; info.originZ = a.originZ;
+            info.axisX = a.axisX;     info.axisY = a.axisY;     info.axisZ = a.axisZ;
+            axes.push_back(info);
+        }
+
+        // Expand the dense (pre-optimization) per-face triangle-range table
+        // into a sparse per-triangle list, ORIGINAL triangle order,
+        // cylindrical/conical faces only (most CAD faces are flat/spline -
+        // no need to carry those). `mesh` was just constructed above, and
+        // its constructor already ran SceneMesh::optimizeMesh() (vertex-
+        // cache/overdraw/vertex-fetch reordering) - meshData.vertices/
+        // indices are the PRE-reorder arrays this table's indices are
+        // valid against, so re-identify each face's triangles by position
+        // in `mesh`'s own (possibly reordered) current triangle order
+        // rather than trusting the table's indices directly (see
+        // SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc comment).
+        std::vector<int> srcTriangleIndices, srcFaceIndices;
+        const std::vector<int>& faceBounds = meshData.precomputedOccFaceTriangleBounds;
+        for (size_t f = 0; f + 1 < faceBounds.size(); ++f)
+        {
+            if (f >= axes.size() || (!axes[f].isCylinder && !axes[f].isCone))
+                continue;
+            for (int t = faceBounds[f]; t < faceBounds[f + 1]; ++t)
+            {
+                srcTriangleIndices.push_back(t);
+                srcFaceIndices.push_back(static_cast<int>(f));
+            }
+        }
+
+        if (!srcTriangleIndices.empty())
+        {
+            std::vector<int> remappedTriangleIndices, remappedFaceIndices;
+            SceneMesh::remapOccFaceTriangleIndicesByPosition(
+                meshData.vertices, meshData.indices, srcTriangleIndices, srcFaceIndices,
+                mesh, remappedTriangleIndices, remappedFaceIndices);
+            mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, axes);
+        }
+    }
     if (!meshData.variantMappings.isEmpty())
     {
         mesh->setVariantMappings(meshData.variantMappings);
