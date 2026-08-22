@@ -12205,6 +12205,43 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	}
 }
 
+void ViewportWidget::mouseDoubleClickEvent(QMouseEvent* e)
+{
+	if (!(e->button() & Qt::LeftButton) || !_viewer)
+		return;
+
+	// A double-click during active placement would both place a point/note
+	// (Qt still delivers a normal press/release pair for the double-click's
+	// first click, which the existing click-candidate logic in
+	// mousePressEvent()/mouseReleaseEvent() already handles) AND pop a
+	// dialog here - ignore the gesture entirely while a tool is armed
+	// rather than let the two collide.
+	if (_measurementController->measurementTool() != MeasurementTool::None
+		|| _annotationController->annotationToolArmed())
+		return;
+
+	const QPoint clickPoint(e->position().x(), e->position().y());
+
+	// Same "what's under the cursor" priority as mousePressEvent()'s own
+	// "no tool armed" hit-test chain: dimension line -> measurement marker
+	// -> annotation frame.
+	const MeasurementController::DimensionHit hitDimension =
+		_measurementController->hitTestDimensionLine(clickPoint, _primaryCamera, QSize(width(), height()), 8);
+	QUuid hitMeasurement = hitDimension.measurementId;
+	if (hitMeasurement.isNull())
+		hitMeasurement = _measurementController->hitTestMeasurement(clickPoint, _primaryCamera, QSize(width(), height()), 8);
+	if (!hitMeasurement.isNull())
+	{
+		_viewer->openMeasurementDialog(hitMeasurement);
+		return;
+	}
+
+	const QUuid hitAnnotation = _annotationController->hitTestAnnotationLeader(
+		clickPoint, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
+	if (!hitAnnotation.isNull())
+		_viewer->openAnnotationDialog(hitAnnotation);
+}
+
 void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 {
 	QPoint currentPos = e->pos();

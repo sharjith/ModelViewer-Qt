@@ -83,6 +83,7 @@
     </property>
     <addaction name="actionMeasure"/>
     <addaction name="actionAnnotate"/>
+    <addaction name="actionExportReport"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -361,6 +362,14 @@
    </property>
    <property name="statusTip">
     <string>Open the annotation tool - place text notes anchored to points on the model</string>
+   </property>
+  </action>
+  <action name="actionExportReport">
+   <property name="text">
+    <string>Export Report...</string>
+   </property>
+   <property name="statusTip">
+    <string>Export captured views and the measurement/annotation list as a PDF report</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">

@@ -1200,6 +1200,11 @@ protected:
 	void mousePressEvent(QMouseEvent*);
 	void mouseReleaseEvent(QMouseEvent*);
 	void mouseMoveEvent(QMouseEvent*);
+	// Opens the owning MeasurementDialog/AnnotationDialog for a double-
+	// clicked measurement/annotation (with it pre-selected) - see
+	// ModelViewer::openMeasurementDialog()/openAnnotationDialog(). No prior
+	// double-click handling existed on this widget.
+	void mouseDoubleClickEvent(QMouseEvent*);
 	void wheelEvent(QWheelEvent*);
 	void keyPressEvent(QKeyEvent* event);
 	void keyReleaseEvent(QKeyEvent* event);

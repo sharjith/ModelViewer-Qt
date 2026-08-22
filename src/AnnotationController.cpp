@@ -282,8 +282,15 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
         // Secondary: proximity to the anchor marker or the connecting
         // leader itself, within pixelRadius - covers axisTextRenderer being
         // transiently unavailable, and lets a click right on the pin (not
-        // yet inside the frame) still grab it.
-        if (distPointToSegment(clickPt2, toScreen(anchorPos), toScreen(labelPos)) < static_cast<float>(pixelRadius))
+        // yet inside the frame) still grab it. Tests against the frame's
+        // bottom-left corner (where the leader actually terminates - see
+        // drawAnnotationOverlay()), not labelPos, so this agrees with what's
+        // drawn - falls back to labelPos only when there's no frame to
+        // anchor to.
+        const QVector2D leaderEnd = frame.isValid()
+            ? QVector2D(static_cast<float>(frame.left()), static_cast<float>(frame.bottom()))
+            : toScreen(labelPos);
+        if (distPointToSegment(clickPt2, toScreen(anchorPos), leaderEnd) < static_cast<float>(pixelRadius))
             return a.id;
     }
 
@@ -453,7 +460,6 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         const QVector3D labelPos = anchorPos + resolveAnnotationLeaderOffset(a, camera);
 
         addMarker(anchorPos, color, sizeMultiplier);
-        addSegment(anchorPos, labelPos, color);
 
         // Rectangular frame around the note's text - the primary grab
         // target for repositioning it (see hitTestAnnotation()'s doc
@@ -467,6 +473,11 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         // computed - and hitTestAnnotation() computes fresh from the same
         // function, so rendering and interaction can never disagree about
         // where the frame actually is.
+        //
+        // The leader terminates exactly at the frame's bottom-left corner
+        // (not at labelPos, which sits near but not exactly there) - a
+        // clean CAD-callout look, and the frame must be computed first so
+        // that corner exists to draw to.
         const QRectF frame = frameScreenRectForLabel(labelPos, a.text, camera, viewportSize, axisTextRenderer);
         if (frame.isValid())
         {
@@ -480,10 +491,17 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
             const QVector3D topRight    = worldAtScreen(static_cast<float>(frame.right()), static_cast<float>(frame.top()));
             const QVector3D bottomRight = worldAtScreen(static_cast<float>(frame.right()), static_cast<float>(frame.bottom()));
             const QVector3D bottomLeft  = worldAtScreen(static_cast<float>(frame.left()),  static_cast<float>(frame.bottom()));
+            addSegment(anchorPos, bottomLeft, color);
             addSegment(topLeft, topRight, color);
             addSegment(topRight, bottomRight, color);
             addSegment(bottomRight, bottomLeft, color);
             addSegment(bottomLeft, topLeft, color);
+        }
+        else
+        {
+            // No text renderer available this frame (rare) - no frame to
+            // anchor to, fall back to the label's own reference point.
+            addSegment(anchorPos, labelPos, color);
         }
 
         labels.append({ labelPos, a.text });

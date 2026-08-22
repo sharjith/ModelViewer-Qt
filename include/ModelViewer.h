@@ -252,6 +252,19 @@ public:
 	// changed so an unedited focus-out doesn't push a no-op undo step.
 	void setAnnotationText(const QUuid& annotationId, const QString& text);
 
+	// Shows (findChild-reuse) or creates the non-modal MeasurementDialog for
+	// this document - the single implementation behind both the Tools ->
+	// Measure... menu action and ViewportWidget::mouseDoubleClickEvent()'s
+	// double-click-a-measurement gesture, so the two can't drift apart. If
+	// selectId is non-null, selects it in the viewport afterward - both
+	// dialogs already sync their list selection AND scroll to it off that
+	// signal (see MeasurementDialog/AnnotationDialog::onViewportSelectionChanged()),
+	// so this is enough to land the user on the right row with no dialog-side
+	// changes needed.
+	void openMeasurementDialog(const QUuid& selectId = QUuid());
+	// Same role as openMeasurementDialog() above, for AnnotationDialog.
+	void openAnnotationDialog(const QUuid& selectId = QUuid());
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();

@@ -26,8 +26,7 @@
 #include <utility>
 
 #include "PathUtils.h"
-#include "MeasurementDialog.h"
-#include "AnnotationDialog.h"
+#include "ReportExportDialog.h"
 #include "RtRenderDialog.h"
 
 #include <QMdiArea>
@@ -613,43 +612,31 @@ MainWindow::MainWindow(QWidget* parent)
 	// Tools → Measure... - opens the non-modal Measurement dialog (combo box
 	// covering every MeasurementTool - Point, Distance, and the arc-radius
 	// tools, with room for Face/Edge/Edge-radius tools later - see
-	// MeasurementData.h). Same non-modal, per-document, findChild-reuse
-	// pattern as actionRayTracing above: parented to the active document so
-	// it closes with it, WA_DeleteOnClose, reused/raised rather than
-	// stacking a new instance per click.
+	// MeasurementData.h). The findChild-reuse-or-create logic itself now
+	// lives in ModelViewer::openMeasurementDialog() - shared with
+	// ViewportWidget::mouseDoubleClickEvent()'s double-click-a-measurement
+	// gesture, so the two can't drift apart.
 	connect(ui->actionMeasure, &QAction::triggered, this, [this]() {
-		if (!activeMdiChild())
-			return;
-		ModelViewer* child = activeMdiChild();
-		if (MeasurementDialog* existing = child->findChild<MeasurementDialog*>(QString(), Qt::FindDirectChildrenOnly))
-		{
-			existing->show();
-			existing->raise();
-			existing->activateWindow();
-			return;
-		}
-		MeasurementDialog* dialog = new MeasurementDialog(child, child);
-		dialog->setAttribute(Qt::WA_DeleteOnClose);
-		dialog->show();
+		if (activeMdiChild())
+			activeMdiChild()->openMeasurementDialog();
 		});
 
 	// Tools → Annotate... - opens the non-modal Annotation dialog. Same
-	// non-modal, per-document, findChild-reuse pattern as actionMeasure
-	// above.
+	// shared-implementation reasoning as actionMeasure above.
 	connect(ui->actionAnnotate, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->openAnnotationDialog();
+		});
+
+	// Tools → Export Report... - modal (unlike Measure/Annotate above), since
+	// it's a one-shot batch action with no persistent tool state to keep in
+	// sync with the viewport - no findChild-reuse needed, modality already
+	// prevents stacking a second instance.
+	connect(ui->actionExportReport, &QAction::triggered, this, [this]() {
 		if (!activeMdiChild())
 			return;
-		ModelViewer* child = activeMdiChild();
-		if (AnnotationDialog* existing = child->findChild<AnnotationDialog*>(QString(), Qt::FindDirectChildrenOnly))
-		{
-			existing->show();
-			existing->raise();
-			existing->activateWindow();
-			return;
-		}
-		AnnotationDialog* dialog = new AnnotationDialog(child, child);
-		dialog->setAttribute(Qt::WA_DeleteOnClose);
-		dialog->show();
+		ReportExportDialog dialog(activeMdiChild(), this);
+		dialog.exec();
 		});
 
 	updateMenus();
@@ -1955,6 +1942,7 @@ void MainWindow::updateMenus()
 	ui->actionRayTracing->setEnabled(hasMdiChild);
 	ui->actionMeasure->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
+	ui->actionExportReport->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

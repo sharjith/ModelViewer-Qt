@@ -16,6 +16,8 @@
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
 #include "ViewportWidget.h"
+#include "MeasurementDialog.h"
+#include "AnnotationDialog.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialPreviewWidget.h"
@@ -1070,6 +1072,38 @@ void ModelViewer::setAnnotationText(const QUuid& annotationId, const QString& te
 		return;
 
 	_undoStack->push(new AnnotationTextCommand(this, _viewportWidget, annotationId, oldText, text));
+}
+
+void ModelViewer::openMeasurementDialog(const QUuid& selectId)
+{
+	MeasurementDialog* dialog = findChild<MeasurementDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new MeasurementDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+
+	if (!selectId.isNull() && _viewportWidget)
+		_viewportWidget->setSelectedMeasurementIds({ selectId });
+}
+
+void ModelViewer::openAnnotationDialog(const QUuid& selectId)
+{
+	AnnotationDialog* dialog = findChild<AnnotationDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new AnnotationDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+
+	if (!selectId.isNull() && _viewportWidget)
+		_viewportWidget->setSelectedAnnotationIds({ selectId });
 }
 
 void ModelViewer::setupUndoStackMonitoring()
