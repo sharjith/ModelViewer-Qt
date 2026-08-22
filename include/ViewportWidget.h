@@ -18,6 +18,7 @@
 #include "ViewportInteractionController.h"
 #include "Camera.h"
 #include "MeasurementData.h"
+#include "MeasurementController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
@@ -314,265 +315,19 @@ public:
 	GltfCameraEntry captureCurrentCameraEntry(const QString& name) const;
 
 	// ---- Measurement tool ----------------------------------------------------
-	// "Measure Point"/"Measure Distance": while a tool is active, left-clicks
-	// place measurement points (via SelectionManager::pickSurfaceAnchor())
-	// instead of doing normal selection - see handleMeasurementClick() in
-	// mousePressEvent(). v1 scope: static meshes, MVF-only (see MeasurementData.h).
+	// Thin forwards to _measurementController, which owns the entire
+	// Measurement toolset (state, picking, rendering, hit-testing, dragging -
+	// see MeasurementController.h). Kept here, unchanged in shape, because
+	// MeasurementDialog.cpp talks to ViewportWidget directly, not the
+	// controller - these 7 methods (plus the 3 measurement*Changed signals
+	// below) are that entire public surface.
 	void setMeasurementTool(MeasurementTool tool);
-	MeasurementTool measurementTool() const { return _measurementTool; }
-
-	// Completes a variable-anchor-count measurement (currently only
-	// PitchCircle - see measurementToolHasVariableAnchorCount()) with
-	// whatever's been picked so far, instead of waiting for a fixed count
-	// to auto-complete it. No-op if the armed tool isn't variable-length,
-	// or if fewer than measurementToolRequiredAnchorCount() (the MINIMUM
-	// for such a tool) anchors are pending yet. Called from the
-	// Measurement dialog's Finish button and from keyPressEvent()'s
-	// Enter/Return handling.
+	MeasurementTool measurementTool() const { return _measurementController->measurementTool(); }
 	void finishVariableLengthMeasurement();
-
-	// Resolves a saved anchor's CURRENT world position by re-deriving it from
-	// the referenced mesh's live geometry (getTrsfPoints()), not a frozen
-	// value - stays correct if the mesh's transform changes after the
-	// measurement was taken. Returns a null QVector3D if the mesh no longer
-	// exists (deleted) or the anchor is otherwise unresolvable.
-	QVector3D resolveMeasurementAnchor(const MeasurementAnchorRef& ref) const;
-
-	// Resolves an Edge Radius anchor's CURRENT analytic circle (center/axis/
-	// radius), re-deriving it from the referenced mesh's precomputed OCC
-	// edge data (SceneMesh::getOccEdgeCircles()) and its CURRENT world
-	// transform (combinedRenderTransform()) - same "live, not frozen"
-	// convention as resolveMeasurementAnchor(). Returns false (outputs left
-	// untouched) if the mesh no longer exists, ref isn't an edge anchor, or
-	// the referenced edge isn't a circle (shouldn't happen in practice -
-	// pickEdgeCircleAnchor() only ever returns circular edges - but a saved
-	// measurement could in principle outlive a mesh reload that changes
-	// topology).
-	bool resolveMeasurementEdgeCircle(const MeasurementAnchorRef& ref,
-		QVector3D& outCenter, QVector3D& outAxis, float& outRadius) const;
-
-	// Resolves a GENERAL edge anchor (see MeshEdgeCircleAnchor::edgeIndex's
-	// doc comment - any OCC edge on a CAD mesh, or a heuristic feature edge
-	// on a non-CAD one) to its chord endpoints and its true length (the sum
-	// of its tessellated segment lengths, not just the straight chord
-	// distance - works identically for a straight feature edge, a straight
-	// OCC line, or a curved OCC edge, with zero curve-type-awareness
-	// needed). Used by Edge Length directly, and by the chord endpoints for
-	// Edge-to-Edge/Edge-to-Face/Edge-to-Vertex once those exist. Returns
-	// false if the mesh no longer exists or ref isn't an edge anchor.
-	bool resolveMeasurementEdgeGeometry(const MeasurementAnchorRef& ref,
-		QVector3D& outStart, QVector3D& outEnd, float& outLength) const;
-
-	// The same edge anchor as resolveMeasurementEdgeGeometry(), but every
-	// tessellated point along it in order (not collapsed to just the two
-	// endpoints) - for callers that need to draw or hit-test the edge's
-	// TRUE path rather than a straight chord between its ends. The chord-
-	// only behavior above is deliberate for its own callers (an offset
-	// dimension line is conventionally straight regardless of the
-	// underlying feature's shape - see addOffsetDimension()), but Chain
-	// Length's highlighted reference edges draw directly on/near the part,
-	// where a chord across a curved or filleted edge reads as if the wrong
-	// edge got picked even though the length is correct. Consecutive
-	// points are guaranteed connected head-to-tail (by construction of the
-	// OCC tessellation - see BRepToAssimpConverter::
-	// extractEdgesFromFaceGroup()), so the whole vector can be drawn/
-	// tested as one continuous polyline with no gaps or duplicates.
-	// Returns false under the same conditions resolveMeasurementEdgeGeometry()
-	// does (mesh gone, or ref isn't an edge anchor).
-	bool resolveMeasurementEdgePolyline(const MeasurementAnchorRef& ref,
-		QVector<QVector3D>& outPoints) const;
-
-	// Whether `candidate` may be appended to an in-progress Chain Length
-	// pick sequence (`chainSoFar`) - true only if it shares a true
-	// endpoint (see resolveMeasurementEdgePolyline()) with one of the
-	// chain's current "loose ends" (an empty chain always accepts its
-	// first edge; a chain that has already closed into a loop - 0 loose
-	// ends left - accepts nothing further). Enforces that a chain stays a
-	// single contiguous path/loop rather than silently summing unrelated
-	// edges (e.g. two concentric but unconnected circles). Endpoint
-	// coincidence is judged against the real OCC B-Rep tolerance at each
-	// edge's mesh (see MeshImportAdaptor::occEdgeVertexTolerance()'s doc
-	// comment), not an invented epsilon.
-	bool measurementChainEdgeConnects(const QVector<MeasurementAnchorRef>& chainSoFar,
-		const MeasurementAnchorRef& candidate) const;
-
-	// Resolves a face-pick anchor's CURRENT position + face normal (Face to
-	// Face / Point to Face) - "face" here means the picked triangle's own
-	// plane (cross product of two of its edges), not a grouped CAD face, so
-	// this works on any mesh with no B-Rep topology needed. Same "live, not
-	// frozen" convention as resolveMeasurementAnchor() (derives from
-	// getTrsfPoints(), so it tracks transform-panel/exploded-view changes).
-	// Returns false if ref has no triangle recorded (edge anchor, or a
-	// vertex-only anchor with no triangle - shouldn't happen in practice
-	// since pickSurfaceAnchor() always records the hit triangle even when it
-	// also snaps to a vertex).
-	bool resolveMeasurementAnchorPlane(const MeasurementAnchorRef& ref,
-		QVector3D& outPosition, QVector3D& outNormal) const;
-
-	// Face Area: flood-fills from the picked triangle (ref.triangleIndex)
-	// through triangles connected to it (via SceneMesh::getTriangleAdjacency())
-	// that are also approximately coplanar with it (tight tolerance - a
-	// genuinely flat face's triangles agree to a small fraction of a
-	// degree in practice; this is deliberately much tighter than
-	// buildAndUploadFeatureEdges()'s ~30 degree feature-edge threshold,
-	// which is tuned for the opposite bias - catching real sharp edges,
-	// not stopping at ordinary tessellation noise). outTriangleIndices is
-	// every triangle included (used by the caller to trace the region's
-	// boundary for rendering/hit-testing); outArea is their summed area;
-	// outCentroid is the area-weighted centroid, for label placement.
-	// Returns false if ref has no triangle recorded, or the mesh no
-	// longer exists.
-	bool resolveMeasurementFaceArea(const MeasurementAnchorRef& ref,
-		QVector<int>& outTriangleIndices, float& outArea, QVector3D& outCentroid) const;
-
-	// Minimum Distance: flood-fills from the picked triangle through
-	// triangles connected to it (via SceneMesh::getTriangleAdjacency())
-	// that stay within a genuine feature/dihedral edge of it (LOOSE
-	// tolerance, ~30 degrees - matches SceneMesh::buildAndUploadFeatureEdges()'s
-	// "is this a real sharp edge" bias, evaluated neighbor-vs-neighbor
-	// during the walk rather than resolveMeasurementFaceArea()'s fixed-
-	// seed comparison, since a genuinely curved face's normal drifts
-	// continuously across its span). Unlike resolveMeasurementFaceArea()
-	// (tight ~2 degree coplanarity, for "planar area"), this correctly
-	// captures a WHOLE curved face - e.g. a full cylindrical boss - as one
-	// connected region, not just a coplanar sliver of it. Returns false
-	// under the same conditions resolveMeasurementFaceArea() does.
-	bool resolveMeasurementFaceRegion(const MeasurementAnchorRef& ref,
-		QVector<int>& outTriangleIndices) const;
-
-	// Minimum Distance: the true minimum distance between the two anchors'
-	// flood-filled face regions (resolveMeasurementFaceRegion()), via
-	// exact point-to-triangle closest-point queries
-	// (MeasurementGeometry::closestPointOnTriangle()) - brute-force over
-	// each region's own triangles (no spatial acceleration structure
-	// exists anywhere in this codebase; fine for a one-shot query bounded
-	// by one face's triangle count, not the whole scene). outPointA/
-	// outPointB are the closest point PAIR (one on each region); may be on
-	// the same mesh (e.g. a wall-thickness check) or two different ones.
-	// Returns false if either anchor's region can't be resolved.
-	bool resolveMeasurementMinDistance(const Measurement& m,
-		QVector3D& outPointA, QVector3D& outPointB, float& outDistance) const;
-
-	// Cylindrical/Conical Diameter: resolves a face-pick anchor landing on
-	// a cylindrical or conical B-Rep face (BRepToAssimpConverter::
-	// OccFaceAxis, captured at import time - CAD-only, same limitation as
-	// resolveMeasurementEdgeCircle()) to the diameter AT the picked point:
-	// twice its live perpendicular distance to the face's analytic axis
-	// line, transformed by the mesh's CURRENT transform (same "live, not
-	// frozen" convention as every other resolver here). outIsCone
-	// distinguishes a cylinder's constant diameter from a cone's position-
-	// dependent one, for the summary text. Returns false if the mesh has
-	// no OCC per-face data, or the picked triangle's face isn't
-	// cylindrical/conical.
-	bool resolveMeasurementCylindricalDiameter(const MeasurementAnchorRef& ref,
-		float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
-		QVector3D& outPickedPoint, bool& outIsCone) const;
-
-	// ---- Dimension-line drag (Distance/PointToFace/EdgeLength/EdgeToVertex/
-	//      FaceToFace-parallel/EdgeToEdge-parallel/EdgeToFace-parallel, and
-	//      FaceToFace/EdgeToEdge/EdgeToFace's shared angle/arc case) --------
-	// The raw (un-offset) [a,b] a LINEAR dimension spans, resolved per
-	// MeasurementType the same way drawMeasurementOverlay()'s render loop
-	// does inline for each case - a small, deliberate duplication so this
-	// stays a plain query usable outside the render loop (hit-testing,
-	// dragging), rather than threading render-loop state through here.
-	// EdgeLength's [a,b] is its chord (resolveMeasurementEdgeGeometry()) -
-	// same offset/extension/drag treatment as every other linear dimension,
-	// even though the edge itself is already real, visible geometry, for
-	// consistency (and so the dimension doesn't have to compete for
-	// legibility with the model's own edges/wireframe at the same position).
-	// Returns false for types with no straight dimension line at all
-	// (Point, all three arc types including PitchCircle, EdgeRadius,
-	// Concentricity, AngleThreePoint (always an angle, never a distance -
-	// unlike FaceToFace/EdgeToEdge/EdgeToFace it has no "parallel" case to
-	// fall into), and FaceToFace/EdgeToEdge/EdgeToFace's own non-parallel/
-	// angle case - see resolveMeasurementAngleGeometry() for those instead).
-	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
-
-	// The DEFAULT perpendicular direction a linear dimension's offset leans,
-	// before the user has ever dragged it (Measurement::offsetVector still
-	// zero) - given the raw segment and the measurement's captured
-	// offsetReferenceDir (falls back to the live camera if unset - see
-	// Measurement::offsetReferenceDir's doc comment).
-	QVector3D dimensionLinePerp(const QVector3D& a, const QVector3D& b,
-		const QVector3D& referenceDir, Camera* camera) const;
-
-	// View-range-relative default magnitude shared by both the linear
-	// dimension's default offset (dimensionLinePerp() direction times this)
-	// and the angle dimension's default arc radius, so an as-yet-unplaced
-	// dimension of either kind looks reasonable regardless of scene scale.
-	float defaultDimensionOffsetMagnitude(Camera* camera) const;
-
-	// The full world-space offset a LINEAR dimension line currently sits at
-	// (see Measurement::offsetVector's doc comment) - the user's exact
-	// dragged vector if they've ever dragged it (both direction AND
-	// magnitude - "pivot and extend" combined), else
-	// dimensionLinePerp()*defaultDimensionOffsetMagnitude(). Shared by
-	// rendering and hit-testing/dragging so all three agree on where the
-	// dimension line actually is.
-	QVector3D resolveDimensionOffsetVector(const QVector3D& a, const QVector3D& b,
-		const Measurement& m, Camera* camera) const;
-
-	// The angle dimension's full construction - vertex, in-plane orthonormal
-	// basis (u = the first direction, v completing the plane), the measured
-	// angle in radians, AND the resolved arc radius (Measurement::
-	// offsetDistance if the user has dragged it, else a default tied to the
-	// geometry's own size) - the single authoritative source for all of it,
-	// used by rendering, hit-testing, AND dragging alike so none of them can
-	// ever disagree about where the arc actually is (unlike computing the
-	// default radius independently in more than one place, which is exactly
-	// the kind of thing that quietly drifts out of sync over time). Covers
-	// every measurement type whose non-parallel case renders as a floating-
-	// vertex angle arc - FaceToFace (u = anchor0's face normal), EdgeToEdge
-	// (u = anchor0's edge direction), EdgeToFace (u = the edge direction,
-	// vertex grounded at the edge's own start point rather than a floating
-	// midpoint) - plus AngleThreePoint, which is ALWAYS this shape (u =
-	// anchor0-to-anchor1's ray direction, vertex = anchor0 itself, no
-	// parallel/distance case to fall into at all - unlike the other three,
-	// it reports the FULL [0, 180] angle, not the acute [0, 90] one, since
-	// its rays have a genuine picked direction with no sign ambiguity to
-	// fold away - see MeasurementGeometry::angleBetweenRays()). The second
-	// leg's direction isn't returned separately - it's always exactly
-	// u*cos(outAngleRad) + v*sin(outAngleRad), by construction of v via
-	// Gram-Schmidt against the angle already computed from the same two
-	// inputs. Returns false for any other MeasurementType, for the
-	// parallel case of FaceToFace/EdgeToEdge/EdgeToFace (that has a
-	// straight dimension line instead - see
-	// resolveMeasurementDimensionSegment()), or for degenerate input (no
-	// well-defined plane to sweep an arc in - e.g. AngleThreePoint's 3
-	// picks being exactly collinear).
-	bool resolveMeasurementAngleGeometry(const Measurement& m, Camera* camera, QVector3D& outVertex,
-		QVector3D& outU, QVector3D& outV, float& outAngleRad, float& outRadius) const;
-
-	// Which kind of draggable dimension geometry a hit corresponds to -
-	// the two kinds need different drag math (see updateDimensionLineDrag()'s
-	// doc comment), so callers need to know which one they grabbed.
-	enum class DimensionDragKind { None, Linear, AngleRadius };
-	struct DimensionHit { QUuid measurementId; DimensionDragKind kind = DimensionDragKind::None; };
-
-	// Screen-space hit-test against every visible measurement's draggable
-	// dimension geometry - a LINEAR dimension's offset line specifically
-	// (not the raw measured segment, and not markers/labels), or an ANGLE
-	// dimension's arc - whichever is closer wins. Returns a hit with
-	// DimensionDragKind::None if nothing is within pixelRadius.
-	DimensionHit hitTestDimensionLine(const QPoint& pixel, Camera* camera, int pixelRadius = 8) const;
-
-	// Currently selected measurement(s) in the viewport (independent of mesh
-	// selection) - clicking near a measurement's marker/line while no tool
-	// is armed selects it (see mousePressEvent()'s hitTestMeasurement()
-	// call, which always replaces the whole set with a single id - multi-
-	// select is a Measurement-dialog-only affordance, via its list's
-	// ExtendedSelection mode); Delete removes all of them (MainWindow's
-	// Key_Delete shortcut checks hasSelectedMeasurements() before falling
-	// back to normal mesh deletion). An empty set means nothing is selected.
-	const QSet<QUuid>& selectedMeasurementIds() const { return _selectedMeasurementIds; }
-	bool hasSelectedMeasurements() const { return !_selectedMeasurementIds.isEmpty(); }
+	const QSet<QUuid>& selectedMeasurementIds() const { return _measurementController->selectedMeasurementIds(); }
+	bool hasSelectedMeasurements() const { return _measurementController->hasSelectedMeasurements(); }
 	void setSelectedMeasurementIds(const QSet<QUuid>& ids);
-
-	// Human-readable result string for one measurement, e.g. "Distance:
-	// 12.345" or "3-Point Arc Radius: 5.678" - shared by the in-viewport
-	// label and the Measurement dialog's results list so both agree.
-	QString measurementSummaryText(const Measurement& m) const;
+	QString measurementSummaryText(const Measurement& m) const { return _measurementController->measurementSummaryText(m); }
 
 public:
 	QVector4D getDefaultLightColor() const;
@@ -2130,91 +1885,11 @@ private:
 	ConeRenderable* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
 	TransformGizmo* _transformGizmo = nullptr;
-
-	// ---- Measurement tool state -----------------------------------------
-	MeasurementTool _measurementTool = MeasurementTool::None;
-	// Distance measurement's first click, waiting on the second.
-	QVector<MeasurementAnchorRef> _pendingMeasurementAnchors;
-	// Live hover preview (updated in mouseMoveEvent while a tool is armed) -
-	// the specific point a click would place, including vertex snap, so the
-	// user sees exactly where they're about to click instead of an
-	// ambiguous whole-mesh highlight (see setMeasurementTool()'s
-	// hover-highlight-mode save/restore for why the normal one is suppressed).
-	MeshSurfaceAnchor _measurementHoverAnchor;
-	// Same idea as _measurementHoverAnchor above, but for the Edge Radius
-	// tool - previews the nearest circular edge (as a full circle outline,
-	// see drawMeasurementOverlay()) rather than a single point, since the
-	// whole edge IS the pick target for this tool.
-	MeshEdgeCircleAnchor _measurementEdgeHoverAnchor;
-	// Which of the two pick functions that both populate
-	// _measurementEdgeHoverAnchor produced the current value -
-	// pickCircularEdgeCenterAnchor() (true, a POINT preview at the
-	// resolved center) vs pickStraightEdgeAnchor()/pickEdgeCircleAnchor()
-	// (false, an EDGE preview - chord or full circle). Needed because the
-	// same edgeIndex-bearing anchor type is reused for both, and a
-	// circular edge's own segments resolve to a real (but wrong-for-this-
-	// preview) chord, so drawMeasurementOverlay() can't tell them apart
-	// from the anchor's contents alone.
-	bool _measurementEdgeHoverIsCenterPick = false;
-	HoverHighlightMode _savedHoverHighlightModeBeforeMeasurement = HoverHighlightMode::RaycastOnly;
-	// Press-vs-drag disambiguation: a plain left-press while a tool is armed
-	// only arms a pending click, which mouseReleaseEvent commits (as
-	// handleMeasurementClick()) if the mouse hasn't moved past a small pixel
-	// threshold since - otherwise the gesture was a drag (rotate/pan/sweep),
-	// not a click, and gets ignored. Committing immediately on press instead
-	// (the first cut) placed a spurious point every time the user started an
-	// unrelated drag gesture.
-	bool _measurementClickCandidate = false;
-	QPoint _measurementClickPressPos;
-	// Selected measurement(s) (independent of tool-armed state and of mesh
-	// selection) - see selectedMeasurementIds()'s doc comment.
-	QSet<QUuid> _selectedMeasurementIds;
-	// Hovered-but-not-yet-selected measurement (no tool armed, mouse not
-	// pressed) - a lighter preview than the selection highlight, so the
-	// user can see what a click will select/delete before committing to it.
-	// Updated in mouseMoveEvent(), drawn in drawMeasurementOverlay().
-	QUuid _hoveredMeasurementId;
-
-	// ---- Dimension-line drag state ---------------------------------------
-	// Press-vs-drag disambiguation, same idea as _measurementClickCandidate
-	// above, but for grabbing an already-PLACED measurement's dimension line
-	// or angle arc (no tool armed) and repositioning it, instead of placing
-	// a new point.
-	bool _dimensionDragCandidate = false;
-	QPoint _dimensionDragStartPixel;
-	QUuid _dimensionDragCandidateId;
-	DimensionDragKind _dimensionDragKind = DimensionDragKind::None;
-	// True once the candidate press has moved past the click threshold and a
-	// real drag is underway - distinct from the candidate flag above so
-	// mouseMoveEvent() can tell "might become a drag" from "is dragging".
-	bool _dimensionDragActive = false;
-	// Fixed world-space pivot both drag kinds share (segment midpoint for
-	// Linear, angle vertex for AngleRadius).
-	QVector3D _dimensionDragPivot;
-	// Linear: the dimension-line's own direction (a-to-b), i.e. the NORMAL
-	// of the plane the drag freely repositions the offset within - this is
-	// what makes the drag "pivot AND extend" rather than slide along one
-	// fixed axis. AngleRadius: the bisector direction the 1D radius drag
-	// measures magnitude along (screen-space-ratio technique, same as
-	// updateTransformGizmoTranslationDrag() - no plane/pivot freedom needed
-	// since an angle's plane is already fixed).
-	QVector3D _dimensionDragAxis;
-	// AngleRadius only: world-per-screen-pixel reference length for the
-	// ratio-based 1D drag (see _dimensionDragAxis's doc comment) - unused
-	// for Linear, which uses a true ray/plane intersection instead.
-	float _dimensionDragRefLength = 1.0f;
-	// Starting values at drag-begin, for the undo command pushed at drag-end.
-	QVector3D _dimensionDragStartOffsetVector;  // Linear
-	float _dimensionDragStartOffsetScalar = 0.0f;  // AngleRadius
-
-	// Hover preview for the drag interaction above (mouse not pressed) -
-	// lets the user see exactly what a click-drag would grab before
-	// committing to it, same "preview before you act" idea as
-	// _hoveredMeasurementId. Updated in mouseMoveEvent(), drawn in
-	// drawMeasurementOverlay() as a color highlight on the specific
-	// dimension line/arc (not the whole measurement).
-	QUuid _hoveredDimensionId;
-	DimensionDragKind _hoveredDimensionKind = DimensionDragKind::None;
+	// Owns the entire Measurement toolset - see MeasurementController.h.
+	// Also an IGpuContextResource (registered alongside _transformGizmo
+	// below) purely to re-resolve its own QOpenGLFunctions_4_5_Core
+	// pointers after context recreation - it owns no actual GL objects.
+	MeasurementController* _measurementController = nullptr;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
@@ -2271,47 +1946,4 @@ private:
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 
-	void handleMeasurementClick(const QPoint& clickPoint);
-
-	// Builds the Measurement from _pendingMeasurementAnchors as they stand
-	// right now, pushes it (undoable - see AddMeasurementCommand), and
-	// clears the pending set - the shared tail end of both a fixed-count
-	// tool's auto-complete (handleMeasurementClick(), the instant the
-	// required count is reached) and a variable-count tool's explicit
-	// finish (finishVariableLengthMeasurement()).
-	void finalizePendingMeasurement();
-	void drawMeasurementOverlay(Camera* camera);
-	// Screen-space hit test against every saved measurement's marker(s) -
-	// for Point, distance to the single anchor; for Distance, distance to
-	// the line segment between its two anchors (so clicking anywhere along
-	// the dimension line selects it, not just its endpoints). Returns a
-	// null QUuid if nothing is within pixelRadius of pixel.
-	QUuid hitTestMeasurement(const QPoint& pixel, Camera* camera, int pixelRadius) const;
-
-	// Begins a dimension-drag session (either kind) once
-	// _dimensionDragCandidate's press has moved past the click threshold -
-	// resolves and FIXES the pivot/axis/starting-value for the rest of the
-	// drag (recomputed once here, not every move, so they don't wander even
-	// though their screen projection naturally changes as the mouse moves).
-	void beginDimensionLineDrag(const QUuid& measurementId, DimensionDragKind kind, Camera* camera);
-	// Called from mouseMoveEvent() while dragging - dispatches on
-	// _dimensionDragKind:
-	//  - Linear: a true ray/camera-through-mouse-pixel intersection against
-	//    the plane (pivot, normal=_dimensionDragAxis) - the resulting point
-	//    minus the pivot IS the new offset vector directly, so this
-	//    naturally captures both direction ("pivot") and magnitude
-	//    ("extend") from wherever the mouse actually points, in one step.
-	//  - AngleRadius: the same screen-space-projection ratio technique as
-	//    TransformGizmo's single-axis translate drag (see
-	//    updateTransformGizmoTranslationDrag()) - extension only, along the
-	//    fixed bisector axis, no pivot freedom (the angle's plane is
-	//    already fixed by the two face normals).
-	// Either way, live-writes the result via SceneGraph::
-	// setMeasurementOffsetVector()/setMeasurementOffsetDistance() for
-	// immediate visual feedback.
-	void updateDimensionLineDrag(const QPoint& pixel, Camera* camera);
-	// Ends the drag - pushes one MeasurementOffsetCommand capturing the
-	// offset from before the drag to its final value (only if it actually
-	// changed), mirroring TransformCommand's "one command on release" pattern.
-	void finishDimensionLineDrag();
 };
