@@ -12,6 +12,8 @@
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QFont>
+#include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QSettings>
@@ -53,7 +55,11 @@ namespace
 	class MeasurementResultsList : public QListWidget
 	{
 	public:
-		explicit MeasurementResultsList(QWidget* parent) : QListWidget(parent) {}
+		// dialog doubles as the QWidget parent (it always IS one, in
+		// practice - see MeasurementDialog's own construction of this list)
+		// and as the batch-toggle target keyPressEvent() below calls into,
+		// since this list has no scene-graph access of its own.
+		explicit MeasurementResultsList(MeasurementDialog* dialog) : QListWidget(dialog), _dialog(dialog) {}
 
 	protected:
 		void mousePressEvent(QMouseEvent* event) override
@@ -69,6 +75,40 @@ namespace
 			}
 			QListWidget::mousePressEvent(event);
 		}
+
+		// QAbstractItemView's own Space handling only toggles the CURRENT
+		// item's check state, not every selected one - it treats Space as
+		// "activate the current index", the same category of gesture as
+		// Enter, not a batch operation over the whole selection. Extended
+		// here so a multi-selection check/uncheck moves together in one
+		// press, matching what a user pressing Space on several selected
+		// rows actually expects. New state = whatever Space would have set
+		// the CURRENT item to on its own (its opposite) - applied to every
+		// selected, checkable row, so the outcome for the row under the
+		// cursor is unchanged from stock behavior, just extended to its
+		// selected neighbors. Delegates the actual application to
+		// _dialog->toggleCheckStatesForSelection() rather than looping
+		// item->setCheckState() calls here directly - see that method's doc
+		// comment for why (each one would otherwise synchronously rebuild
+		// this whole list mid-loop).
+		void keyPressEvent(QKeyEvent* event) override
+		{
+			if (event->key() == Qt::Key_Space && selectionModel() && selectionModel()->selectedIndexes().size() > 1)
+			{
+				QListWidgetItem* current = currentItem();
+				if (current && (current->flags() & Qt::ItemIsUserCheckable) && _dialog)
+				{
+					const Qt::CheckState newState = (current->checkState() == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
+					_dialog->toggleCheckStatesForSelection(newState);
+					event->accept();
+					return;
+				}
+			}
+			QListWidget::keyPressEvent(event);
+		}
+
+	private:
+		MeasurementDialog* _dialog;
 	};
 }
 
@@ -314,7 +354,30 @@ void MeasurementDialog::setComboToolSilently(MeasurementTool tool)
 
 void MeasurementDialog::onMeasurementsChanged()
 {
+	if (_batchingVisibilityChanges)
+		return;  // toggleCheckStatesForSelection() will rebuild once, at the end of its own batch
 	refreshResultsList();
+}
+
+void MeasurementDialog::toggleCheckStatesForSelection(Qt::CheckState newState)
+{
+	SceneGraph* sceneGraph = _modelViewer->sceneGraph();
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	if (!sceneGraph || !viewport)
+		return;
+
+	_batchingVisibilityChanges = true;
+	for (QListWidgetItem* item : _resultsList->selectedItems())
+	{
+		if (!(item->flags() & Qt::ItemIsUserCheckable))
+			continue;
+		const QUuid id = item->data(Qt::UserRole).toUuid();
+		sceneGraph->setMeasurementVisible(id, newState == Qt::Checked);
+	}
+	_batchingVisibilityChanges = false;
+
+	refreshResultsList();
+	viewport->update();
 }
 
 void MeasurementDialog::refreshResultsList()
@@ -328,6 +391,7 @@ void MeasurementDialog::refreshResultsList()
 
 	_updatingSelectionFromViewport = true;
 	_resultsList->clear();
+	QListWidgetItem* firstSelectedItem = nullptr;
 	for (const Measurement& m : sceneGraph->measurements())
 	{
 		QListWidgetItem* item = new QListWidgetItem(viewport->measurementSummaryText(m), _resultsList);
@@ -335,8 +399,23 @@ void MeasurementDialog::refreshResultsList()
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
 		item->setCheckState(m.visible ? Qt::Checked : Qt::Unchecked);
 		if (selectedIds.contains(m.id))
+		{
 			item->setSelected(true);
+			if (!firstSelectedItem)
+				firstSelectedItem = item;
+		}
 	}
+	// clear() drops Qt's own separate "current item" concept along with
+	// every old item, and nothing above restores it (setSelected() only
+	// restores the SELECTION, a distinct thing) - left unset, currentItem()
+	// returns null after any rebuild, breaking anything that relies on it
+	// afterward (e.g. MeasurementResultsList::keyPressEvent()'s Space
+	// handling, and Qt's OWN stock Space handling, which is exactly why a
+	// second Space press had no effect at all rather than falling back to
+	// single-item behavior). NoUpdate so this only moves "current", without
+	// perturbing the selection just restored above.
+	if (firstSelectedItem)
+		_resultsList->setCurrentItem(firstSelectedItem, QItemSelectionModel::NoUpdate);
 	_updatingSelectionFromViewport = false;
 
 	_deleteButton->setEnabled(!selectedIds.isEmpty());

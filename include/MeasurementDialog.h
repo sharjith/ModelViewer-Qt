@@ -40,6 +40,20 @@ public:
 	explicit MeasurementDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
 	~MeasurementDialog();
 
+	// Sets every checkable, currently-selected row in _resultsList to
+	// newState in one batch - called from MeasurementResultsList::
+	// keyPressEvent() (Space on a multi-selection). Deliberately does NOT go
+	// through the usual one-row item->setCheckState() -> itemChanged() ->
+	// onResultItemChanged() -> setMeasurementVisible() -> measurementsChanged()
+	// -> refreshResultsList() chain per row - each setMeasurementVisible()
+	// call synchronously rebuilds (clear() + recreate) the WHOLE list via
+	// that chain, which would invalidate a loop's own remaining
+	// QListWidgetItem/QModelIndex references partway through (confirmed bug:
+	// only the first row in a multi-select actually toggled). Batches the
+	// scene-graph writes instead (see _batchingVisibilityChanges), then
+	// rebuilds exactly once at the end.
+	void toggleCheckStatesForSelection(Qt::CheckState newState);
+
 protected:
 	void closeEvent(QCloseEvent* event) override;
 
@@ -107,4 +121,11 @@ private:
 	// it) - same one-flag reentrancy guard pattern as RtRenderDialog's
 	// _updatingResolutionFromPreset.
 	bool _updatingSelectionFromViewport = false;
+
+	// True while toggleCheckStatesForSelection() is applying a batch of
+	// setMeasurementVisible() calls - guards onMeasurementsChanged() so the
+	// resulting measurementsChanged() emissions don't each trigger their own
+	// full refreshResultsList() rebuild mid-batch (see
+	// toggleCheckStatesForSelection()'s doc comment).
+	bool _batchingVisibilityChanges = false;
 };
