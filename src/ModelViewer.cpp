@@ -3356,6 +3356,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QString       activeGltfCameraFile;
 		int           activeGltfCameraIndex = -1;
 		QJsonObject   viewerState;
+		QVector<Measurement> measurements;
 		bool          ok       = false;
 		bool          badMagic = false;
 	};
@@ -3555,6 +3556,48 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		result.activeExplodedViewId = session[QStringLiteral("activeExplodedViewId")].toString();
 		result.activeExplodedViewStepIndex = session[QStringLiteral("activeExplodedViewStepIndex")].toInt(-1);
 		result.viewerState = session[QStringLiteral("viewerState")].toObject();
+
+		auto jsonArrayToVec3Measurement = [](const QJsonArray& arr) {
+			if (arr.size() < 3)
+				return QVector3D();
+			return QVector3D(static_cast<float>(arr[0].toDouble()),
+			                  static_cast<float>(arr[1].toDouble()),
+			                  static_cast<float>(arr[2].toDouble()));
+		};
+		const QJsonArray measurementsArr = session[QStringLiteral("measurements")].toArray();
+		result.measurements.reserve(measurementsArr.size());
+		for (const QJsonValue& measurementVal : measurementsArr)
+		{
+			const QJsonObject measurementObj = measurementVal.toObject();
+
+			Measurement m;
+			m.id = QUuid(measurementObj[QStringLiteral("id")].toString());
+			m.name = measurementObj[QStringLiteral("name")].toString();
+			m.type = static_cast<MeasurementType>(measurementObj[QStringLiteral("type")].toInt(
+				static_cast<int>(MeasurementType::Point)));
+			m.visible = measurementObj[QStringLiteral("visible")].toBool(true);
+			m.offsetReferenceDir = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetReferenceDir")].toArray());
+			m.offsetDistance = static_cast<float>(measurementObj[QStringLiteral("offsetDistance")].toDouble());
+			m.offsetVector = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetVector")].toArray());
+
+			const QJsonArray anchorsArr = measurementObj[QStringLiteral("anchors")].toArray();
+			m.anchors.reserve(anchorsArr.size());
+			for (const QJsonValue& anchorVal : anchorsArr)
+			{
+				const QJsonObject anchorObj = anchorVal.toObject();
+
+				MeasurementAnchorRef ref;
+				ref.meshUuid = QUuid(anchorObj[QStringLiteral("meshUuid")].toString());
+				ref.triangleIndex = anchorObj[QStringLiteral("triangleIndex")].toInt(-1);
+				ref.barycentric = jsonArrayToVec3Measurement(anchorObj[QStringLiteral("barycentric")].toArray());
+				ref.snappedVertexIndex = anchorObj[QStringLiteral("snappedVertexIndex")].toInt(-1);
+				ref.edgeIndex = anchorObj[QStringLiteral("edgeIndex")].toInt(-1);
+				m.anchors.append(ref);
+			}
+
+			if (!m.id.isNull() && !m.anchors.isEmpty())
+				result.measurements.append(m);
+		}
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
 			if (arr.size() < 4)
@@ -4044,6 +4087,12 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_sceneGraph->setGltfCameraData(cameraData.sourceFile, cameraData);
 	}
 
+	// Not undoable (SceneGraph::addMeasurement(), not ModelViewer::
+	// addMeasurement()) - a fresh load shouldn't seed the undo stack with
+	// "create" entries for measurements that already existed in the file.
+	for (const Measurement& measurement : result.measurements)
+		_sceneGraph->addMeasurement(measurement);
+
 	for (SceneNode* fileNode : _sceneGraph->root()->children)
 	{
 		if (fileNode && fileNode->isSynthetic && !fileNode->sourceFile.isEmpty())
@@ -4311,6 +4360,46 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		package.document.mvfSession.insert(
 			QStringLiteral("activeGltfCameraIndex"),
 			_viewportWidget->activeGltfCameraIndex());
+	}
+
+	// ---- Measurements ----
+	// Document-level (see MeasurementData.h), same as the exploded-view
+	// presets above - v1 scope is MVF-session-only (glTF has no native
+	// concept of a measurement, unlike a camera), so this is the only
+	// place they're persisted at all.
+	if (_sceneGraph && !_sceneGraph->measurements().isEmpty())
+	{
+		auto vec3ToJson = [](const QVector3D& v) {
+			return QJsonArray{ static_cast<double>(v.x()), static_cast<double>(v.y()), static_cast<double>(v.z()) };
+		};
+
+		QJsonArray measurementsJson;
+		for (const Measurement& m : _sceneGraph->measurements())
+		{
+			QJsonArray anchorsJson;
+			for (const MeasurementAnchorRef& ref : m.anchors)
+			{
+				QJsonObject anchorObj;
+				anchorObj.insert(QStringLiteral("meshUuid"), ref.meshUuid.toString(QUuid::WithoutBraces));
+				anchorObj.insert(QStringLiteral("triangleIndex"), ref.triangleIndex);
+				anchorObj.insert(QStringLiteral("barycentric"), vec3ToJson(ref.barycentric));
+				anchorObj.insert(QStringLiteral("snappedVertexIndex"), ref.snappedVertexIndex);
+				anchorObj.insert(QStringLiteral("edgeIndex"), ref.edgeIndex);
+				anchorsJson.append(anchorObj);
+			}
+
+			QJsonObject measurementObj;
+			measurementObj.insert(QStringLiteral("id"), m.id.toString(QUuid::WithoutBraces));
+			measurementObj.insert(QStringLiteral("name"), m.name);
+			measurementObj.insert(QStringLiteral("type"), static_cast<int>(m.type));
+			measurementObj.insert(QStringLiteral("visible"), m.visible);
+			measurementObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(m.offsetReferenceDir));
+			measurementObj.insert(QStringLiteral("offsetDistance"), static_cast<double>(m.offsetDistance));
+			measurementObj.insert(QStringLiteral("offsetVector"), vec3ToJson(m.offsetVector));
+			measurementObj.insert(QStringLiteral("anchors"), anchorsJson);
+			measurementsJson.append(measurementObj);
+		}
+		package.document.mvfSession.insert(QStringLiteral("measurements"), measurementsJson);
 	}
 
 	// Note: user-captured views ("Capture View" in the Cameras tab) need no
