@@ -1,6 +1,8 @@
 ﻿#include "FloatingPanelDialog.h"
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
+#include "MeasurementVisibilityCommand.h"
+#include "AnnotationVisibilityCommand.h"
 #include "AssImpModelLoader.h"
 #include "CaptureCameraCommand.h"
 #include "CaptureVariantCommand.h"
@@ -1104,6 +1106,119 @@ void ModelViewer::openAnnotationDialog(const QUuid& selectId)
 
 	if (!selectId.isNull() && _viewportWidget)
 		_viewportWidget->setSelectedAnnotationIds({ selectId });
+}
+
+QSet<QUuid> ModelViewer::getVisibleMeasurementUuids() const
+{
+	QSet<QUuid> ids;
+	if (_sceneGraph)
+	{
+		for (const Measurement& m : _sceneGraph->measurements())
+			if (m.visible)
+				ids.insert(m.id);
+	}
+	return ids;
+}
+
+void ModelViewer::setMeasurementVisibilityWithUndo(const QSet<QUuid>& newVisibleIds, const QString& commandText)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack)
+		return;
+	// Note: push() automatically calls redo() on the command
+	_undoStack->push(new MeasurementVisibilityCommand(this, _viewportWidget, newVisibleIds, commandText));
+}
+
+void ModelViewer::setMeasurementVisibilityWithoutUndo(const QSet<QUuid>& visibleIds)
+{
+	if (!_sceneGraph)
+		return;
+	for (const Measurement& m : _sceneGraph->measurements())
+		_sceneGraph->setMeasurementVisible(m.id, visibleIds.contains(m.id));
+
+	// Measurement visibility mutates SceneGraph directly, never through
+	// ViewportWidget::setDisplayList() - without this, bounds went stale
+	// and "Auto Fit View On Hide/Show" silently never applied here.
+	if (_viewportWidget)
+		_viewportWidget->refreshMeasurementAnnotationBounds();
+}
+
+void ModelViewer::hideSelectedMeasurements()
+{
+	if (!_viewportWidget)
+		return;
+	const QSet<QUuid> selected = _viewportWidget->selectedMeasurementIds();
+	if (selected.isEmpty())
+		return;
+	QSet<QUuid> newVisible = getVisibleMeasurementUuids();
+	newVisible -= selected;
+	setMeasurementVisibilityWithUndo(newVisible, tr("Hide Measurement"));
+}
+
+void ModelViewer::showSelectedMeasurements()
+{
+	if (!_viewportWidget)
+		return;
+	const QSet<QUuid> selected = _viewportWidget->selectedMeasurementIds();
+	if (selected.isEmpty())
+		return;
+	QSet<QUuid> newVisible = getVisibleMeasurementUuids();
+	newVisible += selected;
+	setMeasurementVisibilityWithUndo(newVisible, tr("Show Measurement"));
+}
+
+QSet<QUuid> ModelViewer::getVisibleAnnotationUuids() const
+{
+	QSet<QUuid> ids;
+	if (_sceneGraph)
+	{
+		for (const Annotation& a : _sceneGraph->annotations())
+			if (a.visible)
+				ids.insert(a.id);
+	}
+	return ids;
+}
+
+void ModelViewer::setAnnotationVisibilityWithUndo(const QSet<QUuid>& newVisibleIds, const QString& commandText)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack)
+		return;
+	_undoStack->push(new AnnotationVisibilityCommand(this, _viewportWidget, newVisibleIds, commandText));
+}
+
+void ModelViewer::setAnnotationVisibilityWithoutUndo(const QSet<QUuid>& visibleIds)
+{
+	if (!_sceneGraph)
+		return;
+	for (const Annotation& a : _sceneGraph->annotations())
+		_sceneGraph->setAnnotationVisible(a.id, visibleIds.contains(a.id));
+
+	// Same reasoning as setMeasurementVisibilityWithoutUndo() above.
+	if (_viewportWidget)
+		_viewportWidget->refreshMeasurementAnnotationBounds();
+}
+
+void ModelViewer::hideSelectedAnnotations()
+{
+	if (!_viewportWidget)
+		return;
+	const QSet<QUuid> selected = _viewportWidget->selectedAnnotationIds();
+	if (selected.isEmpty())
+		return;
+	QSet<QUuid> newVisible = getVisibleAnnotationUuids();
+	newVisible -= selected;
+	setAnnotationVisibilityWithUndo(newVisible, tr("Hide Annotation"));
+}
+
+void ModelViewer::showSelectedAnnotations()
+{
+	if (!_viewportWidget)
+		return;
+	const QSet<QUuid> selected = _viewportWidget->selectedAnnotationIds();
+	if (selected.isEmpty())
+		return;
+	QSet<QUuid> newVisible = getVisibleAnnotationUuids();
+	newVisible += selected;
+	setAnnotationVisibilityWithUndo(newVisible, tr("Show Annotation"));
 }
 
 void ModelViewer::setupUndoStackMonitoring()
@@ -2608,11 +2723,30 @@ void ModelViewer::generateUVsForSelectedItems()
 
 void ModelViewer::hideAllItems()
 {
+	// Hide All is one coherent action across every content type - meshes,
+	// measurements, and annotations together, not just meshes - wrapped in
+	// an undo macro so a single Ctrl+Z reverses all of it at once. Without
+	// this, hiding all meshes left measurements/annotations visible (their
+	// own, entirely separate visibility path never got touched), which read
+	// as broken/disconnected rather than "Hide All" actually meaning all.
+	if (_undoStack)
+		_undoStack->beginMacro(tr("Hide All"));
+
 	// Hide all meshes (empty visibility set)
 	QSet<QUuid> newVisible;  // Empty set
-
-	// Apply visibility with undo support
 	setVisibilityWithUndo(newVisible, tr("Hide All"));
+
+	// Only push a measurement/annotation command if there's actually
+	// something to hide - avoids polluting the undo stack with a no-op
+	// entry for the common case of a document with no measurements/
+	// annotations at all.
+	if (!getVisibleMeasurementUuids().isEmpty())
+		setMeasurementVisibilityWithUndo(QSet<QUuid>(), tr("Hide All Measurements"));
+	if (!getVisibleAnnotationUuids().isEmpty())
+		setAnnotationVisibilityWithUndo(QSet<QUuid>(), tr("Hide All Annotations"));
+
+	if (_undoStack)
+		_undoStack->endMacro();
 
 	// Turn off swap visible if it was on
 	if (_viewportWidget->isVisibleSwapped())
@@ -2672,6 +2806,11 @@ void ModelViewer::showOnlySelectedItems()
 
 void ModelViewer::showAllItems()
 {
+	// Show All is one coherent action across every content type - see
+	// hideAllItems()'s identical reasoning.
+	if (_undoStack)
+		_undoStack->beginMacro(tr("Show All"));
+
 	// Get all mesh UUIDs
 	QSet<QUuid> newVisible;
 	int meshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
@@ -2685,6 +2824,26 @@ void ModelViewer::showAllItems()
 
 	// Apply visibility with undo support
 	setVisibilityWithUndo(newVisible, tr("Show All"));
+
+	// Only push a measurement/annotation command if there's actually a
+	// change to make - same no-op-avoidance reasoning as hideAllItems().
+	if (_sceneGraph)
+	{
+		QSet<QUuid> allMeasurementIds;
+		for (const Measurement& m : _sceneGraph->measurements())
+			allMeasurementIds.insert(m.id);
+		if (allMeasurementIds != getVisibleMeasurementUuids())
+			setMeasurementVisibilityWithUndo(allMeasurementIds, tr("Show All Measurements"));
+
+		QSet<QUuid> allAnnotationIds;
+		for (const Annotation& a : _sceneGraph->annotations())
+			allAnnotationIds.insert(a.id);
+		if (allAnnotationIds != getVisibleAnnotationUuids())
+			setAnnotationVisibilityWithUndo(allAnnotationIds, tr("Show All Annotations"));
+	}
+
+	if (_undoStack)
+		_undoStack->endMacro();
 
 	// Turn off swap visible if it was on
 	if (_viewportWidget->isVisibleSwapped())

@@ -1574,6 +1574,88 @@ void MeasurementController::setSelectedMeasurementIds(const QSet<QUuid>& ids)
 	emit measurementSelectionChanged(_selectedMeasurementIds);
 }
 
+bool MeasurementController::isEffectivelyVisible(const Measurement& m) const
+{
+	return _sceneRuntime.visibleSwapped() ? !m.visible : m.visible;
+}
+
+bool MeasurementController::hasHiddenMeasurements() const
+{
+	if (!_viewer || !_viewer->sceneGraph())
+		return false;
+	for (const Measurement& m : _viewer->sceneGraph()->measurements())
+	{
+		if (!m.visible)
+			return true;
+	}
+	return false;
+}
+
+QVector<QVector3D> MeasurementController::visibleBoundsPoints(Camera* camera) const
+{
+	QVector<QVector3D> points;
+	if (!_viewer || !_viewer->sceneGraph())
+		return points;
+
+	for (const Measurement& m : _viewer->sceneGraph()->measurements())
+	{
+		if (!isEffectivelyVisible(m))
+			continue;
+
+		for (const MeasurementAnchorRef& ref : m.anchors)
+		{
+			QVector3D p = resolveMeasurementAnchor(ref);
+			if (p.isNull() && ref.edgeIndex >= 0)
+			{
+				// A straight (non-circular) edge anchor - resolveMeasurementAnchor()
+				// only resolves edgeIndex>=0 via the circular-edge path, so a
+				// straight edge falls through it to a null point. Use the
+				// edge's own midpoint instead.
+				QVector3D start, end;
+				float length = 0.0f;
+				if (resolveMeasurementEdgeGeometry(ref, start, end, length))
+					p = (start + end) * 0.5f;
+			}
+			if (!p.isNull())
+				points.append(p);
+		}
+
+		// The RENDERED linear dimension line/angle arc - but ONLY once the
+		// user has actually dragged it (m.offsetVector/offsetDistance
+		// explicitly set - see those fields' own doc comments). The
+		// UNDRAGGED default position scales with camera->getViewRange()
+		// (defaultDimensionOffsetMagnitude()) - which is exactly what
+		// Fit-to-Screen computes - so folding the default into bounds
+		// created a feedback loop: each fit changes the view range, which
+		// changes the default offset, which changes the next fit's bounds,
+		// never converging (confirmed - repeated F presses kept "refining"
+		// instead of settling). The raw anchors (already added above) are
+		// enough to frame an undragged dimension line/arc correctly; a
+		// genuinely dragged one has a fixed, camera-independent position
+		// that legitimately needs to be included.
+		if (camera)
+		{
+			QVector3D segA, segB;
+			if (resolveMeasurementDimensionSegment(m, segA, segB) && m.offsetVector.lengthSquared() > 1.0e-10f)
+			{
+				points.append(segA + m.offsetVector);
+				points.append(segB + m.offsetVector);
+			}
+
+			QVector3D vertex, u, v;
+			float angleRad = 0.0f;
+			float radius = 0.0f;
+			if (m.offsetDistance >= 0.0f && resolveMeasurementAngleGeometry(m, camera, vertex, u, v, angleRad, radius))
+			{
+				points.append(vertex + u * radius);
+				points.append(vertex + (u * std::cos(angleRad) + v * std::sin(angleRad)) * radius);
+				points.append(vertex + (u * std::cos(angleRad * 0.5f) + v * std::sin(angleRad * 0.5f)) * radius);
+			}
+		}
+	}
+	return points;
+}
+
 QUuid MeasurementController::hitTestMeasurement(const QPoint& pixel, Camera* camera, const QSize& viewportSize, int pixelRadius) const
 {
 	if (!camera || !_viewer || !_viewer->sceneGraph())
@@ -1618,7 +1700,7 @@ QUuid MeasurementController::hitTestMeasurement(const QPoint& pixel, Camera* cam
 
 	for (const Measurement& m : _viewer->sceneGraph()->measurements())
 	{
-		if (!m.visible)
+		if (!isEffectivelyVisible(m))
 			continue;
 
 		if (m.type == MeasurementType::Point && !m.anchors.isEmpty())
@@ -2101,7 +2183,7 @@ MeasurementController::DimensionHit MeasurementController::hitTestDimensionLine(
 
 	for (const Measurement& m : _viewer->sceneGraph()->measurements())
 	{
-		if (!m.visible)
+		if (!isEffectivelyVisible(m))
 			continue;
 
 		QVector3D a, b;
@@ -2619,7 +2701,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 
 	for (const Measurement& m : measurements)
 	{
-		if (!m.visible)
+		if (!isEffectivelyVisible(m))
 			continue;
 
 		const bool isSelected = _selectedMeasurementIds.contains(m.id);

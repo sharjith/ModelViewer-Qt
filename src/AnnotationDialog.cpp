@@ -421,11 +421,13 @@ void AnnotationDialog::onResultItemChanged(QListWidgetItem* item)
     const QUuid id = item->data(Qt::UserRole).toUuid();
     sceneGraph->setAnnotationVisible(id, item->checkState() == Qt::Checked);
 
-    // Same reasoning as MeasurementDialog::onResultItemChanged() - visibility
-    // has no other path that happens to trigger a viewport repaint, so it's
-    // requested explicitly here.
+    // Same reasoning as MeasurementDialog::onResultItemChanged() -
+    // refreshMeasurementAnnotationBounds() both repaints AND recomputes
+    // bounds/conditionally re-fits, so this checkbox toggle gets the same
+    // "Auto Fit View On Hide/Show" treatment the viewport context menu's
+    // Hide/Show already gets.
     if (viewport)
-        viewport->update();
+        viewport->refreshMeasurementAnnotationBounds();
 }
 
 void AnnotationDialog::onDeleteClicked()

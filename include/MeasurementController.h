@@ -170,6 +170,34 @@ public:
 	// results list so both agree.
 	QString measurementSummaryText(const Measurement& m) const;
 
+	// True if at least one measurement is hidden (its OWN, non-swap-adjusted
+	// visible flag) - feeds the viewport context menu's Swap-Visible-gating
+	// condition (see ViewportWidget::showContextMenu()), same role
+	// SceneRuntime's hidden-objects-non-empty check has for meshes.
+	bool hasHiddenMeasurements() const;
+
+	// One resolved world point per anchor, for every effectively-visible
+	// measurement - used by ViewportWidget::recalculateVisibleSceneStats()/
+	// collectVisibleCorners() to fold measurements into the scene's bounding
+	// box/sphere and Fit-to-Screen framing, which are otherwise 100%
+	// mesh-only. Reuses resolveMeasurementAnchor() (already handles
+	// triangle/vertex/circular-edge-center anchors) for every anchor
+	// uniformly rather than a per-MeasurementType dispatch - not pixel-tight
+	// for region-based types (Face Area/Min Distance), just non-degenerate
+	// and roughly enclosing, which is all bounds/fit actually need.
+	//
+	// Also folds in the RENDERED linear-dimension-line/angle-arc position
+	// via resolveMeasurementDimensionSegment()+resolveDimensionOffsetVector()/
+	// resolveMeasurementAngleGeometry() - the same calls drawMeasurementOverlay()/
+	// hitTestDimensionLine() already use - not just the raw anchor points.
+	// A dragged-far offset dimension line or a widened angle arc is real,
+	// currently-visible content just like the anchors are; without this a
+	// dragged dimension line/arc could sit well outside the anchors-only
+	// bound and get cropped by Fit-to-Screen. Needs Camera* for the same
+	// reason those resolvers do (the undragged-default offset direction/
+	// magnitude is camera-dependent).
+	QVector<QVector3D> visibleBoundsPoints(Camera* camera) const;
+
 signals:
 	// Relayed 1:1 by ViewportWidget to its own identically-named signals -
 	// see this class's doc comment.
@@ -184,6 +212,14 @@ private:
 	void finalizePendingMeasurement(Camera* camera);
 
 	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
+
+	// True unless Swap Visible (SceneRuntime::visibleSwapped() - the same
+	// single flag mesh visibility already uses, driven by the viewport's
+	// existing Swap Visible button/menu action/Alt+S) inverts it - a
+	// measurement participates in the exact same "swap what's shown" lens
+	// meshes do, with no separate flag of its own. Used everywhere m.visible
+	// used to be checked directly (rendering, hit-testing).
+	bool isEffectivelyVisible(const Measurement& m) const;
 
 	bool _glFunctionsInitialized = false;
 

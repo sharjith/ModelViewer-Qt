@@ -329,6 +329,10 @@ public:
 	bool hasSelectedMeasurements() const { return _measurementController->hasSelectedMeasurements(); }
 	void setSelectedMeasurementIds(const QSet<QUuid>& ids);
 	QString measurementSummaryText(const Measurement& m) const { return _measurementController->measurementSummaryText(m); }
+	// True if at least one measurement is hidden - feeds the viewport
+	// context menu's Swap-Visible-gating condition alongside SceneRuntime's
+	// own hidden-mesh check (see showContextMenu()).
+	bool hasHiddenMeasurements() const { return _measurementController->hasHiddenMeasurements(); }
 
 	// ---- Annotation tool ----------------------------------------------------
 	// Thin forwards to _annotationController, which owns the entire
@@ -341,6 +345,22 @@ public:
 	const QSet<QUuid>& selectedAnnotationIds() const { return _annotationController->selectedAnnotationIds(); }
 	bool hasSelectedAnnotations() const { return _annotationController->hasSelectedAnnotations(); }
 	void setSelectedAnnotationIds(const QSet<QUuid>& ids);
+	// Same role as hasHiddenMeasurements() above, for annotations.
+	bool hasHiddenAnnotations() const { return _annotationController->hasHiddenAnnotations(); }
+
+	// Recomputes bounds/fit after a measurement or annotation's visibility
+	// changed - mesh visibility changes already trigger this (and,
+	// conditionally, an auto-fit) as part of setDisplayList(), but
+	// measurement/annotation visibility mutates SceneGraph directly and
+	// never goes through setDisplayList() at all, so without this call
+	// the bounding box/sphere went stale and "Auto Fit View On Hide/Show"
+	// silently didn't apply to them - the user had to press F manually
+	// every time. Called from ModelViewer::setMeasurementVisibilityWithoutUndo()/
+	// setAnnotationVisibilityWithoutUndo() (the undo-integrated context-menu/
+	// Hide-All/Show-All path) and from MeasurementDialog/AnnotationDialog's
+	// own checkbox handlers (the non-undo dialog-list path) - the two places
+	// that actually mutate this state.
+	void refreshMeasurementAnnotationBounds();
 
 public:
 	QVector4D getDefaultLightColor() const;

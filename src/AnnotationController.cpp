@@ -194,19 +194,26 @@ QRectF AnnotationController::frameScreenRectForLabel(const QVector3D& labelPos, 
     // frame-border geometry (see that method).
     const float baseY = static_cast<float>(viewportSize.height()) - projected.y();
 
+    return frameScreenOffsetRect(text, axisTextRenderer).translated(static_cast<qreal>(baseX), static_cast<qreal>(baseY));
+}
+
+QRectF AnnotationController::frameScreenOffsetRect(const QString& text, TextRenderer* axisTextRenderer) const
+{
+    if (!axisTextRenderer)
+        return QRectF();
+
     const QStringList lines = text.split(QChar('\n'));
     const int lineCount = std::max(static_cast<int>(lines.size()), 1);
     float maxWidth = 0.0f;
     for (const QString& line : lines)
         maxWidth = std::max(maxWidth, axisTextRenderer->textWidth(line.toStdString()));
 
-    const float fontSize = static_cast<float>(axisTextRenderer->fontSize());
     // Matches drawAnnotationOverlay()'s own line-stacking step exactly (see
     // that method and MeasurementController::drawMeasurementOverlay()'s
     // identical lineHeight constant) - the frame must stack lines the same
     // way the text itself does, or a multi-line note's frame won't actually
     // enclose every line.
-    const float lineHeight = fontSize * 1.2f;
+    const float lineHeight = static_cast<float>(axisTextRenderer->fontSize()) * 1.2f;
     constexpr float kFramePadding = 6.0f;
 
     // Real per-glyph ascent/descent for VBOTTOM (see TextRenderer::
@@ -220,13 +227,44 @@ QRectF AnnotationController::frameScreenRectForLabel(const QVector3D& labelPos, 
     float ascentAboveY = 0.0f, descentBelowY = 0.0f;
     axisTextRenderer->textVerticalExtentVBottom(text.toStdString(), 1.0f, ascentAboveY, descentBelowY);
 
-    const float top    = baseY - lineHeight * static_cast<float>(lineCount - 1) - ascentAboveY - kFramePadding;
-    const float bottom = baseY + descentBelowY + kFramePadding;
-    const float left   = baseX - kFramePadding;
-    const float right  = baseX + maxWidth + kFramePadding;
+    // Offsets from the label's own screen position (baseX, baseY) - NOT
+    // symmetric: text grows entirely rightward from baseX, and mostly
+    // upward (ascent) with a small amount below (descent) from baseY, same
+    // asymmetric shape frameScreenRectForLabel() actually draws/hit-tests.
+    // draggedFrameFootprints() needs these exact offsets (not just a
+    // width/height) so Fit-to-Screen's frame estimate isn't a symmetric box
+    // centred on the label - that under/over-shoots on whichever side the
+    // real frame is lopsided toward.
+    const float top    = -(lineHeight * static_cast<float>(lineCount - 1) + ascentAboveY + kFramePadding);
+    const float bottom = descentBelowY + kFramePadding;
+    const float left   = -kFramePadding;
+    const float right  = maxWidth + kFramePadding;
 
     return QRectF(static_cast<qreal>(left), static_cast<qreal>(top),
                   static_cast<qreal>(right - left), static_cast<qreal>(bottom - top));
+}
+
+QVector<QVector3D> AnnotationController::frameWorldCorners(const QVector3D& labelPos, const QString& text,
+    Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer) const
+{
+    const QRectF frame = frameScreenRectForLabel(labelPos, text, camera, viewportSize, axisTextRenderer);
+    if (!frame.isValid() || !camera)
+        return {};
+
+    const QRect viewportRect(0, 0, viewportSize.width(), viewportSize.height());
+    const QVector3D labelProjected = labelPos.project(camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+    auto worldAtScreen = [&](float qtX, float qtY) -> QVector3D {
+        const float glY = static_cast<float>(viewportSize.height()) - qtY;
+        return QVector3D(qtX, glY, labelProjected.z()).unproject(camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+    };
+
+    QVector<QVector3D> corners;
+    corners.reserve(4);
+    corners.append(worldAtScreen(static_cast<float>(frame.left()),  static_cast<float>(frame.top())));     // topLeft
+    corners.append(worldAtScreen(static_cast<float>(frame.right()), static_cast<float>(frame.top())));     // topRight
+    corners.append(worldAtScreen(static_cast<float>(frame.right()), static_cast<float>(frame.bottom())));  // bottomRight
+    corners.append(worldAtScreen(static_cast<float>(frame.left()),  static_cast<float>(frame.bottom())));  // bottomLeft
+    return corners;
 }
 
 void AnnotationController::setSelectedAnnotationIds(const QSet<QUuid>& ids)
@@ -236,6 +274,87 @@ void AnnotationController::setSelectedAnnotationIds(const QSet<QUuid>& ids)
     _selectedAnnotationIds = ids;
     emit annotationStateChanged();
     emit annotationSelectionChanged(_selectedAnnotationIds);
+}
+
+bool AnnotationController::isEffectivelyVisible(const Annotation& a) const
+{
+    return _sceneRuntime.visibleSwapped() ? !a.visible : a.visible;
+}
+
+bool AnnotationController::hasHiddenAnnotations() const
+{
+    if (!_viewer || !_viewer->sceneGraph())
+        return false;
+    for (const Annotation& a : _viewer->sceneGraph()->annotations())
+    {
+        if (!a.visible)
+            return true;
+    }
+    return false;
+}
+
+QVector<QVector3D> AnnotationController::visibleBoundsPoints() const
+{
+    QVector<QVector3D> points;
+    if (!_viewer || !_viewer->sceneGraph())
+        return points;
+
+    for (const Annotation& a : _viewer->sceneGraph()->annotations())
+    {
+        if (!isEffectivelyVisible(a))
+            continue;
+
+        const QVector3D anchorPos = resolveAnnotationAnchor(a.anchor);
+        points.append(anchorPos);
+
+        // The label's position, but ONLY once the user has actually
+        // dragged it (a.leaderOffset explicitly set). The UNDRAGGED default
+        // direction/magnitude scales with camera->getViewRange()
+        // (defaultLeaderOffsetMagnitude()) - exactly what Fit-to-Screen
+        // computes - so folding it into bounds created a feedback loop
+        // (confirmed - repeated F presses kept "refining" instead of
+        // settling). Deliberately NOT using frameWorldCorners() here even
+        // for a dragged note: it unprojects a FIXED-PIXEL-SIZE rect back to
+        // world space using the CAMERA'S CURRENT view/projection matrices,
+        // so the returned corners' WORLD-SPACE size scales with whatever
+        // zoom the previous fit happened to land on - the same feedback
+        // loop, just relocated here (also confirmed - this was still live
+        // after the offsetVector fix above). frameWorldCorners() stays
+        // correct and unchanged for its actual purpose, rendering
+        // (drawAnnotationOverlay() below), where a zoom-relative on-screen
+        // size is exactly what's wanted. labelPos alone under-represents a
+        // wide/tall note's true footprint (it's a single point, not the
+        // frame's extent) - draggedFrameFootprints() below is what restores
+        // the frame's actual size to Fit-to-Screen, via a fixed-point
+        // iteration in ViewportWidget rather than this camera-independent
+        // (but coarser) point set.
+        if (a.leaderOffset.lengthSquared() > 1.0e-10f)
+            points.append(anchorPos + a.leaderOffset);
+    }
+    return points;
+}
+
+QVector<AnnotationController::DraggedFrameFootprint> AnnotationController::draggedFrameFootprints(TextRenderer* axisTextRenderer) const
+{
+    QVector<DraggedFrameFootprint> footprints;
+    if (!_viewer || !_viewer->sceneGraph() || !axisTextRenderer)
+        return footprints;
+
+    for (const Annotation& a : _viewer->sceneGraph()->annotations())
+    {
+        if (!isEffectivelyVisible(a) || a.leaderOffset.lengthSquared() <= 1.0e-10f)
+            continue;
+
+        const QRectF offsetRect = frameScreenOffsetRect(a.text, axisTextRenderer);
+        if (!offsetRect.isValid())
+            continue;
+
+        DraggedFrameFootprint fp;
+        fp.labelPos = resolveAnnotationAnchor(a.anchor) + a.leaderOffset;
+        fp.offsetRect = offsetRect;
+        footprints.append(fp);
+    }
+    return footprints;
 }
 
 QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camera, const QSize& viewportSize,
@@ -264,7 +383,7 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
 
     for (const Annotation& a : _viewer->sceneGraph()->annotations())
     {
-        if (!a.visible)
+        if (!isEffectivelyVisible(a))
             continue;
 
         const QVector3D anchorPos = resolveAnnotationAnchor(a.anchor);
@@ -443,7 +562,7 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
     for (const Annotation& a : annotations)
     {
-        if (!a.visible)
+        if (!isEffectivelyVisible(a))
             continue;
 
         const bool isSelected = _selectedAnnotationIds.contains(a.id);
@@ -463,34 +582,19 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
         // Rectangular frame around the note's text - the primary grab
         // target for repositioning it (see hitTestAnnotation()'s doc
-        // comment) - drawn by converting frameScreenRectForLabel()'s
-        // screen-pixel rect back to world-space corner points at the
-        // label's own depth, then feeding them through the same world-space
-        // GL_LINES pipeline as the marker/leader above. This round-trip
-        // (world -> screen rect -> world) is exact given the SAME view/
-        // projection matrices are used both ways within this one frame, so
-        // it re-projects to precisely the rect frameScreenRectForLabel()
-        // computed - and hitTestAnnotation() computes fresh from the same
-        // function, so rendering and interaction can never disagree about
-        // where the frame actually is.
+        // comment), via frameWorldCorners(). NOT used by
+        // visibleBoundsPoints() - see that method's doc comment for why.
         //
         // The leader terminates exactly at the frame's bottom-left corner
         // (not at labelPos, which sits near but not exactly there) - a
-        // clean CAD-callout look, and the frame must be computed first so
-        // that corner exists to draw to.
-        const QRectF frame = frameScreenRectForLabel(labelPos, a.text, camera, viewportSize, axisTextRenderer);
-        if (frame.isValid())
+        // clean CAD-callout look.
+        const QVector<QVector3D> frameCorners = frameWorldCorners(labelPos, a.text, camera, viewportSize, axisTextRenderer);
+        if (frameCorners.size() == 4)
         {
-            const QRect viewportRect(0, 0, viewportSize.width(), viewportSize.height());
-            const QVector3D labelProjected = labelPos.project(camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
-            auto worldAtScreen = [&](float qtX, float qtY) -> QVector3D {
-                const float glY = static_cast<float>(viewportSize.height()) - qtY;
-                return QVector3D(qtX, glY, labelProjected.z()).unproject(camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
-            };
-            const QVector3D topLeft     = worldAtScreen(static_cast<float>(frame.left()),  static_cast<float>(frame.top()));
-            const QVector3D topRight    = worldAtScreen(static_cast<float>(frame.right()), static_cast<float>(frame.top()));
-            const QVector3D bottomRight = worldAtScreen(static_cast<float>(frame.right()), static_cast<float>(frame.bottom()));
-            const QVector3D bottomLeft  = worldAtScreen(static_cast<float>(frame.left()),  static_cast<float>(frame.bottom()));
+            const QVector3D& topLeft     = frameCorners.at(0);
+            const QVector3D& topRight    = frameCorners.at(1);
+            const QVector3D& bottomRight = frameCorners.at(2);
+            const QVector3D& bottomLeft  = frameCorners.at(3);
             addSegment(anchorPos, bottomLeft, color);
             addSegment(topLeft, topRight, color);
             addSegment(topRight, bottomRight, color);

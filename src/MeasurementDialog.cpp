@@ -481,13 +481,13 @@ void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
 
 	// setMeasurementVisible() only emits measurementsChanged() (which this
 	// dialog listens to for its OWN list, via onMeasurementsChanged()) - it
-	// doesn't touch the GL viewport at all, so nothing else repaints it.
-	// Every other measurement state change happens to trigger a repaint as a
-	// side effect of some ViewportWidget method call along the way (e.g.
-	// setSelectedMeasurementIds()'s own update()); visibility has no such
-	// path, so it's requested explicitly here.
+	// doesn't touch the GL viewport at all, so nothing else refreshes it.
+	// refreshMeasurementAnnotationBounds() both repaints AND recomputes
+	// bounds/conditionally re-fits (see its own doc comment) - a checkbox
+	// toggle here is exactly the same kind of visibility change the
+	// viewport context menu's Hide/Show already triggers it for.
 	if (viewport)
-		viewport->update();
+		viewport->refreshMeasurementAnnotationBounds();
 }
 
 void MeasurementDialog::onDeleteClicked()

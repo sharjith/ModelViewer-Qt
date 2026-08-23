@@ -2241,11 +2241,18 @@ void ViewportWidget::fitAll()
 	_rtInteractionCtrl->notifyCameraJumpNonInteractive();
 	update();
 
-	// Guard: do nothing if the scene has no visible meshes.
-	// Without this, computeFitViewRange() operates on degenerate bounds,
+	// Guard: do nothing if there's truly nothing to fit to - no visible
+	// meshes AND no visible measurement/annotation content either (see
+	// collectVisibleCorners()'s doc comment - those now count as real
+	// content, not just meshes, so hiding every mesh while a measurement/
+	// annotation stays visible no longer no-ops here). Without some guard,
+	// computeFitViewRange() operates on truly degenerate (empty) bounds,
 	// driving the view range to near-zero and hiding the trihedron.
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
-	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
+	const bool hasVisibleAnnotationContent =
+		(_measurementController && !_measurementController->visibleBoundsPoints(_primaryCamera).isEmpty()) ||
+		(_annotationController && !_annotationController->visibleBoundsPoints().isEmpty());
+	if (_sceneRuntime.meshStore().empty() || (visibleIds.empty() && !hasVisibleAnnotationContent))
 		return;
 
 	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
@@ -2338,8 +2345,12 @@ void ViewportWidget::fitAll()
 
 void ViewportWidget::fitAllImmediate()
 {
+	// See fitAll()'s identical guard for the full reasoning.
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
-	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
+	const bool hasVisibleAnnotationContent =
+		(_measurementController && !_measurementController->visibleBoundsPoints(_primaryCamera).isEmpty()) ||
+		(_annotationController && !_annotationController->visibleBoundsPoints().isEmpty());
+	if (_sceneRuntime.meshStore().empty() || (visibleIds.empty() && !hasVisibleAnnotationContent))
 		return;
 
 	checkAndStopTimers();
@@ -2770,6 +2781,26 @@ void ViewportWidget::setDisplayList(const std::vector<int>& ids)
 	emit displayListSet();
 }
 
+void ViewportWidget::refreshMeasurementAnnotationBounds()
+{
+	// Lean version of setDisplayList()'s tail - mesh-specific steps
+	// (light repositioning, floor plane, gameplay-camera positioning) don't
+	// apply here, nothing about mesh geometry changed.
+	recalculateVisibleSceneStats(false);
+	_viewCtrl.setZoomInLimit(_viewCtrl.boundingSphere().getRadius());
+	triggerShadowRecomputation();
+
+	if (_viewCtrl.autoFitViewOnUpdate()
+		&& _primaryCamera->getMode() != Camera::CameraMode::Fly
+		&& _primaryCamera->getMode() != Camera::CameraMode::FirstPerson
+		&& !isGltfCameraActive())
+	{
+		fitAll();
+	}
+
+	update();
+}
+
 void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 {
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
@@ -2785,7 +2816,17 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		_displayedObjectsMemSize = 0;
 	}
 
-	if (visibleIds.empty())
+	// Measurement/Annotation contribute to bounds too - not mesh geometry,
+	// but still real on-screen content (see MeasurementController::
+	// visibleBoundsPoints()/AnnotationController::visibleBoundsPoints()'s
+	// doc comments). Without this, hiding every mesh while a measurement/
+	// annotation stayed visible drove this function down the "nothing
+	// visible" branch below, forcing a degenerate bounding sphere
+	// (radius=1) even though real content was still on screen.
+	const QVector<QVector3D> measurementPoints = _measurementController ? _measurementController->visibleBoundsPoints(_primaryCamera) : QVector<QVector3D>();
+	const QVector<QVector3D> annotationPoints = _annotationController ? _annotationController->visibleBoundsPoints() : QVector<QVector3D>();
+
+	if (visibleIds.empty() && measurementPoints.isEmpty() && annotationPoints.isEmpty())
 	{
 		_primaryCamera->setPosition(0, 0, 0);
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
@@ -2794,6 +2835,7 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	}
 
 	bool firstBox = true;
+	bool anyMeshBox = false;  // drives lowestZ/highestZ below - measurement/annotation points have no "up axis extent" notion of their own
 	float lowestZ = std::numeric_limits<float>::max();
 	float highestZ = std::numeric_limits<float>::lowest();
 	unsigned long long memSize = 0;
@@ -2820,6 +2862,7 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 			{
 				_viewCtrl.expandBoundingBox(meshBox);
 			}
+			anyMeshBox = true;
 
 			const float meshLow  = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(meshBox.zMin()) : static_cast<float>(meshBox.yMin());
 			const float meshHigh = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(meshBox.zMax()) : static_cast<float>(meshBox.yMax());
@@ -2832,16 +2875,39 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		}
 	}
 
+	// Fold measurement/annotation points into the same box, as zero-size
+	// boxes at each point - they don't drive lowestZ/highestZ (that value
+	// only ever feeds the floor plane/grid placement, a mesh-scale concept).
+	auto expandBoundsWithPoint = [&](const QVector3D& p) {
+		const BoundingBox pointBox(p.x(), p.y(), p.z(), p.x(), p.y(), p.z());
+		if (firstBox)
+		{
+			_viewCtrl.setBoundingBox(pointBox);
+			firstBox = false;
+		}
+		else
+		{
+			_viewCtrl.expandBoundingBox(pointBox);
+		}
+	};
+	for (const QVector3D& p : measurementPoints)
+		expandBoundsWithPoint(p);
+	for (const QVector3D& p : annotationPoints)
+		expandBoundsWithPoint(p);
+
 	if (updateMemorySize)
 	{
 		_displayedObjectsMemSize = memSize;
 	}
 
-	if (!firstBox)
+	if (anyMeshBox)
 	{
 		_viewCtrl.setVisibleLowestZ(lowestZ);
 		_viewCtrl.setVisibleHighestZ(highestZ);
+	}
 
+	if (!firstBox)
+	{
 		// Derive the scene bounding sphere center from the axis-aligned bounding box
 		// midpoint — order-independent and immune to floating-point perturbations from
 		// the world-transform round-trip during export/import.
@@ -2850,7 +2916,9 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		//   distance(boxCenter, mesh.sphereCenter) + mesh.sphereRadius
 		// This is still O(M) and order-independent (it's a simple max), but much tighter
 		// than the box half-diagonal for round geometry (e.g. sphere meshes), where the
-		// half-diagonal would be sqrt(3)x the actual radius.
+		// half-diagonal would be sqrt(3)x the actual radius. Measurement/annotation
+		// points are single points (no sphere of their own), so they just
+		// contribute their own distance from boxCenter directly.
 		const QVector3D boxCenter(
 			static_cast<float>((_viewCtrl.boundingBox().xMin() + _viewCtrl.boundingBox().xMax()) * 0.5),
 			static_cast<float>((_viewCtrl.boundingBox().yMin() + _viewCtrl.boundingBox().yMax()) * 0.5),
@@ -2870,6 +2938,10 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 			}
 			catch (const std::out_of_range&) {}
 		}
+		for (const QVector3D& p : measurementPoints)
+			bsRadius = std::max(bsRadius, (p - boxCenter).length());
+		for (const QVector3D& p : annotationPoints)
+			bsRadius = std::max(bsRadius, (p - boxCenter).length());
 		_viewCtrl.setBoundingSphereCenter(boxCenter);
 		_viewCtrl.setBoundingSphereRadius(bsRadius > 0.0f ? bsRadius : 1.0f);
 	}
@@ -13619,6 +13691,23 @@ std::vector<QVector3D> ViewportWidget::collectVisibleCorners() const
 		catch (const std::out_of_range&) {}
 	}
 
+	// Measurement/Annotation points count as real content for framing too -
+	// see recalculateVisibleSceneStats()'s identical reasoning. Appended
+	// after mesh vertex sampling but before the emptiness fallbacks below,
+	// so a scene with visible meshes AND measurements/annotations frames
+	// all of it together, and a scene with only measurements/annotations
+	// (no visible meshes) skips the mesh-only fallback paths entirely.
+	if (_measurementController)
+	{
+		const QVector<QVector3D> measurementPoints = _measurementController->visibleBoundsPoints(_primaryCamera);
+		points.insert(points.end(), measurementPoints.begin(), measurementPoints.end());
+	}
+	if (_annotationController)
+	{
+		const QVector<QVector3D> annotationPoints = _annotationController->visibleBoundsPoints();
+		points.insert(points.end(), annotationPoints.begin(), annotationPoints.end());
+	}
+
     // Fallback: if somehow empty, use visible mesh AABBs with explosion offsets.
     if (points.empty())
     {
@@ -13662,7 +13751,83 @@ float ViewportWidget::computeFitViewRange(
 	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir,
 	QVector3D* outCenter) const
 {
-	return computeFitViewRange(collectVisibleCorners(), right, up, viewDir, outCenter);
+	const std::vector<QVector3D> baseCorners = collectVisibleCorners();
+
+	const QVector<AnnotationController::DraggedFrameFootprint> footprints = _annotationController
+		? _annotationController->draggedFrameFootprints(_axisTextRenderer)
+		: QVector<AnnotationController::DraggedFrameFootprint>();
+	if (footprints.isEmpty())
+		return computeFitViewRange(baseCorners, right, up, viewDir, outCenter);
+
+	// A dragged annotation's frame is sized in constant SCREEN pixels (see
+	// AnnotationController::draggedFrameFootprints()'s doc comment), so its
+	// WORLD-space footprint depends on the very view range being solved for
+	// here - a fixed point, not a one-shot computation. Solve it by
+	// iterating: estimate world-per-pixel from the CANDIDATE view range
+	// (not the camera's current, pre-fit one - that was the earlier,
+	// non-convergent approach), build approximate frame corners with it,
+	// refit, repeat. Converges in a handful of iterations since a note's
+	// frame is normally small relative to the whole scene (a contraction
+	// mapping); capped defensively so a pathological scene can't spin.
+	QVector3D center;
+	float viewRange = computeFitViewRange(baseCorners, right, up, viewDir, &center);
+
+	// Exact world-per-screen-pixel ratio for a CANDIDATE view range, mirroring
+	// the same ortho/perspective math computeFitViewRange()'s core overload
+	// uses to derive viewRange in the first place (and, for perspective,
+	// the shiftFactor*viewRange = camera distance relationship used
+	// everywhere else a fit target becomes an actual eye position - see
+	// setZoomAndPan()/animateViewChange()'s identical shiftFactor formula) -
+	// so the iteration below converges on the frame's TRUE world footprint,
+	// not an approximation of it.
+	const float aspect = static_cast<float>(width()) / std::max(1.0f, static_cast<float>(height()));
+	const float pixelDim = static_cast<float>(aspect >= 1.0f ? height() : width());
+	auto worldPerPixelForViewRange = [&](float candidateViewRange) -> float
+	{
+		if (_viewCtrl.projection() == ViewProjection::ORTHOGRAPHIC)
+			return candidateViewRange / std::max(1.0f, pixelDim);
+
+		const float fovRad = qDegreesToRadians(_viewCtrl.FOV());
+		const float tanHalfFov = std::tan(fovRad * 0.5f);
+		const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
+		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+		const float distance = candidateViewRange * shiftFactor;
+		return 2.0f * distance * tanHalfFov / std::max(1.0f, pixelDim);
+	};
+
+	constexpr int kMaxIterations = 6;
+	for (int i = 0; i < kMaxIterations; ++i)
+	{
+		const float worldPerPixel = worldPerPixelForViewRange(viewRange);
+
+		std::vector<QVector3D> corners = baseCorners;
+		corners.reserve(corners.size() + footprints.size() * 4);
+		for (const AnnotationController::DraggedFrameFootprint& fp : footprints)
+		{
+			// Screen space is top-down (y+ downward); "up" is world-space
+			// upward, so a screen-y offset flips sign when converted.
+			const float left   = static_cast<float>(fp.offsetRect.left())   * worldPerPixel;
+			const float right_ = static_cast<float>(fp.offsetRect.right())  * worldPerPixel;
+			const float top    = -static_cast<float>(fp.offsetRect.top())    * worldPerPixel;
+			const float bottom = -static_cast<float>(fp.offsetRect.bottom()) * worldPerPixel;
+			corners.push_back(fp.labelPos + right * left   + up * top);
+			corners.push_back(fp.labelPos + right * right_ + up * top);
+			corners.push_back(fp.labelPos + right * right_ + up * bottom);
+			corners.push_back(fp.labelPos + right * left   + up * bottom);
+		}
+
+		QVector3D newCenter;
+		const float newViewRange = computeFitViewRange(corners, right, up, viewDir, &newCenter);
+		const bool converged = std::abs(newViewRange - viewRange) < viewRange * 0.001f;
+		viewRange = newViewRange;
+		center = newCenter;
+		if (converged)
+			break;
+	}
+
+	if (outCenter)
+		*outCenter = center;
+	return viewRange;
 }
 
 float ViewportWidget::computeOrthographicFitViewRangeForViewport(
@@ -15620,6 +15785,47 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu contextMenu;
 		SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
+
+		// Measurement/Annotation get their own dedicated menu, checked
+		// before mesh selection - unlike the mesh branch below (which only
+		// ever acts on whatever was already selected by a prior left-click),
+		// these hit-test directly at the right-click point too, mirroring
+		// the exact priority chain mouseDoubleClickEvent() already uses
+		// (dimension line -> measurement marker -> annotation frame), so a
+		// single right-click on one selects-and-opens its menu in one motion.
+		const MeasurementController::DimensionHit hitDim =
+			_measurementController->hitTestDimensionLine(pos, _primaryCamera, QSize(width(), height()), 8);
+		QUuid hitMeasurement = hitDim.measurementId;
+		if (hitMeasurement.isNull())
+			hitMeasurement = _measurementController->hitTestMeasurement(pos, _primaryCamera, QSize(width(), height()), 8);
+		if (!hitMeasurement.isNull() || _measurementController->hasSelectedMeasurements())
+		{
+			if (!hitMeasurement.isNull())
+				setSelectedMeasurementIds({ hitMeasurement });
+			if (_sceneRuntime.visibleSwapped())
+				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedMeasurements);
+			else
+				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedMeasurements);
+			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedMeasurements);
+			contextMenu.exec(mapToGlobal(pos));
+			return;
+		}
+
+		const QUuid hitAnnotation = _annotationController->hitTestAnnotationLeader(
+			pos, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
+		if (!hitAnnotation.isNull() || _annotationController->hasSelectedAnnotations())
+		{
+			if (!hitAnnotation.isNull())
+				setSelectedAnnotationIds({ hitAnnotation });
+			if (_sceneRuntime.visibleSwapped())
+				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedAnnotations);
+			else
+				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedAnnotations);
+			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedAnnotations);
+			contextMenu.exec(mapToGlobal(pos));
+			return;
+		}
+
 		if (treeWidgetModel->hasMeshSelection() &&
 			(_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds().size() != 0 : _sceneRuntime.displayedObjectsIds().size() != 0))
 		{
@@ -15724,7 +15930,7 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 				action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
 				addAction(action);
 			}
-			if (_sceneRuntime.hiddenObjectsIds().size() != 0)
+			if (_sceneRuntime.hiddenObjectsIds().size() != 0 || hasHiddenMeasurements() || hasHiddenAnnotations())
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);

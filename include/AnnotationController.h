@@ -117,6 +117,46 @@ public:
     void setSelectedAnnotationIds(const QSet<QUuid>& ids);
     QUuid hoveredAnnotationId() const { return _hoveredAnnotationId; }
 
+    // True if at least one annotation is hidden (its OWN, non-swap-adjusted
+    // visible flag) - feeds the viewport context menu's Swap-Visible-gating
+    // condition (see ViewportWidget::showContextMenu()), same role
+    // SceneRuntime's hidden-objects-non-empty check has for meshes.
+    bool hasHiddenAnnotations() const;
+
+    // Anchor point and (if the note has been dragged) the label's own
+    // position, for every effectively-visible annotation - used by
+    // ViewportWidget::recalculateVisibleSceneStats()/collectVisibleCorners()
+    // to fold annotations into the scene's bounding box/sphere and
+    // Fit-to-Screen framing (otherwise 100% mesh-only). Deliberately does
+    // NOT include the frame's full pixel-rect corners (frameWorldCorners()):
+    // those are unprojected using the camera's CURRENT view/projection
+    // matrices, so their world-space size scales with whatever zoom the
+    // previous fit left behind - folding that into bounds creates a
+    // fit-never-converges feedback loop. Only camera-independent,
+    // already-resolved world-space points belong here.
+    QVector<QVector3D> visibleBoundsPoints() const;
+
+    // One entry per visible, explicitly-dragged annotation: its label
+    // position (camera-independent world point) and its frame's screen-pixel
+    // offset rect (left/top/right/bottom relative to the label's own screen
+    // position - see frameScreenOffsetRect()), also camera-independent -
+    // text/font metrics only. NOT enough on its own to place the frame in
+    // world space - the caller (ViewportWidget::computeFitViewRange())
+    // scales offsetRect to world-space using a CANDIDATE view range it is
+    // solving for via fixed-point iteration, rather than the camera's
+    // current (pre-fit, possibly stale) one. That's the whole reason this
+    // returns raw pixel offsets instead of world-space corners the way
+    // frameWorldCorners() does: those are baked to a SPECIFIC camera state
+    // and can't be re-scaled afterwards, which is exactly what made
+    // visibleBoundsPoints() alone (label position only, no size) necessary
+    // as a stopgap - it kept Fit-to-Screen convergent but dropped the frame
+    // from the bounds entirely. The rect is kept as its true asymmetric
+    // shape (not reduced to a width/height centred on the label) since a
+    // note's text grows rightward/upward from the label point, not evenly
+    // in all directions.
+    struct DraggedFrameFootprint { QVector3D labelPos; QRectF offsetRect; };
+    QVector<DraggedFrameFootprint> draggedFrameFootprints(TextRenderer* axisTextRenderer) const;
+
 signals:
     // Relayed 1:1 by ViewportWidget to its own identically-named signals -
     // see this class's doc comment.
@@ -128,6 +168,13 @@ signals:
 
 private:
     SceneMesh* getMeshByUuid(const QUuid& uuid) const;
+
+    // True unless Swap Visible (SceneRuntime::visibleSwapped() - the same
+    // single flag mesh visibility already uses) inverts it - an annotation
+    // participates in the exact same "swap what's shown" lens meshes do,
+    // with no separate flag of its own. Used everywhere a.visible used to
+    // be checked directly (rendering, hit-testing).
+    bool isEffectivelyVisible(const Annotation& a) const;
 
     // Default leader direction for an undragged note (Annotation::leaderOffset
     // is zero-length) - a fixed direction perpendicular to the creation-time
@@ -154,6 +201,26 @@ private:
     // .cpp doc comment for the full baseY/y-direction derivation) - NOT
     // raw OpenGL/project() bottom-up space.
     QRectF frameScreenRectForLabel(const QVector3D& labelPos, const QString& text,
+        Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer) const;
+
+    // frameScreenRectForLabel()'s rect derivation, factored out into just
+    // the part that needs no camera or labelPos - text/font metrics only,
+    // as OFFSETS (left/top/right/bottom) from wherever the label's own
+    // screen position ends up. frameScreenRectForLabel() translates this by
+    // that position; draggedFrameFootprints() uses the offsets directly
+    // (position-independent - see its doc comment).
+    QRectF frameScreenOffsetRect(const QString& text, TextRenderer* axisTextRenderer) const;
+
+    // frameScreenRectForLabel()'s rect converted to 4 world-space corner
+    // points (topLeft, topRight, bottomRight, bottomLeft, in that order) at
+    // the label's own depth - used by drawAnnotationOverlay() to draw the
+    // frame. NOT used by visibleBoundsPoints(): these corners are
+    // unprojected via the camera's CURRENT view/projection matrices, so
+    // their world-space size scales with the camera's current zoom -
+    // exactly what bounds/fit must NOT depend on (see visibleBoundsPoints()'s
+    // doc comment). Returns an empty vector if no frame could be computed
+    // (e.g. camera or axisTextRenderer null).
+    QVector<QVector3D> frameWorldCorners(const QVector3D& labelPos, const QString& text,
         Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer) const;
 
     bool _glFunctionsInitialized = false;

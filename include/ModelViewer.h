@@ -265,6 +265,29 @@ public:
 	// Same role as openMeasurementDialog() above, for AnnotationDialog.
 	void openAnnotationDialog(const QUuid& selectId = QUuid());
 
+	// ---- Measurement/Annotation visibility (undo-integrated tier) --------
+	// Mirrors the mesh visibility split exactly: getVisibleUuids()/
+	// setVisibilityWithUndo()/setVisibilityWithoutUndo() (see those methods'
+	// own doc comments) has a context-menu/keyboard tier that's undo-
+	// integrated (VisibilityCommand) and a scene-tree-checkbox tier that
+	// isn't. The Measurement/Annotation dialogs' own checkbox lists already
+	// ARE that second, non-undo tier (SceneGraph::setMeasurementVisible()/
+	// setAnnotationVisible(), called directly from MeasurementDialog::
+	// onResultItemChanged()/AnnotationDialog::onResultItemChanged() -
+	// unchanged). These four methods are the missing first tier, for the new
+	// viewport context-menu Hide/Show actions.
+	QSet<QUuid> getVisibleMeasurementUuids() const;
+	void setMeasurementVisibilityWithUndo(const QSet<QUuid>& newVisibleIds, const QString& commandText);
+	void setMeasurementVisibilityWithoutUndo(const QSet<QUuid>& visibleIds);
+	void hideSelectedMeasurements();
+	void showSelectedMeasurements();
+
+	QSet<QUuid> getVisibleAnnotationUuids() const;
+	void setAnnotationVisibilityWithUndo(const QSet<QUuid>& newVisibleIds, const QString& commandText);
+	void setAnnotationVisibilityWithoutUndo(const QSet<QUuid>& visibleIds);
+	void hideSelectedAnnotations();
+	void showSelectedAnnotations();
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();
