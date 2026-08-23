@@ -5763,7 +5763,13 @@ void ViewportWidget::drawSkyBox(const QMatrix4x4* overrideViewMatrix)
 	glDisable((GL_DEPTH_TEST));
 }
 
-void ViewportWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
+void ViewportWidget::drawMesh(QOpenGLShaderProgram* prog)
+{
+	if (_sceneRuntime.meshStore().empty()) return;
+	drawMeshSubset(prog, _sceneRuntime.currentVisibleObjectIds());
+}
+
+void ViewportWidget::drawMeshSubset(QOpenGLShaderProgram* prog, const std::vector<int>& meshIds)
 {
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
@@ -5774,33 +5780,16 @@ void ViewportWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneInde
 		syncUniformsToFlatShader();
 	}
 
-	if (_sceneRuntime.meshStore().empty()) return;
-
-	const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
-
-	// Split — applying cap-plane straddle culling during collection
 	std::vector<int> opaqueIds;
 	std::vector<std::pair<float, int>> transparent; // (distance, id)
 
-	opaqueIds.reserve(objectIds.size());
-	transparent.reserve(objectIds.size());
+	opaqueIds.reserve(meshIds.size());
+	transparent.reserve(meshIds.size());
 
-	for (int id : objectIds)
+	for (int id : meshIds)
 	{
 		if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 		{
-			// Capping stencil pass: skip meshes outside frustum or that don't
-			// intersect the active cap plane — they contribute nothing to stencil.
-			// Skinned meshes are exempt from frustum culling (same rationale as
-			// isMeshVisible): their bind-pose AABB is stale after the initial
-			// animation pose is applied, so the test would incorrectly drop them.
-			if (activeCapPlaneIndex >= 0)
-			{
-				namespace VCH = VisibilityComputationHelper;
-				if (!mesh->hasSkinning() && VCH::isMeshOutside(mesh, _frustumCtx)) continue;
-				if (!VCH::isMeshStraddlesCapPlane(mesh, activeCapPlaneIndex, _clippingCtx)) continue;
-			}
-
 			if (mesh->isTransparent())
 			{
 				// Use a stable distance metric (camera -> mesh bounds center in world space)
@@ -5854,6 +5843,57 @@ void ViewportWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneInde
 	// restore baseline
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
+}
+
+std::vector<std::vector<int>> ViewportWidget::collectCappingGroups(int planeIndex) const
+{
+	std::vector<std::vector<int>> groups;
+	if (_sceneRuntime.meshStore().empty())
+		return groups;
+
+	// Grouped by owning scene-graph node - see this method's header doc comment
+	// for why. QMap keeps groups in a stable, deterministic order (not that
+	// ordering matters for correctness here, just for reproducible frame-to-
+	// frame draw-call ordering).
+	QMap<QString, std::vector<int>> groupsByKey;
+	namespace VCH = VisibilityComputationHelper;
+	SceneGraph* sceneGraph = (_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph() : nullptr;
+
+	for (int id : _sceneRuntime.currentVisibleObjectIds())
+	{
+		const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+		if (!mesh)
+			continue;
+
+		// Skip meshes outside the frustum or that don't intersect the active cap
+		// plane — they contribute nothing to this plane's stencil. Skinned meshes
+		// are exempt from frustum culling (same rationale as isMeshVisible):
+		// their bind-pose AABB is stale after the initial animation pose is
+		// applied, so the test would incorrectly drop them.
+		if (!mesh->hasSkinning() && VCH::isMeshOutside(mesh, _frustumCtx))
+			continue;
+		if (!VCH::isMeshStraddlesCapPlane(mesh, planeIndex, _clippingCtx))
+			continue;
+
+		// Group by the mesh's owning scene-graph node - an authoritative,
+		// collision-proof identity already maintained for exploded-view/
+		// assembly-relation purposes - rather than the imported node's
+		// display NAME. Two genuinely separate parts can share an identical
+		// (or empty/generic) name straight from the exporter, which would
+		// silently merge them back into one shared stencil pass and
+		// reintroduce cross-part leaking. Falls back to the mesh's own uuid
+		// (its own isolated, singleton group) when no scene-graph node owns
+		// it, rather than risking an over-broad merge with unrelated meshes.
+		const SceneNode* ownerNode = sceneGraph ? sceneGraph->findNodeForMesh(mesh->uuid()) : nullptr;
+		const QString key = ownerNode ? ownerNode->nodeUuid.toString(QUuid::WithoutBraces)
+		                              : mesh->uuid().toString(QUuid::WithoutBraces);
+		groupsByKey[key].push_back(id);
+	}
+
+	groups.reserve(groupsByKey.size());
+	for (auto it = groupsByKey.constBegin(); it != groupsByKey.constEnd(); ++it)
+		groups.push_back(it.value());
+	return groups;
 }
 
 void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
@@ -7020,6 +7060,15 @@ void ViewportWidget::drawSectionCapping()
 
 	for (int i = 0; i < 3; ++i)
 	{
+		// Skip this axis entirely when its plane is disabled — previously the full
+		// stencil-fill (two complete mesh-list draws) ran unconditionally for all
+		// 3 axes regardless of which were enabled, wasting up to 3x the necessary
+		// draw calls in the common single-plane case.
+		if ((i == 0 && !_renderCtrl.yzClippingEnabled()) ||
+			(i == 1 && !_renderCtrl.zxClippingEnabled()) ||
+			(i == 2 && !_renderCtrl.xyClippingEnabled()))
+			continue;
+
 		// Clipping Planes
 		if (_renderCtrl.yzClippingEnabled() && i == 0)
 			glEnable(GL_CLIP_DISTANCE0);
@@ -7031,145 +7080,165 @@ void ViewportWidget::drawSectionCapping()
 		// https://www.opengl.org/archives/resources/code/samples/advanced/advanced97/notes/node10.html
 		// https://glbook.gamedev.net/GLBOOK/glbook.gamedev.net/moglgp/advclip.html
 		// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
-		// 1) The stencil buffer, color buffer, and depth buffer are cleared,
-		glClear(GL_STENCIL_BUFFER_BIT);
-		glStencilMask(0x0);
-		glDisable(GL_DEPTH_TEST);
-		// and color buffer writes are disabled.
-		glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
 		glEnable(GL_STENCIL_TEST);
-		glStencilMask(0xFF);
-		glStencilFunc(GL_ALWAYS, 0, 0);
-
-		// 2) The capping polygon is rendered into the depth buffer,
-		// drawCappingPlane
-
-		// then depth buffer writes are disabled.
-		glDepthMask(GL_FALSE);
-
-		// 3) The stencil operation is set to increment the stencil value where the depth test passes,
-		glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
-
-		// and the model is drawn with glCullFace(GL FRONT).
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_FRONT);
-		drawMesh(_renderCtrl.clippedMeshShader(), i);
-
-		// 4) The stencil operation is then set to decrement the stencil value where the depth test passes,
-		glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
-
-		// and the model is drawn with glCullFace(GL BACK)
-		glCullFace(GL_BACK);
-		drawMesh(_renderCtrl.clippedMeshShader(), i);
 		glDisable(GL_CULL_FACE);
 
-		//At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
-		// the frontfacing and backfacing surfaces of the object.
-		// 5) The depth buffer is cleared, color buffer writes are enabled,
-		//glClear(GL_DEPTH_BUFFER_BIT);
-		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		glEnable(GL_DEPTH_TEST);
-
-		// and the polygon representing the clipping plane is now drawn using whatever material properties are desired,
-		// with the stencil function set to GL EQUAL and the reference value set to 1.
-		// This draws the color and depth values of the cap into the framebuffer only where the stencil values equal 1.
-		glStencilFunc(GL_EQUAL, 1, 0xFF);		
-		glDepthMask(GL_TRUE);
-		glEnable(GL_DEPTH_TEST);
-		glDisable(GL_CLIP_DISTANCE0);
-		glDisable(GL_CLIP_DISTANCE1);
-		glDisable(GL_CLIP_DISTANCE2);
-		// drawCappingPlane
+		// The stencil fill + cap-quad draw runs once per isolated capping group
+		// (see collectCappingGroups()) rather than once for the whole scene:
+		// the classic stencil-capping technique accumulates crossing counts for
+		// every fragment rasterized into the SAME stencil buffer regardless of
+		// depth (depth test is off during the fill), so batching unrelated,
+		// separate parts of the assembly into one shared pass mixes their
+		// crossing counts whenever their screen-space projections happen to
+		// overlap — producing a wrong cap (fill leaking onto/through an
+		// unrelated part, or a missing fill) that varies with camera angle.
+		// Isolating per group (clearing the stencil between groups) matches
+		// the granularity OpenCascade's OpenGl_CappingAlgo gets for free by
+		// computing capping per render structure.
+		for (const std::vector<int>& group : collectCappingGroups(i))
 		{
-			QMatrix4x4 model;
-			Point P = _viewCtrl.boundingBox().center();
+			// 1) The stencil buffer, color buffer, and depth buffer are cleared,
+			// glClear() only touches bits enabled by the current stencil write
+			// mask - force it to 0xFF first so a mask left over from an unrelated
+			// code path (e.g. drawFloor() leaves it at 0x00) can't turn this into
+			// a no-op and leave stale stencil data from a previous draw.
+			glStencilMask(0xFF);
+			glClear(GL_STENCIL_BUFFER_BIT);
+			glDisable(GL_DEPTH_TEST);
+			// and color buffer writes are disabled.
+			glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
 
-			_renderCtrl.clippingPlaneShader()->bind();
-			_renderCtrl.clippingPlaneShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-			_renderCtrl.clippingPlaneShader()->setProperty("viewMatrix", QVariant::fromValue(_viewCtrl.viewMatrix()));
-			_renderCtrl.clippingPlaneShader()->setUniformValue("viewMatrix", _viewCtrl.viewMatrix());
-			_renderCtrl.clippingPlaneShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
-			glActiveTexture(GL_TEXTURE6);
-			glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchMap", 6);
-			float yAng = _renderCtrl.clippingXFlipped() || _renderCtrl.clippingXCoeff() > 0 ? 90.0f : -90.0f;
-			float xAng = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 90.0f : -90.0f;
-			float zAng = _renderCtrl.clippingZFlipped() || _renderCtrl.clippingZCoeff() > 0 ? 0.0f : 180.0f;
+			// then depth buffer writes are disabled.
+			glDepthMask(GL_FALSE);
 
-			bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE/* read from UI or stored flag */;
-			bool wantFlipU = false/* read from UI or stored flag */;
-			bool wantFlipV = false/* read from UI or stored flag */;
+			// Single-pass parity (even-odd) stencil fill, matching OpenCascade's
+			// OpenGl_CappingAlgo technique: every rasterized fragment (front AND back
+			// faces, no culling) toggles bit 0 of the stencil value. This is winding-
+			// order independent — robust to flipped/inconsistent normals on dirty or
+			// non-manifold meshes, where a front-cull/back-cull INCR/DECR counter
+			// could miscount and produce a wrong cap silhouette — and needs only one
+			// geometry submission per group instead of two.
+			glStencilMask(0x01);
+			glStencilFunc(GL_ALWAYS, 1, 0x01);
+			glStencilOp(GL_KEEP, GL_INVERT, GL_INVERT);
+			drawMeshSubset(_renderCtrl.clippedMeshShader(), group);
+			glStencilMask(0xFF);
 
-			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
-			const float sceneDiag = _viewCtrl.boundingBox().boundingRadius() * 2.0f;
-			const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
-			const float worldUnitsPerTile = sceneDiag / tilesAcross;
+			//At this point, bit 0 of the stencil buffer is set wherever the clipping
+			// plane is enclosed by an odd number of this group's surface crossings,
+			// i.e. wherever it is enclosed by the group's own geometry.
+			// 5) The depth buffer is cleared, color buffer writes are enabled,
+			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+			glEnable(GL_DEPTH_TEST);
 
-			_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
-			// procedural hatch params (tweak to taste)
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
-			
-			_renderCtrl.clippingPlaneShader()->setUniformValue("useTexture", wantTexture);
+			// and the polygon representing the clipping plane is now drawn using whatever material properties are desired,
+			// with the stencil function set to GL EQUAL and the reference value set to 1.
+			// This draws the color and depth values of the cap into the framebuffer only where the stencil values equal 1.
+			glStencilFunc(GL_EQUAL, 1, 0xFF);
+			glDepthMask(GL_TRUE);
+			glDisable(GL_CLIP_DISTANCE0);
+			glDisable(GL_CLIP_DISTANCE1);
+			glDisable(GL_CLIP_DISTANCE2);
+			// drawCappingPlane
+			{
+				QMatrix4x4 model;
+				Point P = _viewCtrl.boundingBox().center();
 
-			// texture flip control: (1,1) normal; (-1,1) flip U; (1,-1) flip V			
-			QVector2D texFlip = QVector2D(wantFlipU ? -1.0f : 1.0f, wantFlipV ? -1.0f : 1.0f);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("textureFlip", texFlip);
+				_renderCtrl.clippingPlaneShader()->bind();
+				_renderCtrl.clippingPlaneShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+				_renderCtrl.clippingPlaneShader()->setProperty("viewMatrix", QVariant::fromValue(_viewCtrl.viewMatrix()));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("viewMatrix", _viewCtrl.viewMatrix());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+				glActiveTexture(GL_TEXTURE6);
+				glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchMap", 6);
+				float yAng = _renderCtrl.clippingXFlipped() || _renderCtrl.clippingXCoeff() > 0 ? 90.0f : -90.0f;
+				float xAng = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 90.0f : -90.0f;
+				float zAng = _renderCtrl.clippingZFlipped() || _renderCtrl.clippingZCoeff() > 0 ? 0.0f : 180.0f;
 
-			// YZ Plane			
-			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
-			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
-			_renderCtrl.clippingPlaneShader()->bind();
-			_clippingPlaneYZ->setSceneRenderTransformFast(model);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
+				bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE/* read from UI or stored flag */;
+				bool wantFlipU = false/* read from UI or stored flag */;
+				bool wantFlipV = false/* read from UI or stored flag */;
+
+				// Pick a consistent density: e.g., ~3 tiles across the model diagonal
+				const float sceneDiag = _viewCtrl.boundingBox().boundingRadius() * 2.0f;
+				const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
+				const float worldUnitsPerTile = sceneDiag / tilesAcross;
+
+				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
+				// procedural hatch params (tweak to taste)
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
+
+				_renderCtrl.clippingPlaneShader()->setUniformValue("useTexture", wantTexture);
+
+				// texture flip control: (1,1) normal; (-1,1) flip U; (1,-1) flip V
+				QVector2D texFlip = QVector2D(wantFlipU ? -1.0f : 1.0f, wantFlipV ? -1.0f : 1.0f);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("textureFlip", texFlip);
+
+				// YZ Plane
+				model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
+				model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
+				_renderCtrl.clippingPlaneShader()->bind();
+				_clippingPlaneYZ->setSceneRenderTransformFast(model);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
+				if (_renderCtrl.yzClippingEnabled() && i == 0)
+				{
+					const float xPlane = P.getX() + _renderCtrl.clippingXCoeff();
+					// Origin at plane through bbox center
+					_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
+					// World-space basis on the plane: U=+Y, V=+Z
+					_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 1.f, 0.f));
+					_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(0.f, 0.f, 1.f));
+					_clippingPlaneYZ->render();
+				}
+
+				// ZX Plane
+				model.setToIdentity();
+				model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
+				model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
+				_renderCtrl.clippingPlaneShader()->bind();
+				_clippingPlaneZX->setSceneRenderTransformFast(model);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
+				if (_renderCtrl.zxClippingEnabled() && i == 1)
+				{
+					const float yPlane = P.getY() + _renderCtrl.clippingYCoeff();
+					_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), yPlane, P.getZ()));
+					// U=+Z, V=+X
+					_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 0.f, 1.f));
+					_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(1.f, 0.f, 0.f));
+					_clippingPlaneZX->render();
+				}
+
+				// XY Plane
+				model.setToIdentity();
+				model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
+				model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
+				_renderCtrl.clippingPlaneShader()->bind();
+				_clippingPlaneXY->setSceneRenderTransformFast(model);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
+				if (_renderCtrl.xyClippingEnabled() && i == 2)
+				{
+					const float zPlane = P.getZ() + _renderCtrl.clippingZCoeff();
+					_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), P.getY(), zPlane));
+					// U=+X, V=+Y
+					_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(1.f, 0.f, 0.f));
+					_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(0.f, 1.f, 0.f));
+					_clippingPlaneXY->render();
+				}
+			}
+
+			// Restore clipping for the next group's stencil-fill pass (the quad
+			// draw above needs clip planes off; the fill pass needs them on).
 			if (_renderCtrl.yzClippingEnabled() && i == 0)
-			{
-				const float xPlane = P.getX() + _renderCtrl.clippingXCoeff();
-				// Origin at plane through bbox center
-				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
-				// World-space basis on the plane: U=+Y, V=+Z
-				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 1.f, 0.f));
-				_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(0.f, 0.f, 1.f));
-				_clippingPlaneYZ->render();
-			}
-
-			// ZX Plane
-			model.setToIdentity();
-			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
-			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
-			_renderCtrl.clippingPlaneShader()->bind();
-			_clippingPlaneZX->setSceneRenderTransformFast(model);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
+				glEnable(GL_CLIP_DISTANCE0);
 			if (_renderCtrl.zxClippingEnabled() && i == 1)
-			{
-				const float yPlane = P.getY() + _renderCtrl.clippingYCoeff();
-				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), yPlane, P.getZ()));
-				// U=+Z, V=+X
-				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 0.f, 1.f));
-				_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(1.f, 0.f, 0.f));
-				_clippingPlaneZX->render();
-			}
-
-			// XY Plane
-			model.setToIdentity();
-			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
-			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
-			_renderCtrl.clippingPlaneShader()->bind();
-			_clippingPlaneXY->setSceneRenderTransformFast(model);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
+				glEnable(GL_CLIP_DISTANCE1);
 			if (_renderCtrl.xyClippingEnabled() && i == 2)
-			{
-				const float zPlane = P.getZ() + _renderCtrl.clippingZCoeff();
-				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), P.getY(), zPlane));
-				// U=+X, V=+Y
-				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(1.f, 0.f, 0.f));
-				_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(0.f, 1.f, 0.f));
-				_clippingPlaneXY->render();
-			}
+				glEnable(GL_CLIP_DISTANCE2);
 		}
 
 		// Clipping Planes

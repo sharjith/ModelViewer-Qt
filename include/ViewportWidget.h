@@ -1280,8 +1280,7 @@ private:
 	void clearAnimatedMeshVisibilityState(const QString& sourceFile);
 	void recalculateVisibleSceneStats(bool updateMemorySize = false);
 
-	// activeCapPlaneIndex: -1 = no culling, 0 = YZ, 1 = ZX, 2 = XY
-	void drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex = -1);
+	void drawMesh(QOpenGLShaderProgram* prog);
 
 	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
@@ -1305,6 +1304,30 @@ private:
 	                                  std::vector<int>& out) const;
 
 	void drawSectionCapping();
+	// Draws exactly the given mesh ids (opaque/transparent split, no re-filtering -
+	// callers are expected to have already applied whatever culling they need).
+	// Used by drawSectionCapping() to fill the stencil for one isolated capping
+	// group at a time - see collectCappingGroups().
+	void drawMeshSubset(QOpenGLShaderProgram* prog, const std::vector<int>& meshIds);
+	// Groups the meshes straddling capping plane `planeIndex` (0=YZ, 1=ZX, 2=XY)
+	// so drawSectionCapping() can compute the stencil parity fill separately per
+	// group instead of batching the whole scene into one shared stencil buffer.
+	// The classic stencil-capping technique accumulates crossing counts for every
+	// fragment rasterized into the same stencil buffer regardless of depth, so if
+	// two unrelated, separate parts of the assembly happen to overlap in screen
+	// space where the cut plane crosses both, sharing one pass mixes their
+	// crossing counts and produces a wrong cap. Grouping by owning scene-graph
+	// node (not the imported node's display name, which two genuinely separate
+	// parts can share) keeps material-split siblings of one originally-
+	// imported part together (their shared seam still resolves correctly)
+	// while isolating genuinely separate parts from each other - the same granularity
+	// OpenCascade's OpenGl_CappingAlgo gets for free by computing capping per
+	// render structure (~ one imported part). Deliberately does NOT exclude
+	// non-manifold meshes - every straddling mesh always attempts to cap,
+	// even a genuinely defective one (which may show an imperfect cap for
+	// its own group as a result); losing capping outright on a fine mesh was
+	// judged worse than an occasional imperfect one on a broken mesh.
+	std::vector<std::vector<int>> collectCappingGroups(int planeIndex) const;
 	void drawFloor(const bool& drawReflection = true);
 	void drawGrid();
 	void drawSkyBox(const QMatrix4x4* overrideViewMatrix = nullptr);
