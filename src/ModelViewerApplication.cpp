@@ -98,6 +98,10 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 	{
 		allExtensions += " *.brep *.rle";
 	}
+	if (!allExtensions.contains("*.wrl", Qt::CaseInsensitive))
+	{
+		allExtensions += " *.wrl *.vrml";
+	}
 
 	// 3. All Supported filter
 	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.trimmed());
@@ -115,6 +119,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 		"STEP (*.step *.stp)",
 		"IGES (*.iges *.igs)",
 		"BREP (*.brep *.rle)",
+		"VRML (*.wrl *.vrml)",
 		"IFC (*.ifc)",
 		"OFF (*.off)",
 		"LWO (*.lwo *.lws)",

@@ -16,6 +16,10 @@ std::unique_ptr<IXCAFDocProcessor> XCAFDocProcessorFactory::createProcessor(cons
     {
         return std::make_unique<XCAFBREPProcessor>();
     }
+    else if (lowerExt == "wrl" || lowerExt == "vrml")
+    {
+        return std::make_unique<XCAFVRMLProcessor>();
+    }
     else
     {
         return nullptr;
