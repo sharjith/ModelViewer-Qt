@@ -5896,6 +5896,53 @@ std::vector<std::vector<int>> ViewportWidget::collectCappingGroups(int planeInde
 	return groups;
 }
 
+float ViewportWidget::computeLocalCappingSceneDiag() const
+{
+	bool haveExtent = false;
+	QVector3D localMin, localMax;
+
+	auto accumulate = [&](int axis)
+	{
+		for (const std::vector<int>& group : collectCappingGroups(axis))
+		{
+			for (int id : group)
+			{
+				const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+				if (!mesh)
+					continue;
+				const QVector3D c = mesh->getBoundingSphere().getCenter();
+				const float r = mesh->getBoundingSphere().getRadius();
+				const QVector3D mn = c - QVector3D(r, r, r);
+				const QVector3D mx = c + QVector3D(r, r, r);
+				if (!haveExtent)
+				{
+					localMin = mn;
+					localMax = mx;
+					haveExtent = true;
+				}
+				else
+				{
+					localMin.setX(std::min(localMin.x(), mn.x()));
+					localMin.setY(std::min(localMin.y(), mn.y()));
+					localMin.setZ(std::min(localMin.z(), mn.z()));
+					localMax.setX(std::max(localMax.x(), mx.x()));
+					localMax.setY(std::max(localMax.y(), mx.y()));
+					localMax.setZ(std::max(localMax.z(), mx.z()));
+				}
+			}
+		}
+	};
+
+	if (_renderCtrl.yzClippingEnabled()) accumulate(0);
+	if (_renderCtrl.zxClippingEnabled()) accumulate(1);
+	if (_renderCtrl.xyClippingEnabled()) accumulate(2);
+
+	if (!haveExtent)
+		return _viewCtrl.boundingBox().boundingRadius() * 2.0f;
+
+	return (localMax - localMin).length();
+}
+
 void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
@@ -7058,6 +7105,10 @@ void ViewportWidget::drawSectionCapping()
 	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlane", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
 		pos.x() * _renderCtrl.clipDX() + pos.y() * _renderCtrl.clipDY() + pos.z() * _renderCtrl.clipDZ()));
 
+	// Computed once (not per group/axis) and shared by every active plane's
+	// hatch below - see computeLocalCappingSceneDiag()'s doc comment.
+	const float localCappingSceneDiag = computeLocalCappingSceneDiag();
+
 	for (int i = 0; i < 3; ++i)
 	{
 		// Skip this axis entirely when its plane is disabled — previously the full
@@ -7160,10 +7211,13 @@ void ViewportWidget::drawSectionCapping()
 				bool wantFlipU = false/* read from UI or stored flag */;
 				bool wantFlipV = false/* read from UI or stored flag */;
 
-				// Pick a consistent density: e.g., ~3 tiles across the model diagonal
-				const float sceneDiag = _viewCtrl.boundingBox().boundingRadius() * 2.0f;
+				// Pick a consistent density: e.g., ~3 tiles across the local
+				// capping extent (see computeLocalCappingSceneDiag()) rather
+				// than the whole scene - a small part cut out of a large
+				// assembly gets hatch tiles sized to that part, not lost in
+				// tiles sized for the entire loaded scene.
 				const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
-				const float worldUnitsPerTile = sceneDiag / tilesAcross;
+				const float worldUnitsPerTile = localCappingSceneDiag / tilesAcross;
 
 				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 				// procedural hatch params (tweak to taste)

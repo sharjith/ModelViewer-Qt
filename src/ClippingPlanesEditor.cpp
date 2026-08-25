@@ -479,7 +479,7 @@ void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
 void ClippingPlanesEditor::resetProceduralTextureValues()
 {
 	comboBoxHatchMode->setCurrentIndex(0);
-	spinBoxHatchTiling->setValue(50);
+	spinBoxHatchTiling->setValue(100);
 	doubleSpinBoxThickness->setValue(0.05);
 	doubleSpinBoxIntensity->setValue(1.0f);
 	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");

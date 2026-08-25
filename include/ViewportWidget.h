@@ -1328,6 +1328,16 @@ private:
 	// its own group as a result); losing capping outright on a fine mesh was
 	// judged worse than an occasional imperfect one on a broken mesh.
 	std::vector<std::vector<int>> collectCappingGroups(int planeIndex) const;
+	// Local (not whole-scene) hatch-tiling scale for drawSectionCapping()'s
+	// procedural hatch: the diagonal of the union of world-space bounding
+	// spheres of every mesh straddling ANY currently-enabled plane (not just
+	// the one being drawn), so a large assembly cut through one small part
+	// gets hatch tiles sized to that part instead of the whole scene, while
+	// multiple simultaneously-active planes (e.g. a corner cut) still share
+	// one consistent scale instead of drifting apart at the seam. Falls back
+	// to the whole-scene bounding radius if nothing currently straddles any
+	// active plane.
+	float computeLocalCappingSceneDiag() const;
 	void drawFloor(const bool& drawReflection = true);
 	void drawGrid();
 	void drawSkyBox(const QMatrix4x4* overrideViewMatrix = nullptr);
