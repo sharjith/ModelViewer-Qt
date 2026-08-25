@@ -7203,6 +7203,29 @@ void ViewportWidget::drawSectionCapping()
 				glActiveTexture(GL_TEXTURE6);
 				glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchMap", 6);
+
+				// Multi-plane corner-cut trim: this axis's cap is only
+				// exposed where every OTHER currently-enabled axis is on ITS
+				// removed side too - if another active plane still keeps a
+				// point, that column of material was never cut away in the
+				// first place (this app's multi-plane semantics are a union
+				// of kept half-spaces - a notch removed from an otherwise-
+				// intact solid, confirmed correct for the 3-plane corner-cut
+				// case - not an intersection/wedge), so there's no cap
+				// surface there. Reuses _clippingCtx (the same threshold/
+				// flipped values VisibilityComputationHelper's own culling
+				// tests already trust) rather than re-deriving a second
+				// representation of "kept" that could drift from it.
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherApplyX", i != 0 && _clippingCtx.yzEnabled);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherApplyY", i != 1 && _clippingCtx.zxEnabled);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherApplyZ", i != 2 && _clippingCtx.xyEnabled);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherThreshX", _clippingCtx.x.threshold);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherThreshY", _clippingCtx.y.threshold);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherThreshZ", _clippingCtx.z.threshold);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherFlippedX", _clippingCtx.x.flipped);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherFlippedY", _clippingCtx.y.flipped);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("otherFlippedZ", _clippingCtx.z.flipped);
+
 				float yAng = _renderCtrl.clippingXFlipped() || _renderCtrl.clippingXCoeff() > 0 ? 90.0f : -90.0f;
 				float xAng = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 90.0f : -90.0f;
 				float zAng = _renderCtrl.clippingZFlipped() || _renderCtrl.clippingZCoeff() > 0 ? 0.0f : 180.0f;

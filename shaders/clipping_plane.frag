@@ -24,6 +24,23 @@ uniform vec3  hatchLineColor;    // color of hatch lines (e.g. black)
 uniform bool useTexture;         // when true, sample hatchMap instead of procedural
 uniform vec2 textureFlip;        // (1,1) normal; (-1,1) flip U; (1,-1) flip V
 
+// Multi-plane corner-cut trim (set from C++, see drawSectionCapping()'s doc
+// comment above these uniforms' assignment for the full derivation). This
+// quad caps ONE axis; otherApply{X,Y,Z} says whether each OTHER axis is
+// currently active and should further restrict where this cap is exposed.
+// A fragment only belongs to this cap if it is on the REMOVED side of every
+// other active axis - if another active plane still keeps it, that column
+// of material was never cut away, so there is no cap surface there.
+uniform bool  otherApplyX;
+uniform bool  otherApplyY;
+uniform bool  otherApplyZ;
+uniform float otherThreshX;
+uniform float otherThreshY;
+uniform float otherThreshZ;
+uniform bool  otherFlippedX;
+uniform bool  otherFlippedY;
+uniform bool  otherFlippedZ;
+
 out vec4 fragColor;
 
 // ---------- helpers ----------
@@ -47,6 +64,16 @@ vec2 rotate2(vec2 p, float ang)
 // ---------- main ----------
 void main()
 {
+    // Multi-plane corner-cut trim - see the uniform declarations above.
+    // "Kept by that other axis" (should discard) is the exact complement of
+    // VisibilityComputationHelper's isBoundingBoxFullyClipped_* convention.
+    if (otherApplyX && (otherFlippedX ? (vWorldPos.x >= otherThreshX) : (vWorldPos.x <= otherThreshX)))
+        discard;
+    if (otherApplyY && (otherFlippedY ? (vWorldPos.y >= otherThreshY) : (vWorldPos.y <= otherThreshY)))
+        discard;
+    if (otherApplyZ && (otherFlippedZ ? (vWorldPos.z >= otherThreshZ) : (vWorldPos.z <= otherThreshZ)))
+        discard;
+
     // world-space coords on plane
     vec3 rel = vWorldPos - hatchOrigin;
     vec2 uv_w = vec2(dot(rel, uDir), dot(rel, vDir)); // world units
