@@ -7465,6 +7465,33 @@ void ViewportWidget::drawBoundingBoxOverlay()
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // Width/height/depth labels, one per axis, at the midpoint of the edge
+    // each dimension actually runs along (the three edges meeting at corner
+    // 0 - same trio drawBoundingBoxOverlay() already special-cases first in
+    // edgeIndices above) - reads as three callouts fanning out from one
+    // corner rather than cluttering all 12 edges. Same value formatting
+    // (raw scene units, 3 decimals) MeasurementController's overlay labels
+    // use, for a consistent readout between the two.
+    if (_axisTextRenderer)
+    {
+        struct AxisLabel { QVector3D worldPos; QString text; };
+        const AxisLabel axisLabels[3] = {
+            { (corners[0] + corners[4]) * 0.5f, QString::number(bounds.getXSize(), 'f', 3) },
+            { (corners[0] + corners[2]) * 0.5f, QString::number(bounds.getYSize(), 'f', 3) },
+            { (corners[0] + corners[1]) * 0.5f, QString::number(bounds.getZSize(), 'f', 3) },
+        };
+
+        const QRect viewportRect(0, 0, width(), height());
+        for (const AxisLabel& label : axisLabels)
+        {
+            const QVector3D projected = label.worldPos.project(
+                _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), viewportRect);
+            const float y = static_cast<float>(height()) - projected.y();
+            _axisTextRenderer->RenderText(label.text.toStdString(), projected.x(), y, 1,
+                QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
+        }
+    }
 }
 
 void ViewportWidget::drawDebugOverlay(Camera* camera)
