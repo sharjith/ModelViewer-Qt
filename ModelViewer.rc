@@ -57,7 +57,7 @@ BEGIN
         BEGIN
             VALUE "Comments", "\0"
             VALUE "CompanyName", "N. Sharjith\0"
-            VALUE "FileDescription", "Assimp OpenGL Model Viewer\0"
+            VALUE "FileDescription", "Model Viewer\0"
             VALUE "FileVersion", "1.0\0"
             VALUE "InternalName", "ModelViewer\0"
             VALUE "LegalCopyright", "N. Sharjith\0"
