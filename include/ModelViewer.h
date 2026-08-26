@@ -323,6 +323,27 @@ public slots:
 	// single undo macro when more than one cluster is merged at once.
 	void mergeSelectedMeshesByAdjacency();
 
+	// Unconditional counterpart to mergeSelectedMeshesByAdjacency(): combines
+	// the ENTIRE current selection into one mesh regardless of whether the
+	// meshes touch - no clustering, just the same material-compatibility
+	// gate (same source file + tracked original material index + primitive
+	// mode across every selected mesh) applied once to the whole set. On a
+	// mismatch, asks once whether to merge anyway by cascading the first
+	// mesh's material, same as the by-adjacency path. Undoable (a single
+	// MergeByAdjacencyCommand - the command itself doesn't care how its
+	// source set was chosen).
+	void mergeSelectedMeshes();
+
+	// Organizational "Group": creates a new (empty) assembly SceneNode as a
+	// sibling of the first selected mesh's own owner node, and moves every
+	// selected mesh's UUID into it - no geometry is touched, this is pure
+	// scene-tree reorganization (the inversion of Split by Connectivity in
+	// spirit only - that one splits GEOMETRY, this one only reorganizes
+	// HIERARCHY). Works on a selection of just one mesh too (wraps it alone
+	// in a new group), unlike Merge/Split which need 2+. Undoable
+	// (GroupMeshesCommand).
+	void groupSelectedMeshes();
+
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	void clearCutMarks();
 	void reapplyCutMarks(const QList<ClipboardEntry>& entries,

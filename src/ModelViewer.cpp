@@ -16,6 +16,7 @@
 #include "DuplicateCommand.h"
 #include "SplitByConnectivityCommand.h"
 #include "MergeByAdjacencyCommand.h"
+#include "GroupMeshesCommand.h"
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
@@ -2102,6 +2103,8 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 			myMenu.addAction(tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
 		myMenu.addAction(tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
 		myMenu.addAction(tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
+		myMenu.addAction(tr("Merge Selected"), this, expandThen([this]() { mergeSelectedMeshes(); }));
+		myMenu.addAction(tr("Group"), this, expandThen([this]() { groupSelectedMeshes(); }));
 		myMenu.addAction(tr("Delete"),    this, expandThen([this]() { deleteSelectedItems(); }));
 		myMenu.addSeparator();
 		myMenu.addAction(tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
@@ -3057,6 +3060,176 @@ void ModelViewer::mergeSelectedMeshesByAdjacency()
 		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total) into %1 mesh(es).")
 			.arg(commands.size()).arg(meshesMergedCount));
 	}
+}
+
+void ModelViewer::mergeSelectedMeshes()
+{
+	if (!treeWidgetModel->hasMeshSelection())
+		return;
+
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
+
+	QVector<SceneMesh*> meshes;
+	QVector<SceneNode*> ownerNodes;
+	QVector<QUuid> uuids;
+	for (const QUuid& u : selectedUuids)
+	{
+		SceneNode* node = _sceneGraph->findNodeForMesh(u);
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(u);
+		if (!node || !mesh)
+			continue;
+		meshes.append(mesh);
+		ownerNodes.append(node);
+		uuids.append(u);
+	}
+
+	if (meshes.size() < 2)
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Same material-compatibility gate as mergeSelectedMeshesByAdjacency(),
+	// applied once to the whole selection instead of per-cluster - see that
+	// method's doc comment for why an untracked/-1 material index never
+	// counts as "matching".
+	SceneMesh* refMesh = meshes.first();
+	bool compatible = refMesh->getOriginalMaterialIndex() >= 0;
+	for (int i = 1; compatible && i < meshes.size(); ++i)
+	{
+		SceneMesh* m = meshes[i];
+		compatible = (m->getPrimitiveMode() == refMesh->getPrimitiveMode()) &&
+		             (m->getOriginalMaterialIndex() == refMesh->getOriginalMaterialIndex()) &&
+		             (m->getSourceFile() == refMesh->getSourceFile());
+	}
+
+	if (!compatible)
+	{
+		QApplication::restoreOverrideCursor();
+		const QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Merge Selected"),
+			tr("The selected meshes have different materials.\n\n"
+			   "Merge them anyway, using the first mesh's material for the whole result?"),
+			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+		if (reply != QMessageBox::Yes)
+		{
+			QMessageBox::information(this, tr("Merge Selected"),
+				tr("The selected meshes have different materials - nothing merged."));
+			return;
+		}
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+	}
+
+	_viewportWidget->makeCurrent();
+
+	const QString mergedName = _viewportWidget->generateUniqueMeshName(refMesh->getName() + "_Merged");
+	SceneMesh* merged = SceneMesh::mergeMeshes(meshes, mergedName);
+	_viewportWidget->addToDisplay(merged);
+	const QUuid mergedUuid = merged->uuid();
+
+	// Remove each source from its own tree position and recycle-bin it,
+	// capturing its (node, position) for undo - same bookkeeping
+	// mergeSelectedMeshesByAdjacency() uses per-cluster, just for the whole
+	// selection at once here.
+	QVector<MergeByAdjacencyCommand::SourceEntry> sourceEntries;
+	sourceEntries.reserve(uuids.size());
+	for (int i = 0; i < uuids.size(); ++i)
+	{
+		const QUuid& u = uuids[i];
+		int pos = 0;
+		_sceneGraph->removeMeshUuid(u, pos);
+		const int meshIndex = _viewportWidget->getIndexByUuid(u);
+		if (meshIndex >= 0)
+			_viewportWidget->moveToRecycleBin(u, meshIndex);
+
+		MergeByAdjacencyCommand::SourceEntry e;
+		e.uuid      = u;
+		e.ownerNode = ownerNodes[i];
+		e.position  = pos;
+		sourceEntries.append(e);
+	}
+
+	// Insert the merged mesh under the first selected mesh's own node.
+	SceneNode* targetNode = ownerNodes.first();
+	const int mergedPosition = targetNode->meshUuids.size();
+	_sceneGraph->restoreMeshUuid(targetNode, mergedUuid, mergedPosition);
+
+	_viewportWidget->doneCurrent();
+
+	updateDisplayList();
+	_undoStack->push(new MergeByAdjacencyCommand(
+		this, _viewportWidget, sourceEntries, mergedUuid, targetNode, mergedPosition, originalSelection,
+		tr("Merge Selected")));
+
+	QApplication::restoreOverrideCursor();
+
+	MainWindow::showStatusMessage(tr("Merged %1 selected meshes into 1.").arg(meshes.size()));
+}
+
+void ModelViewer::groupSelectedMeshes()
+{
+	if (!treeWidgetModel->hasMeshSelection())
+		return;
+
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
+
+	QVector<SceneNode*> ownerNodes;
+	QVector<QUuid> uuids;
+	for (const QUuid& u : selectedUuids)
+	{
+		SceneNode* node = _sceneGraph->findNodeForMesh(u);
+		if (!node)
+			continue;
+		ownerNodes.append(node);
+		uuids.append(u);
+	}
+
+	if (uuids.isEmpty())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Capture each mesh's original (node, position) before moving anything,
+	// so undo can put every mesh back exactly where it came from.
+	QVector<GroupMeshesCommand::MeshEntry> meshEntries;
+	meshEntries.reserve(uuids.size());
+	for (int i = 0; i < uuids.size(); ++i)
+	{
+		GroupMeshesCommand::MeshEntry e;
+		e.uuid              = uuids[i];
+		e.originalOwnerNode = ownerNodes[i];
+		e.originalPosition  = ownerNodes[i]->meshUuids.indexOf(uuids[i]);
+		meshEntries.append(e);
+	}
+
+	// The new group becomes a new CHILD of the first selected mesh's own
+	// owner node - i.e. nested one level under wherever these meshes
+	// currently live as direct entries, not a sibling of that owner. That
+	// owner keeps whatever other meshes weren't selected; the group only
+	// takes the ones the user actually picked.
+	SceneNode* groupParent = ownerNodes.first();
+
+	SceneNode* groupNode = new SceneNode();
+	groupNode->nodeUuid = QUuid::createUuid();
+	groupNode->name = tr("Group");
+
+	const int groupPosition = groupParent->children.size();
+	_sceneGraph->insertChildNode(groupParent, groupNode, groupPosition);
+
+	for (const GroupMeshesCommand::MeshEntry& e : meshEntries)
+	{
+		int pos = 0;
+		_sceneGraph->removeMeshUuid(e.uuid, pos);
+		_sceneGraph->restoreMeshUuid(groupNode, e.uuid, groupNode->meshUuids.size());
+	}
+
+	updateDisplayList();
+	_undoStack->push(new GroupMeshesCommand(
+		this, _viewportWidget, groupNode, groupParent, groupPosition, meshEntries, originalSelection));
+
+	QApplication::restoreOverrideCursor();
+
+	MainWindow::showStatusMessage(tr("Grouped %1 mesh(es).").arg(meshEntries.size()));
 }
 
 void ModelViewer::deleteSelectedItems()
