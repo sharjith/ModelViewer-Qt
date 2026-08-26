@@ -1803,6 +1803,32 @@ axis</string>
             </item>
            </widget>
           </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="consoleBufferLinesLabel">
+            <property name="text">
+             <string>Console Buffer Lines:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QSpinBox" name="consoleBufferLinesSpinBox">
+            <property name="toolTip">
+             <string>Maximum number of lines kept in the console window's scrollback</string>
+            </property>
+            <property name="minimum">
+             <number>100</number>
+            </property>
+            <property name="maximum">
+             <number>1000000</number>
+            </property>
+            <property name="singleStep">
+             <number>1000</number>
+            </property>
+            <property name="value">
+             <number>20000</number>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -1922,6 +1948,7 @@ The panel shows GPU-side texture bindings for the selected mesh.</string>
   <tabstop>vsyncCheckBox</tabstop>
   <tabstop>enableLoggingCheckBox</tabstop>
   <tabstop>logLevelComboBox</tabstop>
+  <tabstop>consoleBufferLinesSpinBox</tabstop>
   <tabstop>profileRenderingCheckBox</tabstop>
   <tabstop>clearCacheButton</tabstop>
  </tabstops>

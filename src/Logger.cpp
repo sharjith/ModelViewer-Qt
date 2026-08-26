@@ -1,5 +1,8 @@
 #include "Logger.h"
+#include "ConsolePanel.h"
 
+#include <QCoreApplication>
+#include <QMetaObject>
 #include <QStandardPaths>
 #include <QDir>
 #include <QDateTime>
@@ -135,7 +138,6 @@ Logger::Logger()
     , oldCoutBuffer(nullptr)
     , oldCerrBuffer(nullptr)
     , processingPending(false)
-    , consoleAllocated(false)
 {
 }
 
@@ -199,19 +201,18 @@ void Logger::shutdown()
 
     isRunning = false;
 
-    // Free console if allocated
-#ifdef _WIN32
-    if (consoleAllocated)
+    // Destroy the console panel if it was ever created. Called on the main
+    // thread (see main.cpp, right after app.exec() returns), so it's safe
+    // to delete a QWidget directly here. hide() first (rather than just
+    // deleting a still-visible widget outright) so ConsolePanel::hideEvent()
+    // gets a chance to persist its geometry - if the app is closed while
+    // the console is still open, a bare delete() never fires that event at
+    // all, silently skipping the save for that session.
+    if (consolePanel)
     {
-        HWND consoleWindow = GetConsoleWindow();
-        if (consoleWindow)
-        {
-            ShowWindow(consoleWindow, SW_HIDE);
-        }
-        FreeConsole();
-        consoleAllocated = false;
+        consolePanel->hide();
+        delete consolePanel;
     }
-#endif
 
     // Restore original stream buffers
     if (oldCoutBuffer)
@@ -328,13 +329,26 @@ void Logger::processQueue()
 
         QString formatted = formatLogMessage(msg.level, msg.message, msg.context);
 
-        // Console output - use original stdout buffer to avoid feedback loop
+        // Original-stdout output - only reaches anywhere visible if the
+        // process actually inherited a real terminal (e.g. launched from a
+        // shell on Linux, or from a parent console via AttachConsole
+        // elsewhere); harmless no-op otherwise.
         if (consoleEnabled && oldCoutBuffer)
         {
             QByteArray ba = formatted.toUtf8();
             oldCoutBuffer->sputn(ba.constData(), ba.length());
             oldCoutBuffer->sputc('\n');
             oldCoutBuffer->pubsync();
+        }
+
+        // Console panel output - this runs on Logger's own worker thread
+        // (see moveToThread() in initialize()), but consolePanel lives on
+        // the main GUI thread, so the append has to be marshalled over via
+        // a queued call rather than touched directly.
+        if (consoleEnabled && consolePanel)
+        {
+            QMetaObject::invokeMethod(consolePanel, "appendLine",
+                Qt::QueuedConnection, Q_ARG(QString, formatted));
         }
 
 #ifdef _WIN32
@@ -496,6 +510,8 @@ void Logger::loadSettings()
 
     int levelValue = settings.value("logging/minimumLevel", static_cast<int>(Debug)).toInt();
     minimumLevel = static_cast<LogLevel>(levelValue);
+
+    consoleBufferLines = settings.value("logging/consoleBufferLines", 20000).toInt();
 }
 
 void Logger::setConsoleEnabled(bool enabled)
@@ -504,67 +520,29 @@ void Logger::setConsoleEnabled(bool enabled)
     QSettings settings;
     settings.setValue("logging/consoleEnabled", enabled);
 
-#ifdef _WIN32
     if (enabled)
     {
-        // Show console - allocate if not already allocated, or show if hidden
-        if (!consoleAllocated)
-        {
-            spawnConsole();
-        }
-        else
-        {
-            // Console already allocated, just show the hidden window
-            HWND consoleWindow = GetConsoleWindow();
-            if (consoleWindow)
-            {
-                ShowWindow(consoleWindow, SW_SHOW);
-            }
-        }
+        spawnConsole();
     }
-    else
+    else if (consolePanel)
     {
-        // Hide console window
-        if (consoleAllocated)
-        {
-            HWND consoleWindow = GetConsoleWindow();
-            if (consoleWindow)
-            {
-                ShowWindow(consoleWindow, SW_HIDE);
-            }
-        }
+        consolePanel->hide();
     }
-#endif
 }
 
 void Logger::spawnConsole()
 {
-#ifdef _WIN32
-    if (consoleAllocated)
+    // Called synchronously from the main GUI thread in every caller
+    // (main.cpp at startup, SettingsDialog when the checkbox is applied),
+    // so constructing a QWidget here is safe. See ConsolePanel.h for why
+    // this is a plain Qt window instead of a real OS console.
+    if (!consolePanel)
     {
-        return;  // Already allocated
+        consolePanel = new ConsolePanel();
+        consolePanel->setMaxLineCount(consoleBufferLines);
     }
-
-    // Try to allocate a new console window
-    if (AllocConsole() || AttachConsole(ATTACH_PARENT_PROCESS))
-    {
-        // Redirect stdout to the console
-        FILE* file = nullptr;
-        freopen_s(&file, "CONOUT$", "w", stdout);
-        freopen_s(&file, "CONOUT$", "w", stderr);
-        freopen_s(&file, "CONIN$", "r", stdin);
-        if (file) fclose(file);
-
-        // Make the console window visible
-        HWND consoleWindow = GetConsoleWindow();
-        if (consoleWindow)
-        {
-            ShowWindow(consoleWindow, SW_SHOW);
-        }
-
-        consoleAllocated = true;
-    }
-#endif
+    consolePanel->show();
+    consolePanel->raise();
 }
 
 void Logger::setFileEnabled(bool enabled)
@@ -583,11 +561,20 @@ void Logger::setMinimumLevel(LogLevel level)
 
 void Logger::setConsoleWindowVisible(bool visible)
 {
-#ifdef _WIN32
-    HWND consoleWindow = GetConsoleWindow();
-    if (consoleWindow)
+    if (consolePanel)
     {
-        ShowWindow(consoleWindow, visible ? SW_SHOW : SW_HIDE);
+        consolePanel->setVisible(visible);
     }
-#endif
+}
+
+void Logger::setConsoleBufferLines(int lines)
+{
+    consoleBufferLines = lines;
+    QSettings settings;
+    settings.setValue("logging/consoleBufferLines", lines);
+
+    if (consolePanel)
+    {
+        consolePanel->setMaxLineCount(lines);
+    }
 }

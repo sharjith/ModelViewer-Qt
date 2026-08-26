@@ -467,7 +467,11 @@ void QuickHelpDialog::setupKeyboardShortcutsTab()
 							 "• <b>Orbit Mode:</b> Pan view (W=up, S=down, A=left, D=right)<br/>"
 							 "• <b>Fly/First Person:</b> Move forward/backward/left/right")},
 		{tr("Q, E"), tr("Move up/down (Fly mode only)")},
-		{tr("Shift"), tr("Hold while navigating to move faster in Fly/First Person modes")},
+		{tr("Shift"), tr("Hold an Arrow key or I/K/J/L/N/X/Z while navigating to move 3x faster.<br/>"
+							 "• <b>Not on W/A/S/D/Q/E/M:</b> those letters double as Shift shortcuts "
+							 "for other things (Show All, display modes) - use the Arrow keys "
+							 "instead for faster movement (fully equivalent to W/A/S/D in every "
+							 "camera mode)")},
 		{tr("I, K"), tr("Rotate view around X-axis (up/down)")},
 		{tr("J, L"), tr("Rotate view around Y-axis (left/right)")},
 		{tr("M, N"), tr("Rotate view around Z-axis (clockwise/counter-clockwise)")},

@@ -250,6 +250,7 @@ void SettingsDialog::applySettings()
     const bool fileLoggingChanged = (_appliedDebugEnableLogging != debug_enableLogging);
     const bool consoleLoggingChanged = (_appliedDebugEnableConsoleOutput != debug_enableConsoleOutput);
     const bool logLevelChanged = (_appliedDebugLogLevelIndex != debug_logLevelIndex);
+    const bool consoleBufferLinesChanged = (_appliedDebugConsoleBufferLines != debug_consoleBufferLines);
 
     // Apply the settings of the UI elements
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -377,6 +378,7 @@ void SettingsDialog::applySettings()
     settings.setValue("enableLoggingCheckBox", debug_enableLogging);
 	settings.setValue("enableConsoleCheckBox", debug_enableConsoleOutput);
     settings.setValue("logLevelComboBox", debug_logLevelIndex);
+    settings.setValue("consoleBufferLinesSpinBox", debug_consoleBufferLines);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
     settings.setValue("showTextureDebugPanelCheckBox", debug_showTextureDebugPanel);
 
@@ -396,6 +398,10 @@ void SettingsDialog::applySettings()
     if (logLevelChanged)
     {
         Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(debug_logLevelIndex));
+    }
+    if (consoleBufferLinesChanged)
+    {
+        Logger::instance().setConsoleBufferLines(debug_consoleBufferLines);
     }
 
     captureAppliedState();
@@ -521,6 +527,7 @@ void SettingsDialog::setDefaultValues()
     ui->enableLoggingCheckBox->setChecked(false);
 	ui->enableConsoleCheckBox->setChecked(false);
     ui->logLevelComboBox->setCurrentText("Warning");
+    ui->consoleBufferLinesSpinBox->setValue(20000);
     ui->profileRenderingCheckBox->setChecked(false);
     ui->showTextureDebugPanelCheckBox->setChecked(false);
 }
@@ -532,6 +539,7 @@ void SettingsDialog::captureAppliedState()
     _appliedDebugEnableLogging = debug_enableLogging;
     _appliedDebugEnableConsoleOutput = debug_enableConsoleOutput;
     _appliedDebugLogLevelIndex = debug_logLevelIndex;
+    _appliedDebugConsoleBufferLines = debug_consoleBufferLines;
 }
 
 void SettingsDialog::updateSettingsHint()
@@ -663,6 +671,7 @@ void SettingsDialog::syncStateFromUi()
     debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
     debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();
     debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
+    debug_consoleBufferLines = ui->consoleBufferLinesSpinBox->value();
     debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
     debug_showTextureDebugPanel = ui->showTextureDebugPanelCheckBox->isChecked();
 }
@@ -826,6 +835,8 @@ void SettingsDialog::loadSettings()
 	ui->enableConsoleCheckBox->setChecked(bVal);
     iVal = settings.value("logLevelComboBox", ui->logLevelComboBox->currentIndex()).toInt();
     ui->logLevelComboBox->setCurrentIndex(iVal);
+    iVal = settings.value("consoleBufferLinesSpinBox", ui->consoleBufferLinesSpinBox->value()).toInt();
+    ui->consoleBufferLinesSpinBox->setValue(iVal);
     bVal = settings.value("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked()).toBool();
     ui->profileRenderingCheckBox->setChecked(bVal);
     bVal = settings.value("showTextureDebugPanelCheckBox", ui->showTextureDebugPanelCheckBox->isChecked()).toBool();
@@ -918,6 +929,7 @@ void SettingsDialog::restoreDefaults()
 		ui->assimpAutoOrientCheckBox,
         ui->radioButtonExportScene, ui->radioButtonExportMeshes,
         ui->enableLoggingCheckBox, ui->enableConsoleCheckBox, ui->logLevelComboBox,
+        ui->consoleBufferLinesSpinBox,
         ui->profileRenderingCheckBox,
         ui->showTextureDebugPanelCheckBox,
         ui->clearCacheButton
@@ -1307,6 +1319,11 @@ void SettingsDialog::on_enableConsoleCheckBox_stateChanged()
 void SettingsDialog::on_logLevelComboBox_currentIndexChanged()
 {
     debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
+}
+
+void SettingsDialog::on_consoleBufferLinesSpinBox_valueChanged()
+{
+    debug_consoleBufferLines = ui->consoleBufferLinesSpinBox->value();
 }
 
 void SettingsDialog::on_profileRenderingCheckBox_stateChanged()

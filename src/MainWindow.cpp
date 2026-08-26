@@ -8,6 +8,10 @@
 #include <QSettings>
 #include <QSignalBlocker>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "AboutDialog.h"
@@ -1527,6 +1531,27 @@ void MainWindow::on_actionOpen_Logs_Folder_triggered()
 	}
 }
 
+void MainWindow::on_actionShow_Console_triggered()
+{
+	// The console panel's own close button only hides it (see
+	// ConsolePanel::closeEvent()) rather than destroying it, but the
+	// Settings dialog's "Enable console" checkbox only re-applies when its
+	// checked state actually *changes* from what was last saved - if the
+	// user closed the panel that way, there was previously no way back
+	// short of restarting the app. setConsoleEnabled(true) is the same
+	// call Settings' Apply makes, so this also creates the panel on first
+	// use and keeps the checkbox in sync next time Settings is opened.
+	Logger::instance().setConsoleEnabled(true);
+
+	// Settings' own checkbox persists under this separate key (read by
+	// main.cpp at startup) rather than the "logging/consoleEnabled" key
+	// setConsoleEnabled() above writes to - keep both in sync so the
+	// checkbox reflects reality next time Settings is opened, and so the
+	// console still auto-shows on the next launch.
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.setValue("enableConsoleCheckBox", true);
+}
+
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
 	AboutDialog dlg(graphicsInfo(), this);
@@ -1596,7 +1621,52 @@ void MainWindow::showEvent(QShowEvent* event)
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)
-{	
+{
+	// canExit() below can show one or more prompts (per-document unsaved-
+	// changes checks, then the generic exit confirmation) - if this close
+	// request arrived while the app wasn't the foreground window (notably
+	// Windows' taskbar "Close all windows" on a grouped icon, which can
+	// fire this even when some other application currently has focus),
+	// those dialogs could otherwise appear behind other windows or not
+	// visibly grab attention at all. Bring the window forward first so
+	// whatever canExit() shows is actually seen.
+	if (isMinimized())
+	{
+		showNormal();
+	}
+	raise();
+	activateWindow();
+
+#ifdef _WIN32
+	// activateWindow() above calls SetForegroundWindow() internally, but
+	// Windows' anti-focus-stealing heuristic silently ignores that when the
+	// request comes from a process that didn't receive the most recent
+	// input event - exactly this case, where the input (right-click +
+	// "Close all windows") went to Explorer, not to this process. This is
+	// the standard workaround: temporarily attaching this thread's input
+	// queue to the current foreground window's thread borrows the
+	// exemption Windows normally reserves for whichever process the user
+	// just interacted with, letting SetForegroundWindow() actually take
+	// effect instead of being a silent no-op.
+	HWND hwnd = reinterpret_cast<HWND>(winId());
+	HWND foregroundWnd = GetForegroundWindow();
+	if (foregroundWnd && foregroundWnd != hwnd)
+	{
+		DWORD foregroundThreadId = GetWindowThreadProcessId(foregroundWnd, nullptr);
+		DWORD currentThreadId = GetCurrentThreadId();
+		if (foregroundThreadId != 0 && foregroundThreadId != currentThreadId)
+		{
+			AttachThreadInput(foregroundThreadId, currentThreadId, TRUE);
+			SetForegroundWindow(hwnd);
+			AttachThreadInput(foregroundThreadId, currentThreadId, FALSE);
+		}
+		else
+		{
+			SetForegroundWindow(hwnd);
+		}
+	}
+#endif
+
 	if (canExit())
 	{
 		writeSettings();
@@ -2067,7 +2137,39 @@ QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 
 bool MainWindow::canExit()
 {
-	// Check user preference for exit confirmation
+	// Query each open document FIRST, before the generic "are you sure?"
+	// confirmation below - this used to run in the opposite order, which
+	// meant every close (including Windows' bulk "Close all windows" from a
+	// grouped taskbar icon, and OS logoff/shutdown) always blocked on an
+	// extra, purely redundant dialog before ever reaching the checks that
+	// actually protect data. Windows applies a much shorter non-responsive
+	// timeout to a bulk/grouped close than to a single window's X button,
+	// and it silently force-terminates the process once that timeout
+	// elapses - the previous ordering left the app sitting on the
+	// redundant confirmation for however many documents were open (up to
+	// two sequential dialogs each - unsaved materials, then unsaved
+	// changes), making a force-terminated exit-with-data-loss-and-no-
+	// prompt-ever-shown far more likely the more documents were open.
+	// Checking documents first means the common case (nothing unsaved)
+	// responds to the close request immediately, with no dialog at all.
+	for (ModelViewer* child : std::as_const(_viewers))
+	{
+		// Create a close event and let the child handle it
+		// This will trigger ModelViewer::closeEvent which shows the save dialog
+		QCloseEvent closeEvent;
+		child->closeEvent(&closeEvent);
+
+		// If the child rejected the close (user clicked Cancel), return false
+		if (!closeEvent.isAccepted())
+		{
+			return false;  // Exit cancelled - don't close application
+		}
+	}
+
+	// Check user preference for exit confirmation - only reached once every
+	// document has already been confirmed clean (or its changes handled),
+	// so this is now a genuinely low-stakes "are you sure?" rather than a
+	// gate in front of the data-safety checks.
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	bool confirmOnExit = settings.value("checkConfirmExit", true).toBool();
 	if (confirmOnExit)
@@ -2081,21 +2183,6 @@ bool MainWindow::canExit()
 		if (reply != QMessageBox::Yes)
 		{
 			return false; // User chose not to exit
-		}
-	}
-
-	// Query each open document
-	for (ModelViewer* child : std::as_const(_viewers))
-	{
-		// Create a close event and let the child handle it
-		// This will trigger ModelViewer::closeEvent which shows the save dialog
-		QCloseEvent closeEvent;
-		child->closeEvent(&closeEvent);
-
-		// If the child rejected the close (user clicked Cancel), return false
-		if (!closeEvent.isAccepted())
-		{
-			return false;  // Exit cancelled - don't close application
 		}
 	}
 

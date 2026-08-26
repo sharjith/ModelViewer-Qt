@@ -7,11 +7,14 @@
 #include <QFile>
 #include <QThread>
 #include <QDateTime>
+#include <QPointer>
 #include <sstream>
 #include <iostream>
 
 #include <sstream>
 #include <iostream>
+
+class ConsolePanel;
 
 /**
  * @class LoggerStreamBuffer
@@ -118,9 +121,14 @@ public:
     void setMinimumLevel(LogLevel level);
 
     /**
-     * @brief Show or hide the console window (Windows only)
+     * @brief Show or hide the console panel window
      */
     void setConsoleWindowVisible(bool visible);
+
+    /**
+     * @brief Set the console panel's scrollback line limit
+     */
+    void setConsoleBufferLines(int lines);
 
     /**
      * @brief Get current log directory path
@@ -148,7 +156,8 @@ private:
     void rotateLogFileIfNeeded();
     void ensureLogDirectoryExists();
 
-    // Console management (Windows only)
+    // Console panel management (a Qt widget that mimics a console window,
+    // rather than a real OS console - see ConsolePanel.h for why)
     void spawnConsole();
 
     // Worker thread slots
@@ -184,6 +193,7 @@ private:
     bool consoleEnabled;
     bool fileEnabled;
     LogLevel minimumLevel;
+    int consoleBufferLines = 20000;
 
     // Stream redirection
     LoggerStreamBuffer* coutBuffer;
@@ -195,6 +205,7 @@ private:
     bool processingPending;
     QMutex processingMutex;
 
-    // Console state tracking
-    bool consoleAllocated;  // Track if console has been allocated
+    // Console panel - lazily created on the main thread; QPointer so it
+    // safely nulls out if ever destroyed some other way
+    QPointer<ConsolePanel> consolePanel;
 };

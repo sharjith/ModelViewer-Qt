@@ -49,6 +49,7 @@
     <addaction name="separator"/>
     <addaction name="actionView_Logs"/>
     <addaction name="actionOpen_Logs_Folder"/>
+    <addaction name="actionShow_Console"/>
     <addaction name="separator"/>
     <addaction name="actionAbout"/>
    </widget>
@@ -413,6 +414,14 @@
    </property>
    <property name="statusTip">
     <string>Open the logs folder in the system explorer</string>
+   </property>
+  </action>
+  <action name="actionShow_Console">
+   <property name="text">
+    <string>Show Console</string>
+   </property>
+   <property name="statusTip">
+    <string>Show the live console log window (also enables it in Settings)</string>
    </property>
   </action>
  </widget>

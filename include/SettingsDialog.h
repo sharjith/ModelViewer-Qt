@@ -112,6 +112,7 @@ public:
     // Debug Tab
     bool debugEnableLogging() const { return debug_enableLogging; }
     int debugLogLevelIndex() const { return debug_logLevelIndex; }
+    int debugConsoleBufferLines() const { return debug_consoleBufferLines; }
     bool debugProfileRendering() const { return debug_profileRendering; }
     bool debugShowTextureDebugPanel() const { return debug_showTextureDebugPanel; }
 
@@ -197,6 +198,7 @@ private slots:
     void on_enableLoggingCheckBox_stateChanged();
 	void on_enableConsoleCheckBox_stateChanged();
     void on_logLevelComboBox_currentIndexChanged();
+    void on_consoleBufferLinesSpinBox_valueChanged();
     void on_profileRenderingCheckBox_stateChanged();
     void on_showTextureDebugPanelCheckBox_stateChanged();
     void on_clearCacheButton_clicked();
@@ -307,6 +309,7 @@ private:
     bool debug_enableLogging = false;
 	bool debug_enableConsoleOutput = false;
     int debug_logLevelIndex = 0;
+    int debug_consoleBufferLines = 20000;
     bool debug_profileRendering = false;
     bool debug_showTextureDebugPanel = false;
 
@@ -317,6 +320,7 @@ private:
     bool _appliedDebugEnableLogging = false;
     bool _appliedDebugEnableConsoleOutput = false;
     int _appliedDebugLogLevelIndex = 0;
+    int _appliedDebugConsoleBufferLines = 20000;
 
     Ui::SettingsDialog *ui;	
 };

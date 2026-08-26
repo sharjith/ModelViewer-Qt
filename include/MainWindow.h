@@ -116,6 +116,7 @@ protected slots:
 	void on_actionTutorial_triggered();
 	void on_actionView_Logs_triggered();
 	void on_actionOpen_Logs_Folder_triggered();
+	void on_actionShow_Console_triggered();
 	void on_actionAbout_triggered(bool checked = false);
 
 private slots:

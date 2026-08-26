@@ -94,6 +94,10 @@ int main(int argc, char** argv)
 	showSplashMessage(QObject::tr("Initializing logging..."));
 	Logger::instance().initialize(15 * 1024 * 1024);  // 15 MB per file
 
+	// Set before setConsoleEnabled() below so the panel is created with the
+	// right buffer size from the start rather than created then resized.
+	int consoleBufferLines = settings.value("consoleBufferLinesSpinBox", 20000).toInt();
+	Logger::instance().setConsoleBufferLines(consoleBufferLines);
 	bool consoleLogging = settings.value("enableConsoleCheckBox", false).toBool();
 	Logger::instance().setConsoleEnabled(consoleLogging);
 	bool fileLogging = settings.value("enableLoggingCheckBox", false).toBool();

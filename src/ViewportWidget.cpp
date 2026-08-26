@@ -13051,6 +13051,39 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 		key == Qt::Key_Alt ||
 		key == Qt::Key_Meta;
 
+	// Ctrl/Alt never mean anything for navigation (performKeyboardNav()'s
+	// allowGameplayModifiers only recognizes NoModifier/ShiftModifier), so
+	// they always block nav-key registration below - harmless for every
+	// nav key, and closes a related latent gotcha where releasing Ctrl/Alt
+	// while STILL holding the letter would retroactively "arm" it for
+	// navigation once the modifier was gone (this also covers Ctrl+A/
+	// Alt+A/Alt+S, which collide with selectAll()/hideAllItems()/
+	// swapVisible() - see below).
+	//
+	// The WASD+QE "movement" group deliberately never gets Shift-sprint,
+	// even though only four of its six keys actually collide with an
+	// unrelated shortcut (audited against every Qt::SHIFT| binding in the
+	// codebase: Shift+A -> showAllItems(), Shift+S -> ViewToolbar _shaded,
+	// Shift+W -> _wireframe, Shift+E -> _shadedWithEdges; D and Q have no
+	// collision). Leaving sprint working on just D and Q would be an
+	// arbitrary asymmetry within one "same" group of keys - dropping it
+	// uniformly across all six is more predictable than "some letters
+	// accelerate, some don't, and it's not obvious which." Shift+M is
+	// excluded too (collides with ViewToolbar _meshEdges) but for its own,
+	// separate reason - it's a rotate key, not part of the movement group.
+	//
+	// Sprint stays fully available on every OTHER nav key - arrows
+	// (identical to WASD but never collide with anything) and the rotate/
+	// zoom keys J/L/I/K/N/X/Z - since Shift is a genuine, intentional
+	// 3x-speed modifier there (see performKeyboardNav()'s `factor *= 3.0f`).
+	const bool isMovementGroupKey =
+		key == Qt::Key_W || key == Qt::Key_A || key == Qt::Key_S || key == Qt::Key_D ||
+		key == Qt::Key_Q || key == Qt::Key_E;
+	const bool shiftBlockedForThisKey = isMovementGroupKey || key == Qt::Key_M;
+	const bool blocksNavKeyRegistration =
+		(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier)) ||
+		(shiftBlockedForThisKey && (event->modifiers() & Qt::ShiftModifier));
+
 	// Must match every key performKeyboardNav() actually reacts to (see that
 	// function's body) - move (W/A/S/D/Q/E/arrows), look/rotate (J/L/I/K/M/N,
 	// both fly and orbit modes), and orbit zoom (X/Z). PageUp/PageDown are
@@ -13068,7 +13101,7 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	// keydown. Broader "any non-modifier key" behavior made unrelated keys
 	// (and shortcut handling around them) wake PT even when the camera never
 	// moved at all.
-	if (!modifierOnlyKey && cameraNavKey)
+	if (!modifierOnlyKey && !blocksNavKeyRegistration && cameraNavKey)
 		_rtInteractionCtrl->notifyCameraInteracting();
 
 	if (key == Qt::Key_Escape)
@@ -13086,8 +13119,12 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 			_selectionManager->syncSelectedIds(QList<int>{});  // Clear viewport selection state immediately
 		_viewer->deselectAllWithUndo();     // Clear viewer selection and push an undo entry
 	}
-	else if (key == Qt::Key_F)
+	else if (key == Qt::Key_F && event->modifiers() == Qt::NoModifier)
 	{
+		// Bare F only - Shift+F (ViewToolbar _flatshaded) and Ctrl+F
+		// (ViewToolbar _frontViewAction, "Front View") are unrelated
+		// shortcuts that happen to share this letter; without this guard
+		// fitAll() fired unconditionally alongside either of them too.
 		fitAll();
 	}
 	// Key_Delete is deliberately not handled here - MainWindow.cpp's global
@@ -13106,7 +13143,7 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	{
 		swapVisible(!_sceneRuntime.visibleSwapped());
 	}
-	else if (!modifierOnlyKey)
+	else if (!modifierOnlyKey && !blocksNavKeyRegistration)
 		_keys.insert(key);
 
 	// Camera mode switching
