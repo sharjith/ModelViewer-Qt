@@ -240,6 +240,9 @@ public:
 	std::vector<float> getNormals() const;
 	std::vector<float> getTexCoords() const;
 	const std::vector<float>& getTrsfPoints() const;
+	const std::vector<float>& getTrsfNormals() const;
+	const std::vector<float>& getTrsfTangents() const;
+	const std::vector<float>& getTrsfBitangents() const;
 
 	void resetTransformations();
 	void resetExplodedViewTransformations();

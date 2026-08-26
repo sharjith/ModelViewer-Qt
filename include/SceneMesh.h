@@ -145,6 +145,41 @@ public:
 	// "v1: static meshes only" scope note elsewhere in this codebase).
 	const std::vector<std::array<int, 3>>& getTriangleAdjacency() const;
 
+	// Groups this mesh's triangles into spatially-connected islands via a
+	// flood fill over getTriangleAdjacency()'s graph - e.g. a single OBJ/glTF
+	// mesh containing several disjoint parts (a set of bolts merged into one
+	// mesh on import) yields one group per part. Returns one entry per
+	// island, each holding that island's triangle indices (into this mesh's
+	// own current indices()/vertices() order); a fully-connected mesh
+	// returns a single group covering every triangle. Used by
+	// ModelViewer::splitSelectedMeshesByConnectivity() to decide whether
+	// there's anything to split and to build each fragment's geometry.
+	std::vector<std::vector<int>> findConnectedTriangleGroups() const;
+
+	// Builds a new SceneMesh containing only the given triangles (deduped/
+	// reindexed into a compact vertex list), with the same material,
+	// textures, import provenance and full world transform as this mesh -
+	// the split counterpart to clone(), used by ModelViewer::
+	// splitSelectedMeshesByConnectivity() to build one fragment per island
+	// from findConnectedTriangleGroups(). Deliberately does NOT copy morph
+	// targets or precomputed OCC edge/face data (see the .cpp doc comment
+	// for why - both are keyed to this mesh's FULL vertex/triangle index
+	// space, which a triangle subset invalidates).
+	SceneMesh* extractFragment(const std::vector<int>& triangleIndices, const QString& fragmentName) const;
+
+	// The merge counterpart to extractFragment(): combines several separate
+	// meshes into one, baking each input's CURRENT world-space position/
+	// normal/tangent/bitangent (getTrsfPoints()/getTrsfNormals()/
+	// getTrsfTangents()/getTrsfBitangents()) into the result, which is then
+	// given an IDENTITY transform - the geometry itself already encodes
+	// where each piece sat, so there's no single shared local frame to
+	// reuse across inputs that may have had different transforms. Material/
+	// textures/primitive mode are taken from meshes.first() - the caller
+	// (ModelViewer::mergeSelectedMeshesByAdjacency()) is responsible for
+	// only calling this on a set that's already been confirmed materially
+	// compatible. Returns nullptr if meshes is empty.
+	static SceneMesh* mergeMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName);
+
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }
 	const MeshImportAdaptor&  importState() const { return _importState; }

@@ -217,7 +217,16 @@ public:
 
     // ---- Transformed geometry access (picking / export) ---------------------
 
-    const std::vector<float>& getTrsfPoints() const { return _trsfPoints; }
+    const std::vector<float>& getTrsfPoints() const     { return _trsfPoints; }
+    // World-space normals/tangents/bitangents, transformed by the
+    // rotation-only (translation-stripped) part of combinedRenderTransform()
+    // - see fullUpdateRuntimeBounds()'s "Transform normals"/"Transform
+    // tangents"/"Transform bitangents" steps. Parallel to getTrsfPoints(),
+    // one vec3 per vertex in the same order; tangents/bitangents are empty
+    // if the source mesh has none.
+    const std::vector<float>& getTrsfNormals() const    { return _trsfNormals; }
+    const std::vector<float>& getTrsfTangents() const   { return _trsfTangents; }
+    const std::vector<float>& getTrsfBitangents() const { return _trsfBitangents; }
 
     // ---- Ray intersection (picking) -----------------------------------------
 

@@ -1871,6 +1871,21 @@ const std::vector<float>& RenderableMesh::getTrsfPoints() const
 	return _instanceState.getTrsfPoints();
 }
 
+const std::vector<float>& RenderableMesh::getTrsfNormals() const
+{
+	return _instanceState.getTrsfNormals();
+}
+
+const std::vector<float>& RenderableMesh::getTrsfTangents() const
+{
+	return _instanceState.getTrsfTangents();
+}
+
+const std::vector<float>& RenderableMesh::getTrsfBitangents() const
+{
+	return _instanceState.getTrsfBitangents();
+}
+
 void RenderableMesh::resetTransformations()
 {
 	_instanceState.resetTransformations(_points, _normals, _tangents, _bitangents, _indices);

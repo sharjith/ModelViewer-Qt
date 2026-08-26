@@ -301,6 +301,27 @@ public slots:
 	void cutSelectedItems();
 	void pasteIntoSelectedNode(const SceneNode* targetNode);
 	void duplicateSelectedItems();
+	// For every selected mesh containing more than one spatially-disconnected
+	// triangle island (see SceneMesh::findConnectedTriangleGroups()), replaces
+	// it with one independently-selectable fragment mesh per island. Meshes
+	// that are already a single connected piece are left untouched and
+	// reported separately. Undoable (SplitByConnectivityCommand), one per
+	// split mesh, grouped into a single undo macro when more than one mesh
+	// is split at once.
+	void splitSelectedMeshesByConnectivity();
+
+	// Inverse of splitSelectedMeshesByConnectivity(): clusters the selected
+	// meshes by shared-vertex (world-space) adjacency, and replaces each
+	// touching cluster of 2+ meshes with one combined mesh (see SceneMesh::
+	// mergeMeshes()). A cluster merges unconditionally if every member
+	// shares the same source file, tracked original material index, and
+	// primitive mode; if any touching cluster has mixed materials, asks
+	// once (covering every mismatched cluster) whether to merge them anyway
+	// by cascading each cluster's first mesh's material onto the rest, or
+	// leave them unmerged - never changes appearance silently. Undoable
+	// (MergeByAdjacencyCommand), one per merged cluster, grouped into a
+	// single undo macro when more than one cluster is merged at once.
+	void mergeSelectedMeshesByAdjacency();
 
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	void clearCutMarks();

@@ -181,6 +181,153 @@ SceneMesh* SceneMesh::clone()
 	return mesh;
 }
 
+SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, const QString& fragmentName) const
+{
+	// Morph targets and precomputed OCC edge/face data are keyed to THIS
+	// mesh's FULL vertex/triangle index space (see setMorphTargets()'s and
+	// setPrecomputedOccEdges()'s/setPrecomputedOccFaceAxes()'s own doc
+	// comments) - a triangle subset invalidates both, so neither is copied
+	// to the fragment. Not a practical loss for the feature this exists for
+	// (splitting an OBJ/glTF mesh whose disjoint parts got merged on
+	// import): those sources don't carry OCC data at all, and a model
+	// needing morph-target/skinned splitting isn't the "several spatially
+	// separate rigid parts" case findConnectedTriangleGroups() targets.
+	std::unordered_map<unsigned int, unsigned int> oldToNew;
+	std::vector<Vertex> fragVertices;
+	std::vector<unsigned int> fragIndices;
+	oldToNew.reserve(triangleIndices.size() * 2);
+	fragVertices.reserve(triangleIndices.size() * 2);
+	fragIndices.reserve(triangleIndices.size() * 3);
+
+	for (int tri : triangleIndices)
+	{
+		const size_t base = static_cast<size_t>(tri) * 3;
+		for (int k = 0; k < 3; ++k)
+		{
+			const unsigned int oldIdx = _indices[base + k];
+			auto it = oldToNew.find(oldIdx);
+			unsigned int newIdx;
+			if (it == oldToNew.end())
+			{
+				newIdx = static_cast<unsigned int>(fragVertices.size());
+				fragVertices.push_back(_baseVertices[oldIdx]);
+				oldToNew.emplace(oldIdx, newIdx);
+			}
+			else
+				newIdx = it->second;
+			fragIndices.push_back(newIdx);
+		}
+	}
+
+	SceneMesh* mesh = new SceneMesh(_prog, fragmentName, fragVertices, fragIndices, _textures, _material,
+	                                 _importState.skipOptimization(), getPrimitiveMode());
+
+	// Import provenance - same set clone() copies, minus morph targets/OCC
+	// data (see this method's doc comment above).
+	mesh->setSceneIndex(getSceneIndex());
+	mesh->setOriginalMaterialIndex(getOriginalMaterialIndex());
+	mesh->setSourceFile(getSourceFile());
+	mesh->setSourceNodeName(getSourceNodeName());
+	mesh->setSkinJoints(skinJoints());
+
+	mesh->setVariantMappings(variantMappings());
+	mesh->setAllVariantMaterials(allVariantMaterials());
+
+	// Full transform so the fragment sits exactly where the original did -
+	// same fast-setter + single fullUpdateRuntimeBounds() pattern clone() uses.
+	mesh->setTranslationFast(getTranslation());
+	mesh->setRotationQuaternionFast(getRotationQuaternion(), getRotation());
+	mesh->setScalingFast(getScaling());
+	mesh->setHasNegativeScale(hasNegativeScale());
+	mesh->setSceneRenderTransformFast(getSceneRenderTransform());
+
+	mesh->fullUpdateRuntimeBounds();
+
+	return mesh;
+}
+
+SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName)
+{
+	if (meshes.isEmpty())
+		return nullptr;
+
+	std::vector<Vertex> mergedVertices;
+	std::vector<unsigned int> mergedIndices;
+
+	for (SceneMesh* mesh : meshes)
+	{
+		if (!mesh)
+			continue;
+
+		// Bake this mesh's CURRENT world-space position/normal/tangent/
+		// bitangent (see MeshInstanceState::fullUpdateRuntimeBounds()'s
+		// "Transform positions/normals/tangents/bitangents" steps) - the
+		// merged result gets an identity transform below, so this is the
+		// only place each input's own placement gets folded in.
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const std::vector<float>& nrm = mesh->getTrsfNormals();
+		const std::vector<float>& tan = mesh->getTrsfTangents();
+		const std::vector<float>& bit = mesh->getTrsfBitangents();
+		const std::vector<Vertex> srcVertices = mesh->vertices();
+		const std::vector<unsigned int> srcIndices = mesh->indices();
+
+		const unsigned int vertexOffset = static_cast<unsigned int>(mergedVertices.size());
+		const size_t nVerts = srcVertices.size();
+		mergedVertices.reserve(mergedVertices.size() + nVerts);
+
+		for (size_t i = 0; i < nVerts; ++i)
+		{
+			// Copies Color/TexCoords/JointIndices/JointWeights as-is; only
+			// the position/normal/tangent/bitangent fields get overwritten
+			// with the baked world-space values below.
+			Vertex v = srcVertices[i];
+			const size_t base = i * 3;
+			if (base + 2 < pts.size())
+				v.Position = glm::vec3(pts[base], pts[base + 1], pts[base + 2]);
+			if (base + 2 < nrm.size())
+				v.Normal = glm::vec3(nrm[base], nrm[base + 1], nrm[base + 2]);
+			if (base + 2 < tan.size())
+				v.Tangent = glm::vec3(tan[base], tan[base + 1], tan[base + 2]);
+			if (base + 2 < bit.size())
+				v.Bitangent = glm::vec3(bit[base], bit[base + 1], bit[base + 2]);
+			mergedVertices.push_back(v);
+		}
+
+		mergedIndices.reserve(mergedIndices.size() + srcIndices.size());
+		for (unsigned int idx : srcIndices)
+			mergedIndices.push_back(idx + vertexOffset);
+	}
+
+	SceneMesh* first = meshes.first();
+	SceneMesh* mesh = new SceneMesh(first->_prog, mergedName, mergedVertices, mergedIndices,
+	                                 first->_textures, first->_material,
+	                                 first->_importState.skipOptimization(), first->getPrimitiveMode());
+
+	// Import provenance from the (already confirmed materially-compatible)
+	// first input - same set extractFragment() copies.
+	mesh->setSceneIndex(first->getSceneIndex());
+	mesh->setOriginalMaterialIndex(first->getOriginalMaterialIndex());
+	mesh->setSourceFile(first->getSourceFile());
+	mesh->setSourceNodeName(first->getSourceNodeName());
+	mesh->setSkinJoints(first->skinJoints());
+
+	mesh->setVariantMappings(first->variantMappings());
+	mesh->setAllVariantMaterials(first->allVariantMaterials());
+
+	// Identity transform - the vertex data above already encodes each
+	// input's world-space placement, so the merged mesh needs none of its
+	// own.
+	mesh->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	mesh->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	mesh->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	mesh->setHasNegativeScale(false);
+	mesh->setSceneRenderTransformFast(QMatrix4x4());
+
+	mesh->fullUpdateRuntimeBounds();
+
+	return mesh;
+}
+
 quint64 SceneMesh::getRenderMaterialSortKey() const
 {
 	return uniformStateSignature();
@@ -1140,6 +1287,45 @@ const std::vector<std::array<int, 3>>& SceneMesh::getTriangleAdjacency() const
 	if (!_triangleAdjacencyCacheBuilt)
 		buildTriangleAdjacency();
 	return _triangleAdjacencyCache;
+}
+
+std::vector<std::vector<int>> SceneMesh::findConnectedTriangleGroups() const
+{
+	const std::vector<std::array<int, 3>>& adjacency = getTriangleAdjacency();
+	const int triangleCount = static_cast<int>(adjacency.size());
+
+	std::vector<std::vector<int>> groups;
+	std::vector<int> groupId(triangleCount, -1);
+	std::vector<int> stack;
+
+	for (int seed = 0; seed < triangleCount; ++seed)
+	{
+		if (groupId[seed] != -1)
+			continue;
+
+		const int id = static_cast<int>(groups.size());
+		groups.emplace_back();
+		groupId[seed] = id;
+		stack.push_back(seed);
+
+		while (!stack.empty())
+		{
+			const int t = stack.back();
+			stack.pop_back();
+			groups[id].push_back(t);
+
+			for (int neighbor : adjacency[t])
+			{
+				if (neighbor >= 0 && groupId[neighbor] == -1)
+				{
+					groupId[neighbor] = id;
+					stack.push_back(neighbor);
+				}
+			}
+		}
+	}
+
+	return groups;
 }
 
 int SceneMesh::getOccTriangleFaceIndex(int triangleIndex) const

@@ -957,7 +957,21 @@ void SceneTreeWidget::wheelEvent(QWheelEvent* event)
 
 void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
 {
-    if (_updatingTree || _inRename || !item) return;
+    // _rebuildInProgress guards against a stale, already-queued
+    // processRebuildBatch()/finalizeRebuild() timer event still landing
+    // after a NEWER rebuild() call has restarted (rebuild() clears/resets
+    // state and calls blockSignals(true) again, but QTimer::stop() cannot
+    // retract a timeout event already sitting in the event queue) - without
+    // this, that stale event's item construction can fire itemChanged with
+    // signals unblocked, and each one cascades into a full scene
+    // recalculateVisibleSceneStats()/updateFloorPlane()/fitAll() via
+    // meshVisibilityChanged() -> ModelViewer::handleTreeWidgetVisibilityChanged().
+    // For a large assembly (1000+ meshes) that turned a single rebuild into
+    // a slow one-item-at-a-time cascade of full-scene refits instead of a
+    // true infinite loop, but the fix is the same either way: nothing
+    // incidental during an in-progress rebuild should react as if the user
+    // actually toggled a checkbox.
+    if (_updatingTree || _rebuildInProgress || _inRename || !item) return;
 
     const bool isLeaf = item->data(0, IsLeafRole).toBool();
 

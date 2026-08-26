@@ -14,6 +14,8 @@
 #include "DeleteMeshCommand.h"
 #include "MetadataDeleteCommand.h"
 #include "DuplicateCommand.h"
+#include "SplitByConnectivityCommand.h"
+#include "MergeByAdjacencyCommand.h"
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
@@ -42,6 +44,9 @@
 #include <assimp/Importer.hpp>
 #include <algorithm>
 #include <functional>
+#include <numeric>
+#include <unordered_map>
+#include <unordered_set>
 #include <QApplication>
 #include <QCheckBox>
 #include <QColorDialog>
@@ -2086,11 +2091,17 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction(tr("Show"),      this, expandThen([this]() { showSelectedItems(); }));
 		myMenu.addAction(tr("Show Only"), this, expandThen([this]() { showOnlySelectedItems(); }));
 		myMenu.addSeparator();
+		// Duplicate is deliberately a leaf-only shortcut (see c5686ad's commit
+		// message): it clones each mesh flatly back into its own existing
+		// parent, with no new mirrored assembly subtree - Copy+Paste is the
+		// hierarchy-preserving path for assembly-level duplication. Split/
+		// Merge have no such concern (neither reproduces assembly structure -
+		// they just insert/combine specific meshes wherever they already
+		// live), so unlike Duplicate they're available for assembly clicks too.
 		if (!clickedAssembly)
-			myMenu.addAction(tr("Duplicate"), this, [this, &actionTaken]() {
-				actionTaken = true;
-				duplicateSelectedItems();
-			});
+			myMenu.addAction(tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
+		myMenu.addAction(tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
+		myMenu.addAction(tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
 		myMenu.addAction(tr("Delete"),    this, expandThen([this]() { deleteSelectedItems(); }));
 		myMenu.addSeparator();
 		myMenu.addAction(tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
@@ -2655,6 +2666,397 @@ void ModelViewer::duplicateSelectedItems()
 	}
 
 	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::splitSelectedMeshesByConnectivity()
+{
+	if (!treeWidgetModel->hasMeshSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
+
+	QVector<SplitByConnectivityCommand*> commands;
+	int fragmentCount = 0;
+	int alreadyConnectedCount = 0;
+
+	_viewportWidget->makeCurrent();
+	for (const QUuid& srcUuid : selectedUuids)
+	{
+		SceneNode* ownerNode = _sceneGraph->findNodeForMesh(srcUuid);
+		if (!ownerNode)
+			continue;
+
+		SceneMesh* original = _viewportWidget->getMeshByUuid(srcUuid);
+		if (!original)
+			continue;
+
+		const std::vector<std::vector<int>> groups = original->findConnectedTriangleGroups();
+		if (groups.size() <= 1)
+		{
+			++alreadyConnectedCount;
+			continue;
+		}
+
+		// Build every fragment before touching the original's tree/store
+		// placement, while its vertex/index data is still trivially readable.
+		QVector<QUuid> fragmentUuids;
+		fragmentUuids.reserve(static_cast<int>(groups.size()));
+		for (size_t i = 0; i < groups.size(); ++i)
+		{
+			const QString fragmentName = _viewportWidget->generateUniqueMeshName(
+				QString("%1_%2").arg(original->getName()).arg(i + 1));
+			SceneMesh* fragment = original->extractFragment(groups[i], fragmentName);
+			_viewportWidget->addToDisplay(fragment);
+			fragmentUuids.append(fragment->uuid());
+		}
+
+		// Remove the original from the tree and recycle-bin it - capture its
+		// tree position first so undo can put it back exactly there.
+		int originalPosition = 0;
+		_sceneGraph->removeMeshUuid(srcUuid, originalPosition);
+		const int originalIndex = _viewportWidget->getIndexByUuid(srcUuid);
+		if (originalIndex >= 0)
+			_viewportWidget->moveToRecycleBin(srcUuid, originalIndex);
+
+		// Insert the fragments into the tree, as new siblings under the same node.
+		QVector<SplitByConnectivityCommand::FragmentEntry> entries;
+		entries.reserve(fragmentUuids.size());
+		for (const QUuid& fragUuid : fragmentUuids)
+		{
+			const int insertPos = ownerNode->meshUuids.size();
+			_sceneGraph->restoreMeshUuid(ownerNode, fragUuid, insertPos);
+
+			SplitByConnectivityCommand::FragmentEntry e;
+			e.uuid     = fragUuid;
+			e.position = insertPos;
+			entries.append(e);
+		}
+
+		commands.append(new SplitByConnectivityCommand(
+			this, _viewportWidget, srcUuid, originalPosition, ownerNode, entries, originalSelection));
+
+		fragmentCount += static_cast<int>(groups.size());
+	}
+	_viewportWidget->doneCurrent();
+
+	if (!commands.isEmpty())
+	{
+		updateDisplayList();
+		if (commands.size() == 1)
+		{
+			_undoStack->push(commands.first());
+		}
+		else
+		{
+			_undoStack->beginMacro(tr("Split by Connectivity"));
+			for (SplitByConnectivityCommand* cmd : commands)
+				_undoStack->push(cmd);
+			_undoStack->endMacro();
+		}
+	}
+
+	QApplication::restoreOverrideCursor();
+
+	if (commands.isEmpty() && alreadyConnectedCount > 0)
+	{
+		QMessageBox::information(this, tr("Split by Connectivity"),
+			alreadyConnectedCount == 1
+				? tr("The selected mesh is already a single connected piece - nothing to split.")
+				: tr("All %1 selected meshes are already single connected pieces - nothing to split.").arg(alreadyConnectedCount));
+	}
+	else if (alreadyConnectedCount > 0)
+	{
+		MainWindow::showStatusMessage(tr("Split %1 mesh(es) into %2 piece(s); %3 mesh(es) were already a single connected piece.")
+			.arg(commands.size()).arg(fragmentCount).arg(alreadyConnectedCount));
+	}
+	else if (!commands.isEmpty())
+	{
+		MainWindow::showStatusMessage(tr("Split %1 mesh(es) into %2 piece(s).").arg(commands.size()).arg(fragmentCount));
+	}
+}
+
+namespace
+{
+	// Union-Find (path-compressed find, union by nothing-fancy) over a small
+	// set of indices - the user's selection, never large enough to need
+	// union-by-rank.
+	int ufFind(std::vector<int>& parent, int x)
+	{
+		while (parent[x] != x)
+		{
+			parent[x] = parent[parent[x]];
+			x = parent[x];
+		}
+		return x;
+	}
+
+	void ufUnite(std::vector<int>& parent, int a, int b)
+	{
+		a = ufFind(parent, a);
+		b = ufFind(parent, b);
+		if (a != b)
+			parent[a] = b;
+	}
+
+	// Quantized world-space vertex-position keys for one mesh, one entry per
+	// vertex - used to detect adjacency ACROSS separate mesh objects (unlike
+	// SceneMesh::buildPositionWeldMap(), which welds vertices WITHIN one
+	// mesh). Same quantize-then-FNV-1a-hash tolerance (eps = 1e-4) that
+	// function uses, applied to getTrsfPoints() (world-space, not local) so
+	// two separately-authored pieces meant to share a boundary vertex are
+	// detected despite living under different transforms.
+	std::unordered_set<int64_t> meshWorldPositionKeys(SceneMesh* mesh)
+	{
+		std::unordered_set<int64_t> keys;
+		if (!mesh)
+			return keys;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const size_t nVerts = pts.size() / 3;
+		keys.reserve(nVerts);
+
+		constexpr float kEps = 1e-4f;
+		auto quantize = [](float v) -> int64_t { return static_cast<int64_t>(std::llround(v / kEps)); };
+
+		for (size_t i = 0; i < nVerts; ++i)
+		{
+			const int64_t qx = quantize(pts[i * 3]);
+			const int64_t qy = quantize(pts[i * 3 + 1]);
+			const int64_t qz = quantize(pts[i * 3 + 2]);
+			uint64_t h = 1469598103934665603ull;  // FNV-1a offset basis
+			for (int64_t v : { qx, qy, qz })
+			{
+				h ^= static_cast<uint64_t>(v);
+				h *= 1099511628211ull;  // FNV-1a prime
+			}
+			keys.insert(static_cast<int64_t>(h));
+		}
+		return keys;
+	}
+
+	bool meshesShareAVertex(const std::unordered_set<int64_t>& a, const std::unordered_set<int64_t>& b)
+	{
+		const std::unordered_set<int64_t>& smaller = a.size() <= b.size() ? a : b;
+		const std::unordered_set<int64_t>& larger  = a.size() <= b.size() ? b : a;
+		for (int64_t key : smaller)
+		{
+			if (larger.count(key))
+				return true;
+		}
+		return false;
+	}
+}
+
+void ModelViewer::mergeSelectedMeshesByAdjacency()
+{
+	if (!treeWidgetModel->hasMeshSelection())
+		return;
+
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.size() < 2)
+		return;
+
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	QVector<SceneMesh*> meshes;
+	QVector<SceneNode*> ownerNodes;
+	QVector<QUuid> uuids;
+	for (const QUuid& u : selectedUuids)
+	{
+		SceneNode* node = _sceneGraph->findNodeForMesh(u);
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(u);
+		if (!node || !mesh)
+			continue;
+		meshes.append(mesh);
+		ownerNodes.append(node);
+		uuids.append(u);
+	}
+
+	const int n = meshes.size();
+	if (n < 2)
+	{
+		QApplication::restoreOverrideCursor();
+		return;
+	}
+
+	QVector<std::unordered_set<int64_t>> keySets(n);
+	for (int i = 0; i < n; ++i)
+		keySets[i] = meshWorldPositionKeys(meshes[i]);
+
+	std::vector<int> parent(n);
+	std::iota(parent.begin(), parent.end(), 0);
+	for (int i = 0; i < n; ++i)
+	{
+		for (int j = i + 1; j < n; ++j)
+		{
+			if (meshesShareAVertex(keySets[i], keySets[j]))
+				ufUnite(parent, i, j);
+		}
+	}
+
+	std::unordered_map<int, std::vector<int>> clusters;
+	for (int i = 0; i < n; ++i)
+		clusters[ufFind(parent, i)].push_back(i);
+
+	// Classify each touching (size > 1) cluster before touching the scene:
+	// compatible clusters (same source file, tracked original material
+	// index, and primitive mode across every member - an untracked/-1 index
+	// never counts as "matching", the safe, conservative default) merge
+	// unconditionally; mismatched ones need the user's say-so below, since
+	// merging them means cascading one mesh's material onto the others.
+	std::vector<std::vector<int>> compatibleGroups;
+	std::vector<std::vector<int>> mismatchedGroups;
+	for (auto& [root, members] : clusters)
+	{
+		if (members.size() <= 1)
+			continue;
+
+		SceneMesh* refMesh = meshes[members[0]];
+		bool compatible = refMesh->getOriginalMaterialIndex() >= 0;
+		for (size_t k = 1; compatible && k < members.size(); ++k)
+		{
+			SceneMesh* m = meshes[members[k]];
+			compatible = (m->getPrimitiveMode() == refMesh->getPrimitiveMode()) &&
+			             (m->getOriginalMaterialIndex() == refMesh->getOriginalMaterialIndex()) &&
+			             (m->getSourceFile() == refMesh->getSourceFile());
+		}
+
+		if (compatible)
+			compatibleGroups.push_back(members);
+		else
+			mismatchedGroups.push_back(members);
+	}
+
+	// Ask once, up front, whether the user wants mismatched groups merged
+	// anyway (cascading each group's first mesh's material onto the rest)
+	// rather than silently skipping them - only bother asking if there's
+	// actually a mismatched group to decide about.
+	bool cascadeMaterialForMismatched = false;
+	if (!mismatchedGroups.empty())
+	{
+		QApplication::restoreOverrideCursor();
+		const QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Merge by Adjacency"),
+			mismatchedGroups.size() == 1
+				? tr("One touching group of selected meshes has different materials.\n\n"
+				     "Merge it anyway, using its first mesh's material for the whole group?")
+				: tr("%1 touching groups of selected meshes have different materials.\n\n"
+				     "Merge them anyway, using each group's first mesh's material for the whole group?")
+				      .arg(mismatchedGroups.size()),
+			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+		cascadeMaterialForMismatched = (reply == QMessageBox::Yes);
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+	}
+
+	std::vector<std::vector<int>> groupsToMerge = compatibleGroups;
+	int cascadedGroupCount = 0;
+	if (cascadeMaterialForMismatched)
+	{
+		for (const std::vector<int>& members : mismatchedGroups)
+			groupsToMerge.push_back(members);
+		cascadedGroupCount = static_cast<int>(mismatchedGroups.size());
+	}
+	const int skippedGroupCount = static_cast<int>(mismatchedGroups.size()) - cascadedGroupCount;
+
+	QVector<MergeByAdjacencyCommand*> commands;
+	int meshesMergedCount = 0;
+
+	_viewportWidget->makeCurrent();
+	for (const std::vector<int>& members : groupsToMerge)
+	{
+		SceneMesh* refMesh = meshes[members[0]];
+		QVector<SceneMesh*> clusterMeshes;
+		clusterMeshes.reserve(static_cast<int>(members.size()));
+		for (int idx : members)
+			clusterMeshes.append(meshes[idx]);
+
+		const QString mergedName = _viewportWidget->generateUniqueMeshName(refMesh->getName() + "_Merged");
+		SceneMesh* merged = SceneMesh::mergeMeshes(clusterMeshes, mergedName);
+		_viewportWidget->addToDisplay(merged);
+		const QUuid mergedUuid = merged->uuid();
+
+		// Remove each source from its own tree position and recycle-bin it,
+		// capturing its (node, position) for undo.
+		QVector<MergeByAdjacencyCommand::SourceEntry> sourceEntries;
+		sourceEntries.reserve(static_cast<int>(members.size()));
+		for (int idx : members)
+		{
+			const QUuid& u = uuids[idx];
+			int pos = 0;
+			_sceneGraph->removeMeshUuid(u, pos);
+			const int meshIndex = _viewportWidget->getIndexByUuid(u);
+			if (meshIndex >= 0)
+				_viewportWidget->moveToRecycleBin(u, meshIndex);
+
+			MergeByAdjacencyCommand::SourceEntry e;
+			e.uuid      = u;
+			e.ownerNode = ownerNodes[idx];
+			e.position  = pos;
+			sourceEntries.append(e);
+		}
+
+		// Insert the merged mesh under the first source's own node.
+		SceneNode* targetNode = ownerNodes[members[0]];
+		const int mergedPosition = targetNode->meshUuids.size();
+		_sceneGraph->restoreMeshUuid(targetNode, mergedUuid, mergedPosition);
+
+		commands.append(new MergeByAdjacencyCommand(
+			this, _viewportWidget, sourceEntries, mergedUuid, targetNode, mergedPosition, originalSelection));
+
+		meshesMergedCount += static_cast<int>(members.size());
+	}
+	_viewportWidget->doneCurrent();
+
+	if (!commands.isEmpty())
+	{
+		updateDisplayList();
+		if (commands.size() == 1)
+		{
+			_undoStack->push(commands.first());
+		}
+		else
+		{
+			_undoStack->beginMacro(tr("Merge by Adjacency"));
+			for (MergeByAdjacencyCommand* cmd : commands)
+				_undoStack->push(cmd);
+			_undoStack->endMacro();
+		}
+	}
+
+	QApplication::restoreOverrideCursor();
+
+	if (commands.isEmpty() && skippedGroupCount > 0)
+	{
+		QMessageBox::information(this, tr("Merge by Adjacency"),
+			tr("Found %1 touching group(s) of selected meshes with different materials, left unmerged.")
+				.arg(skippedGroupCount));
+	}
+	else if (commands.isEmpty())
+	{
+		QMessageBox::information(this, tr("Merge by Adjacency"),
+			tr("None of the selected meshes are touching - nothing to merge."));
+	}
+	else if (skippedGroupCount > 0)
+	{
+		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total)%3; %4 more touching group(s) had mixed materials and were left unmerged.")
+			.arg(commands.size()).arg(meshesMergedCount)
+			.arg(cascadedGroupCount > 0 ? tr(", %1 with a cascaded material").arg(cascadedGroupCount) : QString())
+			.arg(skippedGroupCount));
+	}
+	else if (cascadedGroupCount > 0)
+	{
+		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total); %3 used a cascaded material.")
+			.arg(commands.size()).arg(meshesMergedCount).arg(cascadedGroupCount));
+	}
+	else
+	{
+		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total) into %1 mesh(es).")
+			.arg(commands.size()).arg(meshesMergedCount));
+	}
 }
 
 void ModelViewer::deleteSelectedItems()
