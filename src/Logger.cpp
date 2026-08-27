@@ -543,6 +543,13 @@ void Logger::spawnConsole()
     }
     consolePanel->show();
     consolePanel->raise();
+    // raise() alone only reorders Z-order - it doesn't transfer window
+    // activation. Without an explicit activate, Windows can leave
+    // MainWindow (the previously-active window) stuck showing as
+    // deactivated and not receiving input, without the console cleanly
+    // taking activation either - neither window responds until something
+    // else forces a real activation change (e.g. clicking the console).
+    consolePanel->activateWindow();
 }
 
 void Logger::setFileEnabled(bool enabled)
