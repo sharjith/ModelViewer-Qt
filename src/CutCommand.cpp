@@ -12,18 +12,19 @@ CutCommand::CutCommand(ModelViewer*                 viewer,
     , _cutMeshUuids(cutMeshUuids)
     , _cutNodeUuids(cutNodeUuids)
     , _firstRedo(true)
+    , _generation(ModelViewer::currentClipboardGeneration())
 {
 }
 
 void CutCommand::undo()
 {
     if (!_viewer) return;
-    _viewer->clearCutMarks();
+    _viewer->clearCutMarks(_generation);
 }
 
 void CutCommand::redo()
 {
     if (!_viewer) return;
     if (_firstRedo) { _firstRedo = false; return; }
-    _viewer->reapplyCutMarks(_entries, _cutMeshUuids, _cutNodeUuids);
+    _viewer->reapplyCutMarks(_generation, _entries, _cutMeshUuids, _cutNodeUuids);
 }

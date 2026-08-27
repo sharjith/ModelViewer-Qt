@@ -15,6 +15,7 @@ PasteCommand::PasteCommand(ModelViewer*                 viewer,
     , _cutEntries(cutEntries)
     , _firstRedo(true)
     , _inserted(true)
+    , _generation(ModelViewer::currentClipboardGeneration())
 {
     // Derive cut-mark sets from cut items so undo can re-apply them.
     for (const PastedItem& item : _items)
@@ -126,7 +127,7 @@ void PasteCommand::undo()
     // Re-apply cut marks so items appear grayed while CutCommand is still
     // on the undo stack above this command.
     if (!_cutEntries.isEmpty())
-        _viewer->reapplyCutMarks(_cutEntries, _cutMeshUuids, _cutNodeUuids);
+        _viewer->reapplyCutMarks(_generation, _cutEntries, _cutMeshUuids, _cutNodeUuids);
 
     _viewportWidget->updateView();
     _viewer->updateDisplayList();
@@ -201,7 +202,7 @@ void PasteCommand::redo()
 
     // Clear cut marks — items are now at their destination.
     if (!_cutEntries.isEmpty())
-        _viewer->clearCutMarks();
+        _viewer->clearCutMarks(_generation);
 
     _viewportWidget->updateView();
     _viewer->updateDisplayList();

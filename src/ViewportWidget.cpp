@@ -16156,6 +16156,21 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 					swapVisible(enabled);
 					});
 			}
+			// This background/nothing-selected branch is the only context
+			// menu reachable at all in a genuinely empty document (no file
+			// loaded, nothing to right-click in the scene tree either), so
+			// it's the required place to offer Paste for that case - not
+			// just a convenience. Also covers pasting at the top level of
+			// any document via a background right-click.
+			if (ModelViewer::hasClipboardContent())
+			{
+				contextMenu.addSeparator();
+				action = contextMenu.addAction(tr("Paste"));
+				connect(action, &QAction::triggered, this, [this]() {
+					_viewer->pasteIntoSelectedNode(_viewer->sceneGraph()->root());
+					});
+			}
+
 			contextMenu.addSeparator();
 			contextMenu.addAction(QIcon(":/icons/res/environment.png"), tr("Environment Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
 			contextMenu.addAction(QIcon(":/icons/res/bg_color.png"), tr("Background Color"), this, &ViewportWidget::setBackgroundColor);

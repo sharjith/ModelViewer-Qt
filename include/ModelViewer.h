@@ -300,6 +300,13 @@ public slots:
 	void copySelectedItems();
 	void cutSelectedItems();
 	void pasteIntoSelectedNode(const SceneNode* targetNode);
+
+	// The clipboard is shared across every open document (static) so a
+	// Copy/Cut in one document's window can be pasted into another's - see
+	// s_clipboardSourceViewer's doc comment for why this needs a source-
+	// document guard rather than being a bare shared list.
+	static bool hasClipboardContent() { return !s_clipboard.isEmpty(); }
+	static quint64 currentClipboardGeneration() { return s_clipboardGeneration; }
 	void duplicateSelectedItems();
 	// For every selected mesh containing more than one spatially-disconnected
 	// triangle island (see SceneMesh::findConnectedTriangleGroups()), replaces
@@ -345,8 +352,13 @@ public slots:
 	void groupSelectedMeshes();
 
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
-	void clearCutMarks();
-	void reapplyCutMarks(const QList<ClipboardEntry>& entries,
+	// generation must match s_clipboardGeneration at the time of the call or
+	// the call is a no-op - guards against a stale command (from a document
+	// whose cut has since been superseded by a different document's Copy/Cut)
+	// clobbering whichever document's clipboard/marks are current now.
+	void clearCutMarks(quint64 generation);
+	void reapplyCutMarks(quint64 generation,
+	                     const QList<ClipboardEntry>& entries,
 	                     const QSet<QUuid>& meshUuids,
 	                     const QSet<QUuid>& nodeUuids);
 	void deleteSelectedItems();
@@ -419,6 +431,37 @@ private:
 	std::vector<int> visibleIndicesFromState() const;
 	void updateVisibilityUiFromState();
 	void invalidateCutClipboard();  // clears cut clipboard + tree marks
+	// Cross-document cut+paste: s_clipboardSourceViewer != this. Leaf mesh
+	// entries are actually moved (cloned into target, deleted from source).
+	// Assembly entries can't be cleanly removed from the source yet (no
+	// mechanism to detach/clean up an emptied-out assembly node the way
+	// detachEmptyFileNode() does for file nodes) - those fall back to
+	// copy semantics instead of being rejected outright: cloned into
+	// target, original left untouched in source, with a message explaining
+	// why. Pushes up to two independent undo commands - one on each
+	// document's own QUndoStack, since there is no cross-stack undo
+	// mechanism in this codebase.
+	void performCrossDocumentCutPaste(SceneNode* target);
+
+	// Shared by the ordinary copy-paste path and performCrossDocumentCutPaste:
+	// recursively clones a ClipboardNode subtree, resolving each mesh from
+	// srcVp (the document being cloned FROM) and inserting into `parent`
+	// (in THIS document). resolveTextures re-resolves material textures
+	// through this document's own cache after cloning - needed whenever
+	// srcVp belongs to a different document, a no-op cost otherwise.
+	SceneNode* cloneClipboardSubtree(const ClipboardNode& cn, SceneNode* parent,
+	                                 ViewportWidget* srcVp, bool resolveTextures,
+	                                 QList<QUuid>& allUuids);
+
+	// Recursively captures a live SceneNode's name/transform/mesh-UUID
+	// structure into a pointer-free ClipboardNode snapshot. Shared by
+	// copySelectedItems() (populates entry.assemblyRoot directly) and
+	// performCrossDocumentCutPaste() (a CUT entry's assemblyRoot is left
+	// default-constructed/empty at cut time - only cutNodeUuid is needed
+	// for the same-document move-by-pointer path - so the cross-document
+	// fallback has to build this snapshot lazily, at paste time, from the
+	// still-live source node).
+	static ClipboardNode snapshotSceneNode(const SceneNode* n);
 	void scheduleTreeRebuild(int delayMs = 1200);
 	void rebuildTreeFromCurrentState();
 	void applyVisibleMeshState(bool syncTree,
@@ -511,5 +554,25 @@ private:
 
 	QUuid _currentEditingMeshUuid;  // UUID of mesh being edited (null if not editing)
 
-	QList<ClipboardEntry> _clipboard;  // copy-paste clipboard (non-undoable)
+	// Shared across every open document (static) so Paste can target a
+	// different document than the one Copy/Cut ran in - non-undoable, same
+	// as the old per-instance clipboard was.
+	//
+	// s_clipboardSourceViewer tracks which document's SceneGraph the
+	// clipboard's UUIDs actually resolve against (needed because Copy/Cut
+	// still only stores UUIDs, resolved lazily at paste time - see
+	// SceneClipboard.h). QPointer auto-nulls if that document is closed
+	// with a cut still pending, which is exactly the safety check needed
+	// before touching it from elsewhere.
+	//
+	// s_clipboardGeneration guards CutCommand/PasteCommand's cut-mark calls
+	// (clearCutMarks/reapplyCutMarks): each command captures the generation
+	// current when it was built, and the guarded calls no-op if some other
+	// document has since taken over the clipboard (bumped a new
+	// generation) - without this, an Undo/Redo far up one document's stack
+	// could clobber a completely different document's current clipboard
+	// state.
+	static QList<ClipboardEntry> s_clipboard;
+	static QPointer<ModelViewer> s_clipboardSourceViewer;
+	static quint64                s_clipboardGeneration;
 };

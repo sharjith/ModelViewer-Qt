@@ -78,6 +78,9 @@
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
+QList<ClipboardEntry> ModelViewer::s_clipboard;
+QPointer<ModelViewer> ModelViewer::s_clipboardSourceViewer;
+quint64                ModelViewer::s_clipboardGeneration = 0;
 
 namespace
 {
@@ -2071,7 +2074,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	});
 
 	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
-	if (clickedAssembly && assemblyNode && !_clipboard.isEmpty())
+	if (clickedAssembly && assemblyNode && !s_clipboard.isEmpty())
 	{
 		myMenu.addAction(tr("Paste"), this,
 		    [this, assemblyNode, &actionTaken]() {
@@ -2125,7 +2128,12 @@ void ModelViewer::centerScreen()
 
 void ModelViewer::copySelectedItems()
 {
-	_clipboard.clear();
+	// Starting a new Copy always resets the clipboard outright (same as any
+	// OS clipboard - a new Copy replaces whatever was there before,
+	// regardless of which document it came from).
+	s_clipboard.clear();
+	s_clipboardSourceViewer = this;
+	++s_clipboardGeneration;
 
 	// Collect selected assemblies (deduplicated against each other below)
 	QList<const SceneNode*> assemblies = treeWidgetModel->selectedAssemblyNodes();
@@ -2153,19 +2161,6 @@ void ModelViewer::copySelectedItems()
 		return false;
 	};
 
-	// Helper to recursively snapshot a SceneNode into a ClipboardNode
-	std::function<ClipboardNode(const SceneNode*)> snapshotNode =
-	    [&](const SceneNode* n) -> ClipboardNode
-	{
-		ClipboardNode cn;
-		cn.name           = n->name;
-		cn.localTransform = n->localTransform;
-		cn.meshUuids      = n->meshUuids;
-		for (const SceneNode* child : n->children)
-			cn.children.append(snapshotNode(child));
-		return cn;
-	};
-
 	// Add top-level assembly entries
 	for (const SceneNode* node : assemblies)
 	{
@@ -2174,8 +2169,8 @@ void ModelViewer::copySelectedItems()
 
 		ClipboardEntry entry;
 		entry.isLeaf       = false;
-		entry.assemblyRoot = snapshotNode(node);
-		_clipboard.append(entry);
+		entry.assemblyRoot = snapshotSceneNode(node);
+		s_clipboard.append(entry);
 	}
 
 	// Add standalone leaf entries (not covered by any selected assembly)
@@ -2187,7 +2182,7 @@ void ModelViewer::copySelectedItems()
 		ClipboardEntry entry;
 		entry.isLeaf   = true;
 		entry.leafUuid = uuid;
-		_clipboard.append(entry);
+		s_clipboard.append(entry);
 	}
 }
 
@@ -2195,7 +2190,9 @@ void ModelViewer::cutSelectedItems()
 {
 	// Same deduplication logic as copySelectedItems, but entries are
 	// tagged isCut=true and carry source location UUIDs.
-	_clipboard.clear();
+	s_clipboard.clear();
+	s_clipboardSourceViewer = this;
+	++s_clipboardGeneration;
 
 	QList<const SceneNode*> assemblies = treeWidgetModel->selectedAssemblyNodes();
 	QList<QUuid>            leafUuids  = treeWidgetModel->selectedMeshUuids();
@@ -2232,7 +2229,7 @@ void ModelViewer::cutSelectedItems()
 		entry.cutSourcePosition  = node->parent
 		    ? node->parent->children.indexOf(const_cast<SceneNode*>(node))
 		    : 0;
-		_clipboard.append(entry);
+		s_clipboard.append(entry);
 
 		cutNodeUuids.insert(node->nodeUuid);
 		for (const QUuid& uuid : _sceneGraph->collectMeshUuids(node))
@@ -2252,47 +2249,65 @@ void ModelViewer::cutSelectedItems()
 		entry.leafUuid          = uuid;
 		entry.cutSourceNodeUuid = owner ? owner->nodeUuid : QUuid();
 		entry.cutSourcePosition = owner ? owner->meshUuids.indexOf(uuid) : 0;
-		_clipboard.append(entry);
+		s_clipboard.append(entry);
 
 		cutMeshUuids.insert(uuid);
 	}
 
-	if (_clipboard.isEmpty())
+	if (s_clipboard.isEmpty())
 		return;
 
 	treeWidgetModel->markAsCut(cutMeshUuids, cutNodeUuids);
-	_undoStack->push(new CutCommand(this, _viewportWidget, _clipboard,
+	_undoStack->push(new CutCommand(this, _viewportWidget, s_clipboard,
 	                                cutMeshUuids, cutNodeUuids));
 }
 
-void ModelViewer::clearCutMarks()
+void ModelViewer::clearCutMarks(quint64 generation)
 {
-	_clipboard.clear();
+	// No-op if some other document has since taken over the clipboard
+	// (Copy/Cut bumps s_clipboardGeneration) - an Undo/Redo reaching this
+	// call from deep in a stale command must not clobber whichever
+	// document's clipboard is actually current now.
+	if (generation != s_clipboardGeneration)
+		return;
+
+	s_clipboard.clear();
 	treeWidgetModel->clearCutMarks();
 }
 
-void ModelViewer::reapplyCutMarks(const QList<ClipboardEntry>& entries,
+void ModelViewer::reapplyCutMarks(quint64 generation,
+                                  const QList<ClipboardEntry>& entries,
                                   const QSet<QUuid>&           meshUuids,
                                   const QSet<QUuid>&           nodeUuids)
 {
-	_clipboard = entries;
+	if (generation != s_clipboardGeneration)
+		return;
+
+	s_clipboard = entries;
 	treeWidgetModel->markAsCut(meshUuids, nodeUuids);
 }
 
 void ModelViewer::validateCutClipboard()
 {
-	if (_clipboard.isEmpty())
+	// The clipboard may currently belong to a different document (Copy/Cut
+	// ran there, not here) - only that document's own structural changes
+	// are allowed to invalidate it. Without this, editing ANY document
+	// would wipe out a cut pending in some other, unrelated document.
+	if (s_clipboardSourceViewer.data() != this)
+		return;
+
+	if (s_clipboard.isEmpty())
 		return;
 
 	// Only validate cut-mode clipboard entries.
 	bool anyCut = false;
-	for (const ClipboardEntry& e : _clipboard)
+	for (const ClipboardEntry& e : s_clipboard)
 		if (e.isCut) { anyCut = true; break; }
 
 	if (!anyCut)
 		return;
 
-	for (const ClipboardEntry& entry : _clipboard)
+	for (const ClipboardEntry& entry : s_clipboard)
 	{
 		if (!entry.isCut)
 			continue;
@@ -2430,18 +2445,67 @@ void ModelViewer::validateLightData()
 
 void ModelViewer::invalidateCutClipboard()
 {
-	_clipboard.clear();
+	s_clipboard.clear();
 	treeWidgetModel->clearCutMarks();
+}
+
+ClipboardNode ModelViewer::snapshotSceneNode(const SceneNode* n)
+{
+	ClipboardNode cn;
+	cn.name           = n->name;
+	cn.localTransform = n->localTransform;
+	cn.meshUuids      = n->meshUuids;
+	for (const SceneNode* child : n->children)
+		cn.children.append(snapshotSceneNode(child));
+	return cn;
+}
+
+SceneNode* ModelViewer::cloneClipboardSubtree(const ClipboardNode& cn, SceneNode* parent,
+                                              ViewportWidget* srcVp, bool resolveTextures,
+                                              QList<QUuid>& allUuids)
+{
+	SceneNode* node      = new SceneNode();
+	node->nodeUuid       = QUuid::createUuid();
+	node->name           = cn.name;
+	node->localTransform = cn.localTransform;
+	node->parent         = parent;
+
+	for (const QUuid& srcUuid : cn.meshUuids)
+	{
+		SceneMesh* original = srcVp->getMeshByUuid(srcUuid);
+		if (!original) continue;
+
+		SceneMesh* clone = original->clone();
+		clone->setName(_viewportWidget->generateUniqueMeshName(original->getName()));
+		_viewportWidget->addToDisplay(clone);
+		if (resolveTextures)
+		{
+			const Material resolved = ViewportWidget::resolveMaterialTextures(_viewportWidget, clone->getMaterial());
+			clone->setTextureMaps(resolved);
+		}
+
+		node->meshUuids.append(clone->uuid());
+		allUuids.append(clone->uuid());
+	}
+
+	for (const ClipboardNode& childCn : cn.children)
+		node->children.append(cloneClipboardSubtree(childCn, node, srcVp, resolveTextures, allUuids));
+
+	return node;
 }
 
 void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 {
-	if (_clipboard.isEmpty() || !targetNode)
+	if (s_clipboard.isEmpty() || !targetNode)
 		return;
+
+	// true when the clipboard's UUIDs resolve against a DIFFERENT document
+	// than this one (Copy/Cut ran there, Paste is running here).
+	const bool crossDoc = s_clipboardSourceViewer && s_clipboardSourceViewer.data() != this;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	const bool isCutPaste = _clipboard.first().isCut;
+	const bool isCutPaste = s_clipboard.first().isCut;
 	const QSet<QUuid> originalSelection = getSelectedUuids();
 	QList<PasteCommand::PastedItem> items;
 
@@ -2449,12 +2513,23 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 	// valid for the lifetime of this command.
 	SceneNode* target = const_cast<SceneNode*>(targetNode);
 
+	if (isCutPaste && crossDoc)
+	{
+		// Cross-document cut+paste is structurally different enough (source
+		// and destination are two different SceneGraphs/undo stacks) that it
+		// doesn't fit this function's same-document move logic below - see
+		// performCrossDocumentCutPaste()'s own doc comment.
+		performCrossDocumentCutPaste(target);
+		QApplication::restoreOverrideCursor();
+		return;
+	}
+
 	if (isCutPaste)
 	{
 		// ---- Cut-paste: move items within the scene (no cloning) -----------
 
 		// Validate all sources before touching anything.
-		for (const ClipboardEntry& entry : _clipboard)
+		for (const ClipboardEntry& entry : s_clipboard)
 		{
 			if (entry.isLeaf)
 			{
@@ -2479,8 +2554,8 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 		// Snapshot and clear clipboard before executing moves so that
 		// structureChanged signals fired mid-move don't trigger validateCutClipboard
 		// with a stale clipboard while items are temporarily un-registered.
-		const QList<ClipboardEntry> cutEntries = _clipboard;
-		_clipboard.clear();
+		const QList<ClipboardEntry> cutEntries = s_clipboard;
+		s_clipboard.clear();
 
 		for (const ClipboardEntry& entry : cutEntries)
 		{
@@ -2530,56 +2605,41 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 			_undoStack->push(new PasteCommand(this, _viewportWidget, items,
 			                                  originalSelection, cutEntries));
 			// Clear marks AFTER the command is pushed (command holds its own copy).
-			clearCutMarks();
+			clearCutMarks(s_clipboardGeneration);
 		}
 	}
 	else
 	{
 		// ---- Copy-paste: clone meshes and insert as new items --------------
-
-		std::function<SceneNode*(const ClipboardNode&, SceneNode*, QList<QUuid>&)>
-		cloneSubtree = [&](const ClipboardNode& cn,
-		                   SceneNode*           parent,
-		                   QList<QUuid>&        allUuids) -> SceneNode*
-		{
-			SceneNode* node      = new SceneNode();
-			node->nodeUuid       = QUuid::createUuid();
-			node->name           = cn.name;
-			node->localTransform = cn.localTransform;
-			node->parent         = parent;
-
-			for (const QUuid& srcUuid : cn.meshUuids)
-			{
-				SceneMesh* original = _viewportWidget->getMeshByUuid(srcUuid);
-				if (!original) continue;
-
-				SceneMesh* clone = original->clone();
-				clone->setName(_viewportWidget->generateUniqueMeshName(original->getName()));
-				_viewportWidget->addToDisplay(clone);
-
-				node->meshUuids.append(clone->uuid());
-				allUuids.append(clone->uuid());
-			}
-
-			for (const ClipboardNode& childCn : cn.children)
-				node->children.append(cloneSubtree(childCn, node, allUuids));
-
-			return node;
-		};
+		// srcVp resolves the ORIGINAL mesh being cloned FROM - the source
+		// document's viewport for a cross-document paste, otherwise just
+		// this document's own (same as before this existed). Everything
+		// else (clone(), addToDisplay(), _sceneGraph inserts, the
+		// PasteCommand push) stays targeted at THIS document/target
+		// unchanged - GL contexts are shared app-wide (Qt::AA_ShareOpenGLContexts),
+		// so a mesh cloned from another document's context is already usable
+		// here with no extra work beyond the texture re-resolve below.
+		ViewportWidget* srcVp = crossDoc ? s_clipboardSourceViewer->getViewportWidget()
+		                                 : _viewportWidget;
 
 		// clone() and addToDisplay() both require a current GL context.
 		_viewportWidget->makeCurrent();
 
-		for (const ClipboardEntry& entry : _clipboard)
+		for (const ClipboardEntry& entry : s_clipboard)
 		{
 			if (entry.isLeaf)
 			{
-				SceneMesh* original = _viewportWidget->getMeshByUuid(entry.leafUuid);
+				SceneMesh* original = srcVp->getMeshByUuid(entry.leafUuid);
 				if (!original) continue;
 
 				SceneMesh* clone = original->clone();
 				clone->setName(_viewportWidget->generateUniqueMeshName(original->getName()));
 				_viewportWidget->addToDisplay(clone);
+				if (crossDoc)
+				{
+					const Material resolved = ViewportWidget::resolveMaterialTextures(_viewportWidget, clone->getMaterial());
+					clone->setTextureMaps(resolved);
+				}
 
 				const QUuid newUuid  = clone->uuid();
 				const int insertPos  = target->meshUuids.size();
@@ -2595,7 +2655,7 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 			else
 			{
 				QList<QUuid> allUuids;
-				SceneNode* clonedRoot = cloneSubtree(entry.assemblyRoot, target, allUuids);
+				SceneNode* clonedRoot = cloneClipboardSubtree(entry.assemblyRoot, target, srcVp, crossDoc, allUuids);
 				const int childPos    = target->children.size();
 				_sceneGraph->insertChildNode(target, clonedRoot, childPos);
 
@@ -2620,6 +2680,135 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 	}
 
 	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::performCrossDocumentCutPaste(SceneNode* target)
+{
+	// Snapshot before any early return clears it - s_clipboard/
+	// s_clipboardSourceViewer are cleared unconditionally before we return,
+	// same as invalidateCutClipboard() does for the same-document case.
+	ModelViewer* src = s_clipboardSourceViewer.data();
+	if (!src)
+	{
+		s_clipboard.clear();
+		MainWindow::showStatusMessage(tr("Paste failed: the document this was cut from has since been closed."), 4000);
+		return;
+	}
+
+	ViewportWidget* srcVp = src->getViewportWidget();
+	const QSet<QUuid> originalSelection = getSelectedUuids();
+	QList<PasteCommand::PastedItem> items;
+	QVector<QUuid> srcUuids;   // leaf UUIDs actually removed from the source
+	bool anyAssemblyFellBackToCopy = false;
+
+	_viewportWidget->makeCurrent();
+
+	for (const ClipboardEntry& entry : s_clipboard)
+	{
+		if (entry.isLeaf)
+		{
+			SceneMesh* original = srcVp->getMeshByUuid(entry.leafUuid);
+			if (!original)
+				continue;
+
+			SceneMesh* clone = original->clone();
+			clone->setName(_viewportWidget->generateUniqueMeshName(original->getName()));
+			_viewportWidget->addToDisplay(clone);
+
+			const Material resolved = ViewportWidget::resolveMaterialTextures(_viewportWidget, clone->getMaterial());
+			clone->setTextureMaps(resolved);
+
+			const QUuid newUuid = clone->uuid();
+			const int insertPos = target->meshUuids.size();
+			_sceneGraph->restoreMeshUuid(target, newUuid, insertPos);
+
+			PasteCommand::PastedItem item;
+			item.type         = PasteCommand::PastedItem::Mesh;
+			item.meshUuid     = newUuid;
+			item.ownerNode    = target;
+			item.meshPosition = insertPos;
+			items.append(item);
+
+			srcUuids.append(entry.leafUuid);
+		}
+		else
+		{
+			// Nothing in SceneGraph can detach/clean up an emptied-out
+			// ASSEMBLY node's wrapper the way detachEmptyFileNode() does
+			// for synthetic file nodes, so this can't be genuinely MOVED
+			// yet - fall back to copy semantics instead of rejecting the
+			// whole paste: clone it into the target and leave the source
+			// assembly exactly as it was (not cut, still fully intact).
+			//
+			// entry.assemblyRoot is NOT usable here - cutSelectedItems()
+			// only ever populates cutNodeUuid/cutSourceNodeUuid/
+			// cutSourcePosition for an assembly entry (everything the
+			// same-document move-by-pointer path needs), never
+			// assemblyRoot (only copySelectedItems() populates that).
+			// Using it directly clones an empty, default-constructed
+			// ClipboardNode - an empty node with nothing in it silently
+			// gets inserted, which looks exactly like "paste did nothing".
+			// Build the snapshot on demand instead, from the still-live
+			// source node (cut items stay in the scene, just grayed out,
+			// until paste actually completes).
+			SceneNode* liveSourceNode = src->sceneGraph()->findNodeByUuid(entry.cutNodeUuid);
+			if (!liveSourceNode)
+				continue;
+
+			anyAssemblyFellBackToCopy = true;
+
+			QList<QUuid> allUuids;
+			SceneNode* clonedRoot = cloneClipboardSubtree(snapshotSceneNode(liveSourceNode), target, srcVp, true, allUuids);
+			const int childPos    = target->children.size();
+			_sceneGraph->insertChildNode(target, clonedRoot, childPos);
+
+			PasteCommand::PastedItem item;
+			item.type             = PasteCommand::PastedItem::Subtree;
+			item.subtreeRoot      = clonedRoot;
+			item.subtreeParent    = target;
+			item.childPosition    = childPos;
+			item.subtreeMeshUuids = allUuids;
+			items.append(item);
+		}
+	}
+
+	_viewportWidget->doneCurrent();
+
+	if (!items.isEmpty())
+	{
+		updateDisplayList();
+		// Two independent commands, one per document's own QUndoStack -
+		// there is no cross-stack undo mechanism in this codebase, so a
+		// cross-document move can only ever be two separately-undoable
+		// halves. Text on both makes that explicit to the user. If nothing
+		// leaf-level was actually cut (assembly-only selection), skip the
+		// source-side delete entirely - there's nothing to remove there.
+		_undoStack->push(new PasteCommand(this, _viewportWidget, items,
+		                                  originalSelection, {},
+		                                  tr("Paste (moved from another document)")));
+		if (!srcUuids.isEmpty())
+		{
+			src->getUndoStack()->push(new DeleteMeshCommand(src, srcVp, srcUuids,
+			                                  tr("Cut (moved to another document)")));
+		}
+	}
+
+	// clearCutMarks() clears s_clipboard itself (guarded by generation match,
+	// which still holds - nothing else has touched the clipboard since).
+	src->clearCutMarks(s_clipboardGeneration);
+	s_clipboardSourceViewer = nullptr;
+
+	if (anyAssemblyFellBackToCopy)
+	{
+		// A status message rather than a modal QMessageBox - this function
+		// runs from inside a context menu action's triggered handler (that
+		// QMenu's own exec() is still unwinding), and popping a modal
+		// dialog there - even deferred via QTimer::singleShot(0) - was
+		// observed to interfere with the paste that had just completed.
+		MainWindow::showStatusMessage(
+			tr("Pasted group as a copy - moving a whole group into a different document isn't supported yet, so the original was left in place."),
+			5000);
+	}
 }
 
 void ModelViewer::duplicateSelectedItems()

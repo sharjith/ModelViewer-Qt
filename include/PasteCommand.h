@@ -80,6 +80,11 @@ private:
     QSet<QUuid>           _cutNodeUuids;
     bool                  _firstRedo;
     bool                  _inserted;     // true when copy-paste items are in the scene
+    // Captured at construction (ModelViewer::currentClipboardGeneration()).
+    // Threaded through to clearCutMarks()/reapplyCutMarks() (only relevant
+    // when _cutEntries is non-empty) so undo/redo is a no-op on the
+    // clipboard if a different document has since taken it over.
+    quint64               _generation;
 
     static void freeSubtree(SceneNode* root);
 };

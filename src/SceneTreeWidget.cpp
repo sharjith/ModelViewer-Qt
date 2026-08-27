@@ -849,6 +849,14 @@ void SceneTreeWidget::rebuild()
         enqueueRebuildTasks(nullptr, fileNode, true);
     }
 
+    // Meshes pasted directly onto the invisible root (no owning file/
+    // assembly node - e.g. Paste into an empty document) have no parent
+    // task to attach to in the batched loop below, so add them as bare
+    // top-level leaves directly here. Rare enough (not a bulk-import path)
+    // that doing this synchronously, outside the batch budget, is fine.
+    for (const QUuid& uuid : root->meshUuids)
+        addTopLevelItem(makeMeshLeaf(uuid));
+
     // Delay the first batch slightly so the fit animation (5 ms timer) can
     // fire a few times before tree population starts competing on the UI thread.
     // Subsequent batches continue at 0 ms in processRebuildBatch().

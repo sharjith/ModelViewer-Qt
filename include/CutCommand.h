@@ -43,4 +43,9 @@ private:
     QSet<QUuid>           _cutMeshUuids;
     QSet<QUuid>           _cutNodeUuids;
     bool                  _firstRedo;
+    // Captured at construction (ModelViewer::currentClipboardGeneration()).
+    // Threaded through to clearCutMarks()/reapplyCutMarks() so this command
+    // is a no-op if a different document has since taken over the shared
+    // clipboard - see ModelViewer::s_clipboardGeneration's doc comment.
+    quint64               _generation;
 };
