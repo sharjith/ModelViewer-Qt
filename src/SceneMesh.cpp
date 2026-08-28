@@ -12,10 +12,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
 #include <unordered_map>
 #include <meshoptimizer.h>
 #include <utility>
+
+// See shrinkWrapMeshes()'s doc comment (SceneMesh.h) for why alpha_wrap_3.
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Surface_mesh.h>
+#include <CGAL/alpha_wrap_3.h>
+#include <CGAL/Polygon_mesh_processing/compute_normal.h>
 
 using namespace std;
 
@@ -1261,7 +1268,8 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		}
 	}
 
-	_featureEdgeIndices = featureEdges;
+	_featureEdgeIndices = std::move(featureEdges);
+
 	_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
 	if (_featureEdgeCount == 0)
 		return;
@@ -1280,6 +1288,155 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
 	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
 	bindFeatureEdgeVertexState();
+}
+
+void SceneMesh::suggestShrinkWrapTolerance(const QVector<SceneMesh*>& meshes, double& outAlpha, double& outOffset)
+{
+	outAlpha = 0.0;
+	outOffset = 0.0;
+
+	glm::vec3 bboxMin, bboxMax;
+	bool haveBounds = false;
+
+	for (SceneMesh* mesh : meshes)
+	{
+		if (!mesh)
+			continue;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		for (std::size_t i = 0; i + 2 < pts.size(); i += 3)
+		{
+			const glm::vec3 p(pts[i], pts[i + 1], pts[i + 2]);
+			if (!haveBounds)
+			{
+				bboxMin = bboxMax = p;
+				haveBounds = true;
+			}
+			else
+			{
+				bboxMin = glm::min(bboxMin, p);
+				bboxMax = glm::max(bboxMax, p);
+			}
+		}
+	}
+
+	if (!haveBounds)
+		return;
+
+	// alpha/offset per CGAL's own documented guidance (alpha as 1/50 to
+	// 1/300 of the bbox diagonal, offset a small fraction of alpha) -
+	// middle of that range as a starting point; callers (the Shrink Wrap
+	// dialog) let the user override either value from here.
+	const double diagonal = glm::length(glm::dvec3(bboxMax) - glm::dvec3(bboxMin));
+	outAlpha = diagonal / 100.0;
+	outOffset = outAlpha / 30.0;
+}
+
+SceneMesh* SceneMesh::shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const QString& newName,
+                                        double alpha, double offset)
+{
+	if (meshes.isEmpty())
+		return nullptr;
+
+	using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+	using Point_3 = Kernel::Point_3;
+	using Mesh    = CGAL::Surface_mesh<Point_3>;
+
+	// Build the combined world-space input soup - same baked-geometry
+	// accessors and vertexOffset-concatenation pattern as mergeMeshes(),
+	// but only positions/connectivity are needed (alpha_wrap_3 only cares
+	// about the shape, not colors/UVs/skinning).
+	std::vector<Point_3> points;
+	std::vector<std::array<std::size_t, 3>> faces;
+
+	for (SceneMesh* mesh : meshes)
+	{
+		if (!mesh)
+			continue;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const std::vector<unsigned int> srcIndices = mesh->indices();
+
+		const std::size_t vertexOffset = points.size();
+		const std::size_t nVerts = pts.size() / 3;
+		points.reserve(points.size() + nVerts);
+		for (std::size_t i = 0; i < nVerts; ++i)
+			points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
+
+		faces.reserve(faces.size() + srcIndices.size() / 3);
+		for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
+		{
+			faces.push_back({ vertexOffset + srcIndices[i],
+			                   vertexOffset + srcIndices[i + 1],
+			                   vertexOffset + srcIndices[i + 2] });
+		}
+	}
+
+	if (points.empty() || faces.empty())
+		return nullptr;
+
+	Mesh wrapMesh;
+	CGAL::alpha_wrap_3(points, faces, alpha, offset, wrapMesh);
+
+	if (wrapMesh.number_of_vertices() == 0 || wrapMesh.number_of_faces() == 0)
+		return nullptr;
+
+	// Wrapped output is brand-new geometry with no source UVs/skinning to
+	// carry over - only positions and computed normals populate the new
+	// Vertex list, everything else stays default-constructed.
+	auto vnormals = wrapMesh.add_property_map<Mesh::Vertex_index, Kernel::Vector_3>(
+		"v:normal", CGAL::NULL_VECTOR).first;
+	CGAL::Polygon_mesh_processing::compute_vertex_normals(wrapMesh, vnormals);
+
+	std::vector<Vertex> wrappedVertices;
+	wrappedVertices.reserve(wrapMesh.number_of_vertices());
+	std::unordered_map<Mesh::Vertex_index, unsigned int> vertexIndex;
+	vertexIndex.reserve(wrapMesh.number_of_vertices());
+	for (Mesh::Vertex_index v : wrapMesh.vertices())
+	{
+		const Point_3& p = wrapMesh.point(v);
+		const Kernel::Vector_3& n = vnormals[v];
+
+		Vertex vert{};
+		vert.Color = glm::vec4(1.0f);
+		vert.Tangent = glm::vec3(0.0f);
+		vert.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vert.TexCoords)
+			uv = glm::vec2(0.0f);
+		vert.Position = glm::vec3(static_cast<float>(CGAL::to_double(p.x())),
+		                           static_cast<float>(CGAL::to_double(p.y())),
+		                           static_cast<float>(CGAL::to_double(p.z())));
+		vert.Normal = glm::vec3(static_cast<float>(CGAL::to_double(n.x())),
+		                         static_cast<float>(CGAL::to_double(n.y())),
+		                         static_cast<float>(CGAL::to_double(n.z())));
+
+		vertexIndex.emplace(v, static_cast<unsigned int>(wrappedVertices.size()));
+		wrappedVertices.push_back(vert);
+	}
+
+	std::vector<unsigned int> wrappedIndices;
+	wrappedIndices.reserve(wrapMesh.number_of_faces() * 3);
+	for (Mesh::Face_index f : wrapMesh.faces())
+	{
+		for (Mesh::Vertex_index v : CGAL::vertices_around_face(wrapMesh.halfedge(f), wrapMesh))
+			wrappedIndices.push_back(vertexIndex[v]);
+	}
+
+	SceneMesh* first = meshes.first();
+	SceneMesh* result = new SceneMesh(first->_prog, newName, wrappedVertices, wrappedIndices,
+	                                   first->_textures, first->_material,
+	                                   first->_importState.skipOptimization(), first->getPrimitiveMode());
+
+	// Identity transform - the vertex data above is already world-space.
+	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	result->setHasNegativeScale(false);
+	result->setSceneRenderTransformFast(QMatrix4x4());
+
+	result->fullUpdateRuntimeBounds();
+
+	return result;
 }
 
 const std::vector<std::array<int, 3>>& SceneMesh::getTriangleAdjacency() const

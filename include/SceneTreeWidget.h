@@ -181,6 +181,18 @@ public:
     // Used by the context menu to give single-item visual feedback.
     void highlightSingleItemAt(const QPoint& localPos);
 
+    // Clears the current selection and selects the assembly/file item whose
+    // NodeUuidRole matches nodeUuid, cascading the selection down to every
+    // descendant mesh leaf exactly as if the user had clicked the item
+    // directly (same selectSearchMatch()/refreshSelectionClosureBottomUp()
+    // convention filterItems() uses, not a raw setSelected() + native-signal
+    // approach - the latter's outcome depends on whatever state
+    // _prevSelection happens to already be in). Used by
+    // ModelViewer::showContextMenu()'s "Select Parent" action. Returns false
+    // without changing anything if nodeUuid has no corresponding item in the
+    // tree (e.g. it's the invisible SceneGraph root, or a stale uuid).
+    bool selectNodeByUuid(const QUuid& nodeUuid);
+
     void expandOneLevelAt(const QPoint& localPos);
     void expandSubtreeAt(const QPoint& localPos);
     void collapseAllBelowAt(const QPoint& localPos);

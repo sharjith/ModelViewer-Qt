@@ -85,6 +85,8 @@
     <addaction name="actionMeasure"/>
     <addaction name="actionAnnotate"/>
     <addaction name="actionExportReport"/>
+    <addaction name="separator"/>
+    <addaction name="actionShrinkWrap"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -371,6 +373,14 @@
    </property>
    <property name="statusTip">
     <string>Export captured views and the measurement/annotation list as a PDF report</string>
+   </property>
+  </action>
+  <action name="actionShrinkWrap">
+   <property name="text">
+    <string>Shrink Wrap...</string>
+   </property>
+   <property name="statusTip">
+    <string>Combine the selected meshes into one new watertight approximating shell (CGAL alpha wrapping), added as a new node</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">

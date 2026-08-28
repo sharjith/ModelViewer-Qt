@@ -351,6 +351,28 @@ public slots:
 	// (GroupMeshesCommand).
 	void groupSelectedMeshes();
 
+	// Shrink Wrap: opens the non-modal ShrinkWrapDialog (Tools -> Shrink
+	// Wrap...), findChild-reuse-or-create/show/raise, same pattern as
+	// openMeasurementDialog()/openAnnotationDialog() below. Whatever's
+	// currently tree-selected is seeded into the dialog's working list
+	// immediately (dialog->addCurrentTreeSelection()) - opening with a
+	// selection already made shouldn't require re-picking it inside the
+	// dialog.
+	void openShrinkWrapDialog();
+
+	// The Shrink Wrap dialog's one-line bridge into the undo stack (same
+	// "dialog never touches _undoStack directly" convention as
+	// addMeasurement()/addAnnotation() below) - called once, from
+	// ShrinkWrapDialog::closeEvent(), for whatever the dialog's live
+	// (not-yet-undo-tracked) preview node/mesh happens to be at close time.
+	// wrapNode/wrapParent/wrapPosition/wrappedMeshUuid must already be live
+	// in the scene (attached/inserted) - this only pushes the command that
+	// remembers how to undo/redo that already-done attachment, same
+	// "already happened, command just replays it" convention as
+	// GroupMeshesCommand/MergeByAdjacencyCommand.
+	void commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
+	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection);
+
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
 	// the call is a no-op - guards against a stale command (from a document

@@ -35,6 +35,13 @@ find_package(basisu CONFIG REQUIRED)
 find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
+# Experimental (experimental/cgal-edge-detection branch): evaluating CGAL's
+# Polygon_mesh_processing package as a replacement for the hand-rolled
+# feature-edge heuristic in SceneMesh::buildAndUploadFeatureEdges(). Pulls
+# in Boost + GMP + MPFR via vcpkg - a genuinely new, heavy dependency chain
+# not present anywhere else in this project; not intended to survive if
+# this experiment doesn't pan out.
+find_package(CGAL CONFIG REQUIRED)
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -477,6 +484,7 @@ target_link_libraries(ModelViewer
         embree
         OpenImageDenoise
         OpenEXR::OpenEXR
+        CGAL::CGAL
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}

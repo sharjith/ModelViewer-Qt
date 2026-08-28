@@ -643,6 +643,13 @@ MainWindow::MainWindow(QWidget* parent)
 		dialog.exec();
 		});
 
+	// Tools → Shrink Wrap... - opens the non-modal ShrinkWrapDialog, same
+	// wiring shape as actionMeasure/actionAnnotate above.
+	connect(ui->actionShrinkWrap, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->openShrinkWrapDialog();
+		});
+
 	updateMenus();
 
 	readSettings();
@@ -2013,6 +2020,7 @@ void MainWindow::updateMenus()
 	ui->actionMeasure->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
+	ui->actionShrinkWrap->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

@@ -17,12 +17,14 @@
 #include "SplitByConnectivityCommand.h"
 #include "MergeByAdjacencyCommand.h"
 #include "GroupMeshesCommand.h"
+#include "ShrinkWrapCommand.h"
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
 #include "ViewportWidget.h"
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
+#include "ShrinkWrapDialog.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialPreviewWidget.h"
@@ -2062,6 +2064,40 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addSeparator();
 	}
 
+	// ---- Select Parent -------------------------------------------------------
+	// Grouped with Expand/Collapse above as one contiguous "navigate the
+	// hierarchy" cluster (look downward into the subtree, then upward to the
+	// container) rather than leading the whole menu - it's reached for less
+	// often than Expand/Collapse on a freshly right-clicked item, so it
+	// doesn't need top billing, just a stable home next to the other
+	// no-side-effect navigation actions.
+	//
+	// Uses the clicked tree item's own QTreeWidgetItem::parent(), NOT the
+	// SceneGraph's structural SceneNode::parent - a childless "pure mesh
+	// holder" SceneNode has its meshes flattened directly into its
+	// grandparent's tree item (see buildSubtree()'s leaf-optimization,
+	// SceneTreeWidget.cpp), so a mesh's true SceneNode owner frequently has
+	// no tree item of its own at all (findNodeForMesh()'s uuid then matches
+	// nothing in the tree - confirmed dead end). Asking the tree for its own
+	// parent item instead always matches what's actually displayed, for
+	// both a clicked mesh leaf and a clicked assembly alike.
+	{
+		QTreeWidgetItem* clickedItem = treeWidgetModel->itemAt(pos);
+		QTreeWidgetItem* parentItem = clickedItem ? clickedItem->parent() : nullptr;
+		const QUuid parentUuid = parentItem
+			? parentItem->data(0, SceneTreeWidget::NodeUuidRole).value<QUuid>()
+			: QUuid();
+
+		if (!parentUuid.isNull())
+		{
+			myMenu.addAction(tr("Select Parent"), this, [this, parentUuid, &actionTaken]() {
+				actionTaken = true;
+				treeWidgetModel->selectNodeByUuid(parentUuid);
+			});
+			myMenu.addSeparator();
+		}
+	}
+
 	// ---- Copy / Cut --------------------------------------------------------
 	myMenu.addAction(tr("Copy"), this, [this, &actionTaken]() {
 		actionTaken = true;
@@ -3419,6 +3455,33 @@ void ModelViewer::groupSelectedMeshes()
 	QApplication::restoreOverrideCursor();
 
 	MainWindow::showStatusMessage(tr("Grouped %1 mesh(es).").arg(meshEntries.size()));
+}
+
+void ModelViewer::openShrinkWrapDialog()
+{
+	ShrinkWrapDialog* dialog = findChild<ShrinkWrapDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new ShrinkWrapDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	// Whatever's already tree-selected when the menu is clicked goes
+	// straight into the working list - same effect whether this is a fresh
+	// dialog or the menu was clicked again while it was already open with a
+	// new tree selection made since.
+	dialog->addCurrentTreeSelection();
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
+                                    const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || !wrapNode || !wrapParent)
+		return;
+	_undoStack->push(new ShrinkWrapCommand(
+		this, _viewportWidget, wrapNode, wrapParent, wrapPosition, wrappedMeshUuid, originalSelection));
 }
 
 void ModelViewer::deleteSelectedItems()

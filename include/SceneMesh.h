@@ -180,6 +180,29 @@ public:
 	// compatible. Returns nullptr if meshes is empty.
 	static SceneMesh* mergeMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName);
 
+	// Computes a suggested alpha/offset pair for shrinkWrapMeshes() below,
+	// from the combined world-space bounding-box diagonal of meshes (alpha
+	// as 1/100 of the diagonal, offset as alpha/30 - middle of CGAL's own
+	// documented 1/50-1/300 guidance for alpha). Callers (e.g. a dialog's
+	// tolerance fields) can use this as a starting point and then let the
+	// user override either value. Leaves outAlpha/outOffset at 0.0 if
+	// meshes is empty or carries no geometry.
+	static void suggestShrinkWrapTolerance(const QVector<SceneMesh*>& meshes, double& outAlpha, double& outOffset);
+
+	// Combines the world-space geometry of one or more meshes into a single
+	// new watertight, 2-manifold, intersection-free approximating shell via
+	// CGAL's alpha_wrap_3, using the caller-supplied alpha/offset (see
+	// suggestShrinkWrapTolerance() above for a reasonable starting point).
+	// Unlike mergeMeshes(), the inputs need not share a material or even be
+	// manifold/non-self-intersecting - alpha_wrap_3 tolerates arbitrary
+	// input. The result carries no meaningful UVs or skinning (brand-new
+	// geometry), so those Vertex fields are left at their defaults; only
+	// material/texture/primitive-mode provenance is copied from
+	// meshes.first(), same convention as mergeMeshes().
+	// Returns nullptr if meshes is empty or the wrap produced no geometry.
+	static SceneMesh* shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const QString& newName,
+	                                    double alpha, double offset);
+
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }
 	const MeshImportAdaptor&  importState() const { return _importState; }

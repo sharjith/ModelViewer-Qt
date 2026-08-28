@@ -688,6 +688,67 @@ void SceneTreeWidget::ensureAssemblySelectionAt(const QPoint& localPos)
     }
 }
 
+bool SceneTreeWidget::selectNodeByUuid(const QUuid& nodeUuid)
+{
+    if (nodeUuid.isNull())
+        return false;
+
+    QTreeWidgetItem* target = nullptr;
+    std::function<void(QTreeWidgetItem*)> find = [&](QTreeWidgetItem* item)
+    {
+        if (target)
+            return;
+        if (!item->data(0, IsLeafRole).toBool() && item->data(0, NodeUuidRole).value<QUuid>() == nodeUuid)
+        {
+            target = item;
+            return;
+        }
+        for (int i = 0; i < item->childCount(); ++i)
+            find(item->child(i));
+    };
+    for (int i = 0; i < topLevelItemCount() && !target; ++i)
+        find(topLevelItem(i));
+
+    if (!target)
+        return false;
+
+    // Same convention filterItems() uses to land on a fully-consistent
+    // selection state deterministically, rather than relying on however
+    // many times raw setSelected() calls happen to fire the native
+    // itemSelectionChanged signal (that approach regressed in practice -
+    // onItemSelectionChanged()'s delta computation against _prevSelection
+    // depends on exactly what state _prevSelection was left in by whatever
+    // ran just before this, e.g. showContextMenu()'s own signal-blocked
+    // highlightSingleItemAt() narrowing - not reliable to build on here).
+    // selectSearchMatch() selects target's descendant leaves (and target
+    // itself if target IS a leaf); refreshSelectionClosureBottomUp() then
+    // marks target (and any of its own ancestors) selected too, since an
+    // assembly counts as selected once all its direct children are.
+    _updatingTree = true;
+    {
+        const QSignalBlocker blocker(this);
+        clearSelection();
+        selectSearchMatch(target);
+    }
+
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        refreshSelectionClosureBottomUp(topLevelItem(i));
+
+    // NOT setCurrentItem() here - depending on selection mode/behavior that
+    // can itself re-narrow the selection down to just target, silently
+    // wiping out the cascade the two calls above just established (this bit
+    // exactly once). scrollToItem() alone has no selection side effects.
+    scrollToItem(target);
+
+    _prevSelection.clear();
+    for (QTreeWidgetItem* it : selectedItems())
+        _prevSelection.insert(it);
+
+    _updatingTree = false;
+    emit selectionUpdated();
+    return true;
+}
+
 void SceneTreeWidget::expandOneLevelAt(const QPoint& localPos)
 {
     expandOneLevel(itemAt(localPos));
