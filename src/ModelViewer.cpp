@@ -1089,6 +1089,15 @@ void ModelViewer::setAnnotationText(const QUuid& annotationId, const QString& te
 
 void ModelViewer::openMeasurementDialog(const QUuid& selectId)
 {
+	// Measure and Annotate arm mutually exclusive viewport tools (see
+	// ViewportWidget::setMeasurementTool()/setAnnotationToolArmed()) - close
+	// Annotate's dialog outright rather than leaving it open showing a tool
+	// that's no longer actually armed underneath it. close() runs its own
+	// closeEvent() (disarms, saves geometry) and WA_DeleteOnClose then frees
+	// it, same as the user closing it themselves.
+	if (AnnotationDialog* other = findChild<AnnotationDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
 	MeasurementDialog* dialog = findChild<MeasurementDialog*>(QString(), Qt::FindDirectChildrenOnly);
 	if (!dialog)
 	{
@@ -1105,6 +1114,11 @@ void ModelViewer::openMeasurementDialog(const QUuid& selectId)
 
 void ModelViewer::openAnnotationDialog(const QUuid& selectId)
 {
+	// See openMeasurementDialog()'s matching comment - same mutual
+	// exclusivity, other direction.
+	if (MeasurementDialog* other = findChild<MeasurementDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
 	AnnotationDialog* dialog = findChild<AnnotationDialog*>(QString(), Qt::FindDirectChildrenOnly);
 	if (!dialog)
 	{

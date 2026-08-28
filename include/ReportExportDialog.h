@@ -5,13 +5,15 @@
 #include <QSet>
 #include <QUuid>
 
+#include <memory>
+
+namespace Ui
+{
+    class ReportExportDialog;
+}
+
 class ModelViewer;
-class QCheckBox;
-class QLabel;
-class QLineEdit;
-class QListWidget;
 class QListWidgetItem;
-class QPushButton;
 
 // ---------------------------------------------------------------------------
 // ReportExportDialog
@@ -46,6 +48,15 @@ class ReportExportDialog : public QDialog
 
 public:
     explicit ReportExportDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+    // Declared (not defaulted here) and defined out-of-line in the .cpp,
+    // where ui_ReportExportDialog.h is visible - std::unique_ptr<Ui::
+    // ReportExportDialog>'s destructor needs the complete type, and callers
+    // of this dialog (e.g. MainWindow.cpp, which only sees this header)
+    // would otherwise try to generate ~ReportExportDialog() themselves
+    // against an incomplete Ui:: type. Same reason MeasurementDialog/
+    // AnnotationDialog both declare (and trivially define) their own
+    // destructors instead of leaving them implicit.
+    ~ReportExportDialog();
 
 private slots:
     void onExportClicked();
@@ -80,15 +91,9 @@ private:
     };
 
     ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
-
-    QListWidget* _viewsList;
-    QLabel*      _noViewsLabel;
-    QCheckBox*   _includeTableCheck;
-    QLineEdit*   _titleEdit;
-    QPushButton* _exportButton;
-    QPushButton* _cancelButton;
+    std::unique_ptr<Ui::ReportExportDialog> ui;
 
     // Keyed by the view's row/camera index (same index generateReport()
-    // already uses to pair _viewsList rows with the captured-views vector).
+    // already uses to pair ui->viewsList rows with the captured-views vector).
     QHash<int, ViewVisibilityOverride> _perViewOverrides;
 };

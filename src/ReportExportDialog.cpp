@@ -1,4 +1,5 @@
 #include "ReportExportDialog.h"
+#include "ui_ReportExportDialog.h"
 
 #include "ModelViewer.h"
 #include "SceneGraph.h"
@@ -43,78 +44,50 @@ namespace
 ReportExportDialog::ReportExportDialog(ModelViewer* modelViewer, QWidget* parent)
     : QDialog(parent)
     , _modelViewer(modelViewer)
+    , ui(std::make_unique<Ui::ReportExportDialog>())
 {
-    setWindowTitle(tr("Export Report"));
+    ui->setupUi(this);
 
-    _viewsList = new QListWidget(this);
     SceneGraph* sceneGraph = _modelViewer ? _modelViewer->sceneGraph() : nullptr;
     const QVector<GltfCameraEntry> capturedViews = sceneGraph
         ? sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras
         : QVector<GltfCameraEntry>();
     for (const GltfCameraEntry& entry : capturedViews)
     {
-        QListWidgetItem* item = new QListWidgetItem(entry.name, _viewsList);
+        QListWidgetItem* item = new QListWidgetItem(entry.name, ui->viewsList);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(Qt::Checked);
         item->setToolTip(tr("Double-click to customize which measurements/annotations this view shows"));
     }
 
-    _noViewsLabel = new QLabel(tr("No captured views yet - use the Cameras tab's \"Capture View\" first."), this);
-    _noViewsLabel->setWordWrap(true);
-    _noViewsLabel->setVisible(capturedViews.isEmpty());
-    _viewsList->setVisible(!capturedViews.isEmpty());
-
-    // Persistent hint, not just a per-row tooltip - the tooltip alone
-    // requires already knowing to hover, which defeats the point of a
-    // discoverability hint.
-    QLabel* viewsHintLabel = new QLabel(
-        tr("Double-click a view to customize which measurements/annotations it shows"), this);
-    viewsHintLabel->setWordWrap(true);
-    viewsHintLabel->setStyleSheet(QStringLiteral("color: gray; font-style: italic;"));
-    viewsHintLabel->setVisible(!capturedViews.isEmpty());
-
-    _includeTableCheck = new QCheckBox(tr("Include measurement/annotation table"), this);
-    _includeTableCheck->setChecked(true);
+    ui->noViewsLabel->setVisible(capturedViews.isEmpty());
+    ui->viewsList->setVisible(!capturedViews.isEmpty());
+    ui->viewsHintLabel->setVisible(!capturedViews.isEmpty());
 
     const QString defaultTitle = sceneGraph && _modelViewer
         ? QFileInfo(_modelViewer->currentFile()).completeBaseName()
         : QString();
-    _titleEdit = new QLineEdit(defaultTitle.isEmpty() ? tr("Report") : defaultTitle, this);
+    ui->titleEdit->setText(defaultTitle.isEmpty() ? tr("Report") : defaultTitle);
 
-    _exportButton = new QPushButton(tr("Export..."), this);
-    _cancelButton = new QPushButton(tr("Cancel"), this);
-
-    QHBoxLayout* buttonRow = new QHBoxLayout();
-    buttonRow->addStretch();
-    buttonRow->addWidget(_cancelButton);
-    buttonRow->addWidget(_exportButton);
-
-    QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->addWidget(new QLabel(tr("Title:"), this));
-    layout->addWidget(_titleEdit);
-    layout->addWidget(new QLabel(tr("Captured views to include:"), this));
-    layout->addWidget(viewsHintLabel);
-    layout->addWidget(_noViewsLabel);
-    layout->addWidget(_viewsList, 1);
-    layout->addWidget(_includeTableCheck);
-    layout->addLayout(buttonRow);
-    resize(320, 400);
-
-    connect(_viewsList, &QListWidget::itemChanged, this, &ReportExportDialog::updateExportEnabled);
-    connect(_viewsList, &QListWidget::itemDoubleClicked, this, &ReportExportDialog::editViewVisibility);
-    connect(_includeTableCheck, &QCheckBox::toggled, this, &ReportExportDialog::updateExportEnabled);
-    connect(_exportButton, &QPushButton::clicked, this, &ReportExportDialog::onExportClicked);
-    connect(_cancelButton, &QPushButton::clicked, this, &QDialog::reject);
+    connect(ui->viewsList, &QListWidget::itemChanged, this, &ReportExportDialog::updateExportEnabled);
+    connect(ui->viewsList, &QListWidget::itemDoubleClicked, this, &ReportExportDialog::editViewVisibility);
+    connect(ui->includeTableCheck, &QCheckBox::toggled, this, &ReportExportDialog::updateExportEnabled);
+    connect(ui->exportButton, &QPushButton::clicked, this, &ReportExportDialog::onExportClicked);
+    connect(ui->cancelButton, &QPushButton::clicked, this, &QDialog::reject);
 
     updateExportEnabled();
+}
+
+ReportExportDialog::~ReportExportDialog()
+{
 }
 
 void ReportExportDialog::updateExportEnabled()
 {
     bool anyViewChecked = false;
-    for (int i = 0; i < _viewsList->count(); ++i)
+    for (int i = 0; i < ui->viewsList->count(); ++i)
     {
-        if (_viewsList->item(i)->checkState() == Qt::Checked)
+        if (ui->viewsList->item(i)->checkState() == Qt::Checked)
         {
             anyViewChecked = true;
             break;
@@ -127,7 +100,7 @@ void ReportExportDialog::updateExportEnabled()
 
     // Nothing silently produces an empty PDF - either at least one view is
     // going in, or the table is on AND has something in it.
-    _exportButton->setEnabled(anyViewChecked || (_includeTableCheck->isChecked() && hasTableContent));
+    ui->exportButton->setEnabled(anyViewChecked || (ui->includeTableCheck->isChecked() && hasTableContent));
 }
 
 void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
@@ -140,13 +113,17 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     if (!sceneGraph || !viewport)
         return;
 
-    const int index = _viewsList->row(item);
+    const int index = ui->viewsList->row(item);
     if (index < 0)
         return;
 
     const bool hadOverride = _perViewOverrides.contains(index);
     const ViewVisibilityOverride existing = _perViewOverrides.value(index);
 
+    // Anonymous, throwaway dialog built fresh from live measurement/
+    // annotation data every time it's opened - not a persistent named
+    // class, so it stays hand-built rather than getting its own .ui file
+    // (see the plan behind this conversion for the reasoning).
     QDialog dialog(this);
     dialog.setWindowTitle(tr("View Visibility"));
 
@@ -239,7 +216,7 @@ void ReportExportDialog::onExportClicked()
     if (!_modelViewer)
         return;
 
-    const QString defaultName = _titleEdit->text().isEmpty() ? tr("Report") : _titleEdit->text();
+    const QString defaultName = ui->titleEdit->text().isEmpty() ? tr("Report") : ui->titleEdit->text();
     const QString path = QFileDialog::getSaveFileName(this, tr("Export Report"),
         defaultName + QStringLiteral(".pdf"), tr("PDF Files (*.pdf)"));
     if (path.isEmpty())
@@ -284,9 +261,9 @@ bool ReportExportDialog::generateReport(const QString& path)
 
     const QVector<GltfCameraEntry> capturedViews =
         sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras;
-    for (int i = 0; i < _viewsList->count() && i < capturedViews.size(); ++i)
+    for (int i = 0; i < ui->viewsList->count() && i < capturedViews.size(); ++i)
     {
-        if (_viewsList->item(i)->checkState() != Qt::Checked)
+        if (ui->viewsList->item(i)->checkState() != Qt::Checked)
             continue;
 
         // A view with a custom override shows exactly its chosen subset for
@@ -326,7 +303,7 @@ bool ReportExportDialog::generateReport(const QString& path)
 
     // ---- Assemble the flowing HTML document --------------------------------
     QTextDocument doc;
-    QString html = QStringLiteral("<h1>%1</h1>").arg(_titleEdit->text().toHtmlEscaped());
+    QString html = QStringLiteral("<h1>%1</h1>").arg(ui->titleEdit->text().toHtmlEscaped());
 
     for (int i = 0; i < capturedImages.size(); ++i)
     {
@@ -347,7 +324,7 @@ bool ReportExportDialog::generateReport(const QString& path)
             .arg(imageUrl.toString(), cv.name.toHtmlEscaped());
     }
 
-    if (_includeTableCheck->isChecked())
+    if (ui->includeTableCheck->isChecked())
     {
         const QVector<Measurement>& measurements = sceneGraph->measurements();
         if (!measurements.isEmpty())

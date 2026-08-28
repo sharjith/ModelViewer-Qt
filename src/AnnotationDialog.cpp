@@ -1,4 +1,5 @@
 #include "AnnotationDialog.h"
+#include "ui_AnnotationDialog.h"
 
 #include "ModelViewer.h"
 #include "SceneGraph.h"
@@ -6,7 +7,6 @@
 
 #include <QCloseEvent>
 #include <QFocusEvent>
-#include <QHBoxLayout>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
@@ -19,7 +19,6 @@
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSplitter>
-#include <QVBoxLayout>
 
 namespace
 {
@@ -107,66 +106,38 @@ namespace
 AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     : QDialog(parent)
     , _modelViewer(modelViewer)
+    , ui(std::make_unique<Ui::AnnotationDialog>())
 {
-    setWindowTitle(tr("Annotate"));
+    ui->setupUi(this);
     setAttribute(Qt::WA_DeleteOnClose);
 
-    _placeButton = new QPushButton(tr("Place Note"), this);
-    _placeButton->setCheckable(true);
+    // resultsList/textEdit are plain placeholders in the .ui (Designer
+    // controls their position/size there) - swapped here for the real
+    // subclasses, which Designer can't construct directly since they're
+    // private, header-less classes local to this file. See
+    // MeasurementDialog's identical swap for the same reasoning.
+    AnnotationResultsList* resultsList = new AnnotationResultsList(this);
+    resultsList->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    ui->notesLayout->replaceWidget(ui->resultsList, resultsList);
+    delete ui->resultsList;
+    ui->resultsList = resultsList;
 
-    _statusLabel = new QLabel(tr("Click \"Place Note\", then click a point on the model"), this);
-    _statusLabel->setWordWrap(true);
+    AnnotationTextEdit* textEdit = new AnnotationTextEdit(this);
+    textEdit->setEnabled(ui->textEdit->isEnabled());
+    textEdit->setPlaceholderText(ui->textEdit->placeholderText());
+    ui->textPaneLayout->replaceWidget(ui->textEdit, textEdit);
+    delete ui->textEdit;
+    ui->textEdit = textEdit;
 
-    _resultsList = new AnnotationResultsList(this);
-    // Ctrl/Shift multi-select, so several notes can be reviewed or deleted
-    // together (see ModelViewer::deleteSelectedAnnotations()'s undo-macro
-    // batching) - same reasoning as MeasurementDialog's results list.
-    _resultsList->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    // Equal-weight split by default - not expressible as a plain .ui
+    // property, set here same as the original hand-built constructor did.
+    ui->splitter->setStretchFactor(0, 1);
+    ui->splitter->setStretchFactor(1, 1);
 
-    _textEdit = new AnnotationTextEdit(this);
-    _textEdit->setEnabled(false);
-    _textEdit->setPlaceholderText(tr("Select a single note to edit its text"));
-
-    _deleteButton = new QPushButton(tr("Delete"), this);
-    _deleteButton->setEnabled(false);
-
-    QHBoxLayout* buttonRow = new QHBoxLayout();
-    buttonRow->addStretch();
-    buttonRow->addWidget(_deleteButton);
-
-    // A user-draggable boundary between the list and the details pane,
-    // instead of a fixed split - each pane is its own small container
-    // widget (label + control) so the label moves/resizes together with
-    // its control as the splitter handle is dragged.
-    QWidget* notesPane = new QWidget(this);
-    QVBoxLayout* notesLayout = new QVBoxLayout(notesPane);
-    notesLayout->setContentsMargins(0, 0, 0, 0);
-    notesLayout->addWidget(new QLabel(tr("Notes:"), notesPane));
-    notesLayout->addWidget(_resultsList);
-
-    QWidget* textPane = new QWidget(this);
-    QVBoxLayout* textPaneLayout = new QVBoxLayout(textPane);
-    textPaneLayout->setContentsMargins(0, 0, 0, 0);
-    textPaneLayout->addWidget(new QLabel(tr("Text:"), textPane));
-    textPaneLayout->addWidget(_textEdit);
-
-    _splitter = new QSplitter(Qt::Vertical, this);
-    _splitter->addWidget(notesPane);
-    _splitter->addWidget(textPane);
-    _splitter->setStretchFactor(0, 1);
-    _splitter->setStretchFactor(1, 1);
-
-    QVBoxLayout* layout = new QVBoxLayout(this);
-    layout->addWidget(_placeButton);
-    layout->addWidget(_statusLabel);
-    layout->addWidget(_splitter, 1);
-    layout->addLayout(buttonRow);
-    resize(320, 440);
-
-    connect(_placeButton, &QPushButton::toggled, this, &AnnotationDialog::onPlaceButtonToggled);
-    connect(_resultsList, &QListWidget::itemSelectionChanged, this, &AnnotationDialog::onResultsSelectionChanged);
-    connect(_resultsList, &QListWidget::itemChanged, this, &AnnotationDialog::onResultItemChanged);
-    connect(_deleteButton, &QPushButton::clicked, this, &AnnotationDialog::onDeleteClicked);
+    connect(ui->placeButton, &QPushButton::toggled, this, &AnnotationDialog::onPlaceButtonToggled);
+    connect(ui->resultsList, &QListWidget::itemSelectionChanged, this, &AnnotationDialog::onResultsSelectionChanged);
+    connect(ui->resultsList, &QListWidget::itemChanged, this, &AnnotationDialog::onResultItemChanged);
+    connect(ui->deleteButton, &QPushButton::clicked, this, &AnnotationDialog::onDeleteClicked);
 
     ViewportWidget* viewport = _modelViewer->getViewportWidget();
     connect(viewport, &ViewportWidget::annotationToolArmedChanged, this, &AnnotationDialog::onAnnotationToolArmedChangedExternally);
@@ -185,7 +156,7 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
         connect(mdiArea, &QMdiArea::subWindowActivated, this, &AnnotationDialog::onActiveSubWindowChanged);
 
-    loadSettings();  // restores window geometry, if any was saved - after resize(320, 440) above so it can override that default
+    loadSettings();  // restores window geometry, if any was saved - after the .ui's own geometry so it can override that default
 }
 
 AnnotationDialog::~AnnotationDialog()
@@ -213,14 +184,14 @@ void AnnotationDialog::loadSettings()
 
     const QByteArray splitterState = settings.value("annotation/splitterState", QByteArray()).toByteArray();
     if (!splitterState.isEmpty())
-        _splitter->restoreState(splitterState);
+        ui->splitter->restoreState(splitterState);
 }
 
 void AnnotationDialog::saveSettings()
 {
     QSettings settings;
     settings.setValue("annotation/geometry", saveGeometry());
-    settings.setValue("annotation/splitterState", _splitter->saveState());
+    settings.setValue("annotation/splitterState", ui->splitter->saveState());
 }
 
 void AnnotationDialog::onPlaceButtonToggled(bool checked)
@@ -232,14 +203,14 @@ void AnnotationDialog::onPlaceButtonToggled(bool checked)
 void AnnotationDialog::onAnnotationToolArmedChangedExternally(bool armed)
 {
     setPlaceButtonCheckedSilently(armed);
-    _statusLabel->setText(armed ? tr("Click a point on the model to place a note")
-                                 : tr("Click \"Place Note\", then click a point on the model"));
+    ui->statusLabel->setText(armed ? tr("Click a point on the model to place a note")
+                                    : tr("Click \"Place Note\", then click a point on the model"));
 }
 
 void AnnotationDialog::setPlaceButtonCheckedSilently(bool armed)
 {
-    const QSignalBlocker blocker(_placeButton);
-    _placeButton->setChecked(armed);
+    const QSignalBlocker blocker(ui->placeButton);
+    ui->placeButton->setChecked(armed);
 }
 
 void AnnotationDialog::onAnnotationsChanged()
@@ -257,7 +228,7 @@ void AnnotationDialog::toggleCheckStatesForSelection(Qt::CheckState newState)
         return;
 
     _batchingVisibilityChanges = true;
-    for (QListWidgetItem* item : _resultsList->selectedItems())
+    for (QListWidgetItem* item : ui->resultsList->selectedItems())
     {
         if (!(item->flags() & Qt::ItemIsUserCheckable))
             continue;
@@ -280,7 +251,7 @@ void AnnotationDialog::refreshResultsList()
     const QSet<QUuid> selectedIds = viewport->selectedAnnotationIds();
 
     _updatingSelectionFromViewport = true;
-    _resultsList->clear();
+    ui->resultsList->clear();
     QListWidgetItem* firstSelectedItem = nullptr;
     for (const Annotation& a : sceneGraph->annotations())
     {
@@ -295,7 +266,7 @@ void AnnotationDialog::refreshResultsList()
         if (firstLine.isEmpty())
             firstLine = tr("(empty note)");
 
-        QListWidgetItem* item = new QListWidgetItem(firstLine, _resultsList);
+        QListWidgetItem* item = new QListWidgetItem(firstLine, ui->resultsList);
         item->setData(Qt::UserRole, a.id);
         item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
         item->setCheckState(a.visible ? Qt::Checked : Qt::Unchecked);
@@ -310,10 +281,10 @@ void AnnotationDialog::refreshResultsList()
     // explicit setCurrentItem() is needed after clear() - same reasoning,
     // same fix, applies identically here.
     if (firstSelectedItem)
-        _resultsList->setCurrentItem(firstSelectedItem, QItemSelectionModel::NoUpdate);
+        ui->resultsList->setCurrentItem(firstSelectedItem, QItemSelectionModel::NoUpdate);
     _updatingSelectionFromViewport = false;
 
-    _deleteButton->setEnabled(!selectedIds.isEmpty());
+    ui->deleteButton->setEnabled(!selectedIds.isEmpty());
     syncTextEditFromSelection();
 }
 
@@ -334,18 +305,18 @@ void AnnotationDialog::syncTextEditFromSelection()
             const QString text = sceneGraph->annotations().at(index).text;
             _editingAnnotationId = id;
             _textEditBaseline = text;
-            const QSignalBlocker blocker(_textEdit);
-            _textEdit->setPlainText(text);
-            _textEdit->setEnabled(true);
+            const QSignalBlocker blocker(ui->textEdit);
+            ui->textEdit->setPlainText(text);
+            ui->textEdit->setEnabled(true);
             return;
         }
     }
 
     _editingAnnotationId = QUuid();
     _textEditBaseline.clear();
-    const QSignalBlocker blocker(_textEdit);
-    _textEdit->clear();
-    _textEdit->setEnabled(false);
+    const QSignalBlocker blocker(ui->textEdit);
+    ui->textEdit->clear();
+    ui->textEdit->setEnabled(false);
 }
 
 void AnnotationDialog::commitTextEdit()
@@ -353,7 +324,7 @@ void AnnotationDialog::commitTextEdit()
     if (_editingAnnotationId.isNull() || !_modelViewer)
         return;
 
-    const QString newText = _textEdit->toPlainText();
+    const QString newText = ui->textEdit->toPlainText();
     if (newText == _textEditBaseline)
         return;  // focus was lost without an actual edit - don't push a no-op undo step
 
@@ -371,14 +342,14 @@ void AnnotationDialog::onResultsSelectionChanged()
         return;
 
     QSet<QUuid> ids;
-    for (QListWidgetItem* item : _resultsList->selectedItems())
+    for (QListWidgetItem* item : ui->resultsList->selectedItems())
         ids.insert(item->data(Qt::UserRole).toUuid());
 
     _updatingSelectionFromViewport = true;
     viewport->setSelectedAnnotationIds(ids);
     _updatingSelectionFromViewport = false;
 
-    _deleteButton->setEnabled(!ids.isEmpty());
+    ui->deleteButton->setEnabled(!ids.isEmpty());
     syncTextEditFromSelection();
 }
 
@@ -388,11 +359,11 @@ void AnnotationDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
         return;
 
     _updatingSelectionFromViewport = true;
-    _resultsList->clearSelection();
+    ui->resultsList->clearSelection();
     QListWidgetItem* firstMatch = nullptr;
-    for (int i = 0; i < _resultsList->count(); ++i)
+    for (int i = 0; i < ui->resultsList->count(); ++i)
     {
-        QListWidgetItem* item = _resultsList->item(i);
+        QListWidgetItem* item = ui->resultsList->item(i);
         if (ids.contains(item->data(Qt::UserRole).toUuid()))
         {
             item->setSelected(true);
@@ -401,10 +372,10 @@ void AnnotationDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
         }
     }
     if (firstMatch)
-        _resultsList->scrollToItem(firstMatch);
+        ui->resultsList->scrollToItem(firstMatch);
     _updatingSelectionFromViewport = false;
 
-    _deleteButton->setEnabled(!ids.isEmpty());
+    ui->deleteButton->setEnabled(!ids.isEmpty());
     syncTextEditFromSelection();
 }
 

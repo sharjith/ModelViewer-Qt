@@ -5,13 +5,15 @@
 #include <QString>
 #include <QUuid>
 
+#include <memory>
+
+namespace Ui
+{
+    class AnnotationDialog;
+}
+
 class ModelViewer;
-class QLabel;
-class QListWidget;
 class QListWidgetItem;
-class QPlainTextEdit;
-class QPushButton;
-class QSplitter;
 class QCloseEvent;
 class QMdiSubWindow;
 
@@ -100,17 +102,8 @@ private:
     void loadSettings();
     void saveSettings();
 
-    ModelViewer*    _modelViewer; // not owned - dialog is a child of the ModelViewer's window
-    QPushButton*    _placeButton;
-    QLabel*         _statusLabel;
-    QListWidget*    _resultsList;
-    QPlainTextEdit* _textEdit;
-    // Lets the user drag the boundary between the results list and the
-    // details pane instead of a fixed 50/50 split - state persisted the
-    // same QSettings way as window geometry (see loadSettings()/
-    // saveSettings()).
-    QSplitter*      _splitter;
-    QPushButton*    _deleteButton;
+    ModelViewer* _modelViewer; // not owned - dialog is a child of the ModelViewer's window
+    std::unique_ptr<Ui::AnnotationDialog> ui;
 
     // Which annotation the details pane currently reflects - QUuid() when
     // none/multiple are selected (pane disabled in that case).

@@ -4,12 +4,15 @@
 #include <QSet>
 #include "MeasurementData.h"
 
+#include <memory>
+
+namespace Ui
+{
+	class MeasurementDialog;
+}
+
 class ModelViewer;
-class QComboBox;
-class QLabel;
-class QListWidget;
 class QListWidgetItem;
-class QPushButton;
 class QCloseEvent;
 class QMdiSubWindow;
 
@@ -99,18 +102,8 @@ private:
 	void loadSettings();
 	void saveSettings();
 
-	ModelViewer*  _modelViewer; // not owned - dialog is a child of the ModelViewer's window
-	QComboBox*    _toolCombo;
-	QLabel*       _statusLabel;
-	// Completes a variable-anchor-count tool's in-progress pick sequence
-	// (currently only Pitch Circle) with whatever's been picked so far -
-	// see ViewportWidget::finishVariableLengthMeasurement(). Visible only
-	// while such a tool is armed, enabled only once its minimum anchor
-	// count is reached; the Enter/Return key does the same thing directly
-	// in the viewport, this is just the discoverable/clickable form of it.
-	QPushButton*  _finishButton;
-	QListWidget*  _resultsList;
-	QPushButton*  _deleteButton;
+	ModelViewer* _modelViewer; // not owned - dialog is a child of the ModelViewer's window
+	std::unique_ptr<Ui::MeasurementDialog> ui;
 
 	// True while this dialog is programmatically updating _resultsList's
 	// selection or check-state from a full refreshResultsList() rebuild or a

@@ -1,4 +1,5 @@
 #include "MeasurementDialog.h"
+#include "ui_MeasurementDialog.h"
 
 #include "ModelViewer.h"
 #include "SceneGraph.h"
@@ -6,20 +7,18 @@
 
 #include <QCloseEvent>
 #include <QComboBox>
-#include <QHBoxLayout>
+#include <QFont>
+#include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
 #include <QMdiArea>
 #include <QMdiSubWindow>
-#include <QFont>
-#include <QItemSelectionModel>
-#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QStandardItemModel>
-#include <QVBoxLayout>
 
 namespace
 {
@@ -115,11 +114,23 @@ namespace
 MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
 	, _modelViewer(modelViewer)
+	, ui(std::make_unique<Ui::MeasurementDialog>())
 {
-	setWindowTitle(tr("Measure"));
+	ui->setupUi(this);
 	setAttribute(Qt::WA_DeleteOnClose);
 
-	_toolCombo = new QComboBox(this);
+	// resultsList is a plain QListWidget placeholder in the .ui (Designer
+	// controls its position/size there) - swapped here for the real
+	// MeasurementResultsList subclass, which Designer can't construct
+	// directly since it's a private, header-less class local to this file.
+	// See ShrinkWrapDialog's own conversion for why this swap (rather than
+	// Designer's "promote to" feature) was chosen.
+	MeasurementResultsList* resultsList = new MeasurementResultsList(this);
+	resultsList->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	ui->verticalLayout->replaceWidget(ui->resultsList, resultsList);
+	delete ui->resultsList;
+	ui->resultsList = resultsList;
+
 	{
 		// Grouped with non-selectable category headers rather than one flat
 		// list - a dozen-plus similarly-named tools (EdgeToVertex/EdgeToEdge/
@@ -131,10 +142,10 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		// depending on the picked geometry's own relative orientation, so
 		// there's no distance-vs-angle split that would actually hold up.
 		auto addGroupHeader = [this](const QString& title) {
-			_toolCombo->addItem(title);
-			if (auto* model = qobject_cast<QStandardItemModel*>(_toolCombo->model()))
+			ui->toolCombo->addItem(title);
+			if (auto* model = qobject_cast<QStandardItemModel*>(ui->toolCombo->model()))
 			{
-				QStandardItem* item = model->item(_toolCombo->count() - 1);
+				QStandardItem* item = model->item(ui->toolCombo->count() - 1);
 				item->setFlags(item->flags() & ~(Qt::ItemIsSelectable | Qt::ItemIsEnabled));
 				QFont font = item->font();
 				font.setBold(true);
@@ -142,7 +153,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 			}
 		};
 		auto addTool = [this](MeasurementTool tool) {
-			_toolCombo->addItem("    " + measurementToolDisplayName(tool), static_cast<int>(tool));
+			ui->toolCombo->addItem("    " + measurementToolDisplayName(tool), static_cast<int>(tool));
 		};
 
 		addGroupHeader(tr("Point & Distance"));
@@ -175,38 +186,38 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		// otherwise defaults its current index there, which would leave no
 		// tool armed at all when the dialog opens (see the currentIndex()
 		// re-arm call at the end of this constructor).
-		_toolCombo->setCurrentIndex(_toolCombo->findData(static_cast<int>(MeasurementTool::Point)));
+		ui->toolCombo->setCurrentIndex(ui->toolCombo->findData(static_cast<int>(MeasurementTool::Point)));
 	}
 	// Surfaces the variable-pick-count workflow up front, since it's the one
 	// tool in the list that doesn't auto-complete at a fixed number of
 	// clicks (see MeasurementData.h's measurementToolHasVariableAnchorCount()).
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::PitchCircle)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::PitchCircle)),
 		tr("Click every hole center around the pattern (3 or more, any order) - snaps to a circular edge's exact center same as Point/Distance. Press Enter or the Finish button once you've clicked them all."),
 		Qt::ToolTipRole);
 	// See MeasurementData.h's ArcRadiusCenterPoint doc comment - surfaced
 	// here so the remaining glTF/OBJ limitation is discoverable without
 	// reading code.
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::ArcRadiusCenterPoint)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::ArcRadiusCenterPoint)),
 		tr("On STEP/IGES/BREP parts, snaps to a circular edge's exact center (holes included). On glTF/OBJ meshes, the center must land on real geometry (e.g. a boss's flat cap face) - won't work for a through-hole's center, which is empty space"),
 		Qt::ToolTipRole);
 	// CAD-only (see MeasurementData.h's EdgeRadius doc comment) - glTF/OBJ
 	// meshes have no OCC edge data, so nothing is ever pickable for them.
 	// Works correctly for through-holes too, unlike Center + 2-Point above.
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeRadius)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::EdgeRadius)),
 		tr("STEP/IGES/BREP parts only - click directly on a circular edge (hole or boss). Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
 	// Same CAD-only pick as Edge Radius above (both circular-edge anchors).
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
 		tr("STEP/IGES/BREP parts only - click directly on two circular edges (holes or bosses) to compare their centers and axes. Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
 	// CAD-only for a different reason than Edge Radius/Concentricity above -
 	// this needs the FACE's own analytic surface data, not a circular edge.
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::CylindricalDiameter)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::CylindricalDiameter)),
 		tr("STEP/IGES/BREP parts only - click directly on a cylindrical or conical face's curved surface (not its rim edge - see Edge Radius for that). Reports the diameter at the exact point clicked, which varies along a cone's length. Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
 	// The other variable-pick-count tool alongside Pitch Circle above - same
 	// note about it not auto-completing at a fixed click count.
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::EdgeChain)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::EdgeChain)),
 		tr("Click a contiguous run of edges to sum (2 or more, each one must share an endpoint with the last) - works for an open chain (e.g. a weld seam) or a closed perimeter alike. An edge that doesn't connect is rejected. Press Enter or the Finish button once you've clicked them all."),
 		Qt::ToolTipRole);
 	// Each pick expands to its whole smooth face (bounded by real feature
@@ -214,44 +225,15 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// since it's a bigger region than the single triangle every other face
 	// pick in this dialog uses, and the closest-point search cost scales
 	// with it.
-	_toolCombo->setItemData(_toolCombo->findData(static_cast<int>(MeasurementTool::MinDistance)),
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::MinDistance)),
 		tr("Click two faces (flat or curved - each pick expands to its whole smooth face, bounded by real edges) to find the true closest points between them. Works on the same part (e.g. a wall-thickness check) or two different ones. May take a moment on a very large, finely-tessellated face."),
 		Qt::ToolTipRole);
 
-	_statusLabel = new QLabel(this);
-	_statusLabel->setWordWrap(true);
-
-	_finishButton = new QPushButton(tr("Finish"), this);
-	_finishButton->setVisible(false);
-
-	_resultsList = new MeasurementResultsList(this);
-	// Ctrl/Shift multi-select, so several measurements can be reviewed or
-	// deleted together (see ModelViewer::deleteSelectedMeasurements()'s
-	// undo-macro batching).
-	_resultsList->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-	_deleteButton = new QPushButton(tr("Delete"), this);
-	_deleteButton->setEnabled(false);
-
-	QHBoxLayout* buttonRow = new QHBoxLayout();
-	buttonRow->addStretch();
-	buttonRow->addWidget(_deleteButton);
-
-	QVBoxLayout* layout = new QVBoxLayout(this);
-	layout->addWidget(new QLabel(tr("Tool:"), this));
-	layout->addWidget(_toolCombo);
-	layout->addWidget(_statusLabel);
-	layout->addWidget(_finishButton);
-	layout->addWidget(new QLabel(tr("Measurements:"), this));
-	layout->addWidget(_resultsList);
-	layout->addLayout(buttonRow);
-	resize(320, 400);
-
-	connect(_toolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MeasurementDialog::onToolComboChanged);
-	connect(_resultsList, &QListWidget::itemSelectionChanged, this, &MeasurementDialog::onResultsSelectionChanged);
-	connect(_resultsList, &QListWidget::itemChanged, this, &MeasurementDialog::onResultItemChanged);
-	connect(_deleteButton, &QPushButton::clicked, this, &MeasurementDialog::onDeleteClicked);
-	connect(_finishButton, &QPushButton::clicked, this, &MeasurementDialog::onFinishClicked);
+	connect(ui->toolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MeasurementDialog::onToolComboChanged);
+	connect(ui->resultsList, &QListWidget::itemSelectionChanged, this, &MeasurementDialog::onResultsSelectionChanged);
+	connect(ui->resultsList, &QListWidget::itemChanged, this, &MeasurementDialog::onResultItemChanged);
+	connect(ui->deleteButton, &QPushButton::clicked, this, &MeasurementDialog::onDeleteClicked);
+	connect(ui->finishButton, &QPushButton::clicked, this, &MeasurementDialog::onFinishClicked);
 
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
 	connect(viewport, &ViewportWidget::measurementProgressChanged, this, &MeasurementDialog::onMeasurementProgressChanged);
@@ -266,12 +248,12 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// old checkable-action behavior where clicking "Measure Point" armed it
 	// immediately, rather than making the user also pick from the combo
 	// before anything happens.
-	onToolComboChanged(_toolCombo->currentIndex());
+	onToolComboChanged(ui->toolCombo->currentIndex());
 
 	if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
 		connect(mdiArea, &QMdiArea::subWindowActivated, this, &MeasurementDialog::onActiveSubWindowChanged);
 
-	loadSettings();  // restores window geometry, if any was saved - after resize(320, 400) above so it can override that default
+	loadSettings();  // restores window geometry, if any was saved - after the .ui's own geometry so it can override that default
 }
 
 MeasurementDialog::~MeasurementDialog()
@@ -307,7 +289,7 @@ void MeasurementDialog::onToolComboChanged(int index)
 {
 	if (index < 0)
 		return;
-	const MeasurementTool tool = static_cast<MeasurementTool>(_toolCombo->itemData(index).toInt());
+	const MeasurementTool tool = static_cast<MeasurementTool>(ui->toolCombo->itemData(index).toInt());
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
 		viewport->setMeasurementTool(tool);
 }
@@ -318,15 +300,15 @@ void MeasurementDialog::onMeasurementProgressChanged(int picked, int required)
 	if (!viewport)
 		return;
 	const MeasurementTool tool = viewport->measurementTool();
-	_statusLabel->setText(measurementToolPickPrompt(tool, picked));
+	ui->statusLabel->setText(measurementToolPickPrompt(tool, picked));
 
 	// The Finish button only makes sense for a variable-anchor-count tool
 	// (currently just Pitch Circle) - every other tool already auto-
 	// completes the instant `required` is reached, so there's never
 	// anything left to "finish" for them.
 	const bool variableLength = measurementToolHasVariableAnchorCount(tool);
-	_finishButton->setVisible(variableLength);
-	_finishButton->setEnabled(variableLength && picked >= required);
+	ui->finishButton->setVisible(variableLength);
+	ui->finishButton->setEnabled(variableLength && picked >= required);
 }
 
 void MeasurementDialog::onFinishClicked()
@@ -341,15 +323,15 @@ void MeasurementDialog::onMeasurementToolChangedExternally(MeasurementTool tool)
 	// outside this dialog - reflect that by parking the combo without
 	// re-arming a tool via onToolComboChanged() (see setComboToolSilently()).
 	if (tool == MeasurementTool::None)
-		_statusLabel->setText(tr("Cancelled - pick a tool to resume"));
+		ui->statusLabel->setText(tr("Cancelled - pick a tool to resume"));
 	else
 		setComboToolSilently(tool);
 }
 
 void MeasurementDialog::setComboToolSilently(MeasurementTool tool)
 {
-	const QSignalBlocker blocker(_toolCombo);
-	_toolCombo->setCurrentIndex(_toolCombo->findData(static_cast<int>(tool)));
+	const QSignalBlocker blocker(ui->toolCombo);
+	ui->toolCombo->setCurrentIndex(ui->toolCombo->findData(static_cast<int>(tool)));
 }
 
 void MeasurementDialog::onMeasurementsChanged()
@@ -367,7 +349,7 @@ void MeasurementDialog::toggleCheckStatesForSelection(Qt::CheckState newState)
 		return;
 
 	_batchingVisibilityChanges = true;
-	for (QListWidgetItem* item : _resultsList->selectedItems())
+	for (QListWidgetItem* item : ui->resultsList->selectedItems())
 	{
 		if (!(item->flags() & Qt::ItemIsUserCheckable))
 			continue;
@@ -390,11 +372,11 @@ void MeasurementDialog::refreshResultsList()
 	const QSet<QUuid> selectedIds = viewport->selectedMeasurementIds();
 
 	_updatingSelectionFromViewport = true;
-	_resultsList->clear();
+	ui->resultsList->clear();
 	QListWidgetItem* firstSelectedItem = nullptr;
 	for (const Measurement& m : sceneGraph->measurements())
 	{
-		QListWidgetItem* item = new QListWidgetItem(viewport->measurementSummaryText(m), _resultsList);
+		QListWidgetItem* item = new QListWidgetItem(viewport->measurementSummaryText(m), ui->resultsList);
 		item->setData(Qt::UserRole, m.id);
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
 		item->setCheckState(m.visible ? Qt::Checked : Qt::Unchecked);
@@ -415,10 +397,10 @@ void MeasurementDialog::refreshResultsList()
 	// single-item behavior). NoUpdate so this only moves "current", without
 	// perturbing the selection just restored above.
 	if (firstSelectedItem)
-		_resultsList->setCurrentItem(firstSelectedItem, QItemSelectionModel::NoUpdate);
+		ui->resultsList->setCurrentItem(firstSelectedItem, QItemSelectionModel::NoUpdate);
 	_updatingSelectionFromViewport = false;
 
-	_deleteButton->setEnabled(!selectedIds.isEmpty());
+	ui->deleteButton->setEnabled(!selectedIds.isEmpty());
 }
 
 void MeasurementDialog::onResultsSelectionChanged()
@@ -431,14 +413,14 @@ void MeasurementDialog::onResultsSelectionChanged()
 		return;
 
 	QSet<QUuid> ids;
-	for (QListWidgetItem* item : _resultsList->selectedItems())
+	for (QListWidgetItem* item : ui->resultsList->selectedItems())
 		ids.insert(item->data(Qt::UserRole).toUuid());
 
 	_updatingSelectionFromViewport = true;
 	viewport->setSelectedMeasurementIds(ids);
 	_updatingSelectionFromViewport = false;
 
-	_deleteButton->setEnabled(!ids.isEmpty());
+	ui->deleteButton->setEnabled(!ids.isEmpty());
 }
 
 void MeasurementDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
@@ -447,11 +429,11 @@ void MeasurementDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
 		return;
 
 	_updatingSelectionFromViewport = true;
-	_resultsList->clearSelection();
+	ui->resultsList->clearSelection();
 	QListWidgetItem* firstMatch = nullptr;
-	for (int i = 0; i < _resultsList->count(); ++i)
+	for (int i = 0; i < ui->resultsList->count(); ++i)
 	{
-		QListWidgetItem* item = _resultsList->item(i);
+		QListWidgetItem* item = ui->resultsList->item(i);
 		if (ids.contains(item->data(Qt::UserRole).toUuid()))
 		{
 			item->setSelected(true);
@@ -460,10 +442,10 @@ void MeasurementDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
 		}
 	}
 	if (firstMatch)
-		_resultsList->scrollToItem(firstMatch);
+		ui->resultsList->scrollToItem(firstMatch);
 	_updatingSelectionFromViewport = false;
 
-	_deleteButton->setEnabled(!ids.isEmpty());
+	ui->deleteButton->setEnabled(!ids.isEmpty());
 }
 
 void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
