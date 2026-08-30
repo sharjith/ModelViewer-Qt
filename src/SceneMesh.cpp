@@ -1,6 +1,7 @@
 #include "SceneMesh.h"
 #include "TextureLocationManager.h"
 #include "IGpuContextResource.h"
+#include "MeasurementGeometry.h"
 
 #include <QFileInfo>
 #include <QImage>
@@ -1444,6 +1445,130 @@ const std::vector<std::array<int, 3>>& SceneMesh::getTriangleAdjacency() const
 	if (!_triangleAdjacencyCacheBuilt)
 		buildTriangleAdjacency();
 	return _triangleAdjacencyCache;
+}
+
+const std::vector<DetectedCircularLoop>& SceneMesh::getDetectedCircularLoops() const
+{
+	if (!_detectedCircularLoopsCacheBuilt)
+		buildDetectedCircularLoops();
+	return _detectedCircularLoopsCache;
+}
+
+void SceneMesh::buildDetectedCircularLoops() const
+{
+	_detectedCircularLoopsCacheBuilt = true;  // set even on early-returns, same convention as buildTriangleAdjacency()
+	_detectedCircularLoopsCache.clear();
+
+	if (_featureEdgeIndices.size() < 2)
+		return;
+
+	// Vertex -> feature-edge-neighbor adjacency. A vertex with exactly 2
+	// neighbors can sit on a simple closed loop; any other degree (a
+	// junction, or an open chain's endpoint) breaks the walk.
+	std::unordered_map<uint32_t, std::vector<uint32_t>> neighbors;
+	neighbors.reserve(_featureEdgeIndices.size());
+	for (size_t i = 0; i + 1 < _featureEdgeIndices.size(); i += 2)
+	{
+		const uint32_t a = _featureEdgeIndices[i];
+		const uint32_t b = _featureEdgeIndices[i + 1];
+		neighbors[a].push_back(b);
+		neighbors[b].push_back(a);
+	}
+
+	std::unordered_map<uint32_t, bool> visited;
+	visited.reserve(neighbors.size());
+
+	for (const auto& entry : neighbors)
+	{
+		const uint32_t start = entry.first;
+		if (visited[start])
+			continue;
+		if (neighbors[start].size() != 2)
+		{
+			visited[start] = true;  // junction/branch point - never part of a simple loop
+			continue;
+		}
+
+		// Walk one direction from start until either back to start (closed
+		// loop) or a non-degree-2 vertex is hit (abandon - not a simple loop).
+		std::vector<uint32_t> loop;
+		loop.push_back(start);
+		uint32_t prev = start;
+		uint32_t cur = neighbors[start][0];
+		bool closed = false;
+
+		while (true)
+		{
+			if (cur == start)
+			{
+				closed = true;
+				break;
+			}
+			const auto curNeighborsIt = neighbors.find(cur);
+			if (curNeighborsIt == neighbors.end() || curNeighborsIt->second.size() != 2)
+				break;  // junction - abandon
+
+			loop.push_back(cur);
+			const uint32_t n0 = curNeighborsIt->second[0];
+			const uint32_t n1 = curNeighborsIt->second[1];
+			const uint32_t next = (n0 == prev) ? n1 : n0;
+			prev = cur;
+			cur = next;
+
+			// Safety bound - a real loop can never exceed the total edge
+			// count, guards against any adjacency-graph bug turning this
+			// into an infinite walk.
+			if (loop.size() > _featureEdgeIndices.size() / 2 + 1)
+				break;
+		}
+
+		for (uint32_t v : loop)
+			visited[v] = true;
+
+		// Need enough points for a meaningful, stable circle fit - a
+		// triangle/quad-shaped "loop" of only 3-4 feature edges is never a
+		// real circular boss/hole rim in practice.
+		constexpr size_t kMinLoopSize = 5;
+		if (!closed || loop.size() < kMinLoopSize)
+			continue;
+
+		QVector<QVector3D> restPosePoints;
+		restPosePoints.reserve(static_cast<int>(loop.size()));
+		for (uint32_t v : loop)
+		{
+			if (v >= _vertices.size())
+				continue;
+			const glm::vec3& p = _vertices[v].Position;
+			restPosePoints.append(QVector3D(p.x, p.y, p.z));
+		}
+		if (restPosePoints.size() < static_cast<int>(kMinLoopSize))
+			continue;
+
+		// Reuses the Pitch Circle tool's own plane+circle least-squares fit -
+		// same math, different caller.
+		const MeasurementGeometry::PitchCircleResult fit = MeasurementGeometry::fitPitchCircle(restPosePoints);
+		if (!fit.valid || fit.radius <= 1.0e-6f)
+			continue;
+
+		// Roundness check - reject a fit whose points don't actually sit
+		// close to the fitted circle (a rectangular cutout, a hex-bolt-head
+		// outline, ...) rather than reporting a fabricated radius for a
+		// non-circular loop. Tolerance is relative to the fitted radius so
+		// it scales sensibly across wildly different part sizes.
+		constexpr float kMaxRadialResidualRatio = 0.08f;  // 8% of radius - may need tuning against real models
+		float maxResidual = 0.0f;
+		for (const QVector3D& p : restPosePoints)
+		{
+			const float d = std::abs((p - fit.center).length() - fit.radius);
+			maxResidual = std::max(maxResidual, d);
+		}
+		if (maxResidual > fit.radius * kMaxRadialResidualRatio)
+			continue;
+
+		DetectedCircularLoop detected;
+		detected.vertexIndices = std::move(loop);
+		_detectedCircularLoopsCache.push_back(std::move(detected));
+	}
 }
 
 std::vector<std::vector<int>> SceneMesh::findConnectedTriangleGroups() const

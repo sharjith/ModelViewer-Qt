@@ -11,6 +11,20 @@
 #include "MeshAnimationState.h"
 // Material, Vertex, MorphTargetData — transitive via RenderableMesh.h
 
+// A closed loop of connected feature edges (see SceneMesh::
+// getFeatureEdgeIndices()) that passed a roundness check at detection time -
+// the non-CAD counterpart to OccEdgeCircleInfo for the EdgeRadius/
+// Concentricity measurement tools. Deliberately stores ONLY the topology
+// (rest-pose vertex indices, in walk order around the loop), not a baked
+// center/axis/radius - those are re-fit fresh from CURRENT world-space
+// positions on every measurement query (MeasurementController::
+// resolveMeasurementEdgeCircle()), same "live geometry, not frozen at
+// detection time" convention every other measurement resolver follows.
+struct DetectedCircularLoop
+{
+	std::vector<uint32_t> vertexIndices;
+};
+
 class SceneMesh : public RenderableMesh
 {
 public:
@@ -130,6 +144,19 @@ public:
 	// edges, there is no separate boundary/grouping table needed - each
 	// pair already IS one discrete straight edge.
 	const std::vector<uint32_t>& getFeatureEdgeIndices() const { return _featureEdgeIndices; }
+
+	// Closed, round loops traced out of getFeatureEdgeIndices() - the non-CAD
+	// fallback source for the EdgeRadius/Concentricity measurement tools
+	// (see SelectionManager::pickEdgeCircleAnchor()/MeasurementController::
+	// resolveMeasurementEdgeCircle(), both of which only consult this when
+	// getOccEdgeCircles() is empty). Built lazily on first call, same
+	// build-once-cache-forever convention as getTriangleAdjacency() - this is
+	// opt-in data most meshes will never need. A loop only appears here if it
+	// passed a roundness check at build time (see buildDetectedCircularLoops()'s
+	// doc comment) - non-circular closed loops (a rectangular cutout, a hex-
+	// bolt-head outline) are deliberately excluded rather than reported as
+	// bad circles.
+	const std::vector<DetectedCircularLoop>& getDetectedCircularLoops() const;
 
 	// Per-triangle neighbor list, one entry per triangle (indices()[3k..3k+2]),
 	// giving the triangle index across each of its 3 edges in order
@@ -310,6 +337,19 @@ private:
 	// the public accessor so the accessor itself stays a trivial "build
 	// once, then return" wrapper.
 	void buildTriangleAdjacency() const;
+	// Builds _detectedCircularLoopsCache (mutable, safe to call from const
+	// context) - see getDetectedCircularLoops()'s doc comment. Traces closed
+	// loops out of _featureEdgeIndices (every loop vertex must have exactly
+	// 2 feature-edge neighbors - a junction/branch point breaks the walk and
+	// the attempt is abandoned, not force-closed), fits a plane+circle to
+	// each candidate loop's REST-POSE positions via MeasurementGeometry::
+	// fitPitchCircle() (same math already used for the Pitch Circle tool),
+	// and keeps only loops whose fit is valid AND round enough (max radial
+	// residual within tolerance of the fitted radius) - deliberately
+	// classified once here against rest-pose geometry, exactly like OccEdgeCircleInfo's
+	// own isCircle flag is a fixed, import-time classification never
+	// revisited against later transforms.
+	void buildDetectedCircularLoops() const;
 	// Uploads the coarse LOD1 index tier optimizeMesh() staged into
 	// _pendingLod1Indices (if any) into RenderableMesh's _lodIndexBuffer.
 	// Called from setupMesh() so it covers both the constructor path and
@@ -357,6 +397,9 @@ protected:
 	// ---- Lazy triangle-adjacency cache (see getTriangleAdjacency()) -------------
 	mutable std::vector<std::array<int, 3>> _triangleAdjacencyCache;
 	mutable bool _triangleAdjacencyCacheBuilt = false;
+
+	mutable std::vector<DetectedCircularLoop> _detectedCircularLoopsCache;
+	mutable bool _detectedCircularLoopsCacheBuilt = false;
 
 	// ---- Lazy triangle->face lookup cache (see getOccTriangleFaceIndex()) -------
 	mutable std::unordered_map<int, int> _occTriangleFaceLookup;

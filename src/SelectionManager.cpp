@@ -3,6 +3,7 @@
 #include "Camera.h"
 #include "PickingHelper.h"
 #include "RenderableMesh.h"
+#include "MeasurementGeometry.h"
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLContext>
 #include <QOpenGLVersionFunctionsFactory>
@@ -267,41 +268,86 @@ MeshEdgeCircleAnchor SelectionManager::pickEdgeCircleAnchor(const QPoint& pixel,
             continue;
 
         const std::vector<OccEdgeCircleInfo>& circles = mesh->getOccEdgeCircles();
-        if (circles.empty())
-            continue;
-        const std::vector<float>& segments = mesh->getOccEdgeSegments();
-        const std::vector<int>& bounds = mesh->getOccEdgeBoundaries();
-        if (segments.empty() || bounds.size() < 2)
-            continue;
-
-        const QMatrix4x4 combined = mesh->combinedRenderTransform();
-        const int numEdges = std::min(static_cast<int>(bounds.size()) - 1, static_cast<int>(circles.size()));
-
-        for (int e = 0; e < numEdges; ++e)
+        if (!circles.empty())
         {
-            if (!circles[e].isCircle)
+            const std::vector<float>& segments = mesh->getOccEdgeSegments();
+            const std::vector<int>& bounds = mesh->getOccEdgeBoundaries();
+            if (segments.empty() || bounds.size() < 2)
                 continue;
 
-            const int startVec3 = bounds[e];
-            const int endVec3 = bounds[e + 1];
-            // Segments are flat GL_LINES pairs (see OccEdgeData's doc
-            // comment) - each pair of consecutive vec3 entries is one
-            // independent segment, so step by 2, not 1.
-            for (int v = startVec3; v + 1 < endVec3; v += 2)
-            {
-                const size_t p0 = static_cast<size_t>(v) * 3;
-                const size_t p1 = static_cast<size_t>(v + 1) * 3;
-                if (p1 + 2 >= segments.size())
-                    break;
+            const QMatrix4x4 combined = mesh->combinedRenderTransform();
+            const int numEdges = std::min(static_cast<int>(bounds.size()) - 1, static_cast<int>(circles.size()));
 
-                const QVector3D worldA = combined.map(QVector3D(segments[p0], segments[p0 + 1], segments[p0 + 2]));
-                const QVector3D worldB = combined.map(QVector3D(segments[p1], segments[p1 + 1], segments[p1 + 2]));
-                const float d = distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB));
-                if (d < bestDist)
+            for (int e = 0; e < numEdges; ++e)
+            {
+                if (!circles[e].isCircle)
+                    continue;
+
+                const int startVec3 = bounds[e];
+                const int endVec3 = bounds[e + 1];
+                // Segments are flat GL_LINES pairs (see OccEdgeData's doc
+                // comment) - each pair of consecutive vec3 entries is one
+                // independent segment, so step by 2, not 1.
+                for (int v = startVec3; v + 1 < endVec3; v += 2)
                 {
-                    bestDist = d;
-                    result.meshUuid = mesh->uuid();
-                    result.edgeIndex = e;
+                    const size_t p0 = static_cast<size_t>(v) * 3;
+                    const size_t p1 = static_cast<size_t>(v + 1) * 3;
+                    if (p1 + 2 >= segments.size())
+                        break;
+
+                    const QVector3D worldA = combined.map(QVector3D(segments[p0], segments[p0 + 1], segments[p0 + 2]));
+                    const QVector3D worldB = combined.map(QVector3D(segments[p1], segments[p1 + 1], segments[p1 + 2]));
+                    const float d = distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB));
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        result.meshUuid = mesh->uuid();
+                        result.edgeIndex = e;
+                    }
+                }
+            }
+        }
+        else
+        {
+            // Non-CAD mesh - fall back to the detected-circular-loop table
+            // (SceneMesh::getDetectedCircularLoops(), built from the
+            // heuristic feature-edge list) instead of OCC's analytic
+            // circles. edgeIndex here indexes into THAT table instead -
+            // same dual-meaning-depending-on-mesh-type convention
+            // pickStraightEdgeAnchor()/resolveMeasurementEdgeGeometry()
+            // already use for the "any edge" tools. getTrsfPoints() is
+            // already world-space, so no transform is needed here (unlike
+            // the OCC branch above).
+            const std::vector<DetectedCircularLoop>& loops = mesh->getDetectedCircularLoops();
+            if (loops.empty())
+                continue;
+            const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+
+            for (int e = 0; e < static_cast<int>(loops.size()); ++e)
+            {
+                const std::vector<uint32_t>& loopVerts = loops[static_cast<size_t>(e)].vertexIndices;
+                const size_t n = loopVerts.size();
+                if (n < 3)
+                    continue;
+
+                for (size_t k = 0; k < n; ++k)
+                {
+                    const uint32_t vA = loopVerts[k];
+                    const uint32_t vB = loopVerts[(k + 1) % n];  // wraps - it's a closed loop
+                    const size_t p0 = static_cast<size_t>(vA) * 3;
+                    const size_t p1 = static_cast<size_t>(vB) * 3;
+                    if (p0 + 2 >= trsfPoints.size() || p1 + 2 >= trsfPoints.size())
+                        continue;
+
+                    const QVector3D worldA(trsfPoints[p0], trsfPoints[p0 + 1], trsfPoints[p0 + 2]);
+                    const QVector3D worldB(trsfPoints[p1], trsfPoints[p1 + 1], trsfPoints[p1 + 2]);
+                    const float d = distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB));
+                    if (d < bestDist)
+                    {
+                        bestDist = d;
+                        result.meshUuid = mesh->uuid();
+                        result.edgeIndex = e;
+                    }
                 }
             }
         }
@@ -460,55 +506,119 @@ MeshEdgeCircleAnchor SelectionManager::pickCircularEdgeCenterAnchor(const QPoint
             continue;
 
         const std::vector<OccEdgeCircleInfo>& circles = mesh->getOccEdgeCircles();
-        if (circles.empty())
-            continue;
-        const std::vector<float>& segments = mesh->getOccEdgeSegments();
-        const std::vector<int>& bounds = mesh->getOccEdgeBoundaries();
-
-        const QMatrix4x4 combined = mesh->combinedRenderTransform();
-        const int numEdges = (segments.empty() || bounds.size() < 2)
-            ? static_cast<int>(circles.size())
-            : std::min(static_cast<int>(bounds.size()) - 1, static_cast<int>(circles.size()));
-
-        for (int e = 0; e < numEdges; ++e)
+        if (!circles.empty())
         {
-            if (!circles[e].isCircle)
-                continue;
+            const std::vector<float>& segments = mesh->getOccEdgeSegments();
+            const std::vector<int>& bounds = mesh->getOccEdgeBoundaries();
 
-            const QVector3D centerLocal(static_cast<float>(circles[e].centerX),
-                                         static_cast<float>(circles[e].centerY),
-                                         static_cast<float>(circles[e].centerZ));
-            const QVector3D centerWorld = combined.map(centerLocal);
+            const QMatrix4x4 combined = mesh->combinedRenderTransform();
+            const int numEdges = (segments.empty() || bounds.size() < 2)
+                ? static_cast<int>(circles.size())
+                : std::min(static_cast<int>(bounds.size()) - 1, static_cast<int>(circles.size()));
 
-            // The natural click target for "this circle's center" is the
-            // visible circular edge ITSELF (the rim), not the empty space
-            // at its middle - a through-hole's center may not even be
-            // visible (occluded by the far side of the bore), while the
-            // rim always is. So a click near either the projected center
-            // OR anywhere along the rim resolves to the same center anchor.
-            float d = (clickPt - toScreen(centerWorld)).length();
-            if (!segments.empty() && bounds.size() >= 2)
+            for (int e = 0; e < numEdges; ++e)
             {
-                const int startVec3 = bounds[e];
-                const int endVec3 = bounds[e + 1];
-                for (int v = startVec3; v + 1 < endVec3; v += 2)
-                {
-                    const size_t p0 = static_cast<size_t>(v) * 3;
-                    const size_t p1 = static_cast<size_t>(v + 1) * 3;
-                    if (p1 + 2 >= segments.size())
-                        break;
+                if (!circles[e].isCircle)
+                    continue;
 
-                    const QVector3D worldA = combined.map(QVector3D(segments[p0], segments[p0 + 1], segments[p0 + 2]));
-                    const QVector3D worldB = combined.map(QVector3D(segments[p1], segments[p1 + 1], segments[p1 + 2]));
-                    d = std::min(d, distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB)));
+                const QVector3D centerLocal(static_cast<float>(circles[e].centerX),
+                                             static_cast<float>(circles[e].centerY),
+                                             static_cast<float>(circles[e].centerZ));
+                const QVector3D centerWorld = combined.map(centerLocal);
+
+                // The natural click target for "this circle's center" is the
+                // visible circular edge ITSELF (the rim), not the empty space
+                // at its middle - a through-hole's center may not even be
+                // visible (occluded by the far side of the bore), while the
+                // rim always is. So a click near either the projected center
+                // OR anywhere along the rim resolves to the same center anchor.
+                float d = (clickPt - toScreen(centerWorld)).length();
+                if (!segments.empty() && bounds.size() >= 2)
+                {
+                    const int startVec3 = bounds[e];
+                    const int endVec3 = bounds[e + 1];
+                    for (int v = startVec3; v + 1 < endVec3; v += 2)
+                    {
+                        const size_t p0 = static_cast<size_t>(v) * 3;
+                        const size_t p1 = static_cast<size_t>(v + 1) * 3;
+                        if (p1 + 2 >= segments.size())
+                            break;
+
+                        const QVector3D worldA = combined.map(QVector3D(segments[p0], segments[p0 + 1], segments[p0 + 2]));
+                        const QVector3D worldB = combined.map(QVector3D(segments[p1], segments[p1 + 1], segments[p1 + 2]));
+                        d = std::min(d, distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB)));
+                    }
+                }
+
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    result.meshUuid = mesh->uuid();
+                    result.edgeIndex = e;
                 }
             }
+        }
+        else
+        {
+            // Non-CAD mesh - resolve against the detected-circular-loop
+            // table instead (same dual-meaning edgeIndex convention as
+            // pickEdgeCircleAnchor()'s own fallback just above). Each
+            // candidate loop's circle is re-fit fresh from CURRENT world-
+            // space positions right here (not cached) - same "live
+            // geometry" convention MeasurementController::
+            // resolveMeasurementEdgeCircle()'s fallback follows - there's
+            // no baked center to reuse since getDetectedCircularLoops()
+            // deliberately stores only the loop's topology.
+            const std::vector<DetectedCircularLoop>& loops = mesh->getDetectedCircularLoops();
+            if (loops.empty())
+                continue;
+            const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
 
-            if (d < bestDist)
+            for (int e = 0; e < static_cast<int>(loops.size()); ++e)
             {
-                bestDist = d;
-                result.meshUuid = mesh->uuid();
-                result.edgeIndex = e;
+                const std::vector<uint32_t>& loopVerts = loops[static_cast<size_t>(e)].vertexIndices;
+                const size_t n = loopVerts.size();
+                if (n < 3)
+                    continue;
+
+                QVector<QVector3D> worldPoints;
+                worldPoints.reserve(static_cast<int>(n));
+                for (uint32_t v : loopVerts)
+                {
+                    const size_t p = static_cast<size_t>(v) * 3;
+                    if (p + 2 >= trsfPoints.size())
+                        continue;
+                    worldPoints.append(QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]));
+                }
+                if (worldPoints.size() < 3)
+                    continue;
+
+                const MeasurementGeometry::PitchCircleResult fit = MeasurementGeometry::fitPitchCircle(worldPoints);
+                if (!fit.valid)
+                    continue;
+
+                // Same "center OR rim" click target as the OCC branch above.
+                float d = (clickPt - toScreen(fit.center)).length();
+                for (size_t k = 0; k < n; ++k)
+                {
+                    const uint32_t vA = loopVerts[k];
+                    const uint32_t vB = loopVerts[(k + 1) % n];  // wraps - closed loop
+                    const size_t p0 = static_cast<size_t>(vA) * 3;
+                    const size_t p1 = static_cast<size_t>(vB) * 3;
+                    if (p0 + 2 >= trsfPoints.size() || p1 + 2 >= trsfPoints.size())
+                        continue;
+
+                    const QVector3D worldA(trsfPoints[p0], trsfPoints[p0 + 1], trsfPoints[p0 + 2]);
+                    const QVector3D worldB(trsfPoints[p1], trsfPoints[p1 + 1], trsfPoints[p1 + 2]);
+                    d = std::min(d, distPointToSegment(clickPt, toScreen(worldA), toScreen(worldB)));
+                }
+
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    result.meshUuid = mesh->uuid();
+                    result.edgeIndex = e;
+                }
             }
         }
     }

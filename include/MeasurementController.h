@@ -16,6 +16,9 @@
 #include <QVector2D>
 #include <QVector3D>
 
+#include <map>
+#include <utility>
+
 class Camera;
 class ModelViewer;
 class SceneMesh;
@@ -121,6 +124,56 @@ public:
 	bool resolveMeasurementCylindricalDiameter(const MeasurementAnchorRef& ref,
 		float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
 		QVector3D& outPickedPoint, bool& outIsCone) const;
+	// Non-CAD fallback for resolveMeasurementCylindricalDiameter() above -
+	// mesh has no OCC face data (getOccTriangleFaceIndex() < 0). Tries
+	// resolveMeasurementCylindricalDiameterViaRegionGrowing() first (real
+	// cylinders only), then falls back to the hand-rolled PCA+circle-fit
+	// path below (also handles cones, which CGAL's cylinder region growing
+	// does not). See both functions' own doc comments in the .cpp.
+	bool resolveMeasurementCylindricalDiameterFromMeshFit(const MeasurementAnchorRef& ref, SceneMesh* mesh,
+		float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+		QVector3D& outPickedPoint, bool& outIsCone) const;
+	// Holds the actual resolve logic (Region Growing then legacy fallback) -
+	// only ever called by resolveMeasurementCylindricalDiameterFromMeshFit()
+	// above on a cache miss/staleness, never directly.
+	bool resolveMeasurementCylindricalDiameterFromMeshFitUncached(const MeasurementAnchorRef& ref, SceneMesh* mesh,
+		float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+		QVector3D& outPickedPoint, bool& outIsCone) const;
+	// CGAL::Shape_detection::Region_growing + Least_squares_cylinder_fit_region
+	// over the mesh's own vertex adjacency - grows ONLY while each candidate
+	// point stays consistent with the continuously-refit cylinder (distance
+	// to its surface + normal-radial alignment), unlike the legacy patch
+	// grower below which only checks normal continuity between neighbors
+	// and has no way to notice it has wandered onto a different surface.
+	// Cylinders only - returns false for cones (and for anything else that
+	// isn't a good cylinder fit), letting the caller fall back.
+	bool resolveMeasurementCylindricalDiameterViaRegionGrowing(const MeasurementAnchorRef& ref, SceneMesh* mesh,
+		float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+		QVector3D& outPickedPoint, bool& outIsCone) const;
+	// Cache for resolveMeasurementCylindricalDiameterFromMeshFit() - both the
+	// Region Growing and legacy fit paths are expensive (CGAL's cylinder fit
+	// runs Eigen-based least-squares refits during growth; the legacy path's
+	// own patch growth/PCA isn't free either), and this whole resolve chain
+	// runs on every mouse-move AND every render frame for every already-
+	// placed measurement - re-running it from scratch every frame even when
+	// nothing has changed was a real, confirmed performance regression.
+	// Keyed by (mesh, seed triangle); a cache hit re-checks the seed
+	// triangle's OWN 3 vertex world positions (cheap - getTrsfPoints() is a
+	// reference, no full index-buffer copy needed once the vertex indices
+	// are cached) against what they were when the entry was computed, so a
+	// moved/deformed mesh still triggers a real recompute rather than
+	// serving a stale result.
+	struct CylMeshFitCacheEntry
+	{
+		unsigned int seedVertexIndices[3] = { 0, 0, 0 };
+		QVector3D seedPos[3];
+		bool valid = false;
+		float diameter = 0.0f;
+		QVector3D axisOrigin;
+		QVector3D axisDir;
+		bool isCone = false;
+	};
+	mutable std::map<std::pair<const SceneMesh*, int>, CylMeshFitCacheEntry> m_cylMeshFitCache;
 	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
 	QVector3D dimensionLinePerp(const QVector3D& a, const QVector3D& b,
 		const QVector3D& referenceDir, Camera* camera) const;

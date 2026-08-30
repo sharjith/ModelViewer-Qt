@@ -14,6 +14,17 @@
 #include "SelectionManager.h"
 #include "TextRenderer.h"
 
+// See resolveMeasurementCylindricalDiameterViaRegionGrowing()'s doc comment -
+// CGAL Shape_detection Region Growing cylinder fit for CylindricalDiameter
+// on non-CAD meshes.
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Named_function_parameters.h>
+#include <CGAL/squared_distance_3.h>
+#include <CGAL/Shape_detection/Region_growing/Region_growing.h>
+#include <CGAL/Shape_detection/Region_growing/Point_set/Least_squares_cylinder_fit_region.h>
+#include <boost/property_map/property_map.hpp>
+
+#include <QDebug>
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
 #include <QOpenGLShaderProgram>
@@ -24,7 +35,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <limits>
+#include <unordered_map>
+#include <unordered_set>
 
 MeasurementController::MeasurementController(SceneRuntime& sceneRuntime, ModelViewer* viewer,
 	SceneRenderController& renderCtrl, QObject* parent)
@@ -506,6 +520,47 @@ bool MeasurementController::resolveMeasurementEdgeCircle(const MeasurementAnchor
 		return false;
 
 	const std::vector<OccEdgeCircleInfo>& circles = mesh->getOccEdgeCircles();
+	if (circles.empty())
+	{
+		// Non-CAD mesh - resolve against the detected-circular-loop table
+		// instead (SceneMesh::getDetectedCircularLoops(), same dual-meaning
+		// edgeIndex convention as resolveMeasurementEdgeGeometry()'s own
+		// OCC/feature-edge split). Re-fits the circle fresh from CURRENT
+		// world-space positions every call (getTrsfPoints() is already
+		// world-space, no combinedRenderTransform() needed) rather than
+		// trusting a value baked in at loop-detection time - same "live
+		// geometry" convention every other resolver here follows, and
+		// correctly reflects any transform-panel/exploded-view move made
+		// since the loop was first detected.
+		const std::vector<DetectedCircularLoop>& loops = mesh->getDetectedCircularLoops();
+		if (ref.edgeIndex >= static_cast<int>(loops.size()))
+			return false;
+
+		const std::vector<uint32_t>& loopVerts = loops[static_cast<size_t>(ref.edgeIndex)].vertexIndices;
+		const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+
+		QVector<QVector3D> worldPoints;
+		worldPoints.reserve(static_cast<int>(loopVerts.size()));
+		for (uint32_t v : loopVerts)
+		{
+			const size_t p = static_cast<size_t>(v) * 3;
+			if (p + 2 >= trsfPoints.size())
+				continue;
+			worldPoints.append(QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]));
+		}
+		if (worldPoints.size() < 3)
+			return false;
+
+		const MeasurementGeometry::PitchCircleResult fit = MeasurementGeometry::fitPitchCircle(worldPoints);
+		if (!fit.valid)
+			return false;
+
+		outCenter = fit.center;
+		outAxis = fit.normal.normalized();
+		outRadius = fit.radius;
+		return true;
+	}
+
 	if (ref.edgeIndex >= static_cast<int>(circles.size()) || !circles[ref.edgeIndex].isCircle)
 		return false;
 
@@ -1084,7 +1139,12 @@ bool MeasurementController::resolveMeasurementCylindricalDiameter(const Measurem
 	// doc comment).
 	const int faceIdx = mesh->getOccTriangleFaceIndex(ref.triangleIndex);
 	if (faceIdx < 0)
-		return false;  // not on any captured cylindrical/conical face
+	{
+		// No OCC B-Rep data at all (non-CAD mesh) - try a direct cylinder/
+		// cone fit over a local mesh patch instead of failing outright.
+		return resolveMeasurementCylindricalDiameterFromMeshFit(
+			ref, mesh, outDiameter, outAxisOrigin, outAxisDir, outPickedPoint, outIsCone);
+	}
 
 	const std::vector<OccFaceAxisInfo>& faceAxes = mesh->getOccFaceAxes();
 	if (static_cast<size_t>(faceIdx) >= faceAxes.size())
@@ -1111,6 +1171,1028 @@ bool MeasurementController::resolveMeasurementCylindricalDiameter(const Measurem
 	const QVector3D toPoint = outPickedPoint - outAxisOrigin;
 	const QVector3D radial = toPoint - outAxisDir * QVector3D::dotProduct(toPoint, outAxisDir);
 	outDiameter = radial.length() * 2.0f;
+	return true;
+}
+
+namespace {
+
+// Minimal CGAL ReadablePropertyMap wrappers directly over SceneMesh's own
+// flat world-space float buffers (getTrsfPoints() / a caller-supplied
+// sign-corrected normal buffer in the same layout) - avoids copying the
+// whole mesh into a CGAL point set just to hand a local patch to
+// Region_growing. Satisfies boost::property_traits via the nested typedefs
+// alone (no separate specialization needed); the free get() functions are
+// found via ADL from this (anonymous) namespace, the standard pattern for
+// a lightweight custom property map.
+using CylFitKernel = CGAL::Exact_predicates_inexact_constructions_kernel;
+
+// Both resolveMeasurementCylindricalDiameterViaRegionGrowing() and the
+// legacy resolveMeasurementCylindricalDiameterFromMeshFit() run on every
+// mouse-move (hover preview) and every render frame for each already-
+// placed measurement, so their qDebug() diagnostic trails must stay off by
+// default - flip to true only when actively investigating a detection
+// issue, never leave it on in a committed build.
+constexpr bool kCylFitVerbose = false;
+
+struct MeshVertexPointMap
+{
+	using key_type = unsigned int;
+	using value_type = CylFitKernel::Point_3;
+	using reference = value_type;
+	using category = boost::readable_property_map_tag;
+	const std::vector<float>* positions = nullptr;
+};
+inline MeshVertexPointMap::value_type get(const MeshVertexPointMap& m, MeshVertexPointMap::key_type v)
+{
+	const size_t p = static_cast<size_t>(v) * 3;
+	return MeshVertexPointMap::value_type((*m.positions)[p], (*m.positions)[p + 1], (*m.positions)[p + 2]);
+}
+
+// Sparse (candidate-set-only) normal map - deliberately NOT a flat buffer
+// sized to the whole mesh's vertex count. This ran once per mouse-move and
+// once per placed measurement per render frame; a full-mesh-sized
+// std::vector<float> allocated and zero-filled on every one of those calls
+// was a real, confirmed performance regression on any mesh with a
+// non-trivial vertex count, independent of the candidate patch's own
+// (small, bounded) size.
+struct MeshVertexNormalMap
+{
+	using key_type = unsigned int;
+	using value_type = CylFitKernel::Vector_3;
+	using reference = value_type;
+	using category = boost::readable_property_map_tag;
+	const std::unordered_map<unsigned int, CylFitKernel::Vector_3>* normals = nullptr;
+};
+inline MeshVertexNormalMap::value_type get(const MeshVertexNormalMap& m, MeshVertexNormalMap::key_type v)
+{
+	const auto it = m.normals->find(v);
+	return it != m.normals->end() ? it->second : MeshVertexNormalMap::value_type(0, 0, 1);
+}
+
+// NeighborQuery model (CGAL::Shape_detection concept) over a precomputed
+// vertex-adjacency map restricted to the local candidate set gathered
+// before growth starts - see the doc comment on
+// resolveMeasurementCylindricalDiameterViaRegionGrowing() for why that
+// pre-gather step exists (bounding cost, not correctness - CGAL's own
+// region type does the actual correctness filtering).
+class MeshVertexNeighborQuery
+{
+public:
+	using Item = unsigned int;
+	explicit MeshVertexNeighborQuery(const std::unordered_map<unsigned int, std::vector<unsigned int>>& adjacency)
+		: m_adjacency(adjacency) {}
+	void operator()(const Item query, std::vector<Item>& neighbors) const
+	{
+		neighbors.clear();
+		const auto it = m_adjacency.find(query);
+		if (it != m_adjacency.end())
+			neighbors = it->second;
+	}
+private:
+	const std::unordered_map<unsigned int, std::vector<unsigned int>>& m_adjacency;
+};
+
+} // namespace
+
+// CGAL::Shape_detection::Region_growing, paired with
+// Least_squares_cylinder_fit_region as the region type and a custom
+// mesh-vertex-adjacency NeighborQuery, grown from the single vertex
+// nearest the picked triangle. This is the primary, preferred cylinder fit
+// for non-CAD meshes - see [[project_cgal_capabilities_reference]] (project
+// memory) for how this was found: CGAL::Shape_detection::Efficient_RANSAC
+// (tried first, this session) is architecturally wrong for a patch this
+// small (octree-based candidate sampling degenerates below ~1000 points,
+// confirmed by tracing its detect() loop directly), and a hand-rolled
+// PCA-of-normals + project + circle-fit (tried second) only checks normal
+// continuity between adjacent triangles while growing, with no way to
+// notice it has wandered onto a different surface - which is exactly how
+// it kept bleeding across tangent-continuous seams (a fillet blending into
+// its adjacent flat face, or through an intersecting second bore) despite
+// an escalating pile of after-the-fact statistical gates (residual, arc
+// coverage, footprint, normal-azimuth, reach-jump) bolted on to catch the
+// symptoms. Region_growing's is_part_of_region() checks DISTANCE from each
+// growth candidate to the CURRENTLY-fitted cylinder surface (refit after
+// every accepted point) and normal-radial alignment against the CURRENT
+// axis - it can't wander the same way, because a point on an unrelated
+// surface fails the distance check immediately regardless of how gradually
+// growth got there.
+//
+// Cylinders only (Least_squares_cylinder_fit_region has no cone variant) -
+// returns false (not an error, just "try something else") for cones, or
+// for a seed not on/near a cylindrical surface at all; the caller
+// (resolveMeasurementCylindricalDiameterFromMeshFit()) falls back to the
+// legacy PCA+circle-fit path below on false, which still handles cones
+// acceptably.
+bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowing(const MeasurementAnchorRef& ref, SceneMesh* mesh,
+	float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+	QVector3D& outPickedPoint, bool& outIsCone) const
+{
+	const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+	if (static_cast<size_t>(ref.triangleIndex) >= adjacency.size())
+		return false;
+
+	const std::vector<unsigned int> indices = mesh->indices();
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	const std::vector<float>& trsfNormals = mesh->getTrsfNormals();
+
+	auto vertexPos = [&](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+	auto triangleFaceNormal = [&](int t) -> QVector3D {
+		const size_t base = static_cast<size_t>(t) * 3;
+		if (base + 2 >= indices.size())
+			return QVector3D();
+		const QVector3D p0 = vertexPos(indices[base]);
+		const QVector3D p1 = vertexPos(indices[base + 1]);
+		const QVector3D p2 = vertexPos(indices[base + 2]);
+		return QVector3D::crossProduct(p1 - p0, p2 - p0);
+	};
+
+	// Gather a bounded candidate set via plain topological BFS - no normal
+	// filtering here at all, unlike the legacy grower's curvature-following
+	// flood fill. This step exists ONLY to bound the cost of what follows
+	// (so this doesn't scan an entire large mesh on every mouse-move); the
+	// actual decision about where the real surface stops is left entirely
+	// to Region_growing's own distance-to-fitted-cylinder condition below.
+	constexpr size_t kMaxCandidateTriangles = 600;
+	std::vector<bool> visitedTri(adjacency.size(), false);
+	std::vector<int> candidateTriangles;
+	std::vector<int> frontier;
+	candidateTriangles.push_back(ref.triangleIndex);
+	frontier.push_back(ref.triangleIndex);
+	visitedTri[static_cast<size_t>(ref.triangleIndex)] = true;
+	while (!frontier.empty() && candidateTriangles.size() < kMaxCandidateTriangles)
+	{
+		std::vector<int> nextFrontier;
+		for (int t : frontier)
+		{
+			for (int neighbor : adjacency[static_cast<size_t>(t)])
+			{
+				if (neighbor < 0 || visitedTri[static_cast<size_t>(neighbor)])
+					continue;
+				visitedTri[static_cast<size_t>(neighbor)] = true;
+				candidateTriangles.push_back(neighbor);
+				nextFrontier.push_back(neighbor);
+			}
+		}
+		frontier = std::move(nextFrontier);
+	}
+
+	// Build the candidate vertex set, sign-corrected per-vertex normals
+	// (averaged across incident candidate triangles, each corrected against
+	// ITS OWN winding-based face normal first - imported normals are not
+	// guaranteed outward-facing, confirmed inverted on a real test asset
+	// earlier this session), and a vertex-adjacency map restricted to this
+	// candidate set (Region_growing must never be offered a neighbor
+	// outside the set it was constructed with).
+	std::unordered_map<unsigned int, QVector3D> vertexNormalSum;
+	std::unordered_set<unsigned int> candidateVertexSet;
+	std::unordered_map<unsigned int, std::vector<unsigned int>> vertexAdjacency;
+	double edgeLengthSum = 0.0;
+	size_t edgeCount = 0;
+
+	for (int t : candidateTriangles)
+	{
+		const size_t base = static_cast<size_t>(t) * 3;
+		if (base + 2 >= indices.size())
+			continue;
+		const QVector3D faceNormal = triangleFaceNormal(t);
+		if (faceNormal.lengthSquared() < 1.0e-12f)
+			continue;
+		const QVector3D faceNormalUnit = faceNormal.normalized();
+		const unsigned int vIdx[3] = { indices[base], indices[base + 1], indices[base + 2] };
+		for (int c = 0; c < 3; ++c)
+		{
+			candidateVertexSet.insert(vIdx[c]);
+			const size_t p = static_cast<size_t>(vIdx[c]) * 3;
+			if (p + 2 >= trsfNormals.size())
+				continue;
+			QVector3D n(trsfNormals[p], trsfNormals[p + 1], trsfNormals[p + 2]);
+			if (n.lengthSquared() < 1.0e-12f)
+				continue;
+			n.normalize();
+			if (QVector3D::dotProduct(n, faceNormalUnit) < 0.0f)
+				n = -n;
+			vertexNormalSum[vIdx[c]] += n;
+		}
+		for (int e = 0; e < 3; ++e)
+		{
+			const unsigned int a = vIdx[e];
+			const unsigned int b = vIdx[(e + 1) % 3];
+			vertexAdjacency[a].push_back(b);
+			vertexAdjacency[b].push_back(a);
+			edgeLengthSum += (vertexPos(a) - vertexPos(b)).length();
+			++edgeCount;
+		}
+	}
+
+	// Need enough distinct points for a stable fit - matches the legacy
+	// path's own floor.
+	constexpr size_t kMinPatchPoints = 24;
+	if (kCylFitVerbose) qDebug() << "[CylFitRG] candidate vertices" << candidateVertexSet.size() << "from" << candidateTriangles.size() << "triangles, seed" << ref.triangleIndex;
+	if (candidateVertexSet.size() < kMinPatchPoints || edgeCount == 0)
+		return false;
+
+	// Averaged, sign-corrected normals, keyed sparsely by candidate vertex -
+	// see MeshVertexNormalMap's doc comment for why this is a map, not a
+	// full-mesh-sized flat buffer.
+	std::unordered_map<unsigned int, CylFitKernel::Vector_3> correctedNormals;
+	correctedNormals.reserve(vertexNormalSum.size());
+	for (const auto& kv : vertexNormalSum)
+	{
+		QVector3D avg = kv.second;
+		if (avg.lengthSquared() < 1.0e-12f)
+			continue;
+		avg.normalize();
+		correctedNormals.emplace(kv.first, CylFitKernel::Vector_3(avg.x(), avg.y(), avg.z()));
+	}
+
+	const std::vector<unsigned int> candidateItems(candidateVertexSet.begin(), candidateVertexSet.end());
+	const unsigned int seedVertex = indices[static_cast<size_t>(ref.triangleIndex) * 3];
+	std::vector<unsigned int> seedItems{ seedVertex };
+
+	MeshVertexPointMap pointMap;
+	pointMap.positions = &trsfPoints;
+	MeshVertexNormalMap normalMap;
+	normalMap.normals = &correctedNormals;
+	MeshVertexNeighborQuery neighborQuery(vertexAdjacency);
+
+	using RegionType = CGAL::Shape_detection::Point_set::Least_squares_cylinder_fit_region<
+		CylFitKernel, unsigned int, MeshVertexPointMap, MeshVertexNormalMap>;
+	using RegionGrowing = CGAL::Shape_detection::Region_growing<MeshVertexNeighborQuery, RegionType>;
+
+	// maximum_distance is an ABSOLUTE length, and this mesh's unit scale is
+	// unknown in advance (mm, m, or arbitrary CAD units) - derive it from
+	// the candidate patch's own average edge length instead of a fixed
+	// constant, so this adapts to whatever scale/tessellation density the
+	// mesh actually has.
+	const double avgEdgeLength = edgeLengthSum / double(edgeCount);
+	const double maxDistance = std::max(avgEdgeLength * 1.5, 1.0e-6);
+
+	RegionType regionType(
+		CGAL::parameters::point_map(pointMap)
+			.normal_map(normalMap)
+			.maximum_distance(maxDistance)
+			.maximum_angle(35.0)
+			.minimum_region_size(kMinPatchPoints));
+	RegionGrowing regionGrowing(candidateItems, seedItems, neighborQuery, regionType);
+
+	if (kCylFitVerbose) qDebug() << "[CylFitRG] maximum_distance" << maxDistance << "(avg edge length" << avgEdgeLength << ")";
+
+	std::vector<std::pair<RegionType::Primitive, std::vector<unsigned int>>> results;
+	regionGrowing.detect(std::back_inserter(results));
+	if (results.empty())
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFitRG] no region grown from seed - not a cylinder (or caller should fall back)";
+		return false;
+	}
+
+	const RegionType::Primitive& primitive = results.front().first;
+	const double radius = CGAL::to_double(primitive.radius);
+	if (!(radius > 0.0))
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFitRG] region grown but radius invalid:" << radius;
+		return false;
+	}
+	// CGAL's own region-growing has two gaps that can let contamination
+	// through despite the distance-to-fitted-cylinder growth condition:
+	// is_part_of_region() unconditionally accepts the FIRST 6 points in a
+	// region before any check runs at all ("need 6 points before the fit
+	// means anything", per its own doc comment) - if the seed sits right at
+	// a tangent-continuous seam (a fillet blending into its adjacent flat
+	// face), those first few free points can come from both surfaces and
+	// skew the very first fit - and propagate() never retroactively removes
+	// an already-accepted point that fails a LATER refit's own consistency
+	// check, it just stops growing and keeps whatever's already in the
+	// region (confirmed directly against a real corner-fillet case that
+	// still produced a wrong ~59mm-diameter circle after switching to
+	// Region_growing). Close both gaps with one direct check: does every
+	// point in the FINAL accepted region actually sit close to the FINAL
+	// fitted cylinder surface, not just whatever intermediate fit existed
+	// when each point was originally admitted.
+	const std::vector<unsigned int>& regionItems = results.front().second;
+	double maxResidual = 0.0;
+	for (unsigned int item : regionItems)
+	{
+		const CylFitKernel::Point_3 pt = get(pointMap, item);
+		const double distSq = CGAL::to_double(CGAL::squared_distance(pt, primitive.axis));
+		maxResidual = std::max(maxResidual, std::fabs(std::sqrt(distSq) - radius));
+	}
+	constexpr double kResidualSlack = 1.5;
+	if (maxResidual > maxDistance * kResidualSlack)
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFitRG] rejected - final region residual" << maxResidual << "exceeds tolerance" << (maxDistance * kResidualSlack) << "(CGAL grace-period/no-retroactive-pruning gap)";
+		return false;
+	}
+	if (kCylFitVerbose) qDebug() << "[CylFitRG] accepted, region size" << regionItems.size() << "radius" << radius << "max residual" << maxResidual;
+
+	const CylFitKernel::Point_3 axisPoint = primitive.axis.point();
+	const CylFitKernel::Vector_3 axisVector = primitive.axis.to_vector();
+	QVector3D axisOrigin(
+		float(CGAL::to_double(axisPoint.x())),
+		float(CGAL::to_double(axisPoint.y())),
+		float(CGAL::to_double(axisPoint.z())));
+	QVector3D axisDir(
+		float(CGAL::to_double(axisVector.x())),
+		float(CGAL::to_double(axisVector.y())),
+		float(CGAL::to_double(axisVector.z())));
+	if (axisDir.lengthSquared() < 1.0e-12f)
+		return false;
+	axisDir.normalize();
+
+	outPickedPoint = resolveMeasurementAnchor(ref);
+	outAxisOrigin = axisOrigin;
+	outAxisDir = axisDir;
+	outIsCone = false;
+	outDiameter = float(radius) * 2.0f;
+	return true;
+}
+
+// Cached entry point - see CylMeshFitCacheEntry's doc comment in the header
+// for why this exists (both the Region Growing and legacy paths below are
+// too expensive to re-run from scratch on every mouse-move and every
+// render frame for every placed measurement). Cache miss/staleness falls
+// through to resolveMeasurementCylindricalDiameterFromMeshFitUncached(),
+// which holds the actual resolve logic unchanged.
+bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFit(const MeasurementAnchorRef& ref, SceneMesh* mesh,
+	float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+	QVector3D& outPickedPoint, bool& outIsCone) const
+{
+	outPickedPoint = resolveMeasurementAnchor(ref);
+
+	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
+	auto posOf = [&](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+
+	const auto cacheKey = std::make_pair(static_cast<const SceneMesh*>(mesh), ref.triangleIndex);
+	const auto cacheIt = m_cylMeshFitCache.find(cacheKey);
+	if (cacheIt != m_cylMeshFitCache.end())
+	{
+		const CylMeshFitCacheEntry& entry = cacheIt->second;
+		if (posOf(entry.seedVertexIndices[0]) == entry.seedPos[0]
+			&& posOf(entry.seedVertexIndices[1]) == entry.seedPos[1]
+			&& posOf(entry.seedVertexIndices[2]) == entry.seedPos[2])
+		{
+			if (!entry.valid)
+				return false;
+			outDiameter = entry.diameter;
+			outAxisOrigin = entry.axisOrigin;
+			outAxisDir = entry.axisDir;
+			outIsCone = entry.isCone;
+			return true;
+		}
+	}
+
+	CylMeshFitCacheEntry entry;
+	const std::vector<unsigned int> indices = mesh->indices();
+	const size_t base = static_cast<size_t>(ref.triangleIndex) * 3;
+	if (base + 2 < indices.size())
+	{
+		entry.seedVertexIndices[0] = indices[base];
+		entry.seedVertexIndices[1] = indices[base + 1];
+		entry.seedVertexIndices[2] = indices[base + 2];
+		entry.seedPos[0] = posOf(entry.seedVertexIndices[0]);
+		entry.seedPos[1] = posOf(entry.seedVertexIndices[1]);
+		entry.seedPos[2] = posOf(entry.seedVertexIndices[2]);
+	}
+
+	entry.valid = resolveMeasurementCylindricalDiameterFromMeshFitUncached(
+		ref, mesh, outDiameter, outAxisOrigin, outAxisDir, outPickedPoint, outIsCone);
+	if (entry.valid)
+	{
+		entry.diameter = outDiameter;
+		entry.axisOrigin = outAxisOrigin;
+		entry.axisDir = outAxisDir;
+		entry.isCone = outIsCone;
+	}
+	m_cylMeshFitCache[cacheKey] = entry;
+	return entry.valid;
+}
+
+bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUncached(const MeasurementAnchorRef& ref, SceneMesh* mesh,
+	float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
+	QVector3D& outPickedPoint, bool& outIsCone) const
+{
+	if (resolveMeasurementCylindricalDiameterViaRegionGrowing(
+		ref, mesh, outDiameter, outAxisOrigin, outAxisDir, outPickedPoint, outIsCone))
+		return true;
+
+	// Grow a local patch via a curvature-aware flood fill - deliberately
+	// NEITHER resolveMeasurementFaceRegion()'s ~30 degree neighbor-vs-
+	// neighbor tolerance (too tight - stops after 1-2 triangles on a
+	// coarsely-faceted cylinder/cone, e.g. an 8- or 12-facet non-CAD test
+	// mesh, whose adjacent-facet normals alone can exceed 30 degrees) NOR
+	// unfiltered N-ring adjacency (too loose - happily grows straight past
+	// a boss/hole's real edge onto whatever flat plate it's mounted in,
+	// which is extremely common mechanical-part geometry; a patch diluted
+	// by a larger surrounding flat region pulls the normal-covariance axis
+	// fit below toward "no consistent axis at all" and gets rejected
+	// instead of fitting the smaller cylindrical feature the user actually
+	// clicked). This threshold sits between the two: loose enough to keep
+	// growing across typical coarse faceting within the SAME curved
+	// surface, tight enough to still stop at a genuine sharp
+	// boss-to-plate/hole-to-plate transition (usually close to 90 degrees).
+	const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
+	if (static_cast<size_t>(ref.triangleIndex) >= adjacency.size())
+		return false;
+
+	const std::vector<unsigned int> patchIndices = mesh->indices();
+	const std::vector<float>& patchTrsfPoints = mesh->getTrsfPoints();
+	auto trianglePos = [&](unsigned int vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= patchTrsfPoints.size())
+			return QVector3D();
+		return QVector3D(patchTrsfPoints[p], patchTrsfPoints[p + 1], patchTrsfPoints[p + 2]);
+	};
+	auto triangleNormal = [&](int t) -> QVector3D {
+		const size_t base = static_cast<size_t>(t) * 3;
+		if (base + 2 >= patchIndices.size())
+			return QVector3D();
+		const QVector3D p0 = trianglePos(patchIndices[base]);
+		const QVector3D p1 = trianglePos(patchIndices[base + 1]);
+		const QVector3D p2 = trianglePos(patchIndices[base + 2]);
+		return QVector3D::crossProduct(p1 - p0, p2 - p0);
+	};
+
+	constexpr float kPatchGrowToleranceDegrees = 65.0f;
+	const float cosThreshold = std::cos(kPatchGrowToleranceDegrees * 0.017453292519943295f);
+	constexpr int kMaxPatchTriangles = 300;  // safety cap, not a target - a real sharp edge should stop growth well before this
+
+	// A tangent-continuous boundary (a fillet blending smoothly into an
+	// adjacent flat face, with no real dihedral break) has no curvature
+	// discontinuity for the neighbor-vs-neighbor angle test above to catch -
+	// confirmed directly on a real test model: growth starting on a small
+	// quarter-round notch reached 88.9mm from the seed, spanning nearly the
+	// entire length of the part, because it bled straight through the seam
+	// onto a large adjacent face. A genuinely local curved feature grows its
+	// reach from the seed gradually, ring by ring, roughly in step with
+	// mesh edge length; breaking through a tangent seam into a much larger
+	// surrounding region shows up as a sudden, disproportionate jump in
+	// reach within a SINGLE ring - stop growth right there rather than
+	// accept whatever the seam happened to open onto.
+	const size_t seedBase0 = static_cast<size_t>(ref.triangleIndex) * 3;
+	QVector3D seedCentroid;
+	float maxReachFromSeed = 0.0f;
+	if (seedBase0 + 2 < patchIndices.size())
+	{
+		seedCentroid = (trianglePos(patchIndices[seedBase0]) + trianglePos(patchIndices[seedBase0 + 1]) + trianglePos(patchIndices[seedBase0 + 2])) / 3.0f;
+		for (int c = 0; c < 3; ++c)
+			maxReachFromSeed = std::max(maxReachFromSeed, (trianglePos(patchIndices[seedBase0 + c]) - seedCentroid).length());
+	}
+	// Calibrated directly from real log data: legitimate ring-to-ring reach
+	// growth on real (later confirmed-good) features measured up to ~2.6x
+	// in one ring (BFS growth over irregular mesh tessellation isn't
+	// perfectly smooth even on a clean feature), while genuine tangent-seam
+	// breaks measured 5.3x-11.75x - a wide, clean gap between the two
+	// clusters. Sitting in the middle of that gap avoids rejecting real
+	// small features while still catching the seam-break case.
+	constexpr float kMaxGrowthJumpRatio = 4.0f;
+
+	std::vector<bool> visited(adjacency.size(), false);
+	QVector<int> patchTriangles;
+	QVector<int> frontier;
+	patchTriangles.append(ref.triangleIndex);
+	frontier.append(ref.triangleIndex);
+	visited[static_cast<size_t>(ref.triangleIndex)] = true;
+
+	while (!frontier.isEmpty() && patchTriangles.size() < kMaxPatchTriangles)
+	{
+		QVector<int> nextFrontier;
+		for (int t : frontier)
+		{
+			const QVector3D nT = triangleNormal(t);
+			if (nT.lengthSquared() < 1.0e-12f)
+				continue;
+			const QVector3D nTNorm = nT.normalized();
+
+			for (int neighbor : adjacency[static_cast<size_t>(t)])
+			{
+				if (neighbor < 0 || visited[static_cast<size_t>(neighbor)])
+					continue;
+				const QVector3D nN = triangleNormal(neighbor);
+				if (nN.lengthSquared() < 1.0e-12f)
+					continue;
+				// Neighbor-vs-neighbor (the triangle being expanded from),
+				// not a fixed seed - same "follow continuous curvature"
+				// reasoning as resolveMeasurementFaceRegion(), just with a
+				// looser threshold tuned for coarse non-CAD tessellation.
+				if (QVector3D::dotProduct(nN.normalized(), nTNorm) < cosThreshold)
+					continue;
+				visited[static_cast<size_t>(neighbor)] = true;
+				nextFrontier.append(neighbor);
+			}
+		}
+		if (nextFrontier.isEmpty())
+			break;
+
+		float ringMaxReach = maxReachFromSeed;
+		for (int t : nextFrontier)
+		{
+			const size_t base = static_cast<size_t>(t) * 3;
+			if (base + 2 >= patchIndices.size())
+				continue;
+			for (int c = 0; c < 3; ++c)
+				ringMaxReach = std::max(ringMaxReach, (trianglePos(patchIndices[base + c]) - seedCentroid).length());
+		}
+		if (maxReachFromSeed > 1.0e-4f && ringMaxReach > kMaxGrowthJumpRatio * maxReachFromSeed)
+		{
+			if (kCylFitVerbose) qDebug() << "[CylFit] growth stopped - reach jumped from" << maxReachFromSeed << "to" << ringMaxReach << "in one ring, likely broke through a tangent seam";
+			break;
+		}
+		maxReachFromSeed = ringMaxReach;
+		patchTriangles.append(nextFrontier);
+		frontier = nextFrontier;
+	}
+
+	if (kCylFitVerbose) qDebug() << "[CylFit] patch grown to" << patchTriangles.size() << "triangles from seed" << ref.triangleIndex << "final reach from seed" << maxReachFromSeed;
+
+	// Fit the axis directly from the patch's own point+normal data via a
+	// small hand-rolled PCA - NOT CGAL Efficient_RANSAC. Traced directly into
+	// CGAL's detect() loop: candidates are built from m_required_samples
+	// points drawn from the tight LOCAL octree cell around one randomly
+	// chosen point, and for a patch this small (order of 100-300 points,
+	// capped by how much of the actual mesh even exists - OpenCylinder.obj's
+	// entire 48-triangle/144-point mesh doesn't grow any further) those
+	// local draws are nearly always near-parallel in their normals, making
+	// the cylinder/cone axis (cross product of two sample normals)
+	// indeterminate - candidate generation fails validity almost every
+	// time, and with a best-so-far size of 0 ever found, CGAL's own
+	// stop_probability() check is satisfied almost immediately, so detect()
+	// returns having tried essentially nothing. Confirmed against a
+	// mathematically perfect test cylinder (exact vertex positions, fine
+	// 15-degree tessellation) via qDebug instrumentation: patch grows to the
+	// full 144 points, but shapes() always comes back empty - an
+	// algorithm/scale mismatch, not a tunable threshold.
+	//
+	// Direct fit instead: every point on a cylinder or cone has its surface
+	// normal at one CONSTANT angle to the true axis (90 degrees for a
+	// cylinder, some other fixed angle for a cone), so the patch's own
+	// (sign-corrected) normals are confined to a band around the axis on the
+	// unit sphere. The axis is therefore the eigenvector of SMALLEST
+	// eigenvalue of sum(n_i * n_i^T) - normal scatter is smallest along the
+	// axis, since no normal ever points that way. This uses every normal
+	// once (no random sampling), so it doesn't inherit RANSAC's small-
+	// sample-count failure mode.
+	struct PatchSample { QVector3D pos; QVector3D normal; };
+	std::vector<PatchSample> samples;
+	samples.reserve(static_cast<size_t>(patchTriangles.size()) * 3);
+	const std::vector<float>& trsfNormals = mesh->getTrsfNormals();
+	for (int t : patchTriangles)
+	{
+		const size_t base = static_cast<size_t>(t) * 3;
+		if (base + 2 >= patchIndices.size())
+			continue;
+		const QVector3D faceNormal = triangleNormal(t);
+		if (faceNormal.lengthSquared() < 1.0e-12f)
+			continue;
+		for (size_t corner = 0; corner < 3; ++corner)
+		{
+			const unsigned int vIdx = patchIndices[base + corner];
+			const size_t p = static_cast<size_t>(vIdx) * 3;
+			if (p + 2 >= trsfNormals.size())
+				continue;
+			QVector3D n(trsfNormals[p], trsfNormals[p + 1], trsfNormals[p + 2]);
+			if (n.lengthSquared() < 1.0e-12f)
+				continue;
+			n.normalize();
+			// Re-orient against this triangle's own geometrically-computed
+			// face normal (winding-based) rather than trusting the import's
+			// stored sign, which is not guaranteed outward-facing (confirmed
+			// inverted on at least one real non-CAD test asset) - sign
+			// doesn't affect n*n^T itself, but does affect the cone/cylinder
+			// angle check below.
+			if (QVector3D::dotProduct(n, faceNormal) < 0.0f)
+				n = -n;
+			samples.push_back({ trianglePos(vIdx), n });
+		}
+	}
+
+	// Need enough samples for a stable fit - arbitrary but reasonable floor,
+	// may need tuning against real non-CAD test models.
+	constexpr size_t kMinPatchPoints = 24;
+	if (kCylFitVerbose) qDebug() << "[CylFit] point cloud size" << samples.size() << "(min required" << kMinPatchPoints << ")";
+	if (samples.size() < kMinPatchPoints)
+		return false;
+
+	// Fit the axis (mean-CENTERED normal PCA, see below) and check that
+	// every point's normal sits at one CONSISTENT angle to it - 90 degrees
+	// for a cylinder, some other fixed angle for a cone. Returns false if
+	// the eigen-structure is too flat/isotropic to define an axis at all
+	// (e.g. a patch on a sphere/blob).
+	auto fitAxisFromNormals = [](const std::vector<PatchSample>& pts, QVector3D& outAxis, double& outMeanCos, double& outCosStdDev) -> bool
+	{
+		// Mean-CENTER the normals before building the scatter matrix - a
+		// cylinder's normals form a ring exactly 90 degrees from the axis
+		// (a plane through the origin in normal-space), but a cone's
+		// normals form a ring at some OTHER fixed angle, i.e. a plane
+		// OFFSET from the origin. Using the raw (origin-referenced) second
+		// moment sum(n*n^T) only finds the axis correctly for the 90-degree
+		// case; this is the standard "fit a plane to a point cloud via PCA"
+		// formulation instead (treating each sample's normal as a point on
+		// the unit sphere), which recovers the axis regardless of the
+		// ring's offset - handles cylinder and any cone half-angle
+		// uniformly.
+		QVector3D meanNormal;
+		for (const PatchSample& s : pts)
+			meanNormal += s.normal;
+		meanNormal /= float(pts.size());
+
+		double cov[3][3] = { {0,0,0}, {0,0,0}, {0,0,0} };
+		for (const PatchSample& s : pts)
+		{
+			const double nx = double(s.normal.x()) - meanNormal.x();
+			const double ny = double(s.normal.y()) - meanNormal.y();
+			const double nz = double(s.normal.z()) - meanNormal.z();
+			cov[0][0] += nx * nx; cov[0][1] += nx * ny; cov[0][2] += nx * nz;
+			cov[1][1] += ny * ny; cov[1][2] += ny * nz;
+			cov[2][2] += nz * nz;
+		}
+		cov[1][0] = cov[0][1]; cov[2][0] = cov[0][2]; cov[2][1] = cov[1][2];
+
+		// Cyclic Jacobi eigenvalue decomposition - standard textbook
+		// algorithm for small symmetric matrices, a handful of sweeps
+		// fully converges 3x3.
+		double eigenvectors[3][3] = { {1,0,0}, {0,1,0}, {0,0,1} };
+		for (int sweep = 0; sweep < 50; ++sweep)
+		{
+			const double off = std::fabs(cov[0][1]) + std::fabs(cov[0][2]) + std::fabs(cov[1][2]);
+			if (off < 1.0e-12)
+				break;
+			for (int p = 0; p < 2; ++p)
+			{
+				for (int q = p + 1; q < 3; ++q)
+				{
+					if (std::fabs(cov[p][q]) < 1.0e-15)
+						continue;
+					const double theta = (cov[q][q] - cov[p][p]) / (2.0 * cov[p][q]);
+					const double t = (theta >= 0.0 ? 1.0 : -1.0) / (std::fabs(theta) + std::sqrt(theta * theta + 1.0));
+					const double c = 1.0 / std::sqrt(t * t + 1.0);
+					const double s = t * c;
+					const double app = cov[p][p], aqq = cov[q][q], apq = cov[p][q];
+					cov[p][p] = app - t * apq;
+					cov[q][q] = aqq + t * apq;
+					cov[p][q] = cov[q][p] = 0.0;
+					for (int i = 0; i < 3; ++i)
+					{
+						if (i != p && i != q)
+						{
+							const double aip = cov[i][p], aiq = cov[i][q];
+							cov[i][p] = cov[p][i] = c * aip - s * aiq;
+							cov[i][q] = cov[q][i] = s * aip + c * aiq;
+						}
+					}
+					for (int i = 0; i < 3; ++i)
+					{
+						const double vip = eigenvectors[i][p], viq = eigenvectors[i][q];
+						eigenvectors[i][p] = c * vip - s * viq;
+						eigenvectors[i][q] = s * vip + c * viq;
+					}
+				}
+			}
+		}
+
+		const double evals[3] = { cov[0][0], cov[1][1], cov[2][2] };
+		int order[3] = { 0, 1, 2 };
+		std::sort(order, order + 3, [&](int a, int b) { return evals[a] < evals[b]; });
+		const int minIdx = order[0];
+		const int midIdx = order[1];
+
+		// Axis is ill-defined if the two smallest eigenvalues are too close
+		// together (e.g. a patch on a sphere/blob, where normals scatter
+		// evenly in every direction rather than banding around one axis) -
+		// reject rather than report a meaningless axis.
+		const double trace = evals[0] + evals[1] + evals[2];
+		if (trace < 1.0e-9 || (evals[midIdx] - evals[minIdx]) < 0.05 * trace)
+			return false;
+
+		const float axisX = float(eigenvectors[0][minIdx]);
+		const float axisY = float(eigenvectors[1][minIdx]);
+		const float axisZ = float(eigenvectors[2][minIdx]);
+		QVector3D axis(axisX, axisY, axisZ);
+		if (axis.lengthSquared() < 1.0e-12f)
+			return false;
+		axis.normalize();
+
+		double sumCos = 0.0, sumCosSq = 0.0;
+		for (const PatchSample& s : pts)
+		{
+			const double c = QVector3D::dotProduct(s.normal, axis);
+			sumCos += c;
+			sumCosSq += c * c;
+		}
+		const double meanCos = sumCos / double(pts.size());
+		const double cosStdDev = std::sqrt(std::max(0.0, sumCosSq / double(pts.size()) - meanCos * meanCos));
+
+		outAxis = axis;
+		outMeanCos = meanCos;
+		outCosStdDev = cosStdDev;
+		return true;
+	};
+
+	// Fit, then iteratively TRIM outliers and re-fit rather than rejecting
+	// outright on the first inconsistent result. A patch can legitimately
+	// pick up contamination from a DIFFERENT nearby surface of revolution -
+	// e.g. two bores at different angles/axes that intersect each other,
+	// or growth bleeding through a tangent-continuous seam onto an
+	// adjacent surface, in either case without a clean stopping point for
+	// the growth heuristics above to catch. Two INDEPENDENT signals matter
+	// here, and a patch can pass one while still failing the other -
+	// confirmed directly: a real contaminated patch survived normal-based
+	// trimming down to a "consistent-looking" 474 points (every point's
+	// outward direction agreed with the fitted axis), yet still showed a
+	// 48%+ positional residual (those same points didn't actually SIT on
+	// the resulting circle) - so both normal consistency and positional
+	// (circle-residual) consistency need to converge together, trimming by
+	// whichever signal is worse each iteration, before the fit is trusted.
+	constexpr double kMaxCosStdDev = 0.17;
+	constexpr double kMaxRmsResidualRatio = 0.10;
+	// RMS alone lets a MINORITY of badly-contaminated points slide through
+	// if the rest of the patch fits well - exactly what happens when growth
+	// bleeds a little way past a tangent-continuous fillet boundary onto
+	// the adjacent flat face (confirmed directly: a real rejected-looking
+	// case measured rms 0.044 - comfortably under 0.10 - but max 0.224, a
+	// single badly-off subset the RMS average buried). Gate on the worst
+	// point too, not just the average.
+	constexpr float kMaxSingleResidualRatio = 0.15f;
+	constexpr int kMaxTrimIterations = 6;
+	std::vector<PatchSample> inliers = samples;
+	QVector3D axis;
+	double meanCos = 0.0, cosStdDev = 0.0;
+	QVector3D centroid;
+	QVector<QVector3D> projected;
+	MeasurementGeometry::PitchCircleResult circleFit;
+	double rmsResidualRatio = 0.0;
+	float maxResidualRatio = 0.0f;
+	bool consistent = false;
+
+	for (int iter = 0; iter < kMaxTrimIterations; ++iter)
+	{
+		if (inliers.size() < kMinPatchPoints)
+			break;
+		if (!fitAxisFromNormals(inliers, axis, meanCos, cosStdDev))
+		{
+			if (kCylFitVerbose) qDebug() << "[CylFit] axis ill-defined on iteration" << iter << "with" << inliers.size() << "points - not a surface of revolution";
+			break;
+		}
+		if (kCylFitVerbose) qDebug() << "[CylFit] iter" << iter << "points" << inliers.size() << "mean cos" << meanCos << "stddev" << cosStdDev << "(max allowed" << kMaxCosStdDev << ")";
+		if (cosStdDev > kMaxCosStdDev)
+		{
+			std::vector<PatchSample> trimmed;
+			trimmed.reserve(inliers.size());
+			for (const PatchSample& s : inliers)
+			{
+				const double c = QVector3D::dotProduct(s.normal, axis);
+				if (std::fabs(c - meanCos) <= 2.0 * cosStdDev)
+					trimmed.push_back(s);
+			}
+			if (trimmed.size() == inliers.size() || trimmed.size() < kMinPatchPoints)
+				break;  // no progress, or trimmed away too much - stop rather than loop pointlessly
+			inliers = std::move(trimmed);
+			continue;
+		}
+
+		// Normals are consistent for this batch - now check whether the
+		// points actually SIT on the resulting circle.
+		centroid = QVector3D();
+		for (const PatchSample& s : inliers)
+			centroid += s.pos;
+		centroid /= float(inliers.size());
+
+		projected.clear();
+		projected.reserve(static_cast<int>(inliers.size()));
+		for (const PatchSample& s : inliers)
+			projected.append(s.pos - axis * QVector3D::dotProduct(s.pos - centroid, axis));
+
+		circleFit = MeasurementGeometry::fitPitchCircle(projected);
+		if (!circleFit.valid || circleFit.radius <= 1.0e-6f)
+		{
+			if (kCylFitVerbose) qDebug() << "[CylFit] cross-section circle fit failed on iteration" << iter;
+			break;
+		}
+
+		double residualSumSq = 0.0;
+		maxResidualRatio = 0.0f;
+		QVector<float> residualRatios;
+		residualRatios.reserve(projected.size());
+		for (const QVector3D& p : projected)
+		{
+			const float residualRatio = std::fabs((p - circleFit.center).length() - circleFit.radius) / circleFit.radius;
+			residualRatios.append(residualRatio);
+			residualSumSq += double(residualRatio) * double(residualRatio);
+			maxResidualRatio = std::max(maxResidualRatio, residualRatio);
+		}
+		rmsResidualRatio = std::sqrt(residualSumSq / double(projected.size()));
+		if (kCylFitVerbose) qDebug() << "[CylFit] iter" << iter << "cross-section radial residual rms" << rmsResidualRatio << "max" << maxResidualRatio << "(max rms allowed" << kMaxRmsResidualRatio << ", max single allowed" << kMaxSingleResidualRatio << ")";
+
+		if (rmsResidualRatio <= kMaxRmsResidualRatio && maxResidualRatio <= kMaxSingleResidualRatio)
+		{
+			consistent = true;
+			break;
+		}
+
+		// Trim the worst-residual points and re-fit - this re-fits the
+		// AXIS too on the next iteration, not just the circle, since
+		// removing contaminating points can shift the axis estimate as
+		// well as the circle.
+		std::vector<PatchSample> trimmed;
+		trimmed.reserve(inliers.size());
+		for (int i = 0; i < static_cast<int>(inliers.size()); ++i)
+		{
+			// Bounded by the fixed pass/fail bar itself, NOT scaled by the
+			// current rms - a "2x rms" relative threshold guarantees zero
+			// progress whenever rms is already above half the bar (this was
+			// a real bug: a patch measuring rms 0.48 got a trim threshold
+			// of 0.96, comfortably above even its worst single point at
+			// 0.69, so nothing was ever removed and the loop gave up
+			// immediately every time). Always cut anything past the bar.
+			if (residualRatios[i] <= kMaxSingleResidualRatio)
+				trimmed.push_back(inliers[static_cast<size_t>(i)]);
+		}
+		if (trimmed.size() == inliers.size() || trimmed.size() < kMinPatchPoints)
+			break;  // no progress, or trimmed away too much
+		inliers = std::move(trimmed);
+	}
+
+	if (!consistent)
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFit] rejected - patch never converged to a consistent circle (by normal direction or position) even after trimming";
+		return false;
+	}
+
+	// Trimming converging isn't by itself proof of a good fit - a handful
+	// of coincidentally close-together points ALWAYS trims down to a
+	// trivially self-consistent tiny circle (near-zero residual, since
+	// there's nothing left to disagree), which is exactly how aggressive
+	// residual-based trimming can collapse a large, genuinely contaminated
+	// patch down to a spurious few-point remnant with a meaningless radius
+	// (confirmed directly: introducing a hard residual cutoff, needed to
+	// fix the trim loop never removing anything, immediately surfaced this
+	// opposite failure - multiple different tiny, mutually-inconsistent
+	// "diameters" a few mm apart on the same real boss). Require the
+	// surviving inliers to still be a MEANINGFUL fraction of the original
+	// grown patch, not just >= the absolute floor kMinPatchPoints.
+	constexpr double kMinRetainedFraction = 0.5;
+	if (double(inliers.size()) < kMinRetainedFraction * double(samples.size()))
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFit] rejected - only" << inliers.size() << "of" << samples.size() << "points survived trimming, too little left to trust";
+		return false;
+	}
+
+	const bool isCone = std::fabs(meanCos) > 0.15;  // ~81-99 degrees treated as "cylinder enough"
+
+	// A near-FLAT patch (e.g. a nominally flat CAD face with just enough
+	// tessellation/vertex-normal noise to trace a very shallow, but
+	// statistically clean, band around SOME axis) can pass every check
+	// above - the fit is genuinely self-consistent, just describing an
+	// implausibly huge radius instead of "not curved at all". Every check
+	// so far (residual ratio, position arc coverage, footprint ratio) is
+	// scale-invariant relative to the fit's OWN radius/center, so none of
+	// them can tell a small patch on a real small cylinder apart from a
+	// huge patch that's barely curved. Cross-check against the normals
+	// directly instead of positions: for a true cylinder/cone, moving
+	// around the surface by some angle rotates the surface normal's
+	// AZIMUTH (its direction around the axis) by that same angle - so the
+	// normals' own azimuthal spread should independently corroborate the
+	// position-based arc coverage above. A barely-curved "huge cylinder"
+	// fit to a near-flat patch has normals that barely rotate at all, no
+	// matter how large a position-based arc the (wrong) fit reports.
+	QVector3D basisU = QVector3D::crossProduct(axis, QVector3D(0, 0, 1));
+	if (basisU.lengthSquared() < 1.0e-6f)
+		basisU = QVector3D::crossProduct(axis, QVector3D(0, 1, 0));
+	basisU.normalize();
+	const QVector3D basisV = QVector3D::crossProduct(axis, basisU);
+	QVector<float> normalAzimuths;
+	normalAzimuths.reserve(static_cast<int>(inliers.size()));
+	for (const PatchSample& s : inliers)
+	{
+		const QVector3D radial = s.normal - axis * QVector3D::dotProduct(s.normal, axis);
+		if (radial.lengthSquared() < 1.0e-8f)
+			continue;
+		normalAzimuths.append(std::atan2(QVector3D::dotProduct(radial, basisV), QVector3D::dotProduct(radial, basisU)));
+	}
+	std::sort(normalAzimuths.begin(), normalAzimuths.end());
+	// M_PI isn't guaranteed available (MSVC needs _USE_MATH_DEFINES before
+	// <cmath>) - same local-constant convention used elsewhere in this file.
+	constexpr float kTwoPiLocal = 6.283185307179586f;
+	float maxAzimuthGapRad = 0.0f;
+	for (int i = 0; i < normalAzimuths.size(); ++i)
+	{
+		const float next = (i + 1 < normalAzimuths.size()) ? normalAzimuths[i + 1] : (normalAzimuths[0] + kTwoPiLocal);
+		maxAzimuthGapRad = std::max(maxAzimuthGapRad, next - normalAzimuths[i]);
+	}
+	const float normalAzimuthCoverageDegrees = 360.0f - qRadiansToDegrees(maxAzimuthGapRad);
+	constexpr float kMinNormalAzimuthCoverageDegrees = 90.0f;
+	if (kCylFitVerbose) qDebug() << "[CylFit] normal azimuth coverage" << normalAzimuthCoverageDegrees << "degrees (min required" << kMinNormalAzimuthCoverageDegrees << ")";
+	if (normalAzimuthCoverageDegrees < kMinNormalAzimuthCoverageDegrees)
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFit] rejected - normals barely rotate around the fitted axis, patch is too close to flat for a trustworthy radius";
+		return false;
+	}
+
+	// centroid/projected/circleFit were already established by the trim
+	// loop above (the final iteration that satisfied both normal AND
+	// positional consistency) - reused here rather than recomputed.
+
+	// An algebraic least-squares circle fit is numerically ill-conditioned
+	// on a SHORT arc - a shallow arc segment looks almost as good a fit to
+	// a huge, wildly displaced circle as to the true one (the classic
+	// failure mode of Kasa-style circle fits), so a patch that only wraps
+	// PART of the way around a hole/boss (rather than the full loop) can
+	// silently produce a wildly wrong radius instead of failing outright.
+	// fitPitchCircle() already computes each point's angular gap around the
+	// fitted center - the largest gap is exactly "the part of the circle
+	// with no supporting points", so 360 minus it is the real angular
+	// coverage actually observed. Require a solid majority of the circle to
+	// be covered before trusting the fit.
+	constexpr float kMinArcCoverageDegrees = 180.0f;
+	const float maxGapDegrees = circleFit.gapAnglesDegrees.isEmpty()
+		? 360.0f
+		: *std::max_element(circleFit.gapAnglesDegrees.begin(), circleFit.gapAnglesDegrees.end());
+	const float arcCoverageDegrees = 360.0f - maxGapDegrees;
+	if (kCylFitVerbose) qDebug() << "[CylFit] cross-section arc coverage" << arcCoverageDegrees << "degrees (min required" << kMinArcCoverageDegrees << ") radius" << circleFit.radius;
+	if (arcCoverageDegrees < kMinArcCoverageDegrees)
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFit] rejected - patch only wraps a short arc, circle fit is unreliable";
+		return false;
+	}
+
+	// Roundness (positional-residual) validation already happened inside
+	// the trim loop above, jointly with normal consistency - reaching here
+	// means the final settled `inliers`/`circleFit` already satisfied it.
+
+	// A near-FLAT patch is a degenerate case none of the checks above can
+	// catch: over a modest spatial extent, a very large circle is locally
+	// almost indistinguishable from a plane, so a patch that's mostly flat
+	// (with only a hint of real curvature, e.g. from growth bleeding a
+	// little way past a tangent-continuous fillet onto the adjacent flat
+	// face) can fit an enormous, WRONG radius with deceptively low residual
+	// AND deceptively "good" angular coverage - both of those are measured
+	// relative to the fit's own (potentially wrong) center, so a bad fit
+	// can look self-consistent by its own bookkeeping. Cross-check against
+	// something that ISN'T relative to that center: the patch's own actual
+	// physical footprint. A genuine arc spanning >= kMinArcCoverageDegrees
+	// of a circle of this radius has to physically SPAN close to that
+	// circle's diameter (the two arc endpoints of an exactly-180-degree
+	// arc are diametrically opposite, i.e. exactly 2*radius apart) - if the
+	// patch's own points don't actually reach anywhere near that far apart,
+	// the reported coverage/radius aren't describing this patch at all.
+	float maxPairwiseDistSq = 0.0f;
+	for (int i = 0; i < projected.size(); ++i)
+		for (int j = i + 1; j < projected.size(); ++j)
+			maxPairwiseDistSq = std::max(maxPairwiseDistSq, (projected[i] - projected[j]).lengthSquared());
+	const float observedFootprint = std::sqrt(maxPairwiseDistSq);
+	const float trueDiameter = circleFit.radius * 2.0f;
+	constexpr float kMinFootprintToDiameterRatio = 0.85f;
+	if (kCylFitVerbose) qDebug() << "[CylFit] patch footprint" << observedFootprint << "vs fitted diameter" << trueDiameter << "(min ratio allowed" << kMinFootprintToDiameterRatio << ")";
+	if (observedFootprint < kMinFootprintToDiameterRatio * trueDiameter)
+	{
+		if (kCylFitVerbose) qDebug() << "[CylFit] rejected - patch's own physical footprint is too small for the fitted circle (likely a near-flat patch masquerading as a large radius)";
+		return false;
+	}
+
+	if (kCylFitVerbose) qDebug() << "[CylFit] accepted as" << (isCone ? "Cone" : "Cylinder") << "radius" << circleFit.radius;
+
+	outPickedPoint = resolveMeasurementAnchor(ref);
+	outAxisOrigin = circleFit.center;
+	outAxisDir = axis;
+	outIsCone = isCone;
+
+	{
+		const QVector3D toPoint = outPickedPoint - outAxisOrigin;
+		const QVector3D radial = toPoint - outAxisDir * QVector3D::dotProduct(toPoint, outAxisDir);
+		if (kCylFitVerbose) qDebug() << "[CylFit] single-point diameter would be" << radial.length() * 2.0f << "vs whole-patch circle fit diameter" << circleFit.radius * 2.0f;
+	}
+
+	if (isCone)
+	{
+		// A cone's radius genuinely varies with position, so there's no
+		// single whole-patch number to report - same formula as the OCC
+		// path above: diameter is twice the picked point's perpendicular
+		// distance to the fitted axis line, evaluated AT that point.
+		const QVector3D toPoint = outPickedPoint - outAxisOrigin;
+		const QVector3D radial = toPoint - outAxisDir * QVector3D::dotProduct(toPoint, outAxisDir);
+		outDiameter = radial.length() * 2.0f;
+	}
+	else
+	{
+		// For a cylinder, prefer fitPitchCircle()'s own whole-patch radius
+		// over re-deriving it from a single point against this fit's axis.
+		// The fitted axis DIRECTION here is only approximate (unlike the
+		// OCC path's exact B-Rep axis) - any small angular error in it
+		// makes the apparent "distance from one point to the axis line"
+		// drift with how far that point sits from the fit's reference
+		// plane along the axis (a lever-arm effect), while circleFit.radius
+		// already averages over every inlier point and isn't sensitive to
+		// which single point happens to get clicked.
+		outDiameter = circleFit.radius * 2.0f;
+	}
 	return true;
 }
 

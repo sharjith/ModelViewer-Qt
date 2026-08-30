@@ -42,6 +42,12 @@ find_package(OpenEXR CONFIG REQUIRED)
 # not present anywhere else in this project; not intended to survive if
 # this experiment doesn't pan out.
 find_package(CGAL CONFIG REQUIRED)
+# CGAL's vcpkg port only depends on eigen3 via its own "qt" feature (which
+# this project doesn't use) - CGAL::Shape_detection's Region_growing cylinder
+# fitting (cylinder_fitting.h) needs Eigen directly regardless, so it has to
+# be found and linked here explicitly rather than relying on CGAL::CGAL to
+# bring it in transitively.
+find_package(Eigen3 CONFIG REQUIRED)
 
 message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
@@ -485,6 +491,7 @@ target_link_libraries(ModelViewer
         OpenImageDenoise
         OpenEXR::OpenEXR
         CGAL::CGAL
+        Eigen3::Eigen
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
