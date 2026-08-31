@@ -650,6 +650,13 @@ MainWindow::MainWindow(QWidget* parent)
 			activeMdiChild()->openShrinkWrapDialog();
 		});
 
+	// Tools → Subdivide Surface... - opens the non-modal SubdivisionDialog,
+	// same wiring shape as actionShrinkWrap above.
+	connect(ui->actionSubdivideSurface, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->openSubdivisionDialog();
+		});
+
 	updateMenus();
 
 	readSettings();

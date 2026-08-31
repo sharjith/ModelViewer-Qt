@@ -25,6 +25,7 @@
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
+#include "SubdivisionDialog.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialPreviewWidget.h"
@@ -2157,6 +2158,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction(tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
 		myMenu.addAction(tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
 		myMenu.addAction(tr("Merge Selected"), this, expandThen([this]() { mergeSelectedMeshes(); }));
+		myMenu.addAction(tr("Mesh Union"), this, expandThen([this]() { unionSelectedMeshes(); }));
 		myMenu.addAction(tr("Group"), this, expandThen([this]() { groupSelectedMeshes(); }));
 		myMenu.addAction(tr("Delete"),    this, expandThen([this]() { deleteSelectedItems(); }));
 		myMenu.addSeparator();
@@ -3301,7 +3303,20 @@ void ModelViewer::mergeSelectedMeshesByAdjacency()
 	}
 }
 
-void ModelViewer::mergeSelectedMeshes()
+// Shared body for mergeSelectedMeshes()/unionSelectedMeshes() - identical in
+// every respect except which SceneMesh combining function is used and the
+// action's display name (undo text, dialog titles). combineFn is type-
+// erased (rather than a plain function pointer, as before
+// SceneMesh::booleanUnionMeshes() gained its outUsedRealUnion parameter)
+// so unionSelectedMeshes() can wrap that extra parameter in a closure while
+// mergeSelectedMeshes() keeps calling the plain 2-argument mergeMeshes() -
+// the optional outDetail string lets a combineFn append extra context to
+// the final status message (currently only used by unionSelectedMeshes(),
+// to say when the real union wasn't possible and plain concatenation ran
+// instead - see that function below).
+void ModelViewer::combineSelectedMeshes(
+	const std::function<SceneMesh*(const QVector<SceneMesh*>&, const QString&, QString* outDetail)>& combineFn,
+	const QString& actionName)
 {
 	if (!treeWidgetModel->hasMeshSelection())
 		return;
@@ -3345,13 +3360,13 @@ void ModelViewer::mergeSelectedMeshes()
 	if (!compatible)
 	{
 		QApplication::restoreOverrideCursor();
-		const QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Merge Selected"),
+		const QMessageBox::StandardButton reply = QMessageBox::question(this, actionName,
 			tr("The selected meshes have different materials.\n\n"
 			   "Merge them anyway, using the first mesh's material for the whole result?"),
 			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
 		if (reply != QMessageBox::Yes)
 		{
-			QMessageBox::information(this, tr("Merge Selected"),
+			QMessageBox::information(this, actionName,
 				tr("The selected meshes have different materials - nothing merged."));
 			return;
 		}
@@ -3361,7 +3376,8 @@ void ModelViewer::mergeSelectedMeshes()
 	_viewportWidget->makeCurrent();
 
 	const QString mergedName = _viewportWidget->generateUniqueMeshName(refMesh->getName() + "_Merged");
-	SceneMesh* merged = SceneMesh::mergeMeshes(meshes, mergedName);
+	QString detail;
+	SceneMesh* merged = combineFn(meshes, mergedName, &detail);
 	_viewportWidget->addToDisplay(merged);
 	const QUuid mergedUuid = merged->uuid();
 
@@ -3397,11 +3413,38 @@ void ModelViewer::mergeSelectedMeshes()
 	updateDisplayList();
 	_undoStack->push(new MergeByAdjacencyCommand(
 		this, _viewportWidget, sourceEntries, mergedUuid, targetNode, mergedPosition, originalSelection,
-		tr("Merge Selected")));
+		actionName));
 
 	QApplication::restoreOverrideCursor();
 
-	MainWindow::showStatusMessage(tr("Merged %1 selected meshes into 1.").arg(meshes.size()));
+	MainWindow::showStatusMessage(tr("Combined %1 selected meshes into 1.").arg(meshes.size()) + detail);
+}
+
+void ModelViewer::mergeSelectedMeshes()
+{
+	combineSelectedMeshes(
+		[](const QVector<SceneMesh*>& meshes, const QString& name, QString*) {
+			return SceneMesh::mergeMeshes(meshes, name);
+		},
+		tr("Merge Selected"));
+}
+
+void ModelViewer::unionSelectedMeshes()
+{
+	combineSelectedMeshes(
+		[](const QVector<SceneMesh*>& meshes, const QString& name, QString* outDetail) {
+			bool usedRealUnion = false;
+			SceneMesh* result = SceneMesh::booleanUnionMeshes(meshes, name, &usedRealUnion);
+			// Mesh Union's own fallback-to-concatenation behavior is
+			// intentionally silent by design (never worse than plain Merge
+			// Selected, whatever the input geometry) - but the user should
+			// still be able to tell which actually happened, rather than
+			// both paths reporting an identical "Combined" message.
+			if (outDetail && !usedRealUnion)
+				*outDetail = tr(" (geometry couldn't be unioned - used plain concatenation instead)");
+			return result;
+		},
+		tr("Mesh Union"));
 }
 
 void ModelViewer::groupSelectedMeshes()
@@ -3496,6 +3539,31 @@ void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, i
 		return;
 	_undoStack->push(new ShrinkWrapCommand(
 		this, _viewportWidget, wrapNode, wrapParent, wrapPosition, wrappedMeshUuid, originalSelection));
+}
+
+void ModelViewer::openSubdivisionDialog()
+{
+	SubdivisionDialog* dialog = findChild<SubdivisionDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new SubdivisionDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	// Same seed-with-current-tree-selection convention as
+	// openShrinkWrapDialog() above.
+	dialog->addCurrentTreeSelection();
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::commitSubdivision(SceneNode* node, SceneNode* parent, int position,
+                                     const QUuid& meshUuid, const QSet<QUuid>& originalSelection)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || !node || !parent)
+		return;
+	_undoStack->push(new ShrinkWrapCommand(
+		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide")));
 }
 
 void ModelViewer::deleteSelectedItems()
@@ -4008,6 +4076,13 @@ void ModelViewer::importFiles(QStringList& fileNames)
 			loadFile(fileName);
 		}
 		markNonUndoDocumentModified();
+
+		// New SceneMesh objects were just allocated - see
+		// MeasurementController::clearGeometryCaches()'s doc comment for why
+		// this is worth doing here specifically (not a hot path, negligible
+		// cost, removes even the narrow residual risk of a pointer-keyed
+		// cache entry surviving past the mesh it was computed for).
+		_viewportWidget->clearMeasurementGeometryCaches();
 
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();

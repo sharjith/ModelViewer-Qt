@@ -78,6 +78,23 @@ public:
 	void releaseGpuResources() override;
 	void restoreGpuResources() override;
 
+	// Clears both CGAL geometry-fit caches (m_cylMeshFitCache,
+	// m_geodesicDistanceCache below) outright. Neither cache is otherwise
+	// pruned/evicted - call this whenever a document's mesh set changes in
+	// a way that makes stale entries a real (if narrow) correctness risk,
+	// not just a growth concern: importing new meshes allocates new
+	// SceneMesh objects, and m_cylMeshFitCache is keyed by a raw
+	// `const SceneMesh*` - if a freed mesh's address gets reused by a new,
+	// unrelated mesh, the cache's own staleness check (comparing the seed
+	// triangle's 3 vertex world positions) would need those positions to
+	// coincidentally match the new mesh's geometry to serve a wrong result,
+	// which is astronomically unlikely for genuinely different geometry -
+	// but clearing outright on import removes even that residual risk at
+	// negligible cost (worst case: the next measurement query recomputes
+	// once instead of hitting a cache that was going to be correct anyway).
+	// Called from ModelViewer::importFiles().
+	void clearGeometryCaches();
+
 	// Which kind of draggable dimension geometry a hit corresponds to - the
 	// two kinds need different drag math (see updateDimensionLineDrag()'s
 	// doc comment), so callers need to know which one they grabbed.
@@ -174,6 +191,35 @@ public:
 		bool isCone = false;
 	};
 	mutable std::map<std::pair<const SceneMesh*, int>, CylMeshFitCacheEntry> m_cylMeshFitCache;
+	// Distance ALONG a mesh's surface (CGAL Surface_mesh_shortest_path)
+	// between GeodesicDistance's two anchors (already validated same-mesh
+	// at pick time - see handleMeasurementClick()). Returns false (no path
+	// exists - the two picks landed on disconnected components) rather than
+	// a bogus negative distance. Single entry point for both
+	// measurementSummaryText() and drawMeasurementOverlay(), so the
+	// reported number and the drawn path can never disagree.
+	bool resolveMeasurementGeodesicDistance(const Measurement& m,
+		double& outDistance, QVector<QVector3D>& outPathPoints) const;
+	// Cache for resolveMeasurementGeodesicDistance() above - same
+	// performance reasoning as m_cylMeshFitCache (this resolve chain runs
+	// every render frame for every placed measurement, and CGAL's
+	// shortest-path search over a full mesh is genuinely expensive, not
+	// something to redo 60x/sec unconditionally). Keyed by the
+	// Measurement's own id (unlike the cylinder-fit cache, this resolver
+	// depends on TWO anchors together, not one seed triangle); a cache hit
+	// re-resolves both anchors' CURRENT world positions via the already-
+	// cheap resolveMeasurementAnchor() and compares against the cached
+	// ones, so a moved/deformed mesh still triggers a real recompute -
+	// same "only the endpoints are checked, not the whole mesh" limitation
+	// the cylinder-fit cache already accepts for its own seed triangle.
+	struct GeodesicDistanceCacheEntry
+	{
+		QVector3D anchorAPos, anchorBPos;
+		bool valid = false;
+		double distance = 0.0;
+		QVector<QVector3D> pathPoints;
+	};
+	mutable std::map<QUuid, GeodesicDistanceCacheEntry> m_geodesicDistanceCache;
 	bool resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const;
 	QVector3D dimensionLinePerp(const QVector3D& a, const QVector3D& b,
 		const QVector3D& referenceDir, Camera* camera) const;

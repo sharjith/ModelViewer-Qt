@@ -15,6 +15,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <iterator>
+#include <limits>
 #include <unordered_map>
 #include <meshoptimizer.h>
 #include <utility>
@@ -25,9 +27,185 @@
 #include <CGAL/alpha_wrap_3.h>
 #include <CGAL/Polygon_mesh_processing/compute_normal.h>
 
+// See booleanUnionMeshes()'s doc comment (SceneMesh.h) for why these -
+// CGAL::Polygon_mesh_processing::corefine_and_compute_union() requires
+// watertight, self-intersection-free, consistently-oriented input, which
+// this repair pipeline exists to establish from an arbitrary imported soup.
+#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
+#include <CGAL/boost/graph/helpers.h>
+#include <CGAL/Polygon_mesh_processing/corefinement.h>
+#include <CGAL/Polygon_mesh_processing/measure.h>
+#include <CGAL/Polygon_mesh_processing/orientation.h>
+#include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
+#include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
+#include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h>
+#include <CGAL/Polygon_mesh_processing/repair_self_intersections.h>
+#include <CGAL/Polygon_mesh_processing/self_intersections.h>
+#include <CGAL/Polygon_mesh_processing/stitch_borders.h>
+
+// See subdivideMesh()'s doc comment (SceneMesh.h) - repair_polygon_soup.h/
+// polygon_soup_to_polygon_mesh.h/stitch_borders.h above are reused verbatim
+// from the booleanUnionMeshes() repair pipeline (subdivision needs the same
+// "turn an arbitrary soup into a valid polygon mesh" step, just not the
+// closed/watertight/self-intersection-free preconditions boolean union
+// additionally requires).
+#include <CGAL/subdivision_method_3.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
+#include <CGAL/Polygon_mesh_processing/remesh.h>
+
 using namespace std;
 
 namespace {
+
+// CGAL's stock Loop and Catmull-Clark masks intentionally smooth every
+// interior edge. These variants retain the stock rules except at a geometric
+// crease, where the standard infinitely-sharp subdivision rules apply.
+template <class PolygonMesh, class BaseMask>
+class CreaseAwareMaskBase : public BaseMask
+{
+public:
+	using Mesh = PolygonMesh;
+	using Base = BaseMask;
+	using Point = typename Base::Point;
+	using Vertex_index = typename Mesh::Vertex_index;
+	using Halfedge_index = typename Mesh::Halfedge_index;
+
+	// Explicitly obtains the vertex point map and calls BaseMask's 2-arg
+	// constructor - its 1-arg convenience overload (Loop_mask_3(Mesh*)/
+	// CatmullClark_mask_3(Mesh*)) is broken in this vcpkg-shipped CGAL
+	// version: both call `get(vertex_point, pmesh)` with pmesh as a raw
+	// pointer (subdivision_masks_3.h) where get() needs a reference,
+	// failing to compile. Confirmed in the actual installed header, not
+	// just here - not something to work around by chasing the "right"
+	// syntax further, the library call itself is missing a dereference.
+	explicit CreaseAwareMaskBase(Mesh* mesh, double cosineThreshold)
+		: Base(mesh, get(CGAL::vertex_point, *mesh))
+		, _cosineThreshold(cosineThreshold)
+	{
+	}
+
+protected:
+	bool isSharp(Halfedge_index h) const
+	{
+		const Mesh& mesh = *this->pmesh;
+		if (mesh.is_border(h) || mesh.is_border(mesh.opposite(h)))
+			return false;
+
+		const auto n0 = CGAL::Polygon_mesh_processing::compute_face_normal(mesh.face(h), mesh);
+		const auto n1 = CGAL::Polygon_mesh_processing::compute_face_normal(mesh.face(mesh.opposite(h)), mesh);
+		const double n0LengthSquared = CGAL::to_double(n0.squared_length());
+		const double n1LengthSquared = CGAL::to_double(n1.squared_length());
+		if (n0LengthSquared <= 1.0e-24 || n1LengthSquared <= 1.0e-24)
+			return false;
+
+		const double dot = CGAL::to_double(n0.x()) * CGAL::to_double(n1.x())
+			+ CGAL::to_double(n0.y()) * CGAL::to_double(n1.y())
+			+ CGAL::to_double(n0.z()) * CGAL::to_double(n1.z());
+		return dot / std::sqrt(n0LengthSquared * n1LengthSquared) < _cosineThreshold;
+	}
+
+	void midpoint(Halfedge_index h, Point& pt) const
+	{
+		const Mesh& mesh = *this->pmesh;
+		const auto& a = get(this->vpmap, mesh.source(h));
+		const auto& b = get(this->vpmap, mesh.target(h));
+		pt = Point((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2);
+	}
+
+	bool creaseVertexPoint(Vertex_index vertex, Point& pt) const
+	{
+		const Mesh& mesh = *this->pmesh;
+		std::vector<Halfedge_index> creaseEdges;
+		for (Halfedge_index h : CGAL::halfedges_around_target(vertex, mesh))
+		{
+			if (isSharp(h))
+				creaseEdges.push_back(h);
+		}
+
+		if (creaseEdges.empty())
+			return false;
+
+		const auto& center = get(this->vpmap, vertex);
+		if (creaseEdges.size() != 2)
+		{
+			// A crease endpoint or junction is a corner: keep it fixed.
+			pt = center;
+			return true;
+		}
+
+		const auto& a = get(this->vpmap, mesh.source(creaseEdges[0]));
+		const auto& b = get(this->vpmap, mesh.source(creaseEdges[1]));
+		pt = Point((a[0] + 6 * center[0] + b[0]) / 8,
+		           (a[1] + 6 * center[1] + b[1]) / 8,
+		           (a[2] + 6 * center[2] + b[2]) / 8);
+		return true;
+	}
+
+private:
+	double _cosineThreshold;
+};
+
+template <class PolygonMesh>
+class CreaseAwareLoopMask
+	: public CreaseAwareMaskBase<PolygonMesh, CGAL::Loop_mask_3<PolygonMesh>>
+{
+	using Base = CreaseAwareMaskBase<PolygonMesh, CGAL::Loop_mask_3<PolygonMesh>>;
+public:
+	using Mesh = PolygonMesh;
+	using Point = typename Base::Point;
+	using Vertex_index = typename Mesh::Vertex_index;
+	using Halfedge_index = typename Mesh::Halfedge_index;
+
+	explicit CreaseAwareLoopMask(Mesh* mesh, double cosineThreshold)
+		: Base(mesh, cosineThreshold)
+	{
+	}
+
+	void edge_node(Halfedge_index h, Point& pt)
+	{
+		if (this->isSharp(h))
+			this->midpoint(h, pt);
+		else
+			CGAL::Loop_mask_3<Mesh>::edge_node(h, pt);
+	}
+
+	void vertex_node(Vertex_index vertex, Point& pt)
+	{
+		if (!this->creaseVertexPoint(vertex, pt))
+			CGAL::Loop_mask_3<Mesh>::vertex_node(vertex, pt);
+	}
+};
+
+template <class PolygonMesh>
+class CreaseAwareCatmullClarkMask
+	: public CreaseAwareMaskBase<PolygonMesh, CGAL::CatmullClark_mask_3<PolygonMesh>>
+{
+	using Base = CreaseAwareMaskBase<PolygonMesh, CGAL::CatmullClark_mask_3<PolygonMesh>>;
+public:
+	using Mesh = PolygonMesh;
+	using Point = typename Base::Point;
+	using Vertex_index = typename Mesh::Vertex_index;
+	using Halfedge_index = typename Mesh::Halfedge_index;
+
+	explicit CreaseAwareCatmullClarkMask(Mesh* mesh, double cosineThreshold)
+		: Base(mesh, cosineThreshold)
+	{
+	}
+
+	void edge_node(Halfedge_index h, Point& pt)
+	{
+		if (this->isSharp(h))
+			this->midpoint(h, pt);
+		else
+			CGAL::CatmullClark_mask_3<Mesh>::edge_node(h, pt);
+	}
+
+	void vertex_node(Vertex_index vertex, Point& pt)
+	{
+		if (!this->creaseVertexPoint(vertex, pt))
+			CGAL::CatmullClark_mask_3<Mesh>::vertex_node(vertex, pt);
+	}
+};
 
 constexpr quint64 kFnvOffset = 1469598103934665603ull;
 constexpr quint64 kFnvPrime = 1099511628211ull;
@@ -334,6 +512,516 @@ SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QStri
 	mesh->fullUpdateRuntimeBounds();
 
 	return mesh;
+}
+
+namespace {
+
+// Repairs a world-space (points, faces) soup - built the same way
+// shrinkWrapMeshes() builds its own - into a mesh
+// CGAL::Polygon_mesh_processing's boolean corefinement can safely operate
+// on. corefine_and_compute_union()'s own documented preconditions are
+// !does_self_intersect() && does_bound_a_volume() on BOTH inputs - typical
+// imported/concatenated meshes satisfy neither by default, so this exists
+// to establish them (or fail cleanly if it can't). Returns false - repair
+// failed, caller should abandon the boolean-union attempt entirely rather
+// than risk feeding corefinement input it doesn't support - if the result
+// still can't bound a volume afterward.
+//
+// Templated on Kernel (currently instantiated with
+// Exact_predicates_inexact_constructions_kernel, same as elsewhere in this
+// file, e.g. alpha_wrap_3) so a different kernel can be dropped in without
+// duplicating this whole pipeline - tried Exact_predicates_exact_
+// constructions_kernel here on the theory that corefine_and_compute_union()
+// producing 28 near-zero-area sliver triangles along a real T-junction
+// test case's intersection curve was a floating-point precision artifact.
+// It was not: exact constructions produced BIT-FOR-BIT IDENTICAL sliver
+// counts and areas, proving those slivers are a genuine EXACT geometric
+// degeneracy in that configuration (two round-dimension cylinders meeting
+// at a numerically tangent angle), not a rounding issue - so the exact
+// kernel bought nothing and was reverted. The slivers themselves also
+// turned out to be visually irrelevant (a true zero-area triangle renders
+// as nothing whether present or not) - whatever is causing the actually-
+// visible crease/facet artifact at the join is a SEPARATE, still-open
+// question; don't re-attempt a kernel swap for it without new evidence.
+template <class Kernel>
+bool tryBuildRepairedVolumeMesh(
+	std::vector<typename Kernel::Point_3> points,
+	std::vector<std::array<std::size_t, 3>> faces,
+	CGAL::Surface_mesh<typename Kernel::Point_3>& outMesh)
+{
+	namespace PMP = CGAL::Polygon_mesh_processing;
+
+	// Cleans up duplicate points and degenerate/invalid/duplicate polygons
+	// in the raw soup - points/faces are modified in place.
+	PMP::repair_polygon_soup(points, faces);
+
+	// repair_polygon_soup() alone does not fix non-manifold edges, winding
+	// consistency, or SINGULAR vertices (a vertex shared by two otherwise-
+	// disconnected fans of triangles, touching at a point but no shared
+	// edge) - confirmed via direct testing (a real STEP/BREP import, a
+	// bottle with a threaded cap) to be a real, hit-in-practice gap in the
+	// Geodesic Distance measurement resolver's identical repair pipeline;
+	// fixed there by adding orient_polygon_soup(), which duplicates
+	// non-manifold/singular vertices as needed. Same fix applies here, for
+	// the same reason: a CAD import that hits this would otherwise fail
+	// is_polygon_soup_a_polygon_mesh() below and silently fall back to
+	// mergeMeshes() even though the geometry IS unionable once repaired.
+	// orient_polygon_soup() returns false when it had to duplicate
+	// anything - CGAL's own doc comment describes this as producing a
+	// "combinatorially manifold but self-intersecting" result, not simply
+	// "harmless" - the return value is intentionally ignored here since a
+	// combinatorially valid (if locally self-intersecting near the
+	// duplicated seam) mesh is still exactly what is_polygon_soup_a_polygon_mesh()
+	// and polygon_soup_to_polygon_mesh() need; does_self_intersect()/
+	// remove_self_intersections() further down already handle geometric
+	// self-intersection cleanup regardless of what introduced it.
+	PMP::orient_polygon_soup(points, faces);
+
+	// polygon_soup_to_polygon_mesh() itself only asserts this precondition
+	// (a no-op in release builds) rather than reporting failure - check it
+	// explicitly so a soup repair couldn't fully clean up fails this
+	// function cleanly instead of risking undefined behavior downstream.
+	if (!PMP::is_polygon_soup_a_polygon_mesh(faces))
+		return false;
+
+	PMP::polygon_soup_to_polygon_mesh(points, faces, outMesh);
+	PMP::stitch_borders(outMesh);  // welds duplicate boundary halfedges left by the soup->mesh conversion
+
+	if (PMP::does_self_intersect(outMesh))
+		PMP::experimental::remove_self_intersections(outMesh);  // best-effort - not guaranteed to fully succeed
+
+	if (PMP::does_self_intersect(outMesh))
+		return false;
+
+	// orient_to_bound_a_volume()'s own documented precondition is
+	// CGAL::is_closed(tm) - calling it on an open mesh (e.g. a cylinder
+	// shell with no end caps, common in non-CAD test assets) is undefined
+	// behavior, not a clean failure, and was confirmed to produce corrupted-
+	// looking normals/shading rather than an error. does_bound_a_volume()
+	// itself requires a closed mesh too, so an open mesh can never satisfy
+	// this function's contract anyway - reject it explicitly here instead
+	// of risking UB.
+	if (!CGAL::is_closed(outMesh))
+		return false;
+
+	PMP::orient_to_bound_a_volume(outMesh);  // void return - does_bound_a_volume() below is the actual success check
+	return PMP::does_bound_a_volume(outMesh);
+}
+
+} // namespace
+
+namespace {
+// Temporary diagnostic for the boolean-union pipeline - logs vertex/face
+// counts, min/max/avg face area, and the highest vertex valence (number of
+// incident faces) found. A fan-triangulated region (many thin triangles
+// radiating from one hub vertex, confirmed visually on both end caps of a
+// real test case) shows up unambiguously as one or a few vertices with a
+// FAR higher valence than their neighbors, and/or a huge spread between
+// min and max face area - this pins down WHERE in the pipeline (post-
+// repair vs post-corefinement) the odd triangulation actually appears,
+// rather than guessing again.
+template <class Mesh>
+void logBooleanUnionMeshStats(const char* label, const Mesh& m)
+{
+	std::size_t maxValence = 0;
+	for (auto v : m.vertices())
+	{
+		const auto range = CGAL::halfedges_around_target(v, m);
+		const std::size_t valence = static_cast<std::size_t>(std::distance(range.begin(), range.end()));
+		maxValence = std::max(maxValence, valence);
+	}
+	double minArea = std::numeric_limits<double>::max(), maxArea = 0.0, sumArea = 0.0;
+	for (auto f : m.faces())
+	{
+		const double area = CGAL::to_double(CGAL::Polygon_mesh_processing::face_area(f, m));
+		minArea = std::min(minArea, area);
+		maxArea = std::max(maxArea, area);
+		sumArea += area;
+	}
+	const double avgArea = m.number_of_faces() > 0 ? sumArea / static_cast<double>(m.number_of_faces()) : 0.0;
+	qDebug() << "[BooleanUnion]" << label << "verts" << m.number_of_vertices() << "faces" << m.number_of_faces()
+	         << "maxValence" << maxValence << "faceArea min" << minArea << "max" << maxArea << "avg" << avgArea;
+}
+} // namespace
+
+SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName,
+                                          bool* outUsedRealUnion)
+{
+	if (outUsedRealUnion)
+		*outUsedRealUnion = false;
+
+	if (meshes.isEmpty())
+		return nullptr;
+
+	// Single fallback exit point so every one of this function's several
+	// "abandon the real union, use plain concatenation instead" returns
+	// correctly reports that choice to the caller via outUsedRealUnion.
+	auto fallback = [&]() { return mergeMeshes(meshes, mergedName); };
+
+	if (meshes.size() < 2 || !meshes[0])
+		return fallback();
+
+	// NOTE: exact-constructions kernel was tried here and reverted - it
+	// produced BIT-FOR-BIT IDENTICAL results to the inexact kernel (same
+	// sliver count, same minimum face area to 6 significant figures),
+	// proving the degenerate faces are a genuine EXACT geometric
+	// degeneracy in this configuration (not a floating-point rounding
+	// artifact), so exact arithmetic bought nothing here - just added cost.
+	using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+	using Point_3 = Kernel::Point_3;
+	using Mesh    = CGAL::Surface_mesh<Point_3>;
+	namespace PMP = CGAL::Polygon_mesh_processing;
+
+	// Builds ONE mesh's own world-space (points, faces) soup - same baked-
+	// geometry accessors as mergeMeshes()/shrinkWrapMeshes(), but for a
+	// single input at a time (no vertexOffset concatenation needed here -
+	// each mesh is repaired/converted to its own Surface_mesh independently,
+	// then folded pairwise via corefine_and_compute_union() below).
+	auto buildSoup = [](SceneMesh* mesh, std::vector<Point_3>& points, std::vector<std::array<std::size_t, 3>>& faces)
+	{
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const std::vector<unsigned int> srcIndices = mesh->indices();
+		points.reserve(pts.size() / 3);
+		for (std::size_t i = 0; i < pts.size() / 3; ++i)
+			points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
+		faces.reserve(srcIndices.size() / 3);
+		for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
+			faces.push_back({ srcIndices[i], srcIndices[i + 1], srcIndices[i + 2] });
+	};
+
+	// Fold pairwise across all of meshes, ALL-OR-NOTHING: if repair or
+	// corefinement fails for ANY pair in the chain, abandon the whole
+	// attempt and fall back to mergeMeshes()'s plain concatenation (today's
+	// exact existing "Merge Selected" behavior) for the FULL original list,
+	// rather than mixing partial real-union results with concatenated ones.
+	// Simpler to reason about, and never worse than today's behavior.
+	Mesh accumulated;
+	{
+		std::vector<Point_3> points;
+		std::vector<std::array<std::size_t, 3>> faces;
+		buildSoup(meshes[0], points, faces);
+		qDebug() << "[BooleanUnion] mesh 0 soup: points" << points.size() << "faces" << faces.size();
+		if (points.empty() || faces.empty()
+			|| !tryBuildRepairedVolumeMesh<Kernel>(std::move(points), std::move(faces), accumulated))
+			return fallback();
+		logBooleanUnionMeshStats("mesh 0 after repair", accumulated);
+	}
+
+	for (int i = 1; i < meshes.size(); ++i)
+	{
+		if (!meshes[i])
+			continue;
+
+		std::vector<Point_3> points;
+		std::vector<std::array<std::size_t, 3>> faces;
+		buildSoup(meshes[i], points, faces);
+		qDebug() << "[BooleanUnion] mesh" << i << "soup: points" << points.size() << "faces" << faces.size();
+
+		Mesh next;
+		if (points.empty() || faces.empty()
+			|| !tryBuildRepairedVolumeMesh<Kernel>(std::move(points), std::move(faces), next))
+			return fallback();
+		logBooleanUnionMeshStats("mesh i after repair", next);
+
+		// corefine_and_compute_union() modifies BOTH inputs in place
+		// (inserting new vertices/edges along the intersection curve)
+		// regardless of the result - neither is reused afterward here, so
+		// that's harmless.
+		Mesh unioned;
+		if (!PMP::corefine_and_compute_union(accumulated, next, unioned))
+			return fallback();
+		logBooleanUnionMeshStats("after corefine_and_compute_union", unioned);
+
+		accumulated = std::move(unioned);
+	}
+
+	if (accumulated.number_of_vertices() == 0 || accumulated.number_of_faces() == 0)
+		return fallback();
+
+	// corefine_and_compute_union() can introduce "needle" (near-zero-area
+	// sliver) triangles along the new intersection curve - confirmed
+	// directly via diagnostic logging: a real test case's minimum face area
+	// dropped to ~3e-7 right after corefinement (vs. ~7 as the smallest
+	// healthy triangle in either input, average ~227). A triangle that
+	// degenerate has 2 of its 3 vertices nearly coincident, so its normal
+	// (a cross product of two nearly-parallel edge vectors) is numerically
+	// unstable and corrupts normal averaging at its vertices - visually,
+	// dark/unlit-looking patches on an otherwise-correct merged shape.
+	//
+	// Two GLOBAL mesh-repair passes were tried and reverted here because
+	// each had destructive side effects FAR beyond the actual slivers:
+	// isotropic remeshing retriangulated the ENTIRE mesh (including
+	// perfectly healthy flat caps/cylinder walls) into a chaotic fan
+	// pattern; remove_almost_degenerate_faces()'s edge-collapse/flip
+	// repair cascaded across the whole mesh, collapsing it from 170 to 35
+	// vertices (170->35, 336->66 faces, confirmed via the same diagnostic
+	// logging) just to clean up one or two triangles. Both tools operate
+	// GLOBALLY on the mesh topology, which is the wrong scope for a
+	// problem localized to a handful of triangles.
+	//
+	// The actual fix is the exact-constructions kernel now used throughout
+	// this function (see tryBuildRepairedVolumeMesh()'s doc comment) -
+	// this area-based exclusion is kept only as a defensive safety net for
+	// whatever residual degenerate faces might still slip through (e.g. an
+	// input that was already degenerate before corefinement ever ran), not
+	// as the primary mechanism: compute each face's area once, and simply
+	// IGNORE (not remove - no topology changes, no cascading side effects)
+	// any face below a tiny relative-to-average threshold, both when
+	// accumulating vertex normals and when writing out the final index
+	// buffer. A genuinely healthy triangle is never anywhere close to
+	// 1e-6x the mesh's own average face area, so this can't mistake real
+	// (if small) geometry for a sliver.
+	auto faceArea = accumulated.add_property_map<Mesh::Face_index, double>("f:area_tmp", 0.0).first;
+	double areaSum = 0.0;
+	for (Mesh::Face_index f : accumulated.faces())
+	{
+		const double area = CGAL::to_double(PMP::face_area(f, accumulated));
+		faceArea[f] = area;
+		areaSum += area;
+	}
+	const double avgFaceArea = accumulated.number_of_faces() > 0
+		? areaSum / static_cast<double>(accumulated.number_of_faces()) : 0.0;
+	constexpr double kDegenerateAreaRatio = 1.0e-6;
+	const double degenerateAreaThreshold = avgFaceArea * kDegenerateAreaRatio;
+
+	// Convert the final unioned Surface_mesh back to Vertex/index arrays -
+	// same conversion shrinkWrapMeshes() uses for its own CGAL result
+	// (brand-new geometry, no source UVs/skinning to carry over), except
+	// each vertex is split per SHADING GROUP across sharp creases rather
+	// than given one smoothly-blended normal, unlike shrinkWrapMeshes()'s
+	// single compute_vertex_normals() call.
+	//
+	// Earlier rounds of this investigation ruled out degenerate/sliver
+	// triangles (visually irrelevant - a true zero-area triangle renders as
+	// nothing either way), exact-vs-inexact kernel precision (bit-for-bit
+	// identical results), and normal-averaging CANCELLATION (a diagnostic
+	// counting near-zero/weak per-vertex averages found zero such
+	// vertices) as causes of the dark/faceted artifact seen right at the
+	// T-junction seam. What none of those checked is the case where an
+	// area-weighted average is STRONG (no cancellation at all) but still a
+	// poor lighting compromise between two genuinely different face
+	// normals meeting at a real sharp crease - exactly what a boolean
+	// union between two cylinders produces at their seam. Smooth-shading
+	// across a real sharp edge is a well-known source of a dark/muddy band
+	// (the blended normal is wrong for both adjoining faces), and this
+	// codebase already treats sharp angles as hard edges elsewhere -
+	// AssImpModelLoader's PP_GSN_MAX_SMOOTHING_ANGLE=15 on import, and the
+	// feature-edge wireframe system's 30-degree "sharp geometric crease"
+	// threshold for a shared (non-split) edge.
+	//
+	// Tried 30 degrees first (the wireframe system's threshold) - it
+	// visibly helped but didn't fully clean up the seam. That threshold is
+	// tuned for "is this edge worth drawing as a visible line," a much
+	// coarser bar than "is this angle shallow enough that BLENDING across
+	// it still looks right under lighting" - a boolean union's true
+	// intersection curve between two cylinders sweeps continuously from 0
+	// degrees at the tangent points up to some maximum, so parts of it can
+	// be shallower than 30 degrees yet still visibly wrong when smoothed.
+	// AssImpModelLoader's own import-time smoothing-angle default (15) is
+	// the more relevant precedent for a SHADING decision like this one, so
+	// this uses that instead.
+	//
+	// Implementation: walk each vertex's incident faces in their natural
+	// cyclic (halfedge) order, split the fan into runs wherever consecutive
+	// faces' normals diverge past the crease threshold (or a degenerate
+	// face sits between them), average each run's faces independently, and
+	// emit one duplicated vertex per run. A vertex entirely surrounded by
+	// coplanar-ish faces (the common case, e.g. mid-cylinder-wall
+	// vertices) ends up with exactly one run, i.e. unchanged behavior from
+	// before. This assumes a closed mesh (already confirmed above via
+	// does_bound_a_volume/is_closed), so every vertex's fan is a full
+	// cycle with no border halfedges to special-case.
+	constexpr float kCreaseAngleDegrees = 15.0f;
+	const float cosCreaseThresh = std::cos(kCreaseAngleDegrees * 3.14159265358979f / 180.0f);
+
+	// Accumulated in plain float (QVector3D) rather than Kernel::Vector_3
+	// arithmetic - this is only ever going into a rendering normal (float
+	// precision is more than enough), and it sidesteps any doubt about
+	// operator overload resolution mixing a raw double weight with the
+	// exact kernel's own (non-double) FT number type.
+	auto toQVector3D = [](const Kernel::Vector_3& v) {
+		return QVector3D(static_cast<float>(CGAL::to_double(v.x())),
+		                  static_cast<float>(CGAL::to_double(v.y())),
+		                  static_cast<float>(CGAL::to_double(v.z())));
+	};
+
+	struct FanEntry
+	{
+		Mesh::Halfedge_index h{};
+		QVector3D normal{0.0f, 0.0f, 0.0f};
+		double area = 0.0;
+		bool valid = false;
+	};
+
+	std::vector<Vertex> resultVertices;
+	resultVertices.reserve(accumulated.number_of_vertices());
+	std::unordered_map<Mesh::Halfedge_index, unsigned int> halfedgeVertexIndex;
+	halfedgeVertexIndex.reserve(accumulated.number_of_halfedges());
+
+	std::size_t splitVertexCount = 0;
+	for (Mesh::Vertex_index v : accumulated.vertices())
+	{
+		std::vector<FanEntry> fan;
+		for (Mesh::Halfedge_index h : CGAL::halfedges_around_target(v, accumulated))
+		{
+			FanEntry entry;
+			entry.h = h;
+			if (!accumulated.is_border(h))
+			{
+				const Mesh::Face_index f = accumulated.face(h);
+				entry.area = faceArea[f];
+				entry.valid = entry.area >= degenerateAreaThreshold;
+				if (entry.valid)
+					entry.normal = toQVector3D(PMP::compute_face_normal(f, accumulated));
+			}
+			fan.push_back(entry);
+		}
+
+		const int n = static_cast<int>(fan.size());
+		if (n == 0)
+			continue;
+
+		// same[i] says whether fan[i] and its cyclic successor belong in
+		// the same shading group (both valid and within the crease angle).
+		std::vector<bool> same(n, false);
+		for (int i = 0; i < n; ++i)
+		{
+			const int j = (i + 1) % n;
+			same[i] = fan[i].valid && fan[j].valid
+				&& QVector3D::dotProduct(fan[i].normal, fan[j].normal) >= cosCreaseThresh;
+		}
+		int breakIdx = -1;
+		for (int i = 0; i < n; ++i)
+		{
+			if (!same[i]) { breakIdx = i; break; }
+		}
+
+		// Linearize the cyclic run: start right after a break (if any) so
+		// the walk below never needs to wrap a group across it.
+		std::vector<int> groupId(n, 0);
+		const int startIdx = (breakIdx == -1) ? 0 : (breakIdx + 1) % n;
+		int currentGroup = 0;
+		int idx = startIdx;
+		groupId[idx] = 0;
+		for (int k = 1; k < n; ++k)
+		{
+			const int prevIdx = idx;
+			idx = (idx + 1) % n;
+			if (!same[prevIdx])
+				++currentGroup;
+			groupId[idx] = currentGroup;
+		}
+		const int groupCount = currentGroup + 1;
+		if (groupCount > 1)
+			++splitVertexCount;
+
+		const Point_3& p = accumulated.point(v);
+		const glm::vec3 pos(static_cast<float>(CGAL::to_double(p.x())),
+		                     static_cast<float>(CGAL::to_double(p.y())),
+		                     static_cast<float>(CGAL::to_double(p.z())));
+
+		for (int g = 0; g < groupCount; ++g)
+		{
+			QVector3D sum(0.0f, 0.0f, 0.0f);
+			for (int i = 0; i < n; ++i)
+			{
+				if (groupId[i] != g || !fan[i].valid)
+					continue;
+				sum += static_cast<float>(fan[i].area) * fan[i].normal;
+			}
+			QVector3D normal(0.0f, 0.0f, 0.0f);
+			if (sum.lengthSquared() > 1.0e-12f)
+			{
+				sum.normalize();
+				normal = sum;
+			}
+			else
+			{
+				// No valid (non-degenerate) face in this run - fall back to
+				// any incident face's own normal so the shader never sees a
+				// NaN from normalizing a zero vector.
+				for (const FanEntry& e : fan)
+				{
+					if (!accumulated.is_border(e.h))
+					{
+						normal = toQVector3D(PMP::compute_face_normal(accumulated.face(e.h), accumulated));
+						break;
+					}
+				}
+			}
+
+			Vertex vert{};
+			vert.Color = glm::vec4(1.0f);
+			vert.Tangent = glm::vec3(0.0f);
+			vert.Bitangent = glm::vec3(0.0f);
+			for (glm::vec2& uv : vert.TexCoords)
+				uv = glm::vec2(0.0f);
+			vert.Position = pos;
+			vert.Normal = glm::vec3(normal.x(), normal.y(), normal.z());
+
+			const unsigned int newIndex = static_cast<unsigned int>(resultVertices.size());
+			resultVertices.push_back(vert);
+			for (int i = 0; i < n; ++i)
+			{
+				if (groupId[i] == g && fan[i].valid)
+					halfedgeVertexIndex.emplace(fan[i].h, newIndex);
+			}
+		}
+	}
+	qDebug() << "[BooleanUnion] crease-aware normal splitting:" << splitVertexCount
+	         << "of" << accumulated.number_of_vertices() << "vertices split across a >="
+	         << kCreaseAngleDegrees << "degree crease; total output vertices" << resultVertices.size();
+
+	// Skip degenerate (near-zero-area) faces here too, same threshold as
+	// above - a sliver contributes no meaningfully visible area, so
+	// omitting it from the rendered index buffer entirely is imperceptible,
+	// unlike trying to "repair" it via topology changes.
+	std::vector<unsigned int> resultIndices;
+	resultIndices.reserve(accumulated.number_of_faces() * 3);
+	std::size_t skippedDegenerateFaces = 0;
+	for (Mesh::Face_index f : accumulated.faces())
+	{
+		if (faceArea[f] < degenerateAreaThreshold)
+		{
+			++skippedDegenerateFaces;
+			continue;
+		}
+		for (Mesh::Halfedge_index h : CGAL::halfedges_around_face(accumulated.halfedge(f), accumulated))
+			resultIndices.push_back(halfedgeVertexIndex.at(h));
+	}
+	qDebug() << "[BooleanUnion] final: verts" << resultVertices.size() << "faces" << (resultIndices.size() / 3)
+	         << "skipped degenerate faces" << skippedDegenerateFaces << "(of" << accumulated.number_of_faces() << ")"
+	         << "area threshold" << degenerateAreaThreshold << "(avg" << avgFaceArea << ")";
+
+	if (outUsedRealUnion)
+		*outUsedRealUnion = true;
+
+	SceneMesh* first = meshes.first();
+	SceneMesh* result = new SceneMesh(first->_prog, mergedName, resultVertices, resultIndices,
+	                                   first->_textures, first->_material,
+	                                   first->_importState.skipOptimization(), first->getPrimitiveMode());
+
+	// Same provenance fields mergeMeshes() copies from the (already
+	// confirmed materially-compatible) first input.
+	result->setSceneIndex(first->getSceneIndex());
+	result->setOriginalMaterialIndex(first->getOriginalMaterialIndex());
+	result->setSourceFile(first->getSourceFile());
+	result->setSourceNodeName(first->getSourceNodeName());
+	result->setSkinJoints(first->skinJoints());
+	result->setVariantMappings(first->variantMappings());
+	result->setAllVariantMaterials(first->allVariantMaterials());
+
+	// Identity transform - the vertex data above is already world-space,
+	// same convention as mergeMeshes()/shrinkWrapMeshes().
+	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	result->setHasNegativeScale(false);
+	result->setSceneRenderTransformFast(QMatrix4x4());
+
+	result->fullUpdateRuntimeBounds();
+
+	return result;
 }
 
 quint64 SceneMesh::getRenderMaterialSortKey() const
@@ -1427,6 +2115,379 @@ SceneMesh* SceneMesh::shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const 
 	SceneMesh* result = new SceneMesh(first->_prog, newName, wrappedVertices, wrappedIndices,
 	                                   first->_textures, first->_material,
 	                                   first->_importState.skipOptimization(), first->getPrimitiveMode());
+
+	// Identity transform - the vertex data above is already world-space.
+	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	result->setHasNegativeScale(false);
+	result->setSceneRenderTransformFast(QMatrix4x4());
+
+	result->fullUpdateRuntimeBounds();
+
+	return result;
+}
+
+SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
+                                     unsigned int iterations, const QString& newName,
+                                     bool preserveSharpFeatures)
+{
+	if (!mesh)
+		return nullptr;
+
+	using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+	using Point_3 = Kernel::Point_3;
+	using Mesh    = CGAL::Surface_mesh<Point_3>;
+	namespace PMP = CGAL::Polygon_mesh_processing;
+
+	// Build the world-space input soup - same baked-geometry accessors as
+	// shrinkWrapMeshes()/booleanUnionMeshes(), but for a single mesh (no
+	// vertexOffset concatenation needed - subdivision is topology-preserving
+	// per-mesh refinement, not a combine).
+	const std::vector<float>& pts = mesh->getTrsfPoints();
+	const std::vector<unsigned int> srcIndices = mesh->indices();
+
+	std::vector<Point_3> points;
+	std::vector<std::array<std::size_t, 3>> faces;
+
+	const std::size_t nVerts = pts.size() / 3;
+	points.reserve(nVerts);
+	for (std::size_t i = 0; i < nVerts; ++i)
+		points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
+
+	faces.reserve(srcIndices.size() / 3);
+	for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
+		faces.push_back({ srcIndices[i], srcIndices[i + 1], srcIndices[i + 2] });
+
+	if (points.empty() || faces.empty())
+		return nullptr;
+
+	// Same repair gate booleanUnionMeshes() uses to turn an arbitrary
+	// imported soup into a valid polygon mesh, but without the closed/
+	// watertight/self-intersection-free checks that operation additionally
+	// needs for corefinement - subdivision's refinement hosts handle open
+	// borders fine (they have their own boundary stencils), so there's
+	// nothing further to establish here. orient_polygon_soup() is still
+	// needed alongside repair_polygon_soup(), same as booleanUnionMeshes()'s
+	// tryBuildRepairedVolumeMesh() - repair_polygon_soup() alone does not
+	// fix non-manifold edges/singular vertices (a vertex shared by two
+	// otherwise-disconnected triangle fans), which a real STEP/BREP import
+	// can hit (confirmed via the Geodesic Distance resolver's identical gap)
+	// and would otherwise fail is_polygon_soup_a_polygon_mesh() below,
+	// rejecting geometry that's perfectly subdivisible once repaired.
+	PMP::repair_polygon_soup(points, faces);
+	PMP::orient_polygon_soup(points, faces);
+	if (!PMP::is_polygon_soup_a_polygon_mesh(faces))
+		return nullptr;
+
+	Mesh workingMesh;
+	PMP::polygon_soup_to_polygon_mesh(points, faces, workingMesh);
+	PMP::stitch_borders(workingMesh);
+
+	// Loop/Catmull-Clark subdivision's stencil weights are derived for low,
+	// regular vertex valence (6 for an interior triangle-mesh vertex) -
+	// this app's flat circular caps are fan-triangulated from one center
+	// vertex with valence equal to the cylinder's angular segment count, a
+	// known worst case that visibly pinches/crumples after subdivision
+	// (confirmed via direct testing on this app's own cylinder-with-hole
+	// test asset). Regularize the control mesh's triangle shape/valence
+	// distribution first via isotropic remeshing, targeting the mesh's OWN
+	// average edge length (so this redistributes triangle quality without
+	// materially changing overall resolution) - 3 iterations rather than
+	// the 1 default, per CGAL's own manual guidance that one pass is
+	// rarely enough to converge.
+	//
+	// This exact function was tried in a different context earlier this
+	// session (Boolean Union seam cleanup) and produced a "chaotic
+	// fan-from-center-vertex" result when applied without careful
+	// parameterization - real risk of a similar failure here even with
+	// more deliberate tuning, so before/after vertex/face-count
+	// diagnostics are logged to make that failure mode visible immediately
+	// rather than only showing up as a bad screenshot again.
+	double edgeLengthSum = 0.0;
+	for (Mesh::Edge_index e : workingMesh.edges())
+		edgeLengthSum += CGAL::to_double(PMP::edge_length(e, workingMesh));
+	const double targetEdgeLength = workingMesh.number_of_edges() > 0
+		? edgeLengthSum / static_cast<double>(workingMesh.number_of_edges()) : 0.0;
+
+	qDebug() << "[Subdivision] pre-remesh: verts" << workingMesh.number_of_vertices()
+	         << "faces" << workingMesh.number_of_faces()
+	         << "target edge length" << targetEdgeLength;
+
+	constexpr double kSharpFeatureAngleDegrees = 30.0;
+	const double cosSharpFeatureThreshold = std::cos(kSharpFeatureAngleDegrees * 3.14159265358979 / 180.0);
+	if (targetEdgeLength > 0.0)
+	{
+		if (preserveSharpFeatures)
+		{
+			auto edgeIsConstrained = workingMesh.add_property_map<Mesh::Edge_index, bool>(
+				"e:subdivision_sharp_feature", false).first;
+			double maxConstrainedEdgeLength = 0.0;
+			for (Mesh::Edge_index e : workingMesh.edges())
+			{
+				const Mesh::Halfedge_index h = workingMesh.halfedge(e);
+				if (workingMesh.is_border(e))
+				{
+					// isotropic_remeshing()'s own precondition check
+					// (internal::constraints_are_short_enough(), read
+					// directly from remesh_impl.h) treats EVERY border edge
+					// (only one incident face - a real hole/unstitched seam
+					// in the mesh) as implicitly constrained for the
+					// too-long check, completely independent of
+					// edgeIsConstrained below. A genuinely long border edge
+					// (e.g. from an incompletely stitched CAD-tessellation
+					// seam, the same class of defect found elsewhere this
+					// session) must factor into the target-edge-length
+					// floor too, or raising it based on edgeIsConstrained
+					// alone silently fails to prevent the crash - confirmed
+					// happening on this exact bearing model.
+					maxConstrainedEdgeLength = std::max(maxConstrainedEdgeLength,
+						CGAL::to_double(PMP::edge_length(e, workingMesh)));
+					continue;
+				}
+
+				const Kernel::Vector_3 n0 = PMP::compute_face_normal(workingMesh.face(h), workingMesh);
+				const Kernel::Vector_3 n1 = PMP::compute_face_normal(workingMesh.face(workingMesh.opposite(h)), workingMesh);
+				const double n0LengthSquared = CGAL::to_double(n0.squared_length());
+				const double n1LengthSquared = CGAL::to_double(n1.squared_length());
+				if (n0LengthSquared > 1.0e-24 && n1LengthSquared > 1.0e-24)
+				{
+					const double dot = CGAL::to_double(n0.x()) * CGAL::to_double(n1.x())
+						+ CGAL::to_double(n0.y()) * CGAL::to_double(n1.y())
+						+ CGAL::to_double(n0.z()) * CGAL::to_double(n1.z());
+					edgeIsConstrained[e] = dot / std::sqrt(n0LengthSquared * n1LengthSquared)
+						< cosSharpFeatureThreshold;
+					if (edgeIsConstrained[e])
+					{
+						maxConstrainedEdgeLength = std::max(maxConstrainedEdgeLength,
+							CGAL::to_double(PMP::edge_length(e, workingMesh)));
+					}
+				}
+			}
+
+			// isotropic_remeshing() has a HARD precondition when
+			// protect_constraints(true) is used: no constrained edge (per
+			// internal::constraints_are_short_enough() in remesh_impl.h -
+			// this includes every BORDER edge too, see the loop above) may
+			// be longer than 4/3 * target_edge_length, or it's a
+			// CGAL_precondition abort. First two fix attempts both tried
+			// raising target_edge_length to satisfy this - WRONG approach,
+			// confirmed via a real bearing model: target_edge_length is a
+			// GLOBAL uniform sizing target for the whole remesh, so forcing
+			// it up to accommodate one long edge made isotropic_remeshing
+			// collapse the ENTIRE mesh down to that one edge's scale,
+			// destroying all fine detail (a distorted, blocky result, not
+			// just a locally-coarser one).
+			//
+			// Correct fix: leave target_edge_length at its natural,
+			// mesh-derived value, and only request the STRICT
+			// protect_constraints(true) behavior when it's actually safe to
+			// do so for that value. When a constrained/border edge would
+			// violate the precondition, fall back to protect_constraints(false)
+			// while STILL passing edge_is_constrained_map - a constrained
+			// edge is never flipped or tangentially smoothed either way
+			// (that part of "constrained" isn't gated by protect_constraints
+			// at all, per CGAL's own docs), it just becomes allowed to be
+			// split/collapsed into properly-sized pieces instead of
+			// aborting - the sharp-edge PRESERVATION intent survives even
+			// when protect_constraints can't safely be true.
+			constexpr double kProtectConstraintsMaxRatio = 4.0 / 3.0;
+			constexpr double kProtectConstraintsSafetyMargin = 0.95; // stay under the ratio, not razor-thin against it
+			const bool canProtectConstraints = maxConstrainedEdgeLength <=
+				targetEdgeLength * kProtectConstraintsMaxRatio * kProtectConstraintsSafetyMargin;
+			if (!canProtectConstraints)
+			{
+				qDebug() << "[Subdivision] longest sharp/border edge" << maxConstrainedEdgeLength
+				         << "would violate protect_constraints()'s 4/3 * target_edge_length" << targetEdgeLength
+				         << "precondition - falling back to protect_constraints(false) rather than "
+				            "inflating target_edge_length (which would coarsen the whole mesh)";
+			}
+
+			PMP::isotropic_remeshing(workingMesh.faces(), targetEdgeLength, workingMesh,
+				CGAL::parameters::number_of_iterations(3)
+					.edge_is_constrained_map(edgeIsConstrained)
+					.protect_constraints(canProtectConstraints));
+		}
+		else
+		{
+			PMP::isotropic_remeshing(workingMesh.faces(), targetEdgeLength, workingMesh,
+				CGAL::parameters::number_of_iterations(3));
+		}
+	}
+
+	qDebug() << "[Subdivision] post-remesh: verts" << workingMesh.number_of_vertices()
+	         << "faces" << workingMesh.number_of_faces();
+
+	switch (method)
+	{
+	case SubdivisionMethod::Loop:
+		if (preserveSharpFeatures)
+		{
+			CGAL::Subdivision_method_3::PTQ(
+				workingMesh, CreaseAwareLoopMask<Mesh>(&workingMesh, cosSharpFeatureThreshold),
+				CGAL::parameters::number_of_iterations(iterations));
+		}
+		else
+		{
+			CGAL::Subdivision_method_3::Loop_subdivision(
+				workingMesh, CGAL::parameters::number_of_iterations(iterations));
+		}
+		break;
+	case SubdivisionMethod::CatmullClark:
+		if (preserveSharpFeatures)
+		{
+			CGAL::Subdivision_method_3::PQQ(
+				workingMesh, CreaseAwareCatmullClarkMask<Mesh>(&workingMesh, cosSharpFeatureThreshold),
+				CGAL::parameters::number_of_iterations(iterations));
+		}
+		else
+		{
+			CGAL::Subdivision_method_3::CatmullClark_subdivision(
+				workingMesh, CGAL::parameters::number_of_iterations(iterations));
+		}
+		// Catmull-Clark's PQQ refinement host always produces quads, even
+		// from an all-triangle input - triangulate back down to fit this
+		// app's triangle-only Vertex/index-buffer convention.
+		PMP::triangulate_faces(workingMesh);
+		break;
+	}
+
+	if (workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() == 0)
+		return nullptr;
+
+	// Same degenerate-face defense booleanUnionMeshes() uses (see its doc
+	// comment): a handful of near-zero-area sliver triangles can survive
+	// repair_polygon_soup/stitch_borders even on an otherwise clean,
+	// already-closed input (confirmed happening on this app's own test
+	// cylinder asset during the Boolean Union work), and subdivision has no
+	// way to know to discount them - a degenerate seed triangle's near-
+	// arbitrary normal poisons compute_vertex_normals()'s average at every
+	// vertex it touches, and the same sliver keeps propagating through
+	// every refinement iteration. Compute each face's area once, and
+	// IGNORE (not remove - no topology changes) any face below a tiny
+	// relative-to-average threshold, both when accumulating normals and
+	// when writing the final index buffer.
+	auto faceArea = workingMesh.add_property_map<Mesh::Face_index, double>("f:area_tmp", 0.0).first;
+	double areaSum = 0.0;
+	for (Mesh::Face_index f : workingMesh.faces())
+	{
+		const double area = CGAL::to_double(PMP::face_area(f, workingMesh));
+		faceArea[f] = area;
+		areaSum += area;
+	}
+	const double avgFaceArea = workingMesh.number_of_faces() > 0
+		? areaSum / static_cast<double>(workingMesh.number_of_faces()) : 0.0;
+	constexpr double kDegenerateAreaRatio = 1.0e-6;
+	const double degenerateAreaThreshold = avgFaceArea * kDegenerateAreaRatio;
+
+	// Brand-new geometry with no source UVs/skinning to carry over. When
+	// feature preservation is selected, a sharp geometric crease must also
+	// be a hard shading crease: sharing one averaged normal would still make
+	// the correctly-preserved geometry look rounded under lighting.
+	std::vector<Vertex> resultVertices;
+	resultVertices.reserve(workingMesh.number_of_vertices());
+	std::unordered_map<Mesh::Halfedge_index, unsigned int> halfedgeVertexIndex;
+	halfedgeVertexIndex.reserve(workingMesh.number_of_halfedges());
+	for (Mesh::Vertex_index v : workingMesh.vertices())
+	{
+		struct FanEntry
+		{
+			Mesh::Halfedge_index halfedge{};
+			glm::vec3 normal{0.0f};
+			double area = 0.0;
+			bool valid = false;
+		};
+		std::vector<FanEntry> fan;
+		for (Mesh::Halfedge_index h : CGAL::halfedges_around_target(v, workingMesh))
+		{
+			FanEntry entry;
+			entry.halfedge = h;
+			if (!workingMesh.is_border(h))
+			{
+				const Mesh::Face_index f = workingMesh.face(h);
+				entry.area = faceArea[f];
+				entry.valid = entry.area >= degenerateAreaThreshold;
+				if (entry.valid)
+				{
+					const Kernel::Vector_3 fn = PMP::compute_face_normal(f, workingMesh);
+					entry.normal = glm::vec3(static_cast<float>(CGAL::to_double(fn.x())),
+					                         static_cast<float>(CGAL::to_double(fn.y())),
+					                         static_cast<float>(CGAL::to_double(fn.z())));
+				}
+			}
+			fan.push_back(entry);
+		}
+
+		const int fanSize = static_cast<int>(fan.size());
+		if (fanSize == 0)
+			continue;
+		std::vector<bool> sameGroup(fanSize, false);
+		for (int i = 0; i < fanSize; ++i)
+		{
+			const int next = (i + 1) % fanSize;
+			sameGroup[i] = fan[i].valid && fan[next].valid
+				&& (!preserveSharpFeatures
+					|| glm::dot(fan[i].normal, fan[next].normal) >= static_cast<float>(cosSharpFeatureThreshold));
+		}
+		int breakIndex = -1;
+		for (int i = 0; i < fanSize; ++i)
+			if (!sameGroup[i]) { breakIndex = i; break; }
+		std::vector<int> groupId(fanSize, 0);
+		const int start = (breakIndex < 0) ? 0 : (breakIndex + 1) % fanSize;
+		int groupCount = 1;
+		int current = start;
+		for (int step = 1; step < fanSize; ++step)
+		{
+			const int previous = current;
+			current = (current + 1) % fanSize;
+			if (!sameGroup[previous])
+				++groupCount;
+			groupId[current] = groupCount - 1;
+		}
+		const Point_3& p = workingMesh.point(v);
+		const glm::vec3 position(static_cast<float>(CGAL::to_double(p.x())),
+		                         static_cast<float>(CGAL::to_double(p.y())),
+		                         static_cast<float>(CGAL::to_double(p.z())));
+		for (int group = 0; group < groupCount; ++group)
+		{
+			glm::vec3 sum(0.0f);
+			for (int i = 0; i < fanSize; ++i)
+				if (groupId[i] == group && fan[i].valid)
+					sum += static_cast<float>(fan[i].area) * fan[i].normal;
+			if (glm::dot(sum, sum) > 1.0e-12f)
+				sum = glm::normalize(sum);
+			else
+				for (const FanEntry& entry : fan)
+					if (entry.valid) { sum = entry.normal; break; }
+
+			Vertex vert{};
+			vert.Color = glm::vec4(1.0f);
+			vert.Position = position;
+			vert.Normal = sum;
+			const unsigned int index = static_cast<unsigned int>(resultVertices.size());
+			resultVertices.push_back(vert);
+			for (int i = 0; i < fanSize; ++i)
+				if (groupId[i] == group && fan[i].valid)
+					halfedgeVertexIndex.emplace(fan[i].halfedge, index);
+		}
+	}
+
+	// Skip degenerate (near-zero-area) faces here too, same threshold as
+	// above - a sliver contributes no meaningfully visible area, so
+	// omitting it from the rendered index buffer entirely is imperceptible.
+	std::vector<unsigned int> resultIndices;
+	resultIndices.reserve(workingMesh.number_of_faces() * 3);
+	for (Mesh::Face_index f : workingMesh.faces())
+	{
+		if (faceArea[f] < degenerateAreaThreshold)
+			continue;
+		for (Mesh::Halfedge_index h : CGAL::halfedges_around_face(workingMesh.halfedge(f), workingMesh))
+			resultIndices.push_back(halfedgeVertexIndex.at(h));
+	}
+
+	SceneMesh* result = new SceneMesh(mesh->_prog, newName, resultVertices, resultIndices,
+	                                   mesh->_textures, mesh->_material,
+	                                   mesh->_importState.skipOptimization(), mesh->getPrimitiveMode());
 
 	// Identity transform - the vertex data above is already world-space.
 	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));

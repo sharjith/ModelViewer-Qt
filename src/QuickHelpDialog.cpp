@@ -797,6 +797,26 @@ void QuickHelpDialog::setupAdvancedFeaturesTab()
 		   "back to glTF/GLB</li>"
 		   "</ul>"));
 
+	content += createSection(tr("Subdivide Surface"),
+		tr("<p>Opened via Tools → Subdivide Surface..., this smooths one or more selected meshes using "
+		   "CGAL's Loop or Catmull-Clark subdivision — each selected mesh is refined independently, added "
+		   "as a new mesh alongside the original (which is left untouched), and becomes undoable once the "
+		   "dialog closes.</p>"
+		   "<ul>"
+		   "<li><b>Method:</b> Loop stays triangle-based throughout; Catmull-Clark produces quads internally "
+		   "and is triangulated back afterward — both usually look similarly smooth</li>"
+		   "<li><b>Iterations:</b> each step roughly quadruples the triangle count, so higher values get "
+		   "expensive fast; 1-2 is enough to see the effect</li>"
+		   "<li><b>Preserve sharp edges</b> (on by default): keeps any edge with a 30-degree-or-greater bend "
+		   "infinitely sharp instead of smoothing it away — a cylinder's flat end caps and a block's corners "
+		   "stay crisp while the rest of the surface still smooths normally. Turn it off for the classic "
+		   "fully-smooth subdivision-surface look (the same way subdividing a cube yields a rounded blob, "
+		   "not a cube with a finer mesh) - useful on coarse/organic meshes where an all-over rounding "
+		   "effect is what's actually wanted</li>"
+		   "<li><b>Replace previous result:</b> when checked, each Generate click replaces the prior "
+		   "preview; unchecked, results accumulate side by side</li>"
+		   "</ul>"));
+
 	_advancedBrowser->setHtml(createStyledHtml(tr("Advanced Features"), content));
 }
 

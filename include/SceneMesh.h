@@ -207,6 +207,27 @@ public:
 	// compatible. Returns nullptr if meshes is empty.
 	static SceneMesh* mergeMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName);
 
+	// Upgrade of mergeMeshes() above for the SAME call sites/contract (same
+	// signature, same nullptr-if-empty convention, same material/provenance-
+	// from-meshes.first() convention) - tries a real CGAL boolean union
+	// (CGAL::Polygon_mesh_processing::corefine_and_compute_union) folded
+	// pairwise across all of meshes, repairing each input first (duplicate/
+	// degenerate-polygon cleanup, border stitching, self-intersection
+	// removal, orientation) since corefinement requires watertight,
+	// self-intersection-free, consistently-oriented input. If repair or
+	// corefinement fails for ANY pair in the fold, abandons the whole
+	// attempt and falls back to mergeMeshes()'s plain concatenation - never
+	// worse than today's "Merge Selected", better whenever the geometry
+	// allows a real solid union. See the plan/[[project_cgal_capabilities_reference]]
+	// for why this is all-or-nothing rather than per-pair partial fallback.
+	// outUsedRealUnion, if non-null, is set to true when a real CGAL union
+	// was produced and false whenever the mergeMeshes() fallback ran instead
+	// (at any of this function's several fallback points) - lets a caller
+	// tell the user which actually happened rather than reporting a generic
+	// "merged" message regardless of which path ran.
+	static SceneMesh* booleanUnionMeshes(const QVector<SceneMesh*>& meshes, const QString& mergedName,
+	                                      bool* outUsedRealUnion = nullptr);
+
 	// Computes a suggested alpha/offset pair for shrinkWrapMeshes() below,
 	// from the combined world-space bounding-box diagonal of meshes (alpha
 	// as 1/100 of the diagonal, offset as alpha/30 - middle of CGAL's own
@@ -229,6 +250,30 @@ public:
 	// Returns nullptr if meshes is empty or the wrap produced no geometry.
 	static SceneMesh* shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const QString& newName,
 	                                    double alpha, double offset);
+
+	enum class SubdivisionMethod { Loop, CatmullClark };
+
+	// Subdivides ONE mesh's world-space geometry `iterations` times via
+	// CGAL's Subdivision_method_3 (Loop for triangle-preserving output,
+	// Catmull-Clark for the classic subdivision-surface look - CC always
+	// produces quads, even from a triangle input, so its result is
+	// triangulated back via triangulate_faces() before conversion to this
+	// app's triangle-only Vertex/index-buffer convention). Unlike
+	// mergeMeshes()/shrinkWrapMeshes() above, this is single-mesh in,
+	// single-mesh out - subdivision is topology-preserving refinement, not
+	// a combine. When preserveSharpFeatures is true, interior edges with a
+	// >= 30 degree dihedral are treated as infinitely sharp creases by both
+	// the remesher and subdivision stencil; their normals are split too.
+	// Disabling it retains the conventional fully-smooth limit surface.
+	// Returns
+	// nullptr if mesh is null/empty or the input can't be repaired into a
+	// valid polygon mesh (repair_polygon_soup + is_polygon_soup_a_polygon_mesh
+	// check, same gate booleanUnionMeshes() uses, but without the
+	// closed/watertight requirements boolean union needs - subdivision
+	// handles open borders fine).
+	static SceneMesh* subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
+	                                 unsigned int iterations, const QString& newName,
+	                                 bool preserveSharpFeatures = true);
 
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }

@@ -24,6 +24,19 @@
 #include <CGAL/Shape_detection/Region_growing/Point_set/Least_squares_cylinder_fit_region.h>
 #include <boost/property_map/property_map.hpp>
 
+// See resolveMeasurementGeodesicDistance()'s doc comment - CGAL
+// Surface_mesh_shortest_path for GeodesicDistance. polygon_soup_to_polygon_mesh/
+// stitch_borders build a valid Surface_mesh from the picked mesh's own
+// triangle soup WITHOUT repair_polygon_soup (see the doc comment for why
+// skipping that specific step matters here).
+#include <CGAL/Surface_mesh.h>
+#include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
+#include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h>
+#include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
+#include <CGAL/Polygon_mesh_processing/stitch_borders.h>
+#include <CGAL/Polygon_mesh_processing/locate.h>
+#include <CGAL/Surface_mesh_shortest_path.h>
+
 #include <QDebug>
 #include <QMatrix4x4>
 #include <QOpenGLBuffer>
@@ -52,6 +65,12 @@ MeasurementController::MeasurementController(SceneRuntime& sceneRuntime, ModelVi
 SceneMesh* MeasurementController::getMeshByUuid(const QUuid& uuid) const
 {
 	return _sceneRuntime.getMeshByUuid(uuid);
+}
+
+void MeasurementController::clearGeometryCaches()
+{
+	m_cylMeshFitCache.clear();
+	m_geodesicDistanceCache.clear();
 }
 
 void MeasurementController::restoreGpuResources()
@@ -103,14 +122,16 @@ void MeasurementController::updateHoverAnchor(const QPoint& pixel, SelectionMana
 		|| _measurementTool == MeasurementTool::FaceArea
 		|| _measurementTool == MeasurementTool::MinDistance
 		|| _measurementTool == MeasurementTool::CylindricalDiameter
+		|| _measurementTool == MeasurementTool::GeodesicDistance
 		|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
 			&& !_pendingMeasurementAnchors.isEmpty())
 		|| _measurementTool == MeasurementTool::ArcRadius3Point
 		|| (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && !_pendingMeasurementAnchors.isEmpty()))
 	{
-		// A FACE pick, or an ARC-RIM pick that must land on the circle
-		// itself (not its center) - no circular-edge-center preview, same
-		// reasoning as handleMeasurementClick()'s matching branch.
+		// A FACE pick, a GeodesicDistance pick, or an ARC-RIM pick that must
+		// land on the circle itself (not its center) - no circular-edge-
+		// center preview, same reasoning as handleMeasurementClick()'s
+		// matching branch.
 		_measurementHoverAnchor = selectionManager->pickSurfaceAnchor(pixel);
 		_measurementEdgeHoverAnchor = MeshEdgeCircleAnchor();
 	}
@@ -504,6 +525,14 @@ QString MeasurementController::measurementSummaryText(const Measurement& m) cons
 		return isCone
 			? tr("Diameter (at picked point): ⌀ %1").arg(diameter, 0, 'f', 3)
 			: tr("Diameter: ⌀ %1").arg(diameter, 0, 'f', 3);
+	}
+	case MeasurementType::GeodesicDistance:
+	{
+		double distance = 0.0;
+		QVector<QVector3D> pathPoints;
+		if (!resolveMeasurementGeodesicDistance(m, distance, pathPoints))
+			return tr("Geodesic Distance: (no path found on this surface)");
+		return tr("Geodesic Distance: %1").arg(distance, 0, 'f', 3);
 	}
 	}
 	return QString();
@@ -1930,6 +1959,8 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 	MeasurementGeometry::PitchCircleResult circleFit;
 	double rmsResidualRatio = 0.0;
 	float maxResidualRatio = 0.0f;
+	QVector3D coneApex;
+	bool hasConeApex = false;
 	bool consistent = false;
 
 	for (int iter = 0; iter < kMaxTrimIterations; ++iter)
@@ -1958,8 +1989,12 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 			continue;
 		}
 
-		// Normals are consistent for this batch - now check whether the
-		// points actually SIT on the resulting circle.
+		// Normals are consistent for this batch. A cylinder has one
+		// constant-radius cross-section; a cone instead has a radius that
+		// changes linearly along its axis. Both still need the 2D fit below
+		// to place the axis line, but only the cylinder may be validated by
+		// a constant-radius residual.
+		const bool candidateCone = std::fabs(meanCos) > 0.15;
 		centroid = QVector3D();
 		for (const PatchSample& s : inliers)
 			centroid += s.pos;
@@ -1975,6 +2010,70 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 		{
 			if (kCylFitVerbose) qDebug() << "[CylFit] cross-section circle fit failed on iteration" << iter;
 			break;
+		}
+		if (candidateCone)
+		{
+			// Fit r = slope * t + intercept, where t is distance along the
+			// fitted axis and r is distance from it. Unlike the previous
+			// circle-only check, this is correct for a cone whose sampled
+			// points span more than one cross-section.
+			double sumT = 0.0, sumR = 0.0, sumTT = 0.0, sumTR = 0.0;
+			std::vector<double> axialPositions;
+			std::vector<double> radialDistances;
+			axialPositions.reserve(inliers.size());
+			radialDistances.reserve(inliers.size());
+			for (const PatchSample& s : inliers)
+			{
+				const QVector3D offset = s.pos - circleFit.center;
+				const double t = QVector3D::dotProduct(offset, axis);
+				const QVector3D radial = offset - axis * static_cast<float>(t);
+				const double r = radial.length();
+				axialPositions.push_back(t);
+				radialDistances.push_back(r);
+				sumT += t; sumR += r; sumTT += t * t; sumTR += t * r;
+			}
+			const double count = static_cast<double>(inliers.size());
+			const double denominator = count * sumTT - sumT * sumT;
+			if (std::fabs(denominator) <= 1.0e-12)
+				break;  // no axial extent: a cone cannot be distinguished reliably here
+			const double slope = (count * sumTR - sumT * sumR) / denominator;
+			if (std::fabs(slope) <= 1.0e-5)
+				break;  // this is a cylinder, despite the noisy normal classification
+			const double intercept = (sumR - slope * sumT) / count;
+			const double meanRadius = sumR / count;
+			double residualSumSq = 0.0;
+			maxResidualRatio = 0.0f;
+			QVector<float> residualRatios;
+			residualRatios.reserve(static_cast<int>(inliers.size()));
+			for (size_t i = 0; i < radialDistances.size(); ++i)
+			{
+				const double fittedRadius = slope * axialPositions[i] + intercept;
+				const float residualRatio = static_cast<float>(std::fabs(radialDistances[i] - fittedRadius)
+					/ std::max(meanRadius, 1.0e-6));
+				residualRatios.append(residualRatio);
+				residualSumSq += double(residualRatio) * double(residualRatio);
+				maxResidualRatio = std::max(maxResidualRatio, residualRatio);
+			}
+			rmsResidualRatio = std::sqrt(residualSumSq / count);
+			if (kCylFitVerbose) qDebug() << "[CylFit] iter" << iter << "cone slope" << slope
+				<< "radial residual rms" << rmsResidualRatio << "max" << maxResidualRatio;
+			if (rmsResidualRatio <= kMaxRmsResidualRatio && maxResidualRatio <= kMaxSingleResidualRatio)
+			{
+				coneApex = circleFit.center + axis * static_cast<float>(-intercept / slope);
+				hasConeApex = true;
+				consistent = true;
+				break;
+			}
+
+			std::vector<PatchSample> trimmed;
+			trimmed.reserve(inliers.size());
+			for (int i = 0; i < static_cast<int>(inliers.size()); ++i)
+				if (residualRatios[i] <= kMaxSingleResidualRatio)
+					trimmed.push_back(inliers[static_cast<size_t>(i)]);
+			if (trimmed.size() == inliers.size() || trimmed.size() < kMinPatchPoints)
+				break;
+			inliers = std::move(trimmed);
+			continue;
 		}
 
 		double residualSumSq = 0.0;
@@ -2046,6 +2145,8 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 	}
 
 	const bool isCone = std::fabs(meanCos) > 0.15;  // ~81-99 degrees treated as "cylinder enough"
+	if (isCone && !hasConeApex)
+		return false;  // a conical classification must have passed the taper fit above
 
 	// A near-FLAT patch (e.g. a nominally flat CAD face with just enough
 	// tessellation/vertex-normal noise to trace a very shallow, but
@@ -2151,7 +2252,7 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 	const float trueDiameter = circleFit.radius * 2.0f;
 	constexpr float kMinFootprintToDiameterRatio = 0.85f;
 	if (kCylFitVerbose) qDebug() << "[CylFit] patch footprint" << observedFootprint << "vs fitted diameter" << trueDiameter << "(min ratio allowed" << kMinFootprintToDiameterRatio << ")";
-	if (observedFootprint < kMinFootprintToDiameterRatio * trueDiameter)
+	if (!isCone && observedFootprint < kMinFootprintToDiameterRatio * trueDiameter)
 	{
 		if (kCylFitVerbose) qDebug() << "[CylFit] rejected - patch's own physical footprint is too small for the fitted circle (likely a near-flat patch masquerading as a large radius)";
 		return false;
@@ -2160,7 +2261,11 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 	if (kCylFitVerbose) qDebug() << "[CylFit] accepted as" << (isCone ? "Cone" : "Cylinder") << "radius" << circleFit.radius;
 
 	outPickedPoint = resolveMeasurementAnchor(ref);
-	outAxisOrigin = circleFit.center;
+	// A cylinder may use any point on its axis. For a cone, retain its
+	// recovered apex: it gives the overlay and diagnostics a physically
+	// meaningful reference while the diameter still comes from the same
+	// axis line at the picked point.
+	outAxisOrigin = isCone ? coneApex : circleFit.center;
 	outAxisDir = axis;
 	outIsCone = isCone;
 
@@ -2194,6 +2299,212 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 		outDiameter = circleFit.radius * 2.0f;
 	}
 	return true;
+}
+
+// Distance ALONG a mesh's surface between GeodesicDistance's two anchors -
+// unlike every other resolver in this file, this one needs a real halfedge-
+// connected CGAL Surface_mesh (not an ad hoc property-map wrapper over
+// SceneMesh's raw buffers, the pattern the Region Growing code above uses):
+// CGAL::Surface_mesh_shortest_path propagates windows of the shortest-path
+// search across shared triangle edges, which needs true face adjacency, not
+// just a local point neighbor list.
+//
+// Deliberately skips CGAL::Polygon_mesh_processing::repair_polygon_soup()
+// (unlike SceneMesh::subdivideMesh()/booleanUnionMeshes(), which both use
+// it) - that function can merge/drop/reorder polygons, which would break
+// the direct `Mesh::Face_index(i) == mesh->indices() triangle i`
+// correspondence this resolver relies on to turn an anchor's triangleIndex
+// straight into a CGAL Face_location without a remapping table.
+// stitch_borders() is still safe to keep - it only welds duplicate vertex
+// INDICES, it doesn't reorder or remove faces, so the correspondence
+// survives it (and it's needed: without it, a seam like a cylinder's
+// cap/wall boundary - built from originally-separate, coincident-but-
+// distinct vertices - would be an unconnected mesh BORDER there, blocking
+// any path from ever crossing it).
+bool MeasurementController::resolveMeasurementGeodesicDistance(const Measurement& m,
+	double& outDistance, QVector<QVector3D>& outPathPoints) const
+{
+	outDistance = 0.0;
+	outPathPoints.clear();
+
+	if (m.anchors.size() < 2)
+		return false;
+	const MeasurementAnchorRef& refA = m.anchors[0];
+	const MeasurementAnchorRef& refB = m.anchors[1];
+	if (refA.meshUuid != refB.meshUuid || !refA.isValid() || !refB.isValid())
+		return false;
+
+	SceneMesh* mesh = getMeshByUuid(refA.meshUuid);
+	if (!mesh)
+		return false;
+
+	// Cache check - see GeodesicDistanceCacheEntry's doc comment (header)
+	// for the invalidation strategy (re-resolve both anchors' current world
+	// positions, cheaply, and compare against what they were at compute
+	// time). A cache HIT is served regardless of whether the cached result
+	// was itself a success or a failure (`valid` distinguishes the two) -
+	// see the comment below the compute lambda for why caching failures is
+	// not optional.
+	const QVector3D currentA = resolveMeasurementAnchor(refA);
+	const QVector3D currentB = resolveMeasurementAnchor(refB);
+	auto cacheIt = m_geodesicDistanceCache.find(m.id);
+	if (cacheIt != m_geodesicDistanceCache.end()
+		&& cacheIt->second.anchorAPos == currentA && cacheIt->second.anchorBPos == currentB)
+	{
+		if (!cacheIt->second.valid)
+			return false;
+		outDistance = cacheIt->second.distance;
+		outPathPoints = cacheIt->second.pathPoints;
+		return true;
+	}
+
+	// The actual CGAL computation, wrapped so EVERY exit path (success or
+	// any of the several failure returns) funnels through one cache-write
+	// below - caching only successes (the first cut) meant a measurement
+	// that genuinely can't resolve (e.g. a fragmented/disconnected mesh -
+	// see this function's own doc comment) reran this entire expensive
+	// pipeline - soup building, repair, mesh construction, two AABB-tree
+	// locates, a full shortest-path search - from scratch on EVERY
+	// repaint, unconditionally, for as long as it kept failing. Confirmed:
+	// this made mouse/camera interaction visibly sluggish the moment one
+	// such measurement was on screen. A cached FAILURE is just as cheap to
+	// serve as a cached success (same anchor-position staleness check),
+	// so there's no reason not to cache it too.
+	double distance = 0.0;
+	QVector<QVector3D> pathPoints;
+	const bool success = [&]() -> bool
+	{
+		using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+		using Point_3 = Kernel::Point_3;
+		using Mesh    = CGAL::Surface_mesh<Point_3>;
+		using Traits  = CGAL::Surface_mesh_shortest_path_traits<Kernel, Mesh>;
+		using ShortestPath = CGAL::Surface_mesh_shortest_path<Traits>;
+		namespace PMP = CGAL::Polygon_mesh_processing;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const std::vector<unsigned int> srcIndices = mesh->indices();
+
+		std::vector<Point_3> points;
+		std::vector<std::array<std::size_t, 3>> faces;
+
+		const std::size_t nVerts = pts.size() / 3;
+		points.reserve(nVerts);
+		for (std::size_t i = 0; i < nVerts; ++i)
+			points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
+
+		faces.reserve(srcIndices.size() / 3);
+		for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
+			faces.push_back({ srcIndices[i], srcIndices[i + 1], srcIndices[i + 2] });
+
+		if (points.empty() || faces.empty())
+			return false;
+
+		// A real imported mesh's raw soup routinely fails
+		// is_polygon_soup_a_polygon_mesh() outright - which is itself a hard
+		// CGAL_precondition abort inside polygon_soup_to_polygon_mesh() in a
+		// debug build (confirmed: crashed on every repaint before this fix),
+		// not just a "produces a worse result" situation - so this repair
+		// pair is mandatory, not optional:
+		//  - repair_polygon_soup() cleans duplicate/degenerate points and
+		//    polygons, and drops isolated points.
+		//  - orient_polygon_soup() re-orients for consistent winding AND
+		//    resolves non-manifold edges/SINGULAR vertices (a vertex shared
+		//    by two otherwise-disconnected fans of triangles, touching at a
+		//    point but no shared edge - confirmed via direct diagnostic to
+		//    be exactly what a real STEP/BREP import of a bottle with a
+		//    threaded cap hits, after repair_polygon_soup alone left 0
+		//    degenerate polygons/non-manifold edges/winding conflicts yet
+		//    still failed validation) by duplicating points as needed.
+		// Neither function alone is sufficient; repair_polygon_soup() does
+		// not touch orientation/manifoldness at all, and orient_polygon_soup()
+		// does not deduplicate points/polygons.
+		//
+		// orient_polygon_soup() returns false when it had to duplicate
+		// anything - CGAL's own doc comment describes this as producing a
+		// "combinatorially manifold but self-intersecting" result, not
+		// simply "harmless" as an earlier version of this comment claimed.
+		// The return value is intentionally ignored here regardless: a
+		// combinatorially valid (if locally self-intersecting near the
+		// duplicated seam) mesh is exactly what is_polygon_soup_a_polygon_mesh()
+		// and polygon_soup_to_polygon_mesh() need, and Surface_mesh_shortest_path
+		// operates on the mesh's intrinsic surface metric via face unfolding -
+		// a small geometric self-intersection right at a duplicated singular
+		// vertex doesn't block the search, though it could in principle make
+		// the reported distance slightly less accurate exactly at that seam.
+		//
+		// Neither function costs this resolver an index-correspondence
+		// assumption: it locates each anchor's own resolved WORLD POSITION
+		// on the repaired/reordered mesh via PMP::locate() below, rather
+		// than assuming Mesh::Face_index(originalTriangleIndex) still means
+		// anything after repair.
+		PMP::repair_polygon_soup(points, faces);
+		PMP::orient_polygon_soup(points, faces);
+		const bool isValidMesh = PMP::is_polygon_soup_a_polygon_mesh(faces);
+		qDebug() << "[GeodesicDistance] soup: points" << static_cast<qulonglong>(points.size())
+		         << "faces" << static_cast<qulonglong>(faces.size())
+		         << "is_polygon_soup_a_polygon_mesh:" << isValidMesh;
+		if (!isValidMesh)
+			return false;
+
+		Mesh workingMesh;
+		PMP::polygon_soup_to_polygon_mesh(points, faces, workingMesh);
+		PMP::stitch_borders(workingMesh);
+
+		// Locate each anchor's resolved world point on workingMesh via nearest-
+		// point AABB search - robust to repair_polygon_soup()/orient_polygon_soup()
+		// having reordered/merged/dropped/duplicated vertices, unlike trying
+		// to reuse the anchor's own (pre-repair) triangleIndex/barycentric
+		// directly. Build the AABB tree once and reuse it for both queries
+		// (CGAL's own recommendation for locating more than one point -
+		// PMP::locate() alone would rebuild a fresh tree on each call).
+		using VPM = typename boost::property_map<Mesh, boost::vertex_point_t>::const_type;
+		using AABBPrimitive = CGAL::AABB_face_graph_triangle_primitive<Mesh, VPM>;
+		using AABBTraits = CGAL::AABB_traits_3<Kernel, AABBPrimitive>;
+		using AABBTree = CGAL::AABB_tree<AABBTraits>;
+
+		AABBTree aabbTree;
+		PMP::build_AABB_tree(workingMesh, aabbTree);
+
+		const Point_3 pointA(currentA.x(), currentA.y(), currentA.z());
+		const Point_3 pointB(currentB.x(), currentB.y(), currentB.z());
+		const auto sourceLocation = PMP::locate_with_AABB_tree(pointA, aabbTree, workingMesh);
+		const auto targetLocation = PMP::locate_with_AABB_tree(pointB, aabbTree, workingMesh);
+
+		ShortestPath shortestPaths(workingMesh);
+		shortestPaths.add_source_point(sourceLocation);
+
+		std::vector<Point_3> cgalPathPoints;
+		const auto result = shortestPaths.shortest_path_points_to_source_points(
+			targetLocation.first, targetLocation.second, std::back_inserter(cgalPathPoints));
+
+		if (CGAL::to_double(result.first) < 0.0)
+			return false;  // disconnected components - no path exists
+
+		distance = CGAL::to_double(result.first);
+		pathPoints.reserve(static_cast<int>(cgalPathPoints.size()));
+		for (const Point_3& p : cgalPathPoints)
+		{
+			pathPoints.append(QVector3D(static_cast<float>(CGAL::to_double(p.x())),
+			                             static_cast<float>(CGAL::to_double(p.y())),
+			                             static_cast<float>(CGAL::to_double(p.z()))));
+		}
+		return true;
+	}();
+
+	GeodesicDistanceCacheEntry entry;
+	entry.anchorAPos = currentA;
+	entry.anchorBPos = currentB;
+	entry.valid = success;
+	if (success)
+	{
+		entry.distance = distance;
+		entry.pathPoints = pathPoints;
+		outDistance = distance;
+		outPathPoints = pathPoints;
+	}
+	m_geodesicDistanceCache[m.id] = std::move(entry);
+
+	return success;
 }
 
 bool MeasurementController::resolveMeasurementDimensionSegment(const Measurement& m, QVector3D& outA, QVector3D& outB) const
@@ -2511,12 +2822,13 @@ void MeasurementController::handleMeasurementClick(const QPoint& clickPoint, Sel
 		|| _measurementTool == MeasurementTool::FaceArea
 		|| _measurementTool == MeasurementTool::MinDistance
 		|| _measurementTool == MeasurementTool::CylindricalDiameter
+		|| _measurementTool == MeasurementTool::GeodesicDistance
 		|| ((_measurementTool == MeasurementTool::PointToFace || _measurementTool == MeasurementTool::EdgeToFace)
 			&& !_pendingMeasurementAnchors.isEmpty())
 		|| _measurementTool == MeasurementTool::ArcRadius3Point
 		|| (_measurementTool == MeasurementTool::ArcRadiusCenterPoint && !_pendingMeasurementAnchors.isEmpty()))
 	{
-		// Two different reasons land here, but both need the same plain
+		// Three different reasons land here, but all need the same plain
 		// surface pick with no circular-edge-center snap attempted:
 		//  - FACE picks (FaceToFace's two anchors; FaceArea's/MinDistance's/
 		//    CylindricalDiameter's own anchors; PointToFace/EdgeToFace's
@@ -2532,6 +2844,11 @@ void MeasurementController::handleMeasurementClick(const QPoint& clickPoint, Sel
 		//    near-coincident points; circleFromCenterAndTwoPoints() sees a
 		//    zero-length center-to-point vector) rather than measuring the
 		//    circle at all.
+		//  - GeodesicDistance's two anchors need a real triangle to build a
+		//    CGAL Face_location from (see
+		//    resolveMeasurementGeodesicDistance()) - a circle-center anchor
+		//    is often empty space (a hole's center), which has no triangle
+		//    to anchor a surface path to at all.
 		const MeshSurfaceAnchor anchor = selectionManager->pickSurfaceAnchor(clickPoint);
 		if (!anchor.isValid())
 			return;  // clicked empty space - stay armed, don't cancel the tool
@@ -2577,6 +2894,18 @@ void MeasurementController::handleMeasurementClick(const QPoint& clickPoint, Sel
 		}
 	}
 
+	// Geodesic Distance's path only makes sense along ONE continuous
+	// surface - reject a second anchor on a different mesh than the first
+	// rather than silently accepting it (there'd be no surface to path
+	// across between two unrelated meshes).
+	if (_measurementTool == MeasurementTool::GeodesicDistance
+		&& !_pendingMeasurementAnchors.isEmpty()
+		&& _pendingMeasurementAnchors.first().meshUuid != ref.meshUuid)
+	{
+		MainWindow::showStatusMessage(tr("Geodesic Distance requires both points on the same mesh"), 2500);
+		return;  // stay armed, don't add this anchor
+	}
+
 	// Chain Length must stay one contiguous path/loop - reject a pick that
 	// doesn't share an endpoint with the chain so far (see
 	// measurementChainEdgeConnects()'s doc comment), e.g. two concentric
@@ -2588,9 +2917,9 @@ void MeasurementController::handleMeasurementClick(const QPoint& clickPoint, Sel
 		return;  // stay armed, don't add this edge
 	}
 
-	// Cylindrical/Conical Diameter only accepts a pick that actually lands
-	// on a captured cylindrical or conical face - reject anything else
-	// (an ordinary flat/spline face) outright rather than creating a
+	// Cylindrical/Conical Diameter accepts an exact B-Rep cylindrical/conical
+	// face or a triangulated-mesh patch that passes the local fit. Reject
+	// anything else (an ordinary flat/spline face) rather than creating a
 	// measurement that can never resolve (see
 	// resolveMeasurementCylindricalDiameter()) and would sit in the
 	// results list forever reading "(face no longer available)".
@@ -4360,6 +4689,25 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 				addDimensionLine(mirrored, pickedPoint, dimensionColor);
 
 				labels.append({ pickedPoint, summary });
+			}
+		}
+		else if (m.type == MeasurementType::GeodesicDistance && m.anchors.size() >= 2)
+		{
+			// Same "trace the true path, label at its chord midpoint"
+			// treatment EdgeLength's curved-edge fallback uses (see that
+			// branch above) - a geodesic path isn't generally a circular
+			// arc, so there's no concentric-offset-dimension option the way
+			// a curved EdgeLength pick on a true circle has.
+			double distance = 0.0;
+			QVector<QVector3D> pathPoints;
+			if (resolveMeasurementGeodesicDistance(m, distance, pathPoints) && pathPoints.size() >= 2)
+			{
+				for (int i = 0; i + 1 < pathPoints.size(); ++i)
+					addSegment(pathPoints[i], pathPoints[i + 1], color);
+
+				addMarker(pathPoints.first(), color, sizeMultiplier);
+				addMarker(pathPoints.last(), color, sizeMultiplier);
+				labels.append({ (pathPoints.first() + pathPoints.last()) * 0.5f, summary });
 			}
 		}
 	}

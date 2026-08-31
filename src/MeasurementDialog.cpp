@@ -159,6 +159,7 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		addGroupHeader(tr("Point & Distance"));
 		addTool(MeasurementTool::Point);
 		addTool(MeasurementTool::Distance);
+		addTool(MeasurementTool::GeodesicDistance);
 		addTool(MeasurementTool::AngleThreePoint);
 
 		addGroupHeader(tr("Arcs & Circles"));
@@ -210,10 +211,10 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
 		tr("STEP/IGES/BREP parts only - click directly on two circular edges (holes or bosses) to compare their centers and axes. Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
-	// CAD-only for a different reason than Edge Radius/Concentricity above -
-	// this needs the FACE's own analytic surface data, not a circular edge.
+	// CAD faces use their exact analytic axis. glTF/OBJ meshes use a local
+	// geometric fit and deliberately decline an ambiguous or non-round patch.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::CylindricalDiameter)),
-		tr("STEP/IGES/BREP parts only - click directly on a cylindrical or conical face's curved surface (not its rim edge - see Edge Radius for that). Reports the diameter at the exact point clicked, which varies along a cone's length. Not available for glTF/OBJ meshes."),
+		tr("Click directly on a cylindrical or conical curved surface (not its rim edge - see Edge Radius for that). STEP/IGES/BREP uses the exact surface axis; glTF/OBJ uses a validated local fit. Diameter varies along a cone's length."),
 		Qt::ToolTipRole);
 	// The other variable-pick-count tool alongside Pitch Circle above - same
 	// note about it not auto-completing at a fixed click count.
@@ -227,6 +228,13 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// with it.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::MinDistance)),
 		tr("Click two faces (flat or curved - each pick expands to its whole smooth face, bounded by real edges) to find the true closest points between them. Works on the same part (e.g. a wall-thickness check) or two different ones. May take a moment on a very large, finely-tessellated face."),
+		Qt::ToolTipRole);
+	// Unlike Distance (which allows two different meshes), a geodesic path
+	// only makes sense along ONE continuous surface - the second pick is
+	// rejected if it lands on a different mesh (see
+	// MeasurementController::handleMeasurementClick()'s same-mesh check).
+	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::GeodesicDistance)),
+		tr("Click two points on the SAME mesh - reports the distance ALONG the surface between them (e.g. wrapping around a curved part), not the straight-line distance. Both points must land on the same mesh."),
 		Qt::ToolTipRole);
 
 	connect(ui->toolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MeasurementDialog::onToolComboChanged);

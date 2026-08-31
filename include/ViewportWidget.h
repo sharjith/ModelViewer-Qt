@@ -320,7 +320,7 @@ public:
 	// Measurement toolset (state, picking, rendering, hit-testing, dragging -
 	// see MeasurementController.h). Kept here, unchanged in shape, because
 	// MeasurementDialog.cpp talks to ViewportWidget directly, not the
-	// controller - these 7 methods (plus the 3 measurement*Changed signals
+	// controller - these 8 methods (plus the 3 measurement*Changed signals
 	// below) are that entire public surface.
 	void setMeasurementTool(MeasurementTool tool);
 	MeasurementTool measurementTool() const { return _measurementController->measurementTool(); }
@@ -333,6 +333,10 @@ public:
 	// context menu's Swap-Visible-gating condition alongside SceneRuntime's
 	// own hidden-mesh check (see showContextMenu()).
 	bool hasHiddenMeasurements() const { return _measurementController->hasHiddenMeasurements(); }
+	// Clears the CGAL cylinder-fit/geodesic-distance caches - see
+	// MeasurementController::clearGeometryCaches()'s doc comment. Called by
+	// ModelViewer::importFiles() whenever new meshes are loaded.
+	void clearMeasurementGeometryCaches() { _measurementController->clearGeometryCaches(); }
 
 	// ---- Annotation tool ----------------------------------------------------
 	// Thin forwards to _annotationController, which owns the entire

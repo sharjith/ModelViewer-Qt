@@ -16063,6 +16063,7 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			contextMenu.addAction(tr("Split by Connectivity"), _viewer, &ModelViewer::splitSelectedMeshesByConnectivity);
 			contextMenu.addAction(tr("Merge by Adjacency"), _viewer, &ModelViewer::mergeSelectedMeshesByAdjacency);
 			contextMenu.addAction(tr("Merge Selected"), _viewer, &ModelViewer::mergeSelectedMeshes);
+			contextMenu.addAction(tr("Mesh Union"), _viewer, &ModelViewer::unionSelectedMeshes);
 			contextMenu.addAction(tr("Group"), _viewer, &ModelViewer::groupSelectedMeshes);
 			contextMenu.addSeparator();
 			contextMenu.addAction(tr("Copy"),   _viewer, &ModelViewer::copySelectedItems);

@@ -87,6 +87,7 @@
     <addaction name="actionExportReport"/>
     <addaction name="separator"/>
     <addaction name="actionShrinkWrap"/>
+    <addaction name="actionSubdivideSurface"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -381,6 +382,14 @@
    </property>
    <property name="statusTip">
     <string>Combine the selected meshes into one new watertight approximating shell (CGAL alpha wrapping), added as a new node</string>
+   </property>
+  </action>
+  <action name="actionSubdivideSurface">
+   <property name="text">
+    <string>Subdivide Surface...</string>
+   </property>
+   <property name="statusTip">
+    <string>Smooth the selected meshes via CGAL Loop/Catmull-Clark subdivision, each added as a new node</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">

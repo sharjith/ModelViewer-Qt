@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SubdivisionDialog</class>
+ <widget class="QDialog" name="SubdivisionDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Subdivide Surface</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="meshListLabel">
+     <property name="text">
+      <string>Meshes to subdivide:</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QListWidget" name="meshList">
+     <property name="selectionMode">
+      <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="listButtonColumn">
+     <item>
+      <widget class="QPushButton" name="addSelectedButton">
+       <property name="text">
+        <string>Add Selected</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="removeSelectedButton">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="text">
+        <string>Remove Selected</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QFormLayout" name="paramsForm">
+     <item row="0" column="0">
+      <widget class="QLabel" name="methodLabel">
+       <property name="text">
+        <string>Method:</string>
+       </property>
+      </widget>
+     </item>
+     <item row="0" column="1">
+      <widget class="QComboBox" name="methodCombo">
+       <item>
+        <property name="text">
+         <string>Loop</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Catmull-Clark</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item row="1" column="0">
+      <widget class="QLabel" name="iterationsLabel">
+       <property name="text">
+        <string>Iterations:</string>
+       </property>
+      </widget>
+     </item>
+    <item row="1" column="1">
+     <widget class="QSpinBox" name="iterationsSpin">
+       <property name="minimum">
+        <number>1</number>
+       </property>
+       <property name="maximum">
+        <number>5</number>
+       </property>
+       <property name="value">
+        <number>1</number>
+       </property>
+     </widget>
+    </item>
+    <item row="2" column="0" colspan="2">
+     <widget class="QCheckBox" name="preserveSharpFeaturesCheckBox">
+      <property name="toolTip">
+       <string>Keep edges with a 30 degree or greater bend sharp. Disable for a fully smooth subdivision surface.</string>
+      </property>
+      <property name="text">
+       <string>Preserve sharp edges</string>
+      </property>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+   </item>
+   <item>
+    <widget class="QCheckBox" name="replacePreviousCheckBox">
+     <property name="text">
+      <string>Replace previous result</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="generateButton">
+     <property name="enabled">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Generate</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="statusLabel">
+     <property name="text">
+      <string/>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

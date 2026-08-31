@@ -236,11 +236,22 @@ enum class MeasurementType
     // captured at import time), doubled - one formula correct for both a
     // cylinder (constant everywhere on the face) and a cone (genuinely
     // varies with position, so the reported value is explicitly "at this
-    // point", not a single constant like a cylinder's). CAD-only (STEP/
-    // IGES/BREP) - needs real B-Rep surface-type data no other mesh format
-    // has, same limitation as EdgeRadius/Concentricity. See
-    // ViewportWidget::resolveMeasurementCylindricalDiameter().
+    // point", not a single constant like a cylinder's). STEP/IGES/BREP
+    // uses its exact B-Rep axis; ordinary triangulated meshes use a
+    // validated local geometric fit and reject ambiguous patches. See
+    // MeasurementController::resolveMeasurementCylindricalDiameter().
     CylindricalDiameter,
+
+    // Two plain surface/point picks on the SAME mesh (rejected at pick time
+    // otherwise - see handleMeasurementClick()'s same-mesh check) - reports
+    // the distance ALONG the mesh's surface between them (CGAL
+    // Surface_mesh_shortest_path), not the straight-line chord Distance
+    // reports. Excluded from the circular-edge-center snap FaceToFace/
+    // FaceArea/MinDistance/CylindricalDiameter also skip, for the same
+    // reason: a hole's analytic center is empty space with no triangle to
+    // anchor a surface path to. See
+    // MeasurementController::resolveMeasurementGeodesicDistance().
+    GeodesicDistance,
 };
 
 // Which measurement tool is currently armed in the viewport (None = normal
@@ -268,6 +279,7 @@ enum class MeasurementTool
     FaceArea,
     MinDistance,
     CylindricalDiameter,
+    GeodesicDistance,
 };
 
 struct Measurement
@@ -289,7 +301,9 @@ struct Measurement
     // endpoints. FaceArea is 1 (a plain face anchor, same as one of
     // FaceToFace's two). MinDistance is 2 (both plain face anchors, same
     // convention as FaceToFace's two). CylindricalDiameter is 1 (a plain
-    // face anchor landing on a cylindrical/conical face). PitchCircle and EdgeChain are the two exceptions to
+    // face anchor landing on a cylindrical/conical face). GeodesicDistance
+    // is 2 (two plain surface anchors, both required to resolve to the SAME
+    // meshUuid - enforced at pick time). PitchCircle and EdgeChain are the two exceptions to
     // "count is determined by type" - both are 2/3 OR MORE respectively
     // (PitchCircle - any pick order fits the same circle, order genuinely
     // doesn't matter; EdgeChain - order matters in the sense that each new
@@ -378,6 +392,7 @@ inline int measurementToolRequiredAnchorCount(MeasurementTool tool)
     case MeasurementTool::FaceArea:             return 1;
     case MeasurementTool::MinDistance:          return 2;
     case MeasurementTool::CylindricalDiameter:  return 1;
+    case MeasurementTool::GeodesicDistance:     return 2;
     case MeasurementTool::None:                 return 0;
     }
     return 0;
@@ -420,6 +435,7 @@ inline MeasurementType measurementTypeForTool(MeasurementTool tool)
     case MeasurementTool::FaceArea:             return MeasurementType::FaceArea;
     case MeasurementTool::MinDistance:          return MeasurementType::MinDistance;
     case MeasurementTool::CylindricalDiameter:  return MeasurementType::CylindricalDiameter;
+    case MeasurementTool::GeodesicDistance:     return MeasurementType::GeodesicDistance;
     case MeasurementTool::None:                 return MeasurementType::Point;
     }
     return MeasurementType::Point;
@@ -447,7 +463,8 @@ inline QString measurementToolDisplayName(MeasurementTool tool)
     case MeasurementTool::EdgeChain:            return QStringLiteral("Chain Length");
     case MeasurementTool::FaceArea:             return QStringLiteral("Face Area");
     case MeasurementTool::MinDistance:          return QStringLiteral("Minimum Distance");
-    case MeasurementTool::CylindricalDiameter:  return QStringLiteral("Cylindrical/Conical Diameter (CAD only)");
+    case MeasurementTool::CylindricalDiameter:  return QStringLiteral("Cylindrical/Conical Diameter");
+    case MeasurementTool::GeodesicDistance:     return QStringLiteral("Geodesic Distance");
     case MeasurementTool::None:                 return QStringLiteral("None");
     }
     return QString();
@@ -529,6 +546,9 @@ inline QString measurementToolPickPrompt(MeasurementTool tool, int alreadyPicked
                                    : QStringLiteral("Click the 2nd face");
     case MeasurementTool::CylindricalDiameter:
         return QStringLiteral("Click a cylindrical or conical face");
+    case MeasurementTool::GeodesicDistance:
+        return alreadyPicked == 0 ? QStringLiteral("Click the 1st point")
+                                   : QStringLiteral("Click the 2nd point (same mesh)");
     case MeasurementTool::None:
         return QString();
     }

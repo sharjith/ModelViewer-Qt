@@ -24,6 +24,8 @@
 
 #include <QUndoStack>
 
+#include <functional>
+
 class QTabWidget;
 class QToolButton;
 class QFrame;
@@ -338,8 +340,24 @@ public slots:
 	// mismatch, asks once whether to merge anyway by cascading the first
 	// mesh's material, same as the by-adjacency path. Undoable (a single
 	// MergeByAdjacencyCommand - the command itself doesn't care how its
-	// source set was chosen).
+	// source set was chosen). Plain vertex/index concatenation via
+	// SceneMesh::mergeMeshes() - overlapping geometry stays overlapping
+	// triangle soup, not a real solid. See unionSelectedMeshes() for that.
 	void mergeSelectedMeshes();
+
+	// True-solid counterpart to mergeSelectedMeshes(): identical selection
+	// gathering, material-compatibility gate, and undo bookkeeping, but
+	// combines geometry via SceneMesh::booleanUnionMeshes() - a real CGAL
+	// boolean union (corefine_and_compute_union(), with a repair pipeline
+	// establishing its documented preconditions), silently falling back to
+	// plain concatenation if the input can't be repaired into something
+	// corefinement can use. Kept as its own separate command rather than
+	// folded into "Merge Selected" - unlike plain concatenation, a real
+	// union changes the merged mesh's actual geometry (e.g. it hard-splits
+	// vertex normals across a >=15 degree crease at any new seam, which
+	// visibly changes shading), so it isn't a safe drop-in replacement for
+	// the old, purely non-destructive merge.
+	void unionSelectedMeshes();
 
 	// Organizational "Group": creates a new (empty) assembly SceneNode as a
 	// sibling of the first selected mesh's own owner node, and moves every
@@ -372,6 +390,20 @@ public slots:
 	// GroupMeshesCommand/MergeByAdjacencyCommand.
 	void commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
 	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection);
+
+	// Subdivide Surface: opens the non-modal SubdivisionDialog (Tools ->
+	// Subdivide Surface...), same findChild-reuse-or-create/show/raise/
+	// seed-with-tree-selection pattern as openShrinkWrapDialog() above.
+	void openSubdivisionDialog();
+
+	// The Subdivision dialog's one-line bridge into the undo stack - same
+	// convention as commitShrinkWrap() above, and in fact reuses the exact
+	// same ShrinkWrapCommand class (it's already fully generic: "add one
+	// new node+mesh, know how to undo/redo that" - nothing about it is
+	// Shrink-Wrap-specific beyond the default `text` argument), just with
+	// text = tr("Subdivide") so the undo-stack entry reads correctly.
+	void commitSubdivision(SceneNode* node, SceneNode* parent, int position,
+	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
 
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
@@ -428,6 +460,14 @@ protected:
 	void mouseMoveEvent(QMouseEvent* event);
 
 private:
+	// Shared implementation for mergeSelectedMeshes()/unionSelectedMeshes() -
+	// see mergeSelectedMeshes()'s doc comment for what's common between them,
+	// and combineSelectedMeshes()'s own .cpp doc comment for why combineFn
+	// is type-erased (std::function) rather than a plain function pointer.
+	void combineSelectedMeshes(
+		const std::function<SceneMesh*(const QVector<SceneMesh*>&, const QString&, QString* outDetail)>& combineFn,
+		const QString& actionName);
+
 	void checkAndRenameModel(SceneMesh* mesh, const QString& name);
 	QString computeUniqueName(SceneMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
