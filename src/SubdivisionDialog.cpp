@@ -235,19 +235,34 @@ void SubdivisionDialog::onGenerateClicked()
 
 void SubdivisionDialog::closeEvent(QCloseEvent* event)
 {
-	if (!_previews.isEmpty())
-	{
-		const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
-		for (const PreviewEntry& entry : _previews)
-		{
-			_modelViewer->commitSubdivision(entry.node, entry.parent, entry.position, entry.meshUuid,
-			                                 originalSelection);
-		}
-		_previews.clear();
-	}
-
+	commitLivePreviews();
 	saveSettings();
 	QDialog::closeEvent(event);
+}
+
+void SubdivisionDialog::reject()
+{
+	// Escape reaches here, not closeEvent() (see this override's doc comment
+	// in the header, and ShrinkWrapDialog::reject()'s identical fix) - same
+	// commit, so Escape and every other close path leave the scene/undo-
+	// stack in the same state.
+	commitLivePreviews();
+	saveSettings();
+	QDialog::reject();
+}
+
+void SubdivisionDialog::commitLivePreviews()
+{
+	if (_previews.isEmpty())
+		return;
+
+	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
+	for (const PreviewEntry& entry : _previews)
+	{
+		_modelViewer->commitSubdivision(entry.node, entry.parent, entry.position, entry.meshUuid,
+		                                 originalSelection);
+	}
+	_previews.clear();
 }
 
 void SubdivisionDialog::loadSettings()

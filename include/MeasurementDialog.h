@@ -59,6 +59,13 @@ public:
 
 protected:
 	void closeEvent(QCloseEvent* event) override;
+	// QDialog's own Escape handling calls reject(), which goes straight to
+	// done()/hide() WITHOUT ever raising a QCloseEvent - closeEvent()'s
+	// disarm logic never ran for an Escape-closed dialog otherwise (confirmed
+	// bug: the measurement tool stayed armed and kept placing points after
+	// pressing Escape on this dialog). Overridden to run the same disarm
+	// before deferring to the base implementation.
+	void reject() override;
 
 private slots:
 	void onToolComboChanged(int index);

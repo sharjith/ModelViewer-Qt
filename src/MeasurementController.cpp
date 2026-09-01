@@ -53,6 +53,32 @@
 #include <unordered_map>
 #include <unordered_set>
 
+namespace {
+
+bool hasValidFiniteTriangleInput(const std::vector<float>& positions,
+	const std::vector<unsigned int>& indices)
+{
+	if (positions.empty() || indices.empty()
+		|| positions.size() % 3 != 0 || indices.size() % 3 != 0)
+		return false;
+
+	for (float coordinate : positions)
+	{
+		if (!std::isfinite(coordinate))
+			return false;
+	}
+
+	const std::size_t vertexCount = positions.size() / 3;
+	for (unsigned int index : indices)
+	{
+		if (static_cast<std::size_t>(index) >= vertexCount)
+			return false;
+	}
+	return true;
+}
+
+} // namespace
+
 MeasurementController::MeasurementController(SceneRuntime& sceneRuntime, ModelViewer* viewer,
 	SceneRenderController& renderCtrl, QObject* parent)
 	: QObject(parent)
@@ -1316,6 +1342,9 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 	float& outDiameter, QVector3D& outAxisOrigin, QVector3D& outAxisDir,
 	QVector3D& outPickedPoint, bool& outIsCone) const
 {
+	if (!mesh || ref.triangleIndex < 0)
+		return false;
+
 	const std::vector<std::array<int, 3>>& adjacency = mesh->getTriangleAdjacency();
 	if (static_cast<size_t>(ref.triangleIndex) >= adjacency.size())
 		return false;
@@ -1323,6 +1352,9 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 	const std::vector<unsigned int> indices = mesh->indices();
 	const std::vector<float>& trsfPoints = mesh->getTrsfPoints();
 	const std::vector<float>& trsfNormals = mesh->getTrsfNormals();
+	const size_t seedBase = static_cast<size_t>(ref.triangleIndex) * 3;
+	if (!hasValidFiniteTriangleInput(trsfPoints, indices) || seedBase + 2 >= indices.size())
+		return false;
 
 	auto vertexPos = [&](unsigned int vIdx) -> QVector3D {
 		const size_t p = static_cast<size_t>(vIdx) * 3;
@@ -1360,7 +1392,8 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 		{
 			for (int neighbor : adjacency[static_cast<size_t>(t)])
 			{
-				if (neighbor < 0 || visitedTri[static_cast<size_t>(neighbor)])
+				if (neighbor < 0 || static_cast<size_t>(neighbor) >= adjacency.size()
+					|| visitedTri[static_cast<size_t>(neighbor)])
 					continue;
 				visitedTri[static_cast<size_t>(neighbor)] = true;
 				candidateTriangles.push_back(neighbor);
@@ -1400,6 +1433,8 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 			if (p + 2 >= trsfNormals.size())
 				continue;
 			QVector3D n(trsfNormals[p], trsfNormals[p + 1], trsfNormals[p + 2]);
+			if (!std::isfinite(n.x()) || !std::isfinite(n.y()) || !std::isfinite(n.z()))
+				continue;
 			if (n.lengthSquared() < 1.0e-12f)
 				continue;
 			n.normalize();
@@ -1440,7 +1475,7 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 	}
 
 	const std::vector<unsigned int> candidateItems(candidateVertexSet.begin(), candidateVertexSet.end());
-	const unsigned int seedVertex = indices[static_cast<size_t>(ref.triangleIndex) * 3];
+	const unsigned int seedVertex = indices[seedBase];
 	std::vector<unsigned int> seedItems{ seedVertex };
 
 	MeshVertexPointMap pointMap;
@@ -1460,6 +1495,8 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 	// mesh actually has.
 	const double avgEdgeLength = edgeLengthSum / double(edgeCount);
 	const double maxDistance = std::max(avgEdgeLength * 1.5, 1.0e-6);
+	if (!std::isfinite(maxDistance))
+		return false;
 
 	RegionType regionType(
 		CGAL::parameters::point_map(pointMap)
@@ -1481,7 +1518,7 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 
 	const RegionType::Primitive& primitive = results.front().first;
 	const double radius = CGAL::to_double(primitive.radius);
-	if (!(radius > 0.0))
+	if (!std::isfinite(radius) || !(radius > 0.0))
 	{
 		if (kCylFitVerbose) qDebug() << "[CylFitRG] region grown but radius invalid:" << radius;
 		return false;
@@ -2387,6 +2424,9 @@ bool MeasurementController::resolveMeasurementGeodesicDistance(const Measurement
 		std::vector<Point_3> points;
 		std::vector<std::array<std::size_t, 3>> faces;
 
+		if (!hasValidFiniteTriangleInput(pts, srcIndices))
+			return false;
+
 		const std::size_t nVerts = pts.size() / 3;
 		points.reserve(nVerts);
 		for (std::size_t i = 0; i < nVerts; ++i)
@@ -2449,6 +2489,8 @@ bool MeasurementController::resolveMeasurementGeodesicDistance(const Measurement
 		Mesh workingMesh;
 		PMP::polygon_soup_to_polygon_mesh(points, faces, workingMesh);
 		PMP::stitch_borders(workingMesh);
+		if (workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() == 0)
+			return false;
 
 		// Locate each anchor's resolved world point on workingMesh via nearest-
 		// point AABB search - robust to repair_polygon_soup()/orient_polygon_soup()
@@ -2477,7 +2519,7 @@ bool MeasurementController::resolveMeasurementGeodesicDistance(const Measurement
 		const auto result = shortestPaths.shortest_path_points_to_source_points(
 			targetLocation.first, targetLocation.second, std::back_inserter(cgalPathPoints));
 
-		if (CGAL::to_double(result.first) < 0.0)
+		if (!std::isfinite(CGAL::to_double(result.first)) || CGAL::to_double(result.first) < 0.0)
 			return false;  // disconnected components - no path exists
 
 		distance = CGAL::to_double(result.first);

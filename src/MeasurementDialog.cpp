@@ -279,6 +279,17 @@ void MeasurementDialog::closeEvent(QCloseEvent* event)
 	QDialog::closeEvent(event);
 }
 
+void MeasurementDialog::reject()
+{
+	// Escape reaches here, not closeEvent() (see this override's doc comment
+	// in the header) - same disarm, so Escape and every other close path
+	// leave the viewport in the same state.
+	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
+		viewport->setMeasurementTool(MeasurementTool::None);
+	saveSettings();
+	QDialog::reject();
+}
+
 void MeasurementDialog::loadSettings()
 {
 	QSettings settings;

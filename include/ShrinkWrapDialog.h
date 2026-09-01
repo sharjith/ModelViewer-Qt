@@ -54,6 +54,14 @@ public:
 
 protected:
 	void closeEvent(QCloseEvent* event) override;
+	// QDialog's own Escape handling calls reject(), which goes straight to
+	// done()/hide() WITHOUT ever raising a QCloseEvent - closeEvent()'s
+	// commit-live-previews logic never ran for an Escape-closed dialog
+	// otherwise (same gap found and fixed in MeasurementDialog::reject()),
+	// leaving any live preview mesh orphaned in the scene: never committed
+	// to the undo stack, never discarded. Runs the same commit before
+	// deferring to the base implementation.
+	void reject() override;
 
 private slots:
 	void onRemoveSelectedClicked();
@@ -90,6 +98,11 @@ private:
 	// time a QObject child's destructor runs - any still-live previews just
 	// get freed along with the rest of that document's scene graph instead.
 	void discardAllPreviews();
+
+	// Commits every live preview into a real, undoable ShrinkWrapCommand -
+	// the shared body of closeEvent() and reject() (see reject()'s doc
+	// comment for why both need to run it independently).
+	void commitLivePreviews();
 
 	void loadSettings();
 	void saveSettings();

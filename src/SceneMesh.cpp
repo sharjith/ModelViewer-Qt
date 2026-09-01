@@ -516,6 +516,51 @@ SceneMesh* SceneMesh::mergeMeshes(const QVector<SceneMesh*>& meshes, const QStri
 
 namespace {
 
+// CGAL accepts arbitrary topology in several soup APIs, but every face index
+// must still reference a real, finite input point. Validate that contract once
+// at each public CGAL entry point instead of relying on importer invariants.
+bool isValidCgalTriangleInput(const std::vector<float>& positions,
+	const std::vector<unsigned int>& indices)
+{
+	if (positions.empty() || indices.empty()
+		|| positions.size() % 3 != 0 || indices.size() % 3 != 0)
+		return false;
+
+	for (float coordinate : positions)
+	{
+		if (!std::isfinite(coordinate))
+			return false;
+	}
+
+	const std::size_t vertexCount = positions.size() / 3;
+	for (unsigned int index : indices)
+	{
+		if (static_cast<std::size_t>(index) >= vertexCount)
+			return false;
+	}
+	return true;
+}
+
+template <class Point>
+bool appendValidatedCgalTriangleSoup(const std::vector<float>& positions,
+	const std::vector<unsigned int>& indices, std::vector<Point>& points,
+	std::vector<std::array<std::size_t, 3>>& faces)
+{
+	if (!isValidCgalTriangleInput(positions, indices))
+		return false;
+
+	const std::size_t vertexOffset = points.size();
+	const std::size_t vertexCount = positions.size() / 3;
+	points.reserve(points.size() + vertexCount);
+	for (std::size_t i = 0; i < vertexCount; ++i)
+		points.emplace_back(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+
+	faces.reserve(faces.size() + indices.size() / 3);
+	for (std::size_t i = 0; i < indices.size(); i += 3)
+		faces.push_back({ vertexOffset + indices[i], vertexOffset + indices[i + 1], vertexOffset + indices[i + 2] });
+	return true;
+}
+
 // Repairs a world-space (points, faces) soup - built the same way
 // shrinkWrapMeshes() builds its own - into a mesh
 // CGAL::Polygon_mesh_processing's boolean corefinement can safely operate
@@ -681,12 +726,7 @@ SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, cons
 	{
 		const std::vector<float>& pts = mesh->getTrsfPoints();
 		const std::vector<unsigned int> srcIndices = mesh->indices();
-		points.reserve(pts.size() / 3);
-		for (std::size_t i = 0; i < pts.size() / 3; ++i)
-			points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
-		faces.reserve(srcIndices.size() / 3);
-		for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
-			faces.push_back({ srcIndices[i], srcIndices[i + 1], srcIndices[i + 2] });
+		return appendValidatedCgalTriangleSoup(pts, srcIndices, points, faces);
 	};
 
 	// Fold pairwise across all of meshes, ALL-OR-NOTHING: if repair or
@@ -699,7 +739,8 @@ SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, cons
 	{
 		std::vector<Point_3> points;
 		std::vector<std::array<std::size_t, 3>> faces;
-		buildSoup(meshes[0], points, faces);
+		if (!buildSoup(meshes[0], points, faces))
+			return fallback();
 		qDebug() << "[BooleanUnion] mesh 0 soup: points" << points.size() << "faces" << faces.size();
 		if (points.empty() || faces.empty()
 			|| !tryBuildRepairedVolumeMesh<Kernel>(std::move(points), std::move(faces), accumulated))
@@ -714,7 +755,8 @@ SceneMesh* SceneMesh::booleanUnionMeshes(const QVector<SceneMesh*>& meshes, cons
 
 		std::vector<Point_3> points;
 		std::vector<std::array<std::size_t, 3>> faces;
-		buildSoup(meshes[i], points, faces);
+		if (!buildSoup(meshes[i], points, faces))
+			return fallback();
 		qDebug() << "[BooleanUnion] mesh" << i << "soup: points" << points.size() << "faces" << faces.size();
 
 		Mesh next;
@@ -2024,7 +2066,8 @@ void SceneMesh::suggestShrinkWrapTolerance(const QVector<SceneMesh*>& meshes, do
 SceneMesh* SceneMesh::shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const QString& newName,
                                         double alpha, double offset)
 {
-	if (meshes.isEmpty())
+	if (meshes.isEmpty() || !std::isfinite(alpha) || !std::isfinite(offset)
+		|| alpha <= 0.0 || offset <= 0.0)
 		return nullptr;
 
 	using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
@@ -2037,28 +2080,20 @@ SceneMesh* SceneMesh::shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const 
 	// about the shape, not colors/UVs/skinning).
 	std::vector<Point_3> points;
 	std::vector<std::array<std::size_t, 3>> faces;
+	SceneMesh* firstMesh = nullptr;
 
 	for (SceneMesh* mesh : meshes)
 	{
 		if (!mesh)
 			continue;
+		if (!firstMesh)
+			firstMesh = mesh;
 
 		const std::vector<float>& pts = mesh->getTrsfPoints();
 		const std::vector<unsigned int> srcIndices = mesh->indices();
 
-		const std::size_t vertexOffset = points.size();
-		const std::size_t nVerts = pts.size() / 3;
-		points.reserve(points.size() + nVerts);
-		for (std::size_t i = 0; i < nVerts; ++i)
-			points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
-
-		faces.reserve(faces.size() + srcIndices.size() / 3);
-		for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
-		{
-			faces.push_back({ vertexOffset + srcIndices[i],
-			                   vertexOffset + srcIndices[i + 1],
-			                   vertexOffset + srcIndices[i + 2] });
-		}
+		if (!appendValidatedCgalTriangleSoup(pts, srcIndices, points, faces))
+			return nullptr;
 	}
 
 	if (points.empty() || faces.empty())
@@ -2111,10 +2146,11 @@ SceneMesh* SceneMesh::shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const 
 			wrappedIndices.push_back(vertexIndex[v]);
 	}
 
-	SceneMesh* first = meshes.first();
-	SceneMesh* result = new SceneMesh(first->_prog, newName, wrappedVertices, wrappedIndices,
-	                                   first->_textures, first->_material,
-	                                   first->_importState.skipOptimization(), first->getPrimitiveMode());
+	if (!firstMesh)
+		return nullptr;
+	SceneMesh* result = new SceneMesh(firstMesh->_prog, newName, wrappedVertices, wrappedIndices,
+	                                   firstMesh->_textures, firstMesh->_material,
+	                                   firstMesh->_importState.skipOptimization(), firstMesh->getPrimitiveMode());
 
 	// Identity transform - the vertex data above is already world-space.
 	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
@@ -2150,16 +2186,7 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	std::vector<Point_3> points;
 	std::vector<std::array<std::size_t, 3>> faces;
 
-	const std::size_t nVerts = pts.size() / 3;
-	points.reserve(nVerts);
-	for (std::size_t i = 0; i < nVerts; ++i)
-		points.emplace_back(pts[i * 3], pts[i * 3 + 1], pts[i * 3 + 2]);
-
-	faces.reserve(srcIndices.size() / 3);
-	for (std::size_t i = 0; i + 2 < srcIndices.size(); i += 3)
-		faces.push_back({ srcIndices[i], srcIndices[i + 1], srcIndices[i + 2] });
-
-	if (points.empty() || faces.empty())
+	if (!appendValidatedCgalTriangleSoup(pts, srcIndices, points, faces))
 		return nullptr;
 
 	// Same repair gate booleanUnionMeshes() uses to turn an arbitrary
@@ -2348,7 +2375,27 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 		// Catmull-Clark's PQQ refinement host always produces quads, even
 		// from an all-triangle input - triangulate back down to fit this
 		// app's triangle-only Vertex/index-buffer convention.
-		PMP::triangulate_faces(workingMesh);
+		for (Mesh::Face_index f : workingMesh.faces())
+		{
+			std::vector<Mesh::Vertex_index> faceVertices;
+			for (Mesh::Vertex_index v : CGAL::vertices_around_face(workingMesh.halfedge(f), workingMesh))
+				faceVertices.push_back(v);
+			if (faceVertices.size() < 3)
+				return nullptr;
+
+			const Point_3 origin = workingMesh.point(faceVertices.front());
+			Kernel::Vector_3 twiceArea = CGAL::NULL_VECTOR;
+			for (std::size_t i = 1; i + 1 < faceVertices.size(); ++i)
+			{
+				twiceArea = twiceArea + CGAL::cross_product(
+					workingMesh.point(faceVertices[i]) - origin,
+					workingMesh.point(faceVertices[i + 1]) - origin);
+			}
+			if (twiceArea.squared_length() == 0)
+				return nullptr;
+		}
+		if (!PMP::triangulate_faces(workingMesh))
+			return nullptr;
 		break;
 	}
 
