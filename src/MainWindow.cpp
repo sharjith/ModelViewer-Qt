@@ -987,8 +987,23 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 
 void MainWindow::handleActiveDocumentChanged(QMdiSubWindow* subWindow)
 {
-	ModelViewer* child = subWindow ? qobject_cast<ModelViewer*>(subWindow->widget()) : nullptr;
-	activateDocument(child);
+	// QMdiArea fires this with a null subWindow in TWO unrelated situations
+	// it gives no way to tell apart from the signal alone: the last document
+	// closing, AND simply "the MDI area itself lost focus to some other
+	// top-level widget in this app" - e.g. a non-modal tool dialog like
+	// ShrinkWrapDialog/SubdivisionDialog/MeasurementDialog gaining focus
+	// while a document is still very much open. Reacting to the second case
+	// by clearing _activeDocument disabled Undo/Redo (and every other
+	// document-scoped menu action) for as long as such a dialog had focus -
+	// confirmed bug ("Undo doesn't work while the Subdivision dialog is
+	// active"). The real "no documents open" case is already handled
+	// directly, synchronously, where a document actually closes (see the
+	// viewerWasActive block in createDocumentSubWindow()'s destroyed()
+	// handler) - this signal-driven path only needs to react to a REAL
+	// subwindow transition, so a null one is simply ignored here.
+	if (!subWindow)
+		return;
+	activateDocument(qobject_cast<ModelViewer*>(subWindow->widget()));
 }
 
 void MainWindow::activateDocument(ModelViewer* child)
@@ -2028,6 +2043,7 @@ void MainWindow::updateMenus()
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
 	ui->actionShrinkWrap->setEnabled(hasMdiChild);
+	ui->actionSubdivideSurface->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();

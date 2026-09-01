@@ -153,34 +153,6 @@ void ShrinkWrapDialog::refreshSuggestedTolerance()
 		ui->offsetSpin->setValue(offset);
 }
 
-void ShrinkWrapDialog::discardAllPreviews()
-{
-	if (_previews.isEmpty())
-		return;
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	SceneGraph* sceneGraph = _modelViewer->sceneGraph();
-	if (viewport && sceneGraph)
-	{
-		for (const PreviewEntry& entry : _previews)
-		{
-			const int meshIndex = viewport->getIndexByUuid(entry.meshUuid);
-			if (meshIndex >= 0)
-				viewport->moveToRecycleBin(entry.meshUuid, meshIndex);
-
-			int pos = 0;
-			sceneGraph->removeMeshUuid(entry.meshUuid, pos);
-
-			int outPosition = 0;
-			sceneGraph->removeChildNode(entry.parent, entry.node, outPosition);
-
-			viewport->permanentlyDeleteFromBin(entry.meshUuid);
-			SceneGraph::deleteDetachedSubtree(entry.node);
-		}
-	}
-	_previews.clear();
-}
-
 void ShrinkWrapDialog::onGenerateClicked()
 {
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
@@ -213,8 +185,18 @@ void ShrinkWrapDialog::onGenerateClicked()
 	MainWindow::setCancelButtonEnabled(false); // no cancellation mid-call is possible
 	QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
-	if (ui->replacePreviousCheckBox->isChecked())
-		discardAllPreviews();
+	// "Replace previous result" now undoably deletes the last result (one
+	// real DeleteMeshCommand push) instead of discarding scratch state
+	// outside the undo stack - see ModelViewer::replaceToolResults()'s doc
+	// comment. Same before-the-call ordering the old discardAllPreviews()
+	// call used.
+	if (ui->replacePreviousCheckBox->isChecked() && !_lastResultMeshUuids.isEmpty())
+	{
+		_modelViewer->replaceToolResults(_lastResultMeshUuids, tr("Replace Shrink Wrap Result"));
+		_lastResultMeshUuids.clear();
+	}
+
+	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
 
 	viewport->makeCurrent();
 
@@ -245,12 +227,11 @@ void ShrinkWrapDialog::onGenerateClicked()
 	viewport->updateView();
 	_modelViewer->updateDisplayList();
 
-	PreviewEntry entry;
-	entry.node = wrapNode;
-	entry.parent = topParent;
-	entry.position = wrapPosition;
-	entry.meshUuid = wrappedUuid;
-	_previews.append(entry);
+	// Pushed immediately, not deferred to dialog close - matches
+	// MeasurementDialog: every result is independently undoable right away
+	// (see this class's header doc comment for the bug this fixes).
+	_modelViewer->commitShrinkWrap(wrapNode, topParent, wrapPosition, wrappedUuid, originalSelection);
+	_lastResultMeshUuids = { wrappedUuid };
 	++_nextWrapIndex;
 
 	MainWindow::hideProgressBar();
@@ -264,7 +245,6 @@ void ShrinkWrapDialog::onGenerateClicked()
 
 void ShrinkWrapDialog::closeEvent(QCloseEvent* event)
 {
-	commitLivePreviews();
 	saveSettings();
 	QDialog::closeEvent(event);
 }
@@ -272,25 +252,10 @@ void ShrinkWrapDialog::closeEvent(QCloseEvent* event)
 void ShrinkWrapDialog::reject()
 {
 	// Escape reaches here, not closeEvent() (see this override's doc comment
-	// in the header) - same commit, so Escape and every other close path
-	// leave the scene/undo-stack in the same state.
-	commitLivePreviews();
+	// in the header) - closeEvent() only does saveSettings() now, so this
+	// just needs to make sure Escape doesn't skip it too.
 	saveSettings();
 	QDialog::reject();
-}
-
-void ShrinkWrapDialog::commitLivePreviews()
-{
-	if (_previews.isEmpty())
-		return;
-
-	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
-	for (const PreviewEntry& entry : _previews)
-	{
-		_modelViewer->commitShrinkWrap(entry.node, entry.parent, entry.position, entry.meshUuid,
-		                                originalSelection);
-	}
-	_previews.clear();
 }
 
 void ShrinkWrapDialog::loadSettings()

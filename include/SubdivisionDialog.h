@@ -19,22 +19,25 @@ class QCloseEvent;
 // SubdivisionDialog
 //
 // Non-modal "Subdivide Surface" dialog (Tools -> Subdivide Surface...) -
-// mirrors ShrinkWrapDialog's structure and preview/undo lifecycle exactly
-// (see that class's own doc comment for the full rationale), with one
-// semantic difference: Shrink Wrap combines N selected meshes into ONE
-// wrapped result (a real N-to-1 combine), while subdivision is
-// topology-preserving per-mesh refinement, so each Generate click produces
-// one independent subdivided result PER mesh in the list, not one merged
-// blob. PreviewEntry/_previews/discardAllPreviews()/closeEvent() are
-// unchanged in spirit from ShrinkWrapDialog - they already operate over a
-// list of preview entries regardless of how many a single Generate produced.
+// mirrors ShrinkWrapDialog's structure exactly (see that class's own doc
+// comment for the full rationale), with one semantic difference: Shrink Wrap
+// combines N selected meshes into ONE wrapped result (a real N-to-1 combine),
+// while subdivision is topology-preserving per-mesh refinement, so each
+// Generate click produces one independent subdivided result PER mesh in the
+// list, not one merged blob.
 //
-// As with ShrinkWrapDialog, previews are scratch state (built directly via
-// SceneGraph/ViewportWidget calls, bypassing the undo stack) until the
-// dialog closes, at which point every still-live preview becomes its own
-// real, undoable command (pushed via ModelViewer::commitSubdivision(), which
-// reuses ShrinkWrapCommand - see that method's doc comment for why no new
-// command class was needed).
+// Every Generate result is pushed onto the undo stack IMMEDIATELY (via
+// ModelViewer::commitSubdivision(), which reuses ShrinkWrapCommand - see that
+// method's doc comment for why no new command class was needed) - matching
+// MeasurementDialog, where every placed measurement is independently
+// undoable without closing the dialog first. This dialog used to defer every
+// result to a "live preview" only committed at close time; that made Undo a
+// no-op for anything generated while the dialog stayed open (confirmed bug).
+// _lastResultMeshUuids only remembers the most recent batch's mesh UUIDs, so
+// "Replace previous result" knows what to undoably delete before the next
+// Generate - it holds no scene-graph pointers, since deletion goes through
+// ModelViewer::replaceToolResults() (a DeleteMeshCommand push) rather than
+// direct SceneGraph manipulation.
 // ---------------------------------------------------------------------------
 class SubdivisionDialog : public QDialog
 {
@@ -53,12 +56,10 @@ public:
 protected:
 	void closeEvent(QCloseEvent* event) override;
 	// QDialog's own Escape handling calls reject(), which goes straight to
-	// done()/hide() WITHOUT ever raising a QCloseEvent - closeEvent()'s
-	// commit-live-previews logic never ran for an Escape-closed dialog
-	// otherwise (same gap found and fixed in MeasurementDialog::reject() and
-	// ShrinkWrapDialog::reject()), leaving any live preview mesh orphaned in
-	// the scene: never committed to the undo stack, never discarded. Runs
-	// the same commit before deferring to the base implementation.
+	// done()/hide() WITHOUT ever raising a QCloseEvent. Nothing here is left
+	// uncommitted any more (every result is pushed immediately at Generate
+	// time), so this override now only exists to make sure saveSettings()
+	// still runs on an Escape-closed dialog, same as any other close path.
 	void reject() override;
 
 private slots:
@@ -67,30 +68,9 @@ private slots:
 	void onListSelectionChanged();
 
 private:
-	// One not-yet-committed Generate result.
-	struct PreviewEntry
-	{
-		SceneNode* node     = nullptr;
-		SceneNode* parent   = nullptr;
-		int        position = 0;
-		QUuid      meshUuid;
-	};
-
 	// Enables Generate only while the working list holds at least one item.
 	// Called after every change to the mesh list's contents (add, remove).
 	void updateActionButtonsEnabled();
-
-	// Tears down every live preview WITHOUT going through the undo stack -
-	// none of them were ever pushed there. Called before a "replace"
-	// Generate. Deliberately NOT called from the destructor - see
-	// ShrinkWrapDialog::discardAllPreviews()'s doc comment for why.
-	void discardAllPreviews();
-
-	// Commits every live preview into a real, undoable command (via
-	// ModelViewer::commitSubdivision()) - the shared body of closeEvent()
-	// and reject() (see reject()'s doc comment for why both need to run it
-	// independently).
-	void commitLivePreviews();
 
 	void loadSettings();
 	void saveSettings();
@@ -98,5 +78,9 @@ private:
 	ModelViewer* _modelViewer; // not owned - dialog is a child of the ModelViewer's window
 	std::unique_ptr<Ui::SubdivisionDialog> ui;
 
-	QVector<PreviewEntry> _previews;
+	// Mesh UUIDs from the most recent Generate click, already committed to
+	// the undo stack - "Replace previous result" undoably deletes these
+	// (via ModelViewer::replaceToolResults()) right before running the next
+	// Generate, then this is overwritten with the new batch's UUIDs.
+	QVector<QUuid> _lastResultMeshUuids;
 };

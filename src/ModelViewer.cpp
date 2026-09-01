@@ -3566,6 +3566,13 @@ void ModelViewer::commitSubdivision(SceneNode* node, SceneNode* parent, int posi
 		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide")));
 }
 
+void ModelViewer::replaceToolResults(const QVector<QUuid>& meshUuids, const QString& text)
+{
+	if (!_undoStack || !_viewportWidget || meshUuids.isEmpty())
+		return;
+	_undoStack->push(new DeleteMeshCommand(this, _viewportWidget, meshUuids, text));
+}
+
 void ModelViewer::deleteSelectedItems()
 {
 	if (!checkForActiveSelection())

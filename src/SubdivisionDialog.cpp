@@ -95,34 +95,6 @@ void SubdivisionDialog::updateActionButtonsEnabled()
 	ui->generateButton->setEnabled(ui->meshList->count() > 0);
 }
 
-void SubdivisionDialog::discardAllPreviews()
-{
-	if (_previews.isEmpty())
-		return;
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	SceneGraph* sceneGraph = _modelViewer->sceneGraph();
-	if (viewport && sceneGraph)
-	{
-		for (const PreviewEntry& entry : _previews)
-		{
-			const int meshIndex = viewport->getIndexByUuid(entry.meshUuid);
-			if (meshIndex >= 0)
-				viewport->moveToRecycleBin(entry.meshUuid, meshIndex);
-
-			int pos = 0;
-			sceneGraph->removeMeshUuid(entry.meshUuid, pos);
-
-			int outPosition = 0;
-			sceneGraph->removeChildNode(entry.parent, entry.node, outPosition);
-
-			viewport->permanentlyDeleteFromBin(entry.meshUuid);
-			SceneGraph::deleteDetachedSubtree(entry.node);
-		}
-	}
-	_previews.clear();
-}
-
 void SubdivisionDialog::onGenerateClicked()
 {
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
@@ -150,8 +122,20 @@ void SubdivisionDialog::onGenerateClicked()
 	MainWindow::setCancelButtonEnabled(false); // no cancellation mid-call is possible
 	QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
-	if (ui->replacePreviousCheckBox->isChecked())
-		discardAllPreviews();
+	// "Replace previous result" now undoably deletes the last batch (one
+	// real DeleteMeshCommand push) instead of discarding scratch state
+	// outside the undo stack - see ModelViewer::replaceToolResults()'s doc
+	// comment. Same before-the-loop ordering the old discardAllPreviews()
+	// call used.
+	if (ui->replacePreviousCheckBox->isChecked() && !_lastResultMeshUuids.isEmpty())
+	{
+		_modelViewer->replaceToolResults(_lastResultMeshUuids, tr("Replace Subdivision Result"));
+		_lastResultMeshUuids.clear();
+	}
+
+	// Captured once for this whole click, not per result - every result
+	// this Generate produces was made against the same "before" selection.
+	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
 
 	viewport->makeCurrent();
 
@@ -168,6 +152,7 @@ void SubdivisionDialog::onGenerateClicked()
 	int failed = 0;
 	qsizetype totalVertices = 0;
 	qsizetype totalTriangles = 0;
+	QVector<QUuid> newResultMeshUuids;
 
 	for (SceneMesh* mesh : meshes)
 	{
@@ -190,17 +175,18 @@ void SubdivisionDialog::onGenerateClicked()
 		sceneGraph->insertChildNode(topParent, resultNode, resultPosition);
 		sceneGraph->restoreMeshUuid(resultNode, resultUuid, 0);
 
-		PreviewEntry entry;
-		entry.node = resultNode;
-		entry.parent = topParent;
-		entry.position = resultPosition;
-		entry.meshUuid = resultUuid;
-		_previews.append(entry);
+		// Pushed immediately, not deferred to dialog close - matches
+		// MeasurementDialog: every result is independently undoable right
+		// away (see this class's header doc comment for the bug this fixes).
+		_modelViewer->commitSubdivision(resultNode, topParent, resultPosition, resultUuid, originalSelection);
+		newResultMeshUuids.append(resultUuid);
 
 		++succeeded;
 		totalVertices += subdivided->vertices().size();
 		totalTriangles += subdivided->indices().size() / 3;
 	}
+
+	_lastResultMeshUuids = newResultMeshUuids;
 
 	viewport->doneCurrent();
 	viewport->updateView();
@@ -235,7 +221,6 @@ void SubdivisionDialog::onGenerateClicked()
 
 void SubdivisionDialog::closeEvent(QCloseEvent* event)
 {
-	commitLivePreviews();
 	saveSettings();
 	QDialog::closeEvent(event);
 }
@@ -243,26 +228,10 @@ void SubdivisionDialog::closeEvent(QCloseEvent* event)
 void SubdivisionDialog::reject()
 {
 	// Escape reaches here, not closeEvent() (see this override's doc comment
-	// in the header, and ShrinkWrapDialog::reject()'s identical fix) - same
-	// commit, so Escape and every other close path leave the scene/undo-
-	// stack in the same state.
-	commitLivePreviews();
+	// in the header) - closeEvent() only does saveSettings() now, so this
+	// just needs to make sure Escape doesn't skip it too.
 	saveSettings();
 	QDialog::reject();
-}
-
-void SubdivisionDialog::commitLivePreviews()
-{
-	if (_previews.isEmpty())
-		return;
-
-	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
-	for (const PreviewEntry& entry : _previews)
-	{
-		_modelViewer->commitSubdivision(entry.node, entry.parent, entry.position, entry.meshUuid,
-		                                 originalSelection);
-	}
-	_previews.clear();
 }
 
 void SubdivisionDialog::loadSettings()

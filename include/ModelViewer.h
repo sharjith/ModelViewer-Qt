@@ -380,16 +380,28 @@ public slots:
 
 	// The Shrink Wrap dialog's one-line bridge into the undo stack (same
 	// "dialog never touches _undoStack directly" convention as
-	// addMeasurement()/addAnnotation() below) - called once, from
-	// ShrinkWrapDialog::closeEvent(), for whatever the dialog's live
-	// (not-yet-undo-tracked) preview node/mesh happens to be at close time.
-	// wrapNode/wrapParent/wrapPosition/wrappedMeshUuid must already be live
-	// in the scene (attached/inserted) - this only pushes the command that
+	// addMeasurement()/addAnnotation() below) - called once per Generate
+	// result, immediately after ShrinkWrapDialog::onGenerateClicked() builds
+	// it (matching MeasurementDialog: every result is independently
+	// undoable without closing the dialog first - confirmed bug when this
+	// was instead deferred to closeEvent() as a "live preview"). wrapNode/
+	// wrapParent/wrapPosition/wrappedMeshUuid must already be live in the
+	// scene (attached/inserted) - this only pushes the command that
 	// remembers how to undo/redo that already-done attachment, same
 	// "already happened, command just replays it" convention as
 	// GroupMeshesCommand/MergeByAdjacencyCommand.
 	void commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
 	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection);
+
+	// Undoably deletes a set of previously-committed tool results (Shrink
+	// Wrap/Subdivision) - the "Replace previous result" checkbox's delete
+	// half. Called from ShrinkWrapDialog/SubdivisionDialog right before a
+	// new Generate, in place of the old discardAllPreviews() (which deleted
+	// outside the undo stack entirely, back when results were uncommitted
+	// scratch state). A thin push of DeleteMeshCommand, same as
+	// deleteSelectedItems() uses, just without its selection/confirmation-
+	// dialog steps - meshUuids is caller-supplied directly.
+	void replaceToolResults(const QVector<QUuid>& meshUuids, const QString& text);
 
 	// Subdivide Surface: opens the non-modal SubdivisionDialog (Tools ->
 	// Subdivide Surface...), same findChild-reuse-or-create/show/raise/
@@ -397,11 +409,12 @@ public slots:
 	void openSubdivisionDialog();
 
 	// The Subdivision dialog's one-line bridge into the undo stack - same
-	// convention as commitShrinkWrap() above, and in fact reuses the exact
-	// same ShrinkWrapCommand class (it's already fully generic: "add one
-	// new node+mesh, know how to undo/redo that" - nothing about it is
-	// Shrink-Wrap-specific beyond the default `text` argument), just with
-	// text = tr("Subdivide") so the undo-stack entry reads correctly.
+	// convention and immediate-per-result timing as commitShrinkWrap()
+	// above, and in fact reuses the exact same ShrinkWrapCommand class (it's
+	// already fully generic: "add one new node+mesh, know how to undo/redo
+	// that" - nothing about it is Shrink-Wrap-specific beyond the default
+	// `text` argument), just with text = tr("Subdivide") so the undo-stack
+	// entry reads correctly.
 	void commitSubdivision(SceneNode* node, SceneNode* parent, int position,
 	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
 
