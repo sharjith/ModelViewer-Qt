@@ -88,6 +88,7 @@
     <addaction name="separator"/>
     <addaction name="actionShrinkWrap"/>
     <addaction name="actionSubdivideSurface"/>
+    <addaction name="actionReconstructSurface"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -396,6 +397,14 @@
    </property>
    <property name="statusTip">
     <string>Smooth the selected meshes via CGAL Loop/Catmull-Clark subdivision, each added as a new node</string>
+   </property>
+  </action>
+  <action name="actionReconstructSurface">
+   <property name="text">
+    <string>Reconstruct Surface...</string>
+   </property>
+   <property name="statusTip">
+    <string>Reconstruct a triangulated surface from the selected point cloud(s) via CGAL advancing-front reconstruction, added as a new node</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">

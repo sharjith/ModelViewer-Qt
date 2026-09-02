@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <iterator>
 #include <limits>
 #include <unordered_map>
@@ -52,6 +53,18 @@
 #include <CGAL/subdivision_method_3.h>
 #include <CGAL/Polygon_mesh_processing/triangulate_faces.h>
 #include <CGAL/Polygon_mesh_processing/remesh.h>
+
+// See reconstructSurfaceFromPoints()'s doc comment (SceneMesh.h). Verified
+// directly against the actual build tree (out/build/ninja_*_vcpkg/
+// vcpkg_installed/.../include/CGAL, NOT the separate vcpkg/packages/... tree
+// that also exists on disk but isn't what CMakeCache.txt's CGAL_DIR points
+// at - don't re-derive availability from the wrong tree again) - both
+// Poisson_surface_reconstruction_3 and advancing_front_surface_reconstruction
+// are genuinely available; advancing_front is used here since it needs no
+// oriented-normal pre-pass at all (Poisson has that as a hard precondition),
+// matching this codebase's other single-call CGAL wrappers.
+#include <CGAL/Advancing_front_surface_reconstruction.h>
+#include <CGAL/grid_simplify_point_set.h>
 
 using namespace std;
 
@@ -2535,6 +2548,217 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	SceneMesh* result = new SceneMesh(mesh->_prog, newName, resultVertices, resultIndices,
 	                                   mesh->_textures, mesh->_material,
 	                                   mesh->_importState.skipOptimization(), mesh->getPrimitiveMode());
+
+	// Identity transform - the vertex data above is already world-space.
+	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	result->setHasNegativeScale(false);
+	result->setSceneRenderTransformFast(QMatrix4x4());
+
+	result->fullUpdateRuntimeBounds();
+
+	return result;
+}
+
+void SceneMesh::suggestReconstructionSpacing(const QVector<SceneMesh*>& meshes, double& outSpacing)
+{
+	outSpacing = 0.0;
+
+	glm::vec3 bboxMin, bboxMax;
+	bool haveBounds = false;
+
+	for (SceneMesh* mesh : meshes)
+	{
+		if (!mesh)
+			continue;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		for (std::size_t i = 0; i + 2 < pts.size(); i += 3)
+		{
+			const glm::vec3 p(pts[i], pts[i + 1], pts[i + 2]);
+			if (!haveBounds)
+			{
+				bboxMin = bboxMax = p;
+				haveBounds = true;
+			}
+			else
+			{
+				bboxMin = glm::min(bboxMin, p);
+				bboxMax = glm::max(bboxMax, p);
+			}
+		}
+	}
+
+	if (!haveBounds)
+		return;
+
+	const double diagonal = glm::length(glm::dvec3(bboxMax) - glm::dvec3(bboxMin));
+	outSpacing = diagonal / 500.0;
+}
+
+SceneMesh* SceneMesh::reconstructSurfaceFromPoints(const QVector<SceneMesh*>& meshes,
+                                                    const QString& newName,
+                                                    double radiusRatioBound, double beta,
+                                                    double simplifySpacing)
+{
+	if (meshes.isEmpty() || !std::isfinite(radiusRatioBound) || !std::isfinite(beta)
+		|| radiusRatioBound <= 0.0 || beta <= 0.0)
+		return nullptr;
+
+	using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+	using Point_3 = Kernel::Point_3;
+	using Mesh    = CGAL::Surface_mesh<Point_3>;
+	namespace PMP = CGAL::Polygon_mesh_processing;
+
+	// Position-keyed lookup so each reconstructed vertex can recover the
+	// source point's own color (e.g. real per-point RGB from a photogrammetry/
+	// laser-scan PLY) after going through repair_polygon_soup()/
+	// orient_polygon_soup()/grid_simplify_point_set() below - none of those
+	// do any coordinate arithmetic (averaging/snapping), they only copy,
+	// reorder, drop, or exactly-duplicate existing points, so an exact-match
+	// hash on the original coordinates reliably survives all of them; this
+	// would NOT be safe if any repair step geometrically perturbed points.
+	struct Point3Hash
+	{
+		std::size_t operator()(const Point_3& p) const
+		{
+			std::size_t h = std::hash<double>()(CGAL::to_double(p.x()));
+			h ^= std::hash<double>()(CGAL::to_double(p.y())) + 0x9e3779b9 + (h << 6) + (h >> 2);
+			h ^= std::hash<double>()(CGAL::to_double(p.z())) + 0x9e3779b9 + (h << 6) + (h >> 2);
+			return h;
+		}
+	};
+	std::unordered_map<Point_3, glm::vec4, Point3Hash> colorByPosition;
+
+	// Only POSITIONS feed the reconstruction algorithm itself - unlike every
+	// other CGAL tool in this file, there are no indices/faces on the input
+	// side at all (the source meshes are typically point clouds with none),
+	// so this is a plain concatenation of world-space points, not a
+	// triangle-soup build. Colors are carried alongside for the lookup above,
+	// not used by advancing_front_surface_reconstruction itself.
+	std::vector<Point_3> points;
+	SceneMesh* firstMesh = nullptr;
+	for (SceneMesh* mesh : meshes)
+	{
+		if (!mesh)
+			continue;
+		if (!firstMesh)
+			firstMesh = mesh;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const std::vector<Vertex>& srcVertices = mesh->vertices();
+		if (pts.size() % 3 != 0)
+			return nullptr;
+		for (std::size_t i = 0; i < pts.size(); i += 3)
+		{
+			if (!std::isfinite(pts[i]) || !std::isfinite(pts[i + 1]) || !std::isfinite(pts[i + 2]))
+				return nullptr;
+			points.emplace_back(pts[i], pts[i + 1], pts[i + 2]);
+
+			const std::size_t vIdx = i / 3;
+			if (vIdx < srcVertices.size())
+				colorByPosition[points.back()] = srcVertices[vIdx].Color;
+		}
+	}
+
+	if (!firstMesh || points.size() < 4)
+		return nullptr;  // advancing_front needs a non-degenerate 3D Delaunay triangulation
+
+	// Optional pre-simplify - CGAL::grid_simplify_point_set() merges points
+	// closer together than simplifySpacing, returning an iterator to the new
+	// logical end of the (unmodified-size) container; erase the tail it
+	// leaves behind. Directly mitigates advancing_front's worst-case cost
+	// (a full Delaunay triangulation of every input point) on large/noisy
+	// real scans.
+	if (simplifySpacing > 0.0)
+	{
+		points.erase(CGAL::grid_simplify_point_set(points, simplifySpacing), points.end());
+		if (points.size() < 4)
+			return nullptr;
+	}
+
+	// advancing_front_surface_reconstruction is a local greedy heuristic
+	// over the point set's own Delaunay triangulation - no normals needed
+	// as input (unlike Poisson reconstruction, not used here specifically
+	// to avoid needing a separate normal-estimation+orientation pre-pass -
+	// see this function's doc comment in SceneMesh.h), but also no
+	// manifoldness/watertightness guarantee on the output, unlike
+	// alpha_wrap_3's shell construction. Output face index k refers
+	// directly to points[k] - no remapping needed, the input range IS the
+	// vertex array the output indices are defined against.
+	std::vector<std::array<std::size_t, 3>> faces;
+	CGAL::advancing_front_surface_reconstruction(points.begin(), points.end(),
+		std::back_inserter(faces), radiusRatioBound, beta);
+	if (faces.empty())
+		return nullptr;
+
+	// Same repair gate subdivideMesh() uses (repair_polygon_soup +
+	// orient_polygon_soup + is_polygon_soup_a_polygon_mesh check, not
+	// booleanUnionMeshes()'s additional closed/watertight/self-intersection
+	// checks - this result isn't required to be watertight, same reasoning
+	// as subdivision's open-border tolerance) - necessary here specifically
+	// because, unlike every other CGAL tool in this file, advancing_front's
+	// heuristic selection gives no manifoldness guarantee on its own.
+	PMP::repair_polygon_soup(points, faces);
+	PMP::orient_polygon_soup(points, faces);
+	if (!PMP::is_polygon_soup_a_polygon_mesh(faces))
+		return nullptr;
+
+	Mesh reconMesh;
+	PMP::polygon_soup_to_polygon_mesh(points, faces, reconMesh);
+	if (reconMesh.number_of_vertices() == 0 || reconMesh.number_of_faces() == 0)
+		return nullptr;
+
+	// Brand-new geometry, no source UVs/skinning to carry over - same
+	// convention as shrinkWrapMeshes()'s result.
+	auto vnormals = reconMesh.add_property_map<Mesh::Vertex_index, Kernel::Vector_3>(
+		"v:normal", CGAL::NULL_VECTOR).first;
+	PMP::compute_vertex_normals(reconMesh, vnormals);
+
+	std::vector<Vertex> reconVertices;
+	reconVertices.reserve(reconMesh.number_of_vertices());
+	std::unordered_map<Mesh::Vertex_index, unsigned int> vertexIndex;
+	vertexIndex.reserve(reconMesh.number_of_vertices());
+	for (Mesh::Vertex_index v : reconMesh.vertices())
+	{
+		const Point_3& p = reconMesh.point(v);
+		const Kernel::Vector_3& n = vnormals[v];
+
+		Vertex vert{};
+		const auto colorIt = colorByPosition.find(p);
+		vert.Color = (colorIt != colorByPosition.end()) ? colorIt->second : glm::vec4(1.0f);
+		vert.Tangent = glm::vec3(0.0f);
+		vert.Bitangent = glm::vec3(0.0f);
+		for (glm::vec2& uv : vert.TexCoords)
+			uv = glm::vec2(0.0f);
+		vert.Position = glm::vec3(static_cast<float>(CGAL::to_double(p.x())),
+		                           static_cast<float>(CGAL::to_double(p.y())),
+		                           static_cast<float>(CGAL::to_double(p.z())));
+		vert.Normal = glm::vec3(static_cast<float>(CGAL::to_double(n.x())),
+		                         static_cast<float>(CGAL::to_double(n.y())),
+		                         static_cast<float>(CGAL::to_double(n.z())));
+
+		vertexIndex.emplace(v, static_cast<unsigned int>(reconVertices.size()));
+		reconVertices.push_back(vert);
+	}
+
+	std::vector<unsigned int> reconIndices;
+	reconIndices.reserve(reconMesh.number_of_faces() * 3);
+	for (Mesh::Face_index f : reconMesh.faces())
+	{
+		for (Mesh::Vertex_index v : CGAL::vertices_around_face(reconMesh.halfedge(f), reconMesh))
+			reconIndices.push_back(vertexIndex[v]);
+	}
+
+	// Input is typically GL_POINTS (a point cloud) but the result is always
+	// a real triangulated surface - hardcode GL_TRIANGLES here rather than
+	// forwarding firstMesh->getPrimitiveMode() the way shrinkWrapMeshes()/
+	// subdivideMesh() do (both of those are triangle-mesh-in, triangle-
+	// mesh-out, so forwarding is correct there; it would be a real bug here).
+	SceneMesh* result = new SceneMesh(firstMesh->_prog, newName, reconVertices, reconIndices,
+	                                   firstMesh->_textures, firstMesh->_material,
+	                                   firstMesh->_importState.skipOptimization(), GL_TRIANGLES);
 
 	// Identity transform - the vertex data above is already world-space.
 	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));

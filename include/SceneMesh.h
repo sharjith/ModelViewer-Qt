@@ -275,6 +275,46 @@ public:
 	                                 unsigned int iterations, const QString& newName,
 	                                 bool preserveSharpFeatures = true);
 
+	// Computes a suggested grid-simplification spacing for
+	// reconstructSurfaceFromPoints() below's optional pre-simplify step, from
+	// the combined world-space bounding-box diagonal of meshes (diagonal /
+	// 500 - dense enough to preserve real detail while still meaningfully
+	// thinning a noisy/oversampled scan). Same "starting point the user can
+	// override" convention as suggestShrinkWrapTolerance(). Leaves outSpacing
+	// at 0.0 if meshes is empty or carries no geometry.
+	static void suggestReconstructionSpacing(const QVector<SceneMesh*>& meshes, double& outSpacing);
+
+	// Reconstructs a single new triangulated surface from the world-space
+	// POSITIONS of one or more meshes (their own faces/indices, if any, are
+	// ignored - only vertex positions feed the algorithm) via CGAL's
+	// advancing_front_surface_reconstruction. Each source point's own
+	// Vertex::Color (e.g. real per-point RGB already read from a
+	// photogrammetry/laser-scan PLY's vertex colors, or white if the source
+	// had none) is preserved on the corresponding output vertex via an
+	// exact-position lookup - see the .cpp for why that stays valid across
+	// this function's own repair/simplify steps specifically. Unlike
+	// shrinkWrapMeshes(), no normals are required on the input and the
+	// result is NOT guaranteed watertight or even manifold - this is a local
+	// greedy heuristic over the point set's own Delaunay triangulation, not
+	// alpha_wrap_3's shell construction. simplifySpacing > 0 runs CGAL::grid_simplify_point_set()
+	// first (see suggestReconstructionSpacing() above), merging points closer
+	// together than that distance - recommended for large/noisy real scans,
+	// where it also substantially speeds up the reconstruction itself.
+	// radiusRatioBound/beta are advancing_front_surface_reconstruction's own
+	// tunables (CGAL defaults 5.0/0.52 rad respectively): radiusRatioBound
+	// controls how large a gap the reconstruction may bridge (higher closes
+	// more holes but risks bridging unrelated surfaces); beta is half the
+	// wedge angle used to judge candidate-triangle plausibility (lower =
+	// smoother/rounder result, higher = sharper edges preserved). Returns
+	// nullptr if meshes is empty, the combined point count is under 4 (no
+	// non-degenerate 3D Delaunay triangulation possible), the parameters
+	// aren't finite/positive, or reconstruction produced no faces.
+	static SceneMesh* reconstructSurfaceFromPoints(const QVector<SceneMesh*>& meshes,
+	                                                const QString& newName,
+	                                                double radiusRatioBound = 5.0,
+	                                                double beta = 0.52,
+	                                                double simplifySpacing = 0.0);
+
 	// ---- Import provenance (moved from RenderableMesh) ----------------------
 	MeshImportAdaptor&        importState()       { return _importState; }
 	const MeshImportAdaptor&  importState() const { return _importState; }

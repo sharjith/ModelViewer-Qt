@@ -26,6 +26,7 @@
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
 #include "SubdivisionDialog.h"
+#include "ReconstructSurfaceDialog.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialPreviewWidget.h"
@@ -3564,6 +3565,31 @@ void ModelViewer::commitSubdivision(SceneNode* node, SceneNode* parent, int posi
 		return;
 	_undoStack->push(new ShrinkWrapCommand(
 		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide")));
+}
+
+void ModelViewer::openReconstructSurfaceDialog()
+{
+	ReconstructSurfaceDialog* dialog = findChild<ReconstructSurfaceDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new ReconstructSurfaceDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	// Same seed-with-current-tree-selection convention as
+	// openShrinkWrapDialog()/openSubdivisionDialog() above.
+	dialog->addCurrentTreeSelection();
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
+                                            const QUuid& meshUuid, const QSet<QUuid>& originalSelection)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || !node || !parent)
+		return;
+	_undoStack->push(new ShrinkWrapCommand(
+		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Reconstruct Surface")));
 }
 
 void ModelViewer::replaceToolResults(const QVector<QUuid>& meshUuids, const QString& text)

@@ -418,6 +418,19 @@ public slots:
 	void commitSubdivision(SceneNode* node, SceneNode* parent, int position,
 	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
 
+	// Reconstruct Surface: opens the non-modal ReconstructSurfaceDialog
+	// (Tools -> Reconstruct Surface...), same findChild-reuse-or-create/
+	// show/raise/seed-with-tree-selection pattern as openShrinkWrapDialog()/
+	// openSubdivisionDialog() above.
+	void openReconstructSurfaceDialog();
+
+	// The Reconstruct Surface dialog's one-line bridge into the undo stack -
+	// same convention and immediate-per-result timing as commitShrinkWrap()/
+	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
+	// class with text = tr("Reconstruct Surface").
+	void commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
+	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
 	// the call is a no-op - guards against a stale command (from a document

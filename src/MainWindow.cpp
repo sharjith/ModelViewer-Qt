@@ -657,6 +657,13 @@ MainWindow::MainWindow(QWidget* parent)
 			activeMdiChild()->openSubdivisionDialog();
 		});
 
+	// Tools → Reconstruct Surface... - opens the non-modal
+	// ReconstructSurfaceDialog, same wiring shape as actionShrinkWrap above.
+	connect(ui->actionReconstructSurface, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->openReconstructSurfaceDialog();
+		});
+
 	updateMenus();
 
 	readSettings();
@@ -2044,6 +2051,7 @@ void MainWindow::updateMenus()
 	ui->actionExportReport->setEnabled(hasMdiChild);
 	ui->actionShrinkWrap->setEnabled(hasMdiChild);
 	ui->actionSubdivideSurface->setEnabled(hasMdiChild);
+	ui->actionReconstructSurface->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();
