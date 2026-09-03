@@ -53,6 +53,9 @@ void UVGenerationDialog::setupConnections()
 
     connect(ui->checkBox_EnableRelaxation_Smart, &QCheckBox::toggled,
         this, &UVGenerationDialog::onRelaxationToggled_Smart);
+
+    connect(ui->checkBox_CylAutoDetectAxis, &QCheckBox::toggled,
+        this, &UVGenerationDialog::onCylAutoDetectAxisToggled);
 }
 
 void UVGenerationDialog::onMethodChanged(int index)
@@ -64,6 +67,13 @@ void UVGenerationDialog::onMethodChanged(int index)
 void UVGenerationDialog::onRelaxationToggled(bool enabled)
 {
     ui->spinBox_RelaxationIterations->setEnabled(enabled);
+}
+
+void UVGenerationDialog::onCylAutoDetectAxisToggled(bool autoDetect)
+{
+    // Manual axis fields are meaningless (and stay at their last-entered value) while auto-detect
+    // is on - grey out the whole group box rather than let the user edit a value that isn't used.
+    ui->groupBox_CylAxis->setEnabled(!autoDetect);
 }
 
 void UVGenerationDialog::onRelaxationToggled_Smart(bool enabled)
@@ -145,6 +155,12 @@ void UVGenerationDialog::loadLastUsedSettings()
     config.cylindricalScale = settings.value("cylindricalScale", 1.0f).toFloat();
     config.cylindricalOffset = settings.value("cylindricalOffset", 0.0f).toFloat();
     config.cylindricalSeamRotation = settings.value("cylindricalSeamRotation", 0.0f).toFloat();
+    config.cylindricalAutoDetectAxis = settings.value("cylindricalAutoDetectAxis", true).toBool();
+    config.cylindricalAxis = glm::vec3(
+        settings.value("cylindricalAxisX", 0.0f).toFloat(),
+        settings.value("cylindricalAxisY", 1.0f).toFloat(),
+        settings.value("cylindricalAxisZ", 0.0f).toFloat()
+    );
 
     // Planar
     config.planarScale.x = settings.value("planarScaleX", 1.0f).toFloat();
@@ -200,6 +216,10 @@ void UVGenerationDialog::saveLastUsedSettings()
     settings.setValue("cylindricalScale", config.cylindricalScale);
     settings.setValue("cylindricalOffset", config.cylindricalOffset);
     settings.setValue("cylindricalSeamRotation", config.cylindricalSeamRotation);
+    settings.setValue("cylindricalAutoDetectAxis", config.cylindricalAutoDetectAxis);
+    settings.setValue("cylindricalAxisX", config.cylindricalAxis.x);
+    settings.setValue("cylindricalAxisY", config.cylindricalAxis.y);
+    settings.setValue("cylindricalAxisZ", config.cylindricalAxis.z);
 
     // Planar
     settings.setValue("planarScaleX", config.planarScale.x);
@@ -267,6 +287,12 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.cylindricalOffset = ui->spinBox_CylOffset->value();
         config.cylindricalSeamRotation = glm::radians(
             static_cast<float>(ui->spinBox_CylSeamRotation->value())
+        );
+        config.cylindricalAutoDetectAxis = ui->checkBox_CylAutoDetectAxis->isChecked();
+        config.cylindricalAxis = glm::vec3(
+            ui->spinBox_CylAxisX->value(),
+            ui->spinBox_CylAxisY->value(),
+            ui->spinBox_CylAxisZ->value()
         );
         config.flipV = ui->checkBox_FlipV_Cyl->isChecked();
         break;
@@ -354,6 +380,15 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->spinBox_CylScale->setValue(config.cylindricalScale);
     ui->spinBox_CylOffset->setValue(config.cylindricalOffset);
     ui->spinBox_CylSeamRotation->setValue(glm::degrees(config.cylindricalSeamRotation));
+    ui->checkBox_CylAutoDetectAxis->setChecked(config.cylindricalAutoDetectAxis);
+    ui->spinBox_CylAxisX->setValue(config.cylindricalAxis.x);
+    ui->spinBox_CylAxisY->setValue(config.cylindricalAxis.y);
+    ui->spinBox_CylAxisZ->setValue(config.cylindricalAxis.z);
+    // checkBox_CylAutoDetectAxis::setChecked above only emits toggled() (and so only runs
+    // onCylAutoDetectAxisToggled's enable/disable) when the checked state actually CHANGES - so a
+    // config with the checkbox already in the right state would otherwise leave the axis group
+    // box's enabled state stale relative to it. Set it explicitly instead of relying on the signal.
+    ui->groupBox_CylAxis->setEnabled(!config.cylindricalAutoDetectAxis);
     ui->checkBox_FlipV_Cyl->setChecked(config.flipV);
 
     // Set Spherical values

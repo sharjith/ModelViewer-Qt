@@ -39,6 +39,7 @@ private slots:
     void onMethodChanged(int index);
     void onRelaxationToggled(bool enabled);
     void onRelaxationToggled_Smart(bool enabled);
+    void onCylAutoDetectAxisToggled(bool autoDetect);
 
 
 private:

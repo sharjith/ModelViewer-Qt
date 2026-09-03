@@ -139,19 +139,139 @@ bool UVGenerator::generateCylindrical(
 
     buildIdentityVertexMap(vertices.size(), sourceVertexMap);
 
-    glm::vec3 centroid = calculateCentroid(vertices);
-    glm::vec3 minBounds, maxBounds;
-    calculateBounds(vertices, minBounds, maxBounds);
-    float height = maxBounds.y - minBounds.y;
+    // Weld by exact position before computing the centroid/covariance below - NOT a stylistic
+    // choice, a correctness one. This function's OWN seam-crossing step (Step 2 below) duplicates
+    // vertices along whatever seam the PREVIOUS UV generation used, and since generation mutates
+    // the SAME mesh in place (confirmed real bug: manual-axis generation, then regenerating with
+    // auto-detect on the SAME mesh, produced a skewed axis), those leftover duplicate-position
+    // vertices - along with any from a prior exploding UV method (Smart Project/ARAP/etc, see
+    // buildTriangleList()'s doc comment for why those duplicate too) - would otherwise silently
+    // over-weight whatever curve/region they cluster along in an unweighted positional mean/PCA,
+    // pulling the detected axis away from the mesh's true geometric one. A vertex actually
+    // repeated at the same 3D position never carries new positional information, so counting it
+    // more than once here is always wrong, regardless of why the duplicate exists.
+    std::vector<glm::vec3> uniquePositions;
+    {
+        struct Vec3Hash
+        {
+            std::size_t operator()(const glm::vec3& p) const
+            {
+                std::size_t h = std::hash<float>()(p.x);
+                h ^= std::hash<float>()(p.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<float>()(p.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                return h;
+            }
+        };
+        struct Vec3Equal
+        {
+            bool operator()(const glm::vec3& a, const glm::vec3& b) const
+            {
+                return a.x == b.x && a.y == b.y && a.z == b.z;
+            }
+        };
+        std::unordered_set<glm::vec3, Vec3Hash, Vec3Equal> seen;
+        seen.reserve(vertices.size());
+        uniquePositions.reserve(vertices.size());
+        for (const auto& v : vertices)
+        {
+            if (seen.insert(v.Position).second)
+                uniquePositions.push_back(v.Position);
+        }
+    }
+
+    glm::vec3 centroid(0.0f);
+    for (const auto& p : uniquePositions)
+        centroid += p;
+    centroid /= static_cast<float>(uniquePositions.size());
+
+    // Determine the cylinder's axis, either via PCA or from config.cylindricalAxis - either way,
+    // NOT hardcoded to world-Y. This used to hardcode height from vertex.Position.y and
+    // circumferential angle from atan2(z,x) - correct only for a cylinder whose axis happens to
+    // already be world-Y. A cylinder modeled/imported in any other orientation (confirmed real
+    // case: OpenCylinder.obj's axis is world-Z, with X/Y forming its circular cross-section - X and
+    // Y each range -20..20 while Z is only ever exactly +-20) then had "height" computed from a
+    // circular, non-monotonic coordinate and "angle" computed from an axis pair that isn't the
+    // circumference at all, producing a sheared/torn checker pattern with no relation to the mesh's
+    // real geometry.
+    glm::vec3 axis, planeX, planeY;
+
+    if (config.cylindricalAutoDetectAxis)
+    {
+        glm::mat3 covariance(0.0f);
+        for (const auto& pos : uniquePositions)
+        {
+            glm::vec3 p = pos - centroid;
+            covariance[0] += p.x * p;
+            covariance[1] += p.y * p;
+            covariance[2] += p.z * p;
+        }
+        covariance /= static_cast<float>(uniquePositions.size());
+
+        glm::vec3 eigenValues;
+        glm::mat3 eigenVectors;
+        computeEigenDecomposition(covariance, eigenValues, eigenVectors);
+        // eigenValues/eigenVectors come back sorted descending (e0 >= e1 >= e2).
+
+        // The axis is whichever eigenvalue is the OUTLIER relative to its neighbor - NOT simply
+        // "the largest" (generateHybrid()'s "elongation" convention, which only holds for a
+        // cylinder longer than roughly its own diameter). A true cylinder's two CROSS-SECTIONAL
+        // eigenvalues are close to each other (circular symmetry) regardless of aspect ratio, so
+        // the odd-one-out eigenvalue - whether it's the largest (elongated cylinder) or the
+        // smallest (short, fat cylinder, where the circular cross-section has MORE variance than
+        // the short axial extent) - is the real axis. PCA can still misjudge this for a near-
+        // square-aspect cylinder or one with an attached feature skewing the covariance - that's
+        // what config.cylindricalAutoDetectAxis=false / cylindricalAxis is for.
+        int axisIdx = (eigenValues[0] - eigenValues[1] > eigenValues[1] - eigenValues[2]) ? 0 : 2;
+        int uIdx = (axisIdx == 0) ? 1 : 0;
+        int vIdx = (axisIdx == 2) ? 1 : 2;
+        axis = glm::normalize(glm::vec3(
+            eigenVectors[0][axisIdx], eigenVectors[1][axisIdx], eigenVectors[2][axisIdx]));
+        // The other two eigenvectors are mutually orthogonal, and orthogonal to axis, by
+        // construction (eigenvectors of a symmetric covariance matrix) - a ready-made basis for
+        // the circular cross-section, no separate Gram-Schmidt step needed.
+        planeX = glm::normalize(glm::vec3(
+            eigenVectors[0][uIdx], eigenVectors[1][uIdx], eigenVectors[2][uIdx]));
+        planeY = glm::normalize(glm::vec3(
+            eigenVectors[0][vIdx], eigenVectors[1][vIdx], eigenVectors[2][vIdx]));
+    }
+    else
+    {
+        // Manual axis: fall back to world-Y if the user left it at zero-length (e.g. all 3 fields
+        // cleared to 0) rather than normalizing a zero vector into garbage.
+        axis = (glm::length(config.cylindricalAxis) > 1e-6f)
+            ? glm::normalize(config.cylindricalAxis)
+            : glm::vec3(0.0f, 1.0f, 0.0f);
+
+        // Unlike the PCA case, there's no second/third eigenvector to reuse here - build an
+        // arbitrary orthonormal basis perpendicular to axis. Cross axis with world-Y unless axis
+        // is nearly parallel to Y itself (cross product degenerates near-zero there), in which
+        // case cross with world-X instead.
+        glm::vec3 fallback = (std::abs(axis.y) < 0.99f) ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+        planeX = glm::normalize(glm::cross(fallback, axis));
+        planeY = glm::cross(axis, planeX);
+    }
+
+    // Axial extent, measured along the TRUE axis rather than assuming world-Y's bounding-box range.
+    float minH = FLT_MAX, maxH = -FLT_MAX;
+    for (const auto& v : vertices)
+    {
+        float h = glm::dot(v.Position - centroid, axis);
+        minH = std::min(minH, h);
+        maxH = std::max(maxH, h);
+    }
+    float height = maxH - minH;
     if (height < 1e-6f) height = 1.0f; // Avoid division by zero
 
     // Step 1: Assign UVs based on cylindrical mapping
     for (auto& vertex : vertices)
     {
-        glm::vec3 localPos = vertex.Position - centroid;
+        glm::vec3 rel = vertex.Position - centroid;
+        float px = glm::dot(rel, planeX);
+        float py = glm::dot(rel, planeY);
+        float h = glm::dot(rel, axis);
 
         // Calculate angle with proper handling of edge cases
-        float angle = atan2(localPos.z, localPos.x);
+        float angle = atan2(py, px);
         angle += config.cylindricalSeamRotation; // rotate seam if needed
 
         // Normalize angle to [0, 2pi] range first
@@ -159,7 +279,7 @@ bool UVGenerator::generateCylindrical(
         while (angle >= 2.0f * M_PI) angle -= 2.0f * M_PI;
 
         float u = angle / (2.0f * M_PI); // map to [0,1]
-        float v = (vertex.Position.y - minBounds.y) / height;
+        float v = (h - minH) / height;
 
         // Apply user offset and scale
         u += config.cylindricalOffset;

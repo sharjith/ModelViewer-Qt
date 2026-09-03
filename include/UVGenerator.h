@@ -60,6 +60,14 @@ struct UVConfig
     bool seamlessSpherical = true;      // Handle spherical UV seams
     float cylindricalOffset = 0.0f;     // Offset for cylindrical wrapping
     float cylindricalSeamRotation = 0.0f; // radians
+
+    // Cylinder axis: auto-detected via PCA by default (the actual mesh axis, which need not be
+    // world-Y - see generateCylindrical()'s doc comment). Set cylindricalAutoDetectAxis to false
+    // to override with an explicit axis instead, for the rare case PCA misjudges it (e.g. a
+    // cylinder whose length is close to its diameter, or one with an attached feature - a handle,
+    // a flange - that skews the covariance away from the true axis).
+    bool cylindricalAutoDetectAxis = true;
+    glm::vec3 cylindricalAxis = glm::vec3(0.0f, 1.0f, 0.0f); // only used when the above is false
 	
     // Angle-based unwrapping parameters
     float angleThreshold = 60.0f;       // Angle threshold for seam detection (degrees)
