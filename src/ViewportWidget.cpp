@@ -4688,6 +4688,15 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 			std::cout << "Exception in ViewportWidget::generateUVs\n" << ex.what() << std::endl;
 		}
 	}
+	// Mirrors every other mesh-modifying operation's makeCurrent()/doneCurrent() pairing
+	// (ShrinkWrapDialog/SubdivisionDialog/ReconstructSurfaceDialog all do this) - this function
+	// called makeCurrent() at the top but never released it, and never triggered a repaint or
+	// display-list refresh afterward, so the new UVs/texture only became visible once something
+	// else (an orbit, a resize) happened to force a redraw.
+	doneCurrent();
+	updateView();
+	_viewer->updateDisplayList();
+
 	MainWindow::showStatusMessage("");
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();

@@ -1013,6 +1013,16 @@ bool UVGenerator::generateARAP(
     std::vector<UVIsland> islands;
     createUVIslands(triangles, seams, islands);
 
+    if (kARAPVerbose)
+    {
+        size_t singleTriIslands = 0;
+        for (const UVIsland& isl : islands)
+            if (isl.triangles.size() == 1)
+                ++singleTriIslands;
+        qDebug() << "[ARAP] " << triangles.size() << "triangles," << seams.size() << "seams ->"
+                 << islands.size() << "islands (" << singleTriIslands << "are single-triangle)";
+    }
+
     // Per-triangle-corner UVs, same convention as generateAngleBasedSmartUV()'s PCA path - lets
     // the flatten step below stay identical regardless of which per-island method (ARAP or the PCA
     // fallback) actually produced a given island's result.
@@ -1106,11 +1116,54 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
 
     // Guard: Ensure indices size is a multiple of 3
     if (indices.size() % 3 != 0)
-    {        
+    {
         std::cerr << "Warning: Indices size is not a multiple of 3. Ignoring incomplete triangle." << std::endl;
     }
 
     triangles.reserve(indices.size() / 3);
+
+    // Position-welded index per vertex, used only for topoIndices[3] (edge-adjacency/topology in
+    // findSeams()/createUVIslands()) - NOT for indices[3], which still addresses the real vertex
+    // array for position/normal/UV lookups. Needed because a mesh that already went through an
+    // exploding UV method (Smart Project/Angle-Based Smart UV/ARAP itself, all of which duplicate a
+    // vertex per triangle-corner with no shared indices at all) has zero shared vertex INDICES
+    // between adjacent triangles even though they still share the same 3D position - without this,
+    // seam/island detection sees every triangle as topologically isolated (confirmed real bug:
+    // running ARAP after Smart Project produced one degenerate 1-triangle "island" per triangle,
+    // instead of the real connected islands). Exact position equality (no epsilon) is sufficient and
+    // safe here specifically because vertex explosion only ever copies a Vertex struct verbatim -
+    // the duplicated positions are bit-for-bit identical to the original, never perturbed.
+    std::vector<unsigned int> weldedIndex(vertices.size());
+    {
+        struct Vec3Hash
+        {
+            std::size_t operator()(const glm::vec3& p) const
+            {
+                std::size_t h = std::hash<float>()(p.x);
+                h ^= std::hash<float>()(p.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<float>()(p.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                return h;
+            }
+        };
+        struct Vec3Equal
+        {
+            bool operator()(const glm::vec3& a, const glm::vec3& b) const
+            {
+                return a.x == b.x && a.y == b.y && a.z == b.z;
+            }
+        };
+        std::unordered_map<glm::vec3, unsigned int, Vec3Hash, Vec3Equal> firstIndexAtPosition;
+        firstIndexAtPosition.reserve(vertices.size());
+        for (size_t i = 0; i < vertices.size(); ++i)
+        {
+            const auto [it, inserted] = firstIndexAtPosition.try_emplace(
+                vertices[i].Position, static_cast<unsigned int>(i));
+            weldedIndex[i] = it->second;
+        }
+        if (kARAPVerbose)
+            qDebug() << "[ARAP] buildTriangleList: welded" << vertices.size() << "vertices down to"
+                     << firstIndexAtPosition.size() << "unique positions";
+    }
 
     for (size_t i = 0; i + 2 < indices.size(); i += 3) // Safe loop condition
     {
@@ -1128,6 +1181,10 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
             std::cerr << "Warning: Triangle index out of bounds. Skipping triangle." << std::endl;
             continue;
         }
+
+        tri.topoIndices[0] = weldedIndex[tri.indices[0]];
+        tri.topoIndices[1] = weldedIndex[tri.indices[1]];
+        tri.topoIndices[2] = weldedIndex[tri.indices[2]];
 
         const glm::vec3& v0 = vertices[tri.indices[0]].Position;
         const glm::vec3& v1 = vertices[tri.indices[1]].Position;
@@ -1150,14 +1207,16 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
         
     std::unordered_map<Edge, std::vector<uint32_t>> edgeToTriangles;
 
-    // 1. Build edge -> triangle adjacency
+    // 1. Build edge -> triangle adjacency. Keyed by topoIndices (position-welded), not indices -
+    // see MeshTriangle::topoIndices' doc comment for why: raw indices alone would see zero
+    // adjacency at all on a mesh a prior exploding UV method already ran on.
     for (uint32_t i = 0; i < triangles.size(); ++i)
     {
         const MeshTriangle& tri = triangles[i];
         for (int j = 0; j < 3; ++j)
         {
-            uint32_t a = tri.indices[j];
-            uint32_t b = tri.indices[(j + 1) % 3];
+            uint32_t a = tri.topoIndices[j];
+            uint32_t b = tri.topoIndices[(j + 1) % 3];
             edgeToTriangles[Edge(a, b)].push_back(i);
         }
     }
@@ -1193,16 +1252,17 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
     islands.clear();
     const size_t triangleCount = triangles.size();
 
-    // Build fast edge -> triangle adjacency       
+    // Build fast edge -> triangle adjacency. Keyed by topoIndices (position-welded), not indices -
+    // see MeshTriangle::topoIndices' doc comment for why.
 
     std::unordered_map<Edge, std::vector<uint32_t>> edgeMap;
 
     for (uint32_t i = 0; i < triangleCount; ++i)
     {
         const auto& tri = triangles[i];
-        edgeMap[Edge(tri.indices[0], tri.indices[1])].push_back(i);
-        edgeMap[Edge(tri.indices[1], tri.indices[2])].push_back(i);
-        edgeMap[Edge(tri.indices[2], tri.indices[0])].push_back(i);
+        edgeMap[Edge(tri.topoIndices[0], tri.topoIndices[1])].push_back(i);
+        edgeMap[Edge(tri.topoIndices[1], tri.topoIndices[2])].push_back(i);
+        edgeMap[Edge(tri.topoIndices[2], tri.topoIndices[0])].push_back(i);
     }
 
     // Build seam edge set for fast lookup
@@ -1213,15 +1273,15 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
         const auto& t1 = triangles[s.second];
         for (int i = 0; i < 3; ++i)
         {
-            uint32_t a = t0.indices[i];
-            uint32_t b = t0.indices[(i + 1) % 3];
+            uint32_t a = t0.topoIndices[i];
+            uint32_t b = t0.topoIndices[(i + 1) % 3];
             Edge e = Edge(a, b);
 
             // Check if edge exists in both triangles
             for (int j = 0; j < 3; ++j)
             {
-                uint32_t a1 = t1.indices[j];
-                uint32_t b1 = t1.indices[(j + 1) % 3];
+                uint32_t a1 = t1.topoIndices[j];
+                uint32_t b1 = t1.topoIndices[(j + 1) % 3];
                 if (Edge(a1, b1) == e)
                 {
                     seamEdges.emplace(e);
@@ -1252,7 +1312,7 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
             const auto& tri = triangles[tidx];
             for (int ei = 0; ei < 3; ++ei)
             {
-                Edge e = Edge(tri.indices[ei], tri.indices[(ei + 1) % 3]);
+                Edge e = Edge(tri.topoIndices[ei], tri.topoIndices[(ei + 1) % 3]);
                 if (seamEdges.count(e)) continue;
 
                 // Neighbors sharing this edge
@@ -1418,38 +1478,58 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
     if (island.triangles.empty())
         return false;
 
-    // Local soup built directly from this island's own triangles, deduplicating by ORIGINAL
-    // vertex index (origToLocal) - not repaired/reoriented (unlike every other CGAL soup-to-mesh
-    // conversion in this codebase). That's deliberate: repair_polygon_soup()/orient_polygon_soup()
-    // can duplicate/reorder points, which would break the direct "local point i == Mesh::Vertex_index(i)"
-    // correspondence this function relies on to map ARAP's per-vertex UV output back onto the
-    // right original vertex (confirmed by reading polygon_soup_to_polygon_mesh.h directly: it
-    // calls add_vertex() once per input point, in input order, with no dependency on repair/orient
-    // ever having run). is_polygon_soup_a_polygon_mesh() below is used purely as a REJECT gate
-    // instead - an island failing it (e.g. a non-manifold junction the existing dihedral-angle seam
-    // detection doesn't gate on, see findSeams()'s doc comment) just isn't attempted with ARAP,
-    // it falls back to unwrapIslandPCA() same as a topology failure below.
+    // Local soup built directly from this island's own triangles, deduplicating by POSITION-WELDED
+    // index (tri.topoIndices, not tri.indices) - not repaired/reoriented (unlike every other CGAL
+    // soup-to-mesh conversion in this codebase). That's deliberate: repair_polygon_soup()/
+    // orient_polygon_soup() can duplicate/reorder points, which would break the direct "local point i
+    // == Mesh::Vertex_index(i)" correspondence this function relies on to map ARAP's per-vertex UV
+    // output back onto the right original vertex (confirmed by reading polygon_soup_to_polygon_mesh.h
+    // directly: it calls add_vertex() once per input point, in input order, with no dependency on
+    // repair/orient ever having run).
+    //
+    // Keying by tri.indices[i] (the RAW per-corner index) instead of topoIndices would silently
+    // build a disconnected soup - not just a wrong-but-plausible one - whenever the input mesh was
+    // already vertex-exploded by a prior UV pass (Smart Project/Angle-Based Smart UV/a previous ARAP
+    // run all duplicate 3 unique vertices per triangle-corner, see buildTriangleList()'s doc comment):
+    // adjacent triangles in the SAME island never repeat a raw index even though they share a
+    // position, so every triangle would contribute 3 brand-new points and the local Surface_mesh
+    // would end up as N disconnected 1-triangle components instead of one connected topological
+    // disk - is_polygon_soup_a_polygon_mesh() below still accepts that (disjoint triangles are a
+    // valid, just disconnected, polygon soup), and parameterize() would then run over a mesh that
+    // isn't actually the disk it looks like, producing garbage rather than a clean failure. Welding
+    // by topoIndices (already computed in buildTriangleList() for exactly this reason) keeps the
+    // local mesh's connectivity faithful to the island's real 3D topology regardless of how the
+    // input vertices happen to be indexed.
+    //
+    // is_polygon_soup_a_polygon_mesh() below is used purely as a REJECT gate - an island failing it
+    // (e.g. a non-manifold junction the existing dihedral-angle seam detection doesn't gate on, see
+    // findSeams()'s doc comment) just isn't attempted with ARAP, it falls back to unwrapIslandPCA()
+    // same as a topology failure below.
     std::vector<Point_3> points;
     std::vector<std::array<std::size_t, 3>> faces;
-    std::unordered_map<unsigned int, std::size_t> origToLocal;
+    std::unordered_map<unsigned int, std::size_t> weldedToLocal;
     points.reserve(island.triangles.size());
     faces.reserve(island.triangles.size());
 
-    auto localIndex = [&](unsigned int origIdx) -> std::size_t {
-        auto it = origToLocal.find(origIdx);
-        if (it != origToLocal.end())
+    auto localIndex = [&](unsigned int origIdx, unsigned int weldedIdx) -> std::size_t {
+        auto it = weldedToLocal.find(weldedIdx);
+        if (it != weldedToLocal.end())
             return it->second;
         const std::size_t newIdx = points.size();
         const glm::vec3& p = vertices[origIdx].Position;
         points.emplace_back(p.x, p.y, p.z);
-        origToLocal.emplace(origIdx, newIdx);
+        weldedToLocal.emplace(weldedIdx, newIdx);
         return newIdx;
     };
 
     for (unsigned int triIdx : island.triangles)
     {
         const MeshTriangle& tri = triangles[triIdx];
-        faces.push_back({ localIndex(tri.indices[0]), localIndex(tri.indices[1]), localIndex(tri.indices[2]) });
+        faces.push_back({
+            localIndex(tri.indices[0], tri.topoIndices[0]),
+            localIndex(tri.indices[1], tri.topoIndices[1]),
+            localIndex(tri.indices[2], tri.topoIndices[2])
+        });
     }
 
     if (kARAPVerbose)
@@ -1528,7 +1608,7 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
         std::array<glm::vec2, 3> uvSet;
         for (int i = 0; i < 3; ++i)
         {
-            const Mesh::Vertex_index v(origToLocal[tri.indices[i]]);
+            const Mesh::Vertex_index v(weldedToLocal[tri.topoIndices[i]]);
             const Kernel::Point_2& uv = uvmap[v];
             uvSet[i] = glm::vec2(static_cast<float>(CGAL::to_double(uv.x())),
                                  static_cast<float>(CGAL::to_double(uv.y())));

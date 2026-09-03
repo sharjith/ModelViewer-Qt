@@ -86,6 +86,12 @@ struct UVConfig
 struct MeshTriangle
 {
     unsigned int indices[3];
+
+    // Position-welded counterpart of indices[3], used ONLY for edge-adjacency/topology purposes
+    // (findSeams()/createUVIslands()'s edge maps) - see buildTriangleList()'s doc comment for why
+    // this exists separately from indices[3] rather than just using it directly.
+    unsigned int topoIndices[3];
+
     glm::vec3 normal;
     float area;
     bool visited;
