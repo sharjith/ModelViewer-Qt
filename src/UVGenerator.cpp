@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <queue>
 #include <utility>
@@ -13,6 +14,11 @@
 // actually got a real ARAP unfold vs. fell back to unwrapIslandPCA (and
 // why). Remove once ARAP's real behavior is confirmed.
 constexpr bool kARAPVerbose = false;
+
+// Temporary diagnostic for the spherical UV pole/seam artifact - flip to true, rebuild, run
+// Generate UVs with Spherical selected, and check the log for per-triangle pole/seam data.
+// Remove once the pole/seam distortion is confirmed fixed.
+constexpr bool kSphericalVerbose = false;
 
 // See generateARAP()'s doc comment (UVGenerator.h) for why these - CGAL's
 // Surface_mesh_parameterization::ARAP_parameterizer_3 provides a real
@@ -247,7 +253,30 @@ bool UVGenerator::generateSpherical(
         return false;
 
     glm::vec3 centroid = calculateCentroid(vertices);
-    const float poleThreshold = 0.98f;
+
+    if (kSphericalVerbose)
+    {
+        float minDist = FLT_MAX, maxDist = -FLT_MAX;
+        int nearZero = 0;
+        for (const auto& v : vertices)
+        {
+            float d = glm::length(v.Position - centroid);
+            minDist = std::min(minDist, d);
+            maxDist = std::max(maxDist, d);
+            if (d < 1e-4f) ++nearZero;
+        }
+        qDebug() << "[Spherical] centroid=(" << centroid.x << centroid.y << centroid.z
+                  << ") vertexCount=" << vertices.size()
+                  << " distFromCentroid min=" << minDist << "max=" << maxDist
+                  << " nearZeroDist(<1e-4)=" << nearZero;
+    }
+
+    // Only the numerically-degenerate apex itself (where x/z underflow to ~0 and atan2's result
+    // is effectively noise) needs special handling - NOT a whole latitude band. 0.98 (~11 degrees
+    // from the pole) was catching an entire cap of ordinary, well-defined-longitude vertices and
+    // snapping each one to whatever its neighboring triangle happened to average to, tearing the
+    // checker pattern into wedges near the pole instead of just resolving the one true singularity.
+    const float poleThreshold = 0.9999f;
     float longitudeOffset = config.sphericalUVRotation;
 
     // Helper function to calculate spherical coordinates
@@ -331,35 +360,40 @@ bool UVGenerator::generateSpherical(
         return false;
         };
 
-    // Helper function to fix seam crossing with adaptive approach
-    auto fixSeamCrossing = [&](std::array<glm::vec2, 3>& uvs,
-        const std::array<glm::vec3, 3>& worldPos) {
-            // Calculate triangle center in world space
-            glm::vec3 triCenter = (worldPos[0] + worldPos[1] + worldPos[2]) / 3.0f;
-            glm::vec3 localTriCenter = glm::normalize(triCenter - centroid);
+    // Circular mean of a set of U coordinates (points on the circle) - correctly handles
+    // wraparound via vector averaging, for ANY spread of input values, unlike comparing each one
+    // against a single fixed reference with a hardcoded +-1 nudge (see fixSeamCrossing's old
+    // implementation, replaced below): that left any vertex within 0.5 of the reference untouched
+    // even when it was still far from its OWN triangle-mates - e.g. corners at U={0.1,0.4,0.9}
+    // only ever got 0.1 and 0.9 pulled together, stranding 0.4. That's exactly the shape of a
+    // wide-longitude-span triangle common right next to a pole, where a physically compact
+    // triangle can span a large fraction of the full circle.
+    auto circularMeanU = [](std::initializer_list<float> us) -> float {
+        float sx = 0.0f, sy = 0.0f;
+        for (float u : us)
+        {
+            float ang = u * 2.0f * static_cast<float>(M_PI);
+            sx += std::cos(ang);
+            sy += std::sin(ang);
+        }
+        float meanAngle = std::atan2(sy, sx);
+        return meanAngle / (2.0f * static_cast<float>(M_PI));
+        };
 
-            // Determine which side of seam the triangle center is on
-            float centerLongitude = atan2(localTriCenter.z, localTriCenter.x);
-            centerLongitude += longitudeOffset;
-            while (centerLongitude < 0.0f) centerLongitude += 2.0f * M_PI;
-            while (centerLongitude >= 2.0f * M_PI) centerLongitude -= 2.0f * M_PI;
+    // Re-expresses u as meanU plus whichever integer-shifted copy of u (..., u-1, u, u+1, ...)
+    // sits closest to meanU, rather than only ever nudging by a hardcoded +-1.
+    auto unwrapTowardU = [](float u, float meanU) -> float {
+        float delta = u - meanU;
+        while (delta > 0.5f) delta -= 1.0f;
+        while (delta <= -0.5f) delta += 1.0f;
+        return meanU + delta;
+        };
 
-            float centerU = centerLongitude / (2.0f * M_PI);
-
-            // Adjust vertices to be on the same side as the triangle center
+    // Helper function to fix seam crossing: unwrap all 3 corners toward their own circular mean.
+    auto fixSeamCrossing = [&](std::array<glm::vec2, 3>& uvs) {
+            const float meanU = circularMeanU({ uvs[0].x, uvs[1].x, uvs[2].x });
             for (int i = 0; i < 3; ++i)
-            {
-                float uDiff = uvs[i].x - centerU;
-
-                if (uDiff > 0.5f)
-                {
-                    uvs[i].x -= 1.0f;
-                }
-                else if (uDiff < -0.5f)
-                {
-                    uvs[i].x += 1.0f;
-                }
-            }
+                uvs[i].x = unwrapTowardU(uvs[i].x, meanU);
         };
 
     // Helper function to handle pole triangles
@@ -379,23 +413,18 @@ bool UVGenerator::generateSpherical(
 
             if (poleVertices == 1)
             {
-                // Single pole vertex - interpolate U from other vertices
-                float avgU = 0.0f;
-                int nonPoleCount = 0;
-
-                for (int i = 0; i < 3; ++i)
-                {
-                    if (i != poleIndex)
-                    {
-                        avgU += uvs[i].x;
-                        nonPoleCount++;
-                    }
-                }
-
-                if (nonPoleCount > 0)
-                {
-                    uvs[poleIndex].x = avgU / nonPoleCount;
-                }
+                // Single pole vertex - interpolate U from the other two vertices' circular mean
+                // (same primitive fixSeamCrossing uses). This function used to skip seam-crossing
+                // correction entirely for any pole triangle, so a pole triangle whose two real
+                // vertices straddled U=0/U=1 (very common right next to the seam, since every
+                // longitude converges at the pole) got averaged straight across the seam - e.g.
+                // ~0.02 and ~0.98 blending to ~0.5 - tearing the pole into a fan of wedges.
+                int a = (poleIndex + 1) % 3;
+                int b = (poleIndex + 2) % 3;
+                const float meanU = circularMeanU({ uvs[a].x, uvs[b].x });
+                uvs[a].x = unwrapTowardU(uvs[a].x, meanU);
+                uvs[b].x = unwrapTowardU(uvs[b].x, meanU);
+                uvs[poleIndex].x = meanU;
 
                 // Adjust V coordinate slightly to avoid exact pole
                 if (localPos[poleIndex].y > 0)
@@ -434,14 +463,61 @@ bool UVGenerator::generateSpherical(
                 uvs[j] = calculateSphericalUV(localPos[j]);
             }
 
+            std::array<glm::vec2, 3> uvsRaw = uvs;
+
             // Handle pole triangles first
             bool isPoleTriangle = handlePoleTriangle(uvs, localPos);
 
             // Handle seam crossing if not a pole triangle
+            bool didSeamFix = false;
             if (!isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
             {
-                fixSeamCrossing(uvs, { triVertices[0].Position, triVertices[1].Position, triVertices[2].Position });
+                fixSeamCrossing(uvs);
+                didSeamFix = true;
             }
+
+            if (kSphericalVerbose && (isPoleTriangle || didSeamFix))
+            {
+                float minEdge = std::min({
+                    glm::length(triVertices[0].Position - triVertices[1].Position),
+                    glm::length(triVertices[1].Position - triVertices[2].Position),
+                    glm::length(triVertices[2].Position - triVertices[0].Position) });
+                qDebug() << "[Spherical] tri" << (i / 3)
+                         << (isPoleTriangle ? "POLE" : "SEAM")
+                         << "minEdgeLen=" << minEdge
+                         << "rawU=(" << uvsRaw[0].x << uvsRaw[1].x << uvsRaw[2].x << ")"
+                         << "rawV=(" << uvsRaw[0].y << uvsRaw[1].y << uvsRaw[2].y << ")"
+                         << "fixedU=(" << uvs[0].x << uvs[1].x << uvs[2].x << ")"
+                         << "fixedV=(" << uvs[0].y << uvs[1].y << uvs[2].y << ")"
+                         << "localPosY=(" << localPos[0].y << localPos[1].y << localPos[2].y << ")";
+            }
+
+            // Apply a SINGLE per-triangle U shift, not three independent per-vertex wraps.
+            // handlePoleTriangle()/fixSeamCrossing() above align this triangle's 3 UV values with
+            // each other by design pushing one or two of them outside [0,1] (that's the whole
+            // mechanism they use to resolve a seam crossing - e.g. a pole vertex landing at U=1.00
+            // while its two triangle-mates sit at 1.02 and 0.98, all mutually consistent). Wrapping
+            // each vertex back into [0,1] independently (the old per-vertex while-loops) silently
+            // undid that alignment for whichever vertex happened to land outside the range - 1.02
+            // reverts to 0.02 - while leaving its triangle-mates at 1.00/0.98 untouched,
+            // reintroducing the very seam-split within one triangle that was just fixed (rendered as
+            // UVs spanning almost the full texture width - a fan of thin stripes).
+            //
+            // The shift must be derived from the trio's AVERAGE, not from a single arbitrary corner
+            // (uvs[0], "whichever vertex this triangle happens to list first" - unrelated to
+            // neighboring triangles' vertex order): two physically-adjacent triangles straddling the
+            // seam can both have their circular-mean-aligned trios centered near the SAME true
+            // longitude (e.g. both near U=-0.02) yet, purely by chance of index order, have
+            // DIFFERENT signs in their own "corner 0" (-0.05 for one, +0.02 for the other) - a
+            // single-corner floor() then sends one triangle to the ~1.0 range and leaves the other at
+            // ~0.0, a full UV unit apart, even though both are internally consistent and represent
+            // the same physical seam location. That produced a regular zigzag of alternating
+            // "individually fine but mutually misplaced" triangles right along the seam (confirmed
+            // via a fresh finely-tessellated test sphere: pole distortion was gone, but this
+            // misplacement pattern persisted unchanged). The average is symmetric under reordering,
+            // so both triangles land on the same integer shift regardless of which corner is which.
+            const float triAvgU = (uvs[0].x + uvs[1].x + uvs[2].x) / 3.0f;
+            const float triShift = -std::floor(triAvgU);
 
             // Create final vertices with corrected UVs
             std::array<unsigned int, 3> newTriIndices;
@@ -449,10 +525,7 @@ bool UVGenerator::generateSpherical(
             {
                 Vertex newVertex = triVertices[j];
                 glm::vec2 finalUV = uvs[j];
-
-                // Wrap U coordinates back to [0,1] range
-                while (finalUV.x < 0.0f) finalUV.x += 1.0f;
-                while (finalUV.x > 1.0f) finalUV.x -= 1.0f;
+                finalUV.x += triShift;
                 finalUV.y = glm::clamp(finalUV.y, 0.0f, 1.0f);
 
                 newVertex.TexCoords[0] = glm::vec2(finalUV.x * config.sphericalScale,
@@ -501,9 +574,7 @@ bool UVGenerator::generateSpherical(
             // Handle seam crossing if not a pole triangle
             if (!isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
             {
-                fixSeamCrossing(uvs, { vertices[triIndices[0]].Position,
-                                    vertices[triIndices[1]].Position,
-                                    vertices[triIndices[2]].Position });
+                fixSeamCrossing(uvs);
             }
 
             // Store corrected UVs (may overwrite previous values, but that's expected)
