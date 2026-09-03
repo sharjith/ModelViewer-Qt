@@ -74,6 +74,13 @@ struct UVConfig
     // face-normal similarity, independent of mesh connectivity/seams.
     float smartProjectAngleLimit = 66.0f;  // Degrees; lower = more projection groups, higher = less distortion
     float smartProjectAreaWeight = 0.0f;   // 0..1; weights cluster-normal averaging by face area
+
+    // ARAP (CGAL as-rigid-as-possible parameterization): reuses angleThreshold (seam detection,
+    // same as Angle-Based) and seamPadding/enablePacking (packing, same as every island-based
+    // method) - this is ARAP's own regularization weight, balancing the as-rigid-as-possible energy
+    // term against the free-boundary solve. CGAL's own default is on this order of magnitude;
+    // higher values bias toward preserving the boundary shape, lower toward local rigidity.
+    float arapLambda = 1000.0f;
 };
 
 struct MeshTriangle
@@ -151,6 +158,19 @@ public:
         const UVConfig& config = UVConfig{},
         std::vector<unsigned int>* sourceVertexMap = nullptr);
 
+    // Method 8: ARAP (As-Rigid-As-Possible parameterization, CGAL
+    // Surface_mesh_parameterization). Reuses the same seam/island detection as
+    // generateAngleBased() (buildTriangleList/findSeams/createUVIslands), but replaces
+    // unwrapIsland()'s flat orthogonal projection with a real distortion-minimizing unfold per
+    // island. Falls back to unwrapIslandPCA() for any island CGAL can't parameterize (no border -
+    // not a topological disk - or a numerical failure, both reported as a graceful CGAL Error_code
+    // rather than a crash) - see the .cpp for why that fallback is safe and how it's detected.
+    static bool generateARAP(
+        std::vector<Vertex>& vertices,
+        std::vector<unsigned int>& indices,
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
+
 private:
     // Helper methods for angle-based unwrapping
     static void buildTriangleList(const std::vector<Vertex>& vertices,
@@ -181,6 +201,18 @@ private:
         const UVIsland& island,
         std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs,
         bool normalizeUVs = true);
+
+    // Attempts a real CGAL ARAP unfold of one island, writing per-triangle-corner UVs into
+    // triangleUVs on success (same map/shape unwrapIslandPCA() writes into, so generateARAP()'s
+    // caller-side flatten step doesn't need to know which one actually produced a given island's
+    // result). Returns false - leaving triangleUVs untouched for this island's triangles - if the
+    // island has no border (not a topological disk) or CGAL's parameterize() reports any other
+    // Error_code; the caller falls back to unwrapIslandPCA() in that case.
+    static bool tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
+        const std::vector<MeshTriangle>& triangles,
+        const UVIsland& island,
+        const UVConfig& config,
+        std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs);
 
     static void relaxUVs(
         const std::vector<MeshTriangle>& triangles,

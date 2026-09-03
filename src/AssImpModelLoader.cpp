@@ -2100,6 +2100,9 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 	case UVMethod::SmartProject:
 		UVGenerator::generateSmartProject(vertices, indices, config, &sourceVertexMap);
 		break;
+	case UVMethod::ARAP:
+		UVGenerator::generateARAP(vertices, indices, config, &sourceVertexMap);
+		break;
 	case UVMethod::None: // fall through
 	default:
 		break; // skip UV generation

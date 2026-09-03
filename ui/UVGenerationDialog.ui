@@ -63,6 +63,11 @@
           <string>Smart Project (Blender-style)</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>ARAP (As-Rigid-As-Possible)</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>
@@ -673,6 +678,125 @@
            </item>
            <item row="3" column="1">
             <widget class="QCheckBox" name="checkBox_FlipV_SmartProject">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_ARAP">
+          <layout class="QFormLayout" name="formLayout_ARAP">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleThreshold_ARAP">
+             <property name="text">
+              <string>Seam Angle Threshold:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_ARAP">
+             <property name="toolTip">
+              <string>Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>179.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>60.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_Rigidity_ARAP">
+             <property name="text">
+              <string>Rigidity:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_Rigidity_ARAP">
+             <property name="toolTip">
+              <string>Balances local shape preservation against the free-boundary solve. Higher biases toward preserving the boundary shape; lower toward local rigidity.</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>1000000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1000.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_SeamPadding_ARAP">
+             <property name="text">
+              <string>Seam Padding:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SeamPadding_ARAP">
+             <property name="toolTip">
+              <string>Padding around packed UV islands</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>0.500000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.020000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_EnablePacking_ARAP">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking_ARAP">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_FlipV_ARAP">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_ARAP">
              <property name="text">
               <string/>
              </property>

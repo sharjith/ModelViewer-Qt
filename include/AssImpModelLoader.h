@@ -72,7 +72,8 @@ enum class UVMethod
 	AngleBased,
 	Hybrid,
 	AngleBasedSmartUV,
-	SmartProject
+	SmartProject,
+	ARAP
 };
 
 enum class SceneUpAxis

@@ -74,7 +74,7 @@ void UVGenerationDialog::onRelaxationToggled_Smart(bool enabled)
 void UVGenerationDialog::updateOptionsPage(int methodIndex)
 {
     // Map combo box index to stacked widget page
-    // 0: Planar, 1: Cylindrical, 2: Spherical, 3: AngleBased, 4: Hybrid, 5: SmartUV, 6: SmartProject
+    // 0: Planar, 1: Cylindrical, 2: Spherical, 3: AngleBased, 4: Hybrid, 5: SmartUV, 6: SmartProject, 7: ARAP
     ui->stackedWidget_Options->setCurrentIndex(methodIndex);
 }
 
@@ -166,6 +166,9 @@ void UVGenerationDialog::loadLastUsedSettings()
     config.smartProjectAngleLimit = settings.value("smartProjectAngleLimit", 66.0f).toFloat();
     config.smartProjectAreaWeight = settings.value("smartProjectAreaWeight", 0.0f).toFloat();
 
+    // ARAP
+    config.arapLambda = settings.value("arapLambda", 1000.0f).toFloat();
+
     settings.endGroup();
 
     // Apply config to UI
@@ -218,6 +221,9 @@ void UVGenerationDialog::saveLastUsedSettings()
     settings.setValue("smartProjectAngleLimit", config.smartProjectAngleLimit);
     settings.setValue("smartProjectAreaWeight", config.smartProjectAreaWeight);
 
+    // ARAP
+    settings.setValue("arapLambda", config.arapLambda);
+
     settings.endGroup();
 }
 
@@ -235,6 +241,7 @@ UVMethod UVGenerationDialog::getSelectedMethod() const
     case 4: return UVMethod::Hybrid;
     case 5: return UVMethod::AngleBasedSmartUV;
     case 6: return UVMethod::SmartProject;
+    case 7: return UVMethod::ARAP;
     default: return UVMethod::Planar;
     }
 }
@@ -301,6 +308,14 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.flipV = ui->checkBox_FlipV_SmartProject->isChecked();
         break;
 
+    case UVMethod::ARAP:
+        config.angleThreshold = ui->spinBox_AngleThreshold_ARAP->value();
+        config.arapLambda = ui->spinBox_Rigidity_ARAP->value();
+        config.seamPadding = ui->spinBox_SeamPadding_ARAP->value();
+        config.enablePacking = ui->checkBox_EnablePacking_ARAP->isChecked();
+        config.flipV = ui->checkBox_FlipV_ARAP->isChecked();
+        break;
+
     default:
         break;
     }
@@ -321,6 +336,7 @@ void UVGenerationDialog::setMethod(UVMethod method)
     case UVMethod::Hybrid: index = 4; break;
     case UVMethod::AngleBasedSmartUV: index = 5; break;
     case UVMethod::SmartProject: index = 6; break;
+    case UVMethod::ARAP: index = 7; break;
     default: index = 0; break;
     }
 
@@ -367,6 +383,13 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->checkBox_EnablePacking_SmartProject->setChecked(config.enablePacking);
     ui->checkBox_FlipV_SmartProject->setChecked(config.flipV);
 
+    // Set ARAP values
+    ui->spinBox_AngleThreshold_ARAP->setValue(config.angleThreshold);
+    ui->spinBox_Rigidity_ARAP->setValue(config.arapLambda);
+    ui->spinBox_SeamPadding_ARAP->setValue(config.seamPadding);
+    ui->checkBox_EnablePacking_ARAP->setChecked(config.enablePacking);
+    ui->checkBox_FlipV_ARAP->setChecked(config.flipV);
+
     // Update enabled states
     ui->spinBox_RelaxationIterations->setEnabled(config.enableRelaxation);
     ui->spinBox_RelaxationIterations_Smart->setEnabled(config.enableRelaxation);
@@ -383,6 +406,7 @@ QString UVGenerationDialog::getMethodName(UVMethod method) const
 	case UVMethod::Hybrid: return "Hybrid";
 	case UVMethod::AngleBasedSmartUV: return "Smart UV";
 	case UVMethod::SmartProject: return "Smart Project (Blender-style)";
+	case UVMethod::ARAP: return "ARAP (As-Rigid-As-Possible)";
 	default: return "Unknown";
 	}
 }
