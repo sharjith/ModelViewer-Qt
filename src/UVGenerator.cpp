@@ -294,7 +294,7 @@ bool UVGenerator::generateCylindrical(
     }
 
     // Step 2: Handle seam-crossing triangles by duplicating vertices
-    if (config.seamlessSpherical) // Note: This should probably be renamed to seamlessCylindrical
+    if (config.seamlessCylindrical)
     {
         const size_t triangleCount = indices.size() / 3;
         std::vector<unsigned int> newIndices;
@@ -662,9 +662,14 @@ bool UVGenerator::generateSpherical(
             // Handle pole triangles first
             bool isPoleTriangle = handlePoleTriangle(uvs, localPos);
 
-            // Handle seam crossing if not a pole triangle
+            // Handle seam crossing if not a pole triangle. Gated on seamlessSpherical so
+            // unchecking it actually disables the repair (matching generateCylindrical()/
+            // generateTorus()'s "Seamless" checkbox) instead of only relocating an always-on
+            // fix - previously this ran unconditionally and the checkbox only changed
+            // optimalSeamLongitude above, so toggling it had no visible effect on a symmetric
+            // test mesh. Pole handling stays unconditional - that's duplicatePoleVertices's job.
             bool didSeamFix = false;
-            if (!isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
+            if (config.seamlessSpherical && !isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
             {
                 fixSeamCrossing(uvs);
                 didSeamFix = true;
@@ -765,8 +770,9 @@ bool UVGenerator::generateSpherical(
             // Handle pole triangles
             bool isPoleTriangle = handlePoleTriangle(uvs, localPos);
 
-            // Handle seam crossing if not a pole triangle
-            if (!isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
+            // Handle seam crossing if not a pole triangle (see the identical comment on the
+            // duplicatePoleVertices==true branch above for why this is gated on seamlessSpherical)
+            if (config.seamlessSpherical && !isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
             {
                 fixSeamCrossing(uvs);
             }
@@ -2458,8 +2464,16 @@ void UVGenerator::applyUVTransforms(glm::vec2& uv, const UVConfig& config)
         uv.y = 1.0f - uv.y;
     }
 
-    // Ensure UVs are in [0,1] range
-    uv = glm::clamp(uv, 0.0f, 1.0f);
+    // Deliberately NOT clamped to [0,1]: a per-method Scale > 1 is meant to
+    // tile the texture (more repeats across the surface), and Scale < 1 is
+    // meant to tile more densely - both rely on values landing outside
+    // [0,1] and wrapping via the texture's GL_REPEAT sampler (the default
+    // wrap mode - see Material.cpp), the same way the spherical/torus
+    // seam-continuity fix already relies on small out-of-range excursions
+    // wrapping correctly. Clamping here silently flattened Scale>1 into a
+    // clipped/smeared patch instead of repeating it. A texture explicitly
+    // set to clamp-to-edge wrap mode clamps identically at the GPU sampler
+    // either way, so leaving this unclamped costs nothing in that case.
 }
 
 // Utility methods

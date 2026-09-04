@@ -116,6 +116,16 @@
         </item>
        </widget>
       </item>
+      <item>
+       <widget class="QPushButton" name="resetDefaultsButton">
+        <property name="toolTip">
+         <string>Reset every method's settings back to their default values (does not change the currently selected method or the mesh list)</string>
+        </property>
+        <property name="text">
+         <string>Reset to Defaults</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
@@ -272,27 +282,47 @@
             </widget>
            </item>
            <item row="3" column="0">
+            <widget class="QLabel" name="label_SeamlessCylindrical">
+             <property name="text">
+              <string>Seamless:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_SeamlessCylindrical">
+             <property name="toolTip">
+              <string>Wrap U continuously to avoid a visible seam</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
             <widget class="QLabel" name="label_FlipV_Cyl">
              <property name="text">
               <string>Flip V:</string>
              </property>
             </widget>
            </item>
-           <item row="3" column="1">
+           <item row="4" column="1">
             <widget class="QCheckBox" name="checkBox_FlipV_Cyl">
              <property name="text">
               <string/>
              </property>
             </widget>
            </item>
-           <item row="4" column="0">
+           <item row="5" column="0">
             <widget class="QLabel" name="label_CylAutoDetectAxis">
              <property name="text">
               <string>Auto-detect Axis (PCA):</string>
              </property>
             </widget>
            </item>
-           <item row="4" column="1">
+           <item row="5" column="1">
             <widget class="QCheckBox" name="checkBox_CylAutoDetectAxis">
              <property name="toolTip">
               <string>Detect the cylinder's axis automatically from its geometry. Uncheck to enter the axis manually below.</string>
@@ -305,7 +335,7 @@
              </property>
             </widget>
            </item>
-           <item row="5" column="0" colspan="2">
+           <item row="6" column="0" colspan="2">
             <widget class="QGroupBox" name="groupBox_CylAxis">
              <property name="enabled">
               <bool>false</bool>

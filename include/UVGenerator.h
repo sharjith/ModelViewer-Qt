@@ -58,6 +58,7 @@ struct UVConfig
     glm::vec2 planarScale = glm::vec2(1.0f);  // Scale factor for planar UV
     bool flipV = false;                 // Flip V coordinate
     bool seamlessSpherical = true;      // Handle spherical UV seams
+    bool seamlessCylindrical = true;    // Handle cylindrical UV seam (own field - see generateCylindrical())
     float cylindricalOffset = 0.0f;     // Offset for cylindrical wrapping
     float cylindricalSeamRotation = 0.0f; // radians
 
@@ -86,8 +87,6 @@ struct UVConfig
     glm::vec3 torusAxis = glm::vec3(0.0f, 1.0f, 0.0f); // only used when the above is false
     float torusScale = 1.0f;            // Scale factor for both torus UV axes
     float torusSeamRotation = 0.0f;     // radians; rotates the major (theta/U) seam
-    // Own field rather than reusing seamlessSpherical a third time (that field already carries a
-    // "should probably be renamed" wart from being reused by generateCylindrical()).
     bool seamlessTorus = true;          // Handle torus UV seams (both U and V are periodic)
     // Manual V-axis multiplier: a thin-tube torus (r << R, the common case - donuts, tires, pipe
     // elbows) naively maps both a ~2*pi*R and a ~2*pi*r sweep to the same [0,1] range, visibly

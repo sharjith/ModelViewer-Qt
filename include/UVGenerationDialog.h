@@ -79,6 +79,7 @@ private slots:
     void onRemoveSelectedClicked();
     void onListSelectionChanged();
     void onGenerateClicked();
+    void onResetDefaultsClicked();
 
 
 private:

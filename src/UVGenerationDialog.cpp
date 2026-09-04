@@ -46,6 +46,7 @@ UVGenerationDialog::UVGenerationDialog(ModelViewer* modelViewer, QWidget* parent
     connect(ui->removeSelectedButton, &QPushButton::clicked, this, &UVGenerationDialog::onRemoveSelectedClicked);
     connect(ui->generateButton, &QPushButton::clicked, this, &UVGenerationDialog::onGenerateClicked);
     connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &UVGenerationDialog::onListSelectionChanged);
+    connect(ui->resetDefaultsButton, &QPushButton::clicked, this, &UVGenerationDialog::onResetDefaultsClicked);
 
     // Set initial page to Planar (index 0)
     ui->stackedWidget_Options->setCurrentIndex(0);
@@ -214,6 +215,7 @@ void UVGenerationDialog::loadLastUsedSettings()
         settings.value("cylindricalAxisY", 1.0f).toFloat(),
         settings.value("cylindricalAxisZ", 0.0f).toFloat()
     );
+    config.seamlessCylindrical = settings.value("seamlessCylindrical", true).toBool();
 
     // Planar
     config.planarScale.x = settings.value("planarScaleX", 1.0f).toFloat();
@@ -289,6 +291,7 @@ void UVGenerationDialog::saveLastUsedSettings()
     settings.setValue("cylindricalAxisX", config.cylindricalAxis.x);
     settings.setValue("cylindricalAxisY", config.cylindricalAxis.y);
     settings.setValue("cylindricalAxisZ", config.cylindricalAxis.z);
+    settings.setValue("seamlessCylindrical", config.seamlessCylindrical);
 
     // Planar
     settings.setValue("planarScaleX", config.planarScale.x);
@@ -374,6 +377,7 @@ UVConfig UVGenerationDialog::getUVConfig() const
             ui->spinBox_CylAxisY->value(),
             ui->spinBox_CylAxisZ->value()
         );
+        config.seamlessCylindrical = ui->checkBox_SeamlessCylindrical->isChecked();
         config.flipV = ui->checkBox_FlipV_Cyl->isChecked();
         break;
 
@@ -492,6 +496,7 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     // config with the checkbox already in the right state would otherwise leave the axis group
     // box's enabled state stale relative to it. Set it explicitly instead of relying on the signal.
     ui->groupBox_CylAxis->setEnabled(!config.cylindricalAutoDetectAxis);
+    ui->checkBox_SeamlessCylindrical->setChecked(config.seamlessCylindrical);
     ui->checkBox_FlipV_Cyl->setChecked(config.flipV);
 
     // Set Spherical values
@@ -620,6 +625,16 @@ void UVGenerationDialog::onRemoveSelectedClicked()
 void UVGenerationDialog::onListSelectionChanged()
 {
     ui->removeSelectedButton->setEnabled(!ui->meshList->selectedItems().isEmpty());
+}
+
+void UVGenerationDialog::onResetDefaultsClicked()
+{
+    // Resets every method's settings back to UVConfig's own struct defaults - setConfig() writes
+    // every page's widgets in one call, so this affects all 9 methods at once, not just whichever
+    // page is currently visible. Deliberately leaves the method combo box and the mesh working
+    // list untouched - "reset settings" shouldn't also change what's selected/targeted.
+    setConfig(UVConfig{});
+    ui->statusLabel->setText(tr("All methods reset to default settings."));
 }
 
 void UVGenerationDialog::updateGenerateButtonEnabled()
