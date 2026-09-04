@@ -3636,31 +3636,47 @@ void ModelViewer::deleteSelectedItems()
 }
 
 #include "UVGenerationDialog.h"
-void ModelViewer::generateUVsForSelectedItems()
+void ModelViewer::openUVGenerationDialog()
 {
-	std::vector<int> selected = getSelectedIDs();
-	if (selected.size() != 0)
+	UVGenerationDialog* dialog = findChild<UVGenerationDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
 	{
-		QString error;
-		UVGenerationDialog dialog(this);
-		if (dialog.exec() == QDialog::Accepted)
-		{
-			// User clicked OK - get the selected method and config
-			UVMethod method = dialog.getSelectedMethod();
-			UVConfig config = dialog.getUVConfig();
-
-			bool success = _viewportWidget->generateUVsForMeshes(selected, method, config, error);
-			if (success)
-			{
-				MainWindow::showStatusMessage(QString("UVs generated using %1 method")
-					.arg(dialog.getMethodName(method)));
-			}
-			else
-			{
-				QMessageBox::critical(this, "Error", "Failed to generate UVs.\n" + error);
-			}
-		}
+		dialog = new UVGenerationDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
+	// Whatever's already tree-selected when the menu is clicked goes
+	// straight into the working list - same effect whether this is a fresh
+	// dialog or the menu was clicked again while it was already open with a
+	// new tree selection made since. Mirrors openShrinkWrapDialog() exactly.
+	dialog->addCurrentTreeSelection();
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::commitUVGeneration(QVector<QUndoCommand*> commands, const QString& methodName)
+{
+	if (!_undoStack || commands.isEmpty())
+	{
+		qDeleteAll(commands);
+		return;
+	}
+
+	// One Ctrl+Z should undo an entire multi-mesh Generate click as a single
+	// step - same beginMacro()/endMacro() wrapping hideAllItems() uses for
+	// the same "one user action, several underlying commands" reason. Skip
+	// the macro entirely for the common single-mesh case so the undo-stack
+	// entry shows that command's own text directly instead of a redundant
+	// one-item macro.
+	const bool macro = commands.size() > 1;
+	if (macro)
+		_undoStack->beginMacro(tr("Generate UVs (%1)").arg(methodName));
+
+	for (QUndoCommand* command : commands)
+		_undoStack->push(command);
+
+	if (macro)
+		_undoStack->endMacro();
 }
 
 void ModelViewer::hideAllItems()

@@ -30,6 +30,15 @@ constexpr bool kHybridVerbose = true;
 // degenerate spindle/horn torus). Remove once Torus's real behavior is confirmed.
 constexpr bool kTorusVerbose = false;
 
+// Temporary diagnostic for a reported hang ("UV never converges", no crash) in Angle-Based Smart
+// UV on a specific model - flip to true, rebuild, reproduce, and check the log for whatever gets
+// printed right before the hang. packWithXAtlas() has no loop of its own; the only place that
+// isn't bounded by our own iteration counts is xatlas::Generate() itself (third-party), so this
+// scans the input handed to it for NaN/Inf (which could make xatlas's own internal algorithms
+// genuinely never converge) and reports basic degenerate-triangle stats. Remove once the real
+// cause is confirmed.
+constexpr bool kXAtlasVerbose = false;
+
 // See generateARAP()'s doc comment (UVGenerator.h) for why these - CGAL's
 // Surface_mesh_parameterization::ARAP_parameterizer_3 provides a real
 // distortion-minimizing unfold per island, unlike this file's own
@@ -1075,7 +1084,16 @@ bool UVGenerator::generateAngleBasedSmartUV(
 
     for (int i = 0; i < static_cast<int>(islands.size()); ++i)
     {
-        unwrapIslandPCA(vertices, triangles, islands[i], triangleUVs, true);
+        // Do NOT pre-normalize each island independently into its own full [0,1] UV box when
+        // packing will run afterward (config.enablePacking) - packWithXAtlas() below already
+        // places/scales every island proportionately in the shared atlas. Pre-squishing a large,
+        // many-triangle island into [0,1] on its own destroys relative size information and, for
+        // a large enough island, can compress individual triangles' UV footprint below float32's
+        // usable precision - confirmed the dominant cause of a reported hang: xatlas::Generate()
+        // was fed ~82% zero-UV-area triangles on a real test model and never returned. Most of
+        // that came from here, not from the (separate, smaller) axis-selection bug fixed inside
+        // unwrapIslandPCA() itself just above.
+        unwrapIslandPCA(vertices, triangles, islands[i], triangleUVs, !config.enablePacking);
     }
 
     // 3. Flatten: expand vertices and indices to support seams
@@ -1385,7 +1403,8 @@ bool UVGenerator::generateARAP(
         else
         {
             ++arapFellBack;
-            unwrapIslandPCA(vertices, triangles, island, triangleUVs, true);
+            // Same reasoning as generateAngleBasedSmartUV()'s identical call - see its comment.
+            unwrapIslandPCA(vertices, triangles, island, triangleUVs, !config.enablePacking);
         }
     }
     if (kARAPVerbose)
@@ -2009,8 +2028,53 @@ void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
     glm::mat3 eigenVectors;
     computeEigenDecomposition(cov, eigenValues, eigenVectors);
 
-    glm::vec3 axis1 = glm::normalize(glm::vec3(eigenVectors[0][0], eigenVectors[1][0], eigenVectors[2][0]));
-    glm::vec3 axis2 = glm::normalize(glm::vec3(eigenVectors[0][1], eigenVectors[1][1], eigenVectors[2][1]));
+    // Which of the 3 eigenvectors is the island's "out of plane" (normal) direction is NOT safe
+    // to assume from eigenvalue rank alone - confirmed real bug via a reported hang: for a mesh
+    // with many single-triangle islands whose two TRUE in-plane eigenvalues happen to be close to
+    // each other (near-equilateral/near-isosceles triangles, common in a uniformly-tessellated
+    // mesh), Jacobi's numerical eigenvalue ordering can occasionally rank the true near-zero
+    // (normal) eigenvalue ABOVE one of the genuinely in-plane ones, so blindly taking "the top 2
+    // by eigenvalue" as axis1/axis2 silently substitutes the island's OWN normal direction for one
+    // of the true in-plane axes - projecting onto (an in-plane axis, the near-normal axis)
+    // collapses every triangle in the island to near-zero UV area. Confirmed via diagnostic
+    // logging: xatlas::Generate() was fed ~87% zero-UV-area triangles on the reported model and
+    // never returned - not a NaN/Inf issue (both were 0), a genuine degenerate-input hang.
+    // The island's own area-weighted average face normal (same computation unwrapIsland() already
+    // uses) is a robust, purely geometric signal for "which direction is out-of-plane" -
+    // independent of any eigenvalue tie - so use IT to pick which eigenvector to exclude, rather
+    // than trusting the eigenvalue sort order.
+    glm::vec3 avgNormal(0.0f);
+    for (unsigned int triIdx : island.triangles)
+    {
+        const MeshTriangle& tri = triangles[triIdx];
+        avgNormal += tri.normal * tri.area;
+    }
+    avgNormal = (glm::length(avgNormal) > 1e-8f)
+        ? glm::normalize(avgNormal)
+        : triangles[island.triangles[0]].normal;
+
+    int normalIdx = 0;
+    float bestAlignment = -1.0f;
+    for (int i = 0; i < 3; ++i)
+    {
+        const glm::vec3 candidate(eigenVectors[0][i], eigenVectors[1][i], eigenVectors[2][i]);
+        const float alignment = std::abs(glm::dot(candidate, avgNormal));
+        if (alignment > bestAlignment)
+        {
+            bestAlignment = alignment;
+            normalIdx = i;
+        }
+    }
+    int uIdx = -1, vIdx = -1;
+    for (int i = 0; i < 3; ++i)
+    {
+        if (i == normalIdx) continue;
+        if (uIdx < 0) uIdx = i;
+        else vIdx = i;
+    }
+
+    glm::vec3 axis1 = glm::normalize(glm::vec3(eigenVectors[0][uIdx], eigenVectors[1][uIdx], eigenVectors[2][uIdx]));
+    glm::vec3 axis2 = glm::normalize(glm::vec3(eigenVectors[0][vIdx], eigenVectors[1][vIdx], eigenVectors[2][vIdx]));
 
     // 5. Project and collect per-triangle UVs
     glm::vec2 minUV(FLT_MAX), maxUV(-FLT_MAX);
@@ -2333,7 +2397,42 @@ void UVGenerator::packWithXAtlas(
     packOptions.padding = 2;
     packOptions.texelsPerUnit = 1.0f;
 
+    if (kXAtlasVerbose)
+    {
+        int nanInfPositions = 0, nanInfUVs = 0, zeroAreaUVTris = 0, zeroAreaPosTris = 0;
+        for (const auto& p : positions)
+            if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.z))
+                ++nanInfPositions;
+        for (const auto& uv : uvs)
+            if (!std::isfinite(uv.x) || !std::isfinite(uv.y))
+                ++nanInfUVs;
+        for (size_t i = 0; i + 2 < indices.size(); i += 3)
+        {
+            const glm::vec2& u0 = uvs[indices[i]];
+            const glm::vec2& u1 = uvs[indices[i + 1]];
+            const glm::vec2& u2 = uvs[indices[i + 2]];
+            const float uvArea = std::abs((u1.x - u0.x) * (u2.y - u0.y) - (u2.x - u0.x) * (u1.y - u0.y));
+            if (uvArea < 1e-12f)
+                ++zeroAreaUVTris;
+
+            const glm::vec3& p0 = positions[indices[i]];
+            const glm::vec3& p1 = positions[indices[i + 1]];
+            const glm::vec3& p2 = positions[indices[i + 2]];
+            const float posArea = glm::length(glm::cross(p1 - p0, p2 - p0));
+            if (posArea < 1e-9f)
+                ++zeroAreaPosTris;
+        }
+        qDebug() << "[xatlas] vertexCount=" << positions.size() << "triangleCount=" << (indices.size() / 3)
+                 << "nanInfPositions=" << nanInfPositions << "nanInfUVs=" << nanInfUVs
+                 << "zeroAreaUVTris=" << zeroAreaUVTris << "zeroAreaPosTris=" << zeroAreaPosTris
+                 << "-- about to call xatlas::Generate()";
+    }
+
     xatlas::Generate(atlas, chartOptions, packOptions);
+
+    if (kXAtlasVerbose)
+        qDebug() << "[xatlas] xatlas::Generate() returned, meshCount=" << atlas->meshCount
+                 << "chartCount=" << atlas->chartCount;
 
     const xatlas::Mesh& outMesh = atlas->meshes[0];
     uvs.resize(outMesh.vertexCount);

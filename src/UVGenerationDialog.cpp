@@ -1,13 +1,36 @@
 #include "UVGenerationDialog.h"
 #include "ui_UVGenerationDialog.h"
 #include "LanguageManager.h"
+#include "ModelViewer.h"
+#include "ViewportWidget.h"
+#include "SceneMesh.h"
+#include "SceneTreeWidget.h"
+#include "SetMeshUVsCommand.h"
 #include <glm/gtc/constants.hpp>
 
-UVGenerationDialog::UVGenerationDialog(QWidget* parent)
+#include <QCloseEvent>
+#include <QListWidget>
+
+namespace
+{
+    bool listContainsUuid(QListWidget* list, const QUuid& uuid)
+    {
+        for (int i = 0; i < list->count(); ++i)
+        {
+            if (list->item(i)->data(Qt::UserRole).toUuid() == uuid)
+                return true;
+        }
+        return false;
+    }
+}
+
+UVGenerationDialog::UVGenerationDialog(ModelViewer* modelViewer, QWidget* parent)
     : QDialog(parent)
+    , _modelViewer(modelViewer)
     , ui(new Ui::UVGenerationDialog)
 {
     ui->setupUi(this);
+    setAttribute(Qt::WA_DeleteOnClose);
 
     // See ExplodedViewPanel's/ClippingPlanesEditor's identical connection -
     // without this, a live language switch in Settings left this dialog
@@ -18,6 +41,11 @@ UVGenerationDialog::UVGenerationDialog(QWidget* parent)
         });
 
     setupConnections();
+
+    connect(ui->addSelectedButton, &QPushButton::clicked, this, &UVGenerationDialog::addCurrentTreeSelection);
+    connect(ui->removeSelectedButton, &QPushButton::clicked, this, &UVGenerationDialog::onRemoveSelectedClicked);
+    connect(ui->generateButton, &QPushButton::clicked, this, &UVGenerationDialog::onGenerateClicked);
+    connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &UVGenerationDialog::onListSelectionChanged);
 
     // Set initial page to Planar (index 0)
     ui->stackedWidget_Options->setCurrentIndex(0);
@@ -31,6 +59,8 @@ UVGenerationDialog::UVGenerationDialog(QWidget* parent)
 
     // Load last used settings
     loadLastUsedSettings();
+
+    updateGenerateButtonEnabled();
 
     // Initial size adjustment
     adjustDialogSize();
@@ -119,9 +149,10 @@ void UVGenerationDialog::adjustDialogSize()
     QSize pageSize = currentPage->sizeHint();
 
     // Calculate required height
-    // Base height includes: method groupbox + button box + margins
-    int baseHeight = ui->groupBox_Method->sizeHint().height()
-        + ui->buttonBox->sizeHint().height()
+    // Base height includes: mesh list + method groupbox + generate button + margins
+    int baseHeight = ui->meshList->sizeHint().height()
+        + ui->groupBox_Method->sizeHint().height()
+        + ui->generateButton->sizeHint().height()
         + 80; // Margins and spacing
 
     // Add page content height (capped at 400px for scroll)
@@ -542,12 +573,131 @@ QString UVGenerationDialog::getMethodName(UVMethod method) const
 	}
 }
 
-// Instead of using closeEvent, override accept():
-void UVGenerationDialog::accept()
+void UVGenerationDialog::closeEvent(QCloseEvent* event)
 {
-    // Save settings only when OK is clicked
     saveLastUsedSettings();
+    QDialog::closeEvent(event);
+}
 
-    // Call base class accept (closes dialog with Accepted result)
-    QDialog::accept();
+void UVGenerationDialog::reject()
+{
+    // Escape reaches here, not closeEvent() (see this override's doc comment
+    // in the header) - closeEvent() only does saveLastUsedSettings() now, so
+    // this just needs to make sure Escape doesn't skip it too. Mirrors
+    // ShrinkWrapDialog::reject() exactly.
+    saveLastUsedSettings();
+    QDialog::reject();
+}
+
+void UVGenerationDialog::addCurrentTreeSelection()
+{
+    SceneTreeWidget* tree = _modelViewer->getTreeModel();
+    if (!tree || !tree->hasMeshSelection())
+        return;
+
+    ViewportWidget* viewport = _modelViewer->getViewportWidget();
+    for (const QUuid& uuid : tree->selectedMeshUuids())
+    {
+        if (listContainsUuid(ui->meshList, uuid))
+            continue;
+        SceneMesh* mesh = viewport ? viewport->getMeshByUuid(uuid) : nullptr;
+        if (!mesh)
+            continue;
+
+        QListWidgetItem* item = new QListWidgetItem(mesh->getName(), ui->meshList);
+        item->setData(Qt::UserRole, uuid);
+    }
+
+    updateGenerateButtonEnabled();
+}
+
+void UVGenerationDialog::onRemoveSelectedClicked()
+{
+    qDeleteAll(ui->meshList->selectedItems());
+    updateGenerateButtonEnabled();
+}
+
+void UVGenerationDialog::onListSelectionChanged()
+{
+    ui->removeSelectedButton->setEnabled(!ui->meshList->selectedItems().isEmpty());
+}
+
+void UVGenerationDialog::updateGenerateButtonEnabled()
+{
+    ui->generateButton->setEnabled(ui->meshList->count() > 0);
+}
+
+void UVGenerationDialog::onGenerateClicked()
+{
+    ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+    if (!viewport)
+        return;
+
+    // Snapshot each target's CURRENT vertex/index data before generation mutates it, so a
+    // SetMeshUVsCommand can be built afterward with both halves of the undo/redo swap - see
+    // that command's doc comment for why this must be captured by the caller (generation
+    // mutates the mesh in place, there's no "new node" to undo the way Shrink Wrap has).
+    struct Target
+    {
+        int id;
+        QUuid uuid;
+        SceneMesh* mesh;
+        std::vector<Vertex> beforeVertices;
+        std::vector<unsigned int> beforeIndices;
+    };
+    std::vector<Target> targets;
+    targets.reserve(ui->meshList->count());
+    for (int i = 0; i < ui->meshList->count(); ++i)
+    {
+        const QUuid uuid = ui->meshList->item(i)->data(Qt::UserRole).toUuid();
+        const int id = viewport->getIndexByUuid(uuid);
+        SceneMesh* mesh = viewport->getMeshByUuid(uuid);
+        if (id < 0 || !mesh)
+            continue;
+
+        Target target;
+        target.id = id;
+        target.uuid = uuid;
+        target.mesh = mesh;
+        mesh->getMeshData(target.beforeVertices, target.beforeIndices);
+        targets.push_back(std::move(target));
+    }
+
+    if (targets.empty())
+    {
+        ui->statusLabel->setText(tr("Add at least one mesh to the list first."));
+        return;
+    }
+
+    std::vector<int> ids;
+    ids.reserve(targets.size());
+    for (const Target& target : targets)
+        ids.push_back(target.id);
+
+    const UVMethod method = getSelectedMethod();
+    const UVConfig config = getUVConfig();
+
+    QString error;
+    const bool success = viewport->generateUVsForMeshes(ids, method, config, error);
+    if (!success)
+    {
+        ui->statusLabel->setText(tr("Failed to generate UVs: %1").arg(error));
+        return;
+    }
+
+    QVector<QUndoCommand*> commands;
+    commands.reserve(static_cast<int>(targets.size()));
+    for (Target& target : targets)
+    {
+        std::vector<Vertex> afterVertices;
+        std::vector<unsigned int> afterIndices;
+        target.mesh->getMeshData(afterVertices, afterIndices);
+        commands.push_back(new SetMeshUVsCommand(_modelViewer, viewport, target.uuid,
+            std::move(target.beforeVertices), std::move(target.beforeIndices),
+            std::move(afterVertices), std::move(afterIndices),
+            tr("Generate UVs (%1)").arg(getMethodName(method))));
+    }
+    _modelViewer->commitUVGeneration(commands, getMethodName(method));
+
+    ui->statusLabel->setText(tr("UVs generated using %1 method.").arg(getMethodName(method)));
 }

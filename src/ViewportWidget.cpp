@@ -16067,8 +16067,7 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			contextMenu.addSeparator();
 			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
 			contextMenu.addAction(tr("Edit Material"), _viewer, &ModelViewer::editMeshMaterial);
-			contextMenu.addSeparator();			
-			contextMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
+			contextMenu.addSeparator();
 			contextMenu.addAction(tr("Split by Connectivity"), _viewer, &ModelViewer::splitSelectedMeshesByConnectivity);
 			contextMenu.addAction(tr("Merge by Adjacency"), _viewer, &ModelViewer::mergeSelectedMeshesByAdjacency);
 			contextMenu.addAction(tr("Merge Selected"), _viewer, &ModelViewer::mergeSelectedMeshes);

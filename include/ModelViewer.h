@@ -431,6 +431,28 @@ public slots:
 	void commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
 	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
 
+	// Generate UVs: opens the non-modal UVGenerationDialog (Tools -> Generate
+	// UVs...), same findChild-reuse-or-create/show/raise/seed-with-tree-
+	// selection pattern as openShrinkWrapDialog()/openSubdivisionDialog()
+	// above - replaces the old generateUVsForSelectedItems(), which opened
+	// the dialog modally (dialog.exec()) from the scene-tree context menu
+	// and required a pre-existing selection just to open it. The dialog now
+	// owns its own working mesh list (Add/Remove Selected, same as
+	// ShrinkWrapDialog) so it can be opened empty from the Tools menu and
+	// populated afterward, and Generate can be clicked repeatedly with
+	// different methods/settings without relaunching.
+	void openUVGenerationDialog();
+
+	// UV generation's one-line bridge into the undo stack - called by
+	// UVGenerationDialog::onGenerateClicked() once per Generate click, after
+	// the mutation has already happened (each SetMeshUVsCommand's before/
+	// after snapshots are captured by the caller, same "already happened,
+	// command just replays it" convention as commitShrinkWrap() above).
+	// Wraps the whole batch in a single beginMacro()/endMacro() when more
+	// than one mesh was targeted (same pattern as hideAllItems()), so one
+	// Ctrl+Z undoes an entire multi-mesh Generate click as one step.
+	void commitUVGeneration(QVector<QUndoCommand*> commands, const QString& methodName);
+
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
 	// the call is a no-op - guards against a stale command (from a document
@@ -442,7 +464,6 @@ public slots:
 	                     const QSet<QUuid>& meshUuids,
 	                     const QSet<QUuid>& nodeUuids);
 	void deleteSelectedItems();
-	void generateUVsForSelectedItems();
 	void displaySelectedMeshInfo();
 	void editMeshMaterial();
 	void showVisualizationModelPage();

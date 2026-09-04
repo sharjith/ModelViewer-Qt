@@ -89,6 +89,7 @@
     <addaction name="actionShrinkWrap"/>
     <addaction name="actionSubdivideSurface"/>
     <addaction name="actionReconstructSurface"/>
+    <addaction name="actionGenerateUVs"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
     <property name="title">
@@ -405,6 +406,14 @@
    </property>
    <property name="statusTip">
     <string>Reconstruct a triangulated surface from the selected point cloud(s) via CGAL advancing-front reconstruction, added as a new node</string>
+   </property>
+  </action>
+  <action name="actionGenerateUVs">
+   <property name="text">
+    <string>Generate UVs...</string>
+   </property>
+   <property name="statusTip">
+    <string>Generate UV coordinates for meshes using a chosen projection method, from a working list you build in the dialog</string>
    </property>
   </action>
   <action name="actionVisualizationSeparator">
