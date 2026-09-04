@@ -20,6 +20,16 @@ constexpr bool kARAPVerbose = false;
 // Remove once the pole/seam distortion is confirmed fixed.
 constexpr bool kSphericalVerbose = false;
 
+// Temporary diagnostic for the Hybrid method-selection regression ("always falls back to
+// Planar") - flip to true, rebuild, run Generate UVs with Hybrid selected, and check the log for
+// the actual eigenvalues/elongation/variance it computed and which branch it took.
+constexpr bool kHybridVerbose = true;
+
+// Temporary diagnostic for the Torus addition - flip to true, rebuild, run Generate UVs with
+// Torus selected, and check the log for the estimated major/minor radius and whether R<=r (a
+// degenerate spindle/horn torus). Remove once Torus's real behavior is confirmed.
+constexpr bool kTorusVerbose = false;
+
 // See generateARAP()'s doc comment (UVGenerator.h) for why these - CGAL's
 // Surface_mesh_parameterization::ARAP_parameterizer_3 provides a real
 // distortion-minimizing unfold per island, unlike this file's own
@@ -111,6 +121,17 @@ bool UVGenerator::generateAngleBased(
         unwrapIsland(vertices, triangles, island, uvs);
     }
 
+    // Smooth interior distortion by averaging each vertex's UV with its neighbors - BEFORE
+    // packing, which rescales/repositions every island into a shared atlas; relaxing beforehand
+    // means only an island's own local geometry influences it, not another island's post-pack
+    // placement. config.enableRelaxation/relaxationIterations have been threaded all the way from
+    // the dialog's "Enable Relaxation" checkbox since that control was added, but relaxUVs() was
+    // never actually called anywhere - toggling the checkbox had no effect on the result.
+    if (config.enableRelaxation && config.relaxationIterations > 0)
+    {
+        relaxUVs(triangles, uvs, islands, config, config.relaxationIterations);
+    }
+
     // Pack UV islands
     packUVIslands(const_cast<std::vector<UVIsland>&>(islands), uvs, config.seamPadding);
 
@@ -150,34 +171,7 @@ bool UVGenerator::generateCylindrical(
     // pulling the detected axis away from the mesh's true geometric one. A vertex actually
     // repeated at the same 3D position never carries new positional information, so counting it
     // more than once here is always wrong, regardless of why the duplicate exists.
-    std::vector<glm::vec3> uniquePositions;
-    {
-        struct Vec3Hash
-        {
-            std::size_t operator()(const glm::vec3& p) const
-            {
-                std::size_t h = std::hash<float>()(p.x);
-                h ^= std::hash<float>()(p.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
-                h ^= std::hash<float>()(p.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
-                return h;
-            }
-        };
-        struct Vec3Equal
-        {
-            bool operator()(const glm::vec3& a, const glm::vec3& b) const
-            {
-                return a.x == b.x && a.y == b.y && a.z == b.z;
-            }
-        };
-        std::unordered_set<glm::vec3, Vec3Hash, Vec3Equal> seen;
-        seen.reserve(vertices.size());
-        uniquePositions.reserve(vertices.size());
-        for (const auto& v : vertices)
-        {
-            if (seen.insert(v.Position).second)
-                uniquePositions.push_back(v.Position);
-        }
-    }
+    std::vector<glm::vec3> uniquePositions = computeUniquePositions(vertices);
 
     glm::vec3 centroid(0.0f);
     for (const auto& p : uniquePositions)
@@ -372,7 +366,78 @@ bool UVGenerator::generateSpherical(
     if (vertices.empty() || indices.empty())
         return false;
 
-    glm::vec3 centroid = calculateCentroid(vertices);
+    // Weld to unique positions before computing centroid/covariance - same reasoning as
+    // generateCylindrical()'s identical weld (see its doc comment): a mesh that already carries
+    // duplicate-position vertices (from Spherical's own pole-vertex duplication, from Cylindrical's
+    // seam-vertex duplication, or from a prior exploding UV method) would otherwise let those
+    // duplicates over-weight whatever region they cluster in, biasing both the centroid and the
+    // PCA-detected axis below.
+    std::vector<glm::vec3> uniquePositions = computeUniquePositions(vertices);
+    glm::vec3 centroid(0.0f);
+    for (const auto& p : uniquePositions)
+        centroid += p;
+    centroid /= static_cast<float>(uniquePositions.size());
+
+    // Determine the sphere's polar axis, either via PCA or from config.sphericalAxis - either way,
+    // NOT hardcoded to world-Y. This used to hardcode latitude from localPos.y and longitude from
+    // atan2(z,x) - correct only for a sphere/spheroid whose pole-to-pole axis happens to already be
+    // world-Y, for the identical reason generateCylindrical() was broken before its own
+    // axis-detection fix (see its doc comment). A true, non-elongated sphere has no geometrically
+    // "correct" axis at all - every direction is equally valid - so PCA here mainly matters for a
+    // spheroid whose poles are genuinely meant to sit along a specific (non-Y) direction; for a
+    // perfect sphere it just picks some arbitrary-but-consistent axis, no worse than the old
+    // hardcoded-Y default.
+    glm::vec3 polarAxis, equatorX, equatorY;
+
+    if (config.sphericalAutoDetectAxis)
+    {
+        glm::mat3 covariance(0.0f);
+        for (const auto& pos : uniquePositions)
+        {
+            glm::vec3 p = pos - centroid;
+            covariance[0] += p.x * p;
+            covariance[1] += p.y * p;
+            covariance[2] += p.z * p;
+        }
+        covariance /= static_cast<float>(uniquePositions.size());
+
+        glm::vec3 eigenValues;
+        glm::mat3 eigenVectors;
+        computeEigenDecomposition(covariance, eigenValues, eigenVectors);
+
+        // Same "odd one out" eigenvalue logic as generateCylindrical() - a spheroid flattened or
+        // elongated along its true polar axis shows up as the outlier eigenvalue, whether largest
+        // or smallest; a perfect sphere has all 3 nearly equal, so this just lands on whichever
+        // axis numerical noise favors, an arbitrary-but-valid choice either way.
+        int axisIdx = (eigenValues[0] - eigenValues[1] > eigenValues[1] - eigenValues[2]) ? 0 : 2;
+        int uIdx = (axisIdx == 0) ? 1 : 0;
+        int vIdx = (axisIdx == 2) ? 1 : 2;
+        polarAxis = glm::normalize(glm::vec3(
+            eigenVectors[0][axisIdx], eigenVectors[1][axisIdx], eigenVectors[2][axisIdx]));
+        equatorX = glm::normalize(glm::vec3(
+            eigenVectors[0][uIdx], eigenVectors[1][uIdx], eigenVectors[2][uIdx]));
+        equatorY = glm::normalize(glm::vec3(
+            eigenVectors[0][vIdx], eigenVectors[1][vIdx], eigenVectors[2][vIdx]));
+    }
+    else
+    {
+        polarAxis = (glm::length(config.sphericalAxis) > 1e-6f)
+            ? glm::normalize(config.sphericalAxis)
+            : glm::vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 fallback = (std::abs(polarAxis.y) < 0.99f) ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+        equatorX = glm::normalize(glm::cross(fallback, polarAxis));
+        equatorY = glm::cross(polarAxis, equatorX);
+    }
+
+    // Everywhere below expresses a normalized direction as localPos = (equatorX-component,
+    // polarAxis-component, equatorY-component) - i.e. re-using .x/.y/.z exactly as the rest of this
+    // function already did (localPos.y for latitude, atan2(localPos.z, localPos.x) for longitude),
+    // just in the DETECTED basis instead of raw world axes. Rotating into this basis preserves unit
+    // length, so every existing downstream computation (asin/atan2/pole-threshold comparisons)
+    // stays correct unchanged.
+    auto toLocalBasis = [&](const glm::vec3& worldDir) -> glm::vec3 {
+        return glm::vec3(glm::dot(worldDir, equatorX), glm::dot(worldDir, polarAxis), glm::dot(worldDir, equatorY));
+        };
 
     if (kSphericalVerbose)
     {
@@ -422,7 +487,7 @@ bool UVGenerator::generateSpherical(
         // Sample longitude values from mesh
         for (const auto& vertex : vertices)
         {
-            glm::vec3 localPos = glm::normalize(vertex.Position - centroid);
+            glm::vec3 localPos = toLocalBasis(glm::normalize(vertex.Position - centroid));
             float longitude = atan2(localPos.z, localPos.x);
             longitude += longitudeOffset;
             while (longitude < 0.0f) longitude += 2.0f * M_PI;
@@ -579,7 +644,7 @@ bool UVGenerator::generateSpherical(
             // Calculate initial UVs and local positions
             for (int j = 0; j < 3; ++j)
             {
-                localPos[j] = glm::normalize(triVertices[j].Position - centroid);
+                localPos[j] = toLocalBasis(glm::normalize(triVertices[j].Position - centroid));
                 uvs[j] = calculateSphericalUV(localPos[j]);
             }
 
@@ -684,7 +749,7 @@ bool UVGenerator::generateSpherical(
             // Calculate initial UVs and local positions
             for (int j = 0; j < 3; ++j)
             {
-                localPos[j] = glm::normalize(vertices[triIndices[j]].Position - centroid);
+                localPos[j] = toLocalBasis(glm::normalize(vertices[triIndices[j]].Position - centroid));
                 uvs[j] = calculateSphericalUV(localPos[j]);
             }
 
@@ -839,54 +904,147 @@ bool UVGenerator::generateHybrid(
 {
     if (vertices.empty()) return false;
 
-    // Compute bounding box and size
-    glm::vec3 minBounds, maxBounds;
-    calculateBounds(vertices, minBounds, maxBounds);
-    glm::vec3 size = maxBounds - minBounds;
+    // Weld to unique positions first - same reasoning as generateCylindrical()'s identical weld
+    // (see its doc comment): regenerating with Hybrid on a mesh that already carries duplicate-
+    // position vertices (from a prior exploding UV method, or from Cylindrical's own seam-vertex
+    // duplication if Hybrid just dispatched there) would otherwise let those duplicates over-
+    // weight whatever region they cluster in, skewing the statistics this function uses to CHOOSE
+    // which method to dispatch to.
+    std::vector<glm::vec3> uniquePositions = computeUniquePositions(vertices);
 
-    // Principal Component Analysis (for elongation and dominant axis)
     glm::vec3 mean(0.0f);
-    for (const auto& v : vertices)
-        mean += v.Position;
-    mean /= static_cast<float>(vertices.size());
+    for (const auto& p : uniquePositions)
+        mean += p;
+    mean /= static_cast<float>(uniquePositions.size());
 
+    // PCA still needed for the principal AXIS DIRECTIONS (used below to build an oriented bounding
+    // box), but no longer for the classification decision itself - see below.
     glm::mat3 covariance(0.0f);
-    for (const auto& v : vertices)
+    for (const auto& pos : uniquePositions)
     {
-        glm::vec3 p = v.Position - mean;
+        glm::vec3 p = pos - mean;
         covariance[0] += p.x * p;
         covariance[1] += p.y * p;
         covariance[2] += p.z * p;
     }
+    covariance /= static_cast<float>(uniquePositions.size());
 
-    covariance /= static_cast<float>(vertices.size());
-
-    // Eigen decomposition to get principal axes
     glm::vec3 eigenValues;
     glm::mat3 eigenVectors;
     computeEigenDecomposition(covariance, eigenValues, eigenVectors);
 
-    // Sort eigenvalues (largest = most elongated axis)
-    float e0 = eigenValues[0], e1 = eigenValues[1], e2 = eigenValues[2];
-    float elongation = e0 / e2; // e0 >= e1 >= e2 assumed after sort
+    // Extent along each principal axis (an oriented bounding box), NOT raw eigenvalues (variance).
+    // Confirmed via real test meshes: a true sphere (radius exactly constant everywhere) can still
+    // show one eigenvalue nearly double the other two purely because its tessellation happens to
+    // cluster more vertices along one axis than another - variance is a vertex-DENSITY statistic,
+    // not a shape statistic. Extent (max-min projected onto an axis) doesn't care how many
+    // vertices sit where along that axis, only how far apart the extremes are - a stable,
+    // tessellation-independent measure of actual geometric elongation.
+    glm::vec3 axis0(eigenVectors[0][0], eigenVectors[1][0], eigenVectors[2][0]);
+    glm::vec3 axis1(eigenVectors[0][1], eigenVectors[1][1], eigenVectors[2][1]);
+    glm::vec3 axis2(eigenVectors[0][2], eigenVectors[1][2], eigenVectors[2][2]);
 
-    // Use elongation + variance to determine mapping
-    if (elongation > 4.0f)
+    float min0 = FLT_MAX, max0 = -FLT_MAX;
+    float min1 = FLT_MAX, max1 = -FLT_MAX;
+    float min2 = FLT_MAX, max2 = -FLT_MAX;
+    for (const auto& p : uniquePositions)
     {
+        glm::vec3 rel = p - mean;
+        float c0 = glm::dot(rel, axis0);
+        float c1 = glm::dot(rel, axis1);
+        float c2 = glm::dot(rel, axis2);
+        min0 = std::min(min0, c0); max0 = std::max(max0, c0);
+        min1 = std::min(min1, c1); max1 = std::max(max1, c1);
+        min2 = std::min(min2, c2); max2 = std::max(max2, c2);
+    }
+
+    // eigenValues/eigenVectors are sorted by descending VARIANCE, which doesn't always match
+    // descending EXTENT (that's the whole point of using extent instead) - re-sort explicitly.
+    std::array<float, 3> extents = { max0 - min0, max1 - min1, max2 - min2 };
+    std::sort(extents.begin(), extents.end(), std::greater<float>());
+    const float d0 = extents[0], d1 = std::max(extents[1], 1e-6f), d2 = std::max(extents[2], 1e-6f);
+    const float extentRatio = d0 / d2;
+
+    // "One extent very different from the other two, which are close to each other" is ALSO the
+    // signature of a thin flat plate - not just a cylinder - and extentRatio alone can't tell them
+    // apart (confirmed on the Bezier saddle-patch test asset: extents ~(7.17, 7.16, 0.73), a high
+    // extentRatio of ~9.8 that looks "elongated" but is really just thin, not axis-symmetric).
+    // The two cases differ in WHICH extent is the odd one out: a cylinder's two SMALLEST extents
+    // are close to each other (d1~=d2, a round cross-section) while its LARGEST stands alone; a
+    // flat plate's two LARGEST are close to each other (d0~=d1, the flat face) while its SMALLEST
+    // stands alone. crossSectionRatio being close to 1 is what actually distinguishes "genuinely
+    // axis-elongated" from "just thin".
+    const float crossSectionRatio = d1 / d2;
+
+    // How much distance-from-centroid varies across the mesh - the most direct, tessellation-
+    // independent "is this actually round" signal available: a true sphere has EXACTLY constant
+    // radius everywhere, no matter how unevenly it's tessellated, whereas a cylinder (even a short
+    // one whose bounding box looks roughly cubic) has rim vertices measurably farther from center
+    // than cap-center vertices. Checked ahead of the elongation test so a genuine sphere is caught
+    // reliably regardless of its bounding-box aspect ratio.
+    float radiusMean = 0.0f;
+    for (const auto& p : uniquePositions)
+        radiusMean += glm::length(p - mean);
+    radiusMean /= static_cast<float>(uniquePositions.size());
+
+    float radiusVar = 0.0f;
+    for (const auto& p : uniquePositions)
+    {
+        float d = glm::length(p - mean) - radiusMean;
+        radiusVar += d * d;
+    }
+    radiusVar /= static_cast<float>(uniquePositions.size());
+
+    const float radiusVarRatio = (radiusMean > 1e-6f) ? radiusVar / (radiusMean * radiusMean) : 0.0f;
+    // 0.01 was too loose: a cone (real, structured radius variation - the apex is much closer to
+    // centroid than the rim, radiusVarRatio confirmed 0.00787 on a real test cone) slipped under
+    // it and got dispatched to Spherical, which visually looked worse than Angle-Based on that
+    // shape. The three genuinely-round test meshes (Sphere.obj, and two coarse cylinders whose
+    // minimal 2-ring/no-cap-center topology makes them geometrically indistinguishable from a
+    // sphere by vertex position alone) all measured radiusVarRatio ~1e-13 - essentially exact
+    // floating-point-noise zero. 0.001 sits comfortably below the cone's real value while staying
+    // far above that noise floor.
+    const bool isRoughlySpherical = radiusVarRatio < 0.001f;
+
+    if (kHybridVerbose)
+    {
+        qDebug() << "[Hybrid] vertexCount=" << vertices.size()
+                 << "uniquePositions=" << uniquePositions.size()
+                 << "extents(d0,d1,d2)=(" << d0 << d1 << d2 << ")"
+                 << "extentRatio(d0/d2)=" << extentRatio
+                 << "crossSectionRatio(d1/d2)=" << crossSectionRatio
+                 << "radiusMean=" << radiusMean << "radiusVarRatio=" << radiusVarRatio
+                 << "isRoughlySpherical=" << isRoughlySpherical;
+    }
+
+    if (isRoughlySpherical)
+    {
+        if (kHybridVerbose)
+            qDebug() << "[Hybrid] -> Spherical (radiusVarRatio < 0.001)";
+        return generateSpherical(vertices, indices, config, sourceVertexMap);
+    }
+    else if (extentRatio > 2.0f && crossSectionRatio < 1.5f)
+    {
+        if (kHybridVerbose)
+            qDebug() << "[Hybrid] -> Cylindrical (extentRatio > 2.0, round cross-section)";
         return generateCylindrical(vertices, indices, config, sourceVertexMap);
     }
-    else if (elongation < 1.5f)
+    else if (extentRatio > 2.0f)
     {
-        float avg = (e0 + e1 + e2) / 3.0f;
-        float var = (pow(e0 - avg, 2) + pow(e1 - avg, 2) + pow(e2 - avg, 2)) / 3.0f;
-
-        if (var < avg * 0.05f)
-            return generateSpherical(vertices, indices, config, sourceVertexMap);
-        else
-            return generateAngleBased(vertices, indices, config, sourceVertexMap);
+        if (kHybridVerbose)
+            qDebug() << "[Hybrid] -> Planar (elongated but not round cross-section - a thin plate, not a cylinder)";
+        return generatePlanar(vertices, indices, config, sourceVertexMap);
+    }
+    else if (extentRatio < 1.5f)
+    {
+        if (kHybridVerbose)
+            qDebug() << "[Hybrid] -> AngleBased (extentRatio < 1.5, not spherical by radius)";
+        return generateAngleBased(vertices, indices, config, sourceVertexMap);
     }
     else
     {
+        if (kHybridVerbose)
+            qDebug() << "[Hybrid] -> Planar (1.5 <= extentRatio <= 2.0)";
         return generatePlanar(vertices, indices, config, sourceVertexMap);
     }
 }
@@ -1293,6 +1451,248 @@ bool UVGenerator::generateARAP(
     indices = std::move(newIndices);
     if (sourceVertexMap)
         *sourceVertexMap = std::move(newSourceVertexMap);
+
+    return true;
+}
+
+
+// Method 9: Torus projection (donut-style major/minor angle mapping)
+bool UVGenerator::generateTorus(
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
+{
+    if (vertices.empty() || indices.empty())
+        return false;
+
+    // Weld by exact position before computing centroid/covariance - same reasoning as
+    // generateCylindrical()'s identical weld (see its doc comment).
+    std::vector<glm::vec3> uniquePositions = computeUniquePositions(vertices);
+
+    glm::vec3 centroid(0.0f);
+    for (const auto& p : uniquePositions)
+        centroid += p;
+    centroid /= static_cast<float>(uniquePositions.size());
+
+    // Determine the torus's axis of revolution, either via PCA or from config.torusAxis - same
+    // detection as generateCylindrical() (see its doc comment for the full reasoning): a torus's
+    // thin axial extent (tube thickness) is the PCA "outlier eigenvalue" against the two large,
+    // roughly-equal in-plane eigenvalues of the major-radius disk.
+    glm::vec3 axis, planeX, planeY;
+
+    if (config.torusAutoDetectAxis)
+    {
+        glm::mat3 covariance(0.0f);
+        for (const auto& pos : uniquePositions)
+        {
+            glm::vec3 p = pos - centroid;
+            covariance[0] += p.x * p;
+            covariance[1] += p.y * p;
+            covariance[2] += p.z * p;
+        }
+        covariance /= static_cast<float>(uniquePositions.size());
+
+        glm::vec3 eigenValues;
+        glm::mat3 eigenVectors;
+        computeEigenDecomposition(covariance, eigenValues, eigenVectors);
+        // eigenValues/eigenVectors come back sorted descending (e0 >= e1 >= e2).
+
+        int axisIdx = (eigenValues[0] - eigenValues[1] > eigenValues[1] - eigenValues[2]) ? 0 : 2;
+        int uIdx = (axisIdx == 0) ? 1 : 0;
+        int vIdx = (axisIdx == 2) ? 1 : 2;
+        axis = glm::normalize(glm::vec3(
+            eigenVectors[0][axisIdx], eigenVectors[1][axisIdx], eigenVectors[2][axisIdx]));
+        planeX = glm::normalize(glm::vec3(
+            eigenVectors[0][uIdx], eigenVectors[1][uIdx], eigenVectors[2][uIdx]));
+        planeY = glm::normalize(glm::vec3(
+            eigenVectors[0][vIdx], eigenVectors[1][vIdx], eigenVectors[2][vIdx]));
+
+        if (kTorusVerbose)
+        {
+            qDebug() << "[Torus] axis-detect: e0=" << eigenValues[0] << "e1=" << eigenValues[1]
+                     << "e2=" << eigenValues[2] << "axisIdx=" << axisIdx
+                     << "axis=(" << axis.x << axis.y << axis.z << ")"
+                     << "centroid=(" << centroid.x << centroid.y << centroid.z << ")";
+        }
+    }
+    else
+    {
+        // Manual axis: fall back to world-Y if the user left it at zero-length rather than
+        // normalizing a zero vector into garbage - same guard as generateCylindrical().
+        axis = (glm::length(config.torusAxis) > 1e-6f)
+            ? glm::normalize(config.torusAxis)
+            : glm::vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 fallback = (std::abs(axis.y) < 0.99f) ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+        planeX = glm::normalize(glm::cross(fallback, axis));
+        planeY = glm::cross(axis, planeX);
+    }
+
+    // Estimate major radius R (mean distance from the axis line) - exact, not just unbiased, for
+    // any uniformly-angle-sampled tube cross-section, by roots-of-unity symmetry, regardless of
+    // tessellation coarseness. Degrades only for a genuinely partial/non-uniform minor sweep (a
+    // half-pipe profile) - an accepted limitation, same class as generateSpherical()'s shared-
+    // vertex "last writer wins" limitation, not something engineered around here.
+    float R = 0.0f;
+    for (const auto& pos : uniquePositions)
+    {
+        glm::vec3 rel = pos - centroid;
+        R += glm::length(glm::vec2(glm::dot(rel, planeX), glm::dot(rel, planeY)));
+    }
+    R /= static_cast<float>(uniquePositions.size());
+
+    // Minor radius r: plain mean distance from the R-radius center circle, matching this file's
+    // existing preference for simple arithmetic means over RMS/L2 statistics (nothing else in this
+    // file uses RMS). Used both for the degeneracy check below and the torusMinorScale aspect
+    // correction - the UV formula itself only needs R.
+    float r = 0.0f;
+    for (const auto& pos : uniquePositions)
+    {
+        glm::vec3 rel = pos - centroid;
+        float h = glm::dot(rel, axis);
+        float radial = glm::length(glm::vec2(glm::dot(rel, planeX), glm::dot(rel, planeY)));
+        r += glm::length(glm::vec2(radial - R, h));
+    }
+    r /= static_cast<float>(uniquePositions.size());
+
+    // A proper ring torus (R > r) has no per-vertex singularity anywhere - unlike a sphere, no
+    // pole-style special case is needed below. R <= r (a spindle/horn torus, where the tube
+    // passes through or near the axis) IS a real degeneracy - every vertex on the tube's inner
+    // ring has radial ~= 0, making theta below as numerically unstable as atan2(z,x) at a sphere's
+    // pole, but for a whole RING of vertices rather than two isolated points. Guarded via logging,
+    // not rejected - matches every other method's "produce a distorted-but-valid result for
+    // atypical input" posture rather than failing outright.
+    if (kTorusVerbose)
+    {
+        qDebug() << "[Torus] uniquePositions=" << uniquePositions.size()
+                 << "R=" << R << "r=" << r
+                 << (R <= r ? "DEGENERATE (R<=r, spindle/horn torus)" : "OK");
+    }
+
+    const float seamRotation = config.torusSeamRotation;
+
+    // Raw (unwrapped, un-seam-corrected) torus UV for a position already expressed relative to
+    // centroid. theta (major angle around axis) -> U; phi (minor/tube angle around the tube's own
+    // circular cross-section) -> V.
+    auto calculateTorusUV = [&](const glm::vec3& rel) -> glm::vec2 {
+        float px = glm::dot(rel, planeX);
+        float py = glm::dot(rel, planeY);
+        float h = glm::dot(rel, axis);
+        float radial = glm::length(glm::vec2(px, py));
+
+        float theta = atan2(py, px) + seamRotation;
+        while (theta < 0.0f) theta += 2.0f * M_PI;
+        while (theta >= 2.0f * M_PI) theta -= 2.0f * M_PI;
+
+        float phi = atan2(h, radial - R);
+        while (phi < 0.0f) phi += 2.0f * M_PI;
+        while (phi >= 2.0f * M_PI) phi -= 2.0f * M_PI;
+
+        return glm::vec2(theta / (2.0f * M_PI), phi / (2.0f * M_PI));
+        };
+
+    // Same generic circular-mean/unwrap primitives generateSpherical() established (capture-less,
+    // operate on any periodic [0,1) value - nothing U-specific about them) reused verbatim for
+    // BOTH U and V independently: a torus is doubly periodic (S^1 x S^1), and theta/phi above are
+    // computed from disjoint inputs (theta only reads px/py, phi only reads h/radial), so a fix
+    // applied to one axis never needs to know about the other.
+    auto circularMean = [](std::initializer_list<float> us) -> float {
+        float sx = 0.0f, sy = 0.0f;
+        for (float u : us)
+        {
+            float ang = u * 2.0f * static_cast<float>(M_PI);
+            sx += std::cos(ang);
+            sy += std::sin(ang);
+        }
+        float meanAngle = std::atan2(sy, sx);
+        return meanAngle / (2.0f * static_cast<float>(M_PI));
+        };
+    auto unwrapToward = [](float u, float meanU) -> float {
+        float delta = u - meanU;
+        while (delta > 0.5f) delta -= 1.0f;
+        while (delta <= -0.5f) delta += 1.0f;
+        return meanU + delta;
+        };
+    auto crossesSeamOnAxis = [](const std::array<glm::vec2, 3>& uvs, int comp) -> bool {
+        for (int i = 0; i < 3; ++i)
+            for (int j = i + 1; j < 3; ++j)
+                if (std::abs(uvs[i][comp] - uvs[j][comp]) > 0.5f)
+                    return true;
+        return false;
+        };
+
+    // Always explodes vertices (one set per triangle-corner) - no shared-vertex fallback. A
+    // torus's seam is a GRID (both a U=0 ring and a V=0 ring), so the "last writer wins"
+    // ambiguity a shared-vertex path would carry (as generateSpherical()'s non-explode branch
+    // does for its single seam line) is proportionally far worse here.
+    std::vector<Vertex> finalVertices;
+    std::vector<unsigned int> finalIndices;
+    std::vector<unsigned int> finalSourceVertexMap;
+    finalVertices.reserve(vertices.size());
+    finalIndices.reserve(indices.size());
+
+    for (size_t i = 0; i + 2 < indices.size(); i += 3)
+    {
+        std::array<unsigned int, 3> triIndices = { indices[i], indices[i + 1], indices[i + 2] };
+        std::array<Vertex, 3> triVertices = {
+            vertices[triIndices[0]], vertices[triIndices[1]], vertices[triIndices[2]] };
+        std::array<glm::vec2, 3> uvs;
+
+        for (int j = 0; j < 3; ++j)
+            uvs[j] = calculateTorusUV(triVertices[j].Position - centroid);
+
+        if (config.seamlessTorus)
+        {
+            if (crossesSeamOnAxis(uvs, 0))
+            {
+                const float meanU = circularMean({ uvs[0].x, uvs[1].x, uvs[2].x });
+                for (int j = 0; j < 3; ++j)
+                    uvs[j].x = unwrapToward(uvs[j].x, meanU);
+            }
+            if (crossesSeamOnAxis(uvs, 1))
+            {
+                const float meanV = circularMean({ uvs[0].y, uvs[1].y, uvs[2].y });
+                for (int j = 0; j < 3; ++j)
+                    uvs[j].y = unwrapToward(uvs[j].y, meanV);
+            }
+        }
+
+        // Single per-triangle shift per axis, derived from the trio's average - NOT an arbitrary
+        // single corner and NOT three independent per-vertex wraps, for the exact reason
+        // generateSpherical()'s "Apply a SINGLE per-triangle U shift" comment documents: wrapping
+        // each vertex back into [0,1) independently would silently undo the alignment above for
+        // whichever corner happened to land outside that range, reintroducing the very seam-split
+        // just fixed. Applied independently per axis since U and V are unrelated circles here.
+        const float triAvgU = (uvs[0].x + uvs[1].x + uvs[2].x) / 3.0f;
+        const float triAvgV = (uvs[0].y + uvs[1].y + uvs[2].y) / 3.0f;
+        const float triShiftU = -std::floor(triAvgU);
+        const float triShiftV = -std::floor(triAvgV);
+
+        std::array<unsigned int, 3> newTriIndices;
+        for (int j = 0; j < 3; ++j)
+        {
+            Vertex newVertex = triVertices[j];
+            glm::vec2 finalUV(uvs[j].x + triShiftU, uvs[j].y + triShiftV);
+            // torusMinorScale/torusScale are cosmetic post-corrections applied AFTER the seam fix
+            // and shift above, which both rely on U/V wrapping at exact integer boundaries -
+            // scaling first would break that periodicity.
+            finalUV.y *= config.torusMinorScale;
+            finalUV *= config.torusScale;
+            applyUVTransforms(finalUV, config);
+            newVertex.TexCoords[0] = finalUV;
+
+            finalVertices.push_back(newVertex);
+            finalSourceVertexMap.push_back(triIndices[j]);
+            newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
+        }
+
+        finalIndices.insert(finalIndices.end(), { newTriIndices[0], newTriIndices[1], newTriIndices[2] });
+    }
+
+    vertices = std::move(finalVertices);
+    indices = std::move(finalIndices);
+    if (sourceVertexMap)
+        *sourceVertexMap = std::move(finalSourceVertexMap);
 
     return true;
 }
@@ -1964,14 +2364,36 @@ void UVGenerator::applyUVTransforms(glm::vec2& uv, const UVConfig& config)
 }
 
 // Utility methods
-glm::vec3 UVGenerator::calculateCentroid(const std::vector<Vertex>& vertices)
+std::vector<glm::vec3> UVGenerator::computeUniquePositions(const std::vector<Vertex>& vertices)
 {
-    glm::vec3 centroid(0.0f);
-    for (const auto& vertex : vertices)
+    struct Vec3Hash
     {
-        centroid += vertex.Position;
+        std::size_t operator()(const glm::vec3& p) const
+        {
+            std::size_t h = std::hash<float>()(p.x);
+            h ^= std::hash<float>()(p.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            h ^= std::hash<float>()(p.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            return h;
+        }
+    };
+    struct Vec3Equal
+    {
+        bool operator()(const glm::vec3& a, const glm::vec3& b) const
+        {
+            return a.x == b.x && a.y == b.y && a.z == b.z;
+        }
+    };
+
+    std::unordered_set<glm::vec3, Vec3Hash, Vec3Equal> seen;
+    seen.reserve(vertices.size());
+    std::vector<glm::vec3> uniquePositions;
+    uniquePositions.reserve(vertices.size());
+    for (const auto& v : vertices)
+    {
+        if (seen.insert(v.Position).second)
+            uniquePositions.push_back(v.Position);
     }
-    return centroid / static_cast<float>(vertices.size());
+    return uniquePositions;
 }
 
 glm::vec3 UVGenerator::calculateBounds(const std::vector<Vertex>& vertices,
@@ -2006,7 +2428,26 @@ void UVGenerator::computeEigenDecomposition(
     glm::mat3& eigenVectors)
 {
     const int maxIterations = 50;
-    const float epsilon = 1e-10f;
+
+    // Convergence threshold scaled to the matrix's own magnitude, NOT a fixed absolute value -
+    // confirmed real bug found via generateTorus(): a covariance matrix built from real mesh
+    // positions has values in the hundreds (or more), and floating-point summation noise on its
+    // off-diagonals is routinely far larger than a tiny fixed epsilon like 1e-10, so the old
+    // absolute threshold effectively NEVER triggered early-exit - every caller always ran the
+    // full maxIterations regardless of scale. That was silently harmless for a matrix with
+    // clearly-distinct eigenvalues (Jacobi still converges correctly well before the cap), but a
+    // matrix with a genuinely (near-)degenerate eigenvalue pair - confirmed real case: a
+    // Y-axis-symmetric torus, whose two in-plane eigenvalues are mathematically identical -
+    // starts hitting a numerically unstable rotation angle (atan2 of two near-zero, noise-
+    // dominated values, since both the off-diagonal AND the diagonal difference are tiny for
+    // that pivot) once it's already effectively converged. Running 50 more such iterations
+    // anyway injected a spurious rotation that measurably leaked variance from the true axis
+    // into an adjacent one - a torus built exactly Y-axis-symmetric came back with its detected
+    // axis tilted ~20 degrees off Y. Stopping as soon as the matrix is converged RELATIVE to its
+    // own scale avoids ever reaching that noise-dominated regime.
+    float scale = std::max({ std::abs(m[0][0]), std::abs(m[1][1]), std::abs(m[2][2]) });
+    if (scale < 1e-12f) scale = 1.0f; // degenerate/zero input - fall back to a small absolute floor
+    const float epsilon = 1e-6f * scale;
 
     glm::mat3 A = m;
     eigenVectors = glm::mat3(1.0f); // Identity

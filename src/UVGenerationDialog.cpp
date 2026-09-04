@@ -56,6 +56,12 @@ void UVGenerationDialog::setupConnections()
 
     connect(ui->checkBox_CylAutoDetectAxis, &QCheckBox::toggled,
         this, &UVGenerationDialog::onCylAutoDetectAxisToggled);
+
+    connect(ui->checkBox_SphereAutoDetectAxis, &QCheckBox::toggled,
+        this, &UVGenerationDialog::onSphereAutoDetectAxisToggled);
+
+    connect(ui->checkBox_TorusAutoDetectAxis, &QCheckBox::toggled,
+        this, &UVGenerationDialog::onTorusAutoDetectAxisToggled);
 }
 
 void UVGenerationDialog::onMethodChanged(int index)
@@ -76,6 +82,16 @@ void UVGenerationDialog::onCylAutoDetectAxisToggled(bool autoDetect)
     ui->groupBox_CylAxis->setEnabled(!autoDetect);
 }
 
+void UVGenerationDialog::onSphereAutoDetectAxisToggled(bool autoDetect)
+{
+    ui->groupBox_SphereAxis->setEnabled(!autoDetect);
+}
+
+void UVGenerationDialog::onTorusAutoDetectAxisToggled(bool autoDetect)
+{
+    ui->groupBox_TorusAxis->setEnabled(!autoDetect);
+}
+
 void UVGenerationDialog::onRelaxationToggled_Smart(bool enabled)
 {
     ui->spinBox_RelaxationIterations_Smart->setEnabled(enabled);
@@ -84,7 +100,7 @@ void UVGenerationDialog::onRelaxationToggled_Smart(bool enabled)
 void UVGenerationDialog::updateOptionsPage(int methodIndex)
 {
     // Map combo box index to stacked widget page
-    // 0: Planar, 1: Cylindrical, 2: Spherical, 3: AngleBased, 4: Hybrid, 5: SmartUV, 6: SmartProject, 7: ARAP
+    // 0: Planar, 1: Cylindrical, 2: Spherical, 3: Torus, 4: AngleBased, 5: Hybrid, 6: SmartUV, 7: SmartProject, 8: ARAP
     ui->stackedWidget_Options->setCurrentIndex(methodIndex);
 }
 
@@ -150,6 +166,12 @@ void UVGenerationDialog::loadLastUsedSettings()
     config.sphericalUVRotation = settings.value("sphericalUVRotation", 0.0f).toFloat();
     config.duplicatePoleVertices = settings.value("duplicatePoleVertices", true).toBool();
     config.seamlessSpherical = settings.value("seamlessSpherical", true).toBool();
+    config.sphericalAutoDetectAxis = settings.value("sphericalAutoDetectAxis", true).toBool();
+    config.sphericalAxis = glm::vec3(
+        settings.value("sphericalAxisX", 0.0f).toFloat(),
+        settings.value("sphericalAxisY", 1.0f).toFloat(),
+        settings.value("sphericalAxisZ", 0.0f).toFloat()
+    );
 
     // Cylindrical
     config.cylindricalScale = settings.value("cylindricalScale", 1.0f).toFloat();
@@ -185,6 +207,18 @@ void UVGenerationDialog::loadLastUsedSettings()
     // ARAP
     config.arapLambda = settings.value("arapLambda", 1000.0f).toFloat();
 
+    // Torus
+    config.torusScale = settings.value("torusScale", 1.0f).toFloat();
+    config.torusMinorScale = settings.value("torusMinorScale", 1.0f).toFloat();
+    config.torusSeamRotation = settings.value("torusSeamRotation", 0.0f).toFloat();
+    config.seamlessTorus = settings.value("seamlessTorus", true).toBool();
+    config.torusAutoDetectAxis = settings.value("torusAutoDetectAxis", true).toBool();
+    config.torusAxis = glm::vec3(
+        settings.value("torusAxisX", 0.0f).toFloat(),
+        settings.value("torusAxisY", 1.0f).toFloat(),
+        settings.value("torusAxisZ", 0.0f).toFloat()
+    );
+
     settings.endGroup();
 
     // Apply config to UI
@@ -211,6 +245,10 @@ void UVGenerationDialog::saveLastUsedSettings()
     settings.setValue("sphericalUVRotation", config.sphericalUVRotation);
     settings.setValue("duplicatePoleVertices", config.duplicatePoleVertices);
     settings.setValue("seamlessSpherical", config.seamlessSpherical);
+    settings.setValue("sphericalAutoDetectAxis", config.sphericalAutoDetectAxis);
+    settings.setValue("sphericalAxisX", config.sphericalAxis.x);
+    settings.setValue("sphericalAxisY", config.sphericalAxis.y);
+    settings.setValue("sphericalAxisZ", config.sphericalAxis.z);
 
     // Cylindrical
     settings.setValue("cylindricalScale", config.cylindricalScale);
@@ -244,6 +282,16 @@ void UVGenerationDialog::saveLastUsedSettings()
     // ARAP
     settings.setValue("arapLambda", config.arapLambda);
 
+    // Torus
+    settings.setValue("torusScale", config.torusScale);
+    settings.setValue("torusMinorScale", config.torusMinorScale);
+    settings.setValue("torusSeamRotation", config.torusSeamRotation);
+    settings.setValue("seamlessTorus", config.seamlessTorus);
+    settings.setValue("torusAutoDetectAxis", config.torusAutoDetectAxis);
+    settings.setValue("torusAxisX", config.torusAxis.x);
+    settings.setValue("torusAxisY", config.torusAxis.y);
+    settings.setValue("torusAxisZ", config.torusAxis.z);
+
     settings.endGroup();
 }
 
@@ -257,11 +305,12 @@ UVMethod UVGenerationDialog::getSelectedMethod() const
     case 0: return UVMethod::Planar;
     case 1: return UVMethod::Cylindrical;
     case 2: return UVMethod::Spherical;
-    case 3: return UVMethod::AngleBased;
-    case 4: return UVMethod::Hybrid;
-    case 5: return UVMethod::AngleBasedSmartUV;
-    case 6: return UVMethod::SmartProject;
-    case 7: return UVMethod::ARAP;
+    case 3: return UVMethod::Torus;
+    case 4: return UVMethod::AngleBased;
+    case 5: return UVMethod::Hybrid;
+    case 6: return UVMethod::AngleBasedSmartUV;
+    case 7: return UVMethod::SmartProject;
+    case 8: return UVMethod::ARAP;
     default: return UVMethod::Planar;
     }
 }
@@ -304,6 +353,12 @@ UVConfig UVGenerationDialog::getUVConfig() const
         );
         config.duplicatePoleVertices = ui->checkBox_DuplicatePoles->isChecked();
         config.seamlessSpherical = ui->checkBox_SeamlessSpherical->isChecked();
+        config.sphericalAutoDetectAxis = ui->checkBox_SphereAutoDetectAxis->isChecked();
+        config.sphericalAxis = glm::vec3(
+            ui->spinBox_SphereAxisX->value(),
+            ui->spinBox_SphereAxisY->value(),
+            ui->spinBox_SphereAxisZ->value()
+        );
         config.flipV = ui->checkBox_FlipV_Sphere->isChecked();
         break;
 
@@ -342,6 +397,22 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.flipV = ui->checkBox_FlipV_ARAP->isChecked();
         break;
 
+    case UVMethod::Torus:
+        config.torusScale = ui->spinBox_TorusScale->value();
+        config.torusMinorScale = ui->spinBox_TorusMinorScale->value();
+        config.torusSeamRotation = glm::radians(
+            static_cast<float>(ui->spinBox_TorusSeamRotation->value())
+        );
+        config.seamlessTorus = ui->checkBox_SeamlessTorus->isChecked();
+        config.torusAutoDetectAxis = ui->checkBox_TorusAutoDetectAxis->isChecked();
+        config.torusAxis = glm::vec3(
+            ui->spinBox_TorusAxisX->value(),
+            ui->spinBox_TorusAxisY->value(),
+            ui->spinBox_TorusAxisZ->value()
+        );
+        config.flipV = ui->checkBox_FlipV_Torus->isChecked();
+        break;
+
     default:
         break;
     }
@@ -358,11 +429,12 @@ void UVGenerationDialog::setMethod(UVMethod method)
     case UVMethod::Planar: index = 0; break;
     case UVMethod::Cylindrical: index = 1; break;
     case UVMethod::Spherical: index = 2; break;
-    case UVMethod::AngleBased: index = 3; break;
-    case UVMethod::Hybrid: index = 4; break;
-    case UVMethod::AngleBasedSmartUV: index = 5; break;
-    case UVMethod::SmartProject: index = 6; break;
-    case UVMethod::ARAP: index = 7; break;
+    case UVMethod::Torus: index = 3; break;
+    case UVMethod::AngleBased: index = 4; break;
+    case UVMethod::Hybrid: index = 5; break;
+    case UVMethod::AngleBasedSmartUV: index = 6; break;
+    case UVMethod::SmartProject: index = 7; break;
+    case UVMethod::ARAP: index = 8; break;
     default: index = 0; break;
     }
 
@@ -396,6 +468,14 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->spinBox_SphereRotation->setValue(glm::degrees(config.sphericalUVRotation));
     ui->checkBox_DuplicatePoles->setChecked(config.duplicatePoleVertices);
     ui->checkBox_SeamlessSpherical->setChecked(config.seamlessSpherical);
+    ui->checkBox_SphereAutoDetectAxis->setChecked(config.sphericalAutoDetectAxis);
+    ui->spinBox_SphereAxisX->setValue(config.sphericalAxis.x);
+    ui->spinBox_SphereAxisY->setValue(config.sphericalAxis.y);
+    ui->spinBox_SphereAxisZ->setValue(config.sphericalAxis.z);
+    // setChecked above only emits toggled() (running onSphereAutoDetectAxisToggled's enable/
+    // disable) when the checked state actually CHANGES - see the identical comment on the
+    // Cylindrical block above for why this explicit sync is needed regardless.
+    ui->groupBox_SphereAxis->setEnabled(!config.sphericalAutoDetectAxis);
     ui->checkBox_FlipV_Sphere->setChecked(config.flipV);
 
     // Set Angle-Based values
@@ -425,6 +505,21 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->checkBox_EnablePacking_ARAP->setChecked(config.enablePacking);
     ui->checkBox_FlipV_ARAP->setChecked(config.flipV);
 
+    // Set Torus values
+    ui->spinBox_TorusScale->setValue(config.torusScale);
+    ui->spinBox_TorusMinorScale->setValue(config.torusMinorScale);
+    ui->spinBox_TorusSeamRotation->setValue(glm::degrees(config.torusSeamRotation));
+    ui->checkBox_SeamlessTorus->setChecked(config.seamlessTorus);
+    ui->checkBox_TorusAutoDetectAxis->setChecked(config.torusAutoDetectAxis);
+    ui->spinBox_TorusAxisX->setValue(config.torusAxis.x);
+    ui->spinBox_TorusAxisY->setValue(config.torusAxis.y);
+    ui->spinBox_TorusAxisZ->setValue(config.torusAxis.z);
+    // setChecked above only emits toggled() (running onTorusAutoDetectAxisToggled's enable/
+    // disable) when the checked state actually CHANGES - see the identical comment on the
+    // Cylindrical/Spherical blocks for why this explicit sync is needed regardless.
+    ui->groupBox_TorusAxis->setEnabled(!config.torusAutoDetectAxis);
+    ui->checkBox_FlipV_Torus->setChecked(config.flipV);
+
     // Update enabled states
     ui->spinBox_RelaxationIterations->setEnabled(config.enableRelaxation);
     ui->spinBox_RelaxationIterations_Smart->setEnabled(config.enableRelaxation);
@@ -442,6 +537,7 @@ QString UVGenerationDialog::getMethodName(UVMethod method) const
 	case UVMethod::AngleBasedSmartUV: return "Smart UV";
 	case UVMethod::SmartProject: return "Smart Project (Blender-style)";
 	case UVMethod::ARAP: return "ARAP (As-Rigid-As-Possible)";
+	case UVMethod::Torus: return "Torus";
 	default: return "Unknown";
 	}
 }

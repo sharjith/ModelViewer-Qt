@@ -1965,6 +1965,15 @@ void AssImpModelLoader::generateUVsForMesh(MeshAnalysis::AnalysisResult& analysi
 	case UVMethod::SmartProject:
 		UVGenerator::generateSmartProject(vertices, indices, uvconfig);
 		break;
+	case UVMethod::ARAP:
+		// Backfilled: this switch previously had no case for ARAP at all (fell through to
+		// default and silently skipped UV generation) - a pre-existing gap unrelated to Torus,
+		// fixed here while adding the case immediately below since it's the same switch.
+		UVGenerator::generateARAP(vertices, indices, uvconfig);
+		break;
+	case UVMethod::Torus:
+		UVGenerator::generateTorus(vertices, indices, uvconfig);
+		break;
 	case UVMethod::None: // fall through
 	default:
 		break; // skip UV generation
@@ -2102,6 +2111,9 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 		break;
 	case UVMethod::ARAP:
 		UVGenerator::generateARAP(vertices, indices, config, &sourceVertexMap);
+		break;
+	case UVMethod::Torus:
+		UVGenerator::generateTorus(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::None: // fall through
 	default:

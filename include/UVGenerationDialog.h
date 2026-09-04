@@ -40,6 +40,8 @@ private slots:
     void onRelaxationToggled(bool enabled);
     void onRelaxationToggled_Smart(bool enabled);
     void onCylAutoDetectAxisToggled(bool autoDetect);
+    void onSphereAutoDetectAxisToggled(bool autoDetect);
+    void onTorusAutoDetectAxisToggled(bool autoDetect);
 
 
 private:

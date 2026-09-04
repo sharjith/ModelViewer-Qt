@@ -68,7 +68,33 @@ struct UVConfig
     // a flange - that skews the covariance away from the true axis).
     bool cylindricalAutoDetectAxis = true;
     glm::vec3 cylindricalAxis = glm::vec3(0.0f, 1.0f, 0.0f); // only used when the above is false
-	
+
+    // Sphere polar axis: same idea as cylindricalAutoDetectAxis/cylindricalAxis above, for the
+    // same reason - generateSpherical() used to hardcode world-Y as the pole-to-pole axis, wrong
+    // for a sphere/spheroid modeled/imported at any other orientation. A true (non-elongated)
+    // sphere has no geometrically "correct" axis at all - any choice is equally valid - so this
+    // mainly matters for a spheroid whose poles are meant to sit along a specific direction, or to
+    // pin the seam/pole location deterministically instead of leaving it to PCA noise.
+    bool sphericalAutoDetectAxis = true;
+    glm::vec3 sphericalAxis = glm::vec3(0.0f, 1.0f, 0.0f); // only used when the above is false
+
+    // Torus axis of revolution: same auto-detect/override pattern as cylindricalAutoDetectAxis/
+    // cylindricalAxis above - see generateTorus()'s doc comment. A torus's thin axial extent (tube
+    // thickness) is the PCA "outlier eigenvalue" against the two large, roughly-equal in-plane
+    // eigenvalues of the major-radius disk, the same detection generateCylindrical() already uses.
+    bool torusAutoDetectAxis = true;
+    glm::vec3 torusAxis = glm::vec3(0.0f, 1.0f, 0.0f); // only used when the above is false
+    float torusScale = 1.0f;            // Scale factor for both torus UV axes
+    float torusSeamRotation = 0.0f;     // radians; rotates the major (theta/U) seam
+    // Own field rather than reusing seamlessSpherical a third time (that field already carries a
+    // "should probably be renamed" wart from being reused by generateCylindrical()).
+    bool seamlessTorus = true;          // Handle torus UV seams (both U and V are periodic)
+    // Manual V-axis multiplier: a thin-tube torus (r << R, the common case - donuts, tires, pipe
+    // elbows) naively maps both a ~2*pi*R and a ~2*pi*r sweep to the same [0,1] range, visibly
+    // over-stretching the texture in one direction. Left as a plain manual multiplier (matching
+    // cylindricalScale/sphericalScale) rather than auto-computed from the estimated r/R ratio.
+    float torusMinorScale = 1.0f;
+
     // Angle-based unwrapping parameters
     float angleThreshold = 60.0f;       // Angle threshold for seam detection (degrees)
     float distortionWeight = 0.5f;      // Weight for distortion vs area preservation
@@ -185,6 +211,26 @@ public:
         const UVConfig& config = UVConfig{},
         std::vector<unsigned int>* sourceVertexMap = nullptr);
 
+    // Method 9: Torus projection (donut-style major/minor angle mapping). Axis auto-detected via
+    // the same PCA "outlier eigenvalue" test as generateCylindrical() (or overridden via
+    // config.torusAxis). Unlike Spherical/Cylindrical, a torus is DOUBLY periodic - both U (major
+    // angle around the axis) and V (minor/tube angle around the tube's own circular cross-section)
+    // wrap - so seam-crossing correction runs independently on each axis using the same circular-
+    // mean primitives generateSpherical() already established (they're generic, not U-specific).
+    // A proper ring torus (major radius R > minor radius r, both auto-estimated from the mesh) has
+    // no per-vertex singularity anywhere, unlike a sphere's poles - R<=r (a spindle/horn torus,
+    // where the tube passes through or near the axis) is the real degenerate case, guarded via
+    // kTorusVerbose logging rather than rejected, matching every other method's "produce a
+    // distorted-but-valid result for atypical input" posture. Always explodes vertices (one set
+    // per triangle-corner, no shared-vertex fallback) - a torus's seam is a grid (both a U=0 ring
+    // and a V=0 ring), so the "last writer wins" ambiguity a shared-vertex path would carry is
+    // proportionally far worse here than generateSpherical()'s single seam line.
+    static bool generateTorus(
+        std::vector<Vertex>& vertices,
+        std::vector<unsigned int>& indices,
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
+
 private:
     // Helper methods for angle-based unwrapping
     static void buildTriangleList(const std::vector<Vertex>& vertices,
@@ -246,7 +292,16 @@ private:
 
     // Utility methods
     static void applyUVTransforms(glm::vec2& uv, const UVConfig& config);
-    static glm::vec3 calculateCentroid(const std::vector<Vertex>& vertices);
+
+    // Each DISTINCT vertex position, first-occurrence order. Use this instead of the raw vertex
+    // array before any UNWEIGHTED positional statistic (a centroid/mean, a PCA covariance) that's
+    // meant to reflect the mesh's true shape - a vertex repeated at the same 3D position (from a
+    // UV method's own seam-vertex duplication, from a prior exploding UV pass, or from ordinary
+    // hard-edge/duplicate-on-import mesh authoring) carries no new positional information, so
+    // counting it more than once silently over-weights whatever region it clusters in. See
+    // generateCylindrical()'s doc comment for the confirmed regression this was introduced to fix
+    // (auto-detect axis skewed after a manual-axis run duplicated seam vertices).
+    static std::vector<glm::vec3> computeUniquePositions(const std::vector<Vertex>& vertices);
     static glm::vec3 calculateBounds(const std::vector<Vertex>& vertices,
         glm::vec3& minBounds, glm::vec3& maxBounds);
     static float calculateTriangleArea(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);
