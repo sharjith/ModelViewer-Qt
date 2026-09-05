@@ -11,6 +11,8 @@
 #include <QApplication>
 #include <QCloseEvent>
 #include <QListWidget>
+#include <QMdiArea>
+#include <QMdiSubWindow>
 #include <QRegularExpression>
 #include <QSet>
 #include <QSettings>
@@ -28,6 +30,18 @@ namespace
 				return true;
 		}
 		return false;
+	}
+
+	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
+	// same helper as RtRenderDialog.cpp, redeclared locally per that file's own convention.
+	QMdiArea* findMdiArea(QWidget* widget)
+	{
+		for (QWidget* w = widget; w; w = w->parentWidget())
+		{
+			if (auto* area = qobject_cast<QMdiArea*>(w))
+				return area;
+		}
+		return nullptr;
 	}
 
 	// Highest N found among direct top-level nodes named "Shrink Wrap NNN"
@@ -70,10 +84,28 @@ ShrinkWrapDialog::ShrinkWrapDialog(ModelViewer* modelViewer, QWidget* parent)
 
 	updateActionButtonsEnabled();
 	loadSettings();
+
+	// Hide/show this dialog as its OWN document's MDI subwindow loses/gains focus - mirrors
+	// RtRenderDialog's identical mechanism. Without this, a dialog opened for one document kept
+	// showing (and still reflecting) that document's stale state even while a different one
+	// became the active tab.
+	if (_modelViewer)
+	{
+		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
+			connect(mdiArea, &QMdiArea::subWindowActivated, this, &ShrinkWrapDialog::onActiveSubWindowChanged);
+	}
 }
 
 ShrinkWrapDialog::~ShrinkWrapDialog()
 {
+}
+
+void ShrinkWrapDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+{
+	const bool isOwnDocumentActive = _modelViewer
+		&& activeSubWindow
+		&& activeSubWindow->widget() == static_cast<QWidget*>(_modelViewer);
+	setVisible(isOwnDocumentActive);
 }
 
 void ShrinkWrapDialog::addCurrentTreeSelection()

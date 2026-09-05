@@ -62,6 +62,59 @@
     </layout>
    </item>
    <item>
+    <widget class="QGroupBox" name="groupBox_Seams">
+     <property name="title">
+      <string>Seams (Angle-Based / Angle-Based Smart UV / ARAP)</string>
+     </property>
+     <layout class="QVBoxLayout" name="verticalLayout_Seams">
+      <item>
+       <widget class="QPushButton" name="markSeamsButton">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Click mesh edges in the viewport to force them into the seam set - click a marked edge again to unmark it. Cleared when this dialog closes.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="text">
+         <string>Mark Seams</string>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QListWidget" name="seamMarkList">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>70</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="seamListButtonRow">
+        <item>
+         <widget class="QPushButton" name="removeSeamMarkButton">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Remove Selected</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="clearSeamMarksButton">
+          <property name="text">
+           <string>Clear All</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="groupBox_Method">
      <property name="title">
       <string>UV Mapping Method</string>
@@ -119,7 +172,7 @@
       <item>
        <widget class="QPushButton" name="resetDefaultsButton">
         <property name="toolTip">
-         <string>Reset every method's settings back to their default values (does not change the currently selected method or the mesh list)</string>
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reset every method's settings back to their default values (does not change the currently selected method or the mesh list)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
         <property name="text">
          <string>Reset to Defaults</string>
@@ -325,7 +378,7 @@
            <item row="5" column="1">
             <widget class="QCheckBox" name="checkBox_CylAutoDetectAxis">
              <property name="toolTip">
-              <string>Detect the cylinder's axis automatically from its geometry. Uncheck to enter the axis manually below.</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the cylinder's axis automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string/>
@@ -473,7 +526,7 @@
            <item row="2" column="1">
             <widget class="QCheckBox" name="checkBox_DuplicatePoles">
              <property name="toolTip">
-              <string>Duplicate vertices at the poles to avoid UV pinching/distortion</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Duplicate vertices at the poles to avoid UV pinching/distortion&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string/>
@@ -527,7 +580,7 @@
            <item row="5" column="1">
             <widget class="QCheckBox" name="checkBox_SphereAutoDetectAxis">
              <property name="toolTip">
-              <string>Detect the sphere's polar axis automatically from its geometry. Uncheck to enter the axis manually below.</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the sphere's polar axis automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string/>
@@ -655,7 +708,7 @@
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_TorusMinorScale">
              <property name="toolTip">
-              <string>Manual V-axis multiplier to correct texture stretch for a thin-tube torus (tube radius much smaller than the ring radius)</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Manual V-axis multiplier to correct texture stretch for a thin-tube torus (tube radius much smaller than the ring radius)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="decimals">
               <number>3</number>
@@ -735,7 +788,7 @@
            <item row="5" column="1">
             <widget class="QCheckBox" name="checkBox_TorusAutoDetectAxis">
              <property name="toolTip">
-              <string>Detect the torus's axis of revolution automatically from its geometry. Uncheck to enter the axis manually below.</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the torus's axis of revolution automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="text">
               <string/>
@@ -863,7 +916,7 @@
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_DistortionWeight">
              <property name="toolTip">
-              <string>Balance between angle-preserving and area-preserving unwrapping</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balance between angle-preserving and area-preserving unwrapping&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="decimals">
               <number>2</number>
@@ -985,6 +1038,26 @@
              </property>
             </widget>
            </item>
+           <item row="7" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="7" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
          <widget class="QWidget" name="page_Hybrid">
@@ -1079,6 +1152,26 @@
              </property>
             </widget>
            </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams_SmartUV">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams_SmartUV">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
          <widget class="QWidget" name="page_SmartProject">
@@ -1093,7 +1186,7 @@
            <item row="0" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_AngleLimit_SmartProject">
              <property name="toolTip">
-              <string>Lower for more projection groups (less distortion, more islands), higher for fewer projection groups</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Lower for more projection groups (less distortion, more islands), higher for fewer projection groups&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="decimals">
               <number>1</number>
@@ -1119,7 +1212,7 @@
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_AreaWeight_SmartProject">
              <property name="toolTip">
-              <string>Weight projection direction clustering by face area; 0 treats all faces equally, 1 lets large faces dominate</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Weight projection direction clustering by face area; 0 treats all faces equally, 1 lets large faces dominate&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="decimals">
               <number>2</number>
@@ -1183,7 +1276,7 @@
            <item row="0" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_ARAP">
              <property name="toolTip">
-              <string>Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="decimals">
               <number>1</number>
@@ -1209,7 +1302,7 @@
            <item row="1" column="1">
             <widget class="QDoubleSpinBox" name="spinBox_Rigidity_ARAP">
              <property name="toolTip">
-              <string>Balances local shape preservation against the free-boundary solve. Higher biases toward preserving the boundary shape; lower toward local rigidity.</string>
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balances local shape preservation against the free-boundary solve. Higher biases toward preserving the boundary shape; lower toward local rigidity.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>
              <property name="decimals">
               <number>1</number>
@@ -1285,6 +1378,26 @@
             <widget class="QCheckBox" name="checkBox_FlipV_ARAP">
              <property name="text">
               <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams_ARAP">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
              </property>
             </widget>
            </item>

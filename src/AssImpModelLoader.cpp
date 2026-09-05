@@ -2075,7 +2075,8 @@ QString AssImpModelLoader::getErrorMessage() const
 
 bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 	UVMethod method,
-	const UVConfig& config)
+	const UVConfig& config,
+	const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges)
 {
 	if (!mesh) return false;
 
@@ -2098,19 +2099,22 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 		UVGenerator::generateSpherical(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::AngleBased:
-		UVGenerator::generateAngleBased(vertices, indices, config, &sourceVertexMap);
+		UVGenerator::generateAngleBased(vertices, indices, config, &sourceVertexMap,
+			config.useMarkedSeams ? userSeamEdges : nullptr);
 		break;
 	case UVMethod::Hybrid:
 		UVGenerator::generateHybrid(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::AngleBasedSmartUV:
-		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config, &sourceVertexMap);
+		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config, &sourceVertexMap,
+			config.useMarkedSeams ? userSeamEdges : nullptr);
 		break;
 	case UVMethod::SmartProject:
 		UVGenerator::generateSmartProject(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::ARAP:
-		UVGenerator::generateARAP(vertices, indices, config, &sourceVertexMap);
+		UVGenerator::generateARAP(vertices, indices, config, &sourceVertexMap,
+			config.useMarkedSeams ? userSeamEdges : nullptr);
 		break;
 	case UVMethod::Torus:
 		UVGenerator::generateTorus(vertices, indices, config, &sourceVertexMap);

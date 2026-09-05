@@ -95,7 +95,7 @@
     <item row="2" column="0" colspan="2">
      <widget class="QCheckBox" name="preserveSharpFeaturesCheckBox">
       <property name="toolTip">
-       <string>Keep edges with a 30 degree or greater bend sharp. Disable for a fully smooth subdivision surface.</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Keep edges with a 30 degree or greater bend sharp. Disable for a fully smooth subdivision surface.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
       <property name="text">
        <string>Preserve sharp edges</string>

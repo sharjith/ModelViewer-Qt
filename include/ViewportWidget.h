@@ -20,6 +20,7 @@
 #include "MeasurementData.h"
 #include "MeasurementController.h"
 #include "AnnotationController.h"
+#include "SeamMarkingController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
@@ -351,6 +352,19 @@ public:
 	void setSelectedAnnotationIds(const QSet<QUuid>& ids);
 	// Same role as hasHiddenMeasurements() above, for annotations.
 	bool hasHiddenAnnotations() const { return _annotationController->hasHiddenAnnotations(); }
+
+	// ---- Seam-marking tool (Generate UVs dialog's "Mark Seams") ------------
+	// Thin forwards to _seamMarkingController - see SeamMarkingController.h.
+	// Unlike Measurement/Annotation, marks() is session state (no dialog
+	// backing a full anchor-list UI elsewhere) - UVGenerationDialog reads/
+	// mutates it directly via these forwards.
+	void setSeamMarkingToolArmed(bool armed);
+	bool seamMarkingToolArmed() const { return _seamMarkingController->seamToolArmed(); }
+	const QVector<SeamEdgeMark>& seamMarks() const { return _seamMarkingController->marks(); }
+	void removeSeamMarkAt(int index) { _seamMarkingController->removeMarkAt(index); }
+	// Clears the mark list AND disarms the tool - the full "session end"
+	// teardown UVGenerationDialog::closeEvent()/reject() call.
+	void clearSeamMarks();
 
 	// Recomputes bounds/fit after a measurement or annotation's visibility
 	// changed - mesh visibility changes already trigger this (and,
@@ -1051,6 +1065,13 @@ signals:
 	// Fires whenever the selected annotation set changes - same reasoning as
 	// measurementSelectionChanged() above.
 	void annotationSelectionChanged(const QSet<QUuid>& ids);
+	// Emitted whenever the armed "Mark Seams" tool state changes - same
+	// reasoning as annotationToolArmedChanged() above, so UVGenerationDialog's
+	// arm button can stay in sync (e.g. Escape disarming it).
+	void seamToolArmedChanged(bool armed);
+	// Fires whenever the seam-mark list changes (add/remove/clear) - lets
+	// UVGenerationDialog's mark-list widget refresh without polling.
+	void seamMarksChanged();
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
@@ -1976,6 +1997,11 @@ private:
 	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
 	// _measurementController above.
 	AnnotationController* _annotationController = nullptr;
+	// Owns the Generate UVs dialog's "Mark Seams" tool - see
+	// SeamMarkingController.h. Same IGpuContextResource-for-pointer-re-
+	// resolution-only reasoning as _measurementController/_annotationController
+	// above.
+	SeamMarkingController* _seamMarkingController = nullptr;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;

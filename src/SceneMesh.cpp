@@ -1969,8 +1969,16 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	const float cosCurvedSeamThresh = std::cos(3.0f * pi / 180.0f);
 	const float cosFaceThresh       = std::cos(std::max(thresholdDegrees * 2.0f, 30.0f) * pi / 180.0f);
 
-	std::vector<uint32_t> featureEdges;
-	featureEdges.reserve(edgeMap.size());
+	// Collected as (orig0, orig1, sortKey) then sorted below - edgeMap is an unordered_map, whose
+	// iteration order is not guaranteed reproducible across separate builds of the same map (the
+	// standard makes no such promise) even for bit-identical input. Since this function reruns on
+	// every setMeshData() call (i.e. every UV generation), an unsorted order let a SeamEdgeMark's
+	// stored edgeIndex silently start pointing at a DIFFERENT edge after Generate - confirmed real
+	// bug: the seam overlay stopped drawing (or could draw the wrong edge) right after a
+	// successful Generate, even though the mesh's actual topology hadn't changed at all.
+	struct FeatureEdgeEntry { uint32_t orig0, orig1; uint64_t sortKey; };
+	std::vector<FeatureEdgeEntry> featureEdgeEntries;
+	featureEdgeEntries.reserve(edgeMap.size());
 
 	for (auto& [key, ed] : edgeMap)
 	{
@@ -2006,10 +2014,22 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		}
 
 		if (isFeature)
-		{
-			featureEdges.push_back(ed.orig0);
-			featureEdges.push_back(ed.orig1);
-		}
+			featureEdgeEntries.push_back({ ed.orig0, ed.orig1, key });
+	}
+
+	// key is already the canonical, position-welded (wA<wB) pair used to build edgeMap - sorting
+	// by it (not by orig0/orig1, which are UN-welded and only meaningful within one triangle's own
+	// winding) gives a deterministic order driven purely by mesh topology, reproducible across
+	// rebuilds regardless of edgeMap's unordered_map iteration order.
+	std::sort(featureEdgeEntries.begin(), featureEdgeEntries.end(),
+		[](const FeatureEdgeEntry& a, const FeatureEdgeEntry& b) { return a.sortKey < b.sortKey; });
+
+	std::vector<uint32_t> featureEdges;
+	featureEdges.reserve(featureEdgeEntries.size() * 2);
+	for (const FeatureEdgeEntry& entry : featureEdgeEntries)
+	{
+		featureEdges.push_back(entry.orig0);
+		featureEdges.push_back(entry.orig1);
 	}
 
 	_featureEdgeIndices = std::move(featureEdges);
@@ -2784,6 +2804,101 @@ const std::vector<DetectedCircularLoop>& SceneMesh::getDetectedCircularLoops() c
 	if (!_detectedCircularLoopsCacheBuilt)
 		buildDetectedCircularLoops();
 	return _detectedCircularLoopsCache;
+}
+
+bool SceneMesh::resolveEdgeMarkWorldEndpoints(int edgeIndex, QVector3D& outStart, QVector3D& outEnd) const
+{
+	if (edgeIndex < 0)
+		return false;
+
+	const std::vector<int>& occBounds = getOccEdgeBoundaries();
+	if (!occBounds.empty())
+	{
+		// CAD mesh - same dual-branch shape as MeasurementController::
+		// resolveMeasurementEdgeGeometry(), just without the length summing (only the two
+		// topological endpoints are needed for seam welding/overlay, not the full polyline).
+		if (edgeIndex + 1 >= static_cast<int>(occBounds.size()))
+			return false;
+
+		const std::vector<float>& segments = getOccEdgeSegments();
+		const int startVec3 = occBounds[edgeIndex];
+		const int endVec3 = occBounds[edgeIndex + 1];
+		if (startVec3 < 0 || endVec3 <= startVec3 || static_cast<size_t>(endVec3) * 3 > segments.size())
+			return false;
+
+		const QMatrix4x4 combined = combinedRenderTransform();
+		auto worldPointAt = [&](int v) -> QVector3D {
+			const size_t p = static_cast<size_t>(v) * 3;
+			return combined.map(QVector3D(segments[p], segments[p + 1], segments[p + 2]));
+		};
+
+		outStart = worldPointAt(startVec3);
+		outEnd = worldPointAt(endVec3 - 1);
+		return true;
+	}
+
+	// Non-CAD mesh - a single straight feature edge (see getFeatureEdgeIndices()'s doc comment).
+	const std::vector<uint32_t>& featureEdges = getFeatureEdgeIndices();
+	const size_t base = static_cast<size_t>(edgeIndex) * 2;
+	if (base + 1 >= featureEdges.size())
+		return false;
+
+	const std::vector<float>& trsfPoints = getTrsfPoints();
+	auto vertexPos = [&trsfPoints](uint32_t vIdx) -> QVector3D {
+		const size_t p = static_cast<size_t>(vIdx) * 3;
+		if (p + 2 >= trsfPoints.size())
+			return QVector3D();
+		return QVector3D(trsfPoints[p], trsfPoints[p + 1], trsfPoints[p + 2]);
+	};
+
+	outStart = vertexPos(featureEdges[base]);
+	outEnd = vertexPos(featureEdges[base + 1]);
+	return true;
+}
+
+bool SceneMesh::resolveEdgeMarkLocalEndpoints(int edgeIndex, glm::vec3& outStart, glm::vec3& outEnd) const
+{
+	if (edgeIndex < 0)
+		return false;
+
+	const std::vector<int>& occBounds = getOccEdgeBoundaries();
+	if (!occBounds.empty())
+	{
+		// CAD mesh - getOccEdgeSegments() is already local-space (resolveEdgeMarkWorldEndpoints()
+		// applies combinedRenderTransform() to it explicitly, confirming the raw values are not
+		// pre-transformed) - no map()/inverse needed at all here.
+		if (edgeIndex + 1 >= static_cast<int>(occBounds.size()))
+			return false;
+
+		const std::vector<float>& segments = getOccEdgeSegments();
+		const int startVec3 = occBounds[edgeIndex];
+		const int endVec3 = occBounds[edgeIndex + 1];
+		if (startVec3 < 0 || endVec3 <= startVec3 || static_cast<size_t>(endVec3) * 3 > segments.size())
+			return false;
+
+		auto localPointAt = [&](int v) -> glm::vec3 {
+			const size_t p = static_cast<size_t>(v) * 3;
+			return glm::vec3(segments[p], segments[p + 1], segments[p + 2]);
+		};
+
+		outStart = localPointAt(startVec3);
+		outEnd = localPointAt(endVec3 - 1);
+		return true;
+	}
+
+	// Non-CAD mesh - straight from THIS mesh's own local vertex array (same one getMeshData()/
+	// UVGenerator operate on) - bit-exact by construction, no transform round trip to lose
+	// precision through (see this method's header doc comment for why that matters here).
+	const std::vector<uint32_t>& featureEdges = getFeatureEdgeIndices();
+	const size_t base = static_cast<size_t>(edgeIndex) * 2;
+	if (base + 1 >= featureEdges.size())
+		return false;
+	if (featureEdges[base] >= _vertices.size() || featureEdges[base + 1] >= _vertices.size())
+		return false;
+
+	outStart = _vertices[featureEdges[base]].Position;
+	outEnd = _vertices[featureEdges[base + 1]].Position;
+	return true;
 }
 
 void SceneMesh::buildDetectedCircularLoops() const

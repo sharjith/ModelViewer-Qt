@@ -158,6 +158,27 @@ public:
 	// bad circles.
 	const std::vector<DetectedCircularLoop>& getDetectedCircularLoops() const;
 
+	// Resolves an edgeIndex in the same space SelectionManager::pickStraightEdgeAnchor()/
+	// SeamEdgeMark use (CAD: getOccEdgeBoundaries() index; non-CAD: getFeatureEdgeIndices()
+	// pair index) to its two endpoints in WORLD space - mirrors MeasurementController::
+	// resolveMeasurementEdgeGeometry()'s dual branch, but as a SceneMesh-owned helper so
+	// SeamMarkingController (no MeasurementAnchorRef involved) can use it directly for overlay
+	// drawing. Returns false if edgeIndex doesn't resolve (out of range for the mesh's current
+	// data - e.g. stale after a topology-changing edit within the same dialog session).
+	bool resolveEdgeMarkWorldEndpoints(int edgeIndex, QVector3D& outStart, QVector3D& outEnd) const;
+
+	// Same resolution, but LOCAL (model) space - i.e. skips combinedRenderTransform() entirely,
+	// rather than applying it and having the caller invert it back. UVGenerator's seam-welding
+	// needs BIT-EXACT equality against its own vertices array (also untransformed local space,
+	// see SceneMesh::getMeshData()) - a transform-then-inverse round trip does NOT guarantee that
+	// (QMatrix4x4::inverted() introduces floating-point error even for a nominally-identity
+	// transform), which silently broke every marked seam's position-weld lookup (confirmed via
+	// diagnostic logging: the welded topoIndex pair printed identically to the map's own key at
+	// qDebug's rounded display precision, yet find() still missed - a classic near-but-not-exact
+	// float mismatch). Use this one for anything feeding into UVGenerator; use the WORLD variant
+	// above only for on-screen overlay drawing.
+	bool resolveEdgeMarkLocalEndpoints(int edgeIndex, glm::vec3& outStart, glm::vec3& outEnd) const;
+
 	// Per-triangle neighbor list, one entry per triangle (indices()[3k..3k+2]),
 	// giving the triangle index across each of its 3 edges in order
 	// (edge e runs from local vertex e to (e+1)%3) - -1 where there's no

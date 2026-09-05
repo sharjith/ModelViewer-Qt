@@ -206,7 +206,12 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
-	bool regenerateUVs(SceneMesh* mesh, UVMethod method, const UVConfig& config);
+	// userSeamEdges: optional local-space seam-edge position pairs (SeamMarkingController's marks,
+	// resolved and filtered by ViewportWidget::generateUVsForMeshes()) - forwarded to
+	// UVGenerator::generateAngleBased()/generateAngleBasedSmartUV()/generateARAP() only, the 3
+	// methods that support it. Ignored (nullptr default) for every other method.
+	bool regenerateUVs(SceneMesh* mesh, UVMethod method, const UVConfig& config,
+		const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
 
 	// Auto scale and orient the model to fit the scene's coordinate system
 	void setAutoScaleActive(bool autoScale) { _autoScale = autoScale; }

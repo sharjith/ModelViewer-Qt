@@ -243,6 +243,17 @@ _floorPlane(nullptr),
 	connect(_annotationController, &AnnotationController::annotationStateChanged,
 		this, QOverload<>::of(&ViewportWidget::update));
 
+	// Generate UVs dialog's "Mark Seams" tool - see SeamMarkingController's doc comment for why
+	// it takes no ModelViewer* (no undo command, session-scoped marks only).
+	_seamMarkingController = new SeamMarkingController(_sceneRuntime, _renderCtrl, this);
+	_gpuResourceRegistry.add(_seamMarkingController, GpuResourcePhase::Decorations);
+	connect(_seamMarkingController, &SeamMarkingController::seamToolArmedChanged,
+		this, &ViewportWidget::seamToolArmedChanged);
+	connect(_seamMarkingController, &SeamMarkingController::marksChanged,
+		this, &ViewportWidget::seamMarksChanged);
+	connect(_seamMarkingController, &SeamMarkingController::seamStateChanged,
+		this, QOverload<>::of(&ViewportWidget::update));
+
 
 	// Setup the view toolbar
 	_viewToolbar = new ViewToolbar(this);
@@ -4660,6 +4671,16 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 	MainWindow::showProgressBar(false);
 	MainWindow::setProgressValue(0);
 	MainWindow::showStatusMessage(tr("Generating UVs for %1 meshes").arg(meshCnt));
+
+	// Seam marks only apply to the 3 island-based methods that call UVGenerator::findSeams() -
+	// see SeamMarkingController's doc comment for why this is dialog-session state, not a
+	// SceneGraph/UVGenerator concept. Resolved here (not in AssImpModelLoader::regenerateUVs())
+	// since that's where _seamMarkingController lives.
+	const bool methodSupportsSeamMarks =
+		uvMethod == UVMethod::AngleBased || uvMethod == UVMethod::AngleBasedSmartUV || uvMethod == UVMethod::ARAP;
+	int unresolvedMarkCount = 0;
+	int consideredMarkCount = 0;
+
 	float count = 0;
 	for (int id : ids)
 	{
@@ -4667,8 +4688,37 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 		{
 			SceneMesh* mesh = _sceneRuntime.meshAt(id);
 			if (mesh)
-			{								
-				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig);
+			{
+				std::vector<std::pair<glm::vec3, glm::vec3>> userSeamEdges;
+				if (uvConfig.useMarkedSeams && methodSupportsSeamMarks && _seamMarkingController)
+				{
+					for (const SeamEdgeMark& mark : _seamMarkingController->marks())
+					{
+						if (mark.meshUuid != mesh->uuid())
+							continue; // marked for a different mesh - not an error, just not relevant here
+
+						++consideredMarkCount;
+						glm::vec3 localStart, localEnd;
+						// resolveEdgeMarkLocalEndpoints(), NOT the world-space variant + an
+						// inverse-transform round trip - QMatrix4x4::inverted() does not
+						// guarantee a bit-exact round trip even for a nominally-identity
+						// transform, and UVGenerator's seam-welding needs EXACT equality against
+						// its own (untransformed local-space) vertex positions. The round-trip
+						// version silently produced zero forced seams for every mark (confirmed
+						// via diagnostic logging - the welded topoIndex pair printed identically
+						// to the target edge at qDebug's rounded display precision, yet the map
+						// lookup still missed).
+						if (!mesh->resolveEdgeMarkLocalEndpoints(mark.edgeIndex, localStart, localEnd))
+						{
+							++unresolvedMarkCount;
+							continue;
+						}
+						userSeamEdges.emplace_back(localStart, localEnd);
+					}
+				}
+
+				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig,
+					userSeamEdges.empty() ? nullptr : &userSeamEdges);
 				if (success)
 				{
 					MainWindow::showStatusMessage(tr("Updating mesh: ") + mesh->getName());
@@ -4696,6 +4746,13 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 	doneCurrent();
 	updateView();
 	_viewer->updateDisplayList();
+
+	// Informational, not a failure - success stays true. A stale mark (e.g. after a prior
+	// exploding-method Generate call in this same session changed that mesh's vertex count) just
+	// contributes zero seams rather than being silently dropped without any trace - see
+	// SeamMarkingController's doc comment.
+	if (success && unresolvedMarkCount > 0)
+		error = tr("%1 of %2 marked seams could not be resolved.").arg(unresolvedMarkCount).arg(consideredMarkCount);
 
 	MainWindow::showStatusMessage("");
 	MainWindow::setProgressValue(0);
@@ -5459,6 +5516,8 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
 	if (_annotationController)
 		_annotationController->drawAnnotationOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
+	if (_seamMarkingController)
+		_seamMarkingController->drawSeamOverlay(_primaryCamera);
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -9582,6 +9641,8 @@ void ViewportWidget::render(Camera* camera)
 		_measurementController->drawMeasurementOverlay(camera, QSize(width(), height()), _axisTextRenderer);
 	if (_viewCtrl.multiViewActive() && _annotationController)
 		_annotationController->drawAnnotationOverlay(camera, QSize(width(), height()), _axisTextRenderer);
+	if (_viewCtrl.multiViewActive() && _seamMarkingController)
+		_seamMarkingController->drawSeamOverlay(camera);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
@@ -10490,11 +10551,17 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 {
 	if (!_measurementController)
 		return;
-	// Mutual exclusivity with the Annotate tool - see AnnotationController.h's
-	// doc comment. Only disarm when actually arming a tool (tool != None) so
-	// switching the Measure combo back to "None" doesn't touch Annotate state.
-	if (tool != MeasurementTool::None && _annotationController)
-		_annotationController->setAnnotationToolArmed(false, _selectionManager);
+	// Mutual exclusivity with the Annotate/Mark-Seams tools - see
+	// AnnotationController.h's doc comment. Only disarm when actually arming a
+	// tool (tool != None) so switching the Measure combo back to "None"
+	// doesn't touch the other tools' state.
+	if (tool != MeasurementTool::None)
+	{
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		if (_seamMarkingController)
+			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+	}
 	_measurementController->setMeasurementTool(tool, _selectionManager);
 }
 
@@ -10516,11 +10583,40 @@ void ViewportWidget::setAnnotationToolArmed(bool armed)
 {
 	if (!_annotationController)
 		return;
-	// Mutual exclusivity with the Measure tool - see setMeasurementTool()
-	// above and AnnotationController.h's doc comment.
-	if (armed && _measurementController)
-		_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+	// Mutual exclusivity with the Measure/Mark-Seams tools - see
+	// setMeasurementTool() above and AnnotationController.h's doc comment.
+	if (armed)
+	{
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_seamMarkingController)
+			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+	}
 	_annotationController->setAnnotationToolArmed(armed, _selectionManager);
+}
+
+void ViewportWidget::setSeamMarkingToolArmed(bool armed)
+{
+	if (!_seamMarkingController)
+		return;
+	// Mutual exclusivity with the Measure/Annotate tools - see
+	// setMeasurementTool()/setAnnotationToolArmed() above.
+	if (armed)
+	{
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+	}
+	_seamMarkingController->setSeamToolArmed(armed, _selectionManager);
+}
+
+void ViewportWidget::clearSeamMarks()
+{
+	if (!_seamMarkingController)
+		return;
+	_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+	_seamMarkingController->clearMarks();
 }
 
 void ViewportWidget::setSelectedAnnotationIds(const QSet<QUuid>& ids)
@@ -12110,6 +12206,19 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 		// even got going. When one of those IS in progress, fall through
 		// instead of intercepting, so the gesture works exactly as if no
 		// tool were armed - the tool simply doesn't register a point for it.
+		// Mark Seams tool armed: same press-vs-drag disambiguation as the
+		// Measure/Annotate tools' own click-candidate arming - mutually
+		// exclusive with both, so only one of these branches can ever fire.
+		if (_seamMarkingController->seamToolArmed()
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			_seamMarkingController->setSeamClickCandidate(true);
+			_seamMarkingController->setSeamClickPressPos(clickPoint);
+			return;
+		}
+
 		// Annotate tool armed: same press-vs-drag disambiguation as the
 		// Measure tool's own click-candidate arming just below - mutually
 		// exclusive with it (see AnnotationController.h's doc comment), so
@@ -12352,6 +12461,16 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		constexpr int kAnnotationClickThresholdPx = 4;
 		if ((e->pos() - _annotationController->annotationClickPressPos()).manhattanLength() < kAnnotationClickThresholdPx)
 			_annotationController->handleAnnotationClick(_annotationController->annotationClickPressPos(), _selectionManager, _primaryCamera);
+		update();
+		return;
+	}
+
+	if ((e->button() & Qt::LeftButton) && _seamMarkingController->seamClickCandidate())
+	{
+		_seamMarkingController->setSeamClickCandidate(false);
+		constexpr int kSeamMarkingClickThresholdPx = 4;
+		if ((e->pos() - _seamMarkingController->seamClickPressPos()).manhattanLength() < kSeamMarkingClickThresholdPx)
+			_seamMarkingController->handleSeamClick(_seamMarkingController->seamClickPressPos(), _selectionManager);
 		update();
 		return;
 	}
@@ -12923,6 +13042,11 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_annotationController->updateHoverAnnotation(e->pos(), _primaryCamera, QSize(width(), height()), _axisTextRenderer);
 	}
 
+	if (e->buttons() == Qt::NoButton && _seamMarkingController->seamToolArmed() && _selectionManager)
+	{
+		_seamMarkingController->updateHoverAnchor(e->pos(), _selectionManager);
+	}
+
 	update();
 
 	_viewCtrl.setLastMousePos(currentPos);
@@ -13047,6 +13171,15 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	if (key == Qt::Key_Escape && _annotationController->annotationToolArmed())
 	{
 		setAnnotationToolArmed(false);
+		return;
+	}
+	if (key == Qt::Key_Escape && _seamMarkingController->seamToolArmed())
+	{
+		// Disarms only - does NOT clear the mark list (matches Measure/
+		// Annotate's Escape, which stops picking without deleting placed
+		// items). The list is only cleared by UVGenerationDialog's own
+		// Remove Selected/Clear All, or on dialog close (clearSeamMarks()).
+		setSeamMarkingToolArmed(false);
 		return;
 	}
 	if ((key == Qt::Key_Return || key == Qt::Key_Enter) && measurementToolHasVariableAnchorCount(_measurementController->measurementTool()))

@@ -14,6 +14,7 @@ namespace Ui
 class ModelViewer;
 class SceneNode;
 class QCloseEvent;
+class QMdiSubWindow;
 
 // ---------------------------------------------------------------------------
 // SubdivisionDialog
@@ -66,6 +67,10 @@ private slots:
 	void onRemoveSelectedClicked();
 	void onGenerateClicked();
 	void onListSelectionChanged();
+
+	// Hides/shows this dialog as its own document's MDI subwindow loses/gains focus - mirrors
+	// RtRenderDialog's identical mechanism (see the constructor's connect() for why).
+	void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
 
 private:
 	// Enables Generate only while the working list holds at least one item.

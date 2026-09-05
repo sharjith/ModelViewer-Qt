@@ -165,6 +165,15 @@ void SceneRenderController::releaseGpuResources()
         _annotationOverlayVBO = 0;
     }
 
+    // Seam-marking overlay
+    if (_seamOverlayVAO != 0)
+    {
+        glDeleteBuffers(1, &_seamOverlayVBO);
+        glDeleteVertexArrays(1, &_seamOverlayVAO);
+        _seamOverlayVAO = 0;
+        _seamOverlayVBO = 0;
+    }
+
     if (!shareContexts && _punctualLights)
         _punctualLights->cleanup();
 
@@ -299,6 +308,21 @@ void SceneRenderController::initAnnotationOverlayGeometry(const std::vector<floa
 
     glBindVertexArray(_annotationOverlayVAO);
     glBindBuffer(GL_ARRAY_BUFFER, _annotationOverlayVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                 vertices.data(),
+                 GL_DYNAMIC_DRAW);
+}
+
+void SceneRenderController::initSeamOverlayGeometry(const std::vector<float>& vertices)
+{
+    if (_seamOverlayVAO == 0)
+        glGenVertexArrays(1, &_seamOverlayVAO);
+    if (_seamOverlayVBO == 0)
+        glGenBuffers(1, &_seamOverlayVBO);
+
+    glBindVertexArray(_seamOverlayVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, _seamOverlayVBO);
     glBufferData(GL_ARRAY_BUFFER,
                  static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                  vertices.data(),

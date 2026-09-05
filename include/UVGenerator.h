@@ -103,6 +103,13 @@ struct UVConfig
     int relaxationIterations = 10; // Default number of smoothing passes
     bool enablePacking = true;
 
+    // Whether the caller should bother resolving/passing user-marked seam edges (see
+    // findSeams()'s userSeamEdges parameter) at all - a per-method opt-out so a session's marks
+    // can be compared against without clearing the mark list. UVGenerator itself stays fully
+    // static/stateless/QUuid-unaware; this flag is consumed by the CALLER (AssImpModelLoader::
+    // regenerateUVs()/ViewportWidget::generateUVsForMeshes()), not by UVGenerator.
+    bool useMarkedSeams = true;
+
     // Smart Project (ported from Blender's "Smart UV Project"): clusters triangles by
     // face-normal similarity, independent of mesh connectivity/seams.
     float smartProjectAngleLimit = 66.0f;  // Degrees; lower = more projection groups, higher = less distortion
@@ -140,12 +147,16 @@ struct UVIsland
 class UVGenerator
 {
 public:
-    // Method 1: Angle-based unwrapping (most reliable for automation)
+    // Method 1: Angle-based unwrapping (most reliable for automation). userSeamEdges - see
+    // findSeams()'s doc comment - is an optional set of local-space position pairs (from
+    // SeamMarkingController, resolved by the caller) each forced into the seam set regardless of
+    // angleThreshold, unioned with the automatic detection.
     static bool generateAngleBased(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{},
-        std::vector<unsigned int>* sourceVertexMap = nullptr);
+        std::vector<unsigned int>* sourceVertexMap = nullptr,
+        const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
 
     // Method 2: Cylindrical projection (good for organic shapes)
     static bool generateCylindrical(
@@ -186,7 +197,8 @@ public:
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config,
-        std::vector<unsigned int>* sourceVertexMap = nullptr);
+        std::vector<unsigned int>* sourceVertexMap = nullptr,
+        const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
 
     // Method 7: Smart Project - ported from Blender's UV_OT_smart_project. Clusters
     // triangles by face-normal similarity (not mesh connectivity) and linearly projects
@@ -208,7 +220,8 @@ public:
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{},
-        std::vector<unsigned int>* sourceVertexMap = nullptr);
+        std::vector<unsigned int>* sourceVertexMap = nullptr,
+        const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
 
     // Method 9: Torus projection (donut-style major/minor angle mapping). Axis auto-detected via
     // the same PCA "outlier eigenvalue" test as generateCylindrical() (or overridden via
@@ -236,10 +249,19 @@ private:
         const std::vector<unsigned int>& indices,
         std::vector<MeshTriangle>& triangles);
 
+    // userSeamEdges: optional local-space position pairs (each an edge's two endpoints) to force
+    // into seams regardless of angleThreshold - resolved/owned by the caller (ViewportWidget::
+    // generateUVsForMeshes(), from SeamMarkingController's marks), welded here to topoIndices via
+    // the same exact-position-equality convention buildTriangleList() already uses (safe for the
+    // same reason: both sides trace back to the SAME unmodified vertices array at this point,
+    // before any exploding). A pair that doesn't resolve to an existing 2-triangle-adjacent edge
+    // (stale edgeIndex, or the mesh doesn't have that edge) is silently skipped here - the caller
+    // is responsible for reporting "N of M could not be resolved" if it cares.
     static void findSeams(const std::vector<Vertex>& vertices,
         const std::vector<MeshTriangle>& triangles,
         std::vector<std::pair<unsigned int, unsigned int>>& seams,
-        float angleThreshold);
+        float angleThreshold,
+        const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
 
     static void createUVIslands(const std::vector<MeshTriangle>& triangles,
         const std::vector<std::pair<unsigned int, unsigned int>>& seams,
@@ -280,7 +302,16 @@ private:
         const UVConfig& config,
         int iterations);
 
-    static void packUVIslands(std::vector<UVIsland>& islands,
+    // Normalizes each island's UV range INDEPENDENTLY into its own full [0,1] box - matching
+    // unwrapIslandPCA()'s normalizeUVs=true convention (used by the other 3 methods' own
+    // packing-disabled fallback) - NOT a single combined bounding box across every island
+    // together. islands with unrelated per-island bases (unwrapIsland() computes each island's
+    // own local tangent/bitangent independently) can have wildly different absolute UV
+    // magnitudes, so a single shared bbox lets one island dominate while another collapses to a
+    // sliver - confirmed real bug (a two-panel test mesh split by a marked seam: one panel's
+    // corners never touched the shared bbox's edges at all).
+    static void packUVIslands(const std::vector<MeshTriangle>& triangles,
+        std::vector<UVIsland>& islands,
         std::vector<glm::vec2>& uvs,
         float padding);
 

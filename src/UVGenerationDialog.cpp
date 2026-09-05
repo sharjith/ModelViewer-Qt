@@ -10,6 +10,11 @@
 
 #include <QCloseEvent>
 #include <QListWidget>
+#include <QMdiArea>
+#include <QMdiSubWindow>
+#include <QSignalBlocker>
+#include <algorithm>
+#include <functional>
 
 namespace
 {
@@ -21,6 +26,18 @@ namespace
                 return true;
         }
         return false;
+    }
+
+    // Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
+    // same helper as RtRenderDialog.cpp, redeclared locally per that file's own convention.
+    QMdiArea* findMdiArea(QWidget* widget)
+    {
+        for (QWidget* w = widget; w; w = w->parentWidget())
+        {
+            if (auto* area = qobject_cast<QMdiArea*>(w))
+                return area;
+        }
+        return nullptr;
     }
 }
 
@@ -47,6 +64,26 @@ UVGenerationDialog::UVGenerationDialog(ModelViewer* modelViewer, QWidget* parent
     connect(ui->generateButton, &QPushButton::clicked, this, &UVGenerationDialog::onGenerateClicked);
     connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &UVGenerationDialog::onListSelectionChanged);
     connect(ui->resetDefaultsButton, &QPushButton::clicked, this, &UVGenerationDialog::onResetDefaultsClicked);
+
+    connect(ui->markSeamsButton, &QPushButton::toggled, this, &UVGenerationDialog::onMarkSeamsToggled);
+    connect(ui->removeSeamMarkButton, &QPushButton::clicked, this, &UVGenerationDialog::onRemoveSeamMarkClicked);
+    connect(ui->clearSeamMarksButton, &QPushButton::clicked, this, &UVGenerationDialog::onClearSeamMarksClicked);
+    connect(ui->seamMarkList, &QListWidget::itemSelectionChanged, this, &UVGenerationDialog::onSeamMarkListSelectionChanged);
+    if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+    {
+        connect(viewport, &ViewportWidget::seamMarksChanged, this, &UVGenerationDialog::refreshSeamMarkList);
+        connect(viewport, &ViewportWidget::seamToolArmedChanged, this, &UVGenerationDialog::onSeamToolArmedChanged);
+    }
+
+    // Hide/show this dialog as its OWN document's MDI subwindow loses/gains focus - mirrors
+    // RtRenderDialog's identical mechanism. Without this, a dialog opened for one document kept
+    // showing (and still reflecting) that document's stale state even while a different one
+    // became the active tab.
+    if (_modelViewer)
+    {
+        if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
+            connect(mdiArea, &QMdiArea::subWindowActivated, this, &UVGenerationDialog::onActiveSubWindowChanged);
+    }
 
     // Set initial page to Planar (index 0)
     ui->stackedWidget_Options->setCurrentIndex(0);
@@ -150,8 +187,9 @@ void UVGenerationDialog::adjustDialogSize()
     QSize pageSize = currentPage->sizeHint();
 
     // Calculate required height
-    // Base height includes: mesh list + method groupbox + generate button + margins
+    // Base height includes: mesh list + seams groupbox + method groupbox + generate button + margins
     int baseHeight = ui->meshList->sizeHint().height()
+        + ui->groupBox_Seams->sizeHint().height()
         + ui->groupBox_Method->sizeHint().height()
         + ui->generateButton->sizeHint().height()
         + 80; // Margins and spacing
@@ -232,6 +270,7 @@ void UVGenerationDialog::loadLastUsedSettings()
     config.enableRelaxation = settings.value("enableRelaxation", false).toBool();
     config.relaxationIterations = settings.value("relaxationIterations", 10).toInt();
     config.enablePacking = settings.value("enablePacking", true).toBool();
+    config.useMarkedSeams = settings.value("useMarkedSeams", true).toBool();
 
     // Smart Project
     config.smartProjectAngleLimit = settings.value("smartProjectAngleLimit", 66.0f).toFloat();
@@ -308,6 +347,7 @@ void UVGenerationDialog::saveLastUsedSettings()
     settings.setValue("enableRelaxation", config.enableRelaxation);
     settings.setValue("relaxationIterations", config.relaxationIterations);
     settings.setValue("enablePacking", config.enablePacking);
+    settings.setValue("useMarkedSeams", config.useMarkedSeams);
 
     // Smart Project
     settings.setValue("smartProjectAngleLimit", config.smartProjectAngleLimit);
@@ -405,6 +445,7 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.enableRelaxation = ui->checkBox_EnableRelaxation->isChecked();
         config.relaxationIterations = ui->spinBox_RelaxationIterations->value();
         config.enablePacking = ui->checkBox_EnablePacking->isChecked();
+        config.useMarkedSeams = ui->checkBox_UseMarkedSeams->isChecked();
         break;
 
     case UVMethod::Hybrid:
@@ -415,6 +456,7 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.angleThreshold = ui->spinBox_AngleThreshold_Smart->value();
         config.enableRelaxation = ui->checkBox_EnableRelaxation_Smart->isChecked();
         config.relaxationIterations = ui->spinBox_RelaxationIterations_Smart->value();
+        config.useMarkedSeams = ui->checkBox_UseMarkedSeams_SmartUV->isChecked();
         break;
 
     case UVMethod::SmartProject:
@@ -430,6 +472,7 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.seamPadding = ui->spinBox_SeamPadding_ARAP->value();
         config.enablePacking = ui->checkBox_EnablePacking_ARAP->isChecked();
         config.flipV = ui->checkBox_FlipV_ARAP->isChecked();
+        config.useMarkedSeams = ui->checkBox_UseMarkedSeams_ARAP->isChecked();
         break;
 
     case UVMethod::Torus:
@@ -522,11 +565,13 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->checkBox_EnableRelaxation->setChecked(config.enableRelaxation);
     ui->spinBox_RelaxationIterations->setValue(config.relaxationIterations);
     ui->checkBox_EnablePacking->setChecked(config.enablePacking);
+    ui->checkBox_UseMarkedSeams->setChecked(config.useMarkedSeams);
 
     // Set Smart UV values
     ui->spinBox_AngleThreshold_Smart->setValue(config.angleThreshold);
     ui->checkBox_EnableRelaxation_Smart->setChecked(config.enableRelaxation);
     ui->spinBox_RelaxationIterations_Smart->setValue(config.relaxationIterations);
+    ui->checkBox_UseMarkedSeams_SmartUV->setChecked(config.useMarkedSeams);
 
     // Set Smart Project values
     ui->spinBox_AngleLimit_SmartProject->setValue(config.smartProjectAngleLimit);
@@ -540,6 +585,7 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->spinBox_SeamPadding_ARAP->setValue(config.seamPadding);
     ui->checkBox_EnablePacking_ARAP->setChecked(config.enablePacking);
     ui->checkBox_FlipV_ARAP->setChecked(config.flipV);
+    ui->checkBox_UseMarkedSeams_ARAP->setChecked(config.useMarkedSeams);
 
     // Set Torus values
     ui->spinBox_TorusScale->setValue(config.torusScale);
@@ -581,6 +627,8 @@ QString UVGenerationDialog::getMethodName(UVMethod method) const
 void UVGenerationDialog::closeEvent(QCloseEvent* event)
 {
     saveLastUsedSettings();
+    if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+        viewport->clearSeamMarks();  // discard seam marks with the session - see SeamMarkingController.h
     QDialog::closeEvent(event);
 }
 
@@ -591,6 +639,8 @@ void UVGenerationDialog::reject()
     // this just needs to make sure Escape doesn't skip it too. Mirrors
     // ShrinkWrapDialog::reject() exactly.
     saveLastUsedSettings();
+    if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+        viewport->clearSeamMarks();
     QDialog::reject();
 }
 
@@ -635,6 +685,79 @@ void UVGenerationDialog::onResetDefaultsClicked()
     // list untouched - "reset settings" shouldn't also change what's selected/targeted.
     setConfig(UVConfig{});
     ui->statusLabel->setText(tr("All methods reset to default settings."));
+}
+
+void UVGenerationDialog::onMarkSeamsToggled(bool armed)
+{
+    if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+        viewport->setSeamMarkingToolArmed(armed);
+}
+
+void UVGenerationDialog::onRemoveSeamMarkClicked()
+{
+    ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+    if (!viewport)
+        return;
+
+    // Remove highest index first so earlier indices stay valid as items are removed - each
+    // item's Qt::UserRole holds its position in ViewportWidget::seamMarks() at the time
+    // refreshSeamMarkList() last rebuilt the list.
+    QVector<int> indices;
+    const QList<QListWidgetItem*> selected = ui->seamMarkList->selectedItems();
+    indices.reserve(selected.size());
+    for (QListWidgetItem* item : selected)
+        indices.append(item->data(Qt::UserRole).toInt());
+    std::sort(indices.begin(), indices.end(), std::greater<int>());
+    for (int index : indices)
+        viewport->removeSeamMarkAt(index);
+}
+
+void UVGenerationDialog::onClearSeamMarksClicked()
+{
+    if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+        viewport->clearSeamMarks();
+}
+
+void UVGenerationDialog::onSeamMarkListSelectionChanged()
+{
+    ui->removeSeamMarkButton->setEnabled(!ui->seamMarkList->selectedItems().isEmpty());
+}
+
+void UVGenerationDialog::refreshSeamMarkList()
+{
+    ui->seamMarkList->clear();
+
+    ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+    if (viewport)
+    {
+        const QVector<SeamEdgeMark>& marks = viewport->seamMarks();
+        for (int i = 0; i < marks.size(); ++i)
+        {
+            SceneMesh* mesh = viewport->getMeshByUuid(marks[i].meshUuid);
+            const QString meshName = mesh ? mesh->getName() : tr("<unknown mesh>");
+            QListWidgetItem* item = new QListWidgetItem(
+                tr("%1: Edge %2").arg(meshName).arg(marks[i].edgeIndex), ui->seamMarkList);
+            item->setData(Qt::UserRole, i);
+        }
+    }
+
+    onSeamMarkListSelectionChanged();
+}
+
+void UVGenerationDialog::onSeamToolArmedChanged(bool armed)
+{
+    // Blocked so this externally-driven sync (Escape, or arming Measure/Annotate instead) doesn't
+    // re-fire onMarkSeamsToggled() and call back into an already-up-to-date ViewportWidget.
+    const QSignalBlocker blocker(ui->markSeamsButton);
+    ui->markSeamsButton->setChecked(armed);
+}
+
+void UVGenerationDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
+{
+    const bool isOwnDocumentActive = _modelViewer
+        && activeSubWindow
+        && activeSubWindow->widget() == static_cast<QWidget*>(_modelViewer);
+    setVisible(isOwnDocumentActive);
 }
 
 void UVGenerationDialog::updateGenerateButtonEnabled()
@@ -714,5 +837,10 @@ void UVGenerationDialog::onGenerateClicked()
     }
     _modelViewer->commitUVGeneration(commands, getMethodName(method));
 
-    ui->statusLabel->setText(tr("UVs generated using %1 method.").arg(getMethodName(method)));
+    // error carries an informational (not failure) note here when some marked seams couldn't be
+    // resolved - see ViewportWidget::generateUVsForMeshes()'s doc comment.
+    QString statusText = tr("UVs generated using %1 method.").arg(getMethodName(method));
+    if (!error.isEmpty())
+        statusText += QStringLiteral(" ") + error;
+    ui->statusLabel->setText(statusText);
 }

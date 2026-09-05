@@ -1,0 +1,31 @@
+# SeamMarkTest.obj - two flat quads sharing exactly one edge (a 'hinged book', 30 deg fold).
+# That shared edge is the ONLY connection between the two quads - marking it as a seam is
+# guaranteed to split the mesh into 2 separate UV islands (a real graph bridge), unlike a
+# closed ring where cutting one edge leaves the rest still connected. Flat-shaded (each quad
+# has its own vertices/normal, not shared) so SceneMesh::getFeatureEdgeIndices() flags the
+# hinge as a pickable feature edge (>15 deg), while 30 deg stays under Angle-Based's default
+# 60 degree auto-seam threshold - it will not seam there without a manual mark.
+
+mtllib SeamMarkTest.mtl
+usemtl mat_1
+
+v -1.000000 0.000000 -1.000000
+v 0.000000 0.000000 1.000000
+v 0.000000 0.000000 -1.000000
+v -1.000000 0.000000 -1.000000
+v -1.000000 0.000000 1.000000
+v 0.000000 0.000000 1.000000
+v 0.000000 0.000000 -1.000000
+v 0.866025 0.500000 1.000000
+v 0.866025 0.500000 -1.000000
+v 0.000000 0.000000 -1.000000
+v 0.000000 0.000000 1.000000
+v 0.866025 0.500000 1.000000
+
+vn 0.000000 1.000000 0.000000
+vn -0.500000 0.866025 0.000000
+
+f 1//1 2//1 3//1
+f 4//1 5//1 6//1
+f 7//2 8//2 9//2
+f 10//2 11//2 12//2

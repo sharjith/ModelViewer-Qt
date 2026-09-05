@@ -61,7 +61,7 @@
      <item row="0" column="1">
       <widget class="QDoubleSpinBox" name="sharpnessSpin">
        <property name="toolTip">
-        <string>Lower = smoother/rounder surface; higher = sharper edges preserved.</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Lower = smoother/rounder surface; higher = sharper edges preserved.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="suffix">
         <string>°</string>
@@ -93,7 +93,7 @@
      <item row="1" column="1">
       <widget class="QDoubleSpinBox" name="boundaryToleranceSpin">
        <property name="toolTip">
-        <string>How large a gap the reconstruction may bridge. Lower leaves more open holes on sparse/incomplete scans; higher is more likely to close holes but can bridge unrelated surfaces.</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How large a gap the reconstruction may bridge. Lower leaves more open holes on sparse/incomplete scans; higher is more likely to close holes but can bridge unrelated surfaces.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="decimals">
         <number>2</number>
@@ -139,7 +139,7 @@
         <bool>false</bool>
        </property>
        <property name="toolTip">
-        <string>Merges points closer than this distance before reconstructing - speeds up large/noisy scans, at the cost of fine detail.</string>
+        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Merges points closer than this distance before reconstructing - speeds up large/noisy scans, at the cost of fine detail.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
        </property>
        <property name="decimals">
         <number>6</number>

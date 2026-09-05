@@ -89,6 +89,11 @@ public:
     // arrowhead (see AnnotationController::drawAnnotationOverlay()).
     void initAnnotationOverlayGeometry(const std::vector<float>& vertices);
 
+    // Sibling to initMeasurementOverlayGeometry() for the UV seam-marking overlay (Generate UVs
+    // dialog's "Mark Seams" tool, SeamMarkingController) - same pos(3)+color(3) interleaved
+    // GL_LINES layout, own dedicated buffer for the same stomp-avoidance reason.
+    void initSeamOverlayGeometry(const std::vector<float>& vertices);
+
     // Creates the ViewCube label quad VAO/VBO (geometry only; textures uploaded by caller).
     void initViewCubeLabelGeometry();
 
@@ -312,6 +317,8 @@ public:
     GLuint measurementConeVBO() const { return _measurementConeVBO; }
     GLuint annotationOverlayVAO() const { return _annotationOverlayVAO; }
     GLuint annotationOverlayVBO() const { return _annotationOverlayVBO; }
+    GLuint seamOverlayVAO() const { return _seamOverlayVAO; }
+    GLuint seamOverlayVBO() const { return _seamOverlayVBO; }
 
     QOpenGLVertexArrayObject& bgVAO()      { return _bgVAO; }
     QOpenGLVertexArrayObject& bgSplitVAO() { return _bgSplitVAO; }
@@ -707,6 +714,8 @@ private:
     unsigned int _measurementConeVBO = 0;
     unsigned int _annotationOverlayVAO = 0;
     unsigned int _annotationOverlayVBO = 0;
+    unsigned int _seamOverlayVAO = 0;
+    unsigned int _seamOverlayVBO = 0;
 
     QOpenGLVertexArrayObject _bgVAO;
     QOpenGLVertexArrayObject _bgSplitVAO;

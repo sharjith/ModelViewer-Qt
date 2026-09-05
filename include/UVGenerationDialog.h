@@ -13,6 +13,7 @@ namespace Ui
 
 class ModelViewer;
 class QCloseEvent;
+class QMdiSubWindow;
 
 // ---------------------------------------------------------------------------
 // UVGenerationDialog
@@ -33,6 +34,11 @@ class QCloseEvent;
 // option-page UI (getUVConfig()/setConfig()/loadLastUsedSettings()/
 // saveLastUsedSettings()) is unchanged from the dialog's original modal
 // design - only the lifecycle and target-selection changed.
+//
+// Also owns the "Mark Seams" sub-command: an arm button + list, forwarding
+// to ViewportWidget::setSeamMarkingToolArmed()/seamMarks()/removeSeamMarkAt()/
+// clearSeamMarks() (SeamMarkingController's actual owner). Marks are session
+// state, not persisted - see SeamMarkingController.h's doc comment.
 // ---------------------------------------------------------------------------
 class UVGenerationDialog : public QDialog
 {
@@ -80,6 +86,23 @@ private slots:
     void onListSelectionChanged();
     void onGenerateClicked();
     void onResetDefaultsClicked();
+
+    // ---- Seam marking (see SeamMarkingController's doc comment for the dialog-scoped design) --
+    void onMarkSeamsToggled(bool armed);
+    void onRemoveSeamMarkClicked();
+    void onClearSeamMarksClicked();
+    void onSeamMarkListSelectionChanged();
+    // Refreshes seamMarkList from ViewportWidget::seamMarks() - connected to
+    // ViewportWidget::seamMarksChanged().
+    void refreshSeamMarkList();
+    // Keeps markSeamsButton's checked state in sync when the tool is disarmed
+    // externally (Escape, or arming Measure/Annotate instead) - connected to
+    // ViewportWidget::seamToolArmedChanged().
+    void onSeamToolArmedChanged(bool armed);
+
+    // Hides/shows this dialog as its own document's MDI subwindow loses/gains focus - mirrors
+    // RtRenderDialog's identical mechanism (see the constructor's connect() for why).
+    void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
 
 
 private:

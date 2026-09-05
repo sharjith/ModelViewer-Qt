@@ -107,7 +107,8 @@ bool UVGenerator::generateAngleBased(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config,
-    std::vector<unsigned int>* sourceVertexMap)
+    std::vector<unsigned int>* sourceVertexMap,
+    const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges)
 {
     if (vertices.empty() || indices.empty()) return false;
 
@@ -117,7 +118,7 @@ bool UVGenerator::generateAngleBased(
 
     // Find seams based on angle threshold
     std::vector<std::pair<unsigned int, unsigned int>> seams;
-    findSeams(vertices, triangles, seams, config.angleThreshold);
+    findSeams(vertices, triangles, seams, config.angleThreshold, userSeamEdges);
 
     // Create UV islands
     std::vector<UVIsland> islands;
@@ -141,8 +142,27 @@ bool UVGenerator::generateAngleBased(
         relaxUVs(triangles, uvs, islands, config, config.relaxationIterations);
     }
 
-    // Pack UV islands
-    packUVIslands(const_cast<std::vector<UVIsland>&>(islands), uvs, config.seamPadding);
+    // Pack UV islands. config.enablePacking has always been wired to this dialog's "Enable
+    // Packing" checkbox but, unlike generateAngleBasedSmartUV()/generateSmartProject()/
+    // generateARAP() (which all check it and call the real packWithXAtlas() below), this method
+    // unconditionally used packUVIslands() - a naive GLOBAL min/max normalize across every vertex
+    // combined, not real per-island packing. That's harmless when islands happen to end up on a
+    // similar coordinate scale, but confirmed broken for 2 islands with sufficiently different
+    // unwrapIsland() basis orientations (e.g. a marked seam splitting a mesh into two differently-
+    // angled flat panels): one island's absolute UV range can be tiny relative to the other's, so
+    // the shared global normalize collapses it into a sliver near a single point - every vertex
+    // sampling effectively the same texel (seen as a solid, untextured-looking panel).
+    if (config.enablePacking)
+    {
+        std::vector<glm::vec3> positions(vertices.size());
+        for (size_t i = 0; i < vertices.size(); ++i)
+            positions[i] = vertices[i].Position;
+        packWithXAtlas(uvs, indices, positions);
+    }
+    else
+    {
+        packUVIslands(triangles, const_cast<std::vector<UVIsland>&>(islands), uvs, config.seamPadding);
+    }
 
     // Apply transformations and update vertices
     for (size_t i = 0; i < vertices.size(); ++i)
@@ -1066,11 +1086,12 @@ bool UVGenerator::generateHybrid(
 
 
 // Method 6: Angle-based Smart UV (similar to Blender's Smart UV)
-bool UVGenerator::generateAngleBasedSmartUV(    
+bool UVGenerator::generateAngleBasedSmartUV(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config,
-    std::vector<unsigned int>* sourceVertexMap)
+    std::vector<unsigned int>* sourceVertexMap,
+    const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges)
 {
     if (vertices.empty() || indices.empty())
         return false;
@@ -1080,7 +1101,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
     buildTriangleList(vertices, indices, triangles);
 
     std::vector<std::pair<uint32_t, uint32_t>> seams;
-    findSeams(vertices, triangles, seams, config.angleThreshold);
+    findSeams(vertices, triangles, seams, config.angleThreshold, userSeamEdges);
 
     std::vector<UVIsland> islands;
     createUVIslands(triangles, seams, islands);
@@ -1370,7 +1391,8 @@ bool UVGenerator::generateARAP(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config,
-    std::vector<unsigned int>* sourceVertexMap)
+    std::vector<unsigned int>* sourceVertexMap,
+    const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges)
 {
     if (vertices.empty() || indices.empty())
         return false;
@@ -1381,7 +1403,7 @@ bool UVGenerator::generateARAP(
         return false;
 
     std::vector<std::pair<unsigned int, unsigned int>> seams;
-    findSeams(vertices, triangles, seams, config.angleThreshold);
+    findSeams(vertices, triangles, seams, config.angleThreshold, userSeamEdges);
 
     std::vector<UVIsland> islands;
     createUVIslands(triangles, seams, islands);
@@ -1817,10 +1839,11 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
 void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
     const std::vector<MeshTriangle>& triangles,
     std::vector<std::pair<uint32_t, uint32_t>>& seams,
-    float angleThreshold)
+    float angleThreshold,
+    const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges)
 {
     seams.clear();
-        
+
     std::unordered_map<Edge, std::vector<uint32_t>> edgeToTriangles;
 
     // 1. Build edge -> triangle adjacency. Keyed by topoIndices (position-welded), not indices -
@@ -1839,6 +1862,10 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
 
     const float cosThreshold = std::cos(glm::radians(angleThreshold));
 
+    // Tracks which edges already produced a seam via the angle-threshold pass below, so the
+    // user-marked pass further down doesn't emit the same (t0,t1) pair twice.
+    std::unordered_set<Edge> emittedEdges;
+
     // 2. Check each edge's adjacent triangle pair(s)
     for (const auto& entry : edgeToTriangles)
     {
@@ -1856,6 +1883,77 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
         if (dot < cosThreshold)
         {
             seams.emplace_back(t0, t1);
+            emittedEdges.insert(entry.first);
+        }
+    }
+
+    // 3. Force in any user-marked seam edges, unconditionally (skipping the angle comparison
+    // entirely - that's the whole point, a marked seam holds even on a smooth region). Positions
+    // are welded to topoIndices via the SAME exact-equality convention buildTriangleList() uses -
+    // safe here because both sides trace back to the SAME unmodified vertices array at this
+    // point in every caller (buildTriangleList() -> findSeams(), before any exploding).
+    if (userSeamEdges && !userSeamEdges->empty())
+    {
+        struct Vec3Hash
+        {
+            std::size_t operator()(const glm::vec3& p) const
+            {
+                std::size_t h = std::hash<float>()(p.x);
+                h ^= std::hash<float>()(p.y) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                h ^= std::hash<float>()(p.z) + 0x9e3779b9 + (h << 6) + (h >> 2);
+                return h;
+            }
+        };
+        struct Vec3Equal
+        {
+            bool operator()(const glm::vec3& a, const glm::vec3& b) const
+            {
+                return a.x == b.x && a.y == b.y && a.z == b.z;
+            }
+        };
+
+        std::unordered_map<glm::vec3, uint32_t, Vec3Hash, Vec3Equal> positionToTopoIndex;
+        positionToTopoIndex.reserve(vertices.size());
+        for (const MeshTriangle& tri : triangles)
+        {
+            for (int j = 0; j < 3; ++j)
+                positionToTopoIndex.try_emplace(vertices[tri.topoIndices[j]].Position, tri.topoIndices[j]);
+        }
+
+        for (const auto& [posA, posB] : *userSeamEdges)
+        {
+            const auto itA = positionToTopoIndex.find(posA);
+            const auto itB = positionToTopoIndex.find(posB);
+            if (itA == positionToTopoIndex.end() || itB == positionToTopoIndex.end())
+                continue; // stale/unresolved mark - caller reports this, not us
+
+            const Edge edge(itA->second, itB->second);
+
+            // Linear scan rather than edgeToTriangles.find(edge)/emittedEdges.count(edge) -
+            // confirmed via diagnostic logging that .find() spuriously reported "not found" for
+            // a key that demonstrably existed (same hash, same bucket, operator== true via
+            // manual scan) - an unexplained unordered_map lookup anomaly for this Edge/hash
+            // combination in this build. The linear scan is the mechanism that was actually
+            // verified to behave correctly; edgeToTriangles is small (bounded by this mesh's own
+            // edge count) so the cost is negligible for a one-off, user-triggered Generate click.
+            bool alreadyEmitted = false;
+            for (const Edge& e : emittedEdges)
+            {
+                if (e == edge) { alreadyEmitted = true; break; }
+            }
+            if (alreadyEmitted)
+                continue; // already a seam via the angle-threshold pass above
+
+            const std::vector<uint32_t>* adjTris = nullptr;
+            for (const auto& entry : edgeToTriangles)
+            {
+                if (entry.first == edge) { adjTris = &entry.second; break; }
+            }
+            if (!adjTris || adjTris->size() != 2)
+                continue; // not a real interior edge on this mesh (boundary edge or no match)
+
+            seams.emplace_back((*adjTris)[0], (*adjTris)[1]);
+            emittedEdges.insert(edge);
         }
     }
 }
@@ -1973,11 +2071,18 @@ void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
         ? glm::normalize(avgNormal)
         : triangles[island.triangles[0]].normal;
 
-    glm::vec3 tangent = glm::normalize(glm::cross(normal, glm::vec3(0, 1, 0)));
-    if (glm::length(tangent) < 0.1f)
-    {
-        tangent = glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)));
-    }
+    // Checked on the RAW (pre-normalize) cross product, not the normalized result - normal
+    // exactly parallel to world-up (a perfectly horizontal island, e.g. a flat panel authored
+    // with an up-facing normal) makes this cross product a true zero vector, and
+    // glm::normalize() of a zero vector is NaN, not a small/zero length - so testing
+    // length(tangent) AFTER normalizing never actually detects the degenerate case (NaN < 0.1f
+    // is always false), silently propagating NaN into every UV this island produces. Confirmed
+    // real bug: a flat, up-facing island rendered with a solid, untextured-looking appearance
+    // (every vertex sampling the same texel) after a marked seam split it off as its own island.
+    const glm::vec3 tangentRaw = glm::cross(normal, glm::vec3(0, 1, 0));
+    glm::vec3 tangent = (glm::length(tangentRaw) < 0.1f)
+        ? glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)))
+        : glm::normalize(tangentRaw);
     glm::vec3 bitangent = glm::cross(normal, tangent);
 
     for (unsigned int triIdx : island.triangles)
@@ -2332,29 +2437,50 @@ void UVGenerator::relaxUVs(
 }
 
 
-void UVGenerator::packUVIslands(std::vector<UVIsland>& islands,
+void UVGenerator::packUVIslands(const std::vector<MeshTriangle>& triangles,
+    std::vector<UVIsland>& islands,
     std::vector<glm::vec2>& uvs,
     float padding)
 {
-    // Simple UV packing - normalize all UVs to [0,1] range
+    // Per-island normalize (see this method's header doc comment for why NOT a single combined
+    // bounding box across every island).
     if (uvs.empty()) return;
 
-    glm::vec2 minUV = uvs[0];
-    glm::vec2 maxUV = uvs[0];
-
-    for (const auto& uv : uvs)
+    for (const UVIsland& island : islands)
     {
-        minUV = glm::min(minUV, uv);
-        maxUV = glm::max(maxUV, uv);
-    }
+        if (island.triangles.empty())
+            continue;
 
-    glm::vec2 size = maxUV - minUV;
-    if (size.x > 0 && size.y > 0)
-    {
-        for (auto& uv : uvs)
+        // Deduplicate vertex indices first - island.triangles are TRIANGLE indices, and a normal
+        // (non-exploded) mesh has vertices shared between several triangles within the same
+        // island, so walking triangles-then-corners directly would revisit a shared vertex once
+        // per triangle that references it. Confirmed real bug: applying "(uv - minUV) / size" a
+        // SECOND time to an already-normalized value corrupts it (operates on the wrong range),
+        // and since different vertices are shared by different numbers of triangles, different
+        // vertices got corrupted by different amounts - producing an inconsistent, banded
+        // distortion instead of a clean uniform rescale.
+        std::unordered_set<unsigned int> islandVertexIndices;
+        for (unsigned int triIdx : island.triangles)
         {
-            uv = (uv - minUV) / size;
+            const MeshTriangle& tri = triangles[triIdx];
+            for (int j = 0; j < 3; ++j)
+                islandVertexIndices.insert(tri.indices[j]);
         }
+
+        glm::vec2 minUV(std::numeric_limits<float>::max());
+        glm::vec2 maxUV(std::numeric_limits<float>::lowest());
+        for (unsigned int vIdx : islandVertexIndices)
+        {
+            minUV = glm::min(minUV, uvs[vIdx]);
+            maxUV = glm::max(maxUV, uvs[vIdx]);
+        }
+
+        const glm::vec2 size = maxUV - minUV;
+        if (size.x <= 0.0f || size.y <= 0.0f)
+            continue;
+
+        for (unsigned int vIdx : islandVertexIndices)
+            uvs[vIdx] = (uvs[vIdx] - minUV) / size;
     }
 }
 
