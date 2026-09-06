@@ -1709,6 +1709,22 @@ void MainWindow::closeEvent(QCloseEvent* event)
 		{
 			SetForegroundWindow(hwnd);
 		}
+
+		// The AttachThreadInput exemption above doesn't reliably survive
+		// every path into this handler (observed: still just flashes the
+		// taskbar button - Windows' documented fallback when
+		// SetForegroundWindow() is silently denied - rather than actually
+		// raising the window, with ConsolePanel now also present as a
+		// second top-level window in the same taskbar group). Minimizing
+		// and immediately restoring is one of the few cases Windows grants
+		// foreground activation unconditionally, regardless of the
+		// anti-focus-stealing lock, so fall back to it if the window still
+		// isn't foreground.
+		if (GetForegroundWindow() != hwnd)
+		{
+			ShowWindow(hwnd, SW_MINIMIZE);
+			ShowWindow(hwnd, SW_RESTORE);
+		}
 	}
 #endif
 

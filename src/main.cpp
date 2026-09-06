@@ -147,6 +147,13 @@ int main(int argc, char** argv)
 		showSplashMessage(QObject::tr("Ready"));
 		splash->finish(mw);
 	}
+
+	// Only now construct the console panel (if enabled) - see
+	// Logger::notifyApplicationVisible()'s doc comment for why doing this any
+	// earlier, before MainWindow had established its own taskbar identity,
+	// caused an intermittent taskbar icon mixup.
+	Logger::instance().notifyApplicationVisible();
+
 	if (argc > 1)
 	{
 		QString fileName(argv[1]);

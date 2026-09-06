@@ -185,11 +185,10 @@ void Logger::initialize(qint64 maxFileSizeBytes)
 
     workerThread->start();
 
-    // If console was enabled in settings, spawn it on startup
-    if (consoleEnabled)
-    {
-        spawnConsole();
-    }
+    // Console panel construction is deferred until notifyApplicationVisible()
+    // fires from main.cpp - see that method's doc comment for why spawning it
+    // here, before MainWindow exists, is exactly what caused the taskbar icon
+    // race this was changed to avoid.
 }
 
 void Logger::shutdown()
@@ -522,7 +521,15 @@ void Logger::setConsoleEnabled(bool enabled)
 
     if (enabled)
     {
-        spawnConsole();
+        // Before the app is fully visible, defer actually constructing the
+        // panel to notifyApplicationVisible() - this can otherwise be called
+        // very early (main.cpp at startup, before MainWindow exists) or later
+        // (Settings dialog toggling the checkbox while already running); only
+        // the former needs to wait.
+        if (applicationVisible)
+        {
+            spawnConsole();
+        }
     }
     else if (consolePanel)
     {
@@ -530,26 +537,47 @@ void Logger::setConsoleEnabled(bool enabled)
     }
 }
 
-void Logger::spawnConsole()
+void Logger::spawnConsole(bool stealFocus)
 {
     // Called synchronously from the main GUI thread in every caller
-    // (main.cpp at startup, SettingsDialog when the checkbox is applied),
-    // so constructing a QWidget here is safe. See ConsolePanel.h for why
-    // this is a plain Qt window instead of a real OS console.
+    // (notifyApplicationVisible() at startup, SettingsDialog when the
+    // checkbox is applied), so constructing a QWidget here is safe. See
+    // ConsolePanel.h for why this is a plain Qt window instead of a real OS
+    // console.
     if (!consolePanel)
     {
         consolePanel = new ConsolePanel();
         consolePanel->setMaxLineCount(consoleBufferLines);
     }
     consolePanel->show();
-    consolePanel->raise();
-    // raise() alone only reorders Z-order - it doesn't transfer window
-    // activation. Without an explicit activate, Windows can leave
-    // MainWindow (the previously-active window) stuck showing as
-    // deactivated and not receiving input, without the console cleanly
-    // taking activation either - neither window responds until something
-    // else forces a real activation change (e.g. clicking the console).
-    consolePanel->activateWindow();
+    if (stealFocus)
+    {
+        consolePanel->raise();
+        // raise() alone only reorders Z-order - it doesn't transfer window
+        // activation. Without an explicit activate, Windows can leave
+        // MainWindow (the previously-active window) stuck showing as
+        // deactivated and not receiving input, without the console cleanly
+        // taking activation either - neither window responds until something
+        // else forces a real activation change (e.g. clicking the console).
+        // Only done for an explicit user request to see the console - NOT
+        // for the silent, automatic spawn at startup (see
+        // notifyApplicationVisible()), where stealing focus from the
+        // just-shown MainWindow left the console, not MainWindow, as the
+        // OS's "last active" window for this app - which in turn broke
+        // MainWindow::closeEvent()'s AttachThreadInput foreground-forcing
+        // the next time an external "Close all windows" request arrived.
+        consolePanel->activateWindow();
+    }
+    else
+    {
+        // Silent/automatic startup spawn - the console isn't meant to grab
+        // attention here, so push it behind MainWindow (which is already
+        // shown and active by this point) instead of popping up on top of
+        // the app the user just launched. lower() is the z-order-only
+        // counterpart to raise() above - same native window-stacking
+        // mechanism, no activation change either way.
+        consolePanel->lower();
+    }
 }
 
 void Logger::setFileEnabled(bool enabled)
@@ -583,5 +611,22 @@ void Logger::setConsoleBufferLines(int lines)
     if (consolePanel)
     {
         consolePanel->setMaxLineCount(lines);
+    }
+}
+
+void Logger::notifyApplicationVisible()
+{
+    if (applicationVisible)
+    {
+        return;
+    }
+    applicationVisible = true;
+
+    if (consoleEnabled)
+    {
+        // false: this is the silent, automatic startup spawn - see
+        // spawnConsole()'s stealFocus doc comment for why it must not steal
+        // OS-level activation away from MainWindow here.
+        spawnConsole(false);
     }
 }

@@ -135,6 +135,19 @@ public:
      */
     QString getLogDirectory() const;
 
+    /**
+     * @brief Notify the logger that the main window has fully appeared.
+     *
+     * Call once from main.cpp right after the main window is shown. If the
+     * console is enabled, ConsolePanel's actual construction is deferred
+     * until this fires - constructing it (and its native WM_SETICON call)
+     * during early startup, before MainWindow exists and has established
+     * its own taskbar identity, raced Explorer's taskbar icon assignment
+     * and intermittently left the app showing the generic EXE icon instead
+     * of its own.
+     */
+    void notifyApplicationVisible();
+
 private:
     // Private constructor for singleton
     Logger();
@@ -157,8 +170,13 @@ private:
     void ensureLogDirectoryExists();
 
     // Console panel management (a Qt widget that mimics a console window,
-    // rather than a real OS console - see ConsolePanel.h for why)
-    void spawnConsole();
+    // rather than a real OS console - see ConsolePanel.h for why).
+    // stealFocus forces OS-level activation onto the console (wanted when
+    // the user explicitly asks to see it - Settings checkbox, Show Console
+    // menu action) - pass false for an automatic/silent spawn (the deferred
+    // startup call from notifyApplicationVisible()) so it doesn't steal
+    // foreground activation away from MainWindow.
+    void spawnConsole(bool stealFocus = true);
 
     // Worker thread slots
 private slots:
@@ -194,6 +212,10 @@ private:
     bool fileEnabled;
     LogLevel minimumLevel;
     int consoleBufferLines = 20000;
+
+    // Set once by notifyApplicationVisible() - see its doc comment. Gates
+    // spawnConsole() so ConsolePanel is never constructed before that point.
+    bool applicationVisible = false;
 
     // Stream redirection
     LoggerStreamBuffer* coutBuffer;
