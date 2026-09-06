@@ -73,6 +73,49 @@ MainWindow::MainWindow(QWidget* parent)
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
+	// Set the application theme based on user settings - deliberately done
+	// here, before any dock/panel below is constructed (rather than its
+	// original spot much later in this constructor). Those panels are now
+	// single shared instances built directly in this constructor (see the
+	// "Properties dock" comment below) rather than per-document, unlike
+	// ModelViewer's own widgets (e.g. its Scene Tree search box), which are
+	// only ever constructed later via main.cpp's createMdiChild() - i.e.
+	// always after this whole constructor, and thus always after the theme
+	// is applied. A shared panel built before setTheme() forces
+	// qApp->setStyle(QStyleFactory::create("Fusion")) constructs any native
+	// controls with private, style-dependent sub-widgets (confirmed via
+	// investigation: QLineEdit's built-in clear button specifically) against
+	// the pre-Fusion default style, and they don't necessarily repaint
+	// correctly once the style is swapped out from under them afterward -
+	// exactly the "MaterialPropertiesPanel's search box clear icon never
+	// appears, the per-document Scene Tree one does" symptom that traced
+	// back to this ordering difference.
+	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int themeSettingValue = themeSettings.value("comboBoxTheme", 0).toInt();
+
+	ThemeManager* themeManager = new ThemeManager(this);
+	themeManager->setTheme(static_cast<ThemeManager::Theme>(themeSettingValue));
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+	connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged,
+			themeManager, [themeManager](Qt::ColorScheme scheme) {
+		themeManager->applyThemeForColorScheme(scheme == Qt::ColorScheme::Dark);
+	});
+#else
+	// Use polling timer fallback for older Qt versions
+	QTimer* themeCheckTimer = new QTimer(qApp);
+	connect(themeCheckTimer, &QTimer::timeout, [themeManager]() {
+		static bool lastDarkMode = themeManager->isSystemInDarkMode();
+		bool currentDarkMode = themeManager->isSystemInDarkMode();
+
+		if (currentDarkMode != lastDarkMode) {
+			themeManager->applyThemeForColorScheme(currentDarkMode);
+			lastDarkMode = currentDarkMode;
+		}
+	});
+	themeCheckTimer->start(1000);
+#endif
+
 	// Documents live in a native QMdiArea (tabbed, with tiling/cascading/
 	// restoring and most-recently-used Next/Previous via
 	// ActivationHistoryOrder, all built in) - built programmatically here
@@ -410,33 +453,6 @@ MainWindow::MainWindow(QWidget* parent)
 		menuBar()->insertMenu(ui->menuTools->menuAction(), viewMenu);
 	}
 
-	// Set the application theme based on user settings
-	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	int iVal = themeSettings.value("comboBoxTheme", 0).toInt();
-
-	ThemeManager* themeManager = new ThemeManager(this);
-	themeManager->setTheme(static_cast<ThemeManager::Theme>(iVal));
-
-#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
-	connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged,
-			themeManager, [themeManager](Qt::ColorScheme scheme) {
-		themeManager->applyThemeForColorScheme(scheme == Qt::ColorScheme::Dark);
-	});
-#else
-	// Use polling timer fallback for older Qt versions
-	QTimer* themeCheckTimer = new QTimer(qApp);
-	connect(themeCheckTimer, &QTimer::timeout, [themeManager]() {
-		static bool lastDarkMode = themeManager->isSystemInDarkMode();
-		bool currentDarkMode = themeManager->isSystemInDarkMode();
-
-		if (currentDarkMode != lastDarkMode) {
-			themeManager->applyThemeForColorScheme(currentDarkMode);
-			lastDarkMode = currentDarkMode;
-		}
-	});
-	themeCheckTimer->start(1000);
-#endif
-	
 	QMenu* fileMenu = ui->menuFile;
 	QAction* exitAct = ui->actionExit;
 	recentFileSeparator = fileMenu->insertSeparator(exitAct);
