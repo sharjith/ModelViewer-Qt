@@ -215,7 +215,13 @@ void UVGenerationDialog::adjustDialogSize()
 
 void UVGenerationDialog::loadLastUsedSettings()
 {
-    QSettings settings("YourCompany", "YourApp");
+    // Default constructor - uses the app-wide organization/application name (QCoreApplication::
+    // setOrganizationName/setApplicationName in ModelViewerApplication.cpp), same as every sibling
+    // dialog's QSettings usage (MeasurementDialog, ShrinkWrapDialog, etc.). Previously hardcoded
+    // QSettings("YourCompany", "YourApp") - leftover placeholder text that silently split this
+    // dialog's settings into their own orphaned ~/.config/YourCompany/YourApp.conf instead of the
+    // shared settings file every other dialog reads/writes.
+    QSettings settings;
     settings.beginGroup("UVGenerationDialog");
 
     // Load window geometry
@@ -299,7 +305,7 @@ void UVGenerationDialog::loadLastUsedSettings()
 
 void UVGenerationDialog::saveLastUsedSettings()
 {
-    QSettings settings("YourCompany", "YourApp");
+    QSettings settings;
     settings.beginGroup("UVGenerationDialog");
 
     // Save window geometry

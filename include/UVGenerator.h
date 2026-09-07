@@ -10,44 +10,6 @@
 #include <vector>
 
 
-// Edge type (ensure vertex indices are sorted to prevent duplicates)
-struct Edge
-{
-    uint32_t v1, v2;
-
-    Edge(uint32_t a, uint32_t b)
-    {
-        if (a < b)
-        {
-            v1 = a;
-            v2 = b;
-        }
-        else
-        {
-            v1 = b;
-            v2 = a;
-        }
-    }
-
-    bool operator==(const Edge& other) const
-    {
-        return v1 == other.v1 && v2 == other.v2;
-    }
-};
-
-// Custom hash for Edge
-namespace std
-{
-    template <>
-    struct hash<Edge>
-    {
-        std::size_t operator()(const Edge& e) const
-        {
-            return std::hash<uint32_t>()(e.v1) ^ (std::hash<uint32_t>()(e.v2) << 1);
-        }
-    };
-}
-
 // UV Generation Configuration
 struct UVConfig
 {
@@ -267,10 +229,26 @@ private:
         const std::vector<std::pair<unsigned int, unsigned int>>& seams,
         std::vector<UVIsland>& islands);
 
+    // Writes into TWO outputs from the same per-corner computation: `uvs` (shared, indexed by
+    // original vertex index - kept only so relaxUVs()'s neighbor-averaging, which needs shared
+    // vertex adjacency, still has something to read/write) and, when non-null, `triangleUVs`
+    // (indexed by triangle index, one UV per corner - see unwrapIslandPCA()'s doc comment for the
+    // same map shape). `uvs` is unsafe wherever a vertex sits on a seam between two islands: the
+    // island processed later in generateAngleBased()'s loop silently overwrites the earlier
+    // island's value for that shared index, corrupting whichever island's packUVIslands() bounding
+    // box happens to include it (confirmed real bug: a marked seam splitting a mesh into two
+    // panels - the panel processed first came back with wildly non-square, skewed UVs once
+    // packing was disabled, because one of its boundary vertices held the OTHER panel's UV by the
+    // time packUVIslands() read it). `triangleUVs` never has this problem - each triangle is
+    // written to exactly once, regardless of how many islands touch its vertices - which is why
+    // generateAngleBased() uses it (via the same explode-to-one-vertex-per-corner step every other
+    // UV method already takes) as its actual output, falling back to re-syncing from the (still
+    // seam-unsafe) `uvs` array only when relaxation is enabled.
     static void unwrapIsland(const std::vector<Vertex>& vertices,
         const std::vector<MeshTriangle>& triangles,
         const UVIsland& island,
-        std::vector<glm::vec2>& uvs);
+        std::vector<glm::vec2>& uvs,
+        std::unordered_map<unsigned int, std::array<glm::vec2, 3>>* triangleUVs = nullptr);
 
     /*static void unwrapIslandPCA(const std::vector<Vertex>& vertices,
         const std::vector<Triangle>& triangles,
@@ -302,18 +280,19 @@ private:
         const UVConfig& config,
         int iterations);
 
-    // Normalizes each island's UV range INDEPENDENTLY into its own full [0,1] box - matching
-    // unwrapIslandPCA()'s normalizeUVs=true convention (used by the other 3 methods' own
-    // packing-disabled fallback) - NOT a single combined bounding box across every island
-    // together. islands with unrelated per-island bases (unwrapIsland() computes each island's
-    // own local tangent/bitangent independently) can have wildly different absolute UV
-    // magnitudes, so a single shared bbox lets one island dominate while another collapses to a
-    // sliver - confirmed real bug (a two-panel test mesh split by a marked seam: one panel's
-    // corners never touched the shared bbox's edges at all).
-    static void packUVIslands(const std::vector<MeshTriangle>& triangles,
-        std::vector<UVIsland>& islands,
-        std::vector<glm::vec2>& uvs,
-        float padding);
+    // generateAngleBased()'s own packing-disabled fallback (mirrors unwrapIslandPCA()'s
+    // normalizeUVs=true convention used by the other methods) - normalizes each island's UV range
+    // INDEPENDENTLY into its own full [0,1] box, NOT a single combined bounding box across every
+    // island together (islands with unrelated per-island bases can have wildly different absolute
+    // UV magnitudes, so a single shared bbox would let one island dominate while another
+    // collapses to a sliver). `uvs` is generateAngleBased()'s EXPLODED per-corner array (one entry
+    // per triangle corner, in triangle order - triangle i's three corners live at uvs[3*i],
+    // uvs[3*i+1], uvs[3*i+2]), not the shared per-vertex array unwrapIsland() also writes -
+    // operating on the exploded form is what lets two islands sharing a seam vertex each get
+    // normalized against their own true bounding box instead of one that's been corrupted by the
+    // other island's UV value at that shared index (see unwrapIsland()'s doc comment).
+    static void packUVIslands(const std::vector<UVIsland>& islands,
+        std::vector<glm::vec2>& uvs);
 
     static void packWithXAtlas(
         std::vector<glm::vec2>& uvs,

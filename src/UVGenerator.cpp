@@ -1,5 +1,6 @@
 #include "UVGenerator.h"
 #include <QDebug>
+#include <QStringList>
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -24,6 +25,21 @@ constexpr bool kSphericalVerbose = false;
 // Planar") - flip to true, rebuild, run Generate UVs with Hybrid selected, and check the log for
 // the actual eigenvalues/elongation/variance it computed and which branch it took.
 constexpr bool kHybridVerbose = true;
+
+// Temporary diagnostic for a reported Angle-Based packing-off distortion - flip to true, rebuild,
+// run Generate UVs with Angle-Based selected, and check the log for the actual island count/sizes,
+// per-triangle indices/topoIndices, the full edge-adjacency map, and the per-edge angle-threshold
+// seam decisions. Root cause found and fixed: createUVIslands()'s edge->triangle adjacency map was
+// keyed by the custom Edge struct + its hand-written std::hash<Edge> specialization, which hit the
+// exact same "unordered_map/unordered_set lookup spuriously reports a key not found even though it
+// demonstrably exists" anomaly findSeams() already has a comment about (that one was worked around
+// with a linear scan; this one never was) - confirmed via this diagnostic: the logged edgeMap
+// showed fully correct 2-triangle adjacency for every shared edge, yet the flood-fill reading that
+// same map produced one degenerate 1-triangle "island" per triangle, as if every lookup failed.
+// Fixed by replacing the Edge-keyed maps in createUVIslands() with plain uint64_t composite keys
+// (packEdgeKey()), which uses the standard library's own unmodified std::hash<uint64_t>. Kept as a
+// diagnostic (flip back to true) rather than deleted, matching this file's other kXXXVerbose flags.
+constexpr bool kAngleBasedVerbose = false;
 
 // Temporary diagnostic for the Torus addition - flip to true, rebuild, run Generate UVs with
 // Torus selected, and check the log for the estimated major/minor radius and whether R<=r (a
@@ -55,6 +71,24 @@ constexpr bool kXAtlasVerbose = false;
 
 namespace
 {
+// Packs an already-canonicalized (order doesn't matter - sorted internally) edge into a single
+// uint64_t key. Used in place of the Edge struct + its custom std::hash<Edge> specialization for
+// edge->triangle adjacency lookups in findSeams()/createUVIslands(): both hit a confirmed,
+// unexplained unordered_map/unordered_set lookup anomaly where .find()/operator[]/.count() would
+// spuriously report a key as not found even though it demonstrably existed (same hash, same
+// bucket, operator== true via manual scan) - findSeams() worked around its OWN instance of this
+// with a manual linear scan; createUVIslands() never got the same treatment and produced a
+// degenerate 1-triangle "island" per triangle even for a mesh with zero real seams, confirmed via
+// hand-tracing its own logged edge-adjacency data (see this file's kAngleBasedVerbose diagnostic
+// history). A plain integer key sidesteps whatever is wrong with the custom specialization
+// entirely - std::hash<uint64_t> is a built-in, unmodified library hash.
+constexpr uint64_t packEdgeKey(uint32_t a, uint32_t b)
+{
+    uint32_t lo = std::min(a, b);
+    uint32_t hi = std::max(a, b);
+    return (static_cast<uint64_t>(lo) << 32) | hi;
+}
+
 void buildIdentityVertexMap(size_t vertexCount, std::vector<unsigned int>* sourceVertexMap)
 {
     if (!sourceVertexMap)
@@ -124,11 +158,23 @@ bool UVGenerator::generateAngleBased(
     std::vector<UVIsland> islands;
     createUVIslands(triangles, seams, islands);
 
-    // Unwrap each island
+    if (kAngleBasedVerbose)
+    {
+        qDebug() << "[AngleBased]" << triangles.size() << "triangles," << seams.size()
+                 << "seam edge-pairs ->" << islands.size() << "island(s)";
+        for (size_t i = 0; i < islands.size(); ++i)
+            qDebug() << "[AngleBased]   island" << i << ":" << islands[i].triangles.size() << "triangles";
+    }
+
+    // Unwrap each island. Populates BOTH `uvs` (shared, per original vertex index - kept only to
+    // feed relaxUVs() below, which needs shared-vertex adjacency) and `triangleUVs` (per triangle
+    // corner - the actual output, immune to the "later island overwrites an earlier island's
+    // shared seam vertex" corruption `uvs` is prone to; see unwrapIsland()'s doc comment).
     std::vector<glm::vec2> uvs(vertices.size());
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>> triangleUVs;
     for (const auto& island : islands)
     {
-        unwrapIsland(vertices, triangles, island, uvs);
+        unwrapIsland(vertices, triangles, island, uvs, &triangleUVs);
     }
 
     // Smooth interior distortion by averaging each vertex's UV with its neighbors - BEFORE
@@ -140,39 +186,89 @@ bool UVGenerator::generateAngleBased(
     if (config.enableRelaxation && config.relaxationIterations > 0)
     {
         relaxUVs(triangles, uvs, islands, config, config.relaxationIterations);
+
+        // Re-sync the relaxed per-vertex values back into triangleUVs so the smoothing actually
+        // reaches the output - relaxUVs() only ever touches the shared `uvs` array. This
+        // reintroduces `uvs`' own shared-seam-vertex ambiguity into triangleUVs for a vertex that
+        // sits on two islands (relaxation averages it once, from whichever island's neighbors won
+        // the "last write" race, and both islands' corners get that same value) - unchanged from
+        // this method's actual behavior before triangleUVs existed, since relaxation was always
+        // built on the shared array. Not the bug being fixed here, which only needs the
+        // relaxation-disabled (default) path to stay corruption-free.
+        for (size_t triIdx = 0; triIdx < triangles.size(); ++triIdx)
+        {
+            auto it = triangleUVs.find(static_cast<unsigned int>(triIdx));
+            if (it == triangleUVs.end())
+                continue;
+            const MeshTriangle& tri = triangles[triIdx];
+            for (int i = 0; i < 3; ++i)
+                it->second[i] = uvs[tri.indices[i]];
+        }
+    }
+
+    // Explode to one vertex per triangle corner using triangleUVs - the same flatten step
+    // generateAngleBasedSmartUV()/generateSmartProject()/generateARAP() already take, and what
+    // actually fixes the corruption described above: a vertex shared by two islands along a
+    // marked/detected seam now keeps two independent UVs (one per island) instead of one
+    // clobbering the other. createUVIslands() partitions every triangle into exactly one island,
+    // so triangleUVs has an entry for every triIdx and this loop never skips - triangle i's three
+    // corners land at newVertices[3*i..3*i+2] in order, which packUVIslands() below relies on.
+    std::vector<Vertex> newVertices;
+    std::vector<unsigned int> newIndices;
+    std::vector<unsigned int> newSourceVertexMap;
+    newVertices.reserve(triangles.size() * 3);
+    newIndices.reserve(triangles.size() * 3);
+    newSourceVertexMap.reserve(triangles.size() * 3);
+
+    for (size_t triIdx = 0; triIdx < triangles.size(); ++triIdx)
+    {
+        const MeshTriangle& tri = triangles[triIdx];
+        auto it = triangleUVs.find(static_cast<unsigned int>(triIdx));
+        if (it == triangleUVs.end())
+            continue;
+
+        const auto& uvSet = it->second;
+        for (int i = 0; i < 3; ++i)
+        {
+            Vertex v = vertices[tri.indices[i]];
+            v.TexCoords[0] = uvSet[i];
+            newIndices.push_back(static_cast<unsigned int>(newVertices.size()));
+            newVertices.push_back(v);
+            newSourceVertexMap.push_back(tri.indices[i]);
+        }
     }
 
     // Pack UV islands. config.enablePacking has always been wired to this dialog's "Enable
-    // Packing" checkbox but, unlike generateAngleBasedSmartUV()/generateSmartProject()/
-    // generateARAP() (which all check it and call the real packWithXAtlas() below), this method
-    // unconditionally used packUVIslands() - a naive GLOBAL min/max normalize across every vertex
-    // combined, not real per-island packing. That's harmless when islands happen to end up on a
-    // similar coordinate scale, but confirmed broken for 2 islands with sufficiently different
-    // unwrapIsland() basis orientations (e.g. a marked seam splitting a mesh into two differently-
-    // angled flat panels): one island's absolute UV range can be tiny relative to the other's, so
-    // the shared global normalize collapses it into a sliver near a single point - every vertex
-    // sampling effectively the same texel (seen as a solid, untextured-looking panel).
+    // Packing" checkbox: ON runs the real packWithXAtlas() atlas packer (same as every other UV
+    // method), OFF falls back to packUVIslands()'s simpler per-island [0,1] normalize.
+    std::vector<glm::vec2> packedUVs(newVertices.size());
+    for (size_t i = 0; i < newVertices.size(); ++i)
+        packedUVs[i] = newVertices[i].TexCoords[0];
+
     if (config.enablePacking)
     {
-        std::vector<glm::vec3> positions(vertices.size());
-        for (size_t i = 0; i < vertices.size(); ++i)
-            positions[i] = vertices[i].Position;
-        packWithXAtlas(uvs, indices, positions);
+        std::vector<glm::vec3> positions(newVertices.size());
+        for (size_t i = 0; i < newVertices.size(); ++i)
+            positions[i] = newVertices[i].Position;
+        packWithXAtlas(packedUVs, newIndices, positions);
     }
     else
     {
-        packUVIslands(triangles, const_cast<std::vector<UVIsland>&>(islands), uvs, config.seamPadding);
+        packUVIslands(islands, packedUVs);
     }
 
     // Apply transformations and update vertices
-    for (size_t i = 0; i < vertices.size(); ++i)
+    for (size_t i = 0; i < newVertices.size(); ++i)
     {
-        glm::vec2 finalUV = uvs[i];
+        glm::vec2 finalUV = packedUVs[i];
         applyUVTransforms(finalUV, config);
-        vertices[i].TexCoords[0] = finalUV;
+        newVertices[i].TexCoords[0] = finalUV;
     }
 
-    buildIdentityVertexMap(vertices.size(), sourceVertexMap);
+    vertices = std::move(newVertices);
+    indices = std::move(newIndices);
+    if (sourceVertexMap)
+        *sourceVertexMap = std::move(newSourceVertexMap);
 
     return true;
 }
@@ -1801,6 +1897,19 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
         if (kARAPVerbose)
             qDebug() << "[ARAP] buildTriangleList: welded" << vertices.size() << "vertices down to"
                      << firstIndexAtPosition.size() << "unique positions";
+        if (kAngleBasedVerbose)
+        {
+            qDebug() << "[AngleBased] buildTriangleList: welded" << vertices.size()
+                     << "vertices down to" << firstIndexAtPosition.size() << "unique positions";
+            for (size_t i = 0; i < vertices.size(); ++i)
+            {
+                const glm::vec3& p = vertices[i].Position;
+                qDebug().noquote() << QString("[AngleBased]   v%1 pos=(%2, %3, %4) welded->%5")
+                    .arg(i)
+                    .arg(p.x, 0, 'g', 9).arg(p.y, 0, 'g', 9).arg(p.z, 0, 'g', 9)
+                    .arg(weldedIndex[i]);
+            }
+        }
     }
 
     for (size_t i = 0; i + 2 < indices.size(); i += 3) // Safe loop condition
@@ -1831,6 +1940,12 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
         tri.normal = calculateTriangleNormal(v0, v1, v2);
         tri.area = calculateTriangleArea(v0, v1, v2);
 
+        if (kAngleBasedVerbose)
+            qDebug() << "[AngleBased]   tri" << triangles.size() << ": indices=("
+                     << tri.indices[0] << tri.indices[1] << tri.indices[2] << ") topoIndices=("
+                     << tri.topoIndices[0] << tri.topoIndices[1] << tri.topoIndices[2]
+                     << ") normal=(" << tri.normal.x << tri.normal.y << tri.normal.z << ")";
+
         triangles.push_back(tri);
     }
 }
@@ -1844,7 +1959,12 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
 {
     seams.clear();
 
-    std::unordered_map<Edge, std::vector<uint32_t>> edgeToTriangles;
+    // Keyed by packEdgeKey() (a plain uint64_t), not the Edge struct + its custom std::hash<Edge>
+    // specialization - see packEdgeKey()'s doc comment for why: that combination has a confirmed,
+    // unexplained unordered_map/unordered_set lookup anomaly on this toolchain (previously worked
+    // around here with a manual linear scan in step 3 below; now avoided at the source instead,
+    // which also lets step 3 go back to plain .find()/.count() lookups).
+    std::unordered_map<uint64_t, std::vector<uint32_t>> edgeToTriangles;
 
     // 1. Build edge -> triangle adjacency. Keyed by topoIndices (position-welded), not indices -
     // see MeshTriangle::topoIndices' doc comment for why: raw indices alone would see zero
@@ -1856,7 +1976,7 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
         {
             uint32_t a = tri.topoIndices[j];
             uint32_t b = tri.topoIndices[(j + 1) % 3];
-            edgeToTriangles[Edge(a, b)].push_back(i);
+            edgeToTriangles[packEdgeKey(a, b)].push_back(i);
         }
     }
 
@@ -1864,7 +1984,7 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
 
     // Tracks which edges already produced a seam via the angle-threshold pass below, so the
     // user-marked pass further down doesn't emit the same (t0,t1) pair twice.
-    std::unordered_set<Edge> emittedEdges;
+    std::unordered_set<uint64_t> emittedEdges;
 
     // 2. Check each edge's adjacent triangle pair(s)
     for (const auto& entry : edgeToTriangles)
@@ -1880,6 +2000,11 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
         const glm::vec3& n1 = triangles[t1].normal;
 
         float dot = glm::dot(n0, n1);
+        if (kAngleBasedVerbose && dot < cosThreshold + 0.15f)
+            qDebug() << "[AngleBased] edge tris" << t0 << t1 << "dot=" << dot
+                     << "cosThreshold=" << cosThreshold
+                     << "angle(deg)=" << glm::degrees(std::acos(glm::clamp(dot, -1.0f, 1.0f)))
+                     << (dot < cosThreshold ? "-> SEAM" : "(below threshold, no seam)");
         if (dot < cosThreshold)
         {
             seams.emplace_back(t0, t1);
@@ -1927,32 +2052,16 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
             if (itA == positionToTopoIndex.end() || itB == positionToTopoIndex.end())
                 continue; // stale/unresolved mark - caller reports this, not us
 
-            const Edge edge(itA->second, itB->second);
+            const uint64_t edge = packEdgeKey(itA->second, itB->second);
 
-            // Linear scan rather than edgeToTriangles.find(edge)/emittedEdges.count(edge) -
-            // confirmed via diagnostic logging that .find() spuriously reported "not found" for
-            // a key that demonstrably existed (same hash, same bucket, operator== true via
-            // manual scan) - an unexplained unordered_map lookup anomaly for this Edge/hash
-            // combination in this build. The linear scan is the mechanism that was actually
-            // verified to behave correctly; edgeToTriangles is small (bounded by this mesh's own
-            // edge count) so the cost is negligible for a one-off, user-triggered Generate click.
-            bool alreadyEmitted = false;
-            for (const Edge& e : emittedEdges)
-            {
-                if (e == edge) { alreadyEmitted = true; break; }
-            }
-            if (alreadyEmitted)
+            if (emittedEdges.count(edge))
                 continue; // already a seam via the angle-threshold pass above
 
-            const std::vector<uint32_t>* adjTris = nullptr;
-            for (const auto& entry : edgeToTriangles)
-            {
-                if (entry.first == edge) { adjTris = &entry.second; break; }
-            }
-            if (!adjTris || adjTris->size() != 2)
+            const auto it = edgeToTriangles.find(edge);
+            if (it == edgeToTriangles.end() || it->second.size() != 2)
                 continue; // not a real interior edge on this mesh (boundary edge or no match)
 
-            seams.emplace_back((*adjTris)[0], (*adjTris)[1]);
+            seams.emplace_back(it->second[0], it->second[1]);
             emittedEdges.insert(edge);
         }
     }
@@ -1969,18 +2078,29 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
     // Build fast edge -> triangle adjacency. Keyed by topoIndices (position-welded), not indices -
     // see MeshTriangle::topoIndices' doc comment for why.
 
-    std::unordered_map<Edge, std::vector<uint32_t>> edgeMap;
+    std::unordered_map<uint64_t, std::vector<uint32_t>> edgeMap;
 
     for (uint32_t i = 0; i < triangleCount; ++i)
     {
         const auto& tri = triangles[i];
-        edgeMap[Edge(tri.topoIndices[0], tri.topoIndices[1])].push_back(i);
-        edgeMap[Edge(tri.topoIndices[1], tri.topoIndices[2])].push_back(i);
-        edgeMap[Edge(tri.topoIndices[2], tri.topoIndices[0])].push_back(i);
+        edgeMap[packEdgeKey(tri.topoIndices[0], tri.topoIndices[1])].push_back(i);
+        edgeMap[packEdgeKey(tri.topoIndices[1], tri.topoIndices[2])].push_back(i);
+        edgeMap[packEdgeKey(tri.topoIndices[2], tri.topoIndices[0])].push_back(i);
+    }
+
+    if (kAngleBasedVerbose)
+    {
+        for (const auto& [key, tris] : edgeMap)
+        {
+            QStringList trisStr;
+            for (uint32_t t : tris) trisStr << QString::number(t);
+            qDebug().noquote() << QString("[AngleBased] edgeMap edge(%1,%2) -> tris [%3]")
+                .arg(key >> 32).arg(key & 0xffffffffu).arg(trisStr.join(","));
+        }
     }
 
     // Build seam edge set for fast lookup
-    std::unordered_set<Edge> seamEdges;
+    std::unordered_set<uint64_t> seamEdges;
     for (const auto& s : seams)
     {
         const auto& t0 = triangles[s.first];
@@ -1989,16 +2109,16 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
         {
             uint32_t a = t0.topoIndices[i];
             uint32_t b = t0.topoIndices[(i + 1) % 3];
-            Edge e = Edge(a, b);
+            uint64_t key = packEdgeKey(a, b);
 
             // Check if edge exists in both triangles
             for (int j = 0; j < 3; ++j)
             {
                 uint32_t a1 = t1.topoIndices[j];
                 uint32_t b1 = t1.topoIndices[(j + 1) % 3];
-                if (Edge(a1, b1) == e)
+                if (packEdgeKey(a1, b1) == key)
                 {
-                    seamEdges.emplace(e);
+                    seamEdges.emplace(key);
                 }
             }
         }
@@ -2026,11 +2146,11 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
             const auto& tri = triangles[tidx];
             for (int ei = 0; ei < 3; ++ei)
             {
-                Edge e = Edge(tri.topoIndices[ei], tri.topoIndices[(ei + 1) % 3]);
-                if (seamEdges.count(e)) continue;
+                uint64_t key = packEdgeKey(tri.topoIndices[ei], tri.topoIndices[(ei + 1) % 3]);
+                if (seamEdges.count(key)) continue;
 
                 // Neighbors sharing this edge
-                const auto& adjTris = edgeMap[e];
+                const auto& adjTris = edgeMap[key];
                 for (uint32_t nidx : adjTris)
                 {
                     if (!visited[nidx])
@@ -2050,7 +2170,8 @@ void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
 void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
     const std::vector<MeshTriangle>& triangles,
     const UVIsland& island,
-    std::vector<glm::vec2>& uvs)
+    std::vector<glm::vec2>& uvs,
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>>* triangleUVs)
 {
     if (island.triangles.empty())
         return;
@@ -2088,14 +2209,16 @@ void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
     for (unsigned int triIdx : island.triangles)
     {
         const MeshTriangle& tri = triangles[triIdx];
+        std::array<glm::vec2, 3> cornerUVs;
         for (int i = 0; i < 3; ++i)
         {
             glm::vec3 pos = vertices[tri.indices[i]].Position;
-            uvs[tri.indices[i]] = glm::vec2(
-                glm::dot(pos, tangent),
-                glm::dot(pos, bitangent)
-            );
+            glm::vec2 uv(glm::dot(pos, tangent), glm::dot(pos, bitangent));
+            uvs[tri.indices[i]] = uv;
+            cornerUVs[i] = uv;
         }
+        if (triangleUVs)
+            (*triangleUVs)[triIdx] = cornerUVs;
     }
 }
 
@@ -2437,13 +2560,13 @@ void UVGenerator::relaxUVs(
 }
 
 
-void UVGenerator::packUVIslands(const std::vector<MeshTriangle>& triangles,
-    std::vector<UVIsland>& islands,
-    std::vector<glm::vec2>& uvs,
-    float padding)
+void UVGenerator::packUVIslands(const std::vector<UVIsland>& islands,
+    std::vector<glm::vec2>& uvs)
 {
     // Per-island normalize (see this method's header doc comment for why NOT a single combined
-    // bounding box across every island).
+    // bounding box across every island). `uvs` is the exploded per-corner array - triangle i's
+    // three corners at uvs[3*i..3*i+2] - so, unlike the old shared-per-vertex representation this
+    // replaced, no two islands can ever read/write the same slot: nothing to deduplicate here.
     if (uvs.empty()) return;
 
     for (const UVIsland& island : islands)
@@ -2451,36 +2574,27 @@ void UVGenerator::packUVIslands(const std::vector<MeshTriangle>& triangles,
         if (island.triangles.empty())
             continue;
 
-        // Deduplicate vertex indices first - island.triangles are TRIANGLE indices, and a normal
-        // (non-exploded) mesh has vertices shared between several triangles within the same
-        // island, so walking triangles-then-corners directly would revisit a shared vertex once
-        // per triangle that references it. Confirmed real bug: applying "(uv - minUV) / size" a
-        // SECOND time to an already-normalized value corrupts it (operates on the wrong range),
-        // and since different vertices are shared by different numbers of triangles, different
-        // vertices got corrupted by different amounts - producing an inconsistent, banded
-        // distortion instead of a clean uniform rescale.
-        std::unordered_set<unsigned int> islandVertexIndices;
-        for (unsigned int triIdx : island.triangles)
-        {
-            const MeshTriangle& tri = triangles[triIdx];
-            for (int j = 0; j < 3; ++j)
-                islandVertexIndices.insert(tri.indices[j]);
-        }
-
         glm::vec2 minUV(std::numeric_limits<float>::max());
         glm::vec2 maxUV(std::numeric_limits<float>::lowest());
-        for (unsigned int vIdx : islandVertexIndices)
+        for (unsigned int triIdx : island.triangles)
         {
-            minUV = glm::min(minUV, uvs[vIdx]);
-            maxUV = glm::max(maxUV, uvs[vIdx]);
+            for (int c = 0; c < 3; ++c)
+            {
+                const glm::vec2& uv = uvs[triIdx * 3 + c];
+                minUV = glm::min(minUV, uv);
+                maxUV = glm::max(maxUV, uv);
+            }
         }
 
         const glm::vec2 size = maxUV - minUV;
         if (size.x <= 0.0f || size.y <= 0.0f)
             continue;
 
-        for (unsigned int vIdx : islandVertexIndices)
-            uvs[vIdx] = (uvs[vIdx] - minUV) / size;
+        for (unsigned int triIdx : island.triangles)
+        {
+            for (int c = 0; c < 3; ++c)
+                uvs[triIdx * 3 + c] = (uvs[triIdx * 3 + c] - minUV) / size;
+        }
     }
 }
 
