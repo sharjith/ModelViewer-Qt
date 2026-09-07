@@ -35,6 +35,26 @@ int main(int argc, char** argv)
 {
 	Q_INIT_RESOURCE(ModelViewer);
 
+#if defined(Q_OS_LINUX)
+	// ThemeManager (see its own comments) already takes full manual control
+	// of styling/palette rather than deferring to a QPA platform theme
+	// plugin - KDE/GNOME integration is worked around there already, for a
+	// documented Qt version mismatch that prevents loading either properly.
+	// A third-party platform theme tool (qt6ct) some users have configured
+	// system-wide goes further than KDE/GNOME's own integration would:
+	// active *at all*, regardless of what ThemeManager does, it applies its
+	// own app-wide styling layer that Qt's built-in QLineEdit clear button
+	// doesn't reliably survive under Fusion - confirmed: the search box's
+	// clear button (searchEdit, see MaterialPropertiesPanel) stayed
+	// genuinely invisible (while remaining fully clickable) only when
+	// QT_QPA_PLATFORMTHEME=qt6ct was set, never otherwise. QT_QPA_PLATFORMTHEME
+	// is read once, when QApplication is constructed just below - clearing
+	// it here, before that happens, keeps this app on Qt's own generic
+	// handling unconditionally, without touching the user's shell/session
+	// (where it may be set intentionally for other applications).
+	qunsetenv("QT_QPA_PLATFORMTHEME");
+#endif
+
 	// Must be called before QApplication is constructed — sets platform OpenGL attributes.
 	// On Linux/Wayland this prevents crashes; safe no-op on Windows (gated inside).
 	ModelViewerApplication::configureOpenGLAttributes();
