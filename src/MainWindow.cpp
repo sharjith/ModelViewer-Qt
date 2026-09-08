@@ -73,6 +73,16 @@ MainWindow::MainWindow(QWidget* parent)
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
 
+	// Explicit, rather than relying purely on Windows extracting the icon from the exe's embedded
+	// .rc resource ("A", res/ModelViewer.ico - same file, bundled into the qrc under this path
+	// specifically for this) as it did previously. That static, startup-time extraction looked
+	// fine initially, but Windows can later re-query the LIVE window's icon via WM_GETICON - e.g.
+	// after resuming from screen lock/idle, a display/DPI reconfiguration, or an Explorer restart -
+	// and a QWidget that never had setWindowIcon() called has nothing to answer with, so Windows
+	// falls back to its own generic default EXE icon in the taskbar. Setting it explicitly here
+	// means Qt always has a real icon on hand regardless of when/why it gets re-queried.
+	setWindowIcon(QIcon(":/icons/res/ModelViewer.ico"));
+
 	// Set the application theme based on user settings - deliberately done
 	// here, before any dock/panel below is constructed (rather than its
 	// original spot much later in this constructor). Those panels are now
