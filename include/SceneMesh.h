@@ -25,6 +25,10 @@ struct DetectedCircularLoop
 	std::vector<uint32_t> vertexIndices;
 };
 
+// Defined in MeshRepair.h - only forward-declared here so this widely-included header doesn't
+// have to pull in CGAL types just for a pointer parameter (see repairMesh() below).
+struct MeshRepairReport;
+
 class SceneMesh : public RenderableMesh
 {
 public:
@@ -295,6 +299,18 @@ public:
 	static SceneMesh* subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	                                 unsigned int iterations, const QString& newName,
 	                                 bool preserveSharpFeatures = true);
+
+	// Runs ONE mesh's world-space geometry through MeshRepair::repairSoupToMesh() (see
+	// MeshRepair.h) - defect cleanup only (duplicate/degenerate geometry, non-manifold vertices,
+	// inconsistent winding, self-intersections), never hole-filling or forced closure, so an open
+	// panel stays open. Single-mesh in, single-mesh out, same shape as subdivideMesh() above.
+	// Like shrinkWrapMeshes()/subdivideMesh(), the result carries no source UVs/skinning - only
+	// positions and recomputed normals populate the new Vertex list. Returns nullptr if mesh is
+	// null/empty or the soup can't be repaired into a valid mesh at all (MeshRepairReport::
+	// succeeded false); outReport, if non-null, is always filled in (including on failure) so the
+	// caller can report why.
+	static SceneMesh* repairMesh(SceneMesh* mesh, const QString& newName,
+	                              MeshRepairReport* outReport = nullptr);
 
 	// Computes a suggested grid-simplification spacing for
 	// reconstructSurfaceFromPoints() below's optional pre-simplify step, from

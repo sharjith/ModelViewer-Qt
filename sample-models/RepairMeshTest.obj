@@ -1,0 +1,46 @@
+# RepairMeshTest.obj - deliberately broken mesh exercising every defect
+# MeshRepair::repairSoupToMesh()'s pipeline is meant to fix, isolated into 3 regions so each
+# fix is independently checkable via the Repair Mesh dialog's status label and the viewport:
+#
+#  - Vertices 1-5 (around the origin): a "bowtie" - two triangle fans (1,2,3) and (1,4,5) that
+#    share ONLY vertex 1, no edge. Assimp's aiProcess_JoinIdenticalVertices import keeps them on
+#    one shared vertex index, so this lands in the SceneMesh already as a genuine non-manifold
+#    vertex - duplicate_non_manifold_vertices() should report exactly 1 fixed.
+#  - Vertices 6-9 (around x=3..4, y=-1..1, z=0): a flat panel, split into 2 triangles sharing
+#    edge 7-8. The second triangle (f 6 9 8) is wound backwards relative to the first (f 6 7 8),
+#    a genuine winding inconsistency for orient_polygon_soup() to fix.
+#  - Vertices 7,8,10,11 (x=4, z=0..1): a second panel folded 90 degrees off the first at the
+#    shared edge 7-8 (panel A's normal is +Z, this one's is +X) - a real sharp crease, unrelated
+#    to the winding test above, to confirm MeshRepair::buildCreaseAwareVertexBuffers() keeps it
+#    faceted rather than smoothing it round.
+#  - f 2 2 3: a degenerate (zero-area, repeated-vertex) triangle for repair_polygon_soup() to
+#    drop.
+#  - Vertex 12: a duplicate of vertex 1's position, referenced by no face - an isolated point
+#    repair_polygon_soup() should also drop (soupPointsRemoved).
+#
+# No vn data on purpose - exercises the app's own normal generation (import-time smoothing and
+# MeshRepair's post-repair crease-aware rebuild) rather than baking pre-authored normals.
+
+mtllib RepairMeshTest.mtl
+usemtl mat_1
+
+v 0.000000 0.000000 0.000000
+v 1.000000 0.000000 0.000000
+v 0.500000 1.000000 0.000000
+v -1.000000 0.000000 0.000000
+v -0.500000 -1.000000 0.000000
+v 3.000000 -1.000000 0.000000
+v 4.000000 -1.000000 0.000000
+v 4.000000 1.000000 0.000000
+v 3.000000 1.000000 0.000000
+v 4.000000 -1.000000 1.000000
+v 4.000000 1.000000 1.000000
+v 0.000000 0.000000 0.000000
+
+f 1 2 3
+f 1 4 5
+f 6 7 8
+f 6 9 8
+f 7 8 11
+f 7 11 10
+f 2 2 3

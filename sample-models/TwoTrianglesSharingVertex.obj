@@ -1,0 +1,25 @@
+# TwoTrianglesSharingVertex.obj - converted from CGAL 6.2's own PMP_Mesh_repair test fixture
+# (PMP_Mesh_repair/test/PMP_Mesh_repair/data-repair/two_triangles_sharing_a_vertex.off, used by
+# test_pmp_manifoldness.cpp's test_pinched_triangles<>() case). Trivial 5-point/2-triangle
+# geometry, converted here for licensing-safety reasons (see the assistant's note on
+# ThreeTrianglesSharingVertex.obj) rather than redistributing the .off directly.
+#
+# Two disconnected triangles - (1,2,5) and (2,3,4) below - meeting ONLY at vertex 2 (1,0,0), no
+# shared edge: CGAL's own canonical minimal non-manifold vertex, the same pattern
+# RepairMeshTest.obj's bowtie region uses embedded in a larger composite scene. Kept here as an
+# isolated file so its repair result can be compared directly against
+# ThreeTrianglesSharingVertex.obj's 3-way fan: duplicate_non_manifold_vertices() should report
+# exactly 1 vertex created for this 2-way case, vs 2 for the 3-way one (N-1 splits for an N-way
+# fan).
+
+mtllib TwoTrianglesSharingVertex.mtl
+usemtl mat_1
+
+v 0.000000 0.000000 0.000000
+v 1.000000 0.000000 0.000000
+v 2.000000 0.000000 0.000000
+v 2.000000 1.000000 0.000000
+v 0.000000 1.000000 0.000000
+
+f 1 2 5
+f 2 3 4

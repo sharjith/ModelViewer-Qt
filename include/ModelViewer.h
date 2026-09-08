@@ -35,6 +35,21 @@ struct UVDialogResult
 	UVMethod method = UVMethod::None;
 };
 
+// One result from a single mesh's repair, as produced by RepairMeshDialog::onGenerateClicked() -
+// already attached/inserted into the scene graph (same "already happened" convention
+// ModelViewer::commitShrinkWrap()'s parameters follow) by the time it's passed to
+// ModelViewer::commitRepairMesh(). Free-standing rather than nested inside the ModelViewer class
+// - moc cannot parse a nested struct definition inside a Q_OBJECT class body ("Not a signal or
+// slot declaration"), same reason SceneMesh.h's DetectedCircularLoop/MeshRepairReport forward
+// declaration live outside SceneMesh itself.
+struct RepairMeshResult
+{
+	SceneNode* node = nullptr;
+	SceneNode* parent = nullptr;
+	int position = 0;
+	QUuid meshUuid;
+};
+
 namespace Mvf
 {
 struct Document;
@@ -430,6 +445,20 @@ public slots:
 	// class with text = tr("Reconstruct Surface").
 	void commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
 	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+
+	// Repair Mesh: opens the non-modal RepairMeshDialog (Tools -> Repair Mesh...), same
+	// findChild-reuse-or-create/show/raise/seed-with-tree-selection pattern as
+	// openShrinkWrapDialog()/openSubdivisionDialog() above.
+	void openRepairMeshDialog();
+
+	// The Repair Mesh dialog's one-line bridge into the undo stack. Unlike commitShrinkWrap()/
+	// commitSubdivision()/commitReconstructSurface() (always exactly one result per Generate
+	// click), a single Repair Mesh Generate click can independently repair several meshes at
+	// once - reuses the exact same ShrinkWrapCommand class per result (text = tr("Repair Mesh")),
+	// wrapped in a single undo-stack macro when results.size() > 1 so one Ctrl+Z undoes the whole
+	// batch, same "one user action, several underlying commands" convention as
+	// commitUVGeneration()'s multi-mesh batching.
+	void commitRepairMesh(const QVector<RepairMeshResult>& results, const QSet<QUuid>& originalSelection);
 
 	// Generate UVs: opens the non-modal UVGenerationDialog (Tools -> Generate
 	// UVs...), same findChild-reuse-or-create/show/raise/seed-with-tree-

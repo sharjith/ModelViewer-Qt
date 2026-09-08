@@ -27,6 +27,7 @@
 #include "ShrinkWrapDialog.h"
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
+#include "RepairMeshDialog.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialPreviewWidget.h"
@@ -3590,6 +3591,49 @@ void ModelViewer::commitReconstructSurface(SceneNode* node, SceneNode* parent, i
 		return;
 	_undoStack->push(new ShrinkWrapCommand(
 		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Reconstruct Surface")));
+}
+
+void ModelViewer::openRepairMeshDialog()
+{
+	RepairMeshDialog* dialog = findChild<RepairMeshDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new RepairMeshDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	// Same seed-with-current-tree-selection convention as
+	// openShrinkWrapDialog()/openSubdivisionDialog() above.
+	dialog->addCurrentTreeSelection();
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::commitRepairMesh(const QVector<RepairMeshResult>& results, const QSet<QUuid>& originalSelection)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || results.isEmpty())
+		return;
+
+	// One Ctrl+Z should undo an entire multi-mesh Generate click as a single step - same
+	// beginMacro()/endMacro() wrapping commitUVGeneration() uses for the same "one user action,
+	// several underlying commands" reason. Skipped entirely for the common single-mesh case so
+	// the undo-stack entry shows that command's own text directly instead of a redundant
+	// one-item macro.
+	const bool macro = results.size() > 1;
+	if (macro)
+		_undoStack->beginMacro(tr("Repair Mesh (%1)").arg(results.size()));
+
+	for (const RepairMeshResult& result : results)
+	{
+		if (!result.node || !result.parent)
+			continue;
+		_undoStack->push(new ShrinkWrapCommand(
+			this, _viewportWidget, result.node, result.parent, result.position,
+			result.meshUuid, originalSelection, tr("Repair Mesh")));
+	}
+
+	if (macro)
+		_undoStack->endMacro();
 }
 
 void ModelViewer::replaceToolResults(const QVector<QUuid>& meshUuids, const QString& text)

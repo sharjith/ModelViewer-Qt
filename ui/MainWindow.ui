@@ -89,6 +89,7 @@
     <addaction name="actionShrinkWrap"/>
     <addaction name="actionSubdivideSurface"/>
     <addaction name="actionReconstructSurface"/>
+    <addaction name="actionRepairMesh"/>
     <addaction name="actionGenerateUVs"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
@@ -406,6 +407,14 @@
    </property>
    <property name="statusTip">
     <string>Reconstruct a triangulated surface from the selected point cloud(s) via CGAL advancing-front reconstruction, added as a new node</string>
+   </property>
+  </action>
+  <action name="actionRepairMesh">
+   <property name="text">
+    <string>Repair Mesh...</string>
+   </property>
+   <property name="statusTip">
+    <string>Fix duplicate/degenerate geometry, non-manifold vertices, inconsistent winding, and self-intersections on the selected meshes (CGAL repair toolkit), each added as a new node</string>
    </property>
   </action>
   <action name="actionGenerateUVs">

@@ -2,6 +2,7 @@
 #include "TextureLocationManager.h"
 #include "IGpuContextResource.h"
 #include "MeasurementGeometry.h"
+#include "MeshRepair.h"
 
 #include <QFileInfo>
 #include <QImage>
@@ -18,6 +19,7 @@
 #include <functional>
 #include <iterator>
 #include <limits>
+#include <type_traits>
 #include <unordered_map>
 #include <meshoptimizer.h>
 #include <utility>
@@ -601,6 +603,18 @@ bool appendValidatedCgalTriangleSoup(const std::vector<float>& positions,
 // as nothing whether present or not) - whatever is causing the actually-
 // visible crease/facet artifact at the join is a SEPARATE, still-open
 // question; don't re-attempt a kernel swap for it without new evidence.
+// The shared soup-repair steps (repair_polygon_soup/orient_polygon_soup/
+// is_polygon_soup_a_polygon_mesh/polygon_soup_to_polygon_mesh/stitch_borders/
+// duplicate_non_manifold_vertices/remove_self_intersections) now live in
+// MeshRepair::repairSoupToMesh() - shared with subdivideMesh()/
+// reconstructSurfaceFromPoints() below and MeasurementController's Geodesic Distance
+// resolver, which each used to duplicate this same pipeline independently (confirmed via
+// search - none of the other three ever did non-manifold-vertex fixing, unlike this one).
+// What's left here is specific to booleanUnionMeshes()'s own, stricter needs: corefine_and_
+// compute_union()'s documented precondition is !does_self_intersect() && does_bound_a_volume()
+// on BOTH inputs, i.e. a closed, watertight, volume-bounding mesh - not required for repair in
+// general (an open panel is meant to stay open), which is why this stays a separate step layered
+// on top rather than folded into the shared helper.
 template <class Kernel>
 bool tryBuildRepairedVolumeMesh(
 	std::vector<typename Kernel::Point_3> points,
@@ -609,47 +623,15 @@ bool tryBuildRepairedVolumeMesh(
 {
 	namespace PMP = CGAL::Polygon_mesh_processing;
 
-	// Cleans up duplicate points and degenerate/invalid/duplicate polygons
-	// in the raw soup - points/faces are modified in place.
-	PMP::repair_polygon_soup(points, faces);
+	static_assert(std::is_same<Kernel, MeshRepair::Kernel>::value,
+		"tryBuildRepairedVolumeMesh is only ever instantiated with MeshRepair::Kernel - "
+		"see MeshRepair.h's doc comment for why a single fixed kernel is used throughout.");
 
-	// repair_polygon_soup() alone does not fix non-manifold edges, winding
-	// consistency, or SINGULAR vertices (a vertex shared by two otherwise-
-	// disconnected fans of triangles, touching at a point but no shared
-	// edge) - confirmed via direct testing (a real STEP/BREP import, a
-	// bottle with a threaded cap) to be a real, hit-in-practice gap in the
-	// Geodesic Distance measurement resolver's identical repair pipeline;
-	// fixed there by adding orient_polygon_soup(), which duplicates
-	// non-manifold/singular vertices as needed. Same fix applies here, for
-	// the same reason: a CAD import that hits this would otherwise fail
-	// is_polygon_soup_a_polygon_mesh() below and silently fall back to
-	// mergeMeshes() even though the geometry IS unionable once repaired.
-	// orient_polygon_soup() returns false when it had to duplicate
-	// anything - CGAL's own doc comment describes this as producing a
-	// "combinatorially manifold but self-intersecting" result, not simply
-	// "harmless" - the return value is intentionally ignored here since a
-	// combinatorially valid (if locally self-intersecting near the
-	// duplicated seam) mesh is still exactly what is_polygon_soup_a_polygon_mesh()
-	// and polygon_soup_to_polygon_mesh() need; does_self_intersect()/
-	// remove_self_intersections() further down already handle geometric
-	// self-intersection cleanup regardless of what introduced it.
-	PMP::orient_polygon_soup(points, faces);
-
-	// polygon_soup_to_polygon_mesh() itself only asserts this precondition
-	// (a no-op in release builds) rather than reporting failure - check it
-	// explicitly so a soup repair couldn't fully clean up fails this
-	// function cleanly instead of risking undefined behavior downstream.
-	if (!PMP::is_polygon_soup_a_polygon_mesh(faces))
+	if (!MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), outMesh))
 		return false;
 
-	PMP::polygon_soup_to_polygon_mesh(points, faces, outMesh);
-	PMP::stitch_borders(outMesh);  // welds duplicate boundary halfedges left by the soup->mesh conversion
-
 	if (PMP::does_self_intersect(outMesh))
-		PMP::experimental::remove_self_intersections(outMesh);  // best-effort - not guaranteed to fully succeed
-
-	if (PMP::does_self_intersect(outMesh))
-		return false;
+		return false; // MeshRepair's best-effort removal didn't fully resolve it
 
 	// orient_to_bound_a_volume()'s own documented precondition is
 	// CGAL::is_closed(tm) - calling it on an open mesh (e.g. a cylinder
@@ -2222,27 +2204,15 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	if (!appendValidatedCgalTriangleSoup(pts, srcIndices, points, faces))
 		return nullptr;
 
-	// Same repair gate booleanUnionMeshes() uses to turn an arbitrary
-	// imported soup into a valid polygon mesh, but without the closed/
-	// watertight/self-intersection-free checks that operation additionally
-	// needs for corefinement - subdivision's refinement hosts handle open
-	// borders fine (they have their own boundary stencils), so there's
-	// nothing further to establish here. orient_polygon_soup() is still
-	// needed alongside repair_polygon_soup(), same as booleanUnionMeshes()'s
-	// tryBuildRepairedVolumeMesh() - repair_polygon_soup() alone does not
-	// fix non-manifold edges/singular vertices (a vertex shared by two
-	// otherwise-disconnected triangle fans), which a real STEP/BREP import
-	// can hit (confirmed via the Geodesic Distance resolver's identical gap)
-	// and would otherwise fail is_polygon_soup_a_polygon_mesh() below,
-	// rejecting geometry that's perfectly subdivisible once repaired.
-	PMP::repair_polygon_soup(points, faces);
-	PMP::orient_polygon_soup(points, faces);
-	if (!PMP::is_polygon_soup_a_polygon_mesh(faces))
-		return nullptr;
-
+	// Same repair MeshRepair::repairSoupToMesh() (see MeshRepair.h) uses to turn an arbitrary
+	// imported soup into a valid polygon mesh, without the closed/watertight/self-intersection-
+	// free checks booleanUnionMeshes() additionally needs for corefinement - subdivision's
+	// refinement hosts handle open borders fine (they have their own boundary stencils), so
+	// there's nothing further to establish here.
 	Mesh workingMesh;
-	PMP::polygon_soup_to_polygon_mesh(points, faces, workingMesh);
-	PMP::stitch_borders(workingMesh);
+	if (!MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), workingMesh)
+		|| workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() == 0)
+		return nullptr;
 
 	// Loop/Catmull-Clark subdivision's stencil weights are derived for low,
 	// regular vertex valence (6 for an interior triangle-mesh vertex) -
@@ -2581,6 +2551,93 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	return result;
 }
 
+namespace
+{
+	// Diagnostic for the Repair Mesh dialog - flip to true, rebuild, run Tools > Repair Mesh on a
+	// test mesh, and check the log for the per-mesh MeshRepairReport. Same kXXXVerbose convention
+	// as UVGenerator.cpp's flags. Verified against RepairMeshTest.obj/TwoTrianglesSharingVertex.obj/
+	// ThreeTrianglesSharingVertex.obj - confirmed nonManifoldVerticesFixed and
+	// selfIntersectionLikelyFromNonManifoldFix both report correctly, so this defaults false again.
+	constexpr bool kRepairVerbose = false;
+}
+
+SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRepairReport* outReport)
+{
+	if (outReport)
+		*outReport = MeshRepairReport{};
+
+	if (!mesh)
+		return nullptr;
+
+	using Point_3 = MeshRepair::Point_3;
+	using Mesh    = MeshRepair::Mesh;
+
+	// Same baked-geometry accessors as subdivideMesh() - single mesh in, no vertexOffset
+	// concatenation needed.
+	const std::vector<float>& pts = mesh->getTrsfPoints();
+	const std::vector<unsigned int> srcIndices = mesh->indices();
+
+	std::vector<Point_3> points;
+	std::vector<std::array<std::size_t, 3>> faces;
+	if (!appendValidatedCgalTriangleSoup(pts, srcIndices, points, faces))
+		return nullptr;
+
+	Mesh repairedMesh;
+	MeshRepairReport localReport;
+	MeshRepairReport& report = outReport ? *outReport : localReport;
+	const bool soupToMeshOk = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), repairedMesh, &report);
+
+	if (kRepairVerbose)
+	{
+		qDebug() << "[Repair]" << mesh->getName() << "- succeeded=" << report.succeeded
+		         << "wasAlreadyValid=" << report.wasAlreadyValid
+		         << "soupPointsRemoved=" << report.soupPointsRemoved
+		         << "soupFacesRemoved=" << report.soupFacesRemoved
+		         << "nonManifoldVerticesFixed=" << report.nonManifoldVerticesFixed
+		         << "hadSelfIntersections=" << report.hadSelfIntersections
+		         << "selfIntersectionsResolved=" << report.selfIntersectionsResolved
+		         << "selfIntersectionLikelyFromNonManifoldFix=" << report.selfIntersectionLikelyFromNonManifoldFix
+		         << "resultVertices=" << repairedMesh.number_of_vertices()
+		         << "resultFaces=" << repairedMesh.number_of_faces();
+	}
+
+	if (!soupToMeshOk || repairedMesh.number_of_vertices() == 0 || repairedMesh.number_of_faces() == 0)
+	{
+		report.succeeded = false;
+		return nullptr;
+	}
+
+	if (report.wasAlreadyValid)
+		return nullptr; // nothing to fix - caller (RepairMeshDialog) skips creating a result node
+
+	// No source UVs/skinning to carry over - repair operates purely on the position/connectivity
+	// soup. Normals use MeshRepair::buildCreaseAwareVertexBuffers() rather than a plain
+	// compute_vertex_normals()-style average (what shrinkWrapMeshes() uses, fine there since
+	// alpha_wrap_3's output is inherently rounded/approximating): repair is meant to PRESERVE the
+	// mesh's actual shape, including any genuinely sharp edges the source mesh already had, so a
+	// single smoothed normal per vertex would make correctly-preserved geometry look wrong under
+	// lighting - confirmed as the same real issue booleanUnionMeshes() had to fix (see its doc
+	// comment in this file for the investigation that arrived at a 15-degree crease threshold).
+	std::vector<Vertex> repairedVertices;
+	std::vector<unsigned int> repairedIndices;
+	MeshRepair::buildCreaseAwareVertexBuffers(repairedMesh, repairedVertices, repairedIndices);
+
+	SceneMesh* result = new SceneMesh(mesh->_prog, newName, repairedVertices, repairedIndices,
+	                                   mesh->_textures, mesh->_material,
+	                                   mesh->_importState.skipOptimization(), mesh->getPrimitiveMode());
+
+	// Identity transform - the vertex data above is already world-space.
+	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	result->setHasNegativeScale(false);
+	result->setSceneRenderTransformFast(QMatrix4x4());
+
+	result->fullUpdateRuntimeBounds();
+
+	return result;
+}
+
 void SceneMesh::suggestReconstructionSpacing(const QVector<SceneMesh*>& meshes, double& outSpacing)
 {
 	outSpacing = 0.0;
@@ -2633,12 +2690,15 @@ SceneMesh* SceneMesh::reconstructSurfaceFromPoints(const QVector<SceneMesh*>& me
 
 	// Position-keyed lookup so each reconstructed vertex can recover the
 	// source point's own color (e.g. real per-point RGB from a photogrammetry/
-	// laser-scan PLY) after going through repair_polygon_soup()/
-	// orient_polygon_soup()/grid_simplify_point_set() below - none of those
-	// do any coordinate arithmetic (averaging/snapping), they only copy,
-	// reorder, drop, or exactly-duplicate existing points, so an exact-match
-	// hash on the original coordinates reliably survives all of them; this
-	// would NOT be safe if any repair step geometrically perturbed points.
+	// laser-scan PLY) after going through grid_simplify_point_set() below and
+	// MeshRepair::repairSoupToMesh()'s pipeline - repair_polygon_soup/orient_polygon_soup/
+	// stitch_borders/duplicate_non_manifold_vertices only copy, reorder, drop, or
+	// exactly-duplicate existing points (no coordinate arithmetic), so an exact-match hash on the
+	// original coordinates reliably survives them. The one exception is the best-effort
+	// remove_self_intersections() step, which CAN involve smoothing and so could in principle
+	// perturb a vertex enough to miss this lookup - harmless if it happens (the fallback below is
+	// a plain default color, not a crash), and only reachable at all when self-intersections were
+	// actually detected in the reconstructed mesh, uncommon for a fresh point-cloud result.
 	struct Point3Hash
 	{
 		std::size_t operator()(const Point_3& p) const
@@ -2713,21 +2773,14 @@ SceneMesh* SceneMesh::reconstructSurfaceFromPoints(const QVector<SceneMesh*>& me
 	if (faces.empty())
 		return nullptr;
 
-	// Same repair gate subdivideMesh() uses (repair_polygon_soup +
-	// orient_polygon_soup + is_polygon_soup_a_polygon_mesh check, not
-	// booleanUnionMeshes()'s additional closed/watertight/self-intersection
-	// checks - this result isn't required to be watertight, same reasoning
-	// as subdivision's open-border tolerance) - necessary here specifically
-	// because, unlike every other CGAL tool in this file, advancing_front's
-	// heuristic selection gives no manifoldness guarantee on its own.
-	PMP::repair_polygon_soup(points, faces);
-	PMP::orient_polygon_soup(points, faces);
-	if (!PMP::is_polygon_soup_a_polygon_mesh(faces))
-		return nullptr;
-
+	// Same repair MeshRepair::repairSoupToMesh() uses (see MeshRepair.h) - not
+	// booleanUnionMeshes()'s additional closed/watertight/self-intersection checks, this result
+	// isn't required to be watertight, same reasoning as subdivision's open-border tolerance -
+	// necessary here specifically because, unlike every other CGAL tool in this file,
+	// advancing_front's heuristic selection gives no manifoldness guarantee on its own.
 	Mesh reconMesh;
-	PMP::polygon_soup_to_polygon_mesh(points, faces, reconMesh);
-	if (reconMesh.number_of_vertices() == 0 || reconMesh.number_of_faces() == 0)
+	if (!MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), reconMesh)
+		|| reconMesh.number_of_vertices() == 0 || reconMesh.number_of_faces() == 0)
 		return nullptr;
 
 	// Brand-new geometry, no source UVs/skinning to carry over - same

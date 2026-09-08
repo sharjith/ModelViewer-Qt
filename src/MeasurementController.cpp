@@ -25,17 +25,13 @@
 #include <boost/property_map/property_map.hpp>
 
 // See resolveMeasurementGeodesicDistance()'s doc comment - CGAL
-// Surface_mesh_shortest_path for GeodesicDistance. polygon_soup_to_polygon_mesh/
-// stitch_borders build a valid Surface_mesh from the picked mesh's own
-// triangle soup WITHOUT repair_polygon_soup (see the doc comment for why
-// skipping that specific step matters here).
+// Surface_mesh_shortest_path for GeodesicDistance, built from the picked mesh's own triangle
+// soup via MeshRepair::repairSoupToMesh() (MeshRepair.h) - shared with SceneMesh's own repair
+// call sites.
 #include <CGAL/Surface_mesh.h>
-#include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
-#include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h>
-#include <CGAL/Polygon_mesh_processing/orient_polygon_soup.h>
-#include <CGAL/Polygon_mesh_processing/stitch_borders.h>
 #include <CGAL/Polygon_mesh_processing/locate.h>
 #include <CGAL/Surface_mesh_shortest_path.h>
+#include "MeshRepair.h"
 
 #include <QDebug>
 #include <QMatrix4x4>
@@ -2346,18 +2342,14 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterFromMeshFitUnca
 // search across shared triangle edges, which needs true face adjacency, not
 // just a local point neighbor list.
 //
-// Deliberately skips CGAL::Polygon_mesh_processing::repair_polygon_soup()
-// (unlike SceneMesh::subdivideMesh()/booleanUnionMeshes(), which both use
-// it) - that function can merge/drop/reorder polygons, which would break
-// the direct `Mesh::Face_index(i) == mesh->indices() triangle i`
-// correspondence this resolver relies on to turn an anchor's triangleIndex
-// straight into a CGAL Face_location without a remapping table.
-// stitch_borders() is still safe to keep - it only welds duplicate vertex
-// INDICES, it doesn't reorder or remove faces, so the correspondence
-// survives it (and it's needed: without it, a seam like a cylinder's
-// cap/wall boundary - built from originally-separate, coincident-but-
-// distinct vertices - would be an unconnected mesh BORDER there, blocking
-// any path from ever crossing it).
+// Uses MeshRepair::repairSoupToMesh() (see MeshRepair.h) - shared with
+// SceneMesh::subdivideMesh()/reconstructSurfaceFromPoints() and (via a thin wrapper)
+// booleanUnionMeshes(). Safe here despite repair_polygon_soup() potentially merging/
+// dropping/reordering polygons - this resolver never assumes
+// `Mesh::Face_index(i) == mesh->indices() triangle i` correspondence; it locates each
+// anchor's own resolved WORLD POSITION on the repaired mesh via PMP::locate() below
+// instead (see that comment for why), so nothing here depends on pre-repair indices
+// surviving intact.
 bool MeasurementController::resolveMeasurementGeodesicDistance(const Measurement& m,
 	double& outDistance, QVector<QVector3D>& outPathPoints) const
 {
@@ -2443,53 +2435,21 @@ bool MeasurementController::resolveMeasurementGeodesicDistance(const Measurement
 		// is_polygon_soup_a_polygon_mesh() outright - which is itself a hard
 		// CGAL_precondition abort inside polygon_soup_to_polygon_mesh() in a
 		// debug build (confirmed: crashed on every repaint before this fix),
-		// not just a "produces a worse result" situation - so this repair
-		// pair is mandatory, not optional:
-		//  - repair_polygon_soup() cleans duplicate/degenerate points and
-		//    polygons, and drops isolated points.
-		//  - orient_polygon_soup() re-orients for consistent winding AND
-		//    resolves non-manifold edges/SINGULAR vertices (a vertex shared
-		//    by two otherwise-disconnected fans of triangles, touching at a
-		//    point but no shared edge - confirmed via direct diagnostic to
-		//    be exactly what a real STEP/BREP import of a bottle with a
-		//    threaded cap hits, after repair_polygon_soup alone left 0
-		//    degenerate polygons/non-manifold edges/winding conflicts yet
-		//    still failed validation) by duplicating points as needed.
-		// Neither function alone is sufficient; repair_polygon_soup() does
-		// not touch orientation/manifoldness at all, and orient_polygon_soup()
-		// does not deduplicate points/polygons.
-		//
-		// orient_polygon_soup() returns false when it had to duplicate
-		// anything - CGAL's own doc comment describes this as producing a
-		// "combinatorially manifold but self-intersecting" result, not
-		// simply "harmless" as an earlier version of this comment claimed.
-		// The return value is intentionally ignored here regardless: a
-		// combinatorially valid (if locally self-intersecting near the
-		// duplicated seam) mesh is exactly what is_polygon_soup_a_polygon_mesh()
-		// and polygon_soup_to_polygon_mesh() need, and Surface_mesh_shortest_path
-		// operates on the mesh's intrinsic surface metric via face unfolding -
-		// a small geometric self-intersection right at a duplicated singular
-		// vertex doesn't block the search, though it could in principle make
-		// the reported distance slightly less accurate exactly at that seam.
-		//
-		// Neither function costs this resolver an index-correspondence
-		// assumption: it locates each anchor's own resolved WORLD POSITION
-		// on the repaired/reordered mesh via PMP::locate() below, rather
-		// than assuming Mesh::Face_index(originalTriangleIndex) still means
-		// anything after repair.
-		PMP::repair_polygon_soup(points, faces);
-		PMP::orient_polygon_soup(points, faces);
-		const bool isValidMesh = PMP::is_polygon_soup_a_polygon_mesh(faces);
-		qDebug() << "[GeodesicDistance] soup: points" << static_cast<qulonglong>(points.size())
-		         << "faces" << static_cast<qulonglong>(faces.size())
-		         << "is_polygon_soup_a_polygon_mesh:" << isValidMesh;
-		if (!isValidMesh)
-			return false;
-
+		// not just a "produces a worse result" situation - so repairing first
+		// is mandatory, not optional. MeshRepair::repairSoupToMesh() also now
+		// fixes non-manifold/singular vertices (duplicate_non_manifold_vertices) and
+		// best-effort-removes self-intersections beyond what this resolver's own
+		// pipeline used to do - a small geometric self-intersection right at a
+		// duplicated singular vertex doesn't block Surface_mesh_shortest_path's
+		// search (it operates on the mesh's intrinsic surface metric via face
+		// unfolding), though it could in principle make the reported distance
+		// slightly less accurate exactly at that seam if left unresolved.
 		Mesh workingMesh;
-		PMP::polygon_soup_to_polygon_mesh(points, faces, workingMesh);
-		PMP::stitch_borders(workingMesh);
-		if (workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() == 0)
+		const bool repaired = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), workingMesh);
+		qDebug() << "[GeodesicDistance] soup repair:" << repaired
+		         << "verts" << static_cast<qulonglong>(workingMesh.number_of_vertices())
+		         << "faces" << static_cast<qulonglong>(workingMesh.number_of_faces());
+		if (!repaired || workingMesh.number_of_vertices() == 0 || workingMesh.number_of_faces() == 0)
 			return false;
 
 		// Locate each anchor's resolved world point on workingMesh via nearest-
