@@ -4677,7 +4677,8 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 	// SceneGraph/UVGenerator concept. Resolved here (not in AssImpModelLoader::regenerateUVs())
 	// since that's where _seamMarkingController lives.
 	const bool methodSupportsSeamMarks =
-		uvMethod == UVMethod::AngleBased || uvMethod == UVMethod::AngleBasedSmartUV || uvMethod == UVMethod::ARAP;
+		uvMethod == UVMethod::AngleBased || uvMethod == UVMethod::AngleBasedSmartUV ||
+		uvMethod == UVMethod::ARAP || uvMethod == UVMethod::LSCM;
 	int unresolvedMarkCount = 0;
 	int consideredMarkCount = 0;
 

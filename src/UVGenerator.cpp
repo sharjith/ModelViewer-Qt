@@ -16,6 +16,11 @@
 // why). Remove once ARAP's real behavior is confirmed.
 constexpr bool kARAPVerbose = false;
 
+// Same as kARAPVerbose above, for the LSCM method (see tryUnwrapIslandCGAL()'s
+// shared implementation - both go through the same diagnostic logging, just
+// tagged differently).
+constexpr bool kLSCMVerbose = false;
+
 // Temporary diagnostic for the spherical UV pole/seam artifact - flip to true, rebuild, run
 // Generate UVs with Spherical selected, and check the log for per-triangle pole/seam data.
 // Remove once the pole/seam distortion is confirmed fixed.
@@ -67,6 +72,7 @@ constexpr bool kXAtlasVerbose = false;
 #include <CGAL/boost/graph/helpers.h>
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
 #include <CGAL/Surface_mesh_parameterization/ARAP_parameterizer_3.h>
+#include <CGAL/Surface_mesh_parameterization/LSCM_parameterizer_3.h>
 #include <CGAL/Surface_mesh_parameterization/parameterize.h>
 
 namespace
@@ -1599,6 +1605,123 @@ bool UVGenerator::generateARAP(
 }
 
 
+// Method 10: LSCM (Least Squares Conformal Maps) - identical shape to generateARAP() above
+// (same seam/island detection, same PCA fallback, same flatten/pack), swapping
+// tryUnwrapIslandARAP() for tryUnwrapIslandLSCM() as the per-island unfold. LSCM is a single
+// global linear solve (no lambda/rigidity parameter, no local/global iteration like ARAP) -
+// angle-preserving rather than area-preserving, and typically faster.
+bool UVGenerator::generateLSCM(
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap,
+    const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges)
+{
+    if (vertices.empty() || indices.empty())
+        return false;
+
+    std::vector<MeshTriangle> triangles;
+    buildTriangleList(vertices, indices, triangles);
+    if (triangles.empty())
+        return false;
+
+    std::vector<std::pair<unsigned int, unsigned int>> seams;
+    findSeams(vertices, triangles, seams, config.angleThreshold, userSeamEdges);
+
+    std::vector<UVIsland> islands;
+    createUVIslands(triangles, seams, islands);
+
+    if (kLSCMVerbose)
+    {
+        size_t singleTriIslands = 0;
+        for (const UVIsland& isl : islands)
+            if (isl.triangles.size() == 1)
+                ++singleTriIslands;
+        qDebug() << "[LSCM] " << triangles.size() << "triangles," << seams.size() << "seams ->"
+                 << islands.size() << "islands (" << singleTriIslands << "are single-triangle)";
+    }
+
+    // Per-triangle-corner UVs, same convention as generateARAP()'s identical setup.
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>> triangleUVs;
+
+    int lscmSucceeded = 0, lscmFellBack = 0;
+    for (const UVIsland& island : islands)
+    {
+        if (tryUnwrapIslandLSCM(vertices, triangles, island, triangleUVs))
+            ++lscmSucceeded;
+        else
+        {
+            ++lscmFellBack;
+            // Same reasoning as generateARAP()'s identical call - see its comment.
+            unwrapIslandPCA(vertices, triangles, island, triangleUVs, !config.enablePacking);
+        }
+    }
+    if (kLSCMVerbose)
+        qDebug() << "[LSCM] " << islands.size() << "islands total -" << lscmSucceeded
+                 << "used real LSCM," << lscmFellBack << "fell back to PCA";
+
+    // Flatten: expand vertices/indices so every island's UVs stay seam-continuous within
+    // themselves without colliding with a neighboring island's UVs at a shared 3D vertex - mirrors
+    // generateARAP()'s identical flatten step exactly.
+    std::vector<Vertex> newVertices;
+    std::vector<unsigned int> newIndices;
+    std::vector<unsigned int> newSourceVertexMap;
+
+    for (size_t triIdx = 0; triIdx < triangles.size(); ++triIdx)
+    {
+        auto it = triangleUVs.find(static_cast<unsigned int>(triIdx));
+        if (it == triangleUVs.end())
+            continue;
+
+        const MeshTriangle& tri = triangles[triIdx];
+        const auto& uvSet = it->second;
+
+        for (int i = 0; i < 3; ++i)
+        {
+            Vertex v = vertices[tri.indices[i]];
+            v.TexCoords[0] = uvSet[i];
+            newIndices.push_back(static_cast<unsigned int>(newVertices.size()));
+            newVertices.push_back(v);
+            newSourceVertexMap.push_back(tri.indices[i]);
+        }
+    }
+
+    if (newVertices.empty())
+        return false;
+
+    if (config.enablePacking)
+    {
+        std::vector<glm::vec2> packedUVs(newVertices.size());
+        std::vector<glm::vec3> positions(newVertices.size());
+        for (size_t i = 0; i < newVertices.size(); ++i)
+        {
+            positions[i] = newVertices[i].Position;
+            packedUVs[i] = newVertices[i].TexCoords[0];
+        }
+
+        packWithXAtlas(packedUVs, newIndices, positions);
+
+        for (size_t i = 0; i < newVertices.size(); ++i)
+        {
+            applyUVTransforms(packedUVs[i], config);
+            newVertices[i].TexCoords[0] = packedUVs[i];
+        }
+    }
+    else
+    {
+        for (auto& v : newVertices)
+            applyUVTransforms(v.TexCoords[0], config);
+    }
+
+    vertices = std::move(newVertices);
+    indices = std::move(newIndices);
+    if (sourceVertexMap)
+        *sourceVertexMap = std::move(newSourceVertexMap);
+
+    return true;
+}
+
+
 // Method 9: Torus projection (donut-style major/minor angle mapping)
 bool UVGenerator::generateTorus(
     std::vector<Vertex>& vertices,
@@ -2352,11 +2475,22 @@ void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
 }
 
 
-bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
+namespace
+{
+// Shared by tryUnwrapIslandARAP()/tryUnwrapIslandLSCM() - none of the soup-building/border-
+// detection/UV-mapback logic below is specific to ARAP; only the single SMP::parameterize() call's
+// Parameterizer instance differs between the two, so it's passed in already-constructed rather than
+// duplicating this whole function per CGAL parameterizer. methodTag/verbose let each caller keep
+// its own kXXXVerbose-gated diagnostic log distinguishable, matching this file's existing
+// kARAPVerbose convention.
+template <class Parameterizer>
+bool tryUnwrapIslandCGAL(const std::vector<Vertex>& vertices,
     const std::vector<MeshTriangle>& triangles,
     const UVIsland& island,
-    const UVConfig& config,
-    std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs)
+    Parameterizer parameterizer,
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs,
+    const char* methodTag,
+    bool verbose)
 {
     using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
     using Point_3 = Kernel::Point_3;
@@ -2371,29 +2505,29 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
     // index (tri.topoIndices, not tri.indices) - not repaired/reoriented (unlike every other CGAL
     // soup-to-mesh conversion in this codebase). That's deliberate: repair_polygon_soup()/
     // orient_polygon_soup() can duplicate/reorder points, which would break the direct "local point i
-    // == Mesh::Vertex_index(i)" correspondence this function relies on to map ARAP's per-vertex UV
-    // output back onto the right original vertex (confirmed by reading polygon_soup_to_polygon_mesh.h
-    // directly: it calls add_vertex() once per input point, in input order, with no dependency on
-    // repair/orient ever having run).
+    // == Mesh::Vertex_index(i)" correspondence this function relies on to map the parameterizer's
+    // per-vertex UV output back onto the right original vertex (confirmed by reading
+    // polygon_soup_to_polygon_mesh.h directly: it calls add_vertex() once per input point, in input
+    // order, with no dependency on repair/orient ever having run).
     //
     // Keying by tri.indices[i] (the RAW per-corner index) instead of topoIndices would silently
     // build a disconnected soup - not just a wrong-but-plausible one - whenever the input mesh was
-    // already vertex-exploded by a prior UV pass (Smart Project/Angle-Based Smart UV/a previous ARAP
-    // run all duplicate 3 unique vertices per triangle-corner, see buildTriangleList()'s doc comment):
-    // adjacent triangles in the SAME island never repeat a raw index even though they share a
-    // position, so every triangle would contribute 3 brand-new points and the local Surface_mesh
-    // would end up as N disconnected 1-triangle components instead of one connected topological
-    // disk - is_polygon_soup_a_polygon_mesh() below still accepts that (disjoint triangles are a
-    // valid, just disconnected, polygon soup), and parameterize() would then run over a mesh that
-    // isn't actually the disk it looks like, producing garbage rather than a clean failure. Welding
-    // by topoIndices (already computed in buildTriangleList() for exactly this reason) keeps the
-    // local mesh's connectivity faithful to the island's real 3D topology regardless of how the
-    // input vertices happen to be indexed.
+    // already vertex-exploded by a prior UV pass (Smart Project/Angle-Based Smart UV/a previous
+    // ARAP/LSCM run all duplicate 3 unique vertices per triangle-corner, see buildTriangleList()'s
+    // doc comment): adjacent triangles in the SAME island never repeat a raw index even though they
+    // share a position, so every triangle would contribute 3 brand-new points and the local
+    // Surface_mesh would end up as N disconnected 1-triangle components instead of one connected
+    // topological disk - is_polygon_soup_a_polygon_mesh() below still accepts that (disjoint
+    // triangles are a valid, just disconnected, polygon soup), and parameterize() would then run
+    // over a mesh that isn't actually the disk it looks like, producing garbage rather than a clean
+    // failure. Welding by topoIndices (already computed in buildTriangleList() for exactly this
+    // reason) keeps the local mesh's connectivity faithful to the island's real 3D topology
+    // regardless of how the input vertices happen to be indexed.
     //
     // is_polygon_soup_a_polygon_mesh() below is used purely as a REJECT gate - an island failing it
     // (e.g. a non-manifold junction the existing dihedral-angle seam detection doesn't gate on, see
-    // findSeams()'s doc comment) just isn't attempted with ARAP, it falls back to unwrapIslandPCA()
-    // same as a topology failure below.
+    // findSeams()'s doc comment) just isn't attempted with this parameterizer, it falls back to
+    // unwrapIslandPCA() same as a topology failure below.
     std::vector<Point_3> points;
     std::vector<std::array<std::size_t, 3>> faces;
     std::unordered_map<unsigned int, std::size_t> weldedToLocal;
@@ -2421,14 +2555,15 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
         });
     }
 
-    if (kARAPVerbose)
-        qDebug() << "[ARAP] island:" << island.triangles.size() << "triangles," << points.size() << "points";
+    if (verbose)
+        qDebug().noquote() << QString("[%1] island:").arg(methodTag) << island.triangles.size()
+                            << "triangles," << points.size() << "points";
 
     if (points.size() < 3 || faces.empty() || !PMP::is_polygon_soup_a_polygon_mesh(faces))
     {
-        if (kARAPVerbose)
-            qDebug() << "[ARAP]   -> reject: not a valid polygon soup (points" << points.size()
-                     << "faces" << faces.size() << ")";
+        if (verbose)
+            qDebug().noquote() << QString("[%1]   -> reject: not a valid polygon soup (points").arg(methodTag)
+                     << points.size() << "faces" << faces.size() << ")";
         return false;
     }
 
@@ -2436,8 +2571,8 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
     PMP::polygon_soup_to_polygon_mesh(points, faces, mesh);
     if (mesh.number_of_vertices() == 0 || mesh.number_of_faces() == 0)
     {
-        if (kARAPVerbose)
-            qDebug() << "[ARAP]   -> reject: empty mesh after polygon_soup_to_polygon_mesh";
+        if (verbose)
+            qDebug().noquote() << QString("[%1]   -> reject: empty mesh after polygon_soup_to_polygon_mesh").arg(methodTag);
         return false;
     }
 
@@ -2460,36 +2595,28 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
     }
     if (!foundBorder)
     {
-        if (kARAPVerbose)
-            qDebug() << "[ARAP]   -> reject: no border halfedge (closed island, not a topological disk)";
+        if (verbose)
+            qDebug().noquote() << QString("[%1]   -> reject: no border halfedge (closed island, not a topological disk)").arg(methodTag);
         return false;
     }
 
-    using ARAP = SMP::ARAP_parameterizer_3<Mesh>;
     auto uvmap = mesh.add_property_map<Mesh::Vertex_index, Kernel::Point_2>(
         "h:uv", Kernel::Point_2(0, 0)).first;
 
-    // ARAP::NT (its lambda constructor's parameter type) is a PRIVATE member typedef in the real,
-    // non-Doxygen-only branch of this class (confirmed by reading the header directly - it's only
-    // public in the doxygen-documentation-generation branch, never in actually-compiled code), so
-    // it can't be named here. It resolves to Kernel::FT, which is plain double for
-    // Exact_predicates_inexact_constructions_kernel - pass a double directly instead of trying to
-    // spell the (inaccessible) type out.
-    //
     // parameterize() reports failure (non-disk topology, a non-convex/degenerate border, an
     // unsolvable linear system, ...) via a graceful Error_code rather than crashing or asserting -
     // confirmed by reading Error_code.h directly - so every failure mode here is just "return
     // false", letting the caller fall back to unwrapIslandPCA() for this island.
-    const SMP::Error_code err = SMP::parameterize(
-        mesh, ARAP(static_cast<double>(config.arapLambda)), borderHalfedge, uvmap);
+    const SMP::Error_code err = SMP::parameterize(mesh, parameterizer, borderHalfedge, uvmap);
     if (err != SMP::OK)
     {
-        if (kARAPVerbose)
-            qDebug() << "[ARAP]   -> reject: parameterize() failed:" << SMP::get_error_message(err);
+        if (verbose)
+            qDebug().noquote() << QString("[%1]   -> reject: parameterize() failed:").arg(methodTag)
+                     << SMP::get_error_message(err);
         return false;
     }
-    if (kARAPVerbose)
-        qDebug() << "[ARAP]   -> OK: real ARAP unfold succeeded";
+    if (verbose)
+        qDebug().noquote() << QString("[%1]   -> OK: real unfold succeeded").arg(methodTag);
 
     for (unsigned int triIdx : island.triangles)
     {
@@ -2506,6 +2633,44 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
     }
 
     return true;
+}
+} // namespace
+
+bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
+    const std::vector<MeshTriangle>& triangles,
+    const UVIsland& island,
+    const UVConfig& config,
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs)
+{
+    using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+    using Point_3 = Kernel::Point_3;
+    using Mesh    = CGAL::Surface_mesh<Point_3>;
+    namespace SMP = CGAL::Surface_mesh_parameterization;
+
+    // ARAP::NT (its lambda constructor's parameter type) is a PRIVATE member typedef in the real,
+    // non-Doxygen-only branch of this class (confirmed by reading the header directly - it's only
+    // public in the doxygen-documentation-generation branch, never in actually-compiled code), so
+    // it can't be named here. It resolves to Kernel::FT, which is plain double for
+    // Exact_predicates_inexact_constructions_kernel - pass a double directly instead of trying to
+    // spell the (inaccessible) type out.
+    return tryUnwrapIslandCGAL(vertices, triangles, island,
+        SMP::ARAP_parameterizer_3<Mesh>(static_cast<double>(config.arapLambda)),
+        triangleUVs, "ARAP", kARAPVerbose);
+}
+
+bool UVGenerator::tryUnwrapIslandLSCM(const std::vector<Vertex>& vertices,
+    const std::vector<MeshTriangle>& triangles,
+    const UVIsland& island,
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs)
+{
+    using Kernel  = CGAL::Exact_predicates_inexact_constructions_kernel;
+    using Point_3 = Kernel::Point_3;
+    using Mesh    = CGAL::Surface_mesh<Point_3>;
+    namespace SMP = CGAL::Surface_mesh_parameterization;
+
+    // LSCM has no tunable parameter equivalent to ARAP's lambda - default-constructed.
+    return tryUnwrapIslandCGAL(vertices, triangles, island,
+        SMP::LSCM_parameterizer_3<Mesh>(), triangleUVs, "LSCM", kLSCMVerbose);
 }
 
 

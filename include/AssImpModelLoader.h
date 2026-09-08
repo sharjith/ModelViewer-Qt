@@ -74,7 +74,8 @@ enum class UVMethod
 	AngleBasedSmartUV,
 	SmartProject,
 	ARAP,
-	Torus
+	Torus,
+	LSCM
 };
 
 enum class SceneUpAxis

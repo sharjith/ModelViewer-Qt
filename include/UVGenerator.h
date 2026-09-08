@@ -185,6 +185,19 @@ public:
         std::vector<unsigned int>* sourceVertexMap = nullptr,
         const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
 
+    // Method 10: LSCM (Least Squares Conformal Maps, CGAL Surface_mesh_parameterization).
+    // Identical shape to generateARAP() - same seam/island detection, same
+    // unwrapIslandPCA() fallback for any island CGAL can't parameterize - but a single
+    // global linear solve instead of ARAP's iterative local/global passes, with no
+    // tunable parameter equivalent to ARAP's lambda. Angle-preserving rather than
+    // area-preserving.
+    static bool generateLSCM(
+        std::vector<Vertex>& vertices,
+        std::vector<unsigned int>& indices,
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr,
+        const std::vector<std::pair<glm::vec3, glm::vec3>>* userSeamEdges = nullptr);
+
     // Method 9: Torus projection (donut-style major/minor angle mapping). Axis auto-detected via
     // the same PCA "outlier eigenvalue" test as generateCylindrical() (or overridden via
     // config.torusAxis). Unlike Spherical/Cylindrical, a torus is DOUBLY periodic - both U (major
@@ -271,6 +284,15 @@ private:
         const std::vector<MeshTriangle>& triangles,
         const UVIsland& island,
         const UVConfig& config,
+        std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs);
+
+    // Same idea as tryUnwrapIslandARAP() (see its doc comment), a real CGAL LSCM unfold instead -
+    // no UVConfig parameter needed since LSCM has no tunable parameter. Both share their
+    // soup-building/border-detection/UV-mapback implementation via a private template helper in
+    // UVGenerator.cpp (tryUnwrapIslandCGAL()) - only the CGAL Parameterizer_3 instance differs.
+    static bool tryUnwrapIslandLSCM(const std::vector<Vertex>& vertices,
+        const std::vector<MeshTriangle>& triangles,
+        const UVIsland& island,
         std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs);
 
     static void relaxUVs(

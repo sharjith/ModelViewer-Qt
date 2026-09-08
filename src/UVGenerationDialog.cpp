@@ -168,7 +168,7 @@ void UVGenerationDialog::onRelaxationToggled_Smart(bool enabled)
 void UVGenerationDialog::updateOptionsPage(int methodIndex)
 {
     // Map combo box index to stacked widget page
-    // 0: Planar, 1: Cylindrical, 2: Spherical, 3: Torus, 4: AngleBased, 5: Hybrid, 6: SmartUV, 7: SmartProject, 8: ARAP
+    // 0: Planar, 1: Cylindrical, 2: Spherical, 3: Torus, 4: AngleBased, 5: Hybrid, 6: SmartUV, 7: SmartProject, 8: ARAP, 9: LSCM
     ui->stackedWidget_Options->setCurrentIndex(methodIndex);
 }
 
@@ -391,6 +391,7 @@ UVMethod UVGenerationDialog::getSelectedMethod() const
     case 6: return UVMethod::AngleBasedSmartUV;
     case 7: return UVMethod::SmartProject;
     case 8: return UVMethod::ARAP;
+    case 9: return UVMethod::LSCM;
     default: return UVMethod::Planar;
     }
 }
@@ -481,6 +482,14 @@ UVConfig UVGenerationDialog::getUVConfig() const
         config.useMarkedSeams = ui->checkBox_UseMarkedSeams_ARAP->isChecked();
         break;
 
+    case UVMethod::LSCM:
+        config.angleThreshold = ui->spinBox_AngleThreshold_LSCM->value();
+        config.seamPadding = ui->spinBox_SeamPadding_LSCM->value();
+        config.enablePacking = ui->checkBox_EnablePacking_LSCM->isChecked();
+        config.flipV = ui->checkBox_FlipV_LSCM->isChecked();
+        config.useMarkedSeams = ui->checkBox_UseMarkedSeams_LSCM->isChecked();
+        break;
+
     case UVMethod::Torus:
         config.torusScale = ui->spinBox_TorusScale->value();
         config.torusMinorScale = ui->spinBox_TorusMinorScale->value();
@@ -519,6 +528,7 @@ void UVGenerationDialog::setMethod(UVMethod method)
     case UVMethod::AngleBasedSmartUV: index = 6; break;
     case UVMethod::SmartProject: index = 7; break;
     case UVMethod::ARAP: index = 8; break;
+    case UVMethod::LSCM: index = 9; break;
     default: index = 0; break;
     }
 
@@ -593,6 +603,13 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     ui->checkBox_FlipV_ARAP->setChecked(config.flipV);
     ui->checkBox_UseMarkedSeams_ARAP->setChecked(config.useMarkedSeams);
 
+    // Set LSCM values
+    ui->spinBox_AngleThreshold_LSCM->setValue(config.angleThreshold);
+    ui->spinBox_SeamPadding_LSCM->setValue(config.seamPadding);
+    ui->checkBox_EnablePacking_LSCM->setChecked(config.enablePacking);
+    ui->checkBox_FlipV_LSCM->setChecked(config.flipV);
+    ui->checkBox_UseMarkedSeams_LSCM->setChecked(config.useMarkedSeams);
+
     // Set Torus values
     ui->spinBox_TorusScale->setValue(config.torusScale);
     ui->spinBox_TorusMinorScale->setValue(config.torusMinorScale);
@@ -625,6 +642,7 @@ QString UVGenerationDialog::getMethodName(UVMethod method) const
 	case UVMethod::AngleBasedSmartUV: return "Smart UV";
 	case UVMethod::SmartProject: return "Smart Project (Blender-style)";
 	case UVMethod::ARAP: return "ARAP (As-Rigid-As-Possible)";
+	case UVMethod::LSCM: return "LSCM (Conformal)";
 	case UVMethod::Torus: return "Torus";
 	default: return "Unknown";
 	}
@@ -686,7 +704,7 @@ void UVGenerationDialog::onListSelectionChanged()
 void UVGenerationDialog::onResetDefaultsClicked()
 {
     // Resets every method's settings back to UVConfig's own struct defaults - setConfig() writes
-    // every page's widgets in one call, so this affects all 9 methods at once, not just whichever
+    // every page's widgets in one call, so this affects all 10 methods at once, not just whichever
     // page is currently visible. Deliberately leaves the method combo box and the mesh working
     // list untouched - "reset settings" shouldn't also change what's selected/targeted.
     setConfig(UVConfig{});

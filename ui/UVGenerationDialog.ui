@@ -167,6 +167,11 @@
           <string>ARAP (As-Rigid-As-Possible)</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>LSCM (Conformal)</string>
+         </property>
+        </item>
        </widget>
       </item>
       <item>
@@ -1390,6 +1395,116 @@
            </item>
            <item row="5" column="1">
             <widget class="QCheckBox" name="checkBox_UseMarkedSeams_ARAP">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page_LSCM">
+          <layout class="QFormLayout" name="formLayout_LSCM">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_AngleThreshold_LSCM">
+             <property name="text">
+              <string>Seam Angle Threshold:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_AngleThreshold_LSCM">
+             <property name="toolTip">
+              <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>179.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>60.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_SeamPadding_LSCM">
+             <property name="text">
+              <string>Seam Padding:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="spinBox_SeamPadding_LSCM">
+             <property name="toolTip">
+              <string>Padding around packed UV islands</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>0.500000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.020000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="label_EnablePacking_LSCM">
+             <property name="text">
+              <string>Enable Packing:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QCheckBox" name="checkBox_EnablePacking_LSCM">
+             <property name="toolTip">
+              <string>Automatically pack UV islands into 0-1 space</string>
+             </property>
+             <property name="text">
+              <string/>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="label_FlipV_LSCM">
+             <property name="text">
+              <string>Flip V:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QCheckBox" name="checkBox_FlipV_LSCM">
+             <property name="text">
+              <string/>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="label_UseMarkedSeams_LSCM">
+             <property name="text">
+              <string>Use Marked Seams:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QCheckBox" name="checkBox_UseMarkedSeams_LSCM">
              <property name="toolTip">
               <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
              </property>

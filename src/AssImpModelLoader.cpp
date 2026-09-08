@@ -1974,6 +1974,9 @@ void AssImpModelLoader::generateUVsForMesh(MeshAnalysis::AnalysisResult& analysi
 	case UVMethod::Torus:
 		UVGenerator::generateTorus(vertices, indices, uvconfig);
 		break;
+	case UVMethod::LSCM:
+		UVGenerator::generateLSCM(vertices, indices, uvconfig);
+		break;
 	case UVMethod::None: // fall through
 	default:
 		break; // skip UV generation
@@ -2118,6 +2121,10 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 		break;
 	case UVMethod::Torus:
 		UVGenerator::generateTorus(vertices, indices, config, &sourceVertexMap);
+		break;
+	case UVMethod::LSCM:
+		UVGenerator::generateLSCM(vertices, indices, config, &sourceVertexMap,
+			config.useMarkedSeams ? userSeamEdges : nullptr);
 		break;
 	case UVMethod::None: // fall through
 	default:
