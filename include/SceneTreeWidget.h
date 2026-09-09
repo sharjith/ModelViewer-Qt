@@ -245,7 +245,24 @@ signals:
 protected:
     void paintEvent(QPaintEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
+    // A press with no item under the cursor - OR one that lands in a row's ANCESTOR
+    // indentation gutter (the blank connector-line columns to the left of the item's own
+    // expand/collapse toggle - see isInAncestorIndentationGutter()) - is explicitly forwarded
+    // (via QCoreApplication::sendEvent, position-mapped) to _viewportWidget rather than
+    // just ignore()'d - same overlay-passthrough rationale as wheelEvent() below (blank tree
+    // background/gutter is where the 3D viewport shows through visually), but plain
+    // event->ignore() does not reliably reach the viewport here: QTreeWidget/QAbstractItemView
+    // delivers mouse events to the outer widget via its internal scroll-area viewport's own
+    // forwarding path, not a fresh QApplication::notify() cycle on this widget, so Qt's usual
+    // ignored-event-propagates-to-parent mechanism (which DOES work for wheelEvent below) does
+    // not apply the same way here - confirmed empirically, not just by reading Qt's
+    // event-propagation source. The item's OWN expand/collapse toggle column is deliberately
+    // excluded from the gutter test, so clicking it still toggles that branch normally. Once a
+    // press starts forwarding, mouseMoveEvent()/mouseReleaseEvent() below keep forwarding the
+    // same gesture (_forwardingClickToViewport) regardless of where the cursor drifts, so a
+    // click-drag (orbit/pan) that starts in the gutter works too, not just a static click.
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
     // Ignored (not scrolled) rather than accepted - the tree lives as a
     // transparent overlay glued to the viewport (see
@@ -253,6 +270,18 @@ protected:
     // propagates up to the viewport underneath instead, so scrolling over
     // the tree still zooms the 3D view like scrolling anywhere else in it.
     void wheelEvent(QWheelEvent* event) override;
+
+    // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
+    // comment above for why this exists instead of relying on event->ignore() propagation.
+    void forwardToViewport(QMouseEvent* event);
+
+    // True when `pos` falls in `item`'s ANCESTOR indentation gutter - the blank connector-line
+    // columns to the left of item's own expand/collapse toggle, i.e. strictly left of
+    // visualRect(indexFromItem(item)).left() - indentation(). That boundary intentionally
+    // leaves item's own toggle column (one indentation() width, immediately before its content)
+    // out of the gutter, so this never claims a click meant to expand/collapse item itself -
+    // only genuinely decorative ancestor guide lines read as "click through to the viewport".
+    bool isInAncestorIndentationGutter(const QPoint& pos, QTreeWidgetItem* item) const;
 
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
@@ -336,6 +365,12 @@ private:
 
     SceneGraph* _sceneGraph = nullptr;
     ViewportWidget*   _viewportWidget   = nullptr;
+
+    // True from a mousePressEvent() that started forwarding to _viewportWidget (no item under
+    // the cursor) until the matching mouseReleaseEvent() - keeps the whole gesture (a
+    // click-drag orbit/pan) forwarded even if the cursor crosses over an actual tree item
+    // mid-drag, instead of the target flip-flopping mid-gesture.
+    bool _forwardingClickToViewport = false;
 
     // O(1) lookup from mesh UUID to its leaf QTreeWidgetItem
     QHash<QUuid, QTreeWidgetItem*> _uuidToLeaf;

@@ -969,8 +969,51 @@ static bool isDescendantOf(QTreeWidgetItem* root, QTreeWidgetItem* item)
     return false;
 }
 
+// Explicitly redelivers `event` to _viewportWidget, position-mapped from this widget's local
+// coordinates to the viewport's - see mousePressEvent()'s doc comment (header) for why plain
+// event->ignore() doesn't reliably reach the viewport from inside a QTreeWidget/
+// QAbstractItemView the way it does for wheelEvent(). QCoreApplication::sendEvent() (not a
+// direct virtual call) so the viewport's normal public event() dispatch runs, same as any
+// genuinely viewport-native event.
+void SceneTreeWidget::forwardToViewport(QMouseEvent* event)
+{
+    if (!_viewportWidget)
+        return;
+
+    const QPoint viewportPos = mapTo(_viewportWidget, event->pos());
+    QMouseEvent forwarded(event->type(), viewportPos, event->scenePosition(),
+                          event->globalPosition(), event->button(), event->buttons(),
+                          event->modifiers(), event->source(), event->pointingDevice());
+    QApplication::sendEvent(_viewportWidget, &forwarded);
+}
+
+bool SceneTreeWidget::isInAncestorIndentationGutter(const QPoint& pos, QTreeWidgetItem* item) const
+{
+    if (!item)
+        return false;
+    const QRect contentRect = visualRect(indexFromItem(item, 0));
+    return pos.x() < contentRect.left() - indentation();
+}
+
 void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
 {
+    // No item under the cursor, or the click landed in that item's ANCESTOR indentation
+    // gutter (blank connector lines, not its own expand/collapse toggle - see
+    // isInAncestorIndentationGutter()'s doc comment) - either way this press landed on the
+    // transparent overlay's empty background, where the 3D viewport shows through visually.
+    // Forward it (rather than just QTreeWidget's default handling - clearing the selection,
+    // starting a rubber-band drag) and keep forwarding mouseMoveEvent()/mouseReleaseEvent()
+    // below for the rest of this gesture, so a click-drag (orbit/pan) starting here reaches
+    // the viewport too, not just a static click.
+    QTreeWidgetItem* hitItem = itemAt(event->pos());
+    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem))
+    {
+        _forwardingClickToViewport = true;
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton &&
         !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
     {
@@ -1010,8 +1053,28 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
     QTreeWidget::mousePressEvent(event);
 }
 
+void SceneTreeWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    if (_forwardingClickToViewport)
+    {
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
+    QTreeWidget::mouseMoveEvent(event);
+}
+
 void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
 {
+    if (_forwardingClickToViewport)
+    {
+        _forwardingClickToViewport = false;
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
     QTreeWidget::mouseReleaseEvent(event);
 }
 
