@@ -50,6 +50,17 @@ struct RepairMeshResult
 	QUuid meshUuid;
 };
 
+// Same shape/role as RepairMeshResult above, for FillHolesDialog::onGenerateClicked() ->
+// ModelViewer::commitFillHoles() - one result per source mesh that had at least one checked
+// hole successfully filled.
+struct FillHolesResult
+{
+	SceneNode* node = nullptr;
+	SceneNode* parent = nullptr;
+	int position = 0;
+	QUuid meshUuid;
+};
+
 namespace Mvf
 {
 struct Document;
@@ -459,6 +470,16 @@ public slots:
 	// batch, same "one user action, several underlying commands" convention as
 	// commitUVGeneration()'s multi-mesh batching.
 	void commitRepairMesh(const QVector<RepairMeshResult>& results, const QSet<QUuid>& originalSelection);
+
+	// Fill Holes: opens the non-modal FillHolesDialog (Tools -> Fill Holes...), same
+	// findChild-reuse-or-create/show/raise/seed-with-tree-selection pattern as
+	// openRepairMeshDialog()/openShrinkWrapDialog() above.
+	void openFillHolesDialog();
+
+	// The Fill Holes dialog's one-line bridge into the undo stack - same shape/macro-wrapping
+	// convention as commitRepairMesh() just above (one result per source mesh that had at
+	// least one checked hole filled, text = tr("Fill Holes")).
+	void commitFillHoles(const QVector<FillHolesResult>& results, const QSet<QUuid>& originalSelection);
 
 	// Generate UVs: opens the non-modal UVGenerationDialog (Tools -> Generate
 	// UVs...), same findChild-reuse-or-create/show/raise/seed-with-tree-

@@ -94,6 +94,11 @@ public:
     // GL_LINES layout, own dedicated buffer for the same stomp-avoidance reason.
     void initSeamOverlayGeometry(const std::vector<float>& vertices);
 
+    // Sibling to initSeamOverlayGeometry() for the Fill Holes dialog's detected-hole-loop
+    // overlay (FillHolesController) - same pos(3)+color(3) interleaved GL_LINES layout, own
+    // dedicated buffer for the same stomp-avoidance reason.
+    void initFillHolesOverlayGeometry(const std::vector<float>& vertices);
+
     // Creates the ViewCube label quad VAO/VBO (geometry only; textures uploaded by caller).
     void initViewCubeLabelGeometry();
 
@@ -319,6 +324,8 @@ public:
     GLuint annotationOverlayVBO() const { return _annotationOverlayVBO; }
     GLuint seamOverlayVAO() const { return _seamOverlayVAO; }
     GLuint seamOverlayVBO() const { return _seamOverlayVBO; }
+    GLuint fillHolesOverlayVAO() const { return _fillHolesOverlayVAO; }
+    GLuint fillHolesOverlayVBO() const { return _fillHolesOverlayVBO; }
 
     QOpenGLVertexArrayObject& bgVAO()      { return _bgVAO; }
     QOpenGLVertexArrayObject& bgSplitVAO() { return _bgSplitVAO; }
@@ -716,6 +723,8 @@ private:
     unsigned int _annotationOverlayVBO = 0;
     unsigned int _seamOverlayVAO = 0;
     unsigned int _seamOverlayVBO = 0;
+    unsigned int _fillHolesOverlayVAO = 0;
+    unsigned int _fillHolesOverlayVBO = 0;
 
     QOpenGLVertexArrayObject _bgVAO;
     QOpenGLVertexArrayObject _bgSplitVAO;

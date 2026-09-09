@@ -90,6 +90,7 @@
     <addaction name="actionSubdivideSurface"/>
     <addaction name="actionReconstructSurface"/>
     <addaction name="actionRepairMesh"/>
+    <addaction name="actionFillHoles"/>
     <addaction name="actionGenerateUVs"/>
    </widget>
    <widget class="QMenu" name="menuVisualization">
@@ -415,6 +416,14 @@
    </property>
    <property name="statusTip">
     <string>Fix duplicate/degenerate geometry, non-manifold vertices, inconsistent winding, and self-intersections on the selected meshes (CGAL repair toolkit), each added as a new node</string>
+   </property>
+  </action>
+  <action name="actionFillHoles">
+   <property name="text">
+    <string>Fill Holes...</string>
+   </property>
+   <property name="statusTip">
+    <string>Detect boundary-loop holes in the selected meshes and interactively choose which ones to patch (CGAL triangulate_and_refine_hole), each added as a new node</string>
    </property>
   </action>
   <action name="actionGenerateUVs">

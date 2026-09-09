@@ -697,6 +697,13 @@ MainWindow::MainWindow(QWidget* parent)
 			activeMdiChild()->openRepairMeshDialog();
 		});
 
+	// Tools → Fill Holes... - opens the non-modal FillHolesDialog, same wiring shape as
+	// actionRepairMesh above.
+	connect(ui->actionFillHoles, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->openFillHolesDialog();
+		});
+
 	// Tools → Generate UVs... - opens the non-modal UVGenerationDialog, same
 	// wiring shape as actionShrinkWrap above. Moved here from the scene-tree
 	// context menu now that the dialog owns its own working mesh list
@@ -2111,6 +2118,7 @@ void MainWindow::updateMenus()
 	ui->actionSubdivideSurface->setEnabled(hasMdiChild);
 	ui->actionReconstructSurface->setEnabled(hasMdiChild);
 	ui->actionRepairMesh->setEnabled(hasMdiChild);
+	ui->actionFillHoles->setEnabled(hasMdiChild);
 	ui->actionGenerateUVs->setEnabled(hasMdiChild);
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());

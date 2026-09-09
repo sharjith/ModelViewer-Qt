@@ -6,6 +6,9 @@
 #include <vector>
 #include <initializer_list>
 
+#include <QSet>
+#include <QUuid>
+
 #include "RenderableMesh.h"
 #include "MeshImportAdaptor.h"
 #include "MeshAnimationState.h"
@@ -28,6 +31,20 @@ struct DetectedCircularLoop
 // Defined in MeshRepair.h - only forward-declared here so this widely-included header doesn't
 // have to pull in CGAL types just for a pointer parameter (see repairMesh() below).
 struct MeshRepairReport;
+
+// One detected boundary-loop "hole" in a mesh (Fill Holes tool) - CGAL-free result type, same
+// forward-declaration boundary MeshRepairReport establishes: FillHolesController/FillHolesDialog
+// never need to include CGAL headers just to hold/display this. loopId is stable only within the
+// single detectHoles() call that produced it - fillHoles() re-runs detection internally (not a
+// persisted CGAL handle across the dialog's lifetime) and filters by loopId, so it is NOT safe to
+// reuse a loopId after the underlying mesh's geometry/topology has changed.
+struct DetectedHole
+{
+	QUuid meshUuid;
+	int loopId = -1;
+	std::size_t edgeCount = 0;
+	std::vector<glm::vec3> loopPoints; // world-space, boundary order, for overlay rendering
+};
 
 class SceneMesh : public RenderableMesh
 {
@@ -311,6 +328,27 @@ public:
 	// caller can report why.
 	static SceneMesh* repairMesh(SceneMesh* mesh, const QString& newName,
 	                              MeshRepairReport* outReport = nullptr);
+
+	// Detects boundary-loop "holes" in ONE mesh for the Fill Holes tool's picker UI - runs the
+	// mesh through MeshRepair::repairSoupToMesh() first (same defect-cleanup pass repairMesh()
+	// uses) so a genuine gap is never confused with an unwelded duplicate-vertex seam or winding
+	// defect, then walks each CGAL::extract_boundary_cycles() loop to report its edge count and
+	// world-space points. Read-only - never modifies mesh. Empty result if mesh is null/empty or
+	// the soup can't be repaired into a valid mesh at all.
+	static std::vector<DetectedHole> detectHoles(SceneMesh* mesh);
+
+	// Fills the loops in loopIdsToFill (as reported by a PRIOR detectHoles() call on this same
+	// mesh, unchanged since) via CGAL's triangulate_and_refine_hole() - refine only, no fairing,
+	// so the patch stays faithful to the boundary's own shape while its triangle density matches
+	// the surrounding mesh. Re-runs detection internally (stateless - no persisted CGAL handle
+	// across the dialog's lifetime) rather than trusting a handle from the earlier detectHoles()
+	// call. Deliberately does NOT auto-fill every boundary found - a real open panel's own outer
+	// edge is also a "boundary cycle", so the caller (FillHolesDialog) decides which loopIds are
+	// genuine defects via its interactive picker, never all of them unconditionally. Same
+	// null/empty/report-on-failure contract as repairMesh(); outReport also carries the
+	// mandatory repair-first step's own non-manifold/self-intersection counts.
+	static SceneMesh* fillHoles(SceneMesh* mesh, const QSet<int>& loopIdsToFill,
+	                             const QString& newName, MeshRepairReport* outReport = nullptr);
 
 	// Computes a suggested grid-simplification spacing for
 	// reconstructSurfaceFromPoints() below's optional pre-simplify step, from

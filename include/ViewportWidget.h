@@ -4,6 +4,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
@@ -21,6 +22,7 @@
 #include "MeasurementController.h"
 #include "AnnotationController.h"
 #include "SeamMarkingController.h"
+#include "FillHolesController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
@@ -365,6 +367,15 @@ public:
 	// Clears the mark list AND disarms the tool - the full "session end"
 	// teardown UVGenerationDialog::closeEvent()/reject() call.
 	void clearSeamMarks();
+
+	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
+	// Thin forwards to _fillHolesController - see FillHolesController.h. No tool-armed state
+	// to forward (unlike Mark Seams above) - FillHolesDialog owns detection/selection entirely
+	// and just pushes results here to be drawn.
+	void setDetectedHoles(std::vector<DetectedHole> holes) { _fillHolesController->setDetectedHoles(std::move(holes)); }
+	void clearDetectedHoles() { _fillHolesController->clearDetectedHoles(); }
+	void setHighlightedHole(const QUuid& meshUuid, int loopId) { _fillHolesController->setHighlightedHole(meshUuid, loopId); }
+	void clearHighlightedHole() { _fillHolesController->clearHighlightedHole(); }
 
 	// Recomputes bounds/fit after a measurement or annotation's visibility
 	// changed - mesh visibility changes already trigger this (and,
@@ -2002,6 +2013,10 @@ private:
 	// resolution-only reasoning as _measurementController/_annotationController
 	// above.
 	SeamMarkingController* _seamMarkingController = nullptr;
+	// Owns the Fill Holes dialog's detected-hole-loop overlay - see FillHolesController.h. Same
+	// IGpuContextResource-for-pointer-re-resolution-only reasoning as
+	// _measurementController/_annotationController/_seamMarkingController above.
+	FillHolesController* _fillHolesController = nullptr;
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;

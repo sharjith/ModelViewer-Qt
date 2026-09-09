@@ -28,6 +28,7 @@
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
 #include "RepairMeshDialog.h"
+#include "FillHolesDialog.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialPreviewWidget.h"
@@ -3630,6 +3631,45 @@ void ModelViewer::commitRepairMesh(const QVector<RepairMeshResult>& results, con
 		_undoStack->push(new ShrinkWrapCommand(
 			this, _viewportWidget, result.node, result.parent, result.position,
 			result.meshUuid, originalSelection, tr("Repair Mesh")));
+	}
+
+	if (macro)
+		_undoStack->endMacro();
+}
+
+void ModelViewer::openFillHolesDialog()
+{
+	FillHolesDialog* dialog = findChild<FillHolesDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new FillHolesDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	// Same seed-with-current-tree-selection convention as
+	// openRepairMeshDialog()/openShrinkWrapDialog() above.
+	dialog->addCurrentTreeSelection();
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::commitFillHoles(const QVector<FillHolesResult>& results, const QSet<QUuid>& originalSelection)
+{
+	if (!_sceneGraph || !_viewportWidget || !_undoStack || results.isEmpty())
+		return;
+
+	// Same one-Ctrl+Z-undoes-the-whole-batch macro convention as commitRepairMesh() above.
+	const bool macro = results.size() > 1;
+	if (macro)
+		_undoStack->beginMacro(tr("Fill Holes (%1)").arg(results.size()));
+
+	for (const FillHolesResult& result : results)
+	{
+		if (!result.node || !result.parent)
+			continue;
+		_undoStack->push(new ShrinkWrapCommand(
+			this, _viewportWidget, result.node, result.parent, result.position,
+			result.meshUuid, originalSelection, tr("Fill Holes")));
 	}
 
 	if (macro)

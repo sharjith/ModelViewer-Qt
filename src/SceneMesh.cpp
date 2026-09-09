@@ -35,7 +35,9 @@
 // watertight, self-intersection-free, consistently-oriented input, which
 // this repair pipeline exists to establish from an arbitrary imported soup.
 #include <CGAL/Exact_predicates_exact_constructions_kernel.h>
+#include <CGAL/boost/graph/border.h>
 #include <CGAL/boost/graph/helpers.h>
+#include <CGAL/boost/graph/iterator.h>
 #include <CGAL/Polygon_mesh_processing/corefinement.h>
 #include <CGAL/Polygon_mesh_processing/measure.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
@@ -45,6 +47,7 @@
 #include <CGAL/Polygon_mesh_processing/repair_self_intersections.h>
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/Polygon_mesh_processing/stitch_borders.h>
+#include <CGAL/Polygon_mesh_processing/triangulate_hole.h>
 
 // See subdivideMesh()'s doc comment (SceneMesh.h) - repair_polygon_soup.h/
 // polygon_soup_to_polygon_mesh.h/stitch_borders.h above are reused verbatim
@@ -2627,6 +2630,140 @@ SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRe
 	                                   mesh->_importState.skipOptimization(), mesh->getPrimitiveMode());
 
 	// Identity transform - the vertex data above is already world-space.
+	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
+	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
+	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));
+	result->setHasNegativeScale(false);
+	result->setSceneRenderTransformFast(QMatrix4x4());
+
+	result->fullUpdateRuntimeBounds();
+
+	return result;
+}
+
+namespace
+{
+	// Shared by detectHoles()/fillHoles() - builds the same defect-cleaned CGAL Mesh
+	// repairMesh() itself produces (see its own doc comment above), so hole detection never
+	// confuses a genuine gap with an unwelded duplicate-vertex seam or winding defect. Returns
+	// false (outMesh left empty/cleared) on any failure - callers treat that as "no holes /
+	// can't fill", matching repairMesh()'s own null-on-failure contract.
+	bool buildRepairedMeshForHoles(SceneMesh* mesh, MeshRepair::Mesh& outMesh, MeshRepairReport* outReport)
+	{
+		using Point_3 = MeshRepair::Point_3;
+
+		if (!mesh)
+			return false;
+
+		const std::vector<float>& pts = mesh->getTrsfPoints();
+		const std::vector<unsigned int> srcIndices = mesh->indices();
+
+		std::vector<Point_3> points;
+		std::vector<std::array<std::size_t, 3>> faces;
+		if (!appendValidatedCgalTriangleSoup(pts, srcIndices, points, faces))
+			return false;
+
+		MeshRepairReport localReport;
+		MeshRepairReport& report = outReport ? *outReport : localReport;
+		const bool ok = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), outMesh, &report);
+		return ok && outMesh.number_of_vertices() > 0 && outMesh.number_of_faces() > 0;
+	}
+
+	// Describes one CGAL::extract_boundary_cycles() loop starting at borderHalfedge -
+	// halfedges_around_face() works on a border halfedge exactly like a real face's cycle
+	// (confirmed against CGAL's own PMP_Mesh_repair test helper, triangulate_hole_with_cdt_2_
+	// test.cpp's detect_borders()).
+	DetectedHole describeBoundaryLoop(const MeshRepair::Mesh& mesh,
+		MeshRepair::Mesh::Halfedge_index borderHalfedge, const QUuid& meshUuid, int loopId)
+	{
+		DetectedHole hole;
+		hole.meshUuid = meshUuid;
+		hole.loopId = loopId;
+		for (MeshRepair::Mesh::Halfedge_index h : CGAL::halfedges_around_face(borderHalfedge, mesh))
+		{
+			const MeshRepair::Point_3& p = mesh.point(mesh.target(h));
+			hole.loopPoints.emplace_back(static_cast<float>(CGAL::to_double(p.x())),
+			                              static_cast<float>(CGAL::to_double(p.y())),
+			                              static_cast<float>(CGAL::to_double(p.z())));
+			++hole.edgeCount;
+		}
+		return hole;
+	}
+}
+
+std::vector<DetectedHole> SceneMesh::detectHoles(SceneMesh* mesh)
+{
+	std::vector<DetectedHole> holes;
+	if (!mesh)
+		return holes;
+
+	MeshRepair::Mesh repairedMesh;
+	if (!buildRepairedMeshForHoles(mesh, repairedMesh, nullptr))
+		return holes;
+
+	std::vector<MeshRepair::Mesh::Halfedge_index> borderHalfedges;
+	CGAL::extract_boundary_cycles(repairedMesh, std::back_inserter(borderHalfedges));
+
+	holes.reserve(borderHalfedges.size());
+	const QUuid meshUuid = mesh->uuid();
+	for (std::size_t i = 0; i < borderHalfedges.size(); ++i)
+		holes.push_back(describeBoundaryLoop(repairedMesh, borderHalfedges[i], meshUuid, static_cast<int>(i)));
+
+	return holes;
+}
+
+SceneMesh* SceneMesh::fillHoles(SceneMesh* mesh, const QSet<int>& loopIdsToFill,
+                                  const QString& newName, MeshRepairReport* outReport)
+{
+	if (outReport)
+		*outReport = MeshRepairReport{};
+
+	if (!mesh || loopIdsToFill.isEmpty())
+		return nullptr;
+
+	namespace PMP = CGAL::Polygon_mesh_processing;
+
+	MeshRepair::Mesh repairedMesh;
+	MeshRepairReport localReport;
+	MeshRepairReport& report = outReport ? *outReport : localReport;
+	if (!buildRepairedMeshForHoles(mesh, repairedMesh, &report))
+	{
+		report.succeeded = false;
+		return nullptr;
+	}
+
+	// Re-detects on THIS freshly-repaired mesh rather than trusting handles from a prior
+	// detectHoles() call (see fillHoles()'s doc comment, SceneMesh.h) - loopIdsToFill are just
+	// indices into this fresh list, in the same deterministic order detectHoles() itself
+	// produces for the same input soup.
+	std::vector<MeshRepair::Mesh::Halfedge_index> borderHalfedges;
+	CGAL::extract_boundary_cycles(repairedMesh, std::back_inserter(borderHalfedges));
+
+	bool anyFilled = false;
+	for (int loopId : loopIdsToFill)
+	{
+		if (loopId < 0 || static_cast<std::size_t>(loopId) >= borderHalfedges.size())
+			continue;
+		// Only ADDS faces/vertices/halfedges - never removes or renumbers existing ones, so the
+		// other entries in borderHalfedges collected above stay valid across this loop.
+		PMP::triangulate_and_refine_hole(repairedMesh, borderHalfedges[static_cast<std::size_t>(loopId)]);
+		anyFilled = true;
+	}
+
+	if (!anyFilled)
+		return nullptr; // stale loopIds - nothing in the current mesh matched, no-op
+
+	// Same crease-aware rebuild + identity-transform closing steps as repairMesh() above - the
+	// new patch faces get correct normals blended with the surrounding mesh via the same shared
+	// helper, no special-casing needed for "faces that used to be a hole".
+	std::vector<Vertex> filledVertices;
+	std::vector<unsigned int> filledIndices;
+	MeshRepair::buildCreaseAwareVertexBuffers(repairedMesh, filledVertices, filledIndices);
+
+	SceneMesh* result = new SceneMesh(mesh->_prog, newName, filledVertices, filledIndices,
+	                                   mesh->_textures, mesh->_material,
+	                                   mesh->_importState.skipOptimization(), mesh->getPrimitiveMode());
+
 	result->setTranslationFast(QVector3D(0.0f, 0.0f, 0.0f));
 	result->setRotationQuaternionFast(QQuaternion(), QVector3D(0.0f, 0.0f, 0.0f));
 	result->setScalingFast(QVector3D(1.0f, 1.0f, 1.0f));

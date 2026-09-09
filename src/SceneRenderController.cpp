@@ -174,6 +174,15 @@ void SceneRenderController::releaseGpuResources()
         _seamOverlayVBO = 0;
     }
 
+    // Fill Holes overlay
+    if (_fillHolesOverlayVAO != 0)
+    {
+        glDeleteBuffers(1, &_fillHolesOverlayVBO);
+        glDeleteVertexArrays(1, &_fillHolesOverlayVAO);
+        _fillHolesOverlayVAO = 0;
+        _fillHolesOverlayVBO = 0;
+    }
+
     if (!shareContexts && _punctualLights)
         _punctualLights->cleanup();
 
@@ -323,6 +332,21 @@ void SceneRenderController::initSeamOverlayGeometry(const std::vector<float>& ve
 
     glBindVertexArray(_seamOverlayVAO);
     glBindBuffer(GL_ARRAY_BUFFER, _seamOverlayVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                 vertices.data(),
+                 GL_DYNAMIC_DRAW);
+}
+
+void SceneRenderController::initFillHolesOverlayGeometry(const std::vector<float>& vertices)
+{
+    if (_fillHolesOverlayVAO == 0)
+        glGenVertexArrays(1, &_fillHolesOverlayVAO);
+    if (_fillHolesOverlayVBO == 0)
+        glGenBuffers(1, &_fillHolesOverlayVBO);
+
+    glBindVertexArray(_fillHolesOverlayVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, _fillHolesOverlayVBO);
     glBufferData(GL_ARRAY_BUFFER,
                  static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                  vertices.data(),

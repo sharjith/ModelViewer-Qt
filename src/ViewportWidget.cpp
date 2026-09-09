@@ -254,6 +254,11 @@ _floorPlane(nullptr),
 	connect(_seamMarkingController, &SeamMarkingController::seamStateChanged,
 		this, QOverload<>::of(&ViewportWidget::update));
 
+	// Fill Holes dialog's detected-hole-loop overlay - no tool-armed signals to forward (see
+	// FillHolesController's doc comment), it's purely a data cache the dialog pushes into.
+	_fillHolesController = new FillHolesController(_renderCtrl, this);
+	_gpuResourceRegistry.add(_fillHolesController, GpuResourcePhase::Decorations);
+
 
 	// Setup the view toolbar
 	_viewToolbar = new ViewToolbar(this);
@@ -5519,6 +5524,8 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		_annotationController->drawAnnotationOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
 	if (_seamMarkingController)
 		_seamMarkingController->drawSeamOverlay(_primaryCamera);
+	if (_fillHolesController)
+		_fillHolesController->drawOverlay(_primaryCamera);
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -9644,6 +9651,8 @@ void ViewportWidget::render(Camera* camera)
 		_annotationController->drawAnnotationOverlay(camera, QSize(width(), height()), _axisTextRenderer);
 	if (_viewCtrl.multiViewActive() && _seamMarkingController)
 		_seamMarkingController->drawSeamOverlay(camera);
+	if (_viewCtrl.multiViewActive() && _fillHolesController)
+		_fillHolesController->drawOverlay(camera);
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
