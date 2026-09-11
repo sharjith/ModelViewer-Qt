@@ -16,6 +16,7 @@
 #include <QVector2D>
 #include <QVector3D>
 
+#include <cstddef>
 #include <map>
 #include <utility>
 
@@ -359,6 +360,19 @@ private:
 	QUuid _hoveredDimensionId;
 	DimensionDragKind _hoveredDimensionKind = DimensionDragKind::None;
 
+	// ---- Cylindrical Diameter's Region Growing tunables (session state, not persisted) -------
+	// Read by resolveMeasurementCylindricalDiameterViaRegionGrowing() instead of the hardcoded
+	// literals/kMinPatchPoints constant it used before - defaulted to those exact same values so
+	// no behavior changes until MeasurementDialog's per-tool options group (shown only while
+	// Cylindrical Diameter is the active tool) actually adjusts them. _cylDiameterMinDiameter/
+	// MaxDiameter use 0.0 as a "no limit" sentinel matching CGAL's own minimum_radius=0/
+	// maximum_radius=+inf defaults - presented as DIAMETER in the UI (this tool's own name), so
+	// the resolver divides by 2 at the CGAL-call boundary.
+	double _cylDiameterMaxAngleDegrees = 35.0;
+	std::size_t _cylDiameterMinRegionSize = 24;
+	double _cylDiameterMinDiameter = 0.0;
+	double _cylDiameterMaxDiameter = 0.0;
+
 public:
 	// Exposed for ViewportWidget's mouse-event dispatch (press-vs-drag
 	// disambiguation lives there, alongside the general-purpose equivalents
@@ -380,4 +394,14 @@ public:
 	void setMeasurementClickCandidate(bool candidate) { _measurementClickCandidate = candidate; }
 	QPoint measurementClickPressPos() const { return _measurementClickPressPos; }
 	void setMeasurementClickPressPos(const QPoint& pixel) { _measurementClickPressPos = pixel; }
+
+	// ---- Cylindrical Diameter's Region Growing tunables - see the field doc comment above ----
+	double cylDiameterMaxAngleDegrees() const { return _cylDiameterMaxAngleDegrees; }
+	void setCylDiameterMaxAngleDegrees(double degrees) { _cylDiameterMaxAngleDegrees = degrees; }
+	std::size_t cylDiameterMinRegionSize() const { return _cylDiameterMinRegionSize; }
+	void setCylDiameterMinRegionSize(std::size_t size) { _cylDiameterMinRegionSize = size; }
+	double cylDiameterMinDiameter() const { return _cylDiameterMinDiameter; }
+	void setCylDiameterMinDiameter(double diameter) { _cylDiameterMinDiameter = diameter; }
+	double cylDiameterMaxDiameter() const { return _cylDiameterMaxDiameter; }
+	void setCylDiameterMaxDiameter(double diameter) { _cylDiameterMaxDiameter = diameter; }
 };

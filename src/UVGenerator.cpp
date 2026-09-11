@@ -2653,9 +2653,26 @@ bool UVGenerator::tryUnwrapIslandARAP(const std::vector<Vertex>& vertices,
     // it can't be named here. It resolves to Kernel::FT, which is plain double for
     // Exact_predicates_inexact_constructions_kernel - pass a double directly instead of trying to
     // spell the (inaccessible) type out.
+    //
+    // Reaching config.arapIterations/arapTolerance requires the 5-arg constructor
+    // (border_param, solver_traits, lambda, iterations, tolerance) - the single-arg
+    // ARAP_parameterizer_3(lambda) this used before hardcodes iterations=50/tolerance=1e-6
+    // internally with no way to override either. Border_parameterizer/Solver_traits ARE public
+    // typedefs on the class itself (confirmed directly in ARAP_parameterizer_3.h, lines ~176/196 -
+    // unlike NT above), so default-constructing them via those typedefs reaches the trailing
+    // params without needing to spell out concrete template types (Two_vertices_parameterizer_3/
+    // the Eigen solver CGAL would otherwise pick as defaults).
+    // tryUnwrapIslandARAP() itself is a plain (non-template) function - Mesh/Parameterizer are
+    // fully concrete types here, so Border_parameterizer/Solver_traits are NOT dependent names
+    // and must NOT be prefixed with `typename` (that's only valid/required inside a template
+    // where the qualified name depends on a template parameter).
+    using Parameterizer = SMP::ARAP_parameterizer_3<Mesh>;
+    Parameterizer parameterizer(
+        Parameterizer::Border_parameterizer(), Parameterizer::Solver_traits(),
+        static_cast<double>(config.arapLambda), config.arapIterations,
+        static_cast<double>(config.arapTolerance));
     return tryUnwrapIslandCGAL(vertices, triangles, island,
-        SMP::ARAP_parameterizer_3<Mesh>(static_cast<double>(config.arapLambda)),
-        triangleUVs, "ARAP", kARAPVerbose);
+        parameterizer, triangleUVs, "ARAP", kARAPVerbose);
 }
 
 bool UVGenerator::tryUnwrapIslandLSCM(const std::vector<Vertex>& vertices,

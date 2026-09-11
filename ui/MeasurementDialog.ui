@@ -25,6 +25,119 @@
     <widget class="QComboBox" name="toolCombo"/>
    </item>
    <item>
+    <widget class="QGroupBox" name="cylindricalDiameterOptionsGroup">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+     <property name="title">
+      <string>Cylindrical Diameter Options</string>
+     </property>
+     <layout class="QFormLayout" name="cylindricalDiameterOptionsForm">
+      <item row="0" column="0">
+       <widget class="QLabel" name="cylMaxAngleLabel">
+        <property name="text">
+         <string>Angle tolerance (deg):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QDoubleSpinBox" name="cylMaxAngleSpin">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Max angle between a candidate point's normal and the fitted cylinder's radial direction for it to join the region (CGAL Region Growing's maximum_angle). This app's own default is 35 degrees (CGAL's own default is 25).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="minimum">
+         <double>1.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>90.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>35.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="cylMinRegionSizeLabel">
+        <property name="text">
+         <string>Min region size (pts):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="cylMinRegionSizeSpin">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Minimum accepted point count for a fitted cylindrical region (CGAL Region Growing's minimum_region_size). This app's own default is 24 (CGAL's own default is 3).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="minimum">
+         <number>3</number>
+        </property>
+        <property name="maximum">
+         <number>1000</number>
+        </property>
+        <property name="value">
+         <number>24</number>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="cylMinDiameterLabel">
+        <property name="text">
+         <string>Min diameter (0 = no limit):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QDoubleSpinBox" name="cylMinDiameterSpin">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reject a fitted cylinder smaller than this diameter. 0 means no lower limit (CGAL's own default).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>1000000.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="cylMaxDiameterLabel">
+        <property name="text">
+         <string>Max diameter (0 = no limit):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QDoubleSpinBox" name="cylMaxDiameterSpin">
+        <property name="toolTip">
+         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reject a fitted cylinder larger than this diameter. 0 means no upper limit (CGAL's own default).&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="decimals">
+         <number>3</number>
+        </property>
+        <property name="minimum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>1000000.000000000000000</double>
+        </property>
+        <property name="value">
+         <double>0.000000000000000</double>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QLabel" name="statusLabel">
      <property name="wordWrap">
       <bool>true</bool>

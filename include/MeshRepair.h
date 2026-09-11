@@ -68,11 +68,20 @@ public:
     using Point_3 = Kernel::Point_3;
     using Mesh    = CGAL::Surface_mesh<Point_3>;
 
+    // maxSelfIntersectionSteps/trySmoothingForSelfIntersections are passed straight through to
+    // remove_self_intersections()'s own number_of_iterations/use_smoothing named parameters -
+    // defaulted to CGAL's own current defaults (7 / false, verified against the vendored CGAL
+    // 6.2 repair_self_intersections.h) so every existing caller that doesn't pass these two
+    // explicitly sees zero behavior change. use_smoothing=false means the smoothing-based repair
+    // strategy never even runs by default - only hole-filling-based repair does; a caller that
+    // wants the more thorough (slower) alternative strategy needs to opt in explicitly.
     static bool repairSoupToMesh(
         std::vector<Point_3> points,
         std::vector<std::array<std::size_t, 3>> faces,
         Mesh& outMesh,
-        MeshRepairReport* report = nullptr);
+        MeshRepairReport* report = nullptr,
+        int maxSelfIntersectionSteps = 7,
+        bool trySmoothingForSelfIntersections = false);
 
     // Converts a CGAL mesh into this app's own Vertex/index-buffer form with CREASE-AWARE normal
     // splitting, instead of a single averaged (smooth) normal per vertex position: a vertex's

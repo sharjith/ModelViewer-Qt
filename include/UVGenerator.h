@@ -83,6 +83,13 @@ struct UVConfig
     // term against the free-boundary solve. CGAL's own default is on this order of magnitude;
     // higher values bias toward preserving the boundary shape, lower toward local rigidity.
     float arapLambda = 1000.0f;
+    // ARAP's own energy-minimization loop controls, both left at CGAL's own defaults - not
+    // reachable via the single-arg ARAP_parameterizer_3(lambda) constructor this codebase used
+    // before, only via its 5-arg overload (border_param, solver_traits, lambda, iterations,
+    // tolerance). iterations caps how many local/global passes run; tolerance is the minimal
+    // energy delta between passes before the loop exits early.
+    unsigned int arapIterations = 50;
+    float arapTolerance = 1e-6f;
 };
 
 struct MeshTriangle

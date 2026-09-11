@@ -7,7 +7,9 @@
 
 #include <QCloseEvent>
 #include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QFont>
+#include <QGroupBox>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
@@ -18,6 +20,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QStandardItemModel>
 
 namespace
@@ -238,6 +241,10 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 		Qt::ToolTipRole);
 
 	connect(ui->toolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MeasurementDialog::onToolComboChanged);
+	connect(ui->cylMaxAngleSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MeasurementDialog::onCylDiameterOptionChanged);
+	connect(ui->cylMinRegionSizeSpin, QOverload<int>::of(&QSpinBox::valueChanged), this, &MeasurementDialog::onCylDiameterOptionChanged);
+	connect(ui->cylMinDiameterSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MeasurementDialog::onCylDiameterOptionChanged);
+	connect(ui->cylMaxDiameterSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MeasurementDialog::onCylDiameterOptionChanged);
 	connect(ui->resultsList, &QListWidget::itemSelectionChanged, this, &MeasurementDialog::onResultsSelectionChanged);
 	connect(ui->resultsList, &QListWidget::itemChanged, this, &MeasurementDialog::onResultItemChanged);
 	connect(ui->deleteButton, &QPushButton::clicked, this, &MeasurementDialog::onDeleteClicked);
@@ -311,6 +318,21 @@ void MeasurementDialog::onToolComboChanged(int index)
 	const MeasurementTool tool = static_cast<MeasurementTool>(ui->toolCombo->itemData(index).toInt());
 	if (ViewportWidget* viewport = _modelViewer->getViewportWidget())
 		viewport->setMeasurementTool(tool);
+
+	// Only Cylindrical Diameter has per-tool options today - shown only while it's the active
+	// tool, matching how this dialog has no other per-tool option UI at all otherwise.
+	ui->cylindricalDiameterOptionsGroup->setVisible(tool == MeasurementTool::CylindricalDiameter);
+}
+
+void MeasurementDialog::onCylDiameterOptionChanged()
+{
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	if (!viewport)
+		return;
+	viewport->setCylDiameterMaxAngleDegrees(ui->cylMaxAngleSpin->value());
+	viewport->setCylDiameterMinRegionSize(static_cast<std::size_t>(ui->cylMinRegionSizeSpin->value()));
+	viewport->setCylDiameterMinDiameter(ui->cylMinDiameterSpin->value());
+	viewport->setCylDiameterMaxDiameter(ui->cylMaxDiameterSpin->value());
 }
 
 void MeasurementDialog::onMeasurementProgressChanged(int picked, int required)
@@ -345,6 +367,11 @@ void MeasurementDialog::onMeasurementToolChangedExternally(MeasurementTool tool)
 		ui->statusLabel->setText(tr("Cancelled - pick a tool to resume"));
 	else
 		setComboToolSilently(tool);
+
+	// setComboToolSilently() deliberately does NOT run onToolComboChanged() (that's the whole
+	// point of "silently"), so the options group's visibility has to be kept in sync here
+	// instead - same condition onToolComboChanged() itself uses.
+	ui->cylindricalDiameterOptionsGroup->setVisible(tool == MeasurementTool::CylindricalDiameter);
 }
 
 void MeasurementDialog::setComboToolSilently(MeasurementTool tool)

@@ -2184,7 +2184,8 @@ SceneMesh* SceneMesh::shrinkWrapMeshes(const QVector<SceneMesh*>& meshes, const 
 
 SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
                                      unsigned int iterations, const QString& newName,
-                                     bool preserveSharpFeatures)
+                                     bool preserveSharpFeatures,
+                                     bool regularizeBeforeSubdividing)
 {
 	if (!mesh)
 		return nullptr;
@@ -2237,6 +2238,15 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	// more deliberate tuning, so before/after vertex/face-count
 	// diagnostics are logged to make that failure mode visible immediately
 	// rather than only showing up as a bad screenshot again.
+	// kSharpFeatureAngleDegrees/cosSharpFeatureThreshold stay unconditional - reused below by the
+	// crease-aware Loop/Catmull-Clark masks and the final crease-aware normal writeback
+	// regardless of whether the regularizing remesh pass (targetEdgeLength/edgeLengthSum, both
+	// scoped to that pass alone) runs at all.
+	constexpr double kSharpFeatureAngleDegrees = 30.0;
+	const double cosSharpFeatureThreshold = std::cos(kSharpFeatureAngleDegrees * 3.14159265358979 / 180.0);
+
+	if (regularizeBeforeSubdividing)
+	{
 	double edgeLengthSum = 0.0;
 	for (Mesh::Edge_index e : workingMesh.edges())
 		edgeLengthSum += CGAL::to_double(PMP::edge_length(e, workingMesh));
@@ -2247,8 +2257,6 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	         << "faces" << workingMesh.number_of_faces()
 	         << "target edge length" << targetEdgeLength;
 
-	constexpr double kSharpFeatureAngleDegrees = 30.0;
-	const double cosSharpFeatureThreshold = std::cos(kSharpFeatureAngleDegrees * 3.14159265358979 / 180.0);
 	if (targetEdgeLength > 0.0)
 	{
 		if (preserveSharpFeatures)
@@ -2350,6 +2358,13 @@ SceneMesh* SceneMesh::subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 
 	qDebug() << "[Subdivision] post-remesh: verts" << workingMesh.number_of_vertices()
 	         << "faces" << workingMesh.number_of_faces();
+	}
+	else
+	{
+		qDebug() << "[Subdivision] regularizeBeforeSubdividing=false - subdividing the mesh's own "
+		            "topology directly, verts" << workingMesh.number_of_vertices()
+		         << "faces" << workingMesh.number_of_faces();
+	}
 
 	switch (method)
 	{
@@ -2564,7 +2579,8 @@ namespace
 	constexpr bool kRepairVerbose = false;
 }
 
-SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRepairReport* outReport)
+SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRepairReport* outReport,
+                                  int maxSelfIntersectionSteps, bool trySmoothingForSelfIntersections)
 {
 	if (outReport)
 		*outReport = MeshRepairReport{};
@@ -2588,7 +2604,8 @@ SceneMesh* SceneMesh::repairMesh(SceneMesh* mesh, const QString& newName, MeshRe
 	Mesh repairedMesh;
 	MeshRepairReport localReport;
 	MeshRepairReport& report = outReport ? *outReport : localReport;
-	const bool soupToMeshOk = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), repairedMesh, &report);
+	const bool soupToMeshOk = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), repairedMesh, &report,
+	                                                        maxSelfIntersectionSteps, trySmoothingForSelfIntersections);
 
 	if (kRepairVerbose)
 	{
@@ -2648,7 +2665,8 @@ namespace
 	// confuses a genuine gap with an unwelded duplicate-vertex seam or winding defect. Returns
 	// false (outMesh left empty/cleared) on any failure - callers treat that as "no holes /
 	// can't fill", matching repairMesh()'s own null-on-failure contract.
-	bool buildRepairedMeshForHoles(SceneMesh* mesh, MeshRepair::Mesh& outMesh, MeshRepairReport* outReport)
+	bool buildRepairedMeshForHoles(SceneMesh* mesh, MeshRepair::Mesh& outMesh, MeshRepairReport* outReport,
+	                                int maxSelfIntersectionSteps, bool trySmoothingForSelfIntersections)
 	{
 		using Point_3 = MeshRepair::Point_3;
 
@@ -2665,7 +2683,8 @@ namespace
 
 		MeshRepairReport localReport;
 		MeshRepairReport& report = outReport ? *outReport : localReport;
-		const bool ok = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), outMesh, &report);
+		const bool ok = MeshRepair::repairSoupToMesh(std::move(points), std::move(faces), outMesh, &report,
+		                                              maxSelfIntersectionSteps, trySmoothingForSelfIntersections);
 		return ok && outMesh.number_of_vertices() > 0 && outMesh.number_of_faces() > 0;
 	}
 
@@ -2698,7 +2717,7 @@ std::vector<DetectedHole> SceneMesh::detectHoles(SceneMesh* mesh)
 		return holes;
 
 	MeshRepair::Mesh repairedMesh;
-	if (!buildRepairedMeshForHoles(mesh, repairedMesh, nullptr))
+	if (!buildRepairedMeshForHoles(mesh, repairedMesh, nullptr, 7, false)) // CGAL's own defaults - detection doesn't need tuning
 		return holes;
 
 	std::vector<MeshRepair::Mesh::Halfedge_index> borderHalfedges;
@@ -2713,7 +2732,9 @@ std::vector<DetectedHole> SceneMesh::detectHoles(SceneMesh* mesh)
 }
 
 SceneMesh* SceneMesh::fillHoles(SceneMesh* mesh, const QSet<int>& loopIdsToFill,
-                                  const QString& newName, MeshRepairReport* outReport)
+                                  const QString& newName, MeshRepairReport* outReport,
+                                  int maxSelfIntersectionSteps, bool trySmoothingForSelfIntersections,
+                                  double patchDensityFactor)
 {
 	if (outReport)
 		*outReport = MeshRepairReport{};
@@ -2726,7 +2747,8 @@ SceneMesh* SceneMesh::fillHoles(SceneMesh* mesh, const QSet<int>& loopIdsToFill,
 	MeshRepair::Mesh repairedMesh;
 	MeshRepairReport localReport;
 	MeshRepairReport& report = outReport ? *outReport : localReport;
-	if (!buildRepairedMeshForHoles(mesh, repairedMesh, &report))
+	if (!buildRepairedMeshForHoles(mesh, repairedMesh, &report,
+	                                maxSelfIntersectionSteps, trySmoothingForSelfIntersections))
 	{
 		report.succeeded = false;
 		return nullptr;
@@ -2746,7 +2768,8 @@ SceneMesh* SceneMesh::fillHoles(SceneMesh* mesh, const QSet<int>& loopIdsToFill,
 			continue;
 		// Only ADDS faces/vertices/halfedges - never removes or renumbers existing ones, so the
 		// other entries in borderHalfedges collected above stay valid across this loop.
-		PMP::triangulate_and_refine_hole(repairedMesh, borderHalfedges[static_cast<std::size_t>(loopId)]);
+		PMP::triangulate_and_refine_hole(repairedMesh, borderHalfedges[static_cast<std::size_t>(loopId)],
+			CGAL::parameters::density_control_factor(patchDensityFactor));
 		anyFilled = true;
 	}
 

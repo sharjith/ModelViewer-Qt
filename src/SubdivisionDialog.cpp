@@ -178,6 +178,7 @@ void SubdivisionDialog::onGenerateClicked()
 	const SceneMesh::SubdivisionMethod method = methodFromComboIndex(ui->methodCombo->currentIndex());
 	const unsigned int iterations = static_cast<unsigned int>(ui->iterationsSpin->value());
 	const bool preserveSharpFeatures = ui->preserveSharpFeaturesCheckBox->isChecked();
+	const bool regularizeBeforeSubdividing = ui->regularizeCheckBox->isChecked();
 
 	SceneNode* topParent = sceneGraph->root();
 	int succeeded = 0;
@@ -190,7 +191,7 @@ void SubdivisionDialog::onGenerateClicked()
 	{
 		const QString resultName = viewport->generateUniqueMeshName(mesh->getName() + "_Subdivided");
 		SceneMesh* subdivided = SceneMesh::subdivideMesh(mesh, method, iterations, resultName,
-		                                                 preserveSharpFeatures);
+		                                                 preserveSharpFeatures, regularizeBeforeSubdividing);
 		if (!subdivided)
 		{
 			++failed;

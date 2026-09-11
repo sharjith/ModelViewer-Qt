@@ -18,7 +18,9 @@ bool MeshRepair::repairSoupToMesh(
     std::vector<Point_3> points,
     std::vector<std::array<std::size_t, 3>> faces,
     Mesh& outMesh,
-    MeshRepairReport* report)
+    MeshRepairReport* report,
+    int maxSelfIntersectionSteps,
+    bool trySmoothingForSelfIntersections)
 {
     namespace PMP = CGAL::Polygon_mesh_processing;
 
@@ -82,11 +84,13 @@ bool MeshRepair::repairSoupToMesh(
     r.hadSelfIntersections = PMP::does_self_intersect(outMesh);
     if (r.hadSelfIntersections)
     {
-        // Best-effort - not guaranteed to fully succeed (up to max_steps rounds of smoothing then
-        // local hole-refill internally; see CGAL's own docs). Still an improvement over leaving
-        // self-intersections in place even when it can't fully resolve them, so its result isn't
-        // itself treated as a failure condition here - only reported.
-        PMP::experimental::remove_self_intersections(outMesh);
+        // Best-effort - not guaranteed to fully succeed (up to maxSelfIntersectionSteps rounds of
+        // smoothing then local hole-refill internally; see CGAL's own docs). Still an improvement
+        // over leaving self-intersections in place even when it can't fully resolve them, so its
+        // result isn't itself treated as a failure condition here - only reported.
+        PMP::experimental::remove_self_intersections(outMesh,
+            CGAL::parameters::number_of_iterations(maxSelfIntersectionSteps)
+                .use_smoothing(trySmoothingForSelfIntersections));
         r.selfIntersectionsResolved = !PMP::does_self_intersect(outMesh);
 
         // See MeshRepairReport::selfIntersectionLikelyFromNonManifoldFix's doc comment (MeshRepair.h)

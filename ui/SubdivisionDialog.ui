@@ -105,6 +105,19 @@
       </property>
      </widget>
     </item>
+    <item row="3" column="0" colspan="2">
+     <widget class="QCheckBox" name="regularizeCheckBox">
+      <property name="toolTip">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Regularize triangle shape/valence before subdividing - prevents a known crash/distortion on meshes with irregular vertex valence (e.g. a fan-triangulated cylinder cap), but can change the face count before Iterations applies, so N levels no longer cleanly multiplies the original mesh's face count. Disable for predictable N-level subdivision of your mesh's own topology - only safe when you know it doesn't have that pathology.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+      <property name="text">
+       <string>Regularize mesh before subdividing</string>
+      </property>
+      <property name="checked">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
    </layout>
    </item>
    <item>

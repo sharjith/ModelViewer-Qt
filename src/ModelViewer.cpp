@@ -65,7 +65,9 @@
 #include <QLineEdit>
 #include <QMdiSubWindow>
 #include <QMenu>
+#include <QAbstractButton>
 #include <QMessageBox>
+#include <QPushButton>
 #include <QPainter>
 #include <QProxyStyle>
 #include <QThread>
@@ -3095,6 +3097,46 @@ namespace
 		}
 		return false;
 	}
+
+	// Groups `indices` (into `meshes`) by the same (sourceFile, originalMaterialIndex,
+	// primitiveMode) identity combineSelectedMeshes()/mergeSelectedMeshesByAdjacency()'s own
+	// compatibility check already use - originalMaterialIndex < 0 (untracked) never matches
+	// anything else, including another untracked mesh, same conservative default those already
+	// apply (a mesh with no reliable match becomes its own singleton group rather than being
+	// silently lumped in with other untracked meshes). Groups are returned in first-seen order -
+	// deterministic result naming/placement for the "Keep Materials Separate" choice.
+	std::vector<std::vector<int>> groupIndicesByMaterial(const QVector<SceneMesh*>& meshes,
+	                                                       const std::vector<int>& indices)
+	{
+		std::vector<std::vector<int>> groups;
+		QHash<QString, int> groupIndexByKey; // composite key -> index into groups
+
+		for (int idx : indices)
+		{
+			SceneMesh* mesh = meshes[idx];
+			const int materialIndex = mesh->getOriginalMaterialIndex();
+			if (materialIndex < 0)
+			{
+				groups.push_back({ idx });
+				continue;
+			}
+
+			const QString key = mesh->getSourceFile() + QLatin1Char('|') + QString::number(materialIndex)
+				+ QLatin1Char('|') + QString::number(static_cast<int>(mesh->getPrimitiveMode()));
+			const auto it = groupIndexByKey.constFind(key);
+			if (it == groupIndexByKey.cend())
+			{
+				groupIndexByKey.insert(key, static_cast<int>(groups.size()));
+				groups.push_back({ idx });
+			}
+			else
+			{
+				groups[it.value()].push_back(idx);
+			}
+		}
+
+		return groups;
+	}
 }
 
 void ModelViewer::mergeSelectedMeshesByAdjacency()
@@ -3179,35 +3221,70 @@ void ModelViewer::mergeSelectedMeshesByAdjacency()
 			mismatchedGroups.push_back(members);
 	}
 
-	// Ask once, up front, whether the user wants mismatched groups merged
-	// anyway (cascading each group's first mesh's material onto the rest)
-	// rather than silently skipping them - only bother asking if there's
-	// actually a mismatched group to decide about.
-	bool cascadeMaterialForMismatched = false;
+	// Ask once, up front, how the user wants every mismatched (touching-but-multi-material)
+	// cluster handled - only bother asking if there's actually one to decide about. Three-way
+	// choice instead of the old Yes/No: Mesh Union/Merge is a legitimate real-boolean-op
+	// workflow that sometimes genuinely wants one blob regardless of material (Cascade), so
+	// that path stays available - Keep Materials Separate is the new, additional option that
+	// never loses material info, splitting each mismatched cluster into one merge per material
+	// instead of cascading the first mesh's material onto the whole cluster.
+	enum class MismatchedClusterChoice { Skip, CascadeMaterial, KeepSeparate };
+	MismatchedClusterChoice mismatchedChoice = MismatchedClusterChoice::Skip;
 	if (!mismatchedGroups.empty())
 	{
 		QApplication::restoreOverrideCursor();
-		const QMessageBox::StandardButton reply = QMessageBox::question(this, tr("Merge by Adjacency"),
-			mismatchedGroups.size() == 1
-				? tr("One touching group of selected meshes has different materials.\n\n"
-				     "Merge it anyway, using its first mesh's material for the whole group?")
-				: tr("%1 touching groups of selected meshes have different materials.\n\n"
-				     "Merge them anyway, using each group's first mesh's material for the whole group?")
-				      .arg(mismatchedGroups.size()),
-			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-		cascadeMaterialForMismatched = (reply == QMessageBox::Yes);
+		QMessageBox box(this);
+		box.setWindowTitle(tr("Merge by Adjacency"));
+		box.setText(mismatchedGroups.size() == 1
+			? tr("One touching group of selected meshes has different materials.")
+			: tr("%1 touching groups of selected meshes have different materials.").arg(mismatchedGroups.size()));
+		box.setInformativeText(tr("\"Keep Materials Separate\" splits each group into one merge per "
+		                          "material instead of merging everything in it into one, using the "
+		                          "first mesh's material."));
+		QAbstractButton* keepSeparateButton = box.addButton(tr("Keep Materials Separate"), QMessageBox::ActionRole);
+		QAbstractButton* cascadeButton = box.addButton(tr("Merge Anyway"), QMessageBox::ActionRole);
+		box.addButton(QMessageBox::Cancel);
+		box.setDefaultButton(static_cast<QPushButton*>(keepSeparateButton));
+		box.exec();
+
+		if (box.clickedButton() == keepSeparateButton)
+			mismatchedChoice = MismatchedClusterChoice::KeepSeparate;
+		else if (box.clickedButton() == cascadeButton)
+			mismatchedChoice = MismatchedClusterChoice::CascadeMaterial;
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 	}
 
 	std::vector<std::vector<int>> groupsToMerge = compatibleGroups;
-	int cascadedGroupCount = 0;
-	if (cascadeMaterialForMismatched)
+	int cascadedClusterCount = 0;
+	int separatedClusterCount = 0;
+	int separatedResultGroupCount = 0;
+	int separatedSingletonCount = 0;
+	for (const std::vector<int>& members : mismatchedGroups)
 	{
-		for (const std::vector<int>& members : mismatchedGroups)
+		if (mismatchedChoice == MismatchedClusterChoice::CascadeMaterial)
+		{
 			groupsToMerge.push_back(members);
-		cascadedGroupCount = static_cast<int>(mismatchedGroups.size());
+			++cascadedClusterCount;
+		}
+		else if (mismatchedChoice == MismatchedClusterChoice::KeepSeparate)
+		{
+			++separatedClusterCount;
+			for (const std::vector<int>& subGroup : groupIndicesByMaterial(meshes, members))
+			{
+				if (subGroup.size() >= 2)
+				{
+					groupsToMerge.push_back(subGroup);
+					++separatedResultGroupCount;
+				}
+				else
+				{
+					++separatedSingletonCount;
+				}
+			}
+		}
 	}
-	const int skippedGroupCount = static_cast<int>(mismatchedGroups.size()) - cascadedGroupCount;
+	const int skippedClusterCount = static_cast<int>(mismatchedGroups.size())
+		- cascadedClusterCount - separatedClusterCount;
 
 	QVector<MergeByAdjacencyCommand*> commands;
 	int meshesMergedCount = 0;
@@ -3276,33 +3353,37 @@ void ModelViewer::mergeSelectedMeshesByAdjacency()
 
 	QApplication::restoreOverrideCursor();
 
-	if (commands.isEmpty() && skippedGroupCount > 0)
+	if (commands.isEmpty() && (skippedClusterCount > 0 || separatedClusterCount > 0))
 	{
 		QMessageBox::information(this, tr("Merge by Adjacency"),
 			tr("Found %1 touching group(s) of selected meshes with different materials, left unmerged.")
-				.arg(skippedGroupCount));
+				.arg(skippedClusterCount + separatedClusterCount));
 	}
 	else if (commands.isEmpty())
 	{
 		QMessageBox::information(this, tr("Merge by Adjacency"),
 			tr("None of the selected meshes are touching - nothing to merge."));
 	}
-	else if (skippedGroupCount > 0)
-	{
-		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total)%3; %4 more touching group(s) had mixed materials and were left unmerged.")
-			.arg(commands.size()).arg(meshesMergedCount)
-			.arg(cascadedGroupCount > 0 ? tr(", %1 with a cascaded material").arg(cascadedGroupCount) : QString())
-			.arg(skippedGroupCount));
-	}
-	else if (cascadedGroupCount > 0)
-	{
-		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total); %3 used a cascaded material.")
-			.arg(commands.size()).arg(meshesMergedCount).arg(cascadedGroupCount));
-	}
 	else
 	{
-		MainWindow::showStatusMessage(tr("Merged %1 touching group(s) (%2 meshes total) into %1 mesh(es).")
-			.arg(commands.size()).arg(meshesMergedCount));
+		QString summary = tr("Merged %1 group(s) (%2 meshes total) into %1 mesh(es).")
+			.arg(commands.size()).arg(meshesMergedCount);
+		QStringList details;
+		if (cascadedClusterCount > 0)
+			details << tr("%1 mixed-material group(s) used a cascaded material").arg(cascadedClusterCount);
+		if (separatedClusterCount > 0)
+		{
+			details << tr("%1 mixed-material group(s) split into %2 per-material merge(s)%3")
+				.arg(separatedClusterCount).arg(separatedResultGroupCount)
+				.arg(separatedSingletonCount > 0
+					? tr(" (%1 mesh(es) left unmerged - unique material within their group)").arg(separatedSingletonCount)
+					: QString());
+		}
+		if (skippedClusterCount > 0)
+			details << tr("%1 mixed-material group(s) left unmerged").arg(skippedClusterCount);
+		if (!details.isEmpty())
+			summary += tr(" (%1)").arg(details.join(tr("; ")));
+		MainWindow::showStatusMessage(summary);
 	}
 }
 
@@ -3360,67 +3441,147 @@ void ModelViewer::combineSelectedMeshes(
 		             (m->getSourceFile() == refMesh->getSourceFile());
 	}
 
+	// Same three-way choice as mergeSelectedMeshesByAdjacency() (see its own doc comment for why
+	// "cascade the first mesh's material" stays available rather than being replaced outright -
+	// Union in particular is a real boolean op, not just concatenation, and sometimes genuinely
+	// wants one blob regardless of material). Only asked when the whole selection doesn't
+	// already share one material; groupsToCombine is a single whole-selection group in every
+	// other case, matching today's existing single-result behavior exactly.
+	std::vector<int> allIndices(meshes.size());
+	std::iota(allIndices.begin(), allIndices.end(), 0);
+	std::vector<std::vector<int>> groupsToCombine{ allIndices };
+	int separatedSingletonCount = 0;
+
 	if (!compatible)
 	{
 		QApplication::restoreOverrideCursor();
-		const QMessageBox::StandardButton reply = QMessageBox::question(this, actionName,
-			tr("The selected meshes have different materials.\n\n"
-			   "Merge them anyway, using the first mesh's material for the whole result?"),
-			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
-		if (reply != QMessageBox::Yes)
+		QMessageBox box(this);
+		box.setWindowTitle(actionName);
+		box.setText(tr("The selected meshes have different materials."));
+		box.setInformativeText(tr("\"Keep Materials Separate\" combines each material's own meshes "
+		                          "into its own result instead of combining everything into one, "
+		                          "using the first mesh's material."));
+		QAbstractButton* keepSeparateButton = box.addButton(tr("Keep Materials Separate"), QMessageBox::ActionRole);
+		QAbstractButton* combineButton = box.addButton(actionName + tr(" Anyway"), QMessageBox::ActionRole);
+		box.addButton(QMessageBox::Cancel);
+		box.setDefaultButton(static_cast<QPushButton*>(keepSeparateButton));
+		box.exec();
+
+		if (box.clickedButton() == keepSeparateButton)
+		{
+			groupsToCombine.clear();
+			for (const std::vector<int>& group : groupIndicesByMaterial(meshes, allIndices))
+			{
+				if (group.size() >= 2)
+					groupsToCombine.push_back(group);
+				else
+					++separatedSingletonCount;
+			}
+		}
+		else if (box.clickedButton() != combineButton)
 		{
 			QMessageBox::information(this, actionName,
 				tr("The selected meshes have different materials - nothing merged."));
 			return;
 		}
+		// else: combineButton clicked - groupsToCombine stays the single whole-selection group,
+		// same as today's existing "Yes, merge anyway" behavior.
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 	}
 
 	_viewportWidget->makeCurrent();
 
-	const QString mergedName = _viewportWidget->generateUniqueMeshName(refMesh->getName() + "_Merged");
-	QString detail;
-	SceneMesh* merged = combineFn(meshes, mergedName, &detail);
-	_viewportWidget->addToDisplay(merged);
-	const QUuid mergedUuid = merged->uuid();
-
-	// Remove each source from its own tree position and recycle-bin it,
-	// capturing its (node, position) for undo - same bookkeeping
-	// mergeSelectedMeshesByAdjacency() uses per-cluster, just for the whole
-	// selection at once here.
-	QVector<MergeByAdjacencyCommand::SourceEntry> sourceEntries;
-	sourceEntries.reserve(uuids.size());
-	for (int i = 0; i < uuids.size(); ++i)
+	QVector<MergeByAdjacencyCommand*> commands;
+	int meshesCombinedCount = 0;
+	int groupsUsedFallback = 0;
+	for (const std::vector<int>& group : groupsToCombine)
 	{
-		const QUuid& u = uuids[i];
-		int pos = 0;
-		_sceneGraph->removeMeshUuid(u, pos);
-		const int meshIndex = _viewportWidget->getIndexByUuid(u);
-		if (meshIndex >= 0)
-			_viewportWidget->moveToRecycleBin(u, meshIndex);
+		SceneMesh* groupRefMesh = meshes[group[0]];
+		QVector<SceneMesh*> groupMeshes;
+		groupMeshes.reserve(static_cast<int>(group.size()));
+		for (int idx : group)
+			groupMeshes.append(meshes[idx]);
 
-		MergeByAdjacencyCommand::SourceEntry e;
-		e.uuid      = u;
-		e.ownerNode = ownerNodes[i];
-		e.position  = pos;
-		sourceEntries.append(e);
+		const QString mergedName = _viewportWidget->generateUniqueMeshName(groupRefMesh->getName() + "_Merged");
+		QString detail;
+		SceneMesh* merged = combineFn(groupMeshes, mergedName, &detail);
+		if (!detail.isEmpty())
+			++groupsUsedFallback;
+		_viewportWidget->addToDisplay(merged);
+		const QUuid mergedUuid = merged->uuid();
+
+		// Remove each source from its own tree position and recycle-bin it, capturing its
+		// (node, position) for undo - same bookkeeping mergeSelectedMeshesByAdjacency() uses
+		// per-cluster.
+		QVector<MergeByAdjacencyCommand::SourceEntry> sourceEntries;
+		sourceEntries.reserve(static_cast<int>(group.size()));
+		for (int idx : group)
+		{
+			const QUuid& u = uuids[idx];
+			int pos = 0;
+			_sceneGraph->removeMeshUuid(u, pos);
+			const int meshIndex = _viewportWidget->getIndexByUuid(u);
+			if (meshIndex >= 0)
+				_viewportWidget->moveToRecycleBin(u, meshIndex);
+
+			MergeByAdjacencyCommand::SourceEntry e;
+			e.uuid      = u;
+			e.ownerNode = ownerNodes[idx];
+			e.position  = pos;
+			sourceEntries.append(e);
+		}
+
+		// Insert the combined mesh under the group's first source's own node.
+		SceneNode* targetNode = ownerNodes[group[0]];
+		const int mergedPosition = targetNode->meshUuids.size();
+		_sceneGraph->restoreMeshUuid(targetNode, mergedUuid, mergedPosition);
+
+		commands.append(new MergeByAdjacencyCommand(
+			this, _viewportWidget, sourceEntries, mergedUuid, targetNode, mergedPosition, originalSelection,
+			actionName));
+
+		meshesCombinedCount += static_cast<int>(group.size());
 	}
-
-	// Insert the merged mesh under the first selected mesh's own node.
-	SceneNode* targetNode = ownerNodes.first();
-	const int mergedPosition = targetNode->meshUuids.size();
-	_sceneGraph->restoreMeshUuid(targetNode, mergedUuid, mergedPosition);
-
 	_viewportWidget->doneCurrent();
 
-	updateDisplayList();
-	_undoStack->push(new MergeByAdjacencyCommand(
-		this, _viewportWidget, sourceEntries, mergedUuid, targetNode, mergedPosition, originalSelection,
-		actionName));
+	if (!commands.isEmpty())
+	{
+		updateDisplayList();
+		if (commands.size() == 1)
+		{
+			_undoStack->push(commands.first());
+		}
+		else
+		{
+			_undoStack->beginMacro(actionName);
+			for (MergeByAdjacencyCommand* cmd : commands)
+				_undoStack->push(cmd);
+			_undoStack->endMacro();
+		}
+	}
 
 	QApplication::restoreOverrideCursor();
 
-	MainWindow::showStatusMessage(tr("Combined %1 selected meshes into 1.").arg(meshes.size()) + detail);
+	if (commands.size() == 1 && separatedSingletonCount == 0)
+	{
+		// Exact wording as before this change, for the common (already-compatible or
+		// merge-anyway) single-result case - no behavior/message change there.
+		MainWindow::showStatusMessage(tr("Combined %1 selected meshes into 1.").arg(meshes.size())
+			+ (groupsUsedFallback > 0 ? tr(" (geometry couldn't be unioned - used plain concatenation instead)") : QString()));
+	}
+	else
+	{
+		QString summary = tr("Combined %1 of %2 selected mesh(es) into %3 result(s), grouped by material.")
+			.arg(meshesCombinedCount).arg(meshes.size()).arg(commands.size());
+		QStringList details;
+		if (groupsUsedFallback > 0)
+			details << tr("%1 group(s) couldn't be unioned - used plain concatenation instead").arg(groupsUsedFallback);
+		if (separatedSingletonCount > 0)
+			details << tr("%1 mesh(es) left uncombined - unique material within the selection").arg(separatedSingletonCount);
+		if (!details.isEmpty())
+			summary += tr(" (%1)").arg(details.join(tr("; ")));
+		MainWindow::showStatusMessage(summary);
+	}
 }
 
 void ModelViewer::mergeSelectedMeshes()

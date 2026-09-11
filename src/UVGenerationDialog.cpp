@@ -284,6 +284,8 @@ void UVGenerationDialog::loadLastUsedSettings()
 
     // ARAP
     config.arapLambda = settings.value("arapLambda", 1000.0f).toFloat();
+    config.arapIterations = settings.value("arapIterations", 50u).toUInt();
+    config.arapTolerance = settings.value("arapTolerance", 1e-6f).toFloat();
 
     // Torus
     config.torusScale = settings.value("torusScale", 1.0f).toFloat();
@@ -361,6 +363,8 @@ void UVGenerationDialog::saveLastUsedSettings()
 
     // ARAP
     settings.setValue("arapLambda", config.arapLambda);
+    settings.setValue("arapIterations", config.arapIterations);
+    settings.setValue("arapTolerance", config.arapTolerance);
 
     // Torus
     settings.setValue("torusScale", config.torusScale);
@@ -476,6 +480,8 @@ UVConfig UVGenerationDialog::getUVConfig() const
     case UVMethod::ARAP:
         config.angleThreshold = ui->spinBox_AngleThreshold_ARAP->value();
         config.arapLambda = ui->spinBox_Rigidity_ARAP->value();
+        config.arapIterations = static_cast<unsigned int>(ui->spinBox_Iterations_ARAP->value());
+        config.arapTolerance = static_cast<float>(ui->spinBox_Tolerance_ARAP->value());
         config.seamPadding = ui->spinBox_SeamPadding_ARAP->value();
         config.enablePacking = ui->checkBox_EnablePacking_ARAP->isChecked();
         config.flipV = ui->checkBox_FlipV_ARAP->isChecked();
@@ -598,6 +604,8 @@ void UVGenerationDialog::setConfig(const UVConfig& config)
     // Set ARAP values
     ui->spinBox_AngleThreshold_ARAP->setValue(config.angleThreshold);
     ui->spinBox_Rigidity_ARAP->setValue(config.arapLambda);
+    ui->spinBox_Iterations_ARAP->setValue(static_cast<int>(config.arapIterations));
+    ui->spinBox_Tolerance_ARAP->setValue(static_cast<double>(config.arapTolerance));
     ui->spinBox_SeamPadding_ARAP->setValue(config.seamPadding);
     ui->checkBox_EnablePacking_ARAP->setChecked(config.enablePacking);
     ui->checkBox_FlipV_ARAP->setChecked(config.flipV);

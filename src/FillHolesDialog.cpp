@@ -294,6 +294,10 @@ void FillHolesDialog::onGenerateClicked()
 
 	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
 
+	const int maxSelfIntersectionSteps = ui->selfIntersectionStepsSpin->value();
+	const bool trySmoothingForSelfIntersections = ui->trySmoothingCheckBox->isChecked();
+	const double patchDensityFactor = ui->patchDensitySpin->value();
+
 	viewport->makeCurrent();
 
 	SceneNode* topParent = sceneGraph->root();
@@ -313,7 +317,9 @@ void FillHolesDialog::onGenerateClicked()
 		const QString meshName = viewport->generateUniqueMeshName(fillName);
 
 		MeshRepairReport report;
-		SceneMesh* filled = SceneMesh::fillHoles(mesh, it.value(), meshName, &report);
+		SceneMesh* filled = SceneMesh::fillHoles(mesh, it.value(), meshName, &report,
+		                                          maxSelfIntersectionSteps, trySmoothingForSelfIntersections,
+		                                          patchDensityFactor);
 
 		if (!report.succeeded)
 		{

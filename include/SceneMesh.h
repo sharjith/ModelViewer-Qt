@@ -307,6 +307,15 @@ public:
 	// >= 30 degree dihedral are treated as infinitely sharp creases by both
 	// the remesher and subdivision stencil; their normals are split too.
 	// Disabling it retains the conventional fully-smooth limit surface.
+	// When regularizeBeforeSubdividing is true (default), an isotropic_remeshing pass targeting
+	// the mesh's own mean edge length runs first, regularizing triangle shape/valence -
+	// necessary to avoid a real crash/distortion on fan-triangulated caps with irregular vertex
+	// valence (e.g. a cylinder's flat end), but it can change the mesh's face count before
+	// `iterations` even applies, so "N levels" no longer cleanly multiplies the ORIGINAL mesh's
+	// face count. Disabling it feeds the mesh's own actual topology straight into
+	// Loop/Catmull-Clark for predictable N-level subdivision, at the cost of losing that
+	// crash-safety net - only safe to disable on a mesh already known not to have pathological
+	// vertex valence.
 	// Returns
 	// nullptr if mesh is null/empty or the input can't be repaired into a
 	// valid polygon mesh (repair_polygon_soup + is_polygon_soup_a_polygon_mesh
@@ -315,7 +324,8 @@ public:
 	// handles open borders fine).
 	static SceneMesh* subdivideMesh(SceneMesh* mesh, SubdivisionMethod method,
 	                                 unsigned int iterations, const QString& newName,
-	                                 bool preserveSharpFeatures = true);
+	                                 bool preserveSharpFeatures = true,
+	                                 bool regularizeBeforeSubdividing = true);
 
 	// Runs ONE mesh's world-space geometry through MeshRepair::repairSoupToMesh() (see
 	// MeshRepair.h) - defect cleanup only (duplicate/degenerate geometry, non-manifold vertices,
@@ -325,9 +335,13 @@ public:
 	// positions and recomputed normals populate the new Vertex list. Returns nullptr if mesh is
 	// null/empty or the soup can't be repaired into a valid mesh at all (MeshRepairReport::
 	// succeeded false); outReport, if non-null, is always filled in (including on failure) so the
-	// caller can report why.
+	// caller can report why. maxSelfIntersectionSteps/trySmoothingForSelfIntersections forward
+	// straight to MeshRepair::repairSoupToMesh()'s own same-named parameters (see its doc
+	// comment, MeshRepair.h) - defaulted to CGAL's own defaults so existing callers are unaffected.
 	static SceneMesh* repairMesh(SceneMesh* mesh, const QString& newName,
-	                              MeshRepairReport* outReport = nullptr);
+	                              MeshRepairReport* outReport = nullptr,
+	                              int maxSelfIntersectionSteps = 7,
+	                              bool trySmoothingForSelfIntersections = false);
 
 	// Detects boundary-loop "holes" in ONE mesh for the Fill Holes tool's picker UI - runs the
 	// mesh through MeshRepair::repairSoupToMesh() first (same defect-cleanup pass repairMesh()
@@ -347,8 +361,15 @@ public:
 	// genuine defects via its interactive picker, never all of them unconditionally. Same
 	// null/empty/report-on-failure contract as repairMesh(); outReport also carries the
 	// mandatory repair-first step's own non-manifold/self-intersection counts.
+	// maxSelfIntersectionSteps/trySmoothingForSelfIntersections forward to the repair-first
+	// step exactly like repairMesh()'s own same-named parameters. patchDensityFactor forwards to
+	// triangulate_and_refine_hole()'s own density_control_factor named parameter (default
+	// sqrt(2), CGAL's own default) - larger values produce a denser/finer patch triangulation.
 	static SceneMesh* fillHoles(SceneMesh* mesh, const QSet<int>& loopIdsToFill,
-	                             const QString& newName, MeshRepairReport* outReport = nullptr);
+	                             const QString& newName, MeshRepairReport* outReport = nullptr,
+	                             int maxSelfIntersectionSteps = 7,
+	                             bool trySmoothingForSelfIntersections = false,
+	                             double patchDensityFactor = 1.4142135623730951);
 
 	// Computes a suggested grid-simplification spacing for
 	// reconstructSurfaceFromPoints() below's optional pre-simplify step, from

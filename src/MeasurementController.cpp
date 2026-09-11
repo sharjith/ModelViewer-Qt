@@ -1449,11 +1449,12 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 		}
 	}
 
-	// Need enough distinct points for a stable fit - matches the legacy
-	// path's own floor.
-	constexpr size_t kMinPatchPoints = 24;
+	// Need enough distinct points for a stable fit - matches the legacy path's own floor.
+	// User-adjustable via _cylDiameterMinRegionSize (MeasurementDialog's Cylindrical Diameter
+	// options group) - defaults to the same 24 this was hardcoded to before.
+	const std::size_t minPatchPoints = _cylDiameterMinRegionSize;
 	if (kCylFitVerbose) qDebug() << "[CylFitRG] candidate vertices" << candidateVertexSet.size() << "from" << candidateTriangles.size() << "triangles, seed" << ref.triangleIndex;
-	if (candidateVertexSet.size() < kMinPatchPoints || edgeCount == 0)
+	if (candidateVertexSet.size() < minPatchPoints || edgeCount == 0)
 		return false;
 
 	// Averaged, sign-corrected normals, keyed sparsely by candidate vertex -
@@ -1494,12 +1495,27 @@ bool MeasurementController::resolveMeasurementCylindricalDiameterViaRegionGrowin
 	if (!std::isfinite(maxDistance))
 		return false;
 
+	// minRadius/maxRadius are always passed (never conditionally omitted) - when
+	// _cylDiameterMinDiameter/MaxDiameter are at their 0.0 "no limit" sentinel default, these
+	// reduce to CGAL's own minimum_radius=0/maximum_radius=+inf defaults exactly, so this has no
+	// effect until MeasurementDialog's options group actually sets a real value. Presented as
+	// DIAMETER in the UI (this tool's own name) - halved here at the CGAL-call boundary, which
+	// expects a radius. Clamped so maxRadius never ends up below minRadius (CGAL's own
+	// maximum_radius >= minimum_radius precondition) even if the UI's own min<=max validation
+	// were ever bypassed.
+	const double minRadius = _cylDiameterMinDiameter > 0.0 ? _cylDiameterMinDiameter / 2.0 : 0.0;
+	const double maxRadius = std::max(
+		_cylDiameterMaxDiameter > 0.0 ? _cylDiameterMaxDiameter / 2.0 : std::numeric_limits<double>::max(),
+		minRadius);
+
 	RegionType regionType(
 		CGAL::parameters::point_map(pointMap)
 			.normal_map(normalMap)
 			.maximum_distance(maxDistance)
-			.maximum_angle(35.0)
-			.minimum_region_size(kMinPatchPoints));
+			.maximum_angle(_cylDiameterMaxAngleDegrees)
+			.minimum_region_size(minPatchPoints)
+			.minimum_radius(minRadius)
+			.maximum_radius(maxRadius));
 	RegionGrowing regionGrowing(candidateItems, seedItems, neighborQuery, regionType);
 
 	if (kCylFitVerbose) qDebug() << "[CylFitRG] maximum_distance" << maxDistance << "(avg edge length" << avgEdgeLength << ")";

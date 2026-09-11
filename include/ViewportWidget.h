@@ -341,6 +341,13 @@ public:
 	// ModelViewer::importFiles() whenever new meshes are loaded.
 	void clearMeasurementGeometryCaches() { _measurementController->clearGeometryCaches(); }
 
+	// ---- Cylindrical Diameter's Region Growing tunables - thin forwards to
+	// _measurementController, see its own field doc comment (MeasurementController.h) -------
+	void setCylDiameterMaxAngleDegrees(double degrees) { _measurementController->setCylDiameterMaxAngleDegrees(degrees); }
+	void setCylDiameterMinRegionSize(std::size_t size) { _measurementController->setCylDiameterMinRegionSize(size); }
+	void setCylDiameterMinDiameter(double diameter) { _measurementController->setCylDiameterMinDiameter(diameter); }
+	void setCylDiameterMaxDiameter(double diameter) { _measurementController->setCylDiameterMaxDiameter(diameter); }
+
 	// ---- Annotation tool ----------------------------------------------------
 	// Thin forwards to _annotationController, which owns the entire
 	// Annotate toolset (state, picking, rendering, hit-testing, leader-line

@@ -69,6 +69,11 @@ protected:
 
 private slots:
 	void onToolComboChanged(int index);
+	// Fires from any of cylindricalDiameterOptionsGroup's 4 spin boxes' valueChanged - reads all
+	// four and forwards to ViewportWidget's Cylindrical Diameter setters immediately (session
+	// state, not persisted to QSettings - matches how SubdivisionDialog itself doesn't persist
+	// its method/iterations either).
+	void onCylDiameterOptionChanged();
 	void onResultsSelectionChanged();
 	void onDeleteClicked();
 	void onFinishClicked();

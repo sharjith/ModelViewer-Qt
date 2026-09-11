@@ -184,6 +184,9 @@ void RepairMeshDialog::onGenerateClicked()
 
 	const QSet<QUuid> originalSelection = _modelViewer->getSelectedUuids();
 
+	const int maxSelfIntersectionSteps = ui->selfIntersectionStepsSpin->value();
+	const bool trySmoothingForSelfIntersections = ui->trySmoothingCheckBox->isChecked();
+
 	viewport->makeCurrent();
 
 	SceneNode* topParent = sceneGraph->root();
@@ -198,7 +201,8 @@ void RepairMeshDialog::onGenerateClicked()
 		const QString meshName = viewport->generateUniqueMeshName(repairName);
 
 		MeshRepairReport report;
-		SceneMesh* repaired = SceneMesh::repairMesh(mesh, meshName, &report);
+		SceneMesh* repaired = SceneMesh::repairMesh(mesh, meshName, &report,
+		                                             maxSelfIntersectionSteps, trySmoothingForSelfIntersections);
 
 		if (!report.succeeded)
 		{
