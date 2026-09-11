@@ -96,6 +96,10 @@
         <file>res/sample-models/Camera.png</file>
         <file>res/sample-models/Skateboard-Assy.png</file>
         <file>res/sample-models/Teapot.png</file>
+        <file>res/eye_dropper.png</file>
+        <file>res/paint_brush.png</file>
+        <file>res/lasso_select.png</file>
+        <file>res/camera_orbit_anim.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>
