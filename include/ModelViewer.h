@@ -165,7 +165,12 @@ public:
 	QUndoStack* getUndoStack() const { return _undoStack; }
 
 	// Selection helpers (used by SelectionCommand)
-	void setSelectionWithUndo(const QSet<int>& newSelection);
+	// mergeSource: opaque tag (e.g. a live-filter dialog's `this`) so
+	// consecutive pushes from the SAME caller collapse into one undo step
+	// via SelectionCommand::mergeWith() - see its header doc comment.
+	// Defaults to null ("never merges"), which is what every plain
+	// click/lasso/sweep selection already wants.
+	void setSelectionWithUndo(const QSet<int>& newSelection, const void* mergeSource = nullptr);
 	void setSelectionWithoutUndo(const QSet<int>& selection);
 	// Selection helpers (for DuplicateCommand)
 	void setSelectionWithoutUndo(const QSet<QUuid>& uuids);
@@ -206,6 +211,20 @@ public:
 	// constructed once per document rather than as a single shared instance
 	// MainWindow dispatches to whichever document is currently active.
 	void applyMeshMaterial(const QUuid& meshUuid, const Material& material);
+
+	// Forwards to _viewportWidget->setEyedropperArmed() - arms/disarms the
+	// material eyedropper/brush tool (MaterialPropertiesPanel's eyeDropper
+	// button).
+	void setEyedropperArmed(bool armed);
+	// Receives the sampled material once the eyedropper's first click hits a
+	// mesh - binds it into the shared MaterialPropertiesPanel, mirroring
+	// editMeshMaterial()'s own createUnsavedMaterialFromMesh() flow, so the
+	// panel visually reflects what was actually sampled.
+	void onEyedropperMaterialSampled(const Material& material, const QString& sourceMeshName);
+	// Receives one finished brush stroke's target UUIDs - pushes a single
+	// undoable ApplyMaterialCommand covering the whole stroke (one undo
+	// entry per gesture).
+	void applyEyedropperStroke(const QVector<QUuid>& targetUuids, const Material& material);
 
 	// Apply a named variant to all meshes from the given source file.
 	// variantIndex = -1 resets to the file's default material assignments.
@@ -324,6 +343,42 @@ public slots:
 	void showOnlySelectedItems();
 	void hideAllItems();
 	void hideSelectedItems();
+	// Selection -> Filter by Material...: opens (or raises) a non-modal,
+	// per-document FilterByMaterialDialog listing every current-material
+	// identity in the scene (see groupIndicesByCurrentMaterial() in
+	// MaterialGrouping.h). Scene-wide, not scoped to a prior selection. The
+	// dialog live-previews the matching mesh set as the real (undoable, via
+	// setSelectionWithUndo()) viewport selection as the chosen material
+	// changes, and its own Show Only/Hide buttons act on that live result
+	// directly - see FilterByMaterialDialog.h's doc comment for the full
+	// design.
+	void filterSelectionByMaterial();
+	// Selection -> Filter by Color...: same shape as filterSelectionByMaterial()
+	// above, but opens FilterByColorDialog - matches every mesh whose
+	// representative color (material albedo, or averaged per-vertex color
+	// for Point Set Reconstruction meshes) falls within a tolerance of a
+	// chosen target.
+	void filterSelectionByColor();
+	// Selection -> Save Selection Set... (also SelectionSetsPanel's own Save
+	// button): saves the current viewport selection (mesh UUIDs, not the
+	// runtime int ids - see SelectionSetData.h) under `name`, via an
+	// undoable SaveSelectionSetCommand.
+	void saveCurrentSelectionAsSet(const QString& name);
+	// SelectionSetsPanel single-click (same immediate-activation convention
+	// as CamerasPanel): replaces the viewport selection with the named
+	// set's meshes, resolving stored UUIDs back to live indices and
+	// skipping any that no longer resolve (a set may reference a
+	// since-deleted mesh). Also reveals any of the set's own members that
+	// are currently hidden (never touches visibility outside the set - not
+	// a "Show Only"), so a bookmark to a hidden mesh doesn't silently fail
+	// to select it. Undoable via setSelectionWithUndo()'s own
+	// SelectionCommand, same as any other selection change - when a reveal
+	// is also needed, both land in one undo macro so a single Ctrl+Z
+	// reverses both together.
+	void recallSelectionSet(const QUuid& setId);
+	// SelectionSetsPanel's Delete button, via an undoable
+	// DeleteSelectionSetCommand.
+	void deleteSelectionSet(const QUuid& setId);
 	void centerScreen();
 	void copySelectedItems();
 	void cutSelectedItems();

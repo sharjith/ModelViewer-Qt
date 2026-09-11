@@ -331,6 +331,18 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _mainLayout->addWidget(_btnWindowZoom);
     connect(_btnWindowZoom, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
 
+    // Lasso Select - freeform-polygon drag selection, stays armed across
+    // multiple drags (toggle) rather than Window Zoom's one-shot gesture.
+    _btnLassoSelect = new QToolButton(this);
+    _btnLassoSelect->setStyleSheet(buttonStyleSheet);
+    _btnLassoSelect->setIcon(QIcon(":/icons/res/lasso_select.png"));
+    _btnLassoSelect->setIconSize(QSize(48, 48));
+    _btnLassoSelect->setToolTip(tr("Lasso Select"));
+    _btnLassoSelect->setCheckable(true);
+    _btnLassoSelect->setAutoRaise(true);
+    _mainLayout->addWidget(_btnLassoSelect);
+    connect(_btnLassoSelect, &QToolButton::toggled, this, [this](bool checked) { emit lassoSelectToggled(checked); });
+
     // Camera Modes
     _toolButtonCameraModes = new FlyOutViewButton(this);
     _toolButtonCameraModes->setIcon(QIcon(":/icons/res/camera_orbit.png"));
@@ -405,6 +417,19 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     _toolButtonCameraUpAxis->setMenu(cameraUpAxisMenu);
     _toolButtonCameraUpAxis->setDefaultAction(_cameraZUpAction);
+
+    // Turntable - orthogonal to Camera Modes above (auto-spins the camera
+    // while in whatever mode is active), so it's its own toggle rather than
+    // a 4th entry in camModeMenu.
+    _btnTurntable = new QToolButton(this);
+    _btnTurntable->setStyleSheet(buttonStyleSheet);
+    _btnTurntable->setIcon(QIcon(":/icons/res/camera_orbit_anim.png"));
+    _btnTurntable->setIconSize(QSize(48, 48));
+    _btnTurntable->setToolTip(tr("Turntable"));
+    _btnTurntable->setCheckable(true);
+    _btnTurntable->setAutoRaise(true);
+    _mainLayout->addWidget(_btnTurntable);
+    connect(_btnTurntable, &QToolButton::toggled, this, [this](bool checked) { emit turntableToggled(checked); });
 
     // Standard Views
     _toolButtonViews = new FlyOutViewButton(this);
@@ -1120,6 +1145,20 @@ void ViewToolbar::setSwapVisibleChecked(bool checked)
 	bool oldState = _swapBtn->blockSignals(true);
 	_swapBtn->setChecked(checked);
 	_swapBtn->blockSignals(oldState);
+}
+
+void ViewToolbar::setTurntableChecked(bool checked)
+{
+	bool oldState = _btnTurntable->blockSignals(true);
+	_btnTurntable->setChecked(checked);
+	_btnTurntable->blockSignals(oldState);
+}
+
+void ViewToolbar::setLassoSelectChecked(bool checked)
+{
+	bool oldState = _btnLassoSelect->blockSignals(true);
+	_btnLassoSelect->setChecked(checked);
+	_btnLassoSelect->blockSignals(oldState);
 }
 
 void ViewToolbar::setSectionViewChecked(bool checked)

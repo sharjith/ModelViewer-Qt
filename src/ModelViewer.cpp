@@ -48,6 +48,12 @@
 #include "TransformCommand.h"
 #include "RenderableMesh.h"
 #include "VisibilityCommand.h"
+#include "MaterialGrouping.h"
+#include "MeshColorUtils.h"
+#include "FilterByMaterialDialog.h"
+#include "FilterByColorDialog.h"
+#include "SaveSelectionSetCommand.h"
+#include "DeleteSelectionSetCommand.h"
 #include <assimp/Importer.hpp>
 #include <algorithm>
 #include <functional>
@@ -276,6 +282,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(_viewportWidget, &ViewportWidget::singleSelectionDone, this, &ModelViewer::setListRow);
 	connect(_viewportWidget, &ViewportWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
+	connect(_viewportWidget, &ViewportWidget::eyedropperMaterialSampled, this, &ModelViewer::onEyedropperMaterialSampled);
+	connect(_viewportWidget, &ViewportWidget::eyedropperStrokeFinished, this, &ModelViewer::applyEyedropperStroke);
 	connect(_viewportWidget, &ViewportWidget::zoomAndPanSet, this, [this]() {
 		if (_treeRebuildPending)
 			rebuildTreeFromCurrentState();
@@ -3098,45 +3106,9 @@ namespace
 		return false;
 	}
 
-	// Groups `indices` (into `meshes`) by the same (sourceFile, originalMaterialIndex,
-	// primitiveMode) identity combineSelectedMeshes()/mergeSelectedMeshesByAdjacency()'s own
-	// compatibility check already use - originalMaterialIndex < 0 (untracked) never matches
-	// anything else, including another untracked mesh, same conservative default those already
-	// apply (a mesh with no reliable match becomes its own singleton group rather than being
-	// silently lumped in with other untracked meshes). Groups are returned in first-seen order -
-	// deterministic result naming/placement for the "Keep Materials Separate" choice.
-	std::vector<std::vector<int>> groupIndicesByMaterial(const QVector<SceneMesh*>& meshes,
-	                                                       const std::vector<int>& indices)
-	{
-		std::vector<std::vector<int>> groups;
-		QHash<QString, int> groupIndexByKey; // composite key -> index into groups
-
-		for (int idx : indices)
-		{
-			SceneMesh* mesh = meshes[idx];
-			const int materialIndex = mesh->getOriginalMaterialIndex();
-			if (materialIndex < 0)
-			{
-				groups.push_back({ idx });
-				continue;
-			}
-
-			const QString key = mesh->getSourceFile() + QLatin1Char('|') + QString::number(materialIndex)
-				+ QLatin1Char('|') + QString::number(static_cast<int>(mesh->getPrimitiveMode()));
-			const auto it = groupIndexByKey.constFind(key);
-			if (it == groupIndexByKey.cend())
-			{
-				groupIndexByKey.insert(key, static_cast<int>(groups.size()));
-				groups.push_back({ idx });
-			}
-			else
-			{
-				groups[it.value()].push_back(idx);
-			}
-		}
-
-		return groups;
-	}
+	// groupIndicesByMaterial() used to live here - promoted to include/MaterialGrouping.h +
+	// src/MaterialGrouping.cpp so Filter by Material and the material eyedropper can call it
+	// too, not just this file's merge/union paths.
 }
 
 void ModelViewer::mergeSelectedMeshesByAdjacency()
@@ -4007,6 +3979,142 @@ void ModelViewer::showOnlySelectedItems()
 		_viewportWidget->swapVisible(false);
 }
 
+void ModelViewer::filterSelectionByMaterial()
+{
+	if (_viewportWidget->getMeshStore().empty())
+		return;
+
+	// Non-modal, per-document singleton - same findChild-reuse-or-create
+	// pattern as ModelViewer::openShrinkWrapDialog(). The dialog live-
+	// previews the selection as its material choice changes and applies
+	// Show Only/Hide directly, so there's nothing to read back here.
+	auto* dialog = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new FilterByMaterialDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::filterSelectionByColor()
+{
+	std::vector<SceneMesh*> meshStore = _viewportWidget->getMeshStore();
+	if (meshStore.empty())
+		return;
+
+	auto* dialog = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		// Pre-fill the target swatch from the first currently-selected mesh,
+		// if any - covers "sample from a mesh" without a separate live
+		// viewport-pick interaction (select the mesh first, then open this).
+		// Only done for a fresh dialog - reopening an already-open one keeps
+		// whatever target color the user already set.
+		QVector3D initialColor(1.0f, 1.0f, 1.0f);
+		const std::vector<int> currentSelection = getSelectedIDs();
+		if (!currentSelection.empty() && currentSelection.front() >= 0
+			&& currentSelection.front() < static_cast<int>(meshStore.size()))
+		{
+			initialColor = meshRepresentativeColor(meshStore[currentSelection.front()]);
+		}
+
+		dialog = new FilterByColorDialog(this, initialColor, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::saveCurrentSelectionAsSet(const QString& name)
+{
+	if (!_sceneGraph || name.trimmed().isEmpty())
+		return;
+
+	std::vector<int> selectedIds = getSelectedIDs();
+	if (selectedIds.empty())
+		return;
+
+	QSet<QUuid> uuids;
+	for (int id : selectedIds)
+	{
+		QUuid uuid = _viewportWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.insert(uuid);
+	}
+	if (uuids.isEmpty())
+		return;
+
+	SelectionSet set;
+	set.id = QUuid::createUuid();
+	set.name = name.trimmed();
+	set.meshUuids = uuids;
+
+	_undoStack->push(new SaveSelectionSetCommand(this, _viewportWidget, set));
+}
+
+void ModelViewer::recallSelectionSet(const QUuid& setId)
+{
+	if (!_sceneGraph)
+		return;
+
+	const int index = _sceneGraph->selectionSetIndexById(setId);
+	if (index < 0)
+		return;
+
+	const SelectionSet& set = _sceneGraph->selectionSets().at(index);
+
+	QSet<int> ids;
+	QSet<QUuid> resolvedUuids;
+	for (const QUuid& uuid : set.meshUuids)
+	{
+		const int meshIndex = _viewportWidget->getIndexByUuid(uuid);
+		if (meshIndex >= 0)
+		{
+			ids.insert(meshIndex);
+			resolvedUuids.insert(uuid);
+		}
+	}
+	if (ids.isEmpty())
+		return;
+
+	// Reveal any of the set's own members that are currently hidden - a
+	// saved selection is a "jump back to this" bookmark, and leaving a
+	// hidden member hidden would silently fail to select part of the set
+	// with no visual feedback (same "show, not show only" behavior as
+	// showSelectedItems() - never touches visibility of anything OUTSIDE
+	// the set). Both the reveal and the selection change land in one undo
+	// macro so a single Ctrl+Z reverses both together, same convention as
+	// Merge by Adjacency/the material-grouped Union.
+	const QSet<QUuid> currentlyVisible = getVisibleUuids();
+	const bool hasHiddenMembers = !(resolvedUuids - currentlyVisible).isEmpty();
+
+	if (hasHiddenMembers)
+	{
+		_undoStack->beginMacro(tr("Recall Selection Set"));
+		setVisibilityWithUndo(currentlyVisible | resolvedUuids, tr("Show"));
+		setSelectionWithUndo(ids);
+		_undoStack->endMacro();
+	}
+	else
+	{
+		setSelectionWithUndo(ids);
+	}
+}
+
+void ModelViewer::deleteSelectionSet(const QUuid& setId)
+{
+	if (!_sceneGraph)
+		return;
+	if (_sceneGraph->selectionSetIndexById(setId) < 0)
+		return;
+
+	_undoStack->push(new DeleteSelectionSetCommand(this, _viewportWidget, setId));
+}
+
 void ModelViewer::showAllItems()
 {
 	// Show All is one coherent action across every content type - see
@@ -4816,6 +4924,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QJsonObject   viewerState;
 		QVector<Measurement> measurements;
 		QVector<Annotation> annotations;
+		QVector<SelectionSet> selectionSets;
 		bool          ok       = false;
 		bool          badMagic = false;
 	};
@@ -5080,6 +5189,22 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 			if (!a.id.isNull() && a.anchor.isValid())
 				result.annotations.append(a);
+		}
+
+		const QJsonArray selectionSetsArr = session[QStringLiteral("selectionSets")].toArray();
+		result.selectionSets.reserve(selectionSetsArr.size());
+		for (const QJsonValue& setVal : selectionSetsArr)
+		{
+			const QJsonObject setObj = setVal.toObject();
+
+			SelectionSet s;
+			s.id = QUuid(setObj[QStringLiteral("id")].toString());
+			s.name = setObj[QStringLiteral("name")].toString();
+			for (const QJsonValue& uv : setObj[QStringLiteral("meshUuids")].toArray())
+				s.meshUuids.insert(QUuid(uv.toString()));
+
+			if (!s.id.isNull())
+				result.selectionSets.append(s);
 		}
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
@@ -5580,6 +5705,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	for (const Annotation& annotation : result.annotations)
 		_sceneGraph->addAnnotation(annotation);
 
+	// Same non-undoable reasoning as the measurements loop above.
+	for (const SelectionSet& set : result.selectionSets)
+		_sceneGraph->addSelectionSet(set);
+
 	for (SceneNode* fileNode : _sceneGraph->root()->children)
 	{
 		if (fileNode && fileNode->isSynthetic && !fileNode->sourceFile.isEmpty())
@@ -5920,6 +6049,28 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			annotationsJson.append(annotationObj);
 		}
 		package.document.mvfSession.insert(QStringLiteral("annotations"), annotationsJson);
+	}
+
+	// ---- Named Selection Sets ----
+	// Document-level (see SelectionSetData.h), same MVF-session-only v1
+	// scope as Measurements/Annotations above - a selection set has no
+	// glTF-native concept either.
+	if (_sceneGraph && !_sceneGraph->selectionSets().isEmpty())
+	{
+		QJsonArray setsJson;
+		for (const SelectionSet& s : _sceneGraph->selectionSets())
+		{
+			QJsonArray uuidsArr;
+			for (const QUuid& u : s.meshUuids)
+				uuidsArr.append(u.toString(QUuid::WithoutBraces));
+
+			QJsonObject setObj;
+			setObj.insert(QStringLiteral("id"), s.id.toString(QUuid::WithoutBraces));
+			setObj.insert(QStringLiteral("name"), s.name);
+			setObj.insert(QStringLiteral("meshUuids"), uuidsArr);
+			setsJson.append(setObj);
+		}
+		package.document.mvfSession.insert(QStringLiteral("selectionSets"), setsJson);
 	}
 
 	// Note: user-captured views ("Capture View" in the Cameras tab) need no
@@ -6282,6 +6433,34 @@ void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& mater
 	QApplication::restoreOverrideCursor();
 }
 
+void ModelViewer::setEyedropperArmed(bool armed)
+{
+	_viewportWidget->setEyedropperArmed(armed);
+}
+
+void ModelViewer::onEyedropperMaterialSampled(const Material& material, const QString& sourceMeshName)
+{
+	// Unlike editMeshMaterial()'s createUnsavedMaterialFromMesh() flow, this
+	// is deliberately volatile/in-memory only - no "Mesh Materials" tree
+	// entry, no unsaved-material bookkeeping. The eyedropper is a quick
+	// sample-and-apply gesture, not an invitation to start editing/saving a
+	// library entry.
+	predefinedMaterialsPanel->bindEyedropperSample(material, sourceMeshName);
+	showPredefinedMaterialsPage();
+}
+
+void ModelViewer::applyEyedropperStroke(const QVector<QUuid>& targetUuids, const Material& material)
+{
+	if (targetUuids.isEmpty())
+		return;
+
+	// ApplyMaterialCommand already batch-applies a QVector<QUuid> in one
+	// command, so this gives one undo entry per brush stroke with no new
+	// command class needed - same as applyMeshMaterial() above.
+	_undoStack->push(new ApplyMaterialCommand(
+		this, _viewportWidget, targetUuids, material, material.name(), tr("Apply Material (Eyedropper)")));
+}
+
 void ModelViewer::onTexturesApplied(const Material* mat)
 {
 	Q_UNUSED(mat);
@@ -6366,12 +6545,12 @@ void ModelViewer::redo()
 		_undoStack->redo();
 }
 
-void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
+void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection, const void* mergeSource)
 {
 	// Create and push the undo command.
 	// Note: push() automatically calls redo() on the command.
 	const QString label = newSelection.isEmpty() ? tr("Deselect") : tr("Select");
-	_undoStack->push(new SelectionCommand(this, _viewportWidget, newSelection, label));
+	_undoStack->push(new SelectionCommand(this, _viewportWidget, newSelection, label, mergeSource));
 }
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)

@@ -78,6 +78,15 @@
     <addaction name="separator"/>
     <addaction name="actionSettings"/>
    </widget>
+   <widget class="QMenu" name="menuSelection">
+    <property name="title">
+     <string>Selection</string>
+    </property>
+    <addaction name="actionFilterByMaterial"/>
+    <addaction name="actionFilterByColor"/>
+    <addaction name="separator"/>
+    <addaction name="actionSaveSelectionSet"/>
+   </widget>
    <widget class="QMenu" name="menuTools">
     <property name="title">
      <string>Tools</string>
@@ -103,6 +112,7 @@
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuSelection"/>
    <addaction name="menuTools"/>
    <addaction name="menuVisualization"/>
    <addaction name="menuWindows"/>
@@ -368,6 +378,36 @@
    </property>
    <property name="statusTip">
     <string>Open the measurement tool - point, distance, and arc-radius tools</string>
+   </property>
+  </action>
+  <action name="actionFilterByMaterial">
+   <property name="text">
+    <string>Filter by Material...</string>
+   </property>
+   <property name="statusTip">
+    <string>Select every mesh in the scene that uses a chosen material</string>
+   </property>
+   <property name="toolTip">
+    <string>Select every mesh in the scene that uses a chosen material (import a model first)</string>
+   </property>
+  </action>
+  <action name="actionFilterByColor">
+   <property name="text">
+    <string>Filter by Color...</string>
+   </property>
+   <property name="statusTip">
+    <string>Select every mesh in the scene whose color matches a chosen target, within a tolerance</string>
+   </property>
+   <property name="toolTip">
+    <string>Select every mesh in the scene whose color matches a chosen target (import a model first)</string>
+   </property>
+  </action>
+  <action name="actionSaveSelectionSet">
+   <property name="text">
+    <string>Save Selection Set...</string>
+   </property>
+   <property name="statusTip">
+    <string>Save the current selection under a name, for quick recall later</string>
    </property>
   </action>
   <action name="actionAnnotate">

@@ -7,6 +7,8 @@
 #include <QFileDialog>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QInputDialog>
+#include <QLineEdit>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -56,6 +58,7 @@
 #include "MaterialVariantsPanel.h"
 #include "AnimationsPanel.h"
 #include "CamerasPanel.h"
+#include "SelectionSetsPanel.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -187,6 +190,9 @@ MainWindow::MainWindow(QWidget* parent)
 
 		_camerasPanel = new CamerasPanel();
 		_documentTabWidget->addTab(_camerasPanel, QIcon(":/icons/res/camera.png"), tr("Cameras"));
+
+		_selectionSetsPanel = new SelectionSetsPanel();
+		_documentTabWidget->addTab(_selectionSetsPanel, QIcon(":/icons/res/select.png"), tr("Selections"));
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras
@@ -352,6 +358,27 @@ MainWindow::MainWindow(QWidget* parent)
 			if (ModelViewer* child = activeMdiChild())
 				child->onTextureCacheCleared();
 		});
+		connect(_materialPropertiesPanel, &MaterialPropertiesPanel::eyedropperArmed, this, [this](bool armed) {
+			if (ModelViewer* child = activeMdiChild())
+				child->setEyedropperArmed(armed);
+		});
+
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetSaveRequested, this, [this](const QString& name) {
+			if (ModelViewer* child = activeMdiChild())
+				child->saveCurrentSelectionAsSet(name);
+		});
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetRecallRequested, this, [this](const QUuid& setId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->recallSelectionSet(setId);
+		});
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetDeleteRequested, this, [this](const QUuid& setId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->deleteSelectionSet(setId);
+		});
+		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetDeselectRequested, this, [this]() {
+			if (ModelViewer* child = activeMdiChild())
+				child->deselectAllWithUndo();
+		});
 
 		// Mirrors the old on_tabWidgetVizAttribs_currentChanged: the
 		// Transformations sub-tab shows the viewport's transform gizmo for
@@ -460,7 +487,7 @@ MainWindow::MainWindow(QWidget* parent)
 		viewMenu->addAction(documentDock->toggleViewAction());
 		viewMenu->addAction(_propertiesDock->toggleViewAction());
 		viewMenu->addAction(_environmentDock->toggleViewAction());
-		menuBar()->insertMenu(ui->menuTools->menuAction(), viewMenu);
+		menuBar()->insertMenu(ui->menuWindows->menuAction(), viewMenu);
 	}
 
 	QMenu* fileMenu = ui->menuFile;
@@ -649,6 +676,31 @@ MainWindow::MainWindow(QWidget* parent)
 	connect(ui->actionMeasure, &QAction::triggered, this, [this]() {
 		if (activeMdiChild())
 			activeMdiChild()->openMeasurementDialog();
+		});
+
+	// Selection -> Filter by Material.../Filter by Color... - modal, one-shot
+	// dialogs (same reasoning as actionExportReport below: no persistent tool
+	// state to keep in sync with the viewport, so no findChild-reuse needed).
+	connect(ui->actionFilterByMaterial, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->filterSelectionByMaterial();
+		});
+	connect(ui->actionFilterByColor, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->filterSelectionByColor();
+		});
+	// Selection -> Save Selection Set... - a quick way to save without
+	// opening the Selections panel first; same name-prompt shape as that
+	// panel's own Save button.
+	connect(ui->actionSaveSelectionSet, &QAction::triggered, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		bool ok = false;
+		const QString name = QInputDialog::getText(this, tr("Save Selection Set"),
+			tr("Name for this selection:"), QLineEdit::Normal, QString(), &ok);
+		if (ok && !name.trimmed().isEmpty())
+			child->saveCurrentSelectionAsSet(name.trimmed());
 		});
 
 	// Tools → Annotate... - opens the non-modal Annotation dialog. Same
@@ -917,15 +969,25 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_animationsPanel->setViewportWidget(nullptr);
 		_camerasPanel->setSceneGraph(nullptr);
 		_camerasPanel->setViewportWidget(nullptr);
+		_selectionSetsPanel->setSceneGraph(nullptr);
 
 		_materialVariantsPanel->refresh();
 		_animationsPanel->refresh();
 		_camerasPanel->refresh();
+		_selectionSetsPanel->refresh();
 
 		disconnect(_variantDataChangedConnection);
 		disconnect(_animationDataChangedConnection);
 		disconnect(_gltfCameraDataChangedConnection);
 		disconnect(_animationStateChangedConnection);
+		disconnect(_selectionSetsChangedConnection);
+		disconnect(_selectionSetsSyncConnection);
+		_selectionSetsPanel->syncActiveSet({});
+		disconnect(_hasMeshesSyncConnection);
+		ui->actionFilterByMaterial->setEnabled(false);
+		ui->actionFilterByColor->setEnabled(false);
+		disconnect(_materialPropertiesEyedropperConnection);
+		_materialPropertiesPanel->setEyedropperChecked(false);
 
 		_materialPropertiesPanel->setEnabled(false);
 		_objectTransformPanel->setEnabled(false);
@@ -933,6 +995,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_materialVariantsPanel->setEnabled(false);
 		_animationsPanel->setEnabled(false);
 		_camerasPanel->setEnabled(false);
+		_selectionSetsPanel->setEnabled(false);
 		_checkBoxAutoFitView->setEnabled(false);
 		_checkBoxSelectionHighlight->setEnabled(false);
 		return;
@@ -946,6 +1009,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_materialVariantsPanel->setEnabled(true);
 	_animationsPanel->setEnabled(true);
 	_camerasPanel->setEnabled(true);
+	_selectionSetsPanel->setEnabled(true);
 	_checkBoxAutoFitView->setEnabled(true);
 	_checkBoxSelectionHighlight->setEnabled(true);
 
@@ -986,6 +1050,29 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_materialPreviewRenderingModeConnection = connect(viewport, QOverload<int>::of(&ViewportWidget::renderingModeChanged),
 		this, [previewWidget](int) { previewWidget->update(); });
 
+	// Reflect the newly-bound document's own current eyedropper state (not
+	// whichever document was active before), then keep it live for as long
+	// as this document stays active - same "reflect current state, then
+	// reconnect" shape as the two connections above.
+	_materialPropertiesPanel->setEyedropperChecked(viewport->eyedropperArmed());
+	disconnect(_materialPropertiesEyedropperConnection);
+	_materialPropertiesEyedropperConnection = connect(viewport, &ViewportWidget::eyedropperArmedChanged,
+		_materialPropertiesPanel, &MaterialPropertiesPanel::setEyedropperChecked);
+
+	// Same "reflect current state, then reconnect" shape as the eyedropper
+	// sync above - keeps actionSaveSelectionSet enabled/disabled and the
+	// Selections panel's active-row highlight live as this document's own
+	// selection changes (not just at document-lifecycle points, where
+	// updateMenus()/refresh() alone would leave them stale mid-session).
+	ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
+	_selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+	disconnect(_selectionSetsSyncConnection);
+	_selectionSetsSyncConnection = connect(viewport, &ViewportWidget::selectionChanged, this,
+		[this, viewer](const QList<int>&) {
+			ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
+			_selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+		});
+
 	// Unconditional, not just on switching TO the Transformations tab - if
 	// the user was already looking at that tab when a different document
 	// activated, only the tab-changed handler would have caught it, leaving
@@ -1003,9 +1090,11 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_animationsPanel->setViewportWidget(viewport);
 	_camerasPanel->setSceneGraph(sceneGraph);
 	_camerasPanel->setViewportWidget(viewport);
+	_selectionSetsPanel->setSceneGraph(sceneGraph);
 	_materialVariantsPanel->refresh();
 	_animationsPanel->refresh();
 	_camerasPanel->refresh();
+	_selectionSetsPanel->refresh();
 
 	// Per-document sources (this document's SceneGraph/ViewportWidget, not
 	// the shared panels) - disconnect from whichever document was
@@ -1016,8 +1105,11 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	disconnect(_gltfCameraDataChangedConnection);
 	disconnect(_structureChangedForVariantsConnection);
 	disconnect(_animationStateChangedConnection);
+	disconnect(_selectionSetsChangedConnection);
 	if (sceneGraph)
 	{
+		_selectionSetsChangedConnection = connect(sceneGraph, &SceneGraph::selectionSetsChanged, this,
+			[this]() { _selectionSetsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
 		_variantDataChangedConnection = connect(sceneGraph, &SceneGraph::variantDataChanged, this,
 			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
 		// The Variants tab now lists every loaded file (not just ones that
@@ -1034,6 +1126,19 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		// capturedViewsSourceFileKey() bucket, not a separate concept.
 		_gltfCameraDataChangedConnection = connect(sceneGraph, &SceneGraph::gltfCameraDataChanged, this,
 			[this]() { _camerasPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+
+		// Reflect the newly-bound document's own current mesh-count state
+		// (not whichever document was active before), then keep it live -
+		// same "reflect current state, then reconnect" shape as the
+		// eyedropper/selection-set-sync connections above.
+		disconnect(_hasMeshesSyncConnection);
+		auto refreshFilterActionsEnabled = [this, viewport]() {
+			const bool hasMeshes = !viewport->getMeshStore().empty();
+			ui->actionFilterByMaterial->setEnabled(hasMeshes);
+			ui->actionFilterByColor->setEnabled(hasMeshes);
+		};
+		refreshFilterActionsEnabled();
+		_hasMeshesSyncConnection = connect(sceneGraph, &SceneGraph::structureChanged, this, refreshFilterActionsEnabled);
 	}
 	_animationStateChangedConnection = connect(viewport, &ViewportWidget::animationStateChanged,
 		_animationsPanel, &AnimationsPanel::refresh);
@@ -2112,6 +2217,21 @@ void MainWindow::updateMenus()
 	// its separator) stay gated behind the Settings debug flag.
 	ui->actionRayTracing->setEnabled(hasMdiChild);
 	ui->actionMeasure->setEnabled(hasMdiChild);
+	// Also requires at least one mesh loaded (short-circuits before
+	// dereferencing activeMdiChild() when hasMdiChild is false) - both
+	// dialogs have nothing to list/filter against an empty scene. Re-
+	// evaluated live on every import/delete too (see the per-SceneGraph
+	// structureChanged connect in rebindSharedPanelsTo()), not just at
+	// these document-lifecycle points.
+	const bool hasMeshesForFilters = hasMdiChild && !activeMdiChild()->getViewportWidget()->getMeshStore().empty();
+	ui->actionFilterByMaterial->setEnabled(hasMeshesForFilters);
+	ui->actionFilterByColor->setEnabled(hasMeshesForFilters);
+	// Also requires an active selection (short-circuits before dereferencing
+	// activeMdiChild() when hasMdiChild is false) - saving an empty
+	// selection set is meaningless, and this is re-evaluated live on every
+	// selection change too (see the per-viewport selectionChanged connect
+	// in rebindSharedPanelsTo(), not just at these document-lifecycle points).
+	ui->actionSaveSelectionSet->setEnabled(hasMdiChild && activeMdiChild()->hasSelection());
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
 	ui->actionShrinkWrap->setEnabled(hasMdiChild);

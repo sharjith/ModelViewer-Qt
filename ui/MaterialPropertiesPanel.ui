@@ -400,10 +400,10 @@
       <item>
        <widget class="QToolButton" name="eyeDropper">
         <property name="toolTip">
-         <string>Create new material</string>
+         <string>Sample a mesh's material, then click or drag across other meshes to apply it</string>
         </property>
         <property name="text">
-         <string>New</string>
+         <string>Eyedropper</string>
         </property>
         <property name="icon">
          <iconset resource="../ModelViewer.qrc">
@@ -414,6 +414,9 @@
           <width>36</width>
           <height>36</height>
          </size>
+        </property>
+        <property name="checkable">
+         <bool>true</bool>
         </property>
        </widget>
       </item>

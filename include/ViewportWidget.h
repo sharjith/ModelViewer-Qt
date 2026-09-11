@@ -18,6 +18,8 @@
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
 #include "Camera.h"
+#include "Material.h"
+#include "MeshSurfaceAnchor.h"
 #include "MeasurementData.h"
 #include "MeasurementController.h"
 #include "AnnotationController.h"
@@ -43,6 +45,8 @@
 #include <QOpenGLWidget>
 #include <QPointer>
 #include <QRubberBand>
+#include <QPolygon>
+#include "LassoOverlayWidget.h"
 #include <QSet>
 #include <QString>
 #include <array>
@@ -374,6 +378,33 @@ public:
 	// Clears the mark list AND disarms the tool - the full "session end"
 	// teardown UVGenerationDialog::closeEvent()/reject() call.
 	void clearSeamMarks();
+
+	// ---- Lasso selection ----------------------------------------------------
+	// Freeform-polygon drag selection, armed via ViewToolbar's toggle button.
+	// Mutually exclusive with Measure/Annotate/Mark-Seams above (same
+	// cross-clearing shape those three already use with each other) - stays
+	// armed across multiple drags until toggled off again, unlike Window
+	// Zoom's one-shot gesture.
+	void setLassoToolArmed(bool armed);
+	bool lassoToolArmed() const { return _lassoToolArmed; }
+
+	// ---- Material eyedropper/brush ------------------------------------------
+	// Two-phase tool armed from MaterialPropertiesPanel's eyeDropper button:
+	// AwaitingSample (next click samples a source mesh's material) then
+	// Brushing (subsequent clicks/drags apply it to target meshes, whole-mesh
+	// at a time, batched into one undo command per stroke - see
+	// eyedropperStrokeFinished()). One pick, one stroke (which can still
+	// cover many meshes via a single continuous drag), then auto-disarms
+	// back to Idle - staying armed past a completed stroke used to silently
+	// swallow every following click as another brush action instead of
+	// falling through to normal selection (looked like a selection
+	// regression from the outside - see mouseReleaseEvent()'s
+	// setEyedropperArmed(false) call right after eyedropperStrokeFinished).
+	// Mutually exclusive with Measure/Annotate/Mark-Seams/Lasso above, same
+	// cross-clearing shape.
+	enum class EyedropperPhase { Idle, AwaitingSample, Brushing };
+	void setEyedropperArmed(bool armed);
+	bool eyedropperArmed() const { return _eyedropperPhase != EyedropperPhase::Idle; }
 
 	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
 	// Thin forwards to _fillHolesController - see FillHolesController.h. No tool-armed state
@@ -1087,6 +1118,27 @@ signals:
 	// reasoning as annotationToolArmedChanged() above, so UVGenerationDialog's
 	// arm button can stay in sync (e.g. Escape disarming it).
 	void seamToolArmedChanged(bool armed);
+	// Emitted whenever the armed Lasso tool state changes - including from
+	// this widget's own mutual-exclusion clearing (another tool got armed)
+	// - so ViewToolbar's toggle button (via setLassoToolChecked()) can stay
+	// in sync without being the ONLY thing that ever arms/disarms it.
+	void lassoToolArmedChanged(bool armed);
+	// Emitted the instant the eyedropper's sample click hits a mesh (phase
+	// transitions AwaitingSample -> Brushing) - ModelViewer binds `material`
+	// into MaterialPropertiesPanel, mirroring editMeshMaterial()'s existing
+	// createUnsavedMaterialFromMesh() flow, so the panel reflects what was
+	// actually sampled.
+	void eyedropperMaterialSampled(const Material& material, const QString& sourceMeshName);
+	// Emitted on mouse release ending one brush stroke, only if it actually
+	// touched at least one target mesh - ModelViewer pushes a single
+	// ApplyMaterialCommand covering the whole stroke (one undo entry per
+	// gesture, same convention as every other multi-mesh operation in this
+	// app).
+	void eyedropperStrokeFinished(const QVector<QUuid>& targetUuids, const Material& material);
+	// Emitted whenever the armed eyedropper state changes - including this
+	// widget's own mutual-exclusion clearing - so MaterialPropertiesPanel's
+	// eyeDropper button (via setEyedropperChecked()) stays in sync either way.
+	void eyedropperArmedChanged(bool armed);
 	// Fires whenever the seam-mark list changes (add/remove/clear) - lets
 	// UVGenerationDialog's mark-list widget refresh without polling.
 	void seamMarksChanged();
@@ -1097,6 +1149,11 @@ signals:
 	// Emitted by requestTextureReadback() once the GL readback is complete.
 	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
 	void cameraUpAxisChanged(bool zUp);
+	// Emitted whenever turntable actually starts or stops - including when
+	// stopAnimations() stops it on manual camera interaction, not just when
+	// setTurntableEnabled() is called directly - so ViewToolbar's toggle
+	// button can stay in sync (via setTurntableChecked()) either way.
+	void turntableStateChanged(bool enabled);
 
 public slots:
 	void animateViewChange();
@@ -1104,6 +1161,9 @@ public slots:
 	void animateWindowZoom();
 	void animateCenterScreen();
 	void onInertiaTimer();
+	void onTurntableTimer();
+	void setTurntableEnabled(bool enabled);
+	bool turntableEnabled() const { return _turntableTimer && _turntableTimer->isActive(); }
 	void stopAnimations();
 	void checkAndStopTimers();
 	void fitAll();
@@ -1502,6 +1562,7 @@ private:
 	bool positionGameplayCameraForScene(Camera::CameraMode mode);
 
 	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
+	QList<int> lassoSelect(bool addToSelection = false);  // Freeform selection using _lassoPoints, same shape as sweepSelect() above
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
 	unsigned int loadTextureFromFile(const char* path,
 		GLenum wrapS = GL_REPEAT, GLenum wrapT = GL_REPEAT,
@@ -1616,6 +1677,62 @@ private:
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
 	QTimer* _inertiaTimer        = nullptr;
+
+	// Lasso selection state. _lassoPoints accumulates screen-space points
+	// across mouseMoveEvent()s during one drag (member, not local, since it
+	// must persist between event calls) - cleared at the start of each new
+	// drag and drawn as a live overlay polyline while _lassoDragging.
+	bool _lassoToolArmed = false;
+	bool _lassoDragging = false;
+	QPolygon _lassoPoints;
+	LassoOverlayWidget* _lassoOverlay = nullptr;
+
+	// Eyedropper state - see the EyedropperPhase enum/setEyedropperArmed()
+	// doc comment above. _eyedropperMaterial is only meaningful once phase
+	// is Brushing; _eyedropperSampleMeshUuid is excluded from its own
+	// stroke's targets so a stroke never no-op-reapplies a mesh's material
+	// to itself; _eyedropperStrokeTargets accumulates across one drag,
+	// flushed (and cleared) on release.
+	EyedropperPhase _eyedropperPhase = EyedropperPhase::Idle;
+	Material _eyedropperMaterial;
+	QUuid _eyedropperSampleMeshUuid;
+	QVector<QUuid> _eyedropperStrokeTargets;
+	// Suppress the normal whole-mesh hover highlight while armed - same
+	// reasoning and save/restore shape as AnnotationController::
+	// setAnnotationToolArmed()/SeamMarkingController::setSeamToolArmed()/
+	// MeasurementController::setMeasurementTool()'s identical blocks (it's
+	// ambiguous while a click means "sample"/"brush" instead of "select").
+	HoverHighlightMode _savedHoverHighlightModeBeforeEyedropper = HoverHighlightMode::RaycastOnly;
+	// True only while a brush stroke is genuinely armed for the CURRENT
+	// press - set at the start of a fresh mousePressEvent that brushes (not
+	// during the sample press's own transition to Brushing), cleared on
+	// release. Without this, the sample press's own trailing mouseMoveEvent
+	// (near-unavoidable mouse jitter during any real click) could brush-and-
+	// apply within the very same gesture that just sampled - confirmed real
+	// bug, fix requires a genuinely new press before painting starts.
+	bool _eyedropperBrushGestureActive = false;
+	void handleEyedropperSampleClick(const QPoint& pixel);
+	void eyedropperBrushAt(const QPoint& pixel);
+	// Restores whichever cursor the eyedropper's CURRENT phase calls for
+	// (or the arrow, if idle) - called after any navigation interaction
+	// (Ctrl-drag rotate, pan, zoom) ends, since those set their own cursor
+	// mid-drag and previously left it stuck instead of handing the cursor
+	// back to the still-armed eyedropper.
+	void restoreEyedropperCursor();
+
+	// Continuous auto-orbit for presentation/demo purposes - same ~60fps tick
+	// shape as _inertiaTimer, but a constant velocity instead of a decaying
+	// one. Mutually exclusive with _inertiaTimer via stopAnimations() (see
+	// setTurntableEnabled()/onTurntableTimer()).
+	QTimer* _turntableTimer = nullptr;
+	float _turntableSpeedDegPerSec = 15.0f; // one full rotation per ~24s
+	// Stops _turntableTimer (and notifies via turntableStateChanged) if it's
+	// active - called from both stopAnimations() and checkAndStopTimers(),
+	// since manual mouse-drag navigation goes through the LATTER (at the
+	// very top of mousePressEvent), not stopAnimations() - stopAnimations()
+	// alone left turntable running through a plain Ctrl-drag rotate/pan/zoom
+	// (confirmed real bug).
+	void stopTurntableIfActive();
 
 	// ---- Ray-traced rendering mode -----------------------------------------
 	// _rtSession/_rtPresenter own the actual background tracing/presentation;

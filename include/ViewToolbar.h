@@ -50,6 +50,8 @@ public:
     void setExplodedViewChecked(bool checked);
     void setCameraUpAxisZUp(bool zUp);
     bool isCameraUpAxisZUp() const;
+    void setTurntableChecked(bool checked); // syncs _btnTurntable when stopped externally (e.g. manual camera interaction)
+    void setLassoSelectChecked(bool checked); // syncs _btnLassoSelect when disarmed externally (e.g. another tool took over)
 
 signals:
     void cameraModeSelected(const QString& type);
@@ -72,6 +74,8 @@ signals:
     void axisDisplayToggled(bool enabled);
     void debugOverlaySelected(const QString& overlayType);
     void debugOverlayToggled(bool enabled);
+    void turntableToggled(bool enabled);
+    void lassoSelectToggled(bool enabled);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -173,6 +177,8 @@ private:
     QToolButton* _explodedBtn;
     QToolButton* _swapBtn;
     QToolButton* _axisBtn;
+    QToolButton* _btnTurntable;
+    QToolButton* _btnLassoSelect;
 
     // Flyout buttons and action maps
     FlyOutViewButton* _toolButtonCameraModes;

@@ -18,11 +18,17 @@ public:
      * @param glWidget The ViewportWidget instance
      * @param newSelection The new selection set (mesh IDs)
      * @param text Description (default: "Select")
+     * @param mergeSource Opaque tag identifying the UI session that produced
+     *        this change (e.g. a live-filter dialog's `this` pointer). Only
+     *        commands sharing the same non-null mergeSource ever merge - see
+     *        mergeWith(). Defaults to null, meaning "never merges," which is
+     *        what every plain click/lasso/sweep selection already wants.
      */
     SelectionCommand(ModelViewer* viewer,
         ViewportWidget* viewportWidget,
         const QSet<int>& newSelection,
-        const QString& text = QObject::tr("Select"));
+        const QString& text = QObject::tr("Select"),
+        const void* mergeSource = nullptr);
 
     void undo() override;
     void redo() override;
@@ -39,14 +45,20 @@ public:
      * @param other The command to potentially merge with
      * @return true if merged, false otherwise
      *
-     * Currently disabled (returns false). Can be enabled to merge
-     * consecutive selection changes into a single undo step.
+     * Only merges when both commands carry the same non-null mergeSource -
+     * a plain click/lasso/sweep selection (mergeSource == nullptr) never
+     * merges with anything, preserving today's one-undo-step-per-click
+     * behavior. A live-filter dialog tags every selection push it makes with
+     * its own `this` pointer so a whole tweak-the-slider session collapses
+     * into one undo step, without affecting selection changes made anywhere
+     * else.
      */
     bool mergeWith(const QUndoCommand* other) override;
 
 private:
     QSet<int> _oldSelection;  // Selection state before command
     QSet<int> _newSelection;  // Selection state after command
+    const void* _mergeSource = nullptr;
 
     /**
      * @brief Apply a selection set

@@ -938,6 +938,58 @@ int SceneGraph::measurementIndexById(const QUuid& id) const
 }
 
 // ---------------------------------------------------------------------------
+// Named selection sets
+// ---------------------------------------------------------------------------
+
+void SceneGraph::addSelectionSet(const SelectionSet& set)
+{
+    _selectionSets.append(set);
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::insertSelectionSetAt(int index, const SelectionSet& set)
+{
+    _selectionSets.insert(qBound(0, index, _selectionSets.size()), set);
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::removeSelectionSetById(const QUuid& id)
+{
+    const int index = selectionSetIndexById(id);
+    if (index < 0)
+        return;
+    _selectionSets.removeAt(index);
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::renameSelectionSet(const QUuid& id, const QString& newName)
+{
+    const int index = selectionSetIndexById(id);
+    if (index < 0 || _selectionSets.at(index).name == newName)
+        return;
+    _selectionSets[index].name = newName;
+    emit selectionSetsChanged();
+}
+
+void SceneGraph::clearSelectionSets()
+{
+    if (_selectionSets.isEmpty())
+        return;
+    _selectionSets.clear();
+    emit selectionSetsChanged();
+}
+
+int SceneGraph::selectionSetIndexById(const QUuid& id) const
+{
+    for (int i = 0; i < _selectionSets.size(); ++i)
+    {
+        if (_selectionSets.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
 // Annotations
 // ---------------------------------------------------------------------------
 

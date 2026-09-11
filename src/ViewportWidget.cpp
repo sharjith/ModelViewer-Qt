@@ -349,6 +349,12 @@ _floorPlane(nullptr),
 		 showAxis(enabled);
 		 });
 
+	 connect(_viewToolbar, &ViewToolbar::turntableToggled, this, &ViewportWidget::setTurntableEnabled);
+	 connect(this, &ViewportWidget::turntableStateChanged, _viewToolbar, &ViewToolbar::setTurntableChecked);
+
+	 connect(_viewToolbar, &ViewToolbar::lassoSelectToggled, this, &ViewportWidget::setLassoToolArmed);
+	 connect(this, &ViewportWidget::lassoToolArmedChanged, _viewToolbar, &ViewToolbar::setLassoSelectChecked);
+
      connect(_viewToolbar, &ViewToolbar::debugOverlaySelected, this, [this](const QString& overlayType) {
          if (overlayType == "BoundingBox")
              setDebugOverlayMode(DebugOverlayMode::BoundingBox);
@@ -492,6 +498,8 @@ _floorPlane(nullptr),
     _rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
     _rubberBand->setStyle(QStyleFactory::create("Fusion"));
 
+    _lassoOverlay = new LassoOverlayWidget(this);
+
 
 	_viewCtrl.clearNavigationModes();
 
@@ -596,6 +604,10 @@ _floorPlane(nullptr),
 	_inertiaTimer = new QTimer(this);
 	_inertiaTimer->setInterval(16); // ~60 FPS
 	connect(_inertiaTimer, &QTimer::timeout, this, &ViewportWidget::onInertiaTimer);
+
+	_turntableTimer = new QTimer(this);
+	_turntableTimer->setInterval(16); // ~60 FPS, same cadence as _inertiaTimer
+	connect(_turntableTimer, &QTimer::timeout, this, &ViewportWidget::onTurntableTimer);
 
 	// Ray-traced mode: idle timer is single-shot, reset on every camera-
 	// affecting event (owned by RtInteractionController - see its
@@ -10561,7 +10573,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 {
 	if (!_measurementController)
 		return;
-	// Mutual exclusivity with the Annotate/Mark-Seams tools - see
+	// Mutual exclusivity with the Annotate/Mark-Seams/Lasso tools - see
 	// AnnotationController.h's doc comment. Only disarm when actually arming a
 	// tool (tool != None) so switching the Measure combo back to "None"
 	// doesn't touch the other tools' state.
@@ -10571,6 +10583,8 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 			_annotationController->setAnnotationToolArmed(false, _selectionManager);
 		if (_seamMarkingController)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+		setEyedropperArmed(false);
 	}
 	_measurementController->setMeasurementTool(tool, _selectionManager);
 }
@@ -10593,7 +10607,7 @@ void ViewportWidget::setAnnotationToolArmed(bool armed)
 {
 	if (!_annotationController)
 		return;
-	// Mutual exclusivity with the Measure/Mark-Seams tools - see
+	// Mutual exclusivity with the Measure/Mark-Seams/Lasso tools - see
 	// setMeasurementTool() above and AnnotationController.h's doc comment.
 	if (armed)
 	{
@@ -10601,6 +10615,8 @@ void ViewportWidget::setAnnotationToolArmed(bool armed)
 			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
 		if (_seamMarkingController)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+		setEyedropperArmed(false);
 	}
 	_annotationController->setAnnotationToolArmed(armed, _selectionManager);
 }
@@ -10609,7 +10625,7 @@ void ViewportWidget::setSeamMarkingToolArmed(bool armed)
 {
 	if (!_seamMarkingController)
 		return;
-	// Mutual exclusivity with the Measure/Annotate tools - see
+	// Mutual exclusivity with the Measure/Annotate/Lasso tools - see
 	// setMeasurementTool()/setAnnotationToolArmed() above.
 	if (armed)
 	{
@@ -10617,8 +10633,138 @@ void ViewportWidget::setSeamMarkingToolArmed(bool armed)
 			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
 		if (_annotationController)
 			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+		setEyedropperArmed(false);
 	}
 	_seamMarkingController->setSeamToolArmed(armed, _selectionManager);
+}
+
+void ViewportWidget::setLassoToolArmed(bool armed)
+{
+	if (_lassoToolArmed == armed)
+		return;
+
+	// Mutual exclusivity with the Measure/Annotate/Mark-Seams/Eyedropper
+	// tools - same cross-clearing shape those already use with each other
+	// above.
+	if (armed)
+	{
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		if (_seamMarkingController)
+			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+		setEyedropperArmed(false);
+	}
+	else
+	{
+		_lassoPoints.clear();
+		_lassoDragging = false;
+		if (_lassoOverlay)
+			_lassoOverlay->hide();
+	}
+
+	_lassoToolArmed = armed;
+	emit lassoToolArmedChanged(armed);
+}
+
+void ViewportWidget::setEyedropperArmed(bool armed)
+{
+	if (armed)
+	{
+		if (_eyedropperPhase != EyedropperPhase::Idle)
+			return; // already armed, no-op
+
+		// Mutual exclusivity with the Measure/Annotate/Mark-Seams/Lasso
+		// tools - same cross-clearing shape those already use with each
+		// other above.
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		if (_seamMarkingController)
+			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+
+		if (_selectionManager)
+		{
+			_savedHoverHighlightModeBeforeEyedropper = _selectionManager->getHoverMode();
+			_selectionManager->setHoverHighlightMode(HoverHighlightMode::Disabled);
+		}
+
+		_eyedropperPhase = EyedropperPhase::AwaitingSample;
+		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+	}
+	else
+	{
+		if (_eyedropperPhase == EyedropperPhase::Idle)
+			return;
+
+		if (_selectionManager)
+			_selectionManager->setHoverHighlightMode(_savedHoverHighlightModeBeforeEyedropper);
+
+		_eyedropperPhase = EyedropperPhase::Idle;
+		_eyedropperStrokeTargets.clear();
+		_eyedropperSampleMeshUuid = QUuid();
+		_eyedropperBrushGestureActive = false;
+		setCursor(QCursor(Qt::ArrowCursor));
+	}
+
+	emit eyedropperArmedChanged(armed);
+}
+
+void ViewportWidget::restoreEyedropperCursor()
+{
+	switch (_eyedropperPhase)
+	{
+	case EyedropperPhase::AwaitingSample:
+		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+		break;
+	case EyedropperPhase::Brushing:
+		setCursor(QCursor(QPixmap(":/icons/res/paint_brush.png"), 4, 28));
+		break;
+	case EyedropperPhase::Idle:
+		setCursor(QCursor(Qt::ArrowCursor));
+		break;
+	}
+}
+
+void ViewportWidget::handleEyedropperSampleClick(const QPoint& pixel)
+{
+	if (!_selectionManager)
+		return;
+
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	if (!anchor.isValid())
+		return; // missed - stay armed in AwaitingSample, let the user try again
+
+	SceneMesh* mesh = getMeshByUuid(anchor.meshUuid);
+	if (!mesh)
+		return;
+
+	_eyedropperMaterial = mesh->getMaterial();
+	_eyedropperSampleMeshUuid = anchor.meshUuid;
+	_eyedropperPhase = EyedropperPhase::Brushing;
+	_eyedropperStrokeTargets.clear();
+	_eyedropperBrushGestureActive = false; // painting starts on the NEXT press, not this one's own trailing motion
+	setCursor(QCursor(QPixmap(":/icons/res/paint_brush.png"), 4, 28));
+
+	emit eyedropperMaterialSampled(_eyedropperMaterial, mesh->getName());
+}
+
+void ViewportWidget::eyedropperBrushAt(const QPoint& pixel)
+{
+	if (!_selectionManager)
+		return;
+
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	if (!anchor.isValid())
+		return;
+	if (anchor.meshUuid == _eyedropperSampleMeshUuid)
+		return; // never re-apply the sampled mesh's own material to itself
+	if (!_eyedropperStrokeTargets.contains(anchor.meshUuid))
+		_eyedropperStrokeTargets.append(anchor.meshUuid);
 }
 
 void ViewportWidget::clearSeamMarks()
@@ -12060,6 +12206,14 @@ void ViewportWidget::cleanupSSSBuffer()
 
 void ViewportWidget::checkAndStopTimers()
 {
+	// Called at the top of every mousePressEvent - the actual entry point
+	// for stopping the turntable on manual navigation (Ctrl-drag rotate,
+	// RMB pan/look, etc. never call stopAnimations()). Previously only
+	// stopAnimations() stopped it, which manual mouse-drag interaction never
+	// reaches - the turntable kept spinning right through a rotate/pan/zoom
+	// drag (confirmed real bug).
+	stopTurntableIfActive();
+
 	if (_animateViewTimer->isActive())
 	{
 		_animateViewTimer->stop();
@@ -12122,6 +12276,10 @@ void ViewportWidget::resizeEvent(QResizeEvent* event)
 	if (_viewToolbar)
 	{
 		_viewToolbar->reposition(width(), height()); // Move completely below widget
+	}
+	if (_lassoOverlay)
+	{
+		_lassoOverlay->setGeometry(rect());
 	}
 	QOpenGLWidget::resizeEvent(event);
 	if (_viewer)
@@ -12205,6 +12363,33 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
 		const QPoint clickPoint(e->position().x(), e->position().y());
+
+		// Eyedropper armed (either phase): same nav-gate as the other armed
+		// tools below - a plain click samples (AwaitingSample) or brushes
+		// (Brushing), consuming the click entirely so it never falls through
+		// to gizmo/view-cube/mesh-selection handling.
+		if (_eyedropperPhase != EyedropperPhase::Idle
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			if (_eyedropperPhase == EyedropperPhase::AwaitingSample)
+			{
+				// Deliberately does NOT arm _eyedropperBrushGestureActive -
+				// if the user's hand moves before releasing this same press
+				// (ordinary mouse jitter during any click), mouseMoveEvent
+				// must NOT treat that trailing motion as a brush stroke.
+				// Painting only starts on a genuinely new press (see the
+				// Brushing branch below and mouseMoveEvent()'s matching gate).
+				handleEyedropperSampleClick(clickPoint);
+			}
+			else
+			{
+				_eyedropperBrushGestureActive = true;
+				eyedropperBrushAt(clickPoint);
+			}
+			return;
+		}
 
 		// While a measurement tool is armed, a plain left click arms a
 		// pending point (committed in mouseReleaseEvent() only if the mouse
@@ -12351,16 +12536,37 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 				PickingHelper::clientRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()));
 		}
 
-		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+		if (!_lassoToolArmed && !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
 			// Selection
 			_selectionManager->clickSelect(clickPoint);
 		}
 
-
-		_rubberBand->setGeometry(QRect(_viewCtrl.leftButtonPoint(), QSize()));
-		_rubberBand->show();
+		// Lasso armed: start accumulating a freeform drag path instead of the
+		// rectangle rubber band below - same nav-gate as the rubber band's own
+		// arming (Ctrl is excluded since it already means something else for
+		// camera nav elsewhere; Shift is NOT excluded, since it's meaningful
+		// here too - additive lasso, same as Shift-drag rectangle select).
+		if (_lassoToolArmed && !(e->modifiers() & Qt::ControlModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			_lassoPoints.clear();
+			_lassoPoints << clickPoint;
+			_lassoDragging = true;
+			if (_lassoOverlay)
+			{
+				_lassoOverlay->setGeometry(rect());
+				_lassoOverlay->setPoints(_lassoPoints);
+				_lassoOverlay->show();
+				_lassoOverlay->raise();
+			}
+		}
+		else
+		{
+			_rubberBand->setGeometry(QRect(_viewCtrl.leftButtonPoint(), QSize()));
+			_rubberBand->show();
+		}
 	}
 
 	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewCtrl.viewPanning()))
@@ -12492,6 +12698,46 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		{
 			performWindowZoom();
 		}
+		else if (_lassoDragging)
+		{
+			// Same shift-at-release-time preference as the rectangle sweep
+			// select below - lets the user decide additive/replace right up
+			// to release, not just at press.
+			bool shiftHeldAtRelease = (e->modifiers() & Qt::ShiftModifier) != 0;
+			lassoSelect(shiftHeldAtRelease);
+			_lassoDragging = false;
+			_lassoPoints.clear();
+			if (_lassoOverlay)
+			{
+				_lassoOverlay->setPoints(_lassoPoints);
+				_lassoOverlay->hide();
+			}
+		}
+		else if (_eyedropperPhase != EyedropperPhase::Idle)
+		{
+			// Covers both sub-cases without falling through to sweep select
+			// below: a bare sample click (AwaitingSample -> Brushing, nothing
+			// accumulated yet - this release is its own, separate no-op, tool
+			// stays armed so the very next click can be the brush target) and
+			// a real brush stroke (Brushing with accumulated targets).
+			_eyedropperBrushGestureActive = false;
+			if (_eyedropperPhase == EyedropperPhase::Brushing && !_eyedropperStrokeTargets.isEmpty())
+			{
+				emit eyedropperStrokeFinished(_eyedropperStrokeTargets, _eyedropperMaterial);
+				_eyedropperStrokeTargets.clear();
+
+				// Auto-disarm once a stroke actually applies - staying armed
+				// here silently swallowed every subsequent click as another
+				// brush action (including re-applying the sampled material)
+				// instead of falling through to normal mesh selection, which
+				// looked like a selection regression from the outside: click
+				// a mesh after finishing a pick+apply and nothing gets
+				// selected. One pick, one apply (a stroke can still cover
+				// many meshes via a single continuous drag), then back to
+				// normal - re-arm via the panel button for another material.
+				setEyedropperArmed(false);
+			}
+		}
 		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
 			// Sweep select: check shift status at release time to determine if we should add to selection
@@ -12529,7 +12775,13 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	_renderCtrl.setLowResEnabled(false);
 	if (!_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 	{
-		setCursor(QCursor(Qt::ArrowCursor));
+		// While the eyedropper is armed, restore ITS OWN cursor rather than
+		// the plain arrow - a Ctrl-drag rotate/pan/zoom sets its own cursor
+		// mid-drag (rotatecursor.png etc.), and simply skipping the reset
+		// here (as before) left that nav cursor stuck even after the drag
+		// ended and control returned to sample/brush mode (confirmed real
+		// bug). When idle, this is exactly the original unconditional reset.
+		restoreEyedropperCursor();
 	}
 
 	// Only start inertia if mouse was moving recently
@@ -12705,7 +12957,20 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
-            _rubberBand->setGeometry(QRect(_viewCtrl.leftButtonPoint(), e->pos()).normalized());
+			if (_lassoDragging)
+			{
+				_lassoPoints << e->pos();
+				if (_lassoOverlay)
+					_lassoOverlay->setPoints(_lassoPoints);
+			}
+			else if (_eyedropperPhase == EyedropperPhase::Brushing && _eyedropperBrushGestureActive)
+			{
+				eyedropperBrushAt(e->pos());
+			}
+			else
+			{
+				_rubberBand->setGeometry(QRect(_viewCtrl.leftButtonPoint(), e->pos()).normalized());
+			}
 		}
 		if (_viewCtrl.windowZoomActive())
 		{
@@ -13065,6 +13330,13 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 void ViewportWidget::wheelEvent(QWheelEvent* e)
 {
+	// Wheel zoom is manual camera interaction just like a mouse-drag - stop
+	// an auto-spinning turntable the same way checkAndStopTimers() does for
+	// mouse presses (confirmed real bug: wheelEvent never called it at all,
+	// so scroll-wheel zooming left the turntable spinning right through it,
+	// and could even restart inertia below while turntable stayed active).
+	stopTurntableIfActive();
+
 	// Stop any ongoing inertia when wheel zooming
 	_viewCtrl.clearInertiaState();
 	if (_inertiaTimer && _inertiaTimer->isActive())
@@ -13254,12 +13526,30 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	// (and shortcut handling around them) wake PT even when the camera never
 	// moved at all.
 	if (!modifierOnlyKey && !blocksNavKeyRegistration && cameraNavKey)
+	{
 		_rtInteractionCtrl->notifyCameraInteracting();
+		// Same reasoning as checkAndStopTimers()/wheelEvent() - a genuine
+		// nav-key press is manual camera interaction and should stop an
+		// auto-spinning turntable (confirmed real bug: keyboard navigation
+		// never called the stop helper at all, so WASD/arrow/orbit-key
+		// navigation left the turntable spinning right through it).
+		stopTurntableIfActive();
+	}
 
 	if (key == Qt::Key_Escape)
 	{
 		_viewCtrl.clearNavigationModes();
 		_viewCtrl.setWindowZoomActive(false);
+		// Disarm explicitly rather than relying on the unconditional
+		// setCursor() below - eyedropper changes the cursor (see
+		// setEyedropperArmed()'s own cursor handling), and leaving it
+		// internally armed while this reset it back to the arrow would
+		// desync the two: arrow cursor showing, but clicks still silently
+		// treated as brush targets instead of selection. Lasso doesn't touch
+		// the cursor, but was left armed (toolbar button still checked) with
+		// no way to cancel via Escape at all before this - disarm it too.
+		setEyedropperArmed(false);
+		setLassoToolArmed(false);
 		setCursor(QCursor(Qt::ArrowCursor));
 		MainWindow::showStatusMessage("");
 
@@ -13595,6 +13885,61 @@ void ViewportWidget::animateCenterScreen()
 	resizeGL(width(), height());
 }
 
+void ViewportWidget::setTurntableEnabled(bool enabled)
+{
+	if (enabled == turntableEnabled())
+		return;
+
+	if (enabled)
+	{
+		// Stop other fly-to animations first (also a no-op on the turntable
+		// timer itself, since it isn't running yet at this point) - same
+		// "clear conflicting animations before starting a new one"
+		// convention every other animated camera action in this widget
+		// already follows via stopAnimations().
+		stopAnimations();
+		// stopAnimations() does NOT touch _inertiaTimer (a separate coasting
+		// mechanism started directly from mouseReleaseEvent, not through
+		// here) - stop it explicitly too, otherwise inertia keeps nudging
+		// the camera on top of the turntable's own steady rotation
+		// (confirmed real bug: toggling turntable on right after a flicked
+		// drag left both timers moving the camera at once).
+		if (_inertiaTimer)
+			_inertiaTimer->stop();
+		_viewCtrl.clearInertiaState();
+		_turntableTimer->start();
+	}
+	else
+	{
+		_turntableTimer->stop();
+	}
+
+	emit turntableStateChanged(enabled);
+}
+
+void ViewportWidget::onTurntableTimer()
+{
+	// Same suppression as inertia - a glTF camera is a read-only authored
+	// view, not something this widget should be spinning.
+	if (isGltfCameraActive())
+	{
+		_turntableTimer->stop();
+		emit turntableStateChanged(false);
+		return;
+	}
+
+	_primaryCamera->rotateY(_turntableSpeedDegPerSec * (16.0f / 1000.0f));
+	_viewCtrl.syncRotationFromCamera(*_primaryCamera);
+
+	// Turntable is genuine continuous camera movement, same as inertia
+	// coasting - the interactive GPU PT renderer needs to know so it keeps
+	// deferring its settle/denoise countdown for as long as this keeps
+	// ticking, exactly like onInertiaTimer() below does.
+	_rtInteractionCtrl->notifyCameraInteracting();
+
+	update();
+}
+
 void ViewportWidget::onInertiaTimer()
 {
 	// Inertia effects are suppressed when a glTF camera is active (read-only view).
@@ -13701,12 +14046,28 @@ void ViewportWidget::onInertiaTimer()
 	update();
 }
 
+void ViewportWidget::stopTurntableIfActive()
+{
+	if (_turntableTimer && _turntableTimer->isActive())
+	{
+		_turntableTimer->stop();
+		emit turntableStateChanged(false);
+	}
+}
+
 void ViewportWidget::stopAnimations()
 {
 	_animateViewTimer->stop();
 	_animateFitAllTimer->stop();
 	_animateWindowZoomTimer->stop();
 	_animateCenterScreenTimer->stop();
+	// Any call here means something else (a jump-to-view, etc.) wants the
+	// camera now - touching the viewport should stop an auto-spinning
+	// turntable, not fight it. NOTE: manual mouse-drag navigation (Ctrl-drag
+	// rotate, RMB pan/look, etc.) does NOT reach this function at all - it
+	// goes through checkAndStopTimers() instead (called at the top of every
+	// mousePressEvent), which stops the turntable separately below.
+	stopTurntableIfActive();
 	_keyboardNavTimer->start();
 	QTimer::singleShot(100, this, &ViewportWidget::disableLowRes);
 	QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
@@ -13992,6 +14353,17 @@ QList<int> ViewportWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 	const QList<int> selectedIds = _selectionManager->sweepSelect(_viewCtrl.leftButtonPoint(), pixel, addToSelection);
 	emit selectionChanged(selectedIds);
 	emit sweepSelectionDone(selectedIds);
+	return selectedIds;
+}
+
+QList<int> ViewportWidget::lassoSelect(bool addToSelection)
+{
+	if (!_selectionManager || _lassoPoints.size() < 3)
+		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
+
+	const QList<int> selectedIds = _selectionManager->lassoSelect(_lassoPoints, addToSelection);
+	emit selectionChanged(selectedIds);
+	emit sweepSelectionDone(selectedIds); // reuse - same "a multi-select gesture just completed" meaning as sweepSelect()'s own emit
 	return selectedIds;
 }
 

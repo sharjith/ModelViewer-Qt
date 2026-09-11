@@ -5,9 +5,11 @@
 SelectionCommand::SelectionCommand(ModelViewer* viewer,
     ViewportWidget* viewportWidget,
     const QSet<int>& newSelection,
-    const QString& text)
+    const QString& text,
+    const void* mergeSource)
     : ModelViewerCommand(viewer, viewportWidget, text)
     , _newSelection(newSelection)
+    , _mergeSource(mergeSource)
 {
     // Capture the current selection state before the change
     std::vector<int> currentIDs = _viewer->getSelectedIDs();
@@ -35,22 +37,29 @@ void SelectionCommand::applySelection(const QSet<int>& selection)
 
 bool SelectionCommand::mergeWith(const QUndoCommand* other)
 {
-    // Merging is currently disabled - each selection is a separate undo step
-    // This gives users fine-grained control over undo/redo
-
-    // To enable merging of consecutive selections, uncomment:
-    /*
+    // Enabled for the Filter by Material/Color dialogs' live preview
+    // (FilterByMaterialDialog/FilterByColorDialog): each criteria tweak
+    // pushes a real SelectionCommand rather than bypassing undo, but
+    // QUndoStack::push() only ever tries to merge against the command
+    // already on top of the stack, so this only ever coalesces an
+    // unbroken run of consecutive selection changes - any other command
+    // pushed in between (e.g. a VisibilityCommand from Show Only/Hide)
+    // breaks the chain and the next selection change starts a fresh
+    // entry. Net effect: an entire live-filtering session collapses into
+    // one undo step back to whatever was selected before it started.
+    //
+    // Gated on _mergeSource (see header) so this ONLY ever fires between
+    // two pushes from the same live-filter dialog instance - a plain
+    // click/lasso/sweep selection always carries mergeSource == nullptr
+    // and never merges with anything, so today's one-undo-step-per-click
+    // behavior elsewhere in the app is unaffected.
     if (other->id() != id())
         return false;
 
     const SelectionCommand* otherCmd = static_cast<const SelectionCommand*>(other);
+    if (!_mergeSource || _mergeSource != otherCmd->_mergeSource)
+        return false;
 
-    // Update the new selection to the latest one
-    // This combines multiple rapid selections into one undo step
     _newSelection = otherCmd->_newSelection;
-
     return true;
-    */
-
-    return false;
 }

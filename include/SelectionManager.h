@@ -7,6 +7,7 @@
 
 #include <QObject>
 #include <QPoint>
+#include <QPolygon>
 #include <QList>
 #include <QMap>
 #include <QVector3D>
@@ -63,6 +64,14 @@ public:
     int clickSelect(const QPoint& pixel);
     int hoverSelect(const QPoint& pixel);
     QList<int> sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection = false);
+
+    // Freeform-polygon counterpart to sweepSelect() above - same per-mesh
+    // screen-space bounding-sphere projection, but tests the projected
+    // center against an arbitrary polygon (Qt::OddEvenFill) instead of a
+    // QRect's containment/overlap - a center-inside test, simpler than an
+    // exact polygon-circle overlap area, consistent with sweepSelect()'s own
+    // pragmatic mesh-granularity approximation.
+    QList<int> lassoSelect(const QPolygon& lassoPath, bool addToSelection = false);
     void select(int id);
     void deselect(int id);
     void syncMeshSelectionVisualState();

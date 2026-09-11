@@ -764,6 +764,55 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
     return _selectedMeshIds;
 }
 
+QList<int> SelectionManager::lassoSelect(const QPolygon& lassoPath, bool addToSelection)
+{
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
+    if (ids.empty())
+        return _selectedMeshIds;
+
+    if (lassoPath.size() < 3)
+        return _selectedMeshIds;
+
+    QList<int> selectedIds = addToSelection ? _selectedMeshIds : QList<int>{};
+
+    const QRect viewport(0, 0, _viewportWidget->width(), _viewportWidget->height());
+    const QMatrix4x4 projMatrix = _viewportWidget->getProjectionMatrix();
+    const QMatrix4x4 viewMatrix = _viewportWidget->getModelViewMatrix();
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    selectedIds.reserve(selectedIds.size() + static_cast<qsizetype>(ids.size()));
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+
+        const BoundingSphere sphere = mesh->getBoundingSphere();
+        const QVector3D center = sphere.getCenter();
+
+        const QVector4D projectedCenter = projMatrix * viewMatrix * QVector4D(center, 1.0f);
+        if (projectedCenter.w() <= 0.0f)
+            continue;
+
+        const QVector3D ndcCenter = projectedCenter.toVector3DAffine();
+        const QPointF screenCenter(
+            (ndcCenter.x() * 0.5f + 0.5f) * viewport.width(),
+            (1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height());
+
+        if (lassoPath.containsPoint(screenCenter.toPoint(), Qt::OddEvenFill))
+        {
+            if (!selectedIds.contains(i))
+                selectedIds.push_back(i);
+        }
+    }
+
+    QApplication::restoreOverrideCursor();
+
+    _selectedMeshIds = selectedIds;
+    return _selectedMeshIds;
+}
+
 void SelectionManager::select(int id)
 {
     try

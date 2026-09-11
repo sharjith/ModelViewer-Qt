@@ -350,6 +350,16 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->newButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onCreateNewMaterial);
 	}
 
+	// Connect Eyedropper button - a checkable toggle, unlike the other
+	// buttons in this row, since it arms/disarms a viewport tool rather than
+	// firing a one-shot action.
+	if (_ui->eyeDropper)
+	{
+		connect(_ui->eyeDropper, &QToolButton::toggled, this, [this](bool checked) {
+			emit eyedropperArmed(checked);
+			});
+	}
+
 	// Connect Save to Library button
 	if (_ui->saveButton)
 	{
@@ -4546,9 +4556,51 @@ void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
 	qDebug() << "Mesh material created and loaded into panel";
 }
 
+void MaterialPropertiesPanel::bindEyedropperSample(const Material& material, const QString& sourceMeshName)
+{
+	Q_UNUSED(sourceMeshName);
+
+	// Clear BEFORE bindMaterial(), not after: bindMaterial() calls
+	// loadTextureImageFiles() near its end, which - whenever the bound
+	// material has at least one texture map path on disk - unconditionally
+	// calls updateUnsavedMaterialInMap() (NOT guarded by _updateInProgress
+	// at all, unlike the scalar/color/combo/checkbox loading earlier in
+	// bindMaterial()'s call chain, which IS fully guarded and so isn't the
+	// culprit despite looking like one at a glance). That write lands in
+	// _materialCacheRef[_currentMaterialKey] - clearing the key first means
+	// updateUnsavedMaterialInMap()'s own empty-key guard no-ops it, instead
+	// of silently overwriting whatever was bound before (e.g. a factory
+	// "Aluminium" preset) with the sampled material's data and marking it
+	// unsaved (confirmed real bug via direct reproduction of the call
+	// chain, not just theoretical).
+	_currentMaterialKey.clear();
+	_currentMaterialGroup.clear();
+
+	// Same panel-owned scratch Material reuse as createUnsavedMaterialFromMesh()'s
+	// own tail (lazily allocated, copied into, never replaced) - deliberately
+	// skips everything else that function does (tree entry, _unsavedMaterialKeys,
+	// _materialCacheRef, registerOwnedUnsavedMaterial): this is a volatile,
+	// in-memory-only preview of what was just sampled, not a real library item.
+	if (!_material) _material = new Material();
+	*_material = material;
+	_material->updateConsistency();
+	bindMaterial(_material);
+
+	updateRefreshButtonState();
+}
+
 void MaterialPropertiesPanel::setEditingMeshUuid(const QUuid& uuid)
 {
 	_editingMeshUuid = uuid;
+}
+
+void MaterialPropertiesPanel::setEyedropperChecked(bool checked)
+{
+	if (!_ui->eyeDropper)
+		return;
+	const bool oldState = _ui->eyeDropper->blockSignals(true);
+	_ui->eyeDropper->setChecked(checked);
+	_ui->eyeDropper->blockSignals(oldState);
 }
 
 void MaterialPropertiesPanel::removeEmptyMeshMaterialsCategory()

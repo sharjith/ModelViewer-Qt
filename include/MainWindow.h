@@ -32,6 +32,7 @@ class VisualizationEnvironmentPanel;
 class MaterialVariantsPanel;
 class AnimationsPanel;
 class CamerasPanel;
+class SelectionSetsPanel;
 
 class MainWindow : public QMainWindow
 {
@@ -44,6 +45,15 @@ public:
 	void retranslateUI();
 
 	QPushButton* cancelTaskButton();
+
+	// True when `viewer` is the currently active document - a narrow public
+	// wrapper around the private _activeDocument tracker (activeMdiChild()
+	// itself stays private), for shared, MainWindow-owned panels like
+	// MaterialPropertiesPanel that need to know "is this specific document's
+	// state the one I should currently be reflecting" without a full
+	// document-switch event (e.g. ModelViewer's own eyedropperArmedChanged
+	// forwarding - see MaterialPropertiesPanel::setEyedropperChecked()).
+	bool isActiveDocument(ModelViewer* viewer) const { return viewer && viewer == _activeDocument; }
 
 	ModelViewer* createMdiChild();
 
@@ -195,6 +205,7 @@ private:
 	MaterialVariantsPanel* _materialVariantsPanel = nullptr;
 	AnimationsPanel* _animationsPanel = nullptr;
 	CamerasPanel* _camerasPanel = nullptr;
+	SelectionSetsPanel* _selectionSetsPanel = nullptr;
 	ModelViewer* _lastBoundModelViewer = nullptr;
 	// Guards rebindSharedPanelsTo(nullptr) against running its teardown body
 	// more than once per "went from having an active document to having
@@ -212,6 +223,12 @@ private:
 	ModelViewer* _activeDocument = nullptr;
 	QMetaObject::Connection _environmentPanelDisplayModeConnection;
 	QMetaObject::Connection _materialPreviewRenderingModeConnection;
+	// Per-ViewportWidget, like the two above - reconnected to whichever
+	// document is newly active on every rebindSharedPanelsTo() so the shared
+	// MaterialPropertiesPanel's eyeDropper button reflects THAT document's
+	// eyedropper state (including external disarms - another tool taking
+	// over, etc.), not whichever document was active before.
+	QMetaObject::Connection _materialPropertiesEyedropperConnection;
 	// These five are per-document sources (a specific SceneGraph/
 	// ViewportWidget/ModelViewer), unlike the panel->viewport forwards
 	// below, which are connected once and dispatch through activeMdiChild()
@@ -221,6 +238,17 @@ private:
 	QMetaObject::Connection _variantDataChangedConnection;
 	QMetaObject::Connection _animationDataChangedConnection;
 	QMetaObject::Connection _gltfCameraDataChangedConnection;
+	QMetaObject::Connection _selectionSetsChangedConnection;
+	// Per-ViewportWidget, like _materialPropertiesEyedropperConnection above -
+	// keeps actionSaveSelectionSet's enabled state and the Selections
+	// panel's active-row highlight live as the active document's own
+	// selection changes, not just at document-lifecycle points.
+	QMetaObject::Connection _selectionSetsSyncConnection;
+	// Per-SceneGraph (structureChanged fires on import/delete-all) - keeps
+	// actionFilterByMaterial/actionFilterByColor enabled only while the
+	// active document actually has meshes loaded, live, not just at
+	// document-lifecycle points.
+	QMetaObject::Connection _hasMeshesSyncConnection;
 	QMetaObject::Connection _structureChangedForVariantsConnection;
 	QMetaObject::Connection _animationStateChangedConnection;
 
