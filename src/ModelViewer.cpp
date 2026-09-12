@@ -3984,6 +3984,15 @@ void ModelViewer::filterSelectionByMaterial()
 	if (_viewportWidget->getMeshStore().empty())
 		return;
 
+	// Mutually exclusive with Filter by Color - both dialogs live-push their
+	// own idea of the "current filter selection" independently, so having
+	// both open at once means whichever one you touch last silently wins,
+	// with no indication the other dialog's criteria are still armed.
+	// Closing it (not just hiding it) goes through its normal closeEvent()/
+	// saveSettings() and self-deletes via WA_DeleteOnClose.
+	if (auto* other = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
 	// Non-modal, per-document singleton - same findChild-reuse-or-create
 	// pattern as ModelViewer::openShrinkWrapDialog(). The dialog live-
 	// previews the selection as its material choice changes and applies
@@ -4004,6 +4013,11 @@ void ModelViewer::filterSelectionByColor()
 	std::vector<SceneMesh*> meshStore = _viewportWidget->getMeshStore();
 	if (meshStore.empty())
 		return;
+
+	// Mutually exclusive with Filter by Material - see the matching comment
+	// in filterSelectionByMaterial() for why.
+	if (auto* other = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
 
 	auto* dialog = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly);
 	if (!dialog)
