@@ -7,6 +7,8 @@
 class QLabel;
 class QPushButton;
 class QToolButton;
+class QCheckBox;
+class QGroupBox;
 class QSlider;
 class QListWidget;
 class QListWidgetItem;
@@ -102,6 +104,10 @@ private slots:
 	void onShowOnlyClicked();
 	void onHideClicked();
 	void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
+	// Right-click on a row - "Copy Hex Color" / "Remove Color" (the latter
+	// duplicates the row's own × button, same convenience FilterByMaterialDialog's
+	// "Edit Material..." adds over its dedicated buttons).
+	void onListContextMenuRequested(const QPoint& pos);
 
 private:
 	// Removes _colors[index] and rebuilds the list - called from each row's
@@ -119,8 +125,17 @@ private:
 	// aggregate/live selection. Called on construction and after every
 	// add/remove/tolerance change (the per-row counts depend on tolerance
 	// too, so a tolerance change needs the same full rebuild, not just
-	// updateMatches()).
+	// updateMatches()). When _sortByMatchCountCheck is checked, _colors
+	// itself is reordered by descending match count first (harmless to the
+	// union-match semantics, which don't care about order) - same "surface
+	// what's actually contributing" motivation as FilterByMaterialDialog's
+	// "Sort by usage".
 	void rebuildColorList();
+
+	// Updates _colorsGroup's title with the color count - "Target Colors
+	// (N)" - mirrors FilterByMaterialDialog's updateGroupBoxTitle(). No
+	// search box here to filter the count against, so always just the total.
+	void updateGroupBoxTitle();
 
 	// Recomputes matches against a FRESH mesh store (the scene may have
 	// changed while this dialog was open/hidden), updates the match count
@@ -143,7 +158,9 @@ private:
 	QVector<QVector3D> _colors;
 	float _tolerance = 0.05f; // Euclidean distance in linear RGB, shared across every listed color
 
+	QGroupBox* _colorsGroup = nullptr;
 	QListWidget* _list = nullptr;
+	QCheckBox* _sortByMatchCountCheck = nullptr;
 	QPushButton* _addButton = nullptr;
 	QToolButton* _pickFromMeshButton = nullptr;
 	QPushButton* _autoDetectButton = nullptr;

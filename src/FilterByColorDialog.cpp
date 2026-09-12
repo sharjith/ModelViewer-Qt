@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QToolButton>
+#include <QCheckBox>
 #include <QSlider>
 #include <QListWidget>
 #include <QAbstractItemView>
@@ -17,6 +18,9 @@
 #include <QColor>
 #include <QIcon>
 #include <QFont>
+#include <QMenu>
+#include <QClipboard>
+#include <QGuiApplication>
 #include <QShowEvent>
 #include <QCloseEvent>
 #include <QEvent>
@@ -28,6 +32,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 namespace
@@ -82,19 +87,30 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
 
-	auto* colorsGroup = new QGroupBox(tr("Target Colors"), this);
-	auto* colorsLayout = new QVBoxLayout(colorsGroup);
+	_colorsGroup = new QGroupBox(tr("Target Colors"), this);
+	auto* colorsLayout = new QVBoxLayout(_colorsGroup);
 
-	_list = new QListWidget(colorsGroup);
+	auto* sortRow = new QHBoxLayout();
+	sortRow->addStretch(1);
+	_sortByMatchCountCheck = new QCheckBox(tr("Sort by matches"), _colorsGroup);
+	_sortByMatchCountCheck->setToolTip(tr("Sort by mesh match count (most matches first) instead of the order added"));
+	sortRow->addWidget(_sortByMatchCountCheck);
+	colorsLayout->addLayout(sortRow);
+
+	_list = new QListWidget(_colorsGroup);
 	_list->setSelectionMode(QAbstractItemView::NoSelection);
 	_list->setFocusPolicy(Qt::NoFocus);
+	// Matches FilterByMaterialDialog's context-menu setup exactly (policy +
+	// signal on the list widget itself, not its viewport - see that class's
+	// fix for why the viewport combination silently never fired).
+	_list->setContextMenuPolicy(Qt::CustomContextMenu);
 	colorsLayout->addWidget(_list);
 
 	auto* addRow = new QHBoxLayout();
-	_addButton = new QPushButton(tr("+ Add Color..."), colorsGroup);
+	_addButton = new QPushButton(tr("+ Add Color..."), _colorsGroup);
 	addRow->addWidget(_addButton, 1);
 
-	_pickFromMeshButton = new QToolButton(colorsGroup);
+	_pickFromMeshButton = new QToolButton(_colorsGroup);
 	_pickFromMeshButton->setIcon(QIcon(QStringLiteral(":/icons/res/eye_dropper.png")));
 	_pickFromMeshButton->setCheckable(true);
 	_pickFromMeshButton->setToolTip(tr("Pick colors from meshes in the viewport.\n"
@@ -109,12 +125,12 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 	addRow->addWidget(_pickFromMeshButton);
 	colorsLayout->addLayout(addRow);
 
-	_autoDetectButton = new QPushButton(tr("Auto-Detect Colors in Scene"), colorsGroup);
+	_autoDetectButton = new QPushButton(tr("Auto-Detect Colors in Scene"), _colorsGroup);
 	_autoDetectButton->setToolTip(tr("Add every distinct color found in the scene.\n"
 	                                  "Then remove the ones you don't want with each row's × button."));
 	colorsLayout->addWidget(_autoDetectButton);
 
-	layout->addWidget(colorsGroup, 1);
+	layout->addWidget(_colorsGroup, 1);
 
 	auto* toleranceGroup = new QGroupBox(tr("Match Tolerance"), this);
 	auto* toleranceRow = new QHBoxLayout(toleranceGroup);
@@ -145,6 +161,8 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 	connect(_pickFromMeshButton, &QToolButton::toggled, this, &FilterByColorDialog::onPickFromMeshToggled);
 	connect(_autoDetectButton, &QPushButton::clicked, this, &FilterByColorDialog::onAutoDetectClicked);
 	connect(_toleranceSlider, &QSlider::valueChanged, this, &FilterByColorDialog::onToleranceChanged);
+	connect(_sortByMatchCountCheck, &QCheckBox::toggled, this, &FilterByColorDialog::rebuildColorList);
+	connect(_list, &QWidget::customContextMenuRequested, this, &FilterByColorDialog::onListContextMenuRequested);
 	connect(_showOnlyButton, &QPushButton::clicked, this, &FilterByColorDialog::onShowOnlyClicked);
 	connect(_hideButton, &QPushButton::clicked, this, &FilterByColorDialog::onHideClicked);
 
@@ -216,12 +234,19 @@ void FilterByColorDialog::loadSettings()
 	const QByteArray geometry = settings.value("filterByColor/geometry", QByteArray()).toByteArray();
 	if (!geometry.isEmpty())
 		restoreGeometry(geometry);
+
+	// Blocked: this runs before rebuildColorList()'s first call in the
+	// constructor, so toggled() firing here would just re-enter a
+	// rebuildColorList() that's about to run anyway right after loadSettings().
+	const QSignalBlocker blocker(_sortByMatchCountCheck);
+	_sortByMatchCountCheck->setChecked(settings.value("filterByColor/sortByMatchCount", false).toBool());
 }
 
 void FilterByColorDialog::saveSettings()
 {
 	QSettings settings;
 	settings.setValue("filterByColor/geometry", saveGeometry());
+	settings.setValue("filterByColor/sortByMatchCount", _sortByMatchCountCheck->isChecked());
 }
 
 void FilterByColorDialog::onAddColorClicked()
@@ -312,6 +337,31 @@ void FilterByColorDialog::rebuildColorList()
 		}
 	}
 
+	// Reorders _colors itself (not just a display copy) - harmless to the
+	// union-match semantics, which don't care about list order, and keeps
+	// the remove buttons' captured-index closures below correct without any
+	// extra indirection.
+	if (_sortByMatchCountCheck->isChecked())
+	{
+		std::vector<int> order(_colors.size());
+		std::iota(order.begin(), order.end(), 0);
+		std::stable_sort(order.begin(), order.end(), [&perColorMatchCount](int a, int b) {
+			return perColorMatchCount[a] > perColorMatchCount[b];
+		});
+
+		QVector<QVector3D> sortedColors;
+		std::vector<int> sortedCounts;
+		sortedColors.reserve(_colors.size());
+		sortedCounts.reserve(_colors.size());
+		for (int idx : order)
+		{
+			sortedColors.push_back(_colors[idx]);
+			sortedCounts.push_back(perColorMatchCount[idx]);
+		}
+		_colors = sortedColors;
+		perColorMatchCount = sortedCounts;
+	}
+
 	_list->clear();
 	for (int i = 0; i < _colors.size(); ++i)
 	{
@@ -322,6 +372,7 @@ void FilterByColorDialog::rebuildColorList()
 		// it on the next clear() (confirmed real bug: adding/removing a
 		// color silently stopped affecting anything after the first one).
 		auto* item = new QListWidgetItem(_list);
+		item->setData(Qt::UserRole, i); // for onListContextMenuRequested()'s itemAt() -> _colors[index] mapping
 
 		auto* rowWidget = new QWidget(_list);
 		auto* rowLayout = new QHBoxLayout(rowWidget);
@@ -356,7 +407,17 @@ void FilterByColorDialog::rebuildColorList()
 		_list->setItemWidget(item, rowWidget);
 	}
 
+	updateGroupBoxTitle();
 	updateMatches();
+}
+
+void FilterByColorDialog::updateGroupBoxTitle()
+{
+	if (!_colorsGroup)
+		return;
+	_colorsGroup->setTitle(_colors.isEmpty()
+		? tr("Target Colors")
+		: tr("Target Colors (%1)").arg(_colors.size()));
 }
 
 void FilterByColorDialog::onToleranceChanged(int sliderValue)
@@ -440,4 +501,24 @@ void FilterByColorDialog::onHideClicked()
 {
 	if (_modelViewer)
 		_modelViewer->hideSelectedItems();
+}
+
+void FilterByColorDialog::onListContextMenuRequested(const QPoint& pos)
+{
+	QListWidgetItem* item = _list->itemAt(pos);
+	if (!item)
+		return;
+
+	const int index = item->data(Qt::UserRole).toInt();
+	if (index < 0 || index >= _colors.size())
+		return;
+
+	QMenu menu(this);
+	QAction* copyAction = menu.addAction(tr("Copy Hex Color"));
+	QAction* removeAction = menu.addAction(tr("Remove Color"));
+	QAction* chosen = menu.exec(_list->viewport()->mapToGlobal(pos));
+	if (chosen == copyAction)
+		QGuiApplication::clipboard()->setText(toQColor(_colors[index]).name().toUpper());
+	else if (chosen == removeAction)
+		removeColorAt(index); // index is still valid here - nothing else touches _colors while the menu is open
 }
