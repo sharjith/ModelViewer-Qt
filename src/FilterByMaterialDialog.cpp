@@ -161,10 +161,12 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 	// watches it directly for the icon-only hover preview.
 	_list->viewport()->setMouseTracking(true);
 	_list->viewport()->installEventFilter(this);
-	// Policy/signal deliberately on the viewport, not _list itself - itemAt()
-	// and mapToGlobal() below both expect viewport-relative coordinates, and
-	// _list's own widget coordinates are offset from that by its frame width.
-	_list->viewport()->setContextMenuPolicy(Qt::CustomContextMenu);
+	// Policy/signal on _list itself, not its viewport - matches every other
+	// list/tree context menu in this codebase (ExplodedViewPanel's captured-
+	// views list, SceneTreeWidget, AnimationsPanel/CamerasPanel/
+	// MaterialVariantsPanel's trees, etc.); setting it on the viewport
+	// instead silently never fired the signal.
+	_list->setContextMenuPolicy(Qt::CustomContextMenu);
 	materialsLayout->addWidget(_list);
 
 	_hoverTimer = new QTimer(this);
@@ -184,7 +186,7 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 	connect(_list, &QListWidget::itemSelectionChanged, this, &FilterByMaterialDialog::onRowChanged);
 	connect(_list, &QListWidget::itemDoubleClicked, this, &FilterByMaterialDialog::onItemDoubleClicked);
 	connect(_hoverTimer, &QTimer::timeout, this, &FilterByMaterialDialog::showHoverPreview);
-	connect(_list->viewport(), &QWidget::customContextMenuRequested, this, &FilterByMaterialDialog::onListContextMenuRequested);
+	connect(_list, &QWidget::customContextMenuRequested, this, &FilterByMaterialDialog::onListContextMenuRequested);
 	connect(_searchBox, &QLineEdit::textChanged, this, &FilterByMaterialDialog::onFilterTextChanged);
 	connect(_sortByCountCheck, &QCheckBox::toggled, this, &FilterByMaterialDialog::rebuildGroups);
 	connect(_showOnlyButton, &QPushButton::clicked, this, &FilterByMaterialDialog::onShowOnlyClicked);
