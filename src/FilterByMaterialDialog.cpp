@@ -3,6 +3,7 @@
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
+#include "Material.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -13,7 +14,9 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QPixmap>
+#include <QImage>
 #include <QPainter>
+#include <QPainterPath>
 #include <QColor>
 #include <QShowEvent>
 #include <QCloseEvent>
@@ -30,24 +33,65 @@
 
 namespace
 {
-	// Flat-color swatch icon for a material's representative albedo color -
-	// a material library/preview widget elsewhere in this app builds richer
-	// texture-thumbnail icons, but those are private to that class and
-	// texture-file-based; this dialog only ever needs a flat scalar swatch.
-	// 40px (matching _list's setIconSize() below, not upscaled from a
+	// Swatch icon for a material: its actual albedo/diffuse texture (center-
+	// cropped square, scaled to fill) multiplied by the material's tint color
+	// - true PBR albedo is baseColorTexture * baseColorFactor (or, for the
+	// Specular-Glossiness workflow, diffuseTexture * diffuseColor; same branch
+	// meshRepresentativeColor() in MeshColorUtils.cpp uses), so this is what
+	// the mesh actually looks like rather than either signal alone. Most of
+	// this app's materials are texture-driven, so a flat color alone (the
+	// previous behavior) showed nearly every row as a washed-out near-white
+	// swatch regardless of how the mesh actually looks. Falls back to a flat
+	// tint fill when the material has no texture in that slot (untextured
+	// solid-color materials) - deliberately not extended to also depict
+	// metalness/roughness with no texture; that's a separate concern from
+	// "which color is this."
+	// 56px (matching _list's setIconSize() below, not upscaled from a
 	// smaller pixmap) gives each row real presence in the list.
-	QIcon colorSwatchIcon(const QVector3D& albedo, int edge = 40)
+	QIcon materialSwatchIcon(const Material& material, int edge = 56)
 	{
+		const bool useSpecularGlossiness = material.getUseSpecularGlossiness();
+		const QVector3D tint = useSpecularGlossiness ? material.diffuseColor() : material.albedoColor();
+		const Material::Texture& albedoTex = material.texture(
+			useSpecularGlossiness ? Material::TextureType::Diffuse : Material::TextureType::Albedo);
+		const QColor tintColor = QColor::fromRgbF(
+			std::clamp(tint.x(), 0.0f, 1.0f),
+			std::clamp(tint.y(), 0.0f, 1.0f),
+			std::clamp(tint.z(), 0.0f, 1.0f));
+
 		QPixmap pixmap(edge, edge);
 		pixmap.fill(Qt::transparent);
-		QPainter painter(&pixmap);
-		painter.setRenderHint(QPainter::Antialiasing);
-		painter.setPen(QColor(0, 0, 0, 80));
-		painter.setBrush(QColor::fromRgbF(
-			std::clamp(albedo.x(), 0.0f, 1.0f),
-			std::clamp(albedo.y(), 0.0f, 1.0f),
-			std::clamp(albedo.z(), 0.0f, 1.0f)));
-		painter.drawRoundedRect(1, 1, edge - 2, edge - 2, 6, 6);
+		{
+			QPainter painter(&pixmap);
+			painter.setRenderHint(QPainter::Antialiasing);
+
+			QPainterPath clipPath;
+			clipPath.addRoundedRect(QRectF(0.5, 0.5, edge - 1.0, edge - 1.0), 6, 6);
+			painter.setClipPath(clipPath);
+
+			if (!albedoTex.imageData.isNull())
+			{
+				const QImage& src = albedoTex.imageData;
+				const int cropSize = std::min(src.width(), src.height());
+				const QRect cropRect((src.width() - cropSize) / 2, (src.height() - cropSize) / 2, cropSize, cropSize);
+				const QImage scaled = src.copy(cropRect).scaled(
+					edge, edge, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+				painter.drawImage(0, 0, scaled);
+				painter.setCompositionMode(QPainter::CompositionMode_Multiply);
+				painter.fillRect(0, 0, edge, edge, tintColor);
+				painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
+			}
+			else
+			{
+				painter.fillRect(0, 0, edge, edge, tintColor);
+			}
+
+			painter.setClipping(false);
+			painter.setBrush(Qt::NoBrush);
+			painter.setPen(QColor(0, 0, 0, 80));
+			painter.drawRoundedRect(QRectF(0.5, 0.5, edge - 1.0, edge - 1.0), 6, 6);
+		}
 		return QIcon(pixmap);
 	}
 
@@ -91,7 +135,7 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 	materialsLayout->addWidget(_searchBox);
 
 	_list = new QListWidget(materialsGroup);
-	_list->setIconSize(QSize(40, 40));
+	_list->setIconSize(QSize(56, 56));
 	_list->setSelectionMode(QAbstractItemView::ExtendedSelection);
 	materialsLayout->addWidget(_list);
 
@@ -219,7 +263,7 @@ void FilterByMaterialDialog::rebuildGroups()
 			? tr("%1 (1 mesh)").arg(name)
 			: tr("%1 (%2 meshes)").arg(name).arg(group.size());
 
-		auto* item = new QListWidgetItem(colorSwatchIcon(refMesh->getMaterial().albedoColor()), label, _list);
+		auto* item = new QListWidgetItem(materialSwatchIcon(refMesh->getMaterial()), label, _list);
 		item->setData(Qt::UserRole, static_cast<int>(g));
 	}
 
