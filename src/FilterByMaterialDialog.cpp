@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QGroupBox>
 #include <QLineEdit>
+#include <QCheckBox>
 #include <QListWidget>
 #include <QAbstractItemView>
 #include <QPushButton>
@@ -20,9 +21,14 @@
 #include <QColor>
 #include <QShowEvent>
 #include <QCloseEvent>
+#include <QHideEvent>
 #include <QEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
+#include <QMenu>
+#include <QCursor>
+#include <QMouseEvent>
+#include <QTimer>
 #include <QSet>
 #include <QVector>
 #include <QSignalBlocker>
@@ -47,8 +53,10 @@ namespace
 	// metalness/roughness with no texture; that's a separate concern from
 	// "which color is this."
 	// 56px (matching _list's setIconSize() below, not upscaled from a
-	// smaller pixmap) gives each row real presence in the list.
-	QIcon materialSwatchIcon(const Material& material, int edge = 56)
+	// smaller pixmap) gives each row real presence in the list. Also used at
+	// a larger size for showHoverPreview()'s preview popup - same
+	// compositing, just a bigger edge.
+	QPixmap materialSwatchPixmap(const Material& material, int edge)
 	{
 		const bool useSpecularGlossiness = material.getUseSpecularGlossiness();
 		const QVector3D tint = useSpecularGlossiness ? material.diffuseColor() : material.albedoColor();
@@ -92,7 +100,12 @@ namespace
 			painter.setPen(QColor(0, 0, 0, 80));
 			painter.drawRoundedRect(QRectF(0.5, 0.5, edge - 1.0, edge - 1.0), 6, 6);
 		}
-		return QIcon(pixmap);
+		return pixmap;
+	}
+
+	QIcon materialSwatchIcon(const Material& material, int edge = 56)
+	{
+		return QIcon(materialSwatchPixmap(material, edge));
 	}
 
 	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
@@ -126,20 +139,39 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
 
-	auto* materialsGroup = new QGroupBox(tr("Materials in Scene"), this);
-	auto* materialsLayout = new QVBoxLayout(materialsGroup);
+	_materialsGroup = new QGroupBox(tr("Materials in Scene"), this);
+	auto* materialsLayout = new QVBoxLayout(_materialsGroup);
 
-	_searchBox = new QLineEdit(materialsGroup);
+	auto* searchRow = new QHBoxLayout();
+	_searchBox = new QLineEdit(_materialsGroup);
 	_searchBox->setPlaceholderText(tr("Search materials..."));
 	_searchBox->setClearButtonEnabled(true);
-	materialsLayout->addWidget(_searchBox);
+	searchRow->addWidget(_searchBox, 1);
 
-	_list = new QListWidget(materialsGroup);
+	_sortByCountCheck = new QCheckBox(tr("Sort by usage"), _materialsGroup);
+	_sortByCountCheck->setToolTip(tr("Sort by mesh count (most used first) instead of alphabetically"));
+	searchRow->addWidget(_sortByCountCheck);
+	materialsLayout->addLayout(searchRow);
+
+	_list = new QListWidget(_materialsGroup);
 	_list->setIconSize(QSize(56, 56));
 	_list->setSelectionMode(QAbstractItemView::ExtendedSelection);
+	// Mouse tracking on the viewport specifically (not _list itself) - that's
+	// the widget that actually receives move events, and eventFilter() below
+	// watches it directly for the icon-only hover preview.
+	_list->viewport()->setMouseTracking(true);
+	_list->viewport()->installEventFilter(this);
+	// Policy/signal deliberately on the viewport, not _list itself - itemAt()
+	// and mapToGlobal() below both expect viewport-relative coordinates, and
+	// _list's own widget coordinates are offset from that by its frame width.
+	_list->viewport()->setContextMenuPolicy(Qt::CustomContextMenu);
 	materialsLayout->addWidget(_list);
 
-	layout->addWidget(materialsGroup, 1);
+	_hoverTimer = new QTimer(this);
+	_hoverTimer->setSingleShot(true);
+	_hoverTimer->setInterval(500);
+
+	layout->addWidget(_materialsGroup, 1);
 
 	auto* buttonRow = new QHBoxLayout();
 	buttonRow->addStretch();
@@ -151,7 +183,10 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 
 	connect(_list, &QListWidget::itemSelectionChanged, this, &FilterByMaterialDialog::onRowChanged);
 	connect(_list, &QListWidget::itemDoubleClicked, this, &FilterByMaterialDialog::onItemDoubleClicked);
+	connect(_hoverTimer, &QTimer::timeout, this, &FilterByMaterialDialog::showHoverPreview);
+	connect(_list->viewport(), &QWidget::customContextMenuRequested, this, &FilterByMaterialDialog::onListContextMenuRequested);
 	connect(_searchBox, &QLineEdit::textChanged, this, &FilterByMaterialDialog::onFilterTextChanged);
+	connect(_sortByCountCheck, &QCheckBox::toggled, this, &FilterByMaterialDialog::rebuildGroups);
 	connect(_showOnlyButton, &QPushButton::clicked, this, &FilterByMaterialDialog::onShowOnlyClicked);
 	connect(_hideButton, &QPushButton::clicked, this, &FilterByMaterialDialog::onHideClicked);
 
@@ -204,12 +239,27 @@ void FilterByMaterialDialog::loadSettings()
 	const QByteArray geometry = settings.value("filterByMaterial/geometry", QByteArray()).toByteArray();
 	if (!geometry.isEmpty())
 		restoreGeometry(geometry);
+
+	// Blocked: this runs before rebuildGroups()'s first call in the
+	// constructor, so toggled() firing here would just re-enter a
+	// rebuildGroups() that's about to run anyway from the ctor's own
+	// explicit call right after loadSettings().
+	const QSignalBlocker blocker(_sortByCountCheck);
+	_sortByCountCheck->setChecked(settings.value("filterByMaterial/sortByCount", false).toBool());
 }
 
 void FilterByMaterialDialog::saveSettings()
 {
 	QSettings settings;
 	settings.setValue("filterByMaterial/geometry", saveGeometry());
+	settings.setValue("filterByMaterial/sortByCount", _sortByCountCheck->isChecked());
+}
+
+void FilterByMaterialDialog::hideEvent(QHideEvent* event)
+{
+	QDialog::hideEvent(event);
+	if (_hoverPreview)
+		_hoverPreview->hide();
 }
 
 void FilterByMaterialDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
@@ -247,7 +297,18 @@ void FilterByMaterialDialog::rebuildGroups()
 	std::iota(allIndices.begin(), allIndices.end(), 0);
 	_groups = groupIndicesByCurrentMaterial(meshes, allIndices);
 
-	_list->clear();
+	// Collected first, then sorted, rather than inserting into _list and
+	// calling its own sortItems() - gives full control over the "by usage"
+	// order below, which QListWidget's built-in text-based sort can't do.
+	struct RowInfo
+	{
+		QString label;
+		QIcon icon;
+		int groupIndex;
+		std::size_t meshCount;
+	};
+	std::vector<RowInfo> rows;
+	rows.reserve(_groups.size());
 	for (std::size_t g = 0; g < _groups.size(); ++g)
 	{
 		const std::vector<int>& group = _groups[g];
@@ -263,11 +324,39 @@ void FilterByMaterialDialog::rebuildGroups()
 			? tr("%1 (1 mesh)").arg(name)
 			: tr("%1 (%2 meshes)").arg(name).arg(group.size());
 
-		auto* item = new QListWidgetItem(materialSwatchIcon(refMesh->getMaterial()), label, _list);
-		item->setData(Qt::UserRole, static_cast<int>(g));
+		rows.push_back({ label, materialSwatchIcon(refMesh->getMaterial()), static_cast<int>(g), group.size() });
 	}
 
-	_list->sortItems();
+	if (_sortByCountCheck->isChecked())
+	{
+		std::stable_sort(rows.begin(), rows.end(), [](const RowInfo& a, const RowInfo& b) {
+			return a.meshCount > b.meshCount;
+		});
+	}
+	else
+	{
+		std::stable_sort(rows.begin(), rows.end(), [](const RowInfo& a, const RowInfo& b) {
+			return QString::compare(a.label, b.label, Qt::CaseInsensitive) < 0;
+		});
+	}
+
+	// _list->clear() deletes every QListWidgetItem - drop any pending/shown
+	// hover preview first so _hoverArmedItem never dangles (a pending
+	// _hoverTimer firing afterward would otherwise dereference a deleted
+	// item in showHoverPreview()).
+	_hoverArmedItem = nullptr;
+	_hoverTimer->stop();
+	if (_hoverPreview)
+		_hoverPreview->hide();
+
+	_list->clear();
+	for (const RowInfo& row : rows)
+	{
+		auto* item = new QListWidgetItem(row.icon, row.label, _list);
+		item->setData(Qt::UserRole, row.groupIndex);
+	}
+
+	updateGroupBoxTitle();
 	if (!previousSearch.isEmpty())
 	{
 		_searchBox->setText(previousSearch);
@@ -298,6 +387,24 @@ void FilterByMaterialDialog::rebuildGroups()
 	}
 
 	onRowChanged();
+}
+
+void FilterByMaterialDialog::updateGroupBoxTitle()
+{
+	if (!_materialsGroup || !_list)
+		return;
+
+	const int total = _list->count();
+	int visible = 0;
+	for (int i = 0; i < total; ++i)
+	{
+		if (!_list->item(i)->isHidden())
+			++visible;
+	}
+
+	_materialsGroup->setTitle(visible == total
+		? tr("Materials in Scene (%1)").arg(total)
+		: tr("Materials in Scene (%1 of %2)").arg(visible).arg(total));
 }
 
 std::vector<int> FilterByMaterialDialog::selectedGroups() const
@@ -362,6 +469,7 @@ void FilterByMaterialDialog::onFilterTextChanged(const QString& text)
 		QListWidgetItem* item = _list->item(i);
 		item->setHidden(!text.isEmpty() && !item->text().contains(text, Qt::CaseInsensitive));
 	}
+	updateGroupBoxTitle();
 }
 
 void FilterByMaterialDialog::onItemDoubleClicked(QListWidgetItem* /*item*/)
@@ -381,4 +489,112 @@ void FilterByMaterialDialog::onHideClicked()
 {
 	if (_modelViewer)
 		_modelViewer->hideSelectedItems();
+}
+
+QRect FilterByMaterialDialog::iconRectForItem(QListWidgetItem* item) const
+{
+	if (!item)
+		return QRect();
+	return QRect(_list->visualItemRect(item).topLeft(), _list->iconSize());
+}
+
+bool FilterByMaterialDialog::eventFilter(QObject* watched, QEvent* event)
+{
+	// Raw mouse-move tracking instead of QListWidget::itemEntered() -
+	// itemEntered() only reports row transitions (icon vs. text within the
+	// same row is invisible to it), and only fires once per row rather than
+	// letting a hover dwell before showing anything. Both are required here:
+	// the preview should arm only over the swatch icon, and only after a
+	// deliberate pause, not an instant flash while scanning down the list.
+	if (watched == _list->viewport())
+	{
+		if (event->type() == QEvent::MouseMove)
+		{
+			auto* mouseEvent = static_cast<QMouseEvent*>(event);
+			QListWidgetItem* item = _list->itemAt(mouseEvent->pos());
+			QListWidgetItem* iconItem = (item && iconRectForItem(item).contains(mouseEvent->pos())) ? item : nullptr;
+			if (iconItem != _hoverArmedItem)
+			{
+				_hoverArmedItem = iconItem;
+				_hoverTimer->stop();
+				if (_hoverPreview)
+					_hoverPreview->hide();
+				if (iconItem)
+					_hoverTimer->start();
+			}
+		}
+		else if (event->type() == QEvent::Leave)
+		{
+			_hoverArmedItem = nullptr;
+			_hoverTimer->stop();
+			if (_hoverPreview)
+				_hoverPreview->hide();
+		}
+	}
+	return QDialog::eventFilter(watched, event);
+}
+
+void FilterByMaterialDialog::showHoverPreview()
+{
+	if (!_hoverArmedItem || !_modelViewer || !_modelViewer->getViewportWidget())
+		return;
+
+	const int groupIndex = _hoverArmedItem->data(Qt::UserRole).toInt();
+	if (groupIndex < 0 || groupIndex >= static_cast<int>(_groups.size()) || _groups[groupIndex].empty())
+		return;
+
+	// Recomputed on demand from the group's reference mesh rather than
+	// cached per-item at rebuild time - only costs a texture crop/scale once
+	// the long-hover delay actually elapses, and avoids holding a 160x160
+	// pixmap per row in memory for the common case where the user never
+	// dwells on most of them.
+	const std::vector<SceneMesh*> meshStore = _modelViewer->getViewportWidget()->getMeshStore();
+	const int meshIndex = _groups[groupIndex][0];
+	if (meshIndex < 0 || meshIndex >= static_cast<int>(meshStore.size()))
+		return;
+
+	if (!_hoverPreview)
+	{
+		// Parented to `this` (destroyed with the dialog) but still a
+		// top-level Qt::ToolTip window - Qt supports both at once, which is
+		// exactly the tooltip-that-follows-a-parent's-lifetime shape this
+		// needs. WA_ShowWithoutActivating keeps focus on the list/dialog.
+		_hoverPreview = new QLabel(this, Qt::ToolTip | Qt::FramelessWindowHint);
+		_hoverPreview->setAttribute(Qt::WA_ShowWithoutActivating);
+		_hoverPreview->setStyleSheet(
+			"QLabel { background-color: #2a2a2a; border: 1px solid #555555; "
+			"padding: 6px; border-radius: 4px; }");
+	}
+	_hoverPreview->setPixmap(materialSwatchPixmap(meshStore[meshIndex]->getMaterial(), 160));
+	_hoverPreview->adjustSize();
+	_hoverPreview->move(QCursor::pos() + QPoint(18, 18));
+	_hoverPreview->show();
+}
+
+void FilterByMaterialDialog::onListContextMenuRequested(const QPoint& pos)
+{
+	QListWidgetItem* item = _list->itemAt(pos);
+	if (!item || !_modelViewer)
+		return;
+
+	// Right-clicking a row outside the current selection jumps the selection
+	// to just that row first, same "right-click acts on what you clicked"
+	// convention as the Scene Tree/viewport context menus elsewhere in this
+	// app - setSelected() fires itemSelectionChanged() synchronously, so by
+	// the time editMeshMaterial() runs below, the live viewport selection
+	// (and therefore what Edit Material operates on) already matches.
+	if (!item->isSelected())
+	{
+		_list->clearSelection();
+		item->setSelected(true);
+	}
+
+	QMenu menu(this);
+	// Only entry for now - Show Only/Hide already have their own dedicated
+	// buttons, and this dialog otherwise has no per-material actions beyond
+	// jumping into the Material Properties panel to actually change
+	// something about it.
+	QAction* editAction = menu.addAction(tr("Edit Material..."));
+	if (menu.exec(_list->viewport()->mapToGlobal(pos)) == editAction)
+		_modelViewer->editMeshMaterial();
 }
