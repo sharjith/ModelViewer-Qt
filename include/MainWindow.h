@@ -108,6 +108,16 @@ public:
 	static void clearFileLoadCancel();
 	static bool isFileLoadCancelRequested();
 
+	// Disables the menu bar, MDI area, and dock panels for the duration of a
+	// cancellable background load (status bar/Cancel button deliberately left
+	// alone) - see ViewportWidget::loadAssImpModel()'s doc comment for why
+	// this exists: the progressive-loading yield point needs to let user-
+	// input events through so the Cancel button is actually clickable, and
+	// doing that safely means every OTHER interactive control has to be
+	// inert first (same shape as RtRenderDialog::onRenderClicked()'s
+	// pushButtonStop handling).
+	static void setLoadingUiLocked(bool locked);
+
 	static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
 	static inline QString fileKey() { return QStringLiteral("file"); }
 	static QStringList readRecentFiles(QSettings& settings);

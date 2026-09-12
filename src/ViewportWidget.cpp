@@ -4374,6 +4374,11 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	}
 	MainWindow::showStatusMessage(tr("Reading file: ") + displayFileName);
 	MainWindow::showProgressBar();
+	// Locks every other interactive control so the yield point in
+	// onMeshBatchReady() can safely let user-input events through - see that
+	// function's doc comment for why the Cancel button was unclickable
+	// without this.
+	MainWindow::setLoadingUiLocked(true);
 	if (_assimpModelLoader)
 	{
 		AssImpModelLoader* loadingWorker = new AssImpModelLoader();
@@ -4674,6 +4679,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
+	MainWindow::setLoadingUiLocked(false);
 	_sceneRuntime.setCancelRequested(false);
 
 	return success;
@@ -11456,8 +11462,16 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	// Progressive AssImp loading emits batches from a worker thread via
 	// BlockingQueuedConnection. Yield once here so paint/update events run
 	// before the next batch arrives, making meshes appear incrementally.
+	// Deliberately does NOT pass ExcludeUserInputEvents - that flag was
+	// specifically what made a Cancel Loading click impossible to ever
+	// process while blocked here (same bug/fix shape as
+	// RtRenderDialog::onRenderClicked()'s pushButtonStop handling - see its
+	// doc comment). loadAssImpModel() locks every other interactive control
+	// for the duration via MainWindow::setLoadingUiLocked(), so letting
+	// user-input events through here only lets the Cancel button do
+	// anything.
 	if (_sceneRuntime.progressiveLoadingEnabled())
-		QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+		QApplication::processEvents();
 }
 
 UVMethod ViewportWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)

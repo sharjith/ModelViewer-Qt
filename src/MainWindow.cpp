@@ -1585,6 +1585,31 @@ bool MainWindow::isFileLoadCancelRequested()
 	return _fileLoadCancelRequested;
 }
 
+void MainWindow::setLoadingUiLocked(bool locked)
+{
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [locked]() {
+			MainWindow::setLoadingUiLocked(locked);
+		}, Qt::QueuedConnection);
+		return;
+	}
+	const bool enabled = !locked;
+	_mainWindow->menuBar()->setEnabled(enabled);
+	if (_mainWindow->_mdiArea)
+		_mainWindow->_mdiArea->setEnabled(enabled);
+	if (_mainWindow->_propertiesDock)
+		_mainWindow->_propertiesDock->setEnabled(enabled);
+	if (_mainWindow->_environmentDock)
+		_mainWindow->_environmentDock->setEnabled(enabled);
+	if (_mainWindow->_documentDock)
+		_mainWindow->_documentDock->setEnabled(enabled);
+}
+
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
 {
 	if (canExit())
