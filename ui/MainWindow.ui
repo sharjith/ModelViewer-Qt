@@ -388,7 +388,8 @@
     <string>Select every mesh in the scene that uses a chosen material</string>
    </property>
    <property name="toolTip">
-    <string>Select every mesh in the scene that uses a chosen material (import a model first)</string>
+    <string>Select every mesh in the scene that uses a chosen material
+(import a model first)</string>
    </property>
   </action>
   <action name="actionFilterByColor">
@@ -399,7 +400,8 @@
     <string>Select every mesh in the scene whose color matches a chosen target, within a tolerance</string>
    </property>
    <property name="toolTip">
-    <string>Select every mesh in the scene whose color matches a chosen target (import a model first)</string>
+    <string>Select every mesh in the scene whose color matches a chosen target
+(import a model first)</string>
    </property>
   </action>
   <action name="actionSaveSelectionSet">

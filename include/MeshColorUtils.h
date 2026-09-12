@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QVector3D>
+#include <QVector>
 
 class SceneMesh;
 
@@ -22,3 +23,16 @@ class SceneMesh;
 // established "don't chase the long tail" pattern elsewhere (e.g.
 // Cylindrical Diameter's fillet-boundary decision).
 QVector3D meshRepresentativeColor(const SceneMesh* mesh);
+
+// Appends every color from `candidates` to `existing` that isn't already
+// within `epsilon` of a color already in `existing` OR of one already
+// appended earlier in this same call (so `candidates` itself gets
+// deduplicated too, not just against `existing`) - returns the combined
+// result. Used by FilterByColorDialog's "Auto-Detect" (candidates = every
+// mesh's representative color) and ModelViewer::filterSelectionByColor()'s
+// seed-from-selection (candidates = the current selection's colors), so a
+// handful of meshes sharing (near-)identical shading don't spam the color
+// list with near-duplicate rows.
+QVector<QVector3D> dedupedColors(const QVector<QVector3D>& existing,
+                                  const QVector<QVector3D>& candidates,
+                                  float epsilon = 0.02f);

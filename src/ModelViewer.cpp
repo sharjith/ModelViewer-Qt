@@ -4008,20 +4008,28 @@ void ModelViewer::filterSelectionByColor()
 	auto* dialog = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly);
 	if (!dialog)
 	{
-		// Pre-fill the target swatch from the first currently-selected mesh,
-		// if any - covers "sample from a mesh" without a separate live
-		// viewport-pick interaction (select the mesh first, then open this).
-		// Only done for a fresh dialog - reopening an already-open one keeps
-		// whatever target color the user already set.
-		QVector3D initialColor(1.0f, 1.0f, 1.0f);
+		// Seed the target color list from the DISTINCT representative
+		// colors of the current selection - real prior intent (the user
+		// already selected these meshes), so the dialog opens already
+		// live, matching every mesh close to any of them. Deduped within a
+		// small epsilon so near-identical colors (e.g. minor shading
+		// variance across a multi-mesh selection) don't spam the list with
+		// near-duplicate rows. Empty if nothing was selected - the dialog
+		// then starts with an empty list, nothing live, until the user adds
+		// a color themselves (see FilterByColorDialog.h's doc comment for
+		// why there's no arbitrary default color any more). Only done for a
+		// fresh dialog - reopening an already-open one keeps whatever color
+		// list the user already built.
+		QVector<QVector3D> selectionColors;
 		const std::vector<int> currentSelection = getSelectedIDs();
-		if (!currentSelection.empty() && currentSelection.front() >= 0
-			&& currentSelection.front() < static_cast<int>(meshStore.size()))
+		for (int id : currentSelection)
 		{
-			initialColor = meshRepresentativeColor(meshStore[currentSelection.front()]);
+			if (id >= 0 && id < static_cast<int>(meshStore.size()))
+				selectionColors.push_back(meshRepresentativeColor(meshStore[id]));
 		}
+		const QVector<QVector3D> initialColors = dedupedColors({}, selectionColors);
 
-		dialog = new FilterByColorDialog(this, initialColor, this);
+		dialog = new FilterByColorDialog(this, initialColors, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
 	dialog->show();

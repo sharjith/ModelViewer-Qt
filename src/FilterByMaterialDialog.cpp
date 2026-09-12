@@ -16,11 +16,14 @@
 #include <QPainter>
 #include <QColor>
 #include <QShowEvent>
+#include <QCloseEvent>
+#include <QEvent>
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QSet>
 #include <QVector>
 #include <QSignalBlocker>
+#include <QSettings>
 
 #include <algorithm>
 #include <numeric>
@@ -118,6 +121,7 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 			connect(mdiArea, &QMdiArea::subWindowActivated, this, &FilterByMaterialDialog::onActiveSubWindowChanged);
 	}
 
+	loadSettings();
 	rebuildGroups();
 }
 
@@ -129,6 +133,39 @@ void FilterByMaterialDialog::showEvent(QShowEvent* event)
 	// from scratch rather than trusting the snapshot taken at construction
 	// or the last time it was shown.
 	rebuildGroups();
+}
+
+void FilterByMaterialDialog::changeEvent(QEvent* event)
+{
+	QDialog::changeEvent(event);
+	if (event->type() == QEvent::ActivationChange && isActiveWindow())
+		applyLiveSelection();
+}
+
+void FilterByMaterialDialog::closeEvent(QCloseEvent* event)
+{
+	saveSettings();
+	QDialog::closeEvent(event);
+}
+
+void FilterByMaterialDialog::reject()
+{
+	saveSettings();
+	QDialog::reject();
+}
+
+void FilterByMaterialDialog::loadSettings()
+{
+	QSettings settings;
+	const QByteArray geometry = settings.value("filterByMaterial/geometry", QByteArray()).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+}
+
+void FilterByMaterialDialog::saveSettings()
+{
+	QSettings settings;
+	settings.setValue("filterByMaterial/geometry", saveGeometry());
 }
 
 void FilterByMaterialDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)

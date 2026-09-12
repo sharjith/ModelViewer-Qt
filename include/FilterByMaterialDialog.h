@@ -11,6 +11,7 @@ class QPushButton;
 class ModelViewer;
 class QMdiSubWindow;
 class QShowEvent;
+class QCloseEvent;
 
 // "Selection -> Filter by Material..." - lets the user pick one or more
 // material identities present in the current scene (extended/multi-
@@ -45,6 +46,23 @@ public:
 
 protected:
 	void showEvent(QShowEvent* event) override;
+	// Refreshes the live selection when this dialog's window regains OS-level
+	// activation (e.g. the user clicks back onto it after using an unrelated
+	// command like Show All elsewhere) - confirmed real gap: Hide clears the
+	// viewport selection, and a subsequent Show All doesn't touch selection
+	// either, so without this the dialog's still-valid filter criteria never
+	// re-asserted themselves until the user touched the dialog's own
+	// controls again. Scoped to this dialog only - no changes to the shared
+	// visibility-command code path.
+	void changeEvent(QEvent* event) override;
+	// Saves window geometry - see saveSettings()'s doc comment.
+	void closeEvent(QCloseEvent* event) override;
+	// QDialog's own Escape handling calls reject(), which goes straight to
+	// done()/hide() WITHOUT ever raising a QCloseEvent (same gotcha
+	// ShrinkWrapDialog's identical override documents) - this override
+	// exists purely to make sure saveSettings() still runs on an
+	// Escape-closed dialog, same as any other close path.
+	void reject() override;
 
 private slots:
 	void onRowChanged();
@@ -73,6 +91,13 @@ private:
 	// Union of the mesh groups for every currently-selected row (dedup'd -
 	// see the caller).
 	std::vector<int> selectedGroups() const;
+
+	// Window geometry persistence, via QSettings - same shape as
+	// ShrinkWrapDialog::loadSettings()/saveSettings(). loadSettings() is
+	// called once from the constructor; saveSettings() from every close
+	// path (closeEvent() and reject(), see their doc comments above).
+	void loadSettings();
+	void saveSettings();
 
 	ModelViewer* _modelViewer; // not owned - dialog is a child of the ModelViewer's window
 	std::vector<std::vector<int>> _groups; // same order as _list's rows

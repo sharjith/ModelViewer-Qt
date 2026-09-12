@@ -354,10 +354,12 @@ public slots:
 	// design.
 	void filterSelectionByMaterial();
 	// Selection -> Filter by Color...: same shape as filterSelectionByMaterial()
-	// above, but opens FilterByColorDialog - matches every mesh whose
-	// representative color (material albedo, or averaged per-vertex color
-	// for Point Set Reconstruction meshes) falls within a tolerance of a
-	// chosen target.
+	// above, but opens FilterByColorDialog - the user builds a small list of
+	// target colors there (not scoped to a prior selection, though a fresh
+	// dialog seeds that list from the current selection's own distinct
+	// colors), and matches every mesh whose representative color (material
+	// albedo, or averaged per-vertex color for Point Set Reconstruction
+	// meshes) falls within a shared tolerance of ANY of them.
 	void filterSelectionByColor();
 	// Selection -> Save Selection Set... (also SelectionSetsPanel's own Save
 	// button): saves the current viewport selection (mesh UUIDs, not the

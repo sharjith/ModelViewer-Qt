@@ -13,6 +13,7 @@
 #include "MeasurementGeometry.h"
 #include "MeasurementOffsetCommand.h"
 #include "MeasurementOffsetVectorCommand.h"
+#include "MeshColorUtils.h"
 #include "ViewportWidget.h"
 #include "PickingHelper.h"
 #include "RtSceneBuilder.h"
@@ -10585,6 +10586,7 @@ void ViewportWidget::setMeasurementTool(MeasurementTool tool)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
+		setColorPickArmed(false);
 	}
 	_measurementController->setMeasurementTool(tool, _selectionManager);
 }
@@ -10617,6 +10619,7 @@ void ViewportWidget::setAnnotationToolArmed(bool armed)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
+		setColorPickArmed(false);
 	}
 	_annotationController->setAnnotationToolArmed(armed, _selectionManager);
 }
@@ -10635,6 +10638,7 @@ void ViewportWidget::setSeamMarkingToolArmed(bool armed)
 			_annotationController->setAnnotationToolArmed(false, _selectionManager);
 		setLassoToolArmed(false);
 		setEyedropperArmed(false);
+		setColorPickArmed(false);
 	}
 	_seamMarkingController->setSeamToolArmed(armed, _selectionManager);
 }
@@ -10656,6 +10660,7 @@ void ViewportWidget::setLassoToolArmed(bool armed)
 		if (_seamMarkingController)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setEyedropperArmed(false);
+		setColorPickArmed(false);
 	}
 	else
 	{
@@ -10686,6 +10691,7 @@ void ViewportWidget::setEyedropperArmed(bool armed)
 		if (_seamMarkingController)
 			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
 		setLassoToolArmed(false);
+		setColorPickArmed(false);
 
 		if (_selectionManager)
 		{
@@ -10714,8 +10720,68 @@ void ViewportWidget::setEyedropperArmed(bool armed)
 	emit eyedropperArmedChanged(armed);
 }
 
-void ViewportWidget::restoreEyedropperCursor()
+void ViewportWidget::setColorPickArmed(bool armed)
 {
+	if (_colorPickArmed == armed)
+		return;
+
+	if (armed)
+	{
+		// Mutual exclusivity with the Measure/Annotate/Mark-Seams/Lasso/
+		// material-Eyedropper tools - same cross-clearing shape those
+		// already use with each other above.
+		if (_measurementController)
+			_measurementController->setMeasurementTool(MeasurementTool::None, _selectionManager);
+		if (_annotationController)
+			_annotationController->setAnnotationToolArmed(false, _selectionManager);
+		if (_seamMarkingController)
+			_seamMarkingController->setSeamToolArmed(false, _selectionManager);
+		setLassoToolArmed(false);
+		setEyedropperArmed(false);
+
+		if (_selectionManager)
+		{
+			_savedHoverHighlightModeBeforeColorPick = _selectionManager->getHoverMode();
+			_selectionManager->setHoverHighlightMode(HoverHighlightMode::Disabled);
+		}
+
+		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+	}
+	else
+	{
+		if (_selectionManager)
+			_selectionManager->setHoverHighlightMode(_savedHoverHighlightModeBeforeColorPick);
+		setCursor(QCursor(Qt::ArrowCursor));
+	}
+
+	_colorPickArmed = armed;
+	emit colorPickArmedChanged(armed);
+}
+
+void ViewportWidget::handleColorPickClick(const QPoint& pixel)
+{
+	if (!_selectionManager)
+		return;
+
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	if (!anchor.isValid())
+		return; // missed - stay armed, let the user try again
+
+	SceneMesh* mesh = getMeshByUuid(anchor.meshUuid);
+	if (!mesh)
+		return;
+
+	emit colorPicked(meshRepresentativeColor(mesh));
+}
+
+void ViewportWidget::restoreArmedToolCursor()
+{
+	if (_colorPickArmed)
+	{
+		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+		return;
+	}
+
 	switch (_eyedropperPhase)
 	{
 	case EyedropperPhase::AwaitingSample:
@@ -12364,6 +12430,20 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 	{
 		const QPoint clickPoint(e->position().x(), e->position().y());
 
+		// Color-pick armed (Filter by Color's "pick from mesh"): same
+		// nav-gate as the other armed tools below, consuming the click
+		// entirely so it never falls through to gizmo/view-cube/mesh-
+		// selection handling. Stays armed after a hit (see
+		// setColorPickArmed()'s doc comment).
+		if (_colorPickArmed
+			&& !(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating()
+			&& !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
+		{
+			handleColorPickClick(clickPoint);
+			return;
+		}
+
 		// Eyedropper armed (either phase): same nav-gate as the other armed
 		// tools below - a plain click samples (AwaitingSample) or brushes
 		// (Brushing), consuming the click entirely so it never falls through
@@ -12781,7 +12861,7 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		// here (as before) left that nav cursor stuck even after the drag
 		// ended and control returned to sample/brush mode (confirmed real
 		// bug). When idle, this is exactly the original unconditional reset.
-		restoreEyedropperCursor();
+		restoreArmedToolCursor();
 	}
 
 	// Only start inertia if mouse was moving recently
@@ -13550,6 +13630,7 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 		// no way to cancel via Escape at all before this - disarm it too.
 		setEyedropperArmed(false);
 		setLassoToolArmed(false);
+		setColorPickArmed(false);
 		setCursor(QCursor(Qt::ArrowCursor));
 		MainWindow::showStatusMessage("");
 

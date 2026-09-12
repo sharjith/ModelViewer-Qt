@@ -61,5 +61,13 @@ bool SelectionCommand::mergeWith(const QUndoCommand* other)
         return false;
 
     _newSelection = otherCmd->_newSelection;
+    // Explicitly re-apply here rather than relying on QUndoStack::push()
+    // having already called redo() on the about-to-be-discarded incoming
+    // command - confirmed real bug: whichever of those two things Qt's
+    // push() actually guarantees, only the FIRST selection push in a live-
+    // filter dialog session (the one with nothing yet to merge into) was
+    // reliably visible; every subsequent color/tolerance tweak merged into
+    // it silently without ever updating the live viewport selection.
+    applySelection(_newSelection);
     return true;
 }

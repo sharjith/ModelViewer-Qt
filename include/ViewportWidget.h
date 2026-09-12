@@ -406,6 +406,19 @@ public:
 	void setEyedropperArmed(bool armed);
 	bool eyedropperArmed() const { return _eyedropperPhase != EyedropperPhase::Idle; }
 
+	// ---- Color eyedropper (Filter by Color's "pick from mesh") -------------
+	// Single-phase sibling of the material eyedropper above: armed from
+	// FilterByColorDialog's own pick button, a click samples a mesh's
+	// meshRepresentativeColor() (see MeshColorUtils.h - the SAME value the
+	// dialog's own matching already compares against, so this is always an
+	// exact hit, unlike eyeballing/screen-sampling via QColorDialog) and
+	// emits colorPicked() - no "brush/apply" phase needed, this only ever
+	// reads. Stays armed across multiple clicks until toggled off, same as
+	// Lasso. Mutually exclusive with Measure/Annotate/Mark-Seams/Lasso/
+	// Eyedropper above, same cross-clearing shape.
+	void setColorPickArmed(bool armed);
+	bool colorPickArmed() const { return _colorPickArmed; }
+
 	// ---- Fill Holes dialog's detected-hole-loop overlay --------------------
 	// Thin forwards to _fillHolesController - see FillHolesController.h. No tool-armed state
 	// to forward (unlike Mark Seams above) - FillHolesDialog owns detection/selection entirely
@@ -1139,6 +1152,20 @@ signals:
 	// widget's own mutual-exclusion clearing - so MaterialPropertiesPanel's
 	// eyeDropper button (via setEyedropperChecked()) stays in sync either way.
 	void eyedropperArmedChanged(bool armed);
+	// Emitted the instant a color-pick click hits a mesh while
+	// setColorPickArmed(true) - FilterByColorDialog connects to this
+	// directly (it owns its ModelViewer/ViewportWidget outright, unlike the
+	// shared-panel material eyedropper, so no MainWindow rebind-dispatch is
+	// needed) and appends the color to its list. Stays armed after a hit -
+	// mirrors Lasso's "stays armed across multiple drags" convention, since
+	// clicking several meshes in a row to build up a color list is exactly
+	// the expected workflow here.
+	void colorPicked(const QVector3D& color);
+	// Emitted whenever the armed color-pick state changes - including this
+	// widget's own mutual-exclusion clearing (e.g. arming Lasso while color-
+	// pick was active) - so FilterByColorDialog's own pick button stays in
+	// sync without being the only thing that ever arms/disarms it.
+	void colorPickArmedChanged(bool armed);
 	// Fires whenever the seam-mark list changes (add/remove/clear) - lets
 	// UVGenerationDialog's mark-list widget refresh without polling.
 	void seamMarksChanged();
@@ -1713,12 +1740,21 @@ private:
 	bool _eyedropperBrushGestureActive = false;
 	void handleEyedropperSampleClick(const QPoint& pixel);
 	void eyedropperBrushAt(const QPoint& pixel);
-	// Restores whichever cursor the eyedropper's CURRENT phase calls for
-	// (or the arrow, if idle) - called after any navigation interaction
-	// (Ctrl-drag rotate, pan, zoom) ends, since those set their own cursor
-	// mid-drag and previously left it stuck instead of handing the cursor
-	// back to the still-armed eyedropper.
-	void restoreEyedropperCursor();
+
+	// Color eyedropper state - see setColorPickArmed()'s doc comment above.
+	// Single bool, no phase enum needed (there's no brush/apply step).
+	bool _colorPickArmed = false;
+	HoverHighlightMode _savedHoverHighlightModeBeforeColorPick = HoverHighlightMode::RaycastOnly;
+	void handleColorPickClick(const QPoint& pixel);
+
+	// Restores whichever cursor the CURRENTLY-armed single-click tool
+	// (material eyedropper or color eyedropper) calls for, or the arrow if
+	// neither is armed - called after any navigation interaction (Ctrl-drag
+	// rotate, pan, zoom) ends, since those set their own cursor mid-drag and
+	// previously left it stuck instead of handing the cursor back to the
+	// still-armed tool. Named generically (not restoreEyedropperCursor) now
+	// that it covers both eyedroppers.
+	void restoreArmedToolCursor();
 
 	// Continuous auto-orbit for presentation/demo purposes - same ~60fps tick
 	// shape as _inertiaTimer, but a constant velocity instead of a decaying

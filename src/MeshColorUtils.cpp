@@ -1,5 +1,6 @@
 #include "MeshColorUtils.h"
 #include "SceneMesh.h"
+#include "Material.h"
 
 #include <algorithm>
 #include <vector>
@@ -64,5 +65,33 @@ QVector3D meshRepresentativeColor(const SceneMesh* mesh)
 		}
 	}
 
-	return mesh->getMaterial().albedoColor();
+	// A material using the PBR Specular-Glossiness workflow
+	// (KHR_materials_pbrSpecularGlossiness) stores its real color in
+	// diffuseColor(), not albedoColor() (that's the separate metallic-
+	// roughness field, which such a material never populates from its own
+	// color) - see groupIndicesByCurrentMaterial()'s doc comment in
+	// MaterialGrouping.h for the same workflow/field split mattering
+	// elsewhere in this app. Ruled out as the cause of a since-diagnosed
+	// Filter by Color report (logging confirmed albedoColor() was already
+	// returning the correct, clean per-part color - the reported colors
+	// just weren't close enough to the model's actual saturated primaries
+	// to fall within tolerance), but kept as a correct, real fix for any
+	// scene that DOES use this workflow.
+	const Material& material = mesh->getMaterial();
+	return material.getUseSpecularGlossiness() ? material.diffuseColor() : material.albedoColor();
+}
+
+QVector<QVector3D> dedupedColors(const QVector<QVector3D>& existing,
+                                  const QVector<QVector3D>& candidates,
+                                  float epsilon)
+{
+	QVector<QVector3D> result = existing;
+	for (const QVector3D& candidate : candidates)
+	{
+		const bool isDuplicate = std::any_of(result.cbegin(), result.cend(),
+			[&](const QVector3D& already) { return (already - candidate).length() <= epsilon; });
+		if (!isDuplicate)
+			result.push_back(candidate);
+	}
+	return result;
 }
