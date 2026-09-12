@@ -166,8 +166,8 @@ RtRenderDialog::RtRenderDialog(ModelViewer* modelViewer, QWidget* parent)
 			constexpr int kOptixItemIndex = 3;
 			if (QStandardItem* item = model->item(kOptixItemIndex))
 			{
-				item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back to "
-					"the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
+				item->setToolTip(tr("NVIDIA's own AI denoiser. Works with either render engine - falls back\n"
+					"to the bilateral filter if no OptiX-capable NVIDIA GPU is available."));
 			}
 		}
 	};

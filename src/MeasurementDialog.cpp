@@ -196,33 +196,48 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// tool in the list that doesn't auto-complete at a fixed number of
 	// clicks (see MeasurementData.h's measurementToolHasVariableAnchorCount()).
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::PitchCircle)),
-		tr("Click every hole center around the pattern (3 or more, any order) - snaps to a circular edge's exact center same as Point/Distance. Press Enter or the Finish button once you've clicked them all."),
+		tr("Click every hole center around the pattern (3 or more, any order) -\n"
+		   "snaps to a circular edge's exact center same as Point/Distance.\n"
+		   "Press Enter or the Finish button once you've clicked them all."),
 		Qt::ToolTipRole);
 	// See MeasurementData.h's ArcRadiusCenterPoint doc comment - surfaced
 	// here so the remaining glTF/OBJ limitation is discoverable without
 	// reading code.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::ArcRadiusCenterPoint)),
-		tr("On STEP/IGES/BREP parts, snaps to a circular edge's exact center (holes included). On glTF/OBJ meshes, the center must land on real geometry (e.g. a boss's flat cap face) - won't work for a through-hole's center, which is empty space"),
+		tr("On STEP/IGES/BREP parts, snaps to a circular edge's exact center\n"
+		   "(holes included). On glTF/OBJ meshes, the center must land on real\n"
+		   "geometry (e.g. a boss's flat cap face) - won't work for a\n"
+		   "through-hole's center, which is empty space."),
 		Qt::ToolTipRole);
 	// CAD-only (see MeasurementData.h's EdgeRadius doc comment) - glTF/OBJ
 	// meshes have no OCC edge data, so nothing is ever pickable for them.
 	// Works correctly for through-holes too, unlike Center + 2-Point above.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::EdgeRadius)),
-		tr("STEP/IGES/BREP parts only - click directly on a circular edge (hole or boss). Not available for glTF/OBJ meshes."),
+		tr("STEP/IGES/BREP parts only - click directly on a circular edge\n"
+		   "(hole or boss). Not available for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
 	// Same CAD-only pick as Edge Radius above (both circular-edge anchors).
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::Concentricity)),
-		tr("STEP/IGES/BREP parts only - click directly on two circular edges (holes or bosses) to compare their centers and axes. Not available for glTF/OBJ meshes."),
+		tr("STEP/IGES/BREP parts only - click directly on two circular edges\n"
+		   "(holes or bosses) to compare their centers and axes. Not available\n"
+		   "for glTF/OBJ meshes."),
 		Qt::ToolTipRole);
 	// CAD faces use their exact analytic axis. glTF/OBJ meshes use a local
 	// geometric fit and deliberately decline an ambiguous or non-round patch.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::CylindricalDiameter)),
-		tr("Click directly on a cylindrical or conical curved surface (not its rim edge - see Edge Radius for that). STEP/IGES/BREP uses the exact surface axis; glTF/OBJ uses a validated local fit. Diameter varies along a cone's length."),
+		tr("Click directly on a cylindrical or conical curved surface (not its\n"
+		   "rim edge - see Edge Radius for that). STEP/IGES/BREP uses the exact\n"
+		   "surface axis; glTF/OBJ uses a validated local fit. Diameter varies\n"
+		   "along a cone's length."),
 		Qt::ToolTipRole);
 	// The other variable-pick-count tool alongside Pitch Circle above - same
 	// note about it not auto-completing at a fixed click count.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::EdgeChain)),
-		tr("Click a contiguous run of edges to sum (2 or more, each one must share an endpoint with the last) - works for an open chain (e.g. a weld seam) or a closed perimeter alike. An edge that doesn't connect is rejected. Press Enter or the Finish button once you've clicked them all."),
+		tr("Click a contiguous run of edges to sum (2 or more, each one must\n"
+		   "share an endpoint with the last) - works for an open chain (e.g. a\n"
+		   "weld seam) or a closed perimeter alike. An edge that doesn't connect\n"
+		   "is rejected. Press Enter or the Finish button once you've clicked\n"
+		   "them all."),
 		Qt::ToolTipRole);
 	// Each pick expands to its whole smooth face (bounded by real feature
 	// edges, so a curved surface counts as one pick) - worth surfacing
@@ -230,14 +245,20 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	// pick in this dialog uses, and the closest-point search cost scales
 	// with it.
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::MinDistance)),
-		tr("Click two faces (flat or curved - each pick expands to its whole smooth face, bounded by real edges) to find the true closest points between them. Works on the same part (e.g. a wall-thickness check) or two different ones. May take a moment on a very large, finely-tessellated face."),
+		tr("Click two faces (flat or curved - each pick expands to its whole\n"
+		   "smooth face, bounded by real edges) to find the true closest points\n"
+		   "between them. Works on the same part (e.g. a wall-thickness check)\n"
+		   "or two different ones. May take a moment on a very large,\n"
+		   "finely-tessellated face."),
 		Qt::ToolTipRole);
 	// Unlike Distance (which allows two different meshes), a geodesic path
 	// only makes sense along ONE continuous surface - the second pick is
 	// rejected if it lands on a different mesh (see
 	// MeasurementController::handleMeasurementClick()'s same-mesh check).
 	ui->toolCombo->setItemData(ui->toolCombo->findData(static_cast<int>(MeasurementTool::GeodesicDistance)),
-		tr("Click two points on the SAME mesh - reports the distance ALONG the surface between them (e.g. wrapping around a curved part), not the straight-line distance. Both points must land on the same mesh."),
+		tr("Click two points on the SAME mesh - reports the distance ALONG the\n"
+		   "surface between them (e.g. wrapping around a curved part), not the\n"
+		   "straight-line distance. Both points must land on the same mesh."),
 		Qt::ToolTipRole);
 
 	connect(ui->toolCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MeasurementDialog::onToolComboChanged);
