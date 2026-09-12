@@ -30,6 +30,8 @@ private:
     void setupCameraModesTab();
     void setupDisplayModesTab();
     void setupAdvancedFeaturesTab();
+    void setupMeasurementTab();
+    void setupMeshEditingTab();
     void setupTipsAndTricksTab();
 
     QString createStyledHtml(const QString& title, const QString& content);
@@ -45,6 +47,8 @@ private:
     QTextBrowser* _cameraBrowser;
     QTextBrowser* _displayBrowser;
     QTextBrowser* _advancedBrowser;
+    QTextBrowser* _measurementBrowser;
+    QTextBrowser* _meshEditingBrowser;
     QTextBrowser* _tipsBrowser;
     QPushButton* _closeButton;
 	QCheckBox* _showOnStartupCheckBox;

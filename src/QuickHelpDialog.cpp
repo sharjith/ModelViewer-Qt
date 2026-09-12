@@ -149,6 +149,8 @@ void QuickHelpDialog::setupUI()
 	_cameraBrowser = new QTextBrowser();
 	_displayBrowser = new QTextBrowser();
 	_advancedBrowser = new QTextBrowser();
+	_measurementBrowser = new QTextBrowser();
+	_meshEditingBrowser = new QTextBrowser();
 	_tipsBrowser = new QTextBrowser();
 
 	// Set open external links for all browsers
@@ -159,6 +161,8 @@ void QuickHelpDialog::setupUI()
 	_cameraBrowser->setOpenExternalLinks(false);
 	_displayBrowser->setOpenExternalLinks(false);
 	_advancedBrowser->setOpenExternalLinks(false);
+	_measurementBrowser->setOpenExternalLinks(false);
+	_meshEditingBrowser->setOpenExternalLinks(false);
 	_tipsBrowser->setOpenExternalLinks(false);
 
 	// Add tabs
@@ -169,6 +173,8 @@ void QuickHelpDialog::setupUI()
 	_tabWidget->addTab(_cameraBrowser, tr("Camera Modes"));
 	_tabWidget->addTab(_displayBrowser, tr("Rendering && Display Modes"));
 	_tabWidget->addTab(_advancedBrowser, tr("Advanced Features"));
+	_tabWidget->addTab(_measurementBrowser, tr("Measurement && Annotation"));
+	_tabWidget->addTab(_meshEditingBrowser, tr("Mesh Editing"));
 	_tabWidget->addTab(_menuBrowser, tr("Menu Shortcuts"));
 	_tabWidget->addTab(_tipsBrowser, tr("Tips && Tricks"));
 
@@ -180,6 +186,8 @@ void QuickHelpDialog::setupUI()
 	setupCameraModesTab();
 	setupDisplayModesTab();
 	setupAdvancedFeaturesTab();
+	setupMeasurementTab();
+	setupMeshEditingTab();
 	setupMenuShortcutsTab();
 	setupTipsAndTricksTab();
 
@@ -571,7 +579,13 @@ void QuickHelpDialog::setupViewToolbarTab()
 		{tr("Swap Visible"), tr("Invert visibility"),
 		 tr("Show hidden objects and hide visible ones")},
 		{tr("Show/Hide Axis"), tr("Toggle axis display"),
-		 tr("Show or hide the 3D coordinate axis indicator")}
+		 tr("Show or hide the 3D coordinate axis indicator")},
+		{tr("Lasso Select"), tr("Freeform selection"),
+		 tr("Click to arm, then drag a freeform outline around meshes to select them; stays armed "
+			"across multiple drags until clicked again")},
+		{tr("Turntable"), tr("Auto-rotate camera"),
+		 tr("Toggles continuous camera rotation for presentation; stops automatically on any manual "
+			"navigation input")}
 	};
 
 	content += createSection(tr("Toolbar Buttons"), "") + createTable(headers, rows);
@@ -797,6 +811,262 @@ void QuickHelpDialog::setupAdvancedFeaturesTab()
 		   "back to glTF/GLB</li>"
 		   "</ul>"));
 
+	content += createSection(tr("Lasso Selection"),
+		tr("<p>A freeform-polygon alternative to click/rubber-band selection, armed via the Lasso Select "
+		   "button on the View Toolbar.</p>"
+		   "<ul>"
+		   "<li>Click the toolbar button to arm it, then drag a freeform outline in the viewport - every "
+		   "mesh whose center falls inside the outline is selected when you release</li>"
+		   "<li>Stays armed across multiple drags until you click the button again (or press Esc), unlike "
+		   "Window Zoom's one-shot gesture</li>"
+		   "<li>Hold Shift while dragging to add to the current selection instead of replacing it</li>"
+		   "<li>Plain click and rubber-band selection still work normally whenever Lasso isn't armed</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Filter by Material"),
+		tr("<p>Opened via Selection → Filter by Material..., this lists every distinct material actually "
+		   "in use in the scene and lets you select every mesh using it.</p>"
+		   "<ul>"
+		   "<li>Groups by each mesh's <b>current</b> material, not where it was imported from - a mesh "
+		   "re-materialed with the Eyedropper below is grouped by what it looks like now</li>"
+		   "<li>Multi-select rows with Ctrl/Shift-click - the live viewport selection updates as the union "
+		   "of every checked material</li>"
+		   "<li><b>Show Only</b> / <b>Hide</b> act immediately on whatever the list currently has selected, "
+		   "so you can isolate or hide a material as soon as you find it</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Filter by Color"),
+		tr("<p>Opened via Selection → Filter by Color..., this builds a list of target colors and selects "
+		   "every mesh whose color falls within a shared tolerance of any of them.</p>"
+		   "<ul>"
+		   "<li>Three ways to add a color: the <b>+ Add Color...</b> button opens the OS color picker; the "
+		   "<b>eyedropper</b> button lets you click meshes directly in the viewport for an exact match (no "
+		   "guessing - screen-sampling a rendered pixel rarely lands close enough to a mesh's true stored "
+		   "color); <b>Auto-Detect Colors in Scene</b> seeds the list with every distinct color already in "
+		   "the scene, so you can start from everything and prune what you don't want with each row's "
+		   "own × button</li>"
+		   "<li>Each listed color shows its own live match count, so you can see at a glance whether a "
+		   "color you added is actually catching anything</li>"
+		   "<li><b>Match Tolerance</b> is shared across every listed color - raise it if a picked/sampled "
+		   "color isn't quite matching</li>"
+		   "<li><b>Show Only</b> / <b>Hide</b> act on the combined result, same as Filter by Material</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Material Eyedropper / Brush"),
+		tr("<p>Copies one mesh's material onto others, armed from the eyedropper button in the Material "
+		   "Properties panel.</p>"
+		   "<ul>"
+		   "<li>Click the button, then click a source mesh to sample its material - the cursor switches to "
+		   "a brush icon</li>"
+		   "<li>Click or drag across target meshes to apply the sampled material - every mesh touched "
+		   "during one stroke is batched into a single undo step</li>"
+		   "<li>Stays armed after a stroke finishes, so you can keep applying the same sampled material</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Named Selection Sets"),
+		tr("<p>Save the current selection under a name and recall it later, from the Selections panel or "
+		   "Selection → Save Selection Set...</p>"
+		   "<ul>"
+		   "<li>Recalling a set reveals any of its members that are currently hidden, so the set always "
+		   "shows what you saved even if visibility has changed since</li>"
+		   "<li>A set that references a since-deleted mesh gracefully skips that entry on recall instead of "
+		   "failing</li>"
+		   "<li>Saved sets are persisted with the document</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Turntable"),
+		tr("<p>A standalone View Toolbar toggle for continuous camera auto-rotation, useful for "
+		   "presentation or demo purposes.</p>"
+		   "<ul>"
+		   "<li>Works independently of whichever camera mode (Orbit/Fly/First Person) is active</li>"
+		   "<li>Stops automatically the instant you rotate, pan, zoom, or otherwise navigate manually</li>"
+		   "<li>Always off when a document is first opened - it's a transient presentation setting, not "
+		   "saved with the document</li>"
+		   "</ul>"));
+
+	_advancedBrowser->setHtml(createStyledHtml(tr("Advanced Features"), content));
+}
+
+void QuickHelpDialog::setupMeasurementTab()
+{
+	QString content;
+
+	content += createSection(tr("Measure & Annotate"),
+		tr("<p>Opened via Tools → Measure... and Tools → Annotate... (no toolbar button or keyboard "
+		   "shortcut for either) - the two tools are mutually exclusive, arming one disarms the other.</p>"
+		   "<ul>"
+		   "<li>Creating, deleting, and repositioning a measurement or annotation is undoable; the "
+		   "per-item visibility checkbox in either dialog's list is not (same convention as mesh "
+		   "visibility in the Scene Tree)</li>"
+		   "<li>Both are saved only in this app's native <b>.mvf</b> session format, not exported to "
+		   "glTF/GLB (neither format has a native concept of a measurement or annotation)</li>"
+		   "<li>A measurement is resolved live against current mesh geometry, so it stays correct if you "
+		   "move/transform a mesh afterward</li>"
+		   "</ul>"));
+
+	QStringList measureHeaders = { tr("Tool"), tr("What It Measures"), tr("Picks"), tr("Notes") };
+
+	QList<QStringList> pointDistanceRows = {
+		{tr("Point"), tr("The 3D coordinates of a single point"), tr("1 click"), tr("Works on any mesh")},
+		{tr("Distance"), tr("Straight-line distance between two points"), tr("2 clicks"),
+		 tr("Points may be on different meshes/files")},
+		{tr("Geodesic Distance"), tr("Distance measured ALONG the surface between two points (e.g. "
+		 "wrapping around a curved part), not straight-line"), tr("2 clicks"),
+		 tr("Both points must land on the SAME mesh")},
+		{tr("3-Point Angle"), tr("The angle (0-180°) at a picked vertex, between rays to two other "
+		 "picked points"), tr("3 clicks"), tr("Works on any mesh")}
+	};
+	content += createSection(tr("Point & Distance"), "") + createTable(measureHeaders, pointDistanceRows);
+
+	QList<QStringList> arcsCirclesRows = {
+		{tr("3-Point Arc Radius"), tr("Radius/center of a circular arc, fit through three picked points "
+		 "on its rim"), tr("3 clicks"), tr("Works on any mesh")},
+		{tr("Center + 2-Point Arc Radius"), tr("Radius of an arc/hole from a picked center plus two "
+		 "points on the rim"), tr("3 clicks"),
+		 tr("STEP/IGES/BREP: center snaps to the exact analytic center (works for through-holes too). "
+		 "glTF/OBJ: center must land on real geometry - won't work on a through-hole's center")},
+		{tr("Edge Radius"), tr("Exact radius/center/axis of a circular edge (hole or boss rim)"),
+		 tr("1 click"), tr("STEP/IGES/BREP only - not available on glTF/OBJ meshes")},
+		{tr("Pitch Circle"), tr("Diameter of the best-fit circle through 3+ hole centers (a bolt-hole "
+		 "pattern), plus the angular gap between adjacent holes"), tr("3+ clicks, then Enter/Finish"),
+		 tr("Center-snapping works best on STEP/IGES/BREP; falls back to a plain surface pick on glTF/OBJ")},
+		{tr("Concentricity"), tr("Whether two holes/bosses share the same axis - distance between centers "
+		 "and angle between axes"), tr("2 clicks"),
+		 tr("STEP/IGES/BREP only - not available on glTF/OBJ meshes")},
+		{tr("Cylindrical/Conical Diameter"), tr("Diameter of a cylindrical or conical surface at the "
+		 "picked point (varies along a cone's length)"), tr("1 click on the curved surface, not its rim"),
+		 tr("STEP/IGES/BREP uses the exact surface axis; glTF/OBJ uses a validated local fit. Has its own "
+		 "options panel - see below")}
+	};
+	content += createSection(tr("Arcs & Circles"), "") + createTable(measureHeaders, arcsCirclesRows);
+
+	content += createSection(tr("Cylindrical Diameter Options"),
+		tr("<p>Shown only while Cylindrical/Conical Diameter is the active tool - tunes the mesh-fit/"
+		   "region-growing path used on non-CAD or fit-based cases (session-only, not saved with the "
+		   "document):</p>"
+		   "<ul>"
+		   "<li><b>Angle tolerance:</b> max angle between a candidate point's normal and the fitted "
+		   "cylinder's radial direction to join the region (app default 35°, CGAL's own default is 25°)</li>"
+		   "<li><b>Min region size:</b> minimum accepted point count for a fitted region (app default 24, "
+		   "CGAL's own default is 3)</li>"
+		   "<li><b>Min/Max diameter (0 = no limit):</b> reject a fit smaller/larger than these bounds</li>"
+		   "</ul>"));
+
+	QList<QStringList> facesRows = {
+		{tr("Face to Face"), tr("Perpendicular distance between two near-parallel faces, or the angle "
+		 "(0-90°) between them otherwise"), tr("2 clicks"), tr("Works on any mesh")},
+		{tr("Point to Face"), tr("Perpendicular distance from a picked point to a picked face's "
+		 "(infinite) plane"), tr("2 clicks"), tr("Works on any mesh")},
+		{tr("Face Area"), tr("Surface area of a face - the picked triangle plus every triangle connected "
+		 "to it and coplanar with it"), tr("1 click"), tr("Works on any mesh")},
+		{tr("Minimum Distance"), tr("True closest-point distance between two faces/surfaces - each pick "
+		 "expands to its whole smooth region"), tr("2 clicks"),
+		 tr("May be picked on the same mesh (e.g. a wall-thickness check) or two different ones; can take "
+		 "a moment on a very large, finely-tessellated face")}
+	};
+	content += createSection(tr("Faces"), "") + createTable(measureHeaders, facesRows);
+
+	QList<QStringList> edgesRows = {
+		{tr("Edge Length"), tr("Length of a single edge (straight or curved)"), tr("1 click"),
+		 tr("Works on any mesh")},
+		{tr("Edge to Vertex"), tr("Perpendicular distance from a picked vertex/point to a picked edge's "
+		 "(infinite) line"), tr("2 clicks"), tr("Works on any mesh")},
+		{tr("Edge to Edge"), tr("Perpendicular distance between two near-parallel edges, or the angle "
+		 "(0-90°) between them otherwise"), tr("2 clicks"),
+		 tr("Also handles skew, non-intersecting edges (angle-only result)")},
+		{tr("Edge to Face"), tr("Perpendicular distance from an edge to a face's plane, or the angle "
+		 "(0-90°) between them otherwise"), tr("2 clicks"), tr("Works on any mesh")},
+		{tr("Chain Length"), tr("Total length of a connected run of edges - an open chain (e.g. a weld "
+		 "seam) or a closed perimeter/loop"), tr("2+ clicks, then Enter/Finish"),
+		 tr("Each new pick must share an endpoint with the chain so far - a disconnected edge is rejected")}
+	};
+	content += createSection(tr("Edges"), "") + createTable(measureHeaders, edgesRows);
+
+	content += createSection(tr("Annotation"),
+		tr("<p>A free-text sticky note anchored to a point on a mesh surface, connected to a draggable "
+		   "text label by a leader line.</p>"
+		   "<ul>"
+		   "<li>Opens unarmed (still useful for reviewing/editing existing notes) - click <b>Place "
+		   "Note</b> to arm it</li>"
+		   "<li>Click a point on the model to place a note there - it's auto-selected with default text "
+		   "\"New Note\" so you can immediately type over it; stays armed for placing more notes in a "
+		   "row</li>"
+		   "<li>Select a note from the results list (or click it in the viewport) to edit its text, or "
+		   "<b>Delete</b> it - multi-select delete batches into one undo step</li>"
+		   "<li>Drag a note's text frame to reposition just the label/leader, independent of its anchor "
+		   "point</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Export Report"),
+		tr("<p>Opened via Tools → Export Report..., produces a PDF built from captured camera views plus "
+		   "an optional measurement/annotation summary table.</p>"
+		   "<ul>"
+		   "<li>The views list is pulled from the Cameras panel's own <b>Capture View</b> button - "
+		   "capture a view there first, it then appears here automatically</li>"
+		   "<li><b>Include measurement/annotation table</b> appends an HTML table listing every "
+		   "measurement and annotation's text to the PDF</li>"
+		   "<li>Double-click a captured view to override which specific measurements/annotations THAT "
+		   "view's screenshot shows, independent of the document's real visibility - <b>Use Current "
+		   "Visibility</b> clears the override</li>"
+		   "<li>Export restores the document's real visibility and the viewport's camera exactly as they "
+		   "were before, once finished - nothing is left toggled or parked on a captured view</li>"
+		   "</ul>"));
+
+	_measurementBrowser->setHtml(createStyledHtml(tr("Measurement & Annotation"), content));
+}
+
+void QuickHelpDialog::setupMeshEditingTab()
+{
+	QString content;
+
+	content += createSection(tr("Shrink Wrap"),
+		tr("<p>Opened via Tools → Shrink Wrap..., combines one or more selected meshes into a single new "
+		   "watertight, 2-manifold shell using CGAL's alpha wrapping - the inputs don't need to share a "
+		   "material or even be manifold themselves.</p>"
+		   "<ul>"
+		   "<li><b>Alpha</b> / <b>Offset:</b> the two numeric fields controlling how tightly the shell "
+		   "wraps and how far it's offset from the input surface; <b>Reset to Suggested</b> computes "
+		   "sensible starting values from the selection's bounding box</li>"
+		   "<li>Always produces a brand-new mesh node - the original selection is left untouched</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Reconstruct Surface"),
+		tr("<p>Opened via Tools → Reconstruct Surface..., builds a new triangulated surface from the "
+		   "point positions of one or more selected meshes/point clouds via CGAL's advancing-front "
+		   "reconstruction - existing faces are ignored, only point positions matter.</p>"
+		   "<ul>"
+		   "<li><b>Sharpness:</b> lower is smoother/rounder, higher preserves sharper edges</li>"
+		   "<li><b>Boundary Tolerance:</b> how large a gap the reconstruction may bridge</li>"
+		   "<li><b>Simplify point cloud before reconstruction:</b> optional, reveals a <b>Target "
+		   "Spacing</b> field that merges points closer than that distance first - speeds up large/noisy "
+		   "scans at the cost of fine detail</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Repair Mesh"),
+		tr("<p>Opened via Tools → Repair Mesh..., runs each mesh in the working list independently "
+		   "through CGAL's repair toolkit: duplicate/degenerate geometry, non-manifold vertices, "
+		   "inconsistent winding, and self-intersections. It's defect cleanup only - it never fills holes "
+		   "or forces closure, so an intentionally open panel stays open.</p>"
+		   "<ul>"
+		   "<li>A mesh already reported valid is skipped, no new node is created for it</li>"
+		   "<li><b>Self-intersection resolution attempts:</b> how many smoothing/hole-refill rounds to "
+		   "try (CGAL's own default is 7)</li>"
+		   "<li><b>Try smoothing-based resolution too:</b> adds a slower smoothing-based strategy "
+		   "alongside the default hole-filling-based one</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Fill Holes"),
+		tr("<p>Opened via Tools → Fill Holes..., detects every boundary loop (potential hole) across the "
+		   "meshes in the working list and lets you interactively choose which loops are genuine defects "
+		   "vs. an intentionally open edge, before patching only the checked ones via CGAL's "
+		   "triangulate-and-refine-hole.</p>"
+		   "<ul>"
+		   "<li>Selecting a detected-hole row highlights that loop in orange in the viewport</li>"
+		   "<li><b>Patch density:</b> how fine the new patch's triangulation is relative to the "
+		   "surrounding mesh</li>"
+		   "<li>Shares the same self-intersection resolution options as Repair Mesh above</li>"
+		   "</ul>"));
+
 	content += createSection(tr("Subdivide Surface"),
 		tr("<p>Opened via Tools → Subdivide Surface..., this smooths one or more selected meshes using "
 		   "CGAL's Loop or Catmull-Clark subdivision — each selected mesh is refined independently, added "
@@ -817,7 +1087,44 @@ void QuickHelpDialog::setupAdvancedFeaturesTab()
 		   "preview; unchecked, results accumulate side by side</li>"
 		   "</ul>"));
 
-	_advancedBrowser->setHtml(createStyledHtml(tr("Advanced Features"), content));
+	content += createSection(tr("Shared \"Replace Previous Result\" Convention"),
+		tr("<p>Shrink Wrap, Reconstruct Surface, Repair Mesh, Fill Holes, and Subdivide Surface all share "
+		   "one checkbox, checked by default: when checked, each Generate click undoably deletes the "
+		   "prior click's result before creating the new one, so at most one live result accumulates per "
+		   "source mesh. Unchecked, results accumulate side by side instead.</p>"));
+
+	content += createSection(tr("Mesh Operations (Right-Click Menu)"),
+		tr("<p>Available from the tree/viewport right-click context menu when meshes are selected - all "
+		   "add new mesh node(s) and remove the originals, and are undoable except Select Parent (a pure "
+		   "navigation helper).</p>"));
+
+	QStringList opsHeaders = { tr("Operation"), tr("What It Does"), tr("Selection Requirement") };
+	QList<QStringList> opsRows = {
+		{tr("Split by Connectivity"), tr("Splits each selected mesh into its disconnected pieces, one "
+		 "new mesh per piece. A mesh already a single connected piece is left untouched"),
+		 tr("One or more meshes, each evaluated independently")},
+		{tr("Merge by Adjacency"), tr("Groups the selection into touching clusters (by shared vertex "
+		 "position) and merges each touching cluster into one mesh; non-touching meshes are left alone"),
+		 tr("2+ meshes; only touching subgroups are merged")},
+		{tr("Merge Selected"), tr("Combines the whole selection into one new mesh by plain concatenation, "
+		 "regardless of whether the meshes are touching"), tr("2+ meshes")},
+		{tr("Mesh Union"), tr("Attempts a real CGAL boolean union across the selection's repaired "
+		 "geometry; silently falls back to plain concatenation (same as Merge Selected) if repair or "
+		 "corefinement fails"), tr("2+ meshes")},
+		{tr("Group"), tr("Pure scene-graph reorganization - creates a new Group node and moves the "
+		 "selected meshes into it. No geometry is touched"), tr("One or more meshes")},
+		{tr("Select Parent"), tr("Selects the tree parent of the right-clicked item - navigation only, no "
+		 "geometry change"), tr("The single right-clicked item")}
+	};
+	content += createTable(opsHeaders, opsRows);
+
+	content += createSection(tr("Mixed-Material Merges"),
+		tr("<p>Merge by Adjacency, Merge Selected, and Mesh Union all prompt when a touching group/"
+		   "selection has more than one material: <b>Keep Materials Separate</b> splits that group into "
+		   "one merge per material instead of combining everything into one with the first mesh's "
+		   "material, or choose <b>Merge Anyway</b> to combine regardless.</p>"));
+
+	_meshEditingBrowser->setHtml(createStyledHtml(tr("Mesh Editing"), content));
 }
 
 void QuickHelpDialog::setupMenuShortcutsTab()
@@ -846,6 +1153,28 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("Edit → Settings"), tr(""), tr("Open the settings dialog")}
 	};
 	content += createSection(tr("Edit Menu"), "") + createTable(headers, editRows);
+
+	// Selection Menu
+	QList<QStringList> selectionRows = {
+		{tr("Selection → Filter by Material..."), tr(""), tr("Select every mesh in the scene using a chosen material")},
+		{tr("Selection → Filter by Color..."), tr(""), tr("Select every mesh whose color matches a chosen target, within a tolerance")},
+		{tr("Selection → Save Selection Set..."), tr(""), tr("Save the current selection under a name, for quick recall later")}
+	};
+	content += createSection(tr("Selection Menu"), "") + createTable(headers, selectionRows);
+
+	// Tools Menu
+	QList<QStringList> toolsRows = {
+		{tr("Tools → Measure..."), tr(""), tr("Open the measurement tool - point, distance, and arc-radius tools among others")},
+		{tr("Tools → Annotate..."), tr(""), tr("Open the annotation tool - place text notes anchored to points on the model")},
+		{tr("Tools → Export Report..."), tr(""), tr("Export captured views and the measurement/annotation list as a PDF report")},
+		{tr("Tools → Shrink Wrap..."), tr(""), tr("Combine the selected meshes into one new watertight shell")},
+		{tr("Tools → Subdivide Surface..."), tr(""), tr("Smooth the selected meshes via CGAL subdivision")},
+		{tr("Tools → Reconstruct Surface..."), tr(""), tr("Reconstruct a triangulated surface from the selected point cloud(s)")},
+		{tr("Tools → Repair Mesh..."), tr(""), tr("Fix defects (non-manifold vertices, self-intersections, etc.) on the selected meshes")},
+		{tr("Tools → Fill Holes..."), tr(""), tr("Detect and interactively patch boundary-loop holes in the selected meshes")},
+		{tr("Tools → Generate UVs..."), tr(""), tr("Generate UV coordinates for meshes using a chosen projection method")}
+	};
+	content += createSection(tr("Tools Menu"), "") + createTable(headers, toolsRows);
 
 	// Visualization Menu
 	QList<QStringList> visualizationRows = {
@@ -876,6 +1205,12 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("  Duplicate"), tr(""), tr("Create copy of selected objects")},
 		{tr("  Delete"), tr("Delete"), tr("Remove selected objects")},
 		{tr("  Mesh Info"), tr(""), tr("Display detailed mesh information")},
+		{tr("  Select Parent"), tr(""), tr("Select the tree parent of the right-clicked item")},
+		{tr("  Split by Connectivity"), tr(""), tr("Split each selected mesh into its disconnected pieces")},
+		{tr("  Merge by Adjacency"), tr(""), tr("Merge only the touching clusters within the selection")},
+		{tr("  Merge Selected"), tr(""), tr("Combine the whole selection into one mesh")},
+		{tr("  Mesh Union"), tr(""), tr("Combine the selection via a real CGAL boolean union")},
+		{tr("  Group"), tr(""), tr("Move the selected meshes into a new group node")},
 		{tr(""), "", tr("")},
 		{tr("When no selection:"), "", tr("")},
 		{tr("  Fit All"), tr("F"), tr("Frame entire scene")},
@@ -910,6 +1245,11 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 			"<li><b>Toggle Selection:</b> Click on an already selected object to deselect it</li>"
 			"<li><b>Select from List:</b> Use the object list panel on the left side</li>"
 			"<li><b>Search Objects:</b> Use the search box above the object list to filter by name</li>"
+			"<li><b>Lasso Select:</b> Arm it from the View Toolbar for a freeform selection outline</li>"
+			"<li><b>Filter by Material/Color:</b> Use the Selection menu to select every mesh matching a "
+			"material or color across the whole scene</li>"
+			"<li><b>Named Selection Sets:</b> Save a selection under a name from the Selections panel to "
+			"recall it instantly later</li>"
 			"</ul>"));
 
 	content += createSection(tr("Working with Visibility"),
@@ -946,6 +1286,8 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 			"<li><b>Texture Mapping:</b> Apply textures through the Texture Mapping panel</li>"
 			"<li><b>Environment:</b> Enable SkyBox and IBL for realistic lighting</li>"
 			"<li><b>Display Modes:</b> Switch to Realistic mode to see full PBR materials</li>"
+			"<li><b>Eyedropper:</b> Sample one mesh's material and brush it onto others from the Material "
+			"Properties panel</li>"
 			"</ul>"));
 
 	content += createSection(tr("Advanced Features"),
@@ -956,6 +1298,15 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 			"<li><b>Shadows:</b> Toggle real-time shadows in Environment settings</li>"
 			"<li><b>Window Zoom:</b> Zoom precisely into a specific region of interest</li>"
 			"<li><b>UV Generation:</b> Auto-generate texture coordinates for objects without UVs</li>"
+			"</ul>"));
+
+	content += createSection(tr("Measuring & Documenting"),
+		tr("<ul>"
+			"<li><b>Measure:</b> Tools → Measure... for point, distance, arc-radius, and other precision "
+			"CAD measurements</li>"
+			"<li><b>Annotate:</b> Tools → Annotate... to pin text notes to specific points on the model</li>"
+			"<li><b>Capture Views First:</b> Capture camera views on the Cameras tab before Export Report "
+			"needs them - the report's view list is pulled from there</li>"
 			"</ul>"));
 
 	content += createSection(tr("Troubleshooting"),
