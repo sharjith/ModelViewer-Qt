@@ -25,6 +25,7 @@
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
+#include "SurfaceAnalysisDialog.h"
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
 #include "RepairMeshDialog.h"
@@ -3670,6 +3671,22 @@ void ModelViewer::openShrinkWrapDialog()
 	dialog->activateWindow();
 }
 
+void ModelViewer::openSurfaceAnalysisDialog()
+{
+	SurfaceAnalysisDialog* dialog = findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new SurfaceAnalysisDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	// No tree-selection seeding - see this function's declaration comment
+	// in ModelViewer.h for why (acts on the live viewport selection at
+	// Apply-click time, not a fixed working list).
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
 void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
                                     const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
 {
@@ -4499,6 +4516,13 @@ QSet<QUuid> ModelViewer::getSelectedUuids() const
 
 void ModelViewer::displaySelectedMeshInfo()
 {
+	// Trimmed to mesh statistics only (points/triangles/memory) - a quick
+	// glance stat from the tree's context menu. Mass properties (volume,
+	// surface area, mass, center of mass, bounding box) moved to the
+	// purpose-built Tools -> Mass Properties... dialog (MassPropertiesDialog),
+	// which has room for the "N/A + reason" nuance those values need (an
+	// open mesh has no valid volume, a material with no assigned density has
+	// no valid mass, etc.) that a single QMessageBox string dump doesn't.
 	std::vector<int> selected = getSelectedIDs();
 	if (selected.size() != 0)
 	{
@@ -4506,43 +4530,19 @@ void ModelViewer::displaySelectedMeshInfo()
 		QString name;
 		size_t points = 0, triangles = 0;
 		unsigned long long rawmem = 0;
-		float surfArea = 0, volume = 0;
-		QVector3D centerOfMass;
-		float weight = 0, density = 0;
 		SceneMesh* mesh = nullptr;
-		BoundingBox bbox;
 		size_t selectionCount = selected.size();
 		if (selectionCount > 1)
 			name = QString("%1 Meshes\n").arg(selectionCount);
 		else
 			name = meshes.at(selected[0])->getName() + "\n";
-		int meshCount = 0;
 		for (int id : selected)
 		{
 			mesh = meshes.at(id);
 			points += mesh->getPoints().size() / 3;
 			triangles += mesh->getIndices().size() / 3;
 			rawmem += mesh->memorySize();
-			try
-			{
-				MeshProperties props(mesh);
-				surfArea += props.surfaceArea();
-				volume += props.volume();
-				centerOfMass += props.centerOfMass() * props.weight();
-				weight += props.weight();
-				density = props.density();
-				if (meshCount == 0)
-					bbox = props.boundingBox();
-				else
-					bbox.addBox(props.boundingBox());
-			}
-			catch (const std::exception& ex)
-			{
-				std::cout << "Exception raised in ModelViewer::displaySelectedMeshInfo, Meshproperties" << ex.what() << std::endl;
-			}
-			meshCount++;
 		}
-		centerOfMass /= weight;
 
 		QString strpoints = QString(tr("Points: %1\n")).arg(points);
 		QString strtriangles = QString(tr("Triangles: %1\n")).arg(triangles);
@@ -4568,21 +4568,9 @@ void ModelViewer::displaySelectedMeshInfo()
 			mem = rawmem / (1024 * 1024 * 1024);
 			units = "gb";
 		}
-		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units + "\n";
-		QString meshProps;
+		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units;
 
-		meshProps = QString(tr("Mesh Volume: %1mm^3\nSurface Area: %2mm^2\nDensity: %3kg/m^3\nWeight: %4kg\n")).arg(volume).arg(surfArea)
-			.arg(density).arg(weight);
-
-		meshProps += QString(tr("Mesh Center of Mass: X%1, Y%2, Z%3\n")).arg(centerOfMass.x()).arg(centerOfMass.y()).arg(centerOfMass.z());
-
-		meshProps += QString(tr("Bounding Limits:\n\tXMin %1  XMax %2\n\tYMin %3  YMax %4\n\tZMin %5  ZMax %6\n"))
-			.arg(bbox.xMin()).arg(bbox.xMax()).arg(bbox.yMin()).arg(bbox.yMax()).arg(bbox.zMin()).arg(bbox.zMax());
-
-		meshProps += QString(tr("Bounding Size:\n\tX %1\n\tY %2\n\tZ %3"))
-			.arg(fabs(bbox.xMax() - bbox.xMin())).arg(fabs(bbox.yMax() - bbox.yMin())).arg(fabs(bbox.zMax() - bbox.zMin()));
-
-		QString info = name + strpoints + strtriangles + meshSize + meshProps;
+		QString info = name + strpoints + strtriangles + meshSize;
 		QMessageBox::information(this, tr("Mesh Info"), info);
 	}
 }

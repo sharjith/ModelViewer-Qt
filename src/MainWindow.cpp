@@ -34,6 +34,7 @@
 #include "PathUtils.h"
 #include "ReportExportDialog.h"
 #include "BatchRenderViewsDialog.h"
+#include "MassPropertiesDialog.h"
 #include "RtRenderDialog.h"
 
 #include <QMdiArea>
@@ -802,6 +803,23 @@ MainWindow::MainWindow(QWidget* parent)
 			return;
 		BatchRenderViewsDialog dialog(activeMdiChild(), this);
 		dialog.exec();
+		});
+
+	// Tools → Mass Properties... - same modal, one-shot, re-derive-from-
+	// scratch-every-open shape as the dialogs above.
+	connect(ui->actionMassProperties, &QAction::triggered, this, [this]() {
+		if (!activeMdiChild())
+			return;
+		MassPropertiesDialog dialog(activeMdiChild(), this);
+		dialog.exec();
+		});
+
+	// Tools → Surface Analysis... - opens the non-modal SurfaceAnalysisDialog,
+	// same wiring shape as actionShrinkWrap above (an ongoing interactive
+	// tool, not a one-shot report like Mass Properties just above).
+	connect(ui->actionSurfaceAnalysis, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->openSurfaceAnalysisDialog();
 		});
 
 	// Tools → Shrink Wrap... - opens the non-modal ShrinkWrapDialog, same
@@ -2367,6 +2385,8 @@ void MainWindow::updateMenus()
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
 	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
+	ui->actionMassProperties->setEnabled(hasMdiChild);
+	ui->actionSurfaceAnalysis->setEnabled(hasMdiChild);
 	ui->actionShrinkWrap->setEnabled(hasMdiChild);
 	ui->actionSubdivideSurface->setEnabled(hasMdiChild);
 	ui->actionReconstructSurface->setEnabled(hasMdiChild);

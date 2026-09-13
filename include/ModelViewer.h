@@ -583,6 +583,15 @@ public slots:
 	// Ctrl+Z undoes an entire multi-mesh Generate click as one step.
 	void commitUVGeneration(QVector<QUndoCommand*> commands, const QString& methodName);
 
+	// Surface Analysis: opens the non-modal SurfaceAnalysisDialog (Tools ->
+	// Surface Analysis...), same findChild-reuse-or-create/show/raise
+	// pattern as openShrinkWrapDialog() above - but NOT seeded with the
+	// current tree selection the way the mesh-generating tools above are:
+	// this dialog acts on the LIVE viewport selection at the moment Apply is
+	// clicked (same convention MassPropertiesDialog already uses), not a
+	// fixed working list, so there's nothing to seed at open time.
+	void openSurfaceAnalysisDialog();
+
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
 	// the call is a no-op - guards against a stale command (from a document

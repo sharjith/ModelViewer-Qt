@@ -6363,7 +6363,16 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			{
 				QOpenGLShaderProgram* activeProg = prog;
 				int activeSssObjectIdLocation = sssObjectIdLocation;
-				if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+				// See renderMeshWithDisplayMode()'s doc comment on the same
+				// exclusion - this is the actual per-frame substitution site
+				// for the main opaque pass (renderMeshWithDisplayMode()'s own
+				// copy of this same guard turned out not to be the code path
+				// exercised for a normal viewport render). flatProg
+				// (main_scene_flat.vert/.geom) never got the analysisColor
+				// attribute Step 3/4 added to main_scene.vert, so a mesh with
+				// an active Surface Analysis overlay must stay on the
+				// ordinary prog regardless of Flat shading-normal mode.
+				if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES && !mesh->hasAnalysisOverlay())
 				{
 					activeProg = flatProg;
 					activeSssObjectIdLocation = flatSssObjectIdLocation;
@@ -6688,7 +6697,8 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 				const int id = it.second;
 				QOpenGLShaderProgram* activeProg = prog;
 				int activeSssObjectIdLocation = sssObjectIdLocation;
-				if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+				// See drawMeshSubset()'s equivalent opaque-pass guard.
+				if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES && !mesh->hasAnalysisOverlay())
 				{
 					activeProg = flatProg;
 					activeSssObjectIdLocation = flatSssObjectIdLocation;
@@ -9929,13 +9939,38 @@ void ViewportWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
+		// Surface Analysis overlay (draft-angle-style flat colormap) never
+		// substitutes fgFlatShader() here, even when Flat shading-normal
+		// mode is active - main_scene_flat.vert/.geom are a completely
+		// separate program from main_scene.vert and were never given the
+		// analysisColor attribute Step 3/4 added there, so linking against
+		// them silently drops the overlay's color data (it reads back as
+		// OpenGL's disabled-attribute default, solid black) regardless of
+		// how correctly that data was uploaded. The overlay already bypasses
+		// this app's own flat/smooth normal computation entirely via its
+		// early-return in main_scene.frag, so falling back to the ordinary
+		// fgShader() here costs nothing - there's no flat-shading benefit
+		// fgFlatShader() would have added for a mesh whose fragment color is
+		// coming from the overlay, not from lighting. Zebra-stripe doesn't
+		// need this exclusion - it only reads pre-existing v_normal/v_position
+		// varyings both programs already carry, no new attribute involved.
 		if (_shadingNormalMode == ShadingNormalMode::FLAT &&
 			_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked() &&
 			mesh->getPrimitiveMode() == GL_TRIANGLES &&
-			mesh->prog() == _renderCtrl.fgShader())
+			mesh->prog() == _renderCtrl.fgShader() &&
+			!mesh->hasAnalysisOverlay())
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.fgFlatShader());
 			mesh->setProg(_renderCtrl.fgFlatShader());
+		}
+		else if (mesh->hasAnalysisOverlay() && mesh->prog() == _renderCtrl.fgFlatShader())
+		{
+			// Mesh was left on fgFlatShader() from a previous frame (Flat
+			// mode was active before the overlay was applied) - switch it
+			// back now that an overlay needs the attribute fgFlatShader()
+			// doesn't carry.
+			RenderableMesh::bindProgramCached(_renderCtrl.fgShader());
+			mesh->setProg(_renderCtrl.fgShader());
 		}
 		mesh->render();
 		break;

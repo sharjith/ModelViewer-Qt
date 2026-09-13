@@ -11,6 +11,12 @@ layout(location = 7) in vec3 vertexTangent;
 layout(location = 8) in vec3 vertexBitangent;
 layout(location = 9) in vec4 jointIndices;
 layout(location = 10) in vec4 jointWeights;
+// Surface Analysis overlay (curvature/thickness/deviation heatmaps) - a
+// dedicated attribute, deliberately NOT sharing vertexColor's location/
+// buffer. See RenderableMesh::setAnalysisOverlayColors()'s doc comment for
+// why: vertexColor is real authored mesh data (e.g. genuine Point Set
+// Reconstruction vertex colors), and this overlay must never touch it.
+layout(location = 11) in vec4 analysisColor;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -35,6 +41,7 @@ out vec3 v_position;
 out vec3 v_normal;
 out vec4 v_color;
 out vec4 v_rawVertexColor;
+out vec4 v_analysisColor;
 out vec2 v_texCoord0;
 out vec2 v_texCoord1;
 out vec2 v_texCoord2;
@@ -113,6 +120,7 @@ void main()
     }
     v_color            = vertexColor;
     v_rawVertexColor   = vertexColor;
+    v_analysisColor    = analysisColor;
     v_texCoord0 = texCoord0;
     v_texCoord1 = texCoord1;
     v_texCoord2 = texCoord2;

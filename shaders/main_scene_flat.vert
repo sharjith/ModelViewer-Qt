@@ -22,6 +22,14 @@ layout(location = 7) in vec3 vertexTangent;
 layout(location = 8) in vec3 vertexBitangent;
 layout(location = 9) in vec4 jointIndices;
 layout(location = 10) in vec4 jointWeights;
+// Surface Analysis overlay - see main_scene.vert's own doc comment for this
+// attribute. Forwarded through VS_FLAT_GEOM/the geometry shader purely so
+// this program still LINKS against main_scene.frag's "in vec4
+// v_analysisColor" (both programs share that one fragment shader) - actual
+// meshes with an active overlay never render through this flat-shading
+// program at all (ViewportWidget.cpp excludes them), so the value reaching
+// the fragment shader here is never actually used.
+layout(location = 11) in vec4 analysisColor;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -66,6 +74,7 @@ out VS_FLAT_GEOM {
     vec3 reflectionFlatNormal;  // world-space (→ v_reflectionFlatNormal)
     vec3 positionFlat;          // constant per-face position     → v_positionFlat
     vec3 positionLinear;        // for noperspective interp.      → v_positionLinear
+    vec4 analysisColor;         //                                → v_analysisColor
 } vs_fg;
 
 out VS_OUT_SHADOW {
@@ -125,6 +134,7 @@ void main()
 
     vs_fg.color         = vertexColor;
     vs_fg.rawVertexColor = vertexColor;
+    vs_fg.analysisColor = analysisColor;
     vs_fg.texCoord0     = texCoord0;
     vs_fg.texCoord1     = texCoord1;
     vs_fg.texCoord2     = texCoord2;

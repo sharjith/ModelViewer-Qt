@@ -42,6 +42,7 @@ in VS_FLAT_GEOM {
     vec3 reflectionFlatNormal; // placeholder (GS overrides)
     vec3 positionFlat;
     vec3 positionLinear;
+    vec4 analysisColor;
 } gs_fg_in[];
 
 // ---- Shadow interface block input -------------------------------------------
@@ -59,6 +60,7 @@ out vec3 v_position;
 out vec3 v_normal;
 out vec4 v_color;
 out vec4 v_rawVertexColor;
+out vec4 v_analysisColor;
 out vec2 v_texCoord0;
 out vec2 v_texCoord1;
 out vec2 v_texCoord2;
@@ -124,6 +126,7 @@ void main()
         v_normal             = gs_fg_in[i].normal;
         v_color              = gs_fg_in[i].color;
         v_rawVertexColor     = gs_fg_in[i].rawVertexColor;
+        v_analysisColor      = gs_fg_in[i].analysisColor;
         v_texCoord0          = gs_fg_in[i].texCoord0;
         v_texCoord1          = gs_fg_in[i].texCoord1;
         v_texCoord2          = gs_fg_in[i].texCoord2;

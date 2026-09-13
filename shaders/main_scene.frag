@@ -7,6 +7,7 @@ in vec3 v_position;
 in vec3 v_normal;
 in vec4 v_color;
 in vec4 v_rawVertexColor;
+in vec4 v_analysisColor;
 in vec2 v_texCoord0;
 in vec2 v_texCoord1;
 in vec2 v_texCoord2;
@@ -36,6 +37,18 @@ in VS_OUT_SHADOW{
 
 uniform bool hasVertexColors;
 uniform bool hasNegativeScale;
+// Surface Analysis overlay (curvature/thickness/deviation heatmaps) - a
+// dedicated, always-unlit output path, deliberately independent of
+// hasVertexColors/debugChannelOutput below (see RenderableMesh::
+// setAnalysisOverlayColors()'s doc comment for why). Checked and handled
+// once, early, near the top of main() - see that check for the full
+// reasoning.
+uniform bool analysisOverlayActive;
+// Zebra-stripe reflection-line overlay (Surface Analysis's Curvature panel) -
+// see RenderableMesh::setZebraStripeActive()'s doc comment. Also handled
+// early, right after analysisOverlayActive above.
+uniform bool zebraStripeActive;
+uniform float zebraStripeFrequency;
 
 uniform int primitiveMode;  // 0=POINTS, 1=LINES, 2=LINE_LOOP, 3=LINE_STRIP, 4+=TRIANGLES
 
@@ -833,6 +846,46 @@ void main()
 	// fragments are written into the SSS FBO.
 	if (sssCapture && !hasVolumeScattering)
 		discard;
+
+	// Surface Analysis overlay (curvature/thickness/deviation heatmaps) -
+	// checked here, after the discard/visibility checks above (a backface
+	// or faded-out reflection fragment still shouldn't render just because
+	// analysis is active) but before any lighting computation begins, since
+	// the overlay is a flat, unlit, deliberately non-photoreal color read -
+	// there's nothing for the ADS/PBR paths below to contribute. Explicitly
+	// excluded from the SSS capture and reflected passes (this shader's
+	// other special output modes) - the overlay is a normal-color-pass-only
+	// concept, never meant to leak into either of those.
+	if (analysisOverlayActive && !sssCapture && !isReflectedPass)
+	{
+		fragColor = vec4(v_analysisColor.rgb, 1.0);
+		return;
+	}
+
+	// Zebra-stripe reflection-line overlay - same early-exit reasoning as
+	// analysisOverlayActive above (unlit, nothing for the lighting paths
+	// below to contribute, excluded from the SSS/reflected special passes).
+	// Uses v_normal - the ordinary SMOOTHLY INTERPOLATED per-vertex normal,
+	// deliberately NOT a flat per-face one - zebra-stripe exists to reveal
+	// whether adjacent surface regions are tangent-continuous, which a flat
+	// normal would defeat by making every triangle read as its own
+	// discontinuous band regardless of the underlying surface's true
+	// smoothness.
+	if (zebraStripeActive && !sssCapture && !isReflectedPass)
+	{
+		vec3 viewDir = normalize(cameraPos - v_position);
+		vec3 N = normalize(v_normal);
+		vec3 R = reflect(-viewDir, N);
+		// Classic reflection-line technique: project the reflection vector
+		// onto a fixed world-space scan axis and repeat a black/white
+		// pattern along it - any kink or non-tangent seam in the underlying
+		// normal field visibly breaks the stripe pattern's otherwise-smooth
+		// flow across it.
+		float stripeCoord = R.y * zebraStripeFrequency;
+		float stripe = step(0.5, fract(stripeCoord));
+		fragColor = vec4(vec3(stripe), 1.0);
+		return;
+	}
 
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)

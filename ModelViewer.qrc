@@ -101,6 +101,21 @@
         <file>res/lasso_select.png</file>
         <file>res/camera_orbit_anim.png</file>
         <file>res/save_scene_state.png</file>
+        <file>res/measure.png</file>
+        <file>res/annotate.png</file>
+        <file>res/export_report.png</file>
+        <file>res/batch_render_views.png</file>
+        <file>res/mass_properties.png</file>
+        <file>res/shrink_wrap.png</file>
+        <file>res/subdivide_surface.png</file>
+        <file>res/reconstruct_surface.png</file>
+        <file>res/repair_mesh.png</file>
+        <file>res/fill_holes.png</file>
+        <file>res/generate_uvs.png</file>
+        <file>res/surface_analysis.png</file>
+        <file>res/curvature_analysis.png</file>
+        <file>res/wall_thickness.png</file>
+        <file>res/deviation_analysis.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

@@ -96,6 +96,8 @@
     <addaction name="actionAnnotate"/>
     <addaction name="actionExportReport"/>
     <addaction name="actionBatchRenderViews"/>
+    <addaction name="actionMassProperties"/>
+    <addaction name="actionSurfaceAnalysis"/>
     <addaction name="separator"/>
     <addaction name="actionShrinkWrap"/>
     <addaction name="actionSubdivideSurface"/>
@@ -375,6 +377,10 @@
    </property>
   </action>
   <action name="actionMeasure">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/measure.png</normaloff>:/icons/res/measure.png</iconset>
+   </property>
    <property name="text">
     <string>Measure...</string>
    </property>
@@ -423,6 +429,10 @@
    </property>
   </action>
   <action name="actionAnnotate">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/annotate.png</normaloff>:/icons/res/annotate.png</iconset>
+   </property>
    <property name="text">
     <string>Annotate...</string>
    </property>
@@ -431,6 +441,10 @@
    </property>
   </action>
   <action name="actionExportReport">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/export_report.png</normaloff>:/icons/res/export_report.png</iconset>
+   </property>
    <property name="text">
     <string>Export Report...</string>
    </property>
@@ -439,6 +453,10 @@
    </property>
   </action>
   <action name="actionBatchRenderViews">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/batch_render_views.png</normaloff>:/icons/res/batch_render_views.png</iconset>
+   </property>
    <property name="text">
     <string>Batch Render Views...</string>
    </property>
@@ -446,7 +464,35 @@
     <string>Render every captured view (or a checked subset) as a high-quality offline path-traced image, one per file</string>
    </property>
   </action>
+  <action name="actionMassProperties">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/mass_properties.png</normaloff>:/icons/res/mass_properties.png</iconset>
+   </property>
+   <property name="text">
+    <string>Mass Properties...</string>
+   </property>
+   <property name="statusTip">
+    <string>Volume, surface area, mass, and center of mass for the current selection</string>
+   </property>
+  </action>
+  <action name="actionSurfaceAnalysis">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/surface_analysis.png</normaloff>:/icons/res/surface_analysis.png</iconset>
+   </property>
+   <property name="text">
+    <string>Surface Analysis...</string>
+   </property>
+   <property name="statusTip">
+    <string>Curvature, wall-thickness/draft-angle, and deviation inspection, painted directly on the mesh surface</string>
+   </property>
+  </action>
   <action name="actionShrinkWrap">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/shrink_wrap.png</normaloff>:/icons/res/shrink_wrap.png</iconset>
+   </property>
    <property name="text">
     <string>Shrink Wrap...</string>
    </property>
@@ -455,6 +501,10 @@
    </property>
   </action>
   <action name="actionSubdivideSurface">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/subdivide_surface.png</normaloff>:/icons/res/subdivide_surface.png</iconset>
+   </property>
    <property name="text">
     <string>Subdivide Surface...</string>
    </property>
@@ -463,6 +513,10 @@
    </property>
   </action>
   <action name="actionReconstructSurface">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/reconstruct_surface.png</normaloff>:/icons/res/reconstruct_surface.png</iconset>
+   </property>
    <property name="text">
     <string>Reconstruct Surface...</string>
    </property>
@@ -471,6 +525,10 @@
    </property>
   </action>
   <action name="actionRepairMesh">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/repair_mesh.png</normaloff>:/icons/res/repair_mesh.png</iconset>
+   </property>
    <property name="text">
     <string>Repair Mesh...</string>
    </property>
@@ -479,6 +537,10 @@
    </property>
   </action>
   <action name="actionFillHoles">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/fill_holes.png</normaloff>:/icons/res/fill_holes.png</iconset>
+   </property>
    <property name="text">
     <string>Fill Holes...</string>
    </property>
@@ -487,6 +549,10 @@
    </property>
   </action>
   <action name="actionGenerateUVs">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/generate_uvs.png</normaloff>:/icons/res/generate_uvs.png</iconset>
+   </property>
    <property name="text">
     <string>Generate UVs...</string>
    </property>

@@ -1232,57 +1232,82 @@ void SceneMesh::render()
 	constexpr GLboolean prevDepthMask = GL_TRUE;
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
 
-	_vertexArrayObject.bind();
-
-	// Adjust vertex count based on primitive mode
-	GLsizei drawCount = _nVerts;
-
-	// For point rendering, use point size
-	if (_primitiveMode == GL_POINTS)
+	// Surface Analysis overlay (draft-angle-style flat colormap) - REPLACES
+	// the normal draw entirely, not an extra pass (same surface/depth, would
+	// just z-fight; the overlay is meant to override normal appearance).
+	// This duplicates RenderableMesh::render()'s own copy of this branch
+	// because SceneMesh::render() (this function) is this app's actual
+	// per-frame draw call for every loaded mesh - every real call site in
+	// ViewportWidget.cpp holds a SceneMesh*, and this function's own
+	// declaration in SceneMesh.h hides RenderableMesh::render() via normal
+	// C++ name lookup, so the base class version (and its own flat-overlay
+	// branch) is never reached for a live SceneMesh no matter how correctly
+	// the overlay's data/attributes were uploaded and bound elsewhere.
+	if (_hasAnalysisFlatOverlay && _analysisFlatVAO.isCreated())
 	{
-		glEnable(GL_PROGRAM_POINT_SIZE);
-		glPointSize(3.0f);
-	}
-
-	// For line rendering, use line width
-	if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
-	{
-		glLineWidth(1.5f);
-	}
-
-	// Draw indexed primitives when an element buffer exists, otherwise fall
-	// back to array drawing for glTF point/line primitives that omit indices.
-	if (profiling)
-		stageTimer.restart();
-	if (_indices.empty())
-	{
-		glDrawArrays(_primitiveMode, 0, drawCount);
+		if (profiling)
+			stageTimer.restart();
+		_analysisFlatVAO.bind();
+		glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(_analysisFlatVertexCount));
+		_analysisFlatVAO.release();
+		recordDrawCall(false, isTransparent());
+		if (profiling)
+			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 	}
 	else
 	{
-		// Interaction-time LOD: _hasLod1 is only ever true for eligible rigid
-		// triangle meshes (see optimizeMesh()'s eligibility gate), so no extra
-		// primitive-mode check is needed here - explicit EBO rebind rather
-		// than relying on residual VAO state, since the same VAO is reused
-		// across frames for both tiers.
-		const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
-		if (drawLod1)
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
-		else
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
-		glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
-	}
-	recordDrawCall(!_indices.empty(), isTransparent());
-	if (profiling)
-		recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
-	
-	// Reset point size
-	if (_primitiveMode == GL_POINTS)
-	{
-		glDisable(GL_PROGRAM_POINT_SIZE);
-	}
+		_vertexArrayObject.bind();
 
-	_vertexArrayObject.release();
+		// Adjust vertex count based on primitive mode
+		GLsizei drawCount = _nVerts;
+
+		// For point rendering, use point size
+		if (_primitiveMode == GL_POINTS)
+		{
+			glEnable(GL_PROGRAM_POINT_SIZE);
+			glPointSize(3.0f);
+		}
+
+		// For line rendering, use line width
+		if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
+		{
+			glLineWidth(1.5f);
+		}
+
+		// Draw indexed primitives when an element buffer exists, otherwise fall
+		// back to array drawing for glTF point/line primitives that omit indices.
+		if (profiling)
+			stageTimer.restart();
+		if (_indices.empty())
+		{
+			glDrawArrays(_primitiveMode, 0, drawCount);
+		}
+		else
+		{
+			// Interaction-time LOD: _hasLod1 is only ever true for eligible rigid
+			// triangle meshes (see optimizeMesh()'s eligibility gate), so no extra
+			// primitive-mode check is needed here - explicit EBO rebind rather
+			// than relying on residual VAO state, since the same VAO is reused
+			// across frames for both tiers.
+			const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
+			if (drawLod1)
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _lodIndexBuffer.bufferId());
+			else
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
+			glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
+		}
+		recordDrawCall(!_indices.empty(), isTransparent());
+		if (profiling)
+			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+
+		// Reset point size
+		if (_primitiveMode == GL_POINTS)
+		{
+			glDisable(GL_PROGRAM_POINT_SIZE);
+		}
+
+		_vertexArrayObject.release();
+	}
 
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 	if (profiling)
