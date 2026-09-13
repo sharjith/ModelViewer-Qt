@@ -28,13 +28,13 @@ class SceneMesh;
 // (RenderableMesh::setAnalysisOverlayColors()/setAnalysisOverlayFlatColors(),
 // AnalysisColorRamp, SurfaceAnalysisOverlay).
 //
-// As of this step, only two of the five total sub-modes are actually
-// implemented: Draft Angle (Wall-Thickness panel) and Zebra Stripe
-// (Curvature panel) - see this app's own implementation plan for the build
-// sequence. Curvature colormap, wall thickness itself, and deviation are
-// intentionally shown as "not yet available" placeholders rather than
-// pretending to work; the panel structure is already shaped for them so
-// adding each is additive, not a redesign.
+// As of this step, three of the five total sub-modes are implemented: Draft
+// Angle (Wall-Thickness panel), Zebra Stripe (Curvature panel), and unsigned
+// Deviation (its own panel) - see this app's own implementation plan for the
+// build sequence. Curvature colormap and true ray-based wall thickness are
+// still "not yet available" placeholders rather than pretending to work; the
+// panel structure is already shaped for them so adding each is additive, not
+// a redesign.
 //
 // Non-modal, per-document singleton (ModelViewer::openSurfaceAnalysisDialog()
 // findChild-reuses it), matching MeasurementDialog/ShrinkWrapDialog/
@@ -70,6 +70,7 @@ private slots:
 	void onModeChanged();
 	void onZebraStripeToggled(bool checked);
 	void onApplyDraftAngleClicked();
+	void onApplyDeviationClicked();
 	void onClearClicked();
 
 private:
@@ -82,7 +83,13 @@ private:
 	// MassPropertiesDialog's own "acts on the current selection" convention.
 	void applyDraftAngleToSelection();
 	void applyZebraStripeToSelection(bool active);
+	void applyDeviationToSelection();
 	void clearSelectionOverlays();
+	// Repopulates _referenceMeshCombo from the document's currently loaded
+	// meshes, excluding the current selection - called whenever the
+	// Deviation page becomes active, since the loaded-mesh list can change
+	// between visits (import, delete) while the dialog stays open.
+	void refreshReferenceMeshCombo();
 	// Clears every overlay this dialog ever applied, regardless of what's
 	// currently selected - used on close (see this class's doc comment),
 	// since by then there's no button left to scope a selection-based clear.
@@ -102,6 +109,10 @@ private:
 	// Wall-Thickness page
 	QComboBox* _pullDirectionCombo = nullptr;
 	QPushButton* _applyDraftButton = nullptr;
+
+	// Deviation page
+	QComboBox* _referenceMeshCombo = nullptr;
+	QPushButton* _applyDeviationButton = nullptr;
 
 	QLabel* _legendLabel = nullptr;
 	QPushButton* _clearButton = nullptr;
