@@ -52,14 +52,20 @@ public:
 
 protected:
 	void showEvent(QShowEvent* event) override;
-	// Refreshes the live selection when this dialog's window regains OS-level
+	// Restores the live selection when this dialog's window regains OS-level
 	// activation (e.g. the user clicks back onto it after using an unrelated
 	// command like Show All elsewhere) - confirmed real gap: Hide clears the
 	// viewport selection, and a subsequent Show All doesn't touch selection
 	// either, so without this the dialog's still-valid filter criteria never
 	// re-asserted themselves until the user touched the dialog's own
 	// controls again. Scoped to this dialog only - no changes to the shared
-	// visibility-command code path.
+	// visibility-command code path. Only ever ADDS meshes back (never
+	// removes any) - guarded to skip the push entirely when the live
+	// selection already contains something the selected rows don't fully
+	// cover, so a plain focus change can never silently shrink a selection
+	// this dialog didn't fully create (confirmed real bug: a live selection
+	// mixing one whole filtered group with a partial second group got
+	// truncated to just the whole group on refocus).
 	void changeEvent(QEvent* event) override;
 	// Saves window geometry - see saveSettings()'s doc comment.
 	void closeEvent(QCloseEvent* event) override;
@@ -88,13 +94,22 @@ private slots:
 	// Fires once _hoverTimer's long-hover delay elapses over an icon -
 	// see eventFilter()'s doc comment.
 	void showHoverPreview();
-	// Right-click context menu ("Edit Material...") - see the .cpp for why
-	// this is the only entry so far.
+	// Right-click context menu ("Edit Material...", "Replace With...").
 	void onListContextMenuRequested(const QPoint& pos);
+	// Reassigns every mesh in _groups[sourceGroupIndex] to
+	// _groups[targetGroupIndex]'s material, as one undo step - see the .cpp
+	// for why this needs an explicit rebuildGroups() call afterward.
+	void onReplaceMaterialRequested(int sourceGroupIndex, int targetGroupIndex);
 
 	// Hides/shows this dialog as its own document's MDI subwindow loses/gains focus - mirrors
 	// ShrinkWrapDialog's identical mechanism.
 	void onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow);
+	// Fires (queued - see the .cpp's doc comment on the connection) on ANY
+	// undo/redo/push on this document, not just this dialog's own actions.
+	// Rebuilds the list/labels as usual, but suppresses applyLiveSelection()'s
+	// push for the duration - see _suppressLiveSelectionPush's doc comment
+	// for why an undo-triggered rebuild must never push a new command.
+	void onUndoStackIndexChanged();
 
 private:
 	// Rebuilds _groups and the list rows from the CURRENT mesh store - called
@@ -157,4 +172,15 @@ private:
 	// over any row's icon. Not owned; just an identity check against
 	// eventFilter()'s itemAt() result.
 	QListWidgetItem* _hoverArmedItem = nullptr;
+
+	// Set for the duration of an undo/redo-triggered rebuild (see
+	// onUndoStackIndexChanged()), checked by applyLiveSelection() to skip
+	// its setSelectionWithUndo() push while set. Without this, a rebuild
+	// that runs right after undoing a selection THIS dialog itself pushed
+	// would recompute the same (now-stale-relative-to-the-undo) selection
+	// and immediately push it right back - silently undoing the user's
+	// undo (confirmed real bug). Restoring the list's row-highlight display
+	// is still fine to do during this window; only the live-selection push
+	// itself needs suppressing.
+	bool _suppressLiveSelectionPush = false;
 };

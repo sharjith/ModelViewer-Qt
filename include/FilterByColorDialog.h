@@ -108,6 +108,12 @@ private slots:
 	// duplicates the row's own × button, same convenience FilterByMaterialDialog's
 	// "Edit Material..." adds over its dedicated buttons).
 	void onListContextMenuRequested(const QPoint& pos);
+	// Fires (queued - see the .cpp's doc comment on the connection) on ANY
+	// undo/redo/push on this document. Rebuilds as usual, but suppresses
+	// updateMatches()'s push for the duration - see
+	// _suppressLiveSelectionPush's doc comment for why an undo-triggered
+	// rebuild must never push a new command.
+	void onUndoStackIndexChanged();
 
 private:
 	// Removes _colors[index] and rebuilds the list - called from each row's
@@ -169,4 +175,15 @@ private:
 	QLabel* _matchCountLabel = nullptr;
 	QPushButton* _showOnlyButton = nullptr;
 	QPushButton* _hideButton = nullptr;
+
+	// Set for the duration of an undo/redo-triggered rebuild (see
+	// onUndoStackIndexChanged()), checked by updateMatches() to skip its
+	// setSelectionWithUndo() push while set. Without this, a rebuild that
+	// runs right after undoing a selection THIS dialog itself pushed would
+	// recompute the SAME match set from the (unchanged) _colors criteria
+	// and push it right back - silently undoing the user's undo (confirmed
+	// real bug, same root cause as FilterByMaterialDialog's identical
+	// flag). The match-count labels/aggregate text are still refreshed
+	// normally; only the live-selection push itself needs suppressing.
+	bool _suppressLiveSelectionPush = false;
 };

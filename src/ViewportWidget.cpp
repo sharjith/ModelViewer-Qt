@@ -530,16 +530,29 @@ _floorPlane(nullptr),
 	_renderCtrl.setFloorOffsetPercent(kDefaultFloorOffsetPercent / 100.0f);
 
 	// Floor texture
-	if (!_texBuffer.load(PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
+	const QString defaultFloorTexPath = PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg";
+	if (!_texBuffer.load(defaultFloorTexPath))
 	{ // Load first image from file
 		qWarning("ViewportWidget::loadFloor - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		_floorTexImage = dummy;
+		// No real source file behind the fallback dummy - leave _floorTexturePath
+		// empty rather than pointing at a path that failed to load.
 	}
 	else
 	{
 		_floorTexImage = convertToGLFormat(_texBuffer);
+		// Recorded (not routed through setFloorTextureFromPath() - this runs
+		// too early, before GL/floor-plane state setFloorTexture() touches is
+		// necessarily ready) so getFloorTexturePath() reflects reality from
+		// construction on, same as every texture loaded later via the file
+		// dialog. Without this, a document/scene-state that saved the
+		// UNCHANGED default texture recorded an empty path, which recall
+		// then treated as "nothing to restore" - silently leaving whatever
+		// custom floor texture happened to be loaded at recall time in place
+		// instead of reverting to this default.
+		_floorTexturePath = defaultFloorTexPath;
 	}
 
 	_renderCtrl.setSkyBoxEnabled(false);
@@ -4282,6 +4295,23 @@ void ViewportWidget::setFloorTexture(QImage img)
 	// immediately on CPU, which rebuilds unconditionally every session
 	// start) until something ELSE happened to bump the revision.
 	notifyRayTracedSceneMutated();
+}
+
+void ViewportWidget::setFloorTextureFromPath(const QString& path)
+{
+	QImage buf;
+	if (!buf.load(path))
+	{
+		// Same dummy-image fallback as VisualizationEnvironmentPanel::
+		// onFloorTextureClicked()'s inline load - a stale/moved path (e.g. a
+		// scene state or MVF session referencing a file that's since been
+		// deleted) shouldn't leave the floor texture in a half-set state.
+		QImage dummy(128, 128, QImage::Format_ARGB32);
+		dummy.fill(1);
+		buf = dummy;
+	}
+	setFloorTexture(buf);
+	_floorTexturePath = path;
 }
 
 void ViewportWidget::showFloorTexture(bool show)
@@ -10566,6 +10596,30 @@ GltfCameraEntry ViewportWidget::captureCurrentCameraEntry(const QString& name) c
 	}
 
 	return entry;
+}
+
+void ViewportWidget::activateCameraEntry(const GltfCameraEntry& cam)
+{
+	if (!_viewer || !_primaryCamera)
+		return;
+
+	// Save the current system camera state before the first jump, same as
+	// activateGltfCamera() - so the user can still get back to exactly where
+	// they were via resetToSystemCamera().
+	if (!_viewCtrl.systemCameraStateSaved())
+		_viewCtrl.saveSystemCameraState(*_primaryCamera);
+
+	// Clears any active-gltf-camera association (this entry isn't one of
+	// SceneGraph's per-file cameras, so there's nothing valid to leave set)
+	// before applying the transform - mirrors resetToSystemCamera()'s own
+	// clearing of this state.
+	_animCtrl.setActiveGltfCamera(QString(), -1);
+
+	applyGltfCameraEntryTransform(cam);
+
+	// Genuine one-shot jump, same as activateGltfCamera()'s non-animated
+	// branch - no animation clip will notify on this call's behalf.
+	_rtInteractionCtrl->notifyCameraJumpNonInteractive();
 }
 
 // ---------------------------------------------------------------------------

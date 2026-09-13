@@ -158,6 +158,7 @@ public:
 	GltfCameraData cameraDataForMvfSave(const GltfCameraData& source) const;
 	void triggerShadowRecomputation();
 	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
+	AdaptiveShadowMapper::QualityLevel getShadowQuality() const { return shadowMapper.quality(); }
 	float calculateLightDistance();
 
 	QVector<QUuid> duplicateObjects(const std::vector<int>& ids);
@@ -233,13 +234,36 @@ public:
 	void setShadowCatcherRoughness(float roughness);
 	void setGroundMode(GroundMode mode);
 	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
-	float getFloorOffsetPercent() const { return _renderCtrl.floorOffsetPercent(); }
+	// _renderCtrl.floorOffsetPercent() is internally a FRACTION (0-1, used
+	// directly as a multiplier against floor size in updateFloorPlane()'s
+	// geometry math), despite its own name - setFloorOffsetPercent(double)
+	// below takes a UI-scale percent (0-100) and divides by 100 before
+	// storing it there. This getter converts back to that same percent scale
+	// so it's the correct round-trip inverse of the setter, matching what
+	// its own name promises (a caller that round-trips get->set, as every
+	// current caller does - VisualizationEnvironmentPanel's document-switch
+	// UI sync, Scene State capture/recall, MVF viewerState save/load - would
+	// otherwise silently shrink the value 100x on every restore).
+	float getFloorOffsetPercent() const { return _renderCtrl.floorOffsetPercent() * 100.0f; }
+	float getFloorTexRepeatS() const { return _renderCtrl.floorTexRepeatS(); }
+	float getFloorTexRepeatT() const { return _renderCtrl.floorTexRepeatT(); }
 	bool isOpenGLInitialized() const { return _renderCtrl.isOpenGLInitialized(); }
 	void showFloor(bool show) { setGroundMode(show ? GroundMode::Floor : GroundMode::None); }
 	bool isFloorShown() { return _renderCtrl.groundMode() == GroundMode::Floor; }
 	bool isGridShown() const { return _renderCtrl.groundMode() == GroundMode::Grid; }
 	void showFloorTexture(bool show);
 	void setFloorTexture(QImage img);
+	// Which image file is loaded as the floor texture, if any - setFloorTexture()
+	// above only ever receives already-decoded pixel data, with no way to
+	// recover the source path afterward, so document/scene-state persistence
+	// had nothing to save. setFloorTextureFromPath() is the single entry
+	// point that both loads the image AND remembers the path (falling back
+	// to a dummy image on a load failure, same as
+	// VisualizationEnvironmentPanel::onFloorTextureClicked()'s own fallback)
+	// - use it from anywhere that needs the path remembered, including that
+	// same file-dialog handler.
+	QString getFloorTexturePath() const { return _floorTexturePath; }
+	void setFloorTextureFromPath(const QString& path);
 
 	std::vector<SceneMesh*> getMeshStore() const
 	{
@@ -321,6 +345,17 @@ public:
 	// separate bookmark-specific code path used to skip (bug: couldn't
 	// return to System Camera after activating a captured view).
 	GltfCameraEntry captureCurrentCameraEntry(const QString& name) const;
+
+	// Activates a camera entry that is NOT looked up from SceneGraph's
+	// per-file bucket (e.g. a Named Scene State's own private GltfCameraEntry
+	// snapshot, SceneStateData.h). Same system-camera-save-latch + notify
+	// behavior as activateGltfCamera()'s non-animated branch; skips the
+	// SceneGraph lookup and the animation-clip re-apply branch, neither of
+	// which applies to a state's private snapshot (it's never tied to any
+	// file's animation clip). Not undoable - matches this app's existing
+	// convention that no camera activation, including activateGltfCamera()
+	// itself, is ever pushed to the undo stack.
+	void activateCameraEntry(const GltfCameraEntry& cam);
 
 	// ---- Measurement tool ----------------------------------------------------
 	// Thin forwards to _measurementController, which owns the entire
@@ -2107,6 +2142,9 @@ private:
 
 
 	QImage					 _floorTexImage;
+	// Source path for _floorTexImage, if it was loaded from a file via
+	// setFloorTextureFromPath() - see that function's doc comment.
+	QString                  _floorTexturePath;
 	float                    _floorSize;
 	float 					 _floorSizeFactor;
 	// _floorOffsetPercent â†’ SceneRenderController (Phase 12)

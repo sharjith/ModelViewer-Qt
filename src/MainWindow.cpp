@@ -33,6 +33,7 @@
 
 #include "PathUtils.h"
 #include "ReportExportDialog.h"
+#include "BatchRenderViewsDialog.h"
 #include "RtRenderDialog.h"
 
 #include <QMdiArea>
@@ -45,6 +46,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QTabWidget>
+#include <QSplitter>
 #include <QTabBar>
 #include <QSet>
 #include <QStyle>
@@ -59,6 +61,7 @@
 #include "AnimationsPanel.h"
 #include "CamerasPanel.h"
 #include "SelectionSetsPanel.h"
+#include "SceneStatesPanel.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -191,8 +194,29 @@ MainWindow::MainWindow(QWidget* parent)
 		_camerasPanel = new CamerasPanel();
 		_documentTabWidget->addTab(_camerasPanel, QIcon(":/icons/res/camera.png"), tr("Cameras"));
 
+		// Second, independently-tabbed group stacked below the one above (see
+		// documentTabSplitter further down) - saved configurations (Selections/
+		// States) rather than live document content (Variants/Animations/
+		// Cameras). A 4th/5th tab on _documentTabWidget was the original
+		// design, but five tabs at 32px icons didn't fit one row (forcing
+		// scroll arrows - see the screenshot this layout replaced), and with
+		// only one tab's content visible at a time, most of the dock's
+		// vertical height went unused whenever the active tab's content (e.g.
+		// an empty States list) didn't need it. Two independently-sized,
+		// always-visible regions use that space instead of hiding one group
+		// behind tab-switching.
+		_documentSecondaryTabWidget = new QTabWidget();
+		_documentSecondaryTabWidget->setTabPosition(QTabWidget::North);
+		_documentSecondaryTabWidget->setTabShape(QTabWidget::Rounded);
+		_documentSecondaryTabWidget->setIconSize(QSize(32, 32));
+		_documentSecondaryTabWidget->setDocumentMode(false);
+		_documentSecondaryTabWidget->setMovable(true);
+
 		_selectionSetsPanel = new SelectionSetsPanel();
-		_documentTabWidget->addTab(_selectionSetsPanel, QIcon(":/icons/res/select.png"), tr("Selections"));
+		_documentSecondaryTabWidget->addTab(_selectionSetsPanel, QIcon(":/icons/res/select.png"), tr("Selections"));
+
+		_sceneStatesPanel = new SceneStatesPanel();
+		_documentSecondaryTabWidget->addTab(_sceneStatesPanel, QIcon(":/icons/res/save_scene_state.png"), tr("States"));
 
 		// Auto Fit View / Selection Highlighting: moved here from the
 		// per-document nav overlay, above the Variants/Animations/Cameras
@@ -218,12 +242,33 @@ MainWindow::MainWindow(QWidget* parent)
 		documentControlsLayout->addWidget(_checkBoxSelectionHighlight);
 		documentControlsLayout->addStretch(1);
 
+		// Vertical splitter, not a fixed ratio - lets the user reclaim space
+		// for whichever group they're using more (e.g. widen Selections/States
+		// while pruning a long list), with the split remembered across
+		// sessions (see readSettings()/writeSettings()). setChildrenCollapsible(false)
+		// keeps a stray drag from hiding either group entirely - both are
+		// always meant to be reachable, not just resizable to zero.
+		_documentTabSplitter = new QSplitter(Qt::Vertical);
+		_documentTabSplitter->setChildrenCollapsible(false);
+		_documentTabSplitter->addWidget(_documentTabWidget);
+		_documentTabSplitter->addWidget(_documentSecondaryTabWidget);
+		// Initial (pre-restoreState) even 1:1 split - only matters the very
+		// first run, before any saved splitter state exists to restore.
+		// Stretch factors alone only govern how EXTRA space redistributes on
+		// a later resize, not the initial split, so setSizes() with two equal
+		// values is also needed here (QSplitter normalizes them proportionally
+		// against the widget's actual height, so the exact number doesn't
+		// matter as long as both halves match).
+		_documentTabSplitter->setStretchFactor(0, 1);
+		_documentTabSplitter->setStretchFactor(1, 1);
+		_documentTabSplitter->setSizes({ 1000, 1000 });
+
 		auto* documentTabContainer = new QWidget();
 		auto* documentTabContainerLayout = new QVBoxLayout(documentTabContainer);
 		documentTabContainerLayout->setContentsMargins(0, 0, 0, 0);
 		documentTabContainerLayout->setSpacing(0);
 		documentTabContainerLayout->addWidget(documentControlsRow);
-		documentTabContainerLayout->addWidget(_documentTabWidget, 1);
+		documentTabContainerLayout->addWidget(_documentTabSplitter, 1);
 
 		// North, not Qt's own default (South) for a tabified dock group's
 		// tab bar - matches every other QTabWidget in this app
@@ -378,6 +423,19 @@ MainWindow::MainWindow(QWidget* parent)
 		connect(_selectionSetsPanel, &SelectionSetsPanel::selectionSetDeselectRequested, this, [this]() {
 			if (ModelViewer* child = activeMdiChild())
 				child->deselectAllWithUndo();
+		});
+
+		connect(_sceneStatesPanel, &SceneStatesPanel::sceneStateSaveRequested, this, [this](const QString& name) {
+			if (ModelViewer* child = activeMdiChild())
+				child->saveCurrentSceneState(name);
+		});
+		connect(_sceneStatesPanel, &SceneStatesPanel::sceneStateRecallRequested, this, [this](const QUuid& stateId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->recallSceneState(stateId);
+		});
+		connect(_sceneStatesPanel, &SceneStatesPanel::sceneStateDeleteRequested, this, [this](const QUuid& stateId) {
+			if (ModelViewer* child = activeMdiChild())
+				child->deleteSceneState(stateId);
 		});
 
 		// Mirrors the old on_tabWidgetVizAttribs_currentChanged: the
@@ -702,6 +760,21 @@ MainWindow::MainWindow(QWidget* parent)
 		if (ok && !name.trimmed().isEmpty())
 			child->saveCurrentSelectionAsSet(name.trimmed());
 		});
+	// Selection -> Save Scene State... - a quick way to save without opening
+	// the States panel first; same name-prompt shape as
+	// actionSaveSelectionSet above and that panel's own Save button. Not
+	// gated on hasSelection (see the enable/disable block below) - an empty
+	// selection is a meaningful part of a scene state, not "nothing to save."
+	connect(ui->actionSaveSceneState, &QAction::triggered, this, [this]() {
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+		bool ok = false;
+		const QString name = QInputDialog::getText(this, tr("Save Scene State"),
+			tr("Name for this state:"), QLineEdit::Normal, QString(), &ok);
+		if (ok && !name.trimmed().isEmpty())
+			child->saveCurrentSceneState(name.trimmed());
+		});
 
 	// Tools → Annotate... - opens the non-modal Annotation dialog. Same
 	// shared-implementation reasoning as actionMeasure above.
@@ -718,6 +791,16 @@ MainWindow::MainWindow(QWidget* parent)
 		if (!activeMdiChild())
 			return;
 		ReportExportDialog dialog(activeMdiChild(), this);
+		dialog.exec();
+		});
+
+	// Tools → Batch Render Views... - same "modal, one-shot batch action"
+	// reasoning as actionExportReport above, just producing individual
+	// offline path-traced image files instead of one PDF.
+	connect(ui->actionBatchRenderViews, &QAction::triggered, this, [this]() {
+		if (!activeMdiChild())
+			return;
+		BatchRenderViewsDialog dialog(activeMdiChild(), this);
 		dialog.exec();
 		});
 
@@ -970,11 +1053,13 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_camerasPanel->setSceneGraph(nullptr);
 		_camerasPanel->setViewportWidget(nullptr);
 		_selectionSetsPanel->setSceneGraph(nullptr);
+		_sceneStatesPanel->setSceneGraph(nullptr);
 
 		_materialVariantsPanel->refresh();
 		_animationsPanel->refresh();
 		_camerasPanel->refresh();
 		_selectionSetsPanel->refresh();
+		_sceneStatesPanel->refresh();
 
 		disconnect(_variantDataChangedConnection);
 		disconnect(_animationDataChangedConnection);
@@ -983,6 +1068,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		disconnect(_selectionSetsChangedConnection);
 		disconnect(_selectionSetsSyncConnection);
 		_selectionSetsPanel->syncActiveSet({});
+		disconnect(_sceneStatesChangedConnection);
 		disconnect(_hasMeshesSyncConnection);
 		ui->actionFilterByMaterial->setEnabled(false);
 		ui->actionFilterByColor->setEnabled(false);
@@ -996,6 +1082,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_animationsPanel->setEnabled(false);
 		_camerasPanel->setEnabled(false);
 		_selectionSetsPanel->setEnabled(false);
+		_sceneStatesPanel->setEnabled(false);
 		_checkBoxAutoFitView->setEnabled(false);
 		_checkBoxSelectionHighlight->setEnabled(false);
 		return;
@@ -1010,6 +1097,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_animationsPanel->setEnabled(true);
 	_camerasPanel->setEnabled(true);
 	_selectionSetsPanel->setEnabled(true);
+	_sceneStatesPanel->setEnabled(true);
 	_checkBoxAutoFitView->setEnabled(true);
 	_checkBoxSelectionHighlight->setEnabled(true);
 
@@ -1091,10 +1179,12 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	_camerasPanel->setSceneGraph(sceneGraph);
 	_camerasPanel->setViewportWidget(viewport);
 	_selectionSetsPanel->setSceneGraph(sceneGraph);
+	_sceneStatesPanel->setSceneGraph(sceneGraph);
 	_materialVariantsPanel->refresh();
 	_animationsPanel->refresh();
 	_camerasPanel->refresh();
 	_selectionSetsPanel->refresh();
+	_sceneStatesPanel->refresh();
 
 	// Per-document sources (this document's SceneGraph/ViewportWidget, not
 	// the shared panels) - disconnect from whichever document was
@@ -1106,10 +1196,13 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 	disconnect(_structureChangedForVariantsConnection);
 	disconnect(_animationStateChangedConnection);
 	disconnect(_selectionSetsChangedConnection);
+	disconnect(_sceneStatesChangedConnection);
 	if (sceneGraph)
 	{
 		_selectionSetsChangedConnection = connect(sceneGraph, &SceneGraph::selectionSetsChanged, this,
 			[this]() { _selectionSetsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
+		_sceneStatesChangedConnection = connect(sceneGraph, &SceneGraph::sceneStatesChanged, this,
+			[this]() { _sceneStatesPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
 		_variantDataChangedConnection = connect(sceneGraph, &SceneGraph::variantDataChanged, this,
 			[this]() { _materialVariantsPanel->refresh(); refreshDocumentDockTabStyling(activeMdiChild()); });
 		// The Variants tab now lists every loaded file (not just ones that
@@ -1383,6 +1476,13 @@ void MainWindow::readSettings()
 	// to deserialize stale foreign state into the new MDI/dock layout.
 	if (settings.value("dockStateNativeMdiVersion", 0).toInt() == kNativeMdiDockStateVersion)
 		restoreState(settings.value("dockStateNativeMdi").toByteArray());
+
+	// _documentTabSplitter's handle position isn't part of QMainWindow's own
+	// dock/toolbar state above (that only covers QDockWidget geometry, not
+	// an arbitrary child splitter inside one), so it needs its own key.
+	const QByteArray splitterState = settings.value("documentTabSplitterState").toByteArray();
+	if (_documentTabSplitter && !splitterState.isEmpty())
+		_documentTabSplitter->restoreState(splitterState);
 }
 
 void MainWindow::writeSettings()
@@ -1392,6 +1492,8 @@ void MainWindow::writeSettings()
 	settings.setValue("geometry", saveGeometry());
 	settings.setValue("dockStateNativeMdiVersion", kNativeMdiDockStateVersion);
 	settings.setValue("dockStateNativeMdi", saveState());
+	if (_documentTabSplitter)
+		settings.setValue("documentTabSplitterState", _documentTabSplitter->saveState());
 }
 
 
@@ -1798,12 +1900,13 @@ void MainWindow::showEvent(QShowEvent* event)
 		// it's still a real, findable child widget. 20x20 chosen to look
 		// uniform against the other tab bars in this window (user-tuned),
 		// vs. the style's smaller (commonly 16px) default this would
-		// otherwise use. Excludes the other three QTabBars already in this window's
-		// tree (_documentTabWidget/_propertiesTabWidget's own inner tabs,
-		// and _mdiArea's TabbedView document-tab bar) so only the
-		// Document/Properties/Environment group's tab bar is touched.
-		const QSet<QTabBar*> otherTabBars = { _documentTabWidget->tabBar(), _propertiesTabWidget->tabBar(),
-			_mdiArea->findChild<QTabBar*>() };
+		// otherwise use. Excludes the other QTabBars already in this window's
+		// tree (_documentTabWidget/_documentSecondaryTabWidget/
+		// _propertiesTabWidget's own inner tabs, and _mdiArea's TabbedView
+		// document-tab bar) so only the Document/Properties/Environment
+		// group's tab bar is touched.
+		const QSet<QTabBar*> otherTabBars = { _documentTabWidget->tabBar(), _documentSecondaryTabWidget->tabBar(),
+			_propertiesTabWidget->tabBar(), _mdiArea->findChild<QTabBar*>() };
 		for (QTabBar* bar : findChildren<QTabBar*>())
 		{
 			if (!otherTabBars.contains(bar))
@@ -2257,8 +2360,13 @@ void MainWindow::updateMenus()
 	// selection change too (see the per-viewport selectionChanged connect
 	// in rebindSharedPanelsTo(), not just at these document-lifecycle points).
 	ui->actionSaveSelectionSet->setEnabled(hasMdiChild && activeMdiChild()->hasSelection());
+	// Not gated on hasSelection, unlike actionSaveSelectionSet above - an
+	// empty selection is a meaningful part of a scene state, not "nothing to
+	// save."
+	ui->actionSaveSceneState->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
+	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
 	ui->actionShrinkWrap->setEnabled(hasMdiChild);
 	ui->actionSubdivideSurface->setEnabled(hasMdiChild);
 	ui->actionReconstructSurface->setEnabled(hasMdiChild);

@@ -13,6 +13,7 @@ class QLabel;
 class QMdiArea;
 class QMdiSubWindow;
 class QDockWidget;
+class QSplitter;
 
 #ifdef _WIN32
 class QWinTaskbarProgress;
@@ -33,6 +34,7 @@ class MaterialVariantsPanel;
 class AnimationsPanel;
 class CamerasPanel;
 class SelectionSetsPanel;
+class SceneStatesPanel;
 
 class MainWindow : public QMainWindow
 {
@@ -195,6 +197,19 @@ private:
 	QDockWidget* _documentDock = nullptr;
 	QTabWidget* _propertiesTabWidget = nullptr;
 	QTabWidget* _documentTabWidget = nullptr;
+	// Second, independently-tabbed group stacked below _documentTabWidget in
+	// _documentTabSplitter, inside the same "Document" dock - saved
+	// configurations (Selections/States) rather than live document content
+	// (Variants/Animations/Cameras, above). See their construction site in
+	// the constructor for why this is a second QTabWidget instead of two
+	// more tabs on _documentTabWidget.
+	QTabWidget* _documentSecondaryTabWidget = nullptr;
+	// Vertical splitter holding _documentTabWidget/_documentSecondaryTabWidget
+	// - its sizes are persisted separately from QMainWindow's own dock/
+	// toolbar layout (saveState()/restoreState() only covers QDockWidget
+	// geometry, not an arbitrary child splitter's handle position), see
+	// readSettings()/writeSettings().
+	QSplitter* _documentTabSplitter = nullptr;
 	// Above _documentTabWidget's Variants/Animations/Cameras tabs - moved
 	// here from the per-document nav overlay (design change: single shared
 	// instances rebound to whichever document is active, like the other
@@ -216,6 +231,7 @@ private:
 	AnimationsPanel* _animationsPanel = nullptr;
 	CamerasPanel* _camerasPanel = nullptr;
 	SelectionSetsPanel* _selectionSetsPanel = nullptr;
+	SceneStatesPanel* _sceneStatesPanel = nullptr;
 	ModelViewer* _lastBoundModelViewer = nullptr;
 	// Guards rebindSharedPanelsTo(nullptr) against running its teardown body
 	// more than once per "went from having an active document to having
@@ -254,6 +270,10 @@ private:
 	// panel's active-row highlight live as the active document's own
 	// selection changes, not just at document-lifecycle points.
 	QMetaObject::Connection _selectionSetsSyncConnection;
+	// Per-SceneGraph, mirrors _selectionSetsChangedConnection - no
+	// equivalent of _selectionSetsSyncConnection needed since SceneStatesPanel
+	// has no active-row highlight to keep live (see its own doc comment).
+	QMetaObject::Connection _sceneStatesChangedConnection;
 	// Per-SceneGraph (structureChanged fires on import/delete-all) - keeps
 	// actionFilterByMaterial/actionFilterByColor enabled only while the
 	// active document actually has meshes loaded, live, not just at

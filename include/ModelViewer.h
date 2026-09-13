@@ -225,6 +225,11 @@ public:
 	// undoable ApplyMaterialCommand covering the whole stroke (one undo
 	// entry per gesture).
 	void applyEyedropperStroke(const QVector<QUuid>& targetUuids, const Material& material);
+	// Reassigns every listed mesh to newMaterial as one undo step - same
+	// ApplyMaterialCommand batching applyEyedropperStroke() uses above, just
+	// called from FilterByMaterialDialog's "Replace With..." instead of a
+	// viewport brush gesture.
+	void replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial);
 
 	// Apply a named variant to all meshes from the given source file.
 	// variantIndex = -1 resets to the file's default material assignments.
@@ -381,6 +386,24 @@ public slots:
 	// SelectionSetsPanel's Delete button, via an undoable
 	// DeleteSelectionSetCommand.
 	void deleteSelectionSet(const QUuid& setId);
+	// Selection -> Save Scene State... (also SceneStatesPanel's own Save
+	// button): snapshots the current camera view (captureCurrentCameraEntry()),
+	// visibility (getVisibleUuids()), and selection (getSelectedUuids())
+	// together under `name`, via an undoable SaveSceneStateCommand. Unlike
+	// saveCurrentSelectionAsSet(), an empty selection isn't skipped - it's a
+	// meaningful part of the snapshot, not "nothing to save."
+	void saveCurrentSceneState(const QString& name);
+	// SceneStatesPanel single-click: restores the named state's camera
+	// (immediate, NOT undoable - see ViewportWidget::activateCameraEntry()),
+	// then its visibility and selection EXACTLY as saved (not unioned with
+	// the current state, unlike recallSelectionSet() - a scene state is a
+	// full configuration snapshot, not an "also reveal these" bookmark),
+	// wrapped in one undo macro so a single Ctrl+Z reverses both together.
+	// Stale UUIDs (meshes deleted since the state was saved) are dropped.
+	void recallSceneState(const QUuid& stateId);
+	// SceneStatesPanel's Delete button, via an undoable
+	// DeleteSceneStateCommand.
+	void deleteSceneState(const QUuid& stateId);
 	void centerScreen();
 	void copySelectedItems();
 	void cutSelectedItems();

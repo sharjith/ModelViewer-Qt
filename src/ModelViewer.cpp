@@ -54,6 +54,8 @@
 #include "FilterByColorDialog.h"
 #include "SaveSelectionSetCommand.h"
 #include "DeleteSelectionSetCommand.h"
+#include "SaveSceneStateCommand.h"
+#include "DeleteSceneStateCommand.h"
 #include <assimp/Importer.hpp>
 #include <algorithm>
 #include <functional>
@@ -4137,6 +4139,255 @@ void ModelViewer::deleteSelectionSet(const QUuid& setId)
 	_undoStack->push(new DeleteSelectionSetCommand(this, _viewportWidget, setId));
 }
 
+void ModelViewer::saveCurrentSceneState(const QString& name)
+{
+	if (!_sceneGraph || !_viewportWidget || name.trimmed().isEmpty())
+		return;
+
+	SceneState state;
+	state.id = QUuid::createUuid();
+	state.name = name.trimmed();
+	state.camera = _viewportWidget->captureCurrentCameraEntry(state.name);
+	state.visibleMeshUuids = getVisibleUuids();
+	state.selectedMeshUuids = getSelectedUuids();
+
+	// Presentation state - see SceneStateData.h for why this now mirrors the
+	// full "viewerState" document-defaults field set verbatim.
+	state.displayMode = static_cast<int>(_viewportWidget->getDisplayMode());
+	// RAY_TRACED is tracked separately from SceneRenderController's own
+	// RenderingMode (see RenderEnums.h's doc comment on RenderingMode) - the
+	// "armed" check has to come first since getRenderingMode() itself never
+	// returns RAY_TRACED.
+	state.renderingMode = _viewportWidget->isRayTracedRenderingModeArmed()
+		? QStringLiteral("RayTraced")
+		: (_viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG
+			? QStringLiteral("ADS")
+			: QStringLiteral("PBR"));
+	state.groundMode = static_cast<int>(_viewportWidget->groundMode());
+	state.skyBoxShown = _viewportWidget->isSkyBoxShown();
+	state.skyBoxHDRIEnabled = _viewportWidget->isSkyBoxHDRIEnabled();
+	state.skyBoxFolderPath = _viewportWidget->getCurrentSkyboxFolder();
+	state.skyBoxBlurPercent = _viewportWidget->getSkyBoxBlurPercent();
+	state.skyBoxFOV = _viewportWidget->getSkyBoxFOV();
+	state.skyBoxZRotationDegrees = _viewportWidget->getSkyBoxZRotationDegrees();
+	state.floorTextureShown = _viewportWidget->isFloorTextureShown();
+	state.floorTexturePath = _viewportWidget->getFloorTexturePath();
+	state.floorTexRepeatS = _viewportWidget->getFloorTexRepeatS();
+	state.floorTexRepeatT = _viewportWidget->getFloorTexRepeatT();
+	state.floorOffsetPercent = _viewportWidget->getFloorOffsetPercent();
+	state.shadowQuality = static_cast<int>(_viewportWidget->getShadowQuality());
+	state.reflectionsEnabled = _viewportWidget->areReflectionsEnabled();
+	state.shadowsEnabled = _viewportWidget->areShadowsEnabled();
+	state.selfShadowsEnabled = _viewportWidget->areSelfShadowsEnabled();
+	state.shadowCatcherDarkness = _viewportWidget->shadowCatcherDarkness();
+	state.shadowCatcherBaseColor = _viewportWidget->shadowCatcherBaseColor();
+	state.shadowCatcherMetalness = _viewportWidget->shadowCatcherMetalness();
+	state.shadowCatcherRoughness = _viewportWidget->shadowCatcherRoughness();
+	state.environmentEnabled = _viewportWidget->isEnvironmentMapEnabled();
+	state.iblEnabled = _viewportWidget->isIBLEnabled();
+	state.envMapExposureStops = std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f));
+	state.iblExposureStops = std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f));
+	state.defaultLightsEnabled = _viewportWidget->areDefaultLightsEnabled();
+	state.punctualLightsEnabled = _viewportWidget->arePunctualLightsEnabled();
+	state.showLights = _viewportWidget->areLightsShown();
+	state.defaultLightColor = _viewportWidget->getDefaultLightColor();
+	state.defaultLightOffset = _viewportWidget->getLightOffset();
+	state.hdrToneMapping = _viewportWidget->getHdrToneMapping();
+	state.hdrToneMappingMode = static_cast<int>(_viewportWidget->getHDRToneMappingMode());
+	state.gammaCorrection = _viewportWidget->getGammaCorrection();
+	state.screenGamma = _viewportWidget->getScreenGamma();
+	state.bgTopColor = _viewportWidget->getBgTopColor();
+	state.bgBotColor = _viewportWidget->getBgBotColor();
+
+	_undoStack->push(new SaveSceneStateCommand(this, _viewportWidget, state));
+}
+
+void ModelViewer::recallSceneState(const QUuid& stateId)
+{
+	if (!_sceneGraph || !_viewportWidget)
+		return;
+
+	const int index = _sceneGraph->sceneStateIndexById(stateId);
+	if (index < 0)
+		return;
+
+	const SceneState& state = _sceneGraph->sceneStates().at(index);
+
+	// Camera restore is immediate and NOT undoable - matches this app's
+	// existing convention that no camera activation is ever on the undo
+	// stack (see activateCameraEntry()'s own doc comment). Applied here
+	// FIRST so a Ray-Traced state's requestRayTracedRenderNow() call below
+	// already sees the right pose for its first snapshot - but this is NOT
+	// the final word on camera position; see the second activateCameraEntry()
+	// call after the visibility/selection restore below for why.
+	_viewportWidget->activateCameraEntry(state.camera);
+
+	// Presentation state - also immediate/not undoable, same convention as
+	// camera above (no display/rendering-mode change anywhere in this app
+	// is on the undo stack either).
+	//
+	// Order matters a lot here, confirmed the hard way (a real, reported
+	// bug: recalling a Ray-Traced state with GroundMode::InfinitePlane
+	// showed Floor instead). setDisplayMode() unconditionally emits
+	// displayModeChanged(), which VisualizationEnvironmentPanel::
+	// onDisplayModeChanged() reacts to by re-asserting the ground-mode
+	// DEFAULT for whatever rendering mode is CURRENTLY active (Floor for
+	// realistic shading, None for ADS) - "unconditionally re-asserted on
+	// every mode switch," per that function's own doc comment. Calling
+	// setDisplayMode() AFTER onRenderingModeSelected("RayTraced") - the
+	// original order here - fired that reset a second time with nothing
+	// left to correct it back to InfinitePlane afterward, clobbering the
+	// value onRenderingModeSelected() had just correctly set via its own
+	// applyRayTracedGroundDefaultsOnce() call.
+	//
+	// Fixed by restoring in the same relative order a normal user
+	// interaction would naturally produce: display mode first (whatever
+	// stale ground-mode side effect it causes is harmless, since it's about
+	// to be overridden anyway), THEN the rendering-mode switch itself
+	// (routed through onRenderingModeSelected() rather than ViewportWidget::
+	// setRenderingMode() directly, so the toolbar's active-mode indicator
+	// stays in sync - same entry point RtRenderDialog::onRenderClicked()
+	// uses; its own internal sequence re-asserts that mode's OWN canonical
+	// ground-mode default as its last word), THEN an EXPLICIT setGroundMode()
+	// to the state's actual saved value - not just relying on the mode's
+	// default, since the user can freely override ground mode after a mode
+	// switch and it sticks (see SceneStateData.h's own doc comment) - BEFORE
+	// starting the ray-traced render itself, so its first snapshot already
+	// reflects the correct ground mode instead of needing an extra rebuild
+	// a moment later (same reasoning applyRayTracedGroundDefaultsOnce()'s
+	// own doc comment gives for its call-before-arm ordering). Skybox/
+	// background restore last, same as before - onRenderingModeSelected()
+	// also has skybox/HDRI side effects, and the state's own saved values
+	// need to win over those defaults too.
+	_viewportWidget->setDisplayMode(static_cast<DisplayMode>(state.displayMode));
+	onRenderingModeSelected(state.renderingMode);
+	_viewportWidget->setGroundMode(static_cast<GroundMode>(state.groundMode));
+
+	// Everything below is restored for the SAME reason groundMode is set
+	// explicitly above: onRenderingModeSelected()'s onDisplayModeChanged()
+	// side effect unconditionally re-asserts its own realism-driven defaults
+	// for floor/shadows/reflections/env-map/default-lights on every mode
+	// switch (see that function's own doc comment), so anything the saved
+	// state actually wants has to be applied AFTER the mode switch, as an
+	// explicit override - not before, where it would just get clobbered the
+	// same way groundMode originally was. All of it (skybox included) also
+	// runs BEFORE requestRayTracedRenderNow() at the bottom, so a Ray-Traced
+	// state's first interactive snapshot already reflects the full restored
+	// look instead of needing a second rebuild moments later.
+	_viewportWidget->showSkyBox(state.skyBoxShown);
+	_viewportWidget->setSkyBoxTextureHDRI(state.skyBoxHDRIEnabled);
+	// Which skybox/HDRI preset (or custom folder) is loaded isn't implied by
+	// the HDRI/LDRI toggle above - setSkyBoxTextureHDRI() only picks which
+	// preset SET is active, not which member of it. Restore the actual
+	// folder explicitly (see SceneStateData.h's skyBoxFolderPath doc comment
+	// for why this is a path, not an index), then resync
+	// VisualizationEnvironmentPanel's own combo/index bookkeeping to match -
+	// via syncSkyBoxSelectionSilently(), not reloadSkyBoxPresets(), since the
+	// latter would call setSkyBoxTextureFolder() again itself and reload the
+	// texture a second time for no reason.
+	if (!state.skyBoxFolderPath.isEmpty())
+	{
+		_viewportWidget->setSkyBoxTextureFolder(state.skyBoxFolderPath);
+		visualizationEnvironmentPanel->syncSkyBoxSelectionSilently();
+	}
+	_viewportWidget->setSkyBoxBlurPercent(state.skyBoxBlurPercent);
+	_viewportWidget->setSkyBoxFOV(state.skyBoxFOV);
+	// Applies to the viewport AND syncs the panel's preset combo + fine
+	// slider - see its own doc comment (same reason viewerState's load block
+	// uses this instead of a raw setSkyBoxZRotationDegrees() call).
+	visualizationEnvironmentPanel->restoreSkyBoxRotationDegrees(static_cast<float>(state.skyBoxZRotationDegrees));
+
+	_viewportWidget->showFloorTexture(state.floorTextureShown);
+	if (!state.floorTexturePath.isEmpty())
+		_viewportWidget->setFloorTextureFromPath(state.floorTexturePath);
+	_viewportWidget->setFloorTexRepeatS(state.floorTexRepeatS);
+	_viewportWidget->setFloorTexRepeatT(state.floorTexRepeatT);
+	_viewportWidget->setFloorOffsetPercent(state.floorOffsetPercent);
+	_viewportWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(state.shadowQuality));
+	_viewportWidget->showReflections(state.reflectionsEnabled);
+	_viewportWidget->showShadows(state.shadowsEnabled);
+	_viewportWidget->showSelfShadows(state.selfShadowsEnabled);
+	_viewportWidget->setShadowCatcherDarkness(state.shadowCatcherDarkness);
+	_viewportWidget->setShadowCatcherBaseColor(state.shadowCatcherBaseColor);
+	_viewportWidget->setShadowCatcherMetalness(state.shadowCatcherMetalness);
+	_viewportWidget->setShadowCatcherRoughness(state.shadowCatcherRoughness);
+
+	_viewportWidget->showEnvironment(state.environmentEnabled);
+	_viewportWidget->useIBL(state.iblEnabled);
+	_viewportWidget->setEnvMapExposure(state.envMapExposureStops);
+	_viewportWidget->setIBLExposure(state.iblExposureStops);
+
+	_viewportWidget->useDefaultLights(state.defaultLightsEnabled);
+	_viewportWidget->usePunctualLights(state.punctualLightsEnabled);
+	_viewportWidget->showLights(state.showLights);
+	_viewportWidget->setDefaultLightColor(state.defaultLightColor);
+	// Applies to the viewport AND syncs the panel's X/Y/Z sliders - see
+	// viewerState's load block, which uses the same call for the same reason.
+	visualizationEnvironmentPanel->restoreDefaultLightOffset(state.defaultLightOffset);
+
+	_viewportWidget->enableHDRToneMapping(state.hdrToneMapping);
+	_viewportWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(state.hdrToneMappingMode));
+	_viewportWidget->enableGammaCorrection(state.gammaCorrection);
+	_viewportWidget->setScreenGamma(state.screenGamma);
+
+	_viewportWidget->setBgTopColor(state.bgTopColor);
+	_viewportWidget->setBgBotColor(state.bgBotColor);
+
+	if (state.renderingMode == QStringLiteral("RayTraced"))
+		_viewportWidget->requestRayTracedRenderNow();
+
+	// Resolve stored selection UUIDs to live indices, dropping any mesh
+	// deleted since the state was saved.
+	QSet<int> selectedIds;
+	for (const QUuid& uuid : state.selectedMeshUuids)
+	{
+		const int meshIndex = _viewportWidget->getIndexByUuid(uuid);
+		if (meshIndex >= 0)
+			selectedIds.insert(meshIndex);
+	}
+
+	// Visibility + selection land in one undo macro so a single Ctrl+Z
+	// reverses both together, same beginMacro()/endMacro() shape
+	// recallSelectionSet() uses above. Sets the EXACT saved visibility set,
+	// not unioned with what's currently visible - a scene state is a full
+	// configuration snapshot, not an "also reveal these" bookmark.
+	//
+	// setVisibilityWithUndo() below rebuilds the display list, which - via
+	// ViewportWidget::setDisplayList() - can itself move the camera we just
+	// restored above: it calls fitAll() whenever Auto Fit View is on (real,
+	// reported bug: a saved zoomed/panned framing got silently replaced by a
+	// fresh fit-to-scene on recall), and unconditionally repositions a Fly/
+	// FirstPerson-mode camera via positionGameplayCameraForScene() regardless
+	// of Auto Fit. Suppressing Auto Fit for the duration (same save/disable/
+	// restore pattern already used around display-list rebuilds elsewhere in
+	// this file, e.g. handleActiveDocumentChanged()) stops the first trigger,
+	// but not the gameplay-camera one - so the camera is explicitly
+	// reactivated again below, AFTER the visibility/selection restore, as the
+	// true final step. That second call is what actually guarantees the
+	// saved framing is what's on screen when recall finishes, regardless of
+	// which (if any) of setDisplayList()'s internal repositioning paths fired.
+	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
+	_viewportWidget->setAutoFitViewOnUpdate(false);
+
+	_undoStack->beginMacro(tr("Recall Scene State"));
+	setVisibilityWithUndo(state.visibleMeshUuids, tr("Show"));
+	setSelectionWithUndo(selectedIds);
+	_undoStack->endMacro();
+
+	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
+	_viewportWidget->activateCameraEntry(state.camera);
+}
+
+void ModelViewer::deleteSceneState(const QUuid& stateId)
+{
+	if (!_sceneGraph)
+		return;
+	if (_sceneGraph->sceneStateIndexById(stateId) < 0)
+		return;
+
+	_undoStack->push(new DeleteSceneStateCommand(this, _viewportWidget, stateId));
+}
+
 void ModelViewer::showAllItems()
 {
 	// Show All is one coherent action across every content type - see
@@ -4947,6 +5198,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<Measurement> measurements;
 		QVector<Annotation> annotations;
 		QVector<SelectionSet> selectionSets;
+		QVector<SceneState> sceneStates;
 		bool          ok       = false;
 		bool          badMagic = false;
 	};
@@ -5227,6 +5479,127 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 			if (!s.id.isNull())
 				result.selectionSets.append(s);
+		}
+
+		const QJsonArray sceneStatesArr = session[QStringLiteral("sceneStates")].toArray();
+		result.sceneStates.reserve(sceneStatesArr.size());
+		for (const QJsonValue& stateVal : sceneStatesArr)
+		{
+			const QJsonObject stateObj = stateVal.toObject();
+
+			SceneState st;
+			st.id = QUuid(stateObj[QStringLiteral("id")].toString());
+			st.name = stateObj[QStringLiteral("name")].toString();
+
+			const QJsonObject cameraObj = stateObj[QStringLiteral("camera")].toObject();
+			GltfCameraEntry& cam = st.camera;
+			cam.name = cameraObj[QStringLiteral("name")].toString();
+			cam.type = cameraObj[QStringLiteral("type")].toString() == QLatin1String("orthographic")
+				? GltfCameraType::Orthographic
+				: GltfCameraType::Perspective;
+			cam.fovYRadians = static_cast<float>(cameraObj[QStringLiteral("fovYRadians")].toDouble(cam.fovYRadians));
+			cam.zNear = static_cast<float>(cameraObj[QStringLiteral("zNear")].toDouble(cam.zNear));
+			cam.zFar = static_cast<float>(cameraObj[QStringLiteral("zFar")].toDouble(cam.zFar));
+			cam.xMag = static_cast<float>(cameraObj[QStringLiteral("xMag")].toDouble(cam.xMag));
+			cam.yMag = static_cast<float>(cameraObj[QStringLiteral("yMag")].toDouble(cam.yMag));
+			cam.worldPosition = jsonArrayToVec3(cameraObj[QStringLiteral("worldPosition")].toArray());
+			cam.worldDirection = jsonArrayToVec3(
+				cameraObj[QStringLiteral("worldDirection")].toArray(), QVector3D(0.0f, 0.0f, -1.0f));
+			cam.worldUp = jsonArrayToVec3(
+				cameraObj[QStringLiteral("worldUp")].toArray(), QVector3D(0.0f, 1.0f, 0.0f));
+			cam.needsModelTransformCompensation = false; // always false for a live-captured snapshot - see captureCurrentCameraEntry()
+			cam.needsNewNode = true; // synthetic, same as any captured view - see GltfCameraData.h
+			cam.capturedViewRange = static_cast<float>(
+				cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+
+			for (const QJsonValue& uv : stateObj[QStringLiteral("visibleMeshUuids")].toArray())
+				st.visibleMeshUuids.insert(QUuid(uv.toString()));
+			for (const QJsonValue& uv : stateObj[QStringLiteral("selectedMeshUuids")].toArray())
+				st.selectedMeshUuids.insert(QUuid(uv.toString()));
+
+			// Presentation state (see SceneStateData.h) - local jsonToColor
+			// copy since the shared one below is defined later in this same
+			// function, out of scope here (same per-block duplication
+			// convention the vec3ToJson/jsonArrayToVec3 lambdas already use
+			// throughout this function).
+			st.displayMode = stateObj[QStringLiteral("displayMode")].toInt(st.displayMode);
+			st.renderingMode = stateObj[QStringLiteral("renderingMode")].toString(st.renderingMode);
+			st.groundMode = stateObj[QStringLiteral("groundMode")].toInt(st.groundMode);
+			st.skyBoxShown = stateObj[QStringLiteral("skyBoxShown")].toBool(st.skyBoxShown);
+			st.skyBoxHDRIEnabled = stateObj[QStringLiteral("skyBoxHDRIEnabled")].toBool(st.skyBoxHDRIEnabled);
+			st.skyBoxFolderPath = stateObj[QStringLiteral("skyBoxFolderPath")].toString(st.skyBoxFolderPath);
+			st.skyBoxBlurPercent = stateObj[QStringLiteral("skyBoxBlurPercent")].toInt(st.skyBoxBlurPercent);
+			st.skyBoxFOV = stateObj[QStringLiteral("skyBoxFOV")].toDouble(st.skyBoxFOV);
+			st.skyBoxZRotationDegrees = stateObj[QStringLiteral("skyBoxZRotationDegrees")].toDouble(st.skyBoxZRotationDegrees);
+
+			st.floorTextureShown = stateObj[QStringLiteral("floorTextureShown")].toBool(st.floorTextureShown);
+			st.floorTexturePath = stateObj[QStringLiteral("floorTexturePath")].toString(st.floorTexturePath);
+			st.floorTexRepeatS = stateObj[QStringLiteral("floorTexRepeatS")].toDouble(st.floorTexRepeatS);
+			st.floorTexRepeatT = stateObj[QStringLiteral("floorTexRepeatT")].toDouble(st.floorTexRepeatT);
+			st.floorOffsetPercent = stateObj[QStringLiteral("floorOffsetPercent")].toDouble(st.floorOffsetPercent);
+			st.shadowQuality = stateObj[QStringLiteral("shadowQuality")].toInt(st.shadowQuality);
+			st.reflectionsEnabled = stateObj[QStringLiteral("reflectionsEnabled")].toBool(st.reflectionsEnabled);
+			st.shadowsEnabled = stateObj[QStringLiteral("shadowsEnabled")].toBool(st.shadowsEnabled);
+			st.selfShadowsEnabled = stateObj[QStringLiteral("selfShadowsEnabled")].toBool(st.selfShadowsEnabled);
+			st.shadowCatcherDarkness = static_cast<float>(stateObj[QStringLiteral("shadowCatcherDarkness")].toDouble(st.shadowCatcherDarkness));
+			st.shadowCatcherMetalness = static_cast<float>(stateObj[QStringLiteral("shadowCatcherMetalness")].toDouble(st.shadowCatcherMetalness));
+			st.shadowCatcherRoughness = static_cast<float>(stateObj[QStringLiteral("shadowCatcherRoughness")].toDouble(st.shadowCatcherRoughness));
+
+			st.environmentEnabled = stateObj[QStringLiteral("environmentEnabled")].toBool(st.environmentEnabled);
+			st.iblEnabled = stateObj[QStringLiteral("iblEnabled")].toBool(st.iblEnabled);
+			st.envMapExposureStops = stateObj[QStringLiteral("envMapExposureStops")].toDouble(st.envMapExposureStops);
+			st.iblExposureStops = stateObj[QStringLiteral("iblExposureStops")].toDouble(st.iblExposureStops);
+
+			st.defaultLightsEnabled = stateObj[QStringLiteral("defaultLightsEnabled")].toBool(st.defaultLightsEnabled);
+			st.punctualLightsEnabled = stateObj[QStringLiteral("punctualLightsEnabled")].toBool(st.punctualLightsEnabled);
+			st.showLights = stateObj[QStringLiteral("showLights")].toBool(st.showLights);
+
+			st.hdrToneMapping = stateObj[QStringLiteral("hdrToneMapping")].toBool(st.hdrToneMapping);
+			st.hdrToneMappingMode = stateObj[QStringLiteral("hdrToneMappingMode")].toInt(st.hdrToneMappingMode);
+			st.gammaCorrection = stateObj[QStringLiteral("gammaCorrection")].toBool(st.gammaCorrection);
+			st.screenGamma = stateObj[QStringLiteral("screenGamma")].toDouble(st.screenGamma);
+
+			auto stateJsonToColor = [](const QJsonArray& arr, const QColor& fallback) {
+				if (arr.size() < 4)
+					return fallback;
+				return QColor(arr[0].toInt(fallback.red()),
+				              arr[1].toInt(fallback.green()),
+				              arr[2].toInt(fallback.blue()),
+				              arr[3].toInt(fallback.alpha()));
+			};
+			st.bgTopColor = stateJsonToColor(stateObj[QStringLiteral("bgTopColor")].toArray(), st.bgTopColor);
+			st.bgBotColor = stateJsonToColor(stateObj[QStringLiteral("bgBotColor")].toArray(), st.bgBotColor);
+
+			const QJsonArray stateCatcherColorArr = stateObj[QStringLiteral("shadowCatcherBaseColor")].toArray();
+			if (stateCatcherColorArr.size() >= 3)
+			{
+				st.shadowCatcherBaseColor = QVector3D(
+					static_cast<float>(stateCatcherColorArr[0].toDouble()),
+					static_cast<float>(stateCatcherColorArr[1].toDouble()),
+					static_cast<float>(stateCatcherColorArr[2].toDouble()));
+			}
+
+			const QJsonArray stateLightColorArr = stateObj[QStringLiteral("defaultLightColor")].toArray();
+			if (stateLightColorArr.size() == 4)
+			{
+				st.defaultLightColor = QVector4D(
+					static_cast<float>(stateLightColorArr[0].toDouble(1.0)),
+					static_cast<float>(stateLightColorArr[1].toDouble(1.0)),
+					static_cast<float>(stateLightColorArr[2].toDouble(1.0)),
+					static_cast<float>(stateLightColorArr[3].toDouble(1.0)));
+			}
+
+			const QJsonArray stateLightOffsetArr = stateObj[QStringLiteral("defaultLightOffset")].toArray();
+			if (stateLightOffsetArr.size() == 3)
+			{
+				st.defaultLightOffset = QVector3D(
+					static_cast<float>(stateLightOffsetArr[0].toDouble(0.0)),
+					static_cast<float>(stateLightOffsetArr[1].toDouble(0.0)),
+					static_cast<float>(stateLightOffsetArr[2].toDouble(0.0)));
+			}
+
+			if (!st.id.isNull())
+				result.sceneStates.append(st);
 		}
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
@@ -5731,6 +6104,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	for (const SelectionSet& set : result.selectionSets)
 		_sceneGraph->addSelectionSet(set);
 
+	// Same non-undoable reasoning as the measurements loop above.
+	for (const SceneState& state : result.sceneStates)
+		_sceneGraph->addSceneState(state);
+
 	for (SceneNode* fileNode : _sceneGraph->root()->children)
 	{
 		if (fileNode && fileNode->isSynthetic && !fileNode->sourceFile.isEmpty())
@@ -5823,6 +6200,24 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}
 		_viewportWidget->showFloorTexture(
 			viewerState[QStringLiteral("floorTextureShown")].toBool(_viewportWidget->isFloorTextureShown()));
+		// floorTexturePath/floorTexRepeatS/T/floorOffsetPercent/shadowQuality
+		// were a genuine pre-existing gap in this block - floorTextureShown
+		// only ever persisted WHETHER a floor texture is shown, never which
+		// image file, its UV repeat, the floor's vertical offset, or the
+		// shadow quality preset, so a document reload silently lost all four
+		// even though the panel/viewport have always supported changing them.
+		const QString floorTexPath =
+			viewerState[QStringLiteral("floorTexturePath")].toString(_viewportWidget->getFloorTexturePath());
+		if (!floorTexPath.isEmpty())
+			_viewportWidget->setFloorTextureFromPath(floorTexPath);
+		_viewportWidget->setFloorTexRepeatS(
+			viewerState[QStringLiteral("floorTexRepeatS")].toDouble(static_cast<double>(_viewportWidget->getFloorTexRepeatS())));
+		_viewportWidget->setFloorTexRepeatT(
+			viewerState[QStringLiteral("floorTexRepeatT")].toDouble(static_cast<double>(_viewportWidget->getFloorTexRepeatT())));
+		_viewportWidget->setFloorOffsetPercent(
+			viewerState[QStringLiteral("floorOffsetPercent")].toDouble(static_cast<double>(_viewportWidget->getFloorOffsetPercent())));
+		_viewportWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(
+			viewerState[QStringLiteral("shadowQuality")].toInt(static_cast<int>(_viewportWidget->getShadowQuality()))));
 		_viewportWidget->showReflections(
 			viewerState[QStringLiteral("reflectionsEnabled")].toBool(_viewportWidget->areReflectionsEnabled()));
 		_viewportWidget->setShadowCatcherDarkness(static_cast<float>(
@@ -6095,6 +6490,106 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		package.document.mvfSession.insert(QStringLiteral("selectionSets"), setsJson);
 	}
 
+	// ---- Named Scene States ----
+	// Document-level (see SceneStateData.h), same MVF-session-only v1 scope
+	// as Measurements/Annotations/Selection Sets above. A scene state's
+	// camera field is its OWN private snapshot (not one of the per-file glTF
+	// cameras cameraDataByFile collects below), so it needs its own small
+	// field-by-field encoding here rather than reusing that collection.
+	if (_sceneGraph && !_sceneGraph->sceneStates().isEmpty())
+	{
+		auto vec3ToJson = [](const QVector3D& v) {
+			return QJsonArray{ static_cast<double>(v.x()), static_cast<double>(v.y()), static_cast<double>(v.z()) };
+		};
+
+		QJsonArray statesJson;
+		for (const SceneState& s : _sceneGraph->sceneStates())
+		{
+			const GltfCameraEntry& cam = s.camera;
+			QJsonObject cameraObj;
+			cameraObj.insert(QStringLiteral("name"), cam.name);
+			cameraObj.insert(QStringLiteral("type"),
+				cam.type == GltfCameraType::Orthographic ? QStringLiteral("orthographic") : QStringLiteral("perspective"));
+			cameraObj.insert(QStringLiteral("fovYRadians"), static_cast<double>(cam.fovYRadians));
+			cameraObj.insert(QStringLiteral("zNear"), static_cast<double>(cam.zNear));
+			cameraObj.insert(QStringLiteral("zFar"), static_cast<double>(cam.zFar));
+			cameraObj.insert(QStringLiteral("xMag"), static_cast<double>(cam.xMag));
+			cameraObj.insert(QStringLiteral("yMag"), static_cast<double>(cam.yMag));
+			cameraObj.insert(QStringLiteral("worldPosition"), vec3ToJson(cam.worldPosition));
+			cameraObj.insert(QStringLiteral("worldDirection"), vec3ToJson(cam.worldDirection));
+			cameraObj.insert(QStringLiteral("worldUp"), vec3ToJson(cam.worldUp));
+			cameraObj.insert(QStringLiteral("capturedViewRange"), static_cast<double>(cam.capturedViewRange));
+
+			QJsonArray visArr;
+			for (const QUuid& u : s.visibleMeshUuids)
+				visArr.append(u.toString(QUuid::WithoutBraces));
+			QJsonArray selArr;
+			for (const QUuid& u : s.selectedMeshUuids)
+				selArr.append(u.toString(QUuid::WithoutBraces));
+
+			// Local colorToJson copy - the shared one below is defined later
+			// in this same function, out of scope here.
+			auto stateColorToJson = [](const QColor& color) {
+				return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
+			};
+
+			QJsonObject stateObj;
+			stateObj.insert(QStringLiteral("id"), s.id.toString(QUuid::WithoutBraces));
+			stateObj.insert(QStringLiteral("name"), s.name);
+			stateObj.insert(QStringLiteral("camera"), cameraObj);
+			stateObj.insert(QStringLiteral("visibleMeshUuids"), visArr);
+			stateObj.insert(QStringLiteral("selectedMeshUuids"), selArr);
+			// Presentation state (see SceneStateData.h).
+			stateObj.insert(QStringLiteral("displayMode"), s.displayMode);
+			stateObj.insert(QStringLiteral("renderingMode"), s.renderingMode);
+			stateObj.insert(QStringLiteral("groundMode"), s.groundMode);
+			stateObj.insert(QStringLiteral("skyBoxShown"), s.skyBoxShown);
+			stateObj.insert(QStringLiteral("skyBoxHDRIEnabled"), s.skyBoxHDRIEnabled);
+			stateObj.insert(QStringLiteral("skyBoxFolderPath"), s.skyBoxFolderPath);
+			stateObj.insert(QStringLiteral("skyBoxBlurPercent"), s.skyBoxBlurPercent);
+			stateObj.insert(QStringLiteral("skyBoxFOV"), s.skyBoxFOV);
+			stateObj.insert(QStringLiteral("skyBoxZRotationDegrees"), s.skyBoxZRotationDegrees);
+
+			stateObj.insert(QStringLiteral("floorTextureShown"), s.floorTextureShown);
+			stateObj.insert(QStringLiteral("floorTexturePath"), s.floorTexturePath);
+			stateObj.insert(QStringLiteral("floorTexRepeatS"), s.floorTexRepeatS);
+			stateObj.insert(QStringLiteral("floorTexRepeatT"), s.floorTexRepeatT);
+			stateObj.insert(QStringLiteral("floorOffsetPercent"), s.floorOffsetPercent);
+			stateObj.insert(QStringLiteral("shadowQuality"), s.shadowQuality);
+			stateObj.insert(QStringLiteral("reflectionsEnabled"), s.reflectionsEnabled);
+			stateObj.insert(QStringLiteral("shadowsEnabled"), s.shadowsEnabled);
+			stateObj.insert(QStringLiteral("selfShadowsEnabled"), s.selfShadowsEnabled);
+			stateObj.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(s.shadowCatcherDarkness));
+			stateObj.insert(QStringLiteral("shadowCatcherBaseColor"), QJsonArray{
+				s.shadowCatcherBaseColor.x(), s.shadowCatcherBaseColor.y(), s.shadowCatcherBaseColor.z()});
+			stateObj.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(s.shadowCatcherMetalness));
+			stateObj.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(s.shadowCatcherRoughness));
+
+			stateObj.insert(QStringLiteral("environmentEnabled"), s.environmentEnabled);
+			stateObj.insert(QStringLiteral("iblEnabled"), s.iblEnabled);
+			stateObj.insert(QStringLiteral("envMapExposureStops"), s.envMapExposureStops);
+			stateObj.insert(QStringLiteral("iblExposureStops"), s.iblExposureStops);
+
+			stateObj.insert(QStringLiteral("defaultLightsEnabled"), s.defaultLightsEnabled);
+			stateObj.insert(QStringLiteral("punctualLightsEnabled"), s.punctualLightsEnabled);
+			stateObj.insert(QStringLiteral("showLights"), s.showLights);
+			stateObj.insert(QStringLiteral("defaultLightColor"), QJsonArray{
+				s.defaultLightColor.x(), s.defaultLightColor.y(), s.defaultLightColor.z(), s.defaultLightColor.w()});
+			stateObj.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
+				s.defaultLightOffset.x(), s.defaultLightOffset.y(), s.defaultLightOffset.z()});
+
+			stateObj.insert(QStringLiteral("hdrToneMapping"), s.hdrToneMapping);
+			stateObj.insert(QStringLiteral("hdrToneMappingMode"), s.hdrToneMappingMode);
+			stateObj.insert(QStringLiteral("gammaCorrection"), s.gammaCorrection);
+			stateObj.insert(QStringLiteral("screenGamma"), s.screenGamma);
+
+			stateObj.insert(QStringLiteral("bgTopColor"), stateColorToJson(s.bgTopColor));
+			stateObj.insert(QStringLiteral("bgBotColor"), stateColorToJson(s.bgBotColor));
+			statesJson.append(stateObj);
+		}
+		package.document.mvfSession.insert(QStringLiteral("sceneStates"), statesJson);
+	}
+
 	// Note: user-captured views ("Capture View" in the Cameras tab) need no
 	// separate save block - they're regular GltfCameraData under
 	// SceneGraph's synthetic capturedViewsSourceFileKey() bucket, so the
@@ -6124,6 +6619,11 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
 		viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
 		viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
+		viewerState.insert(QStringLiteral("floorTexturePath"), _viewportWidget->getFloorTexturePath());
+		viewerState.insert(QStringLiteral("floorTexRepeatS"), _viewportWidget->getFloorTexRepeatS());
+		viewerState.insert(QStringLiteral("floorTexRepeatT"), _viewportWidget->getFloorTexRepeatT());
+		viewerState.insert(QStringLiteral("floorOffsetPercent"), _viewportWidget->getFloorOffsetPercent());
+		viewerState.insert(QStringLiteral("shadowQuality"), static_cast<int>(_viewportWidget->getShadowQuality()));
 		viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
 		viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
 		viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
@@ -6481,6 +6981,18 @@ void ModelViewer::applyEyedropperStroke(const QVector<QUuid>& targetUuids, const
 	// command class needed - same as applyMeshMaterial() above.
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, targetUuids, material, material.name(), tr("Apply Material (Eyedropper)")));
+}
+
+void ModelViewer::replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial)
+{
+	if (meshUuids.isEmpty())
+		return;
+
+	// Same ApplyMaterialCommand batching as applyEyedropperStroke() above -
+	// every listed mesh gets the new material in one undo step. Called from
+	// FilterByMaterialDialog's "Replace With..." context menu action.
+	_undoStack->push(new ApplyMaterialCommand(
+		this, _viewportWidget, meshUuids, newMaterial, newMaterial.name(), tr("Replace Material")));
 }
 
 void ModelViewer::onTexturesApplied(const Material* mat)

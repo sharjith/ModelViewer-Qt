@@ -27,6 +27,7 @@
 #include <QMdiArea>
 #include <QMdiSubWindow>
 #include <QSet>
+#include <QUndoStack>
 #include <QSignalBlocker>
 #include <QSettings>
 
@@ -181,6 +182,30 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 			connect(viewport, &ViewportWidget::colorPicked, this, &FilterByColorDialog::onColorPicked);
 			connect(viewport, &ViewportWidget::colorPickArmedChanged, this, &FilterByColorDialog::onColorPickArmedChanged);
 		}
+
+		// Rebuilds on ANY undo/redo/push on this document - a mesh's
+		// representative color can change from things this dialog has no
+		// other way to observe (undoing/redoing an Eyedropper stroke, a
+		// Filter by Material Replace With, a Material Properties panel
+		// apply, ...). Without this, undoing such a change left this
+		// dialog's per-row match counts and aggregate label showing
+		// whatever they were just before the undo. Same fix, same
+		// reasoning, as FilterByMaterialDialog's identical connection - see
+		// its own doc comment for why QUndoStack::indexChanged() specifically.
+		//
+		// Goes through onUndoStackIndexChanged() rather than
+		// rebuildColorList() directly, for two independent reasons (both
+		// confirmed real bugs, same as FilterByMaterialDialog): (1)
+		// Qt::QueuedConnection - a direct connection re-enters
+		// QUndoStack::push() (via updateMatches() -> setSelectionWithUndo())
+		// while undo()/redo() is still on the call stack, corrupting the
+		// stack and breaking Undo entirely. (2) Even settled, this dialog
+		// unconditionally re-asserts its selection to match _colors every
+		// rebuild (by design - it's a live filter) - including right after
+		// undoing a selection it just pushed, which would silently reverse
+		// that undo. See onUndoStackIndexChanged()'s doc comment.
+		if (QUndoStack* undoStack = _modelViewer->getUndoStack())
+			connect(undoStack, &QUndoStack::indexChanged, this, &FilterByColorDialog::onUndoStackIndexChanged, Qt::QueuedConnection);
 	}
 
 	loadSettings();
@@ -485,10 +510,34 @@ void FilterByColorDialog::updateMatches()
 	if (newSelection == currentSelection)
 		return;
 
+	// Never push from an undo/redo-triggered rebuild - see
+	// _suppressLiveSelectionPush's doc comment. The match-count labels
+	// above are still allowed to update; only the push itself is skipped.
+	if (_suppressLiveSelectionPush)
+		return;
+
 	// mergeSource == this: consecutive add/remove/tolerance tweaks while
 	// this dialog stays open collapse into one undo step (see
 	// SelectionCommand's mergeWith()).
 	_modelViewer->setSelectionWithUndo(newSelection, this);
+}
+
+void FilterByColorDialog::onUndoStackIndexChanged()
+{
+	// Rebuilding is always safe/correct here (re-derives per-row match
+	// counts and the aggregate label from current reality). What's NOT
+	// safe is letting the rebuild's trailing updateMatches() call push a
+	// new SelectionCommand: this dialog unconditionally re-asserts its
+	// selection to match _colors every rebuild by design (it's a live
+	// filter) - including right after undoing/redoing a selection THIS
+	// dialog itself previously pushed, which would recompute that SAME
+	// match set and push it right back, silently reversing the user's own
+	// undo/redo (confirmed real bug). Suppressing the push for the
+	// duration breaks that loop; the match-count display is still
+	// refreshed normally.
+	_suppressLiveSelectionPush = true;
+	rebuildColorList();
+	_suppressLiveSelectionPush = false;
 }
 
 void FilterByColorDialog::onShowOnlyClicked()

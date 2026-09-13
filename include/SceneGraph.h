@@ -9,6 +9,7 @@
 #include "MeasurementData.h"
 #include "AnnotationData.h"
 #include "SelectionSetData.h"
+#include "SceneStateData.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -265,6 +266,19 @@ public:
     int selectionSetIndexById(const QUuid& id) const;
 
     // -----------------------------------------------------------------------
+    // Named scene states ("Selection -> Save Scene State..."). Document-
+    // level, not per-file - see SceneStateData.h. Same API shape as the
+    // selection-set block above.
+    // -----------------------------------------------------------------------
+    void addSceneState(const SceneState& state);
+    void insertSceneStateAt(int index, const SceneState& state);
+    void removeSceneStateById(const QUuid& id);
+    void renameSceneState(const QUuid& id, const QString& newName);
+    void clearSceneStates();
+    const QVector<SceneState>& sceneStates() const { return _sceneStates; }
+    int sceneStateIndexById(const QUuid& id) const;
+
+    // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------
 
@@ -338,6 +352,7 @@ signals:
     // setAnnotationLeaderOffset()'s doc comment).
     void annotationsChanged();
     void selectionSetsChanged();
+    void sceneStatesChanged();
 
     // Emitted when punctual light data is added, removed, or an individual
     // light's enabled state changes.  PunctualLightsPanel connects to this
@@ -395,4 +410,7 @@ private:
 
     // Document-level, not per-file - see SelectionSetData.h.
     QVector<SelectionSet> _selectionSets;
+
+    // Document-level, not per-file - see SceneStateData.h.
+    QVector<SceneState> _sceneStates;
 };

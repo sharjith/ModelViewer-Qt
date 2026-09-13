@@ -990,6 +990,57 @@ int SceneGraph::selectionSetIndexById(const QUuid& id) const
 }
 
 // ---------------------------------------------------------------------------
+// Named scene states - identical shape to the selection-set block above.
+// ---------------------------------------------------------------------------
+void SceneGraph::addSceneState(const SceneState& state)
+{
+    _sceneStates.append(state);
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::insertSceneStateAt(int index, const SceneState& state)
+{
+    _sceneStates.insert(qBound(0, index, _sceneStates.size()), state);
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::removeSceneStateById(const QUuid& id)
+{
+    const int index = sceneStateIndexById(id);
+    if (index < 0)
+        return;
+    _sceneStates.removeAt(index);
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::renameSceneState(const QUuid& id, const QString& newName)
+{
+    const int index = sceneStateIndexById(id);
+    if (index < 0 || _sceneStates.at(index).name == newName)
+        return;
+    _sceneStates[index].name = newName;
+    emit sceneStatesChanged();
+}
+
+void SceneGraph::clearSceneStates()
+{
+    if (_sceneStates.isEmpty())
+        return;
+    _sceneStates.clear();
+    emit sceneStatesChanged();
+}
+
+int SceneGraph::sceneStateIndexById(const QUuid& id) const
+{
+    for (int i = 0; i < _sceneStates.size(); ++i)
+    {
+        if (_sceneStates.at(i).id == id)
+            return i;
+    }
+    return -1;
+}
+
+// ---------------------------------------------------------------------------
 // Annotations
 // ---------------------------------------------------------------------------
 

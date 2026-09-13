@@ -31,6 +31,8 @@
 #include <QTimer>
 #include <QSet>
 #include <QVector>
+#include <QUuid>
+#include <QUndoStack>
 #include <QSignalBlocker>
 #include <QSettings>
 
@@ -200,6 +202,36 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 	{
 		if (QMdiArea* mdiArea = findMdiArea(_modelViewer))
 			connect(mdiArea, &QMdiArea::subWindowActivated, this, &FilterByMaterialDialog::onActiveSubWindowChanged);
+
+		// Rebuilds on ANY undo/redo/push on this document - not just this
+		// dialog's own Replace With action. Without this, undoing (or
+		// redoing) a material change made through Replace With, the
+		// Eyedropper, or the Material Properties panel left this dialog's
+		// list showing the material grouping from just before the undo/redo,
+		// since nothing else here observes material edits made elsewhere.
+		// QUndoStack::indexChanged() fires on every one of those regardless
+		// of source - same generic "something changed, re-derive from
+		// scratch" signal ModelViewer::onUndoStackChanged() itself already
+		// connects to for its own unrelated purposes. Broader than strictly
+		// necessary (a transform or visibility undo triggers a rebuild too,
+		// even though neither can change material grouping), but rebuilding
+		// is cheap and this matches showEvent()'s own "just re-derive it,
+		// don't try to be surgical" precedent.
+		//
+		// Goes through onUndoStackIndexChanged() rather than rebuildGroups()
+		// directly, for two independent reasons (both confirmed real bugs):
+		// (1) Qt::QueuedConnection - indexChanged() fires SYNCHRONOUSLY from
+		// inside QUndoStack::undo()/redo()/push() itself (via setIndex()),
+		// and a rebuild can end in applyLiveSelection() -> setSelectionWithUndo()
+		// -> another push() onto this SAME stack; a direct connection would
+		// re-enter push() while undo()/redo() is still on the call stack,
+		// corrupting the stack's index tracking and breaking Undo entirely.
+		// Queuing defers the rebuild until the current undo/redo call has
+		// fully returned and the stack is settled again. (2) Even settled,
+		// that deferred push can still exactly UNDO the user's own undo -
+		// see onUndoStackIndexChanged()'s doc comment.
+		if (QUndoStack* undoStack = _modelViewer->getUndoStack())
+			connect(undoStack, &QUndoStack::indexChanged, this, &FilterByMaterialDialog::onUndoStackIndexChanged, Qt::QueuedConnection);
 	}
 
 	loadSettings();
@@ -219,7 +251,31 @@ void FilterByMaterialDialog::showEvent(QShowEvent* event)
 void FilterByMaterialDialog::changeEvent(QEvent* event)
 {
 	QDialog::changeEvent(event);
-	if (event->type() == QEvent::ActivationChange && isActiveWindow())
+	if (event->type() != QEvent::ActivationChange || !isActiveWindow() || !_modelViewer)
+		return;
+
+	// Only restore this dialog's own row-selection criteria onto the live
+	// viewport selection when doing so can only ADD meshes, never remove
+	// any - see this override's header doc comment for the original bug
+	// this fixes (Hide clears the viewport selection, a subsequent Show All
+	// doesn't touch it either, so without SOME resync the dialog's
+	// still-selected rows never re-asserted themselves until the user
+	// touched the dialog's own controls again) versus the regression this
+	// guard prevents: if the live selection already contains meshes these
+	// rows don't fully represent (e.g. a partially-selected group left over
+	// from elsewhere), an unconditional applyLiveSelection() push would
+	// silently drop them just because the window regained OS focus
+	// (confirmed real bug - a focus change has no business shrinking the
+	// user's selection). Restricting to "only when the live selection is
+	// already a subset of what the rows represent" keeps the original fix
+	// (an empty or already-matching live selection is trivially a subset of
+	// anything) while never truncating a richer one.
+	const std::vector<int> group = selectedGroups();
+	const QSet<int> rowSelection(group.cbegin(), group.cend());
+	const std::vector<int> currentIds = _modelViewer->getSelectedIDs();
+	const bool currentIsSubsetOfRows = std::all_of(currentIds.cbegin(), currentIds.cend(),
+		[&rowSelection](int id) { return rowSelection.contains(id); });
+	if (currentIsSubsetOfRows)
 		applyLiveSelection();
 }
 
@@ -278,14 +334,26 @@ void FilterByMaterialDialog::rebuildGroups()
 		return;
 
 	const QString previousSearch = _searchBox ? _searchBox->text() : QString();
-	// Preserve the selected rows across a rebuild (e.g. the document tab was
-	// switched away and back, or an unrelated scene edit happened) by their
-	// label text - clearing the list invalidates every QListWidgetItem*, so
-	// without this every rebuild would silently snap the live selection back
-	// to nothing selected.
-	QSet<QString> previouslySelectedLabels;
-	for (QListWidgetItem* item : _list->selectedItems())
-		previouslySelectedLabels.insert(item->text());
+	// Restore which rows should be highlighted after rebuild - derived from
+	// the LIVE viewport selection (a row is re-selected iff its ENTIRE group
+	// is currently selected), NOT from the list's own previously-remembered
+	// label text. This used to be label-text-based, which broke Undo: after
+	// undoing a selection change made through this dialog, the VIEWPORT
+	// selection reverts but the list widget's own selectedItems() is
+	// untouched by that revert, so the old (now-stale) label-matching logic
+	// re-selected the row the user just undid away from, and the trailing
+	// applyLiveSelection() call below pushed a NEW command re-applying it -
+	// silently undoing the user's undo (confirmed real: this is exactly what
+	// broke Undo while this dialog was open). Deriving from the live
+	// selection instead is a pure read: if nothing currently selected
+	// matches any whole group, no row gets selected and nothing gets
+	// pushed - it can only ever reconstruct a selection that's already
+	// true, never fight a change that happened elsewhere. Behaves
+	// identically to the old approach for the cases it was originally meant
+	// for (dialog hidden/reshown, sort toggle) since neither touches the
+	// live selection either.
+	const std::vector<int> liveSelectedIdsVec = _modelViewer->getSelectedIDs();
+	const QSet<int> liveSelectedIds(liveSelectedIdsVec.cbegin(), liveSelectedIdsVec.cend());
 
 	std::vector<SceneMesh*> meshStore = _modelViewer->getViewportWidget()->getMeshStore();
 	QVector<SceneMesh*> meshes(meshStore.cbegin(), meshStore.cend());
@@ -366,15 +434,13 @@ void FilterByMaterialDialog::rebuildGroups()
 	}
 
 	// Deliberately no "select row 0 by default" fallback: on first open
-	// (previouslySelectedLabels empty, nothing to restore) this leaves the
-	// list with nothing selected, so opening the dialog never silently
-	// replaces whatever the user already had selected in the viewport or
-	// pushes an undo entry before they've chosen anything. Same reasoning
-	// applies to a rebuild - if the user deliberately cleared the list
-	// selection (Ctrl-click to deselect all) before switching tabs away and
-	// back, that "nothing selected" state is itself preserved, not treated
-	// as something to fall back away from.
-	if (!previouslySelectedLabels.isEmpty())
+	// (liveSelectedIds empty, nothing to restore) this leaves the list with
+	// nothing selected, so opening the dialog never silently replaces
+	// whatever the user already had selected in the viewport or pushes an
+	// undo entry before they've chosen anything. Same reasoning applies to
+	// any other rebuild - if the live selection doesn't correspond to any
+	// whole group (or is empty), no row is selected rather than guessing.
+	if (!liveSelectedIds.isEmpty())
 	{
 		// Block signals while re-selecting each match so onRowChanged() (and
 		// the live-selection push it triggers) only runs once, after the
@@ -383,12 +449,33 @@ void FilterByMaterialDialog::rebuildGroups()
 		for (int i = 0; i < _list->count(); ++i)
 		{
 			QListWidgetItem* item = _list->item(i);
-			if (previouslySelectedLabels.contains(item->text()))
+			const int groupIndex = item->data(Qt::UserRole).toInt();
+			if (groupIndex < 0 || groupIndex >= static_cast<int>(_groups.size()))
+				continue;
+			const std::vector<int>& group = _groups[groupIndex];
+			const bool wholeGroupSelected = std::all_of(group.cbegin(), group.cend(),
+				[&liveSelectedIds](int meshIndex) { return liveSelectedIds.contains(meshIndex); });
+			if (wholeGroupSelected)
 				item->setSelected(true);
 		}
 	}
 
+	// Suppressed - this call exists purely to refresh row-derived UI state
+	// (Show Only/Hide button enablement), not because a real user row click
+	// happened. Without this, ANY rebuild (construction, showEvent(), the
+	// "Sort by usage" toggle - not just the undo/redo path
+	// onUndoStackIndexChanged() already guards for a different reason) could
+	// silently shrink the live viewport selection: a row only re-selects
+	// above when its ENTIRE group is in liveSelectedIds, so a selection that
+	// mixes one whole group with part of another re-selects just the whole
+	// group's row, and an unsuppressed onRowChanged() -> applyLiveSelection()
+	// would then push that reduced (whole-groups-only) set back to the
+	// viewport, dropping the partially-selected group's members entirely
+	// (confirmed real bug). The row highlighting itself is unaffected -
+	// only the live-selection push is skipped.
+	_suppressLiveSelectionPush = true;
 	onRowChanged();
+	_suppressLiveSelectionPush = false;
 }
 
 void FilterByMaterialDialog::updateGroupBoxTitle()
@@ -451,6 +538,12 @@ void FilterByMaterialDialog::applyLiveSelection()
 	if (newSelection == currentSelection)
 		return;
 
+	// Never push from an undo/redo-triggered rebuild - see
+	// _suppressLiveSelectionPush's doc comment. The row highlighting above
+	// is still allowed to change; only the push itself is skipped.
+	if (_suppressLiveSelectionPush)
+		return;
+
 	// mergeSource == this: consecutive row clicks while this dialog stays
 	// open collapse into one undo step (see SelectionCommand's mergeWith()).
 	_modelViewer->setSelectionWithUndo(newSelection, this);
@@ -462,6 +555,24 @@ void FilterByMaterialDialog::onRowChanged()
 	_showOnlyButton->setEnabled(hasSelection);
 	_hideButton->setEnabled(hasSelection);
 	applyLiveSelection();
+}
+
+void FilterByMaterialDialog::onUndoStackIndexChanged()
+{
+	// Rebuilding is always safe/correct here (re-derives material groups
+	// and row-highlight from current reality - see rebuildGroups()'s own
+	// doc comment on why that part is a pure read). What's NOT safe is
+	// letting the rebuild's trailing applyLiveSelection() call push a new
+	// SelectionCommand: if the undo/redo that triggered this rebuild was
+	// itself undoing/redoing a selection THIS dialog previously pushed, the
+	// rebuild would recompute that SAME selection from the (unchanged) row
+	// highlight and push it right back - silently reversing the user's
+	// own undo/redo (confirmed real bug). Suppressing the push for the
+	// duration breaks that loop; the list's displayed row-selection is
+	// still refreshed normally.
+	_suppressLiveSelectionPush = true;
+	rebuildGroups();
+	_suppressLiveSelectionPush = false;
 }
 
 void FilterByMaterialDialog::onFilterTextChanged(const QString& text)
@@ -591,12 +702,133 @@ void FilterByMaterialDialog::onListContextMenuRequested(const QPoint& pos)
 		item->setSelected(true);
 	}
 
+	const int sourceGroupIndex = item->data(Qt::UserRole).toInt();
+
 	QMenu menu(this);
-	// Only entry for now - Show Only/Hide already have their own dedicated
-	// buttons, and this dialog otherwise has no per-material actions beyond
-	// jumping into the Material Properties panel to actually change
-	// something about it.
 	QAction* editAction = menu.addAction(tr("Edit Material..."));
-	if (menu.exec(_list->viewport()->mapToGlobal(pos)) == editAction)
+
+	// Lets every mesh currently using this material be reassigned to a
+	// DIFFERENT material already present elsewhere in the scene, in one undo
+	// step - e.g. consolidating near-duplicate materials an imported STEP/
+	// glTF assembly split apart. Deliberately scoped to "pick from what's
+	// already in this scene" rather than opening a full material-library
+	// picker - every candidate is right here in the list already, so no new
+	// picker UI is needed for the common case this solves.
+	QMenu* replaceMenu = menu.addMenu(tr("Replace With"));
+	bool anyOtherGroup = false;
+	if (_modelViewer->getViewportWidget())
+	{
+		const std::vector<SceneMesh*> meshStore = _modelViewer->getViewportWidget()->getMeshStore();
+		for (std::size_t g = 0; g < _groups.size(); ++g)
+		{
+			if (static_cast<int>(g) == sourceGroupIndex || _groups[g].empty())
+				continue;
+			const int refMeshIndex = _groups[g][0];
+			if (refMeshIndex < 0 || refMeshIndex >= static_cast<int>(meshStore.size()))
+				continue;
+			anyOtherGroup = true;
+
+			SceneMesh* refMesh = meshStore[refMeshIndex];
+			QString name = refMesh->getMaterial().name();
+			if (name.isEmpty())
+				name = tr("Unnamed Material");
+
+			QAction* replaceAction = replaceMenu->addAction(materialSwatchIcon(refMesh->getMaterial()), name);
+			const int targetGroupIndex = static_cast<int>(g);
+			connect(replaceAction, &QAction::triggered, this, [this, sourceGroupIndex, targetGroupIndex]() {
+				onReplaceMaterialRequested(sourceGroupIndex, targetGroupIndex);
+			});
+		}
+	}
+	// Only one material in the whole scene - nothing to replace with. Left
+	// visible-but-disabled rather than hidden, so the feature reads as
+	// "nothing to do here" instead of appearing not to exist.
+	replaceMenu->setEnabled(anyOtherGroup);
+
+	QAction* chosen = menu.exec(_list->viewport()->mapToGlobal(pos));
+	if (chosen == editAction)
 		_modelViewer->editMeshMaterial();
+	// Every Replace With submenu action is wired to its own lambda above, so
+	// there's nothing left to dispatch here for those - `chosen` only needs
+	// checking against editAction.
+}
+
+void FilterByMaterialDialog::onReplaceMaterialRequested(int sourceGroupIndex, int targetGroupIndex)
+{
+	if (!_modelViewer || !_modelViewer->getViewportWidget())
+		return;
+	if (sourceGroupIndex < 0 || sourceGroupIndex >= static_cast<int>(_groups.size()))
+		return;
+	if (targetGroupIndex < 0 || targetGroupIndex >= static_cast<int>(_groups.size()))
+		return;
+	if (_groups[sourceGroupIndex].empty() || _groups[targetGroupIndex].empty())
+		return;
+
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
+	const int targetRefIndex = _groups[targetGroupIndex][0];
+	if (targetRefIndex < 0 || targetRefIndex >= static_cast<int>(meshStore.size()))
+		return;
+	const Material targetMaterial = meshStore[targetRefIndex]->getMaterial();
+
+	QVector<QUuid> uuids;
+	for (int meshIndex : _groups[sourceGroupIndex])
+	{
+		const QUuid uuid = viewport->getUuidByIndex(meshIndex);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+	if (uuids.isEmpty())
+		return;
+
+	_modelViewer->replaceMaterial(uuids, targetMaterial);
+
+	// Required - this dialog only rebuilds on construction/showEvent()/the
+	// sort-toggle, nothing auto-refreshes it in reaction to a material edit
+	// triggered from its own context menu.
+	rebuildGroups();
+
+	// rebuildGroups()'s own selection-preservation only matches by the
+	// PREVIOUSLY selected row's exact label text - which was the source
+	// row, now gone (its meshes just moved into the target group), so it
+	// always misses here and silently leaves nothing selected: Show Only/
+	// Hide go disabled and the list looks like the replace did nothing,
+	// even though the merge happened correctly. Re-select the row the
+	// source just merged INTO instead, so the result is visibly confirmed.
+	//
+	// Located via one of the just-replaced meshes' CURRENT group, not by
+	// matching targetName as a label prefix - two distinct materials (this
+	// grouping's own key is material identity, not just name - see
+	// groupIndicesByCurrentMaterial()) can share the same display name, and
+	// a prefix match would happily select whichever of them happens to sort
+	// first, silently pointing Show Only/Hide at the wrong meshes (confirmed
+	// real bug). uuids[0] is guaranteed non-null and still valid here - it
+	// was resolved from a live mesh index above and replaceMaterial() only
+	// changes material assignment, never mesh identity/UUID.
+	const int mergedMeshIndex = viewport->getIndexByUuid(uuids.first());
+	int mergedGroupIndex = -1;
+	if (mergedMeshIndex >= 0)
+	{
+		for (std::size_t g = 0; g < _groups.size(); ++g)
+		{
+			const std::vector<int>& group = _groups[g];
+			if (std::find(group.cbegin(), group.cend(), mergedMeshIndex) != group.cend())
+			{
+				mergedGroupIndex = static_cast<int>(g);
+				break;
+			}
+		}
+	}
+	if (mergedGroupIndex >= 0)
+	{
+		for (int i = 0; i < _list->count(); ++i)
+		{
+			QListWidgetItem* item = _list->item(i);
+			if (item->data(Qt::UserRole).toInt() == mergedGroupIndex)
+			{
+				item->setSelected(true);
+				break;
+			}
+		}
+	}
 }
