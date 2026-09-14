@@ -14,9 +14,12 @@ class TabbedViewportToolbar : public QWidget
 public:
     explicit TabbedViewportToolbar(QWidget* viewport);
     ViewToolbar* viewToolbar() const { return _standard; }
+    ToolsToolbar* toolsToolbar() const { return _tools; }
     void reposition();
     void trackPointer(const QPoint& viewportPosition);
+    static void setPinnedPreference(bool pinned);
 signals:
+    void pinnedChanged(bool pinned);
     void commandRequested(const QString& command);
 protected:
     bool eventFilter(QObject* watched, QEvent* event) override;

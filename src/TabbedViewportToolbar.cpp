@@ -23,6 +23,7 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
     // Paint the translucent backing once, at the shared container level.
     setAutoFillBackground(false);
     setStyleSheet(QStringLiteral(
+        "QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }"
         "QWidget#tabbedViewportToolbar { background: rgba(255, 255, 255, 100); border: 1px solid rgba(100, 100, 100, 160); border-radius: 5px; }"
         "QStackedWidget#toolbarPages { background: transparent; border: none; }"
         "QTabBar#toolbarTabs { background: transparent; }"
@@ -72,14 +73,7 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
     _hideTimer->setSingleShot(true);
     _hideTimer->setInterval(2000);
     connect(_pinButton, &QToolButton::toggled, this, [](bool pinned) {
-        QSettings settings;
-        settings.setValue(QStringLiteral("ViewportToolbar/pinned"), pinned);
-        // Apply the preference to all open documents without registering
-        // global pointers or recursively emitting each button's toggled signal.
-        for (QWidget* widget : QApplication::allWidgets()) {
-            if (auto* toolbar = qobject_cast<TabbedViewportToolbar*>(widget))
-                toolbar->applyPinned(pinned);
-        }
+        setPinnedPreference(pinned);
     });
     connect(_hideTimer, &QTimer::timeout, this, &TabbedViewportToolbar::tryHide);
     connect(_tabs, &QTabBar::currentChanged, this, [this](int index) {
@@ -162,12 +156,23 @@ bool TabbedViewportToolbar::eventFilter(QObject* watched, QEvent* event)
 
 void TabbedViewportToolbar::applyPinned(bool pinned)
 {
+    const bool changed = _pinned != pinned;
     _pinned = pinned;
     const QSignalBlocker blocker(_pinButton);
     _pinButton->setChecked(pinned);
     updatePinButton();
     if (pinned) reveal();
     else _hideTimer->start();
+    if (changed) emit pinnedChanged(pinned);
+}
+
+void TabbedViewportToolbar::setPinnedPreference(bool pinned)
+{
+    QSettings().setValue(QStringLiteral("ViewportToolbar/pinned"), pinned);
+    for (QWidget* widget : QApplication::allWidgets()) {
+        if (auto* toolbar = qobject_cast<TabbedViewportToolbar*>(widget))
+            toolbar->applyPinned(pinned);
+    }
 }
 
 void TabbedViewportToolbar::updatePinButton()

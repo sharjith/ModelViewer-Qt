@@ -592,6 +592,9 @@ public slots:
 	// fixed working list, so there's nothing to seed at open time.
 	void openSurfaceAnalysisDialog(const QString& mode = QString());
     void executeToolCommand(const QString& command);
+    void updateMeshTools();
+    QMap<QString, QString> meshToolDisabledReasons() const;
+    bool executeMeshToolCommand(const QString& command);
 
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or

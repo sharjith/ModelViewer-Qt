@@ -79,6 +79,7 @@ MainWindow::MainWindow(QWidget* parent)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+    setupViewMenus();
 
 	// Explicit, rather than relying purely on Windows extracting the icon from the exe's embedded
 	// .rc resource ("A", res/ModelViewer.ico - same file, bundled into the qrc under this path
@@ -542,11 +543,9 @@ MainWindow::MainWindow(QWidget* parent)
 		// Closing a QDockWidget only hides it, but with nothing wired to its
 		// toggleViewAction() there was no way back in from the UI - a closed
 		// dock looked permanently gone.
-		auto* viewMenu = new QMenu(tr("View"), this);
-		viewMenu->addAction(documentDock->toggleViewAction());
-		viewMenu->addAction(_propertiesDock->toggleViewAction());
-		viewMenu->addAction(_environmentDock->toggleViewAction());
-		menuBar()->insertMenu(ui->menuWindows->menuAction(), viewMenu);
+        ui->menuViewPanels->addAction(documentDock->toggleViewAction());
+        ui->menuViewPanels->addAction(_propertiesDock->toggleViewAction());
+        ui->menuViewPanels->addAction(_environmentDock->toggleViewAction());
 	}
 
 	QMenu* fileMenu = ui->menuFile;
@@ -933,7 +932,12 @@ ModelViewer* MainWindow::createMdiChild()
 
 QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 {
-	_viewers.append(viewer);
+    _viewers.append(viewer);
+    const QPointer<ViewportWidget> view = viewer->getViewportWidget();
+    connect(view.data(), &ViewportWidget::viewStateChanged, this, [this, view]() {
+        if (!_shuttingDown && view && activeMdiChild() && activeMdiChild()->getViewportWidget() == view)
+            updateViewMenus();
+    }, Qt::QueuedConnection);
 	// Keep _viewers in sync regardless of how the document is closed (MDI
 	// close button, closeAllSubWindows, failed load, etc.). WA_DeleteOnClose
 	// deletes the viewer without going through closeSubWindow(), so without
@@ -2320,6 +2324,7 @@ MainWindow* MainWindow::mainWindow()
 
 void MainWindow::updateMenus()
 {
+    updateViewMenus();
 	bool hasMdiChild = (activeMdiChild() != nullptr);
 	ui->actionSave->setVisible(hasMdiChild);
 	ui->actionSave_As->setVisible(hasMdiChild);

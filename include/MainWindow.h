@@ -2,6 +2,7 @@
 
 #include <QMainWindow>
 #include <QSettings>
+#include <QMap>
 
 QT_BEGIN_NAMESPACE
 class QProgressBar;
@@ -156,6 +157,8 @@ private slots:
 
 	bool loadFile(const QString& fileName);
 	void updateMenus();
+    void setupViewMenus();
+    void updateViewMenus();
 	void updateRecentFileActions();
     void removeFromRecentFiles(const QString& fileName);
 	void openRecentFile();
@@ -167,6 +170,7 @@ private slots:
 	void closeAllSubWindows();
 
 private:	
+    QMap<QString, QAction*> _viewActions;
 	void readSettings();
 	void writeSettings();
 	static bool hasRecentFiles();

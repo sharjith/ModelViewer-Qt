@@ -5,6 +5,8 @@
 #include <functional>
 #include <memory>
 #include <utility>
+#include <QVariantMap>
+class ToolsToolbar;
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
@@ -135,6 +137,9 @@ public:
 
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
+    QVariantMap viewMenuState() const;
+    void executeViewCommand(const QString& command, bool checked);
+    void clearViewNavigation();
 	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
 	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
 	void setProjection(ViewProjection proj);
@@ -142,7 +147,7 @@ public:
 	void setCameraMode(Camera::CameraMode mode);
 	Camera::CameraMode cameraMode() const;
 
-	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); }
+	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); emit viewStateChanged(); }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
@@ -1045,6 +1050,7 @@ public:
 	bool arePunctualLightsEnabled() const { return _renderCtrl.usePunctualLights(); }
 	bool areLightsShown() const { return _renderCtrl.showLights(); }
 
+    ToolsToolbar* getToolsToolbar() const;
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
     void raiseViewportToolbar();
 
@@ -1128,6 +1134,7 @@ public:
 	using RuntimeAnimationFileState  = AnimationRuntimeController::RuntimeAnimationFileState;
 
 signals:
+    void viewStateChanged();
     void toolCommandRequested(const QString& command);
 	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
 	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
@@ -1382,6 +1389,7 @@ private slots:
 	void setBackgroundColor();
 	
 protected:
+    bool eventFilter(QObject* object, QEvent* event) override;
 	void initializeGL();
 	void createCappingPlanes();
 	void resizeGL(int width, int height);

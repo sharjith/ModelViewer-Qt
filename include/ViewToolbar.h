@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QWidget>
+#include <QVariantMap>
 #include <QToolButton>
 #include <QAction>
 #include <QPropertyAnimation>
@@ -35,6 +36,8 @@ public:
     void setDefaultDisplayModeAction(DisplayModeActions mode);
     void setDefaultRenderingModeAction(RenderingModeActions mode);
     void setFeatureEdgeModesVisible(bool visible);
+    bool featureEdgeModesVisible() const { return _wireframe && _wireframe->isVisible(); }
+    void syncMenuState(const QVariantMap& state);
     void setDebugOverlayModesAvailable(bool boundingBox, bool vertexNormals, bool faceNormals);
     void setDebugOverlayState(DebugOverlayActions mode, bool enabled);
     void updateRenderingModeButton(const QString& mode);
@@ -51,6 +54,7 @@ public:
     void setLassoSelectChecked(bool checked); // syncs _btnLassoSelect when disarmed externally (e.g. another tool took over)
 
 signals:
+    void viewActionsChanged();
     void cameraModeSelected(const QString& type);
     void cameraUpAxisToggled(bool zUp);
     void viewSelected(const QString& viewName);
@@ -90,6 +94,8 @@ private:
     // public API to change its context, so this replaces it with an
     // explicit QShortcut (same pattern already used for the Home shortcut).
     void scopeButtonShortcutToViewport(QAbstractButton* button, const QKeySequence& sequence);
+    // The action owns state; existing viewport-scoped QShortcuts remain unchanged.
+    QAction* bindButtonAction(QToolButton* button, const QString& name);
     void retranslateUI();
     void updateScrollButtons();
     void scrollLeft();
@@ -116,6 +122,17 @@ private:
     // Navigation buttons (Fit All and Window Zoom stay separate)
     QToolButton* _btnFitAll;
     QToolButton* _btnWindowZoom;
+    QAction* _fitAllAction;
+    QAction* _windowZoomAction;
+    QAction* _lassoSelectAction;
+    QAction* _turntableAction;
+    QAction* _projectionAction;
+    QAction* _multiViewAction;
+    QAction* _realisticAction;
+    QAction* _sectionAction;
+    QAction* _explodedAction;
+    QAction* _swapVisibleAction;
+    QAction* _axisAction;
 
     // Navigation actions (Rotate, Pan, Zoom grouped in dropdown)
     QAction* _rotateViewAction;
@@ -157,7 +174,6 @@ private:
     QToolButton* _realisticBtn;
 
     // Display mode actions
-    QAction* _realistic;
     QAction* _shaded;
     QAction* _hollowMesh;       // all triangle edges (no fill)
     QAction* _meshEdges;        // shaded + all triangle edges

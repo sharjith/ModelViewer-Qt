@@ -1,5 +1,6 @@
 ﻿
 #include "AssImpMeshBuilder.h"
+#include <QScopeGuard>
 #include "ClippingPlanesEditor.h"
 #include "ExplodedViewPanel.h"
 #include "AssemblyRelationGraph.h"
@@ -721,6 +722,8 @@ _floorPlane(nullptr),
 	connect(this, &ViewportWidget::backgroundColorChanged,
 	        _explodedViewPanel, &ExplodedViewPanel::applyBackgroundTheme);
 	_explodedViewPanel->hide();
+    _clippingPlanesEditor->installEventFilter(this);
+    _explodedViewPanel->installEventFilter(this);
 	connect(_explodedViewPanel, &ExplodedViewPanel::explosionParametersChanged,
 	        this, &ViewportWidget::updateExplosion);
 	updateOverlayEditorTheme();
@@ -728,6 +731,18 @@ _floorPlane(nullptr),
 	//_sceneRuntime.displayedObjectsIds().push_back(0);
 
 	setContextMenuPolicy(Qt::CustomContextMenu);
+    // Queue refreshes until mutations finish and construction is complete.
+    connect(this, &ViewportWidget::viewStateChanged, this, [this] {
+        if (_viewToolbar) _viewToolbar->syncMenuState(viewMenuState());
+    }, Qt::QueuedConnection);
+    connect(this, &ViewportWidget::visibleSwapped, this, &ViewportWidget::viewStateChanged);
+    connect(this, &ViewportWidget::displayModeChanged, this, &ViewportWidget::viewStateChanged);
+    connect(this, &ViewportWidget::renderingModeChanged, this, &ViewportWidget::viewStateChanged);
+    connect(this, &ViewportWidget::lassoToolArmedChanged, this, &ViewportWidget::viewStateChanged);
+    connect(this, &ViewportWidget::turntableStateChanged, this, &ViewportWidget::viewStateChanged);
+    connect(_viewToolbar, &ViewToolbar::viewActionsChanged, this, &ViewportWidget::viewStateChanged);
+    connect(_tabbedToolbar, &TabbedViewportToolbar::pinnedChanged, this, &ViewportWidget::viewStateChanged);
+    emit viewStateChanged();
 	connect(this, &ViewportWidget::customContextMenuRequested, this, &ViewportWidget::showContextMenu);
 
 	_selectRect = new QRubberBand(QRubberBand::Rectangle, this);
@@ -2184,6 +2199,7 @@ void ViewportWidget::warnOnConflictingImportedSceneUpAxis(const QString& fileNam
 
 void ViewportWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	if (_viewCtrl.cameraUpAxisZUp() == zUp)
 	{
 		if (syncToolbar && _viewToolbar)
@@ -2592,6 +2608,7 @@ void ViewportWidget::performWindowZoom()
 
 void ViewportWidget::setProjection(ViewProjection proj)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setProjection(proj);
 	if (!_primaryCamera || _primaryCamera->getMode() == Camera::CameraMode::Orbit)
 	{
@@ -2693,6 +2710,7 @@ bool ViewportWidget::positionGameplayCameraForScene(Camera::CameraMode mode)
 
 void ViewportWidget::setCameraMode(Camera::CameraMode mode)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	const bool hasVisibleScene = !_sceneRuntime.meshStore().empty() && !visibleIds.empty();
 
@@ -2767,6 +2785,7 @@ void ViewportWidget::setCameraMode(Camera::CameraMode mode)
 
 void ViewportWidget::setRotationActive(bool active)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(active, false, false);
 	setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate rotation mode"));
@@ -2774,6 +2793,7 @@ void ViewportWidget::setRotationActive(bool active)
 
 void ViewportWidget::setPanningActive(bool active)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(false, active, false);
 	setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate panning mode"));
@@ -2781,6 +2801,7 @@ void ViewportWidget::setPanningActive(bool active)
 
 void ViewportWidget::setZoomingActive(bool active)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(false, false, active);
 	setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate zooming mode"));
@@ -3281,6 +3302,7 @@ void ViewportWidget::updateClippingPlane()
 
 void ViewportWidget::showClippingPlaneEditor(bool show)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	if (show)
 	{
 		if (_explodedViewPanel && _explodedViewPanel->isVisible())
@@ -3297,6 +3319,7 @@ void ViewportWidget::showClippingPlaneEditor(bool show)
 
 void ViewportWidget::showExplodedViewPanel(bool show)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	if (show) {
 		if (_clippingPlanesEditor && _clippingPlanesEditor->isVisible())
 			showClippingPlaneEditor(false);
@@ -3830,6 +3853,7 @@ void ViewportWidget::setHatchTexture(const QString& path)
 
 void ViewportWidget::showAxis(bool show)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setShowAxis(show);
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("showAxis", _viewCtrl.showAxis());
@@ -10568,6 +10592,7 @@ void ViewportWidget::activateGltfCamera(const QString& sourceFile, int cameraInd
 
 void ViewportWidget::resetToSystemCamera()
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	if (_viewCtrl.systemCameraStateSaved())
 	{
 		_viewCtrl.restoreSystemCameraState(*_primaryCamera);
@@ -10989,6 +11014,10 @@ GltfCameraData ViewportWidget::cameraDataForMvfSave(const GltfCameraData& source
 
 void ViewportWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 {
+    const auto previousProjection = projection();
+    const auto notifyProjection = qScopeGuard([this, previousProjection] {
+        if (projection() != previousProjection) emit viewStateChanged();
+    });
 	if (!_primaryCamera)
 		return;
 
@@ -13687,6 +13716,7 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	if (key == Qt::Key_Escape)
 	{
 		_viewCtrl.clearNavigationModes();
+        emit viewStateChanged();
 		_viewCtrl.setWindowZoomActive(false);
 		// Disarm explicitly rather than relying on the unconditional
 		// setCursor() below - eyedropper changes the cursor (see
@@ -16474,6 +16504,7 @@ void ViewportWidget::setShowBoundingBox(bool showBoundingBox)
 
 void ViewportWidget::setDebugOverlayMode(DebugOverlayMode mode)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
     _renderCtrl.setDebugOverlayMode(mode);
 
     const bool requestedModeAvailable =
@@ -16511,6 +16542,7 @@ void ViewportWidget::setDebugOverlayMode(DebugOverlayMode mode)
 
 void ViewportWidget::setDebugOverlayEnabled(bool enabled)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
     const bool hasAnyOverlay =
         _renderCtrl.debugBoundingBoxAvailable() || _renderCtrl.debugVertexNormalsAvailable() || _renderCtrl.debugFaceNormalsAvailable();
 
@@ -16556,6 +16588,7 @@ void ViewportWidget::setDebugOverlayEnabled(bool enabled)
 
 void ViewportWidget::setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
     _renderCtrl.setDebugBoundingBoxAvailable(boundingBox);
     _renderCtrl.setDebugVertexNormalsAvailable(vertexNormals);
     _renderCtrl.setDebugFaceNormalsAvailable(faceNormals);
@@ -16640,6 +16673,7 @@ void ViewportWidget::setRealismEnabled(bool enabled)
 
 void ViewportWidget::setShadingNormalMode(ShadingNormalMode mode)
 {
+    const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_shadingNormalMode = mode;
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("shadingNormalMode", static_cast<int>(mode));

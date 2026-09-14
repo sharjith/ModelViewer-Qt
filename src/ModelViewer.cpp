@@ -279,6 +279,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setSamples(samples); // Set MSAA samples
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
     connect(_viewportWidget, &ViewportWidget::toolCommandRequested, this, &ModelViewer::executeToolCommand);
+    connect(_viewportWidget, &ViewportWidget::selectionChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &ModelViewer::updateMeshTools, Qt::QueuedConnection);
 	_viewportWidget->setAttribute(Qt::WA_DeleteOnClose);
 	_viewportWidget->setFormat(format);
 	_viewportWidget->setMouseTracking(true);
@@ -2046,6 +2048,13 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	    ? treeWidgetModel->nodeAt(pos)
 	    : nullptr;
 
+	// A single-mesh assembly is treated as a redundant wrapper around that
+	// one mesh, not a real grouping - same rule ToolsToolbar's
+	// meshToolDisabledReasons() already uses to decide when Duplicate is
+	// available (see its own comment there).
+	const bool singleMeshAssembly = clickedAssembly && assemblyNode
+	    && _sceneGraph->collectMeshUuids(assemblyNode).size() == 1;
+
 	// Visual feedback: narrow the highlight to just the right-clicked node.
 	// Save the full selection so we can restore it if the user dismisses.
 	const QSet<QUuid> savedSelection = getSelectedUuids();
@@ -2169,7 +2178,11 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// Merge have no such concern (neither reproduces assembly structure -
 		// they just insert/combine specific meshes wherever they already
 		// live), so unlike Duplicate they're available for assembly clicks too.
-		if (!clickedAssembly)
+		// A single-mesh assembly is the one exception: it's a redundant
+		// wrapper around exactly one mesh, so Duplicate sees through it the
+		// same way the ToolsToolbar's Duplicate button already does - only a
+		// genuine multi-mesh assembly still hides this entry.
+		if (!clickedAssembly || singleMeshAssembly)
 			myMenu.addAction(tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
 		myMenu.addAction(tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
 		myMenu.addAction(tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
@@ -2881,12 +2894,12 @@ void ModelViewer::performCrossDocumentCutPaste(SceneNode* target)
 
 void ModelViewer::duplicateSelectedItems()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<DuplicateCommand::DuplicateEntry> entries;
@@ -2930,12 +2943,12 @@ void ModelViewer::duplicateSelectedItems()
 
 void ModelViewer::splitSelectedMeshesByConnectivity()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<SplitByConnectivityCommand*> commands;
@@ -3116,10 +3129,10 @@ namespace
 
 void ModelViewer::mergeSelectedMeshesByAdjacency()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	if (selectedUuids.size() < 2)
 		return;
 
@@ -3377,10 +3390,10 @@ void ModelViewer::combineSelectedMeshes(
 	const std::function<SceneMesh*(const QVector<SceneMesh*>&, const QString&, QString* outDetail)>& combineFn,
 	const QString& actionName)
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<SceneMesh*> meshes;
@@ -3588,10 +3601,10 @@ void ModelViewer::unionSelectedMeshes()
 
 void ModelViewer::groupSelectedMeshes()
 {
-	if (!treeWidgetModel->hasMeshSelection())
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	if (selectedUuids.isEmpty())
 		return;
 
-	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
 	QVector<SceneNode*> ownerNodes;
@@ -7218,6 +7231,7 @@ void ModelViewer::rebuildTreeFromCurrentState()
 	_treeRebuildPending = false;
 	treeWidgetModel->rebuild();
 	syncTreeVisibilityFromModel();
+    updateMeshTools();
 }
 
 void ModelViewer::scheduleTreeVisibilitySync(int delayMs)
@@ -7292,6 +7306,7 @@ void ModelViewer::editMeshMaterial()
 
 void ModelViewer::executeToolCommand(const QString& command)
 {
+    if (executeMeshToolCommand(command)) return;
     // Both the menu and this document's toolbar use the same entry point.
     if (command == QLatin1String("measure")) openMeasurementDialog();
     else if (command == QLatin1String("annotate")) openAnnotationDialog();

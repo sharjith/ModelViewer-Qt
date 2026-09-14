@@ -116,6 +116,13 @@
         <file>res/curvature_analysis.png</file>
         <file>res/wall_thickness.png</file>
         <file>res/deviation_analysis.png</file>
+        <file>res/mesh_info.png</file>
+        <file>res/duplicate_meshes.png</file>
+        <file>res/group_meshes.png</file>
+        <file>res/mesh_union.png</file>
+        <file>res/merge_by_adjacency.png</file>
+        <file>res/merge_selected.png</file>
+        <file>res/split_by_connectivity.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

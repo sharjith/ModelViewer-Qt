@@ -77,6 +77,19 @@ void ViewToolbar::scopeButtonShortcutToViewport(QAbstractButton* button, const Q
     connect(shortcut, &QShortcut::activated, button, &QAbstractButton::click);
 }
 
+QAction* ViewToolbar::bindButtonAction(QToolButton* button, const QString& name)
+{
+    auto* action = new QAction(button->icon(), button->toolTip(), this);
+    action->setObjectName(name);
+    action->setToolTip(button->toolTip());
+    action->setCheckable(button->isCheckable());
+    action->setChecked(button->isChecked());
+    // Do not assign a shortcut here: scopeButtonShortcutToViewport() owns
+    // the sole registration and invokes the button's default action.
+    button->setDefaultAction(action);
+    return action;
+}
+
 ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     : QWidget(parent ? parent : viewport)
     , _viewport(viewport)
@@ -85,7 +98,9 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     , _hoverDelayTimer(nullptr)
     , _autoScrollLeft(true)
 {
-    setStyleSheet("background: transparent; border: none;");
+    setObjectName(QStringLiteral("standardViewportToolbar"));
+    // Scope transparency to the toolbar, so it cannot override tooltip styling.
+    setStyleSheet("QWidget#standardViewportToolbar { background: transparent; border: none; }");
     setFixedHeight(76);
 
     QString buttonStyleSheet(
@@ -222,7 +237,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     // Container widget for buttons inside scroll area
     _buttonContainer = new QWidget();
-    _buttonContainer->setStyleSheet("background: transparent;");
+    _buttonContainer->setObjectName(QStringLiteral("viewToolbarButtons"));
+    _buttonContainer->setStyleSheet("QWidget#viewToolbarButtons { background: transparent; }");
     _buttonContainer->setFixedHeight(72);
     _mainLayout = new QHBoxLayout(_buttonContainer);
     _mainLayout->setContentsMargins(4, 4, 4, 4);
@@ -322,7 +338,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     scopeButtonShortcutToViewport(_btnFitAll, QKeySequence(Qt::Key_F));
     _btnFitAll->setAutoRaise(true);
     _mainLayout->addWidget(_btnFitAll);
-    connect(_btnFitAll, &QToolButton::clicked, this, [this]() { emit fitToViewRequested(); });
+    _fitAllAction = bindButtonAction(_btnFitAll, QStringLiteral("fitAllAction"));
+    connect(_fitAllAction, &QAction::triggered, this, [this]() { emit fitToViewRequested(); });
 
     _btnWindowZoom = new QToolButton(this);
     _btnWindowZoom->setStyleSheet(buttonStyleSheet);
@@ -332,7 +349,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     scopeButtonShortcutToViewport(_btnWindowZoom, QKeySequence(Qt::ALT | Qt::Key_W));
     _btnWindowZoom->setAutoRaise(true);
     _mainLayout->addWidget(_btnWindowZoom);
-    connect(_btnWindowZoom, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
+    _windowZoomAction = bindButtonAction(_btnWindowZoom, QStringLiteral("windowZoomAction"));
+    connect(_windowZoomAction, &QAction::triggered, this, [this]() { emit windowZoomRequested(); });
 
     // Lasso Select - freeform-polygon drag selection, stays armed across
     // multiple drags (toggle) rather than Window Zoom's one-shot gesture.
@@ -344,7 +362,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnLassoSelect->setCheckable(true);
     _btnLassoSelect->setAutoRaise(true);
     _mainLayout->addWidget(_btnLassoSelect);
-    connect(_btnLassoSelect, &QToolButton::toggled, this, [this](bool checked) { emit lassoSelectToggled(checked); });
+    _lassoSelectAction = bindButtonAction(_btnLassoSelect, QStringLiteral("lassoSelectAction"));
+    connect(_lassoSelectAction, &QAction::triggered, this, [this](bool checked) { emit lassoSelectToggled(checked); });
 
     // Camera Modes
     _toolButtonCameraModes = new FlyOutViewButton(this);
@@ -432,7 +451,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnTurntable->setCheckable(true);
     _btnTurntable->setAutoRaise(true);
     _mainLayout->addWidget(_btnTurntable);
-    connect(_btnTurntable, &QToolButton::toggled, this, [this](bool checked) { emit turntableToggled(checked); });
+    _turntableAction = bindButtonAction(_btnTurntable, QStringLiteral("turntableAction"));
+    connect(_turntableAction, &QAction::triggered, this, [this](bool checked) { emit turntableToggled(checked); });
 
     // Standard Views
     _toolButtonViews = new FlyOutViewButton(this);
@@ -597,16 +617,17 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     scopeButtonShortcutToViewport(_projToggleButton, QKeySequence(Qt::SHIFT | Qt::Key_P));
     _mainLayout->addWidget(_projToggleButton);
 
-    connect(_projToggleButton, &QToolButton::toggled, this, [this](bool checked) {
+    _projectionAction = bindButtonAction(_projToggleButton, QStringLiteral("projectionAction"));
+    connect(_projectionAction, &QAction::triggered, this, [this](bool checked) {
         if (!checked)
         {
-            _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
-            _projToggleButton->setToolTip(tr("Switch to Perspective"));
+            _projectionAction->setIcon(QIcon(":/icons/res/Ortho.png"));
+            _projectionAction->setToolTip(tr("Switch to Perspective"));
         }
         else
         {
-            _projToggleButton->setToolTip(tr("Switch to Orthographic"));
-            _projToggleButton->setIcon(QIcon(":/icons/res/Perspective.png"));
+            _projectionAction->setToolTip(tr("Switch to Orthographic"));
+            _projectionAction->setIcon(QIcon(":/icons/res/Perspective.png"));
         }
         emit projectionToggled(!checked);
         });
@@ -621,7 +642,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _multiBtn->setAutoRaise(true);
     scopeButtonShortcutToViewport(_multiBtn, QKeySequence(Qt::CTRL | Qt::Key_M));
     _mainLayout->addWidget(_multiBtn);
-    connect(_multiBtn, &QToolButton::toggled, this, [this](bool checked) { emit multiViewToggled(checked); });
+    _multiViewAction = bindButtonAction(_multiBtn, QStringLiteral("multiViewAction"));
+    connect(_multiViewAction, &QAction::triggered, this, [this](bool checked) { emit multiViewToggled(checked); });
 
     // Display Modes
     _toolButtonDisplayModes = new FlyOutViewButton(this);
@@ -642,9 +664,9 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _realisticBtn->setAutoRaise(true);
     scopeButtonShortcutToViewport(_realisticBtn, QKeySequence(Qt::SHIFT | Qt::Key_R));
     _mainLayout->addWidget(_realisticBtn);
-    connect(_realisticBtn, &QToolButton::clicked, this,
+    _realisticAction = bindButtonAction(_realisticBtn, QStringLiteral("realisticAction"));
+    connect(_realisticAction, &QAction::triggered, this,
         [this]() { emit displayModeSelected("Realistic"); });
-    _realistic = nullptr; // no longer a menu action; _realisticBtn is the sole owner
 
     QMenu* dispModeMenu = new QMenu;
     dispModeMenu->setStyleSheet(flyoutStyleSheet);
@@ -795,7 +817,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _sectionBtn->setCheckable(true);
     _sectionBtn->setAutoRaise(true);
     _mainLayout->addWidget(_sectionBtn);
-    connect(_sectionBtn, &QToolButton::toggled, this, [this](bool checked) { emit sectionViewToggled(checked); });
+    _sectionAction = bindButtonAction(_sectionBtn, QStringLiteral("sectionAction"));
+    connect(_sectionAction, &QAction::triggered, this, [this](bool checked) { emit sectionViewToggled(checked); });
 
     // Exploded View
     _explodedBtn = new QToolButton(this);
@@ -806,7 +829,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _explodedBtn->setCheckable(true);
     _explodedBtn->setAutoRaise(true);
     _mainLayout->addWidget(_explodedBtn);
-    connect(_explodedBtn, &QToolButton::toggled, this, [this](bool checked) { emit explodedViewToggled(checked); });
+    _explodedAction = bindButtonAction(_explodedBtn, QStringLiteral("explodedAction"));
+    connect(_explodedAction, &QAction::triggered, this, [this](bool checked) { emit explodedViewToggled(checked); });
 
     // Swap Visible View
     _swapBtn = new QToolButton(this);
@@ -817,7 +841,8 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _swapBtn->setCheckable(true);
     _swapBtn->setAutoRaise(true);
     _mainLayout->addWidget(_swapBtn);
-    connect(_swapBtn, &QToolButton::toggled, this, [this](bool checked) { emit swapVisibleToggled(checked); });
+    _swapVisibleAction = bindButtonAction(_swapBtn, QStringLiteral("swapVisibleAction"));
+    connect(_swapVisibleAction, &QAction::triggered, this, [this](bool checked) { emit swapVisibleToggled(checked); });
 
     // Show/Hide Axis
     _axisBtn = new QToolButton(this);
@@ -829,16 +854,17 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _axisBtn->setChecked(true);
     _axisBtn->setAutoRaise(true);
     _mainLayout->addWidget(_axisBtn);
-    connect(_axisBtn, &QToolButton::toggled, this, [this](bool checked) {
+    _axisAction = bindButtonAction(_axisBtn, QStringLiteral("axisAction"));
+    connect(_axisAction, &QAction::triggered, this, [this](bool checked) {
         if (checked)
         {
-            _axisBtn->setIcon(QIcon(":/icons/res/showAxis.png"));
-            _axisBtn->setToolTip(tr("Show the trihedron"));
+            _axisAction->setIcon(QIcon(":/icons/res/showAxis.png"));
+            _axisAction->setToolTip(tr("Show the trihedron"));
         }
         else
         {
-            _axisBtn->setIcon(QIcon(":/icons/res/hideAxis.png"));
-            _axisBtn->setToolTip(tr("Hide the trihedron"));
+            _axisAction->setIcon(QIcon(":/icons/res/hideAxis.png"));
+            _axisAction->setToolTip(tr("Hide the trihedron"));
         }
         emit axisDisplayToggled(checked);
         });
@@ -949,6 +975,49 @@ bool ViewToolbar::isFlyoutMenuVisible() const
 			_toolButtonDisplayModes->menu()->isVisible());
 }
 
+
+void ViewToolbar::syncMenuState(const QVariantMap& state)
+{
+    const auto checked = [&state](const char* key) { return state.value(QLatin1String(key)).toBool(); };
+    // Command handlers use triggered(), so assigning state never dispatches a command.
+    _lassoSelectAction->setChecked(checked("lasso"));
+    _turntableAction->setChecked(checked("turntable"));
+    _projectionAction->setChecked(checked("perspective"));
+    _multiViewAction->setChecked(checked("multi"));
+    _realisticAction->setChecked(checked("realistic"));
+    _sectionAction->setChecked(checked("clipping"));
+    _explodedAction->setChecked(checked("exploded"));
+    _swapVisibleAction->setChecked(checked("swap"));
+    _axisAction->setChecked(checked("axis"));
+    _rotateViewAction->setChecked(checked("rotate"));
+    _panViewAction->setChecked(checked("pan"));
+    _zoomViewAction->setChecked(checked("zoom"));
+    _projectionAction->setIcon(QIcon(checked("perspective") ? ":/icons/res/Perspective.png" : ":/icons/res/Ortho.png"));
+    _projectionAction->setToolTip(checked("perspective") ? tr("Switch to Orthographic") : tr("Switch to Perspective"));
+    _axisAction->setIcon(QIcon(checked("axis") ? ":/icons/res/showAxis.png" : ":/icons/res/hideAxis.png"));
+    _axisAction->setToolTip(checked("axis") ? tr("Hide the trihedron") : tr("Show the trihedron"));
+    if (checked("rotate")) _toolButtonNavigation->setDefaultAction(_rotateViewAction);
+    else if (checked("pan")) _toolButtonNavigation->setDefaultAction(_panViewAction);
+    else if (checked("zoom")) _toolButtonNavigation->setDefaultAction(_zoomViewAction);
+    setCameraUpAxisZUp(checked("zUp"));
+    if (checked("orbit")) _toolButtonCameraModes->setDefaultAction(_cameraModeActions.value(CameraModeActions::ORBIT));
+    if (checked("fly")) _toolButtonCameraModes->setDefaultAction(_cameraModeActions.value(CameraModeActions::FLY));
+    if (checked("firstPerson")) _toolButtonCameraModes->setDefaultAction(_cameraModeActions.value(CameraModeActions::FIRST_PERSON));
+    if (checked("shaded")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::SHADED));
+    if (checked("hollow")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::HOLLOW_MESH));
+    if (checked("meshEdges")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::MESH_EDGES));
+    if (checked("wireframe")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::WIREFRAME));
+    if (checked("shadedEdges")) _toolButtonDisplayModes->setDefaultAction(_displayModeActions.value(DisplayModeActions::SHADED_WITH_EDGES));
+    if (checked("ads")) _toolButtonRenderingMode->setDefaultAction(_renderingModeActions.value(RenderingModeActions::ADS));
+    if (checked("pbr")) _toolButtonRenderingMode->setDefaultAction(_renderingModeActions.value(RenderingModeActions::PBR));
+    if (checked("rayTraced")) _toolButtonRenderingMode->setDefaultAction(_renderingModeActions.value(RenderingModeActions::RAY_TRACED));
+    if (checked("smooth")) _toolButtonShadingNormal->setDefaultAction(_shadingNormalActions.value(ShadingNormalModeActions::SMOOTH));
+    if (checked("flat")) _toolButtonShadingNormal->setDefaultAction(_shadingNormalActions.value(ShadingNormalModeActions::FLAT));
+    setDebugOverlayState(checked("vertexNormals") ? DebugOverlayActions::VERTEX_NORMALS
+        : checked("faceNormals") ? DebugOverlayActions::FACE_NORMALS : DebugOverlayActions::BOUNDING_BOX,
+        checked("debugEnabled"));
+}
+
 void ViewToolbar::setDefaultCameraModeAction(CameraModeActions mode)
 {
 	if (_cameraModeActions.contains(mode))
@@ -975,10 +1044,7 @@ void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
 
 void ViewToolbar::setRealisticChecked(bool checked)
 {
-	if (_realisticBtn)
-		_realisticBtn->setChecked(checked);
-	if (_realistic)
-		_realistic->setChecked(checked);
+    _realisticAction->setChecked(checked);
 }
 
 void ViewToolbar::setDefaultShadingNormalModeAction(ShadingNormalModeActions mode)
@@ -999,6 +1065,7 @@ void ViewToolbar::setFeatureEdgeModesVisible(bool visible)
 		if (current == _wireframe || current == _shadedWithEdges)
 			_toolButtonDisplayModes->setDefaultAction(_shaded);
 	}
+    emit viewActionsChanged();
 }
 
 void ViewToolbar::setDebugOverlayModesAvailable(bool boundingBox, bool vertexNormals, bool faceNormals)
@@ -1064,37 +1131,32 @@ void ViewToolbar::setDebugOverlayState(DebugOverlayActions mode, bool enabled)
 
 void ViewToolbar::setSwapVisibleChecked(bool checked)
 {
-	bool oldState = _swapBtn->blockSignals(true);
-	_swapBtn->setChecked(checked);
-	_swapBtn->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _swapVisibleAction->setChecked(checked);
 }
 
 void ViewToolbar::setTurntableChecked(bool checked)
 {
-	bool oldState = _btnTurntable->blockSignals(true);
-	_btnTurntable->setChecked(checked);
-	_btnTurntable->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _turntableAction->setChecked(checked);
 }
 
 void ViewToolbar::setLassoSelectChecked(bool checked)
 {
-	bool oldState = _btnLassoSelect->blockSignals(true);
-	_btnLassoSelect->setChecked(checked);
-	_btnLassoSelect->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _lassoSelectAction->setChecked(checked);
 }
 
 void ViewToolbar::setSectionViewChecked(bool checked)
 {
-	bool oldState = _sectionBtn->blockSignals(true);
-	_sectionBtn->setChecked(checked);
-	_sectionBtn->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _sectionAction->setChecked(checked);
 }
 
 void ViewToolbar::setExplodedViewChecked(bool checked)
 {
-	bool oldState = _explodedBtn->blockSignals(true);
-	_explodedBtn->setChecked(checked);
-	_explodedBtn->blockSignals(oldState);
+    // Only triggered() dispatches commands; checked-state sync is passive.
+    _explodedAction->setChecked(checked);
 }
 
 void ViewToolbar::setCameraUpAxisZUp(bool zUp)
@@ -1160,9 +1222,24 @@ bool ViewToolbar::eventFilter(QObject* obj, QEvent* event)
 
 void ViewToolbar::retranslateUI()
 {
+    // Keep action text and tooltip together for these standalone controls.
+    _fitAllAction->setText(tr("Fit All"));
+    _windowZoomAction->setText(tr("Window Zoom"));
+    _lassoSelectAction->setText(tr("Lasso Select"));
+    _lassoSelectAction->setToolTip(tr("Lasso Select"));
+    _turntableAction->setText(tr("Turntable"));
+    _turntableAction->setToolTip(tr("Turntable"));
+    _projectionAction->setText(tr("Toggle Projection"));
+    _multiViewAction->setText(tr("Toggle Multi-View"));
+    _realisticAction->setText(tr("Realistic Rendering"));
+    _sectionAction->setText(tr("Clipping Planes"));
+    _explodedAction->setText(tr("Exploded View"));
+    _swapVisibleAction->setText(tr("Swap Visible"));
+    _axisAction->setText(tr("Show/Hide Axis"));
+
 	// Separate navigation buttons
-	_btnFitAll->setToolTip(tr("Fit All"));
-	_btnWindowZoom->setToolTip(tr("Window Zoom"));
+	_fitAllAction->setToolTip(tr("Fit All"));
+	_windowZoomAction->setToolTip(tr("Window Zoom"));
 
 	// Navigation dropdown
 	_toolButtonNavigation->setToolTip(tr("Navigation"));
@@ -1195,14 +1272,14 @@ void ViewToolbar::retranslateUI()
 	_triAction->setText(tr("Trimetric"));
 
 	// Projection toggle
-	_projToggleButton->setToolTip(tr("Toggle Projection"));	
+	_projectionAction->setToolTip(tr("Toggle Projection"));
 
 	// Multi View
-	_multiBtn->setToolTip(tr("Toggle Multi-View"));
+	_multiViewAction->setToolTip(tr("Toggle Multi-View"));
 
 	// Display Modes
 	_toolButtonDisplayModes->setToolTip(tr("Display Modes"));
-	if (_realisticBtn) _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
+	if (_realisticBtn) _realisticAction->setToolTip(tr("Realistic Rendering (Shift+R)"));
 	_shaded->setText(tr("Shaded"));
 	// Shading Normal
 	_toolButtonShadingNormal->setToolTip(tr("Shading Normal"));
@@ -1228,16 +1305,16 @@ void ViewToolbar::retranslateUI()
 	_pbrAction->setText(tr("PBR (Metallic-Roughness)"));
 
 	// Section View
-	_sectionBtn->setToolTip(tr("Clipping Planes"));
+	_sectionAction->setToolTip(tr("Clipping Planes"));
 
 	// Exploded View
-	_explodedBtn->setToolTip(tr("Exploded View"));
+	_explodedAction->setToolTip(tr("Exploded View"));
 
 	// Swap Visible View
-	_swapBtn->setToolTip(tr("Swap Visible"));
+	_swapVisibleAction->setToolTip(tr("Swap Visible"));
 
 	// Axis
-	_axisBtn->setToolTip(tr("Show/Hide Axis"));
+	_axisAction->setToolTip(tr("Show/Hide Axis"));
 }
 
 void ViewToolbar::updateRenderingModeButton(const QString& mode)
