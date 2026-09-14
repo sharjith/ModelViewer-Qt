@@ -26,6 +26,9 @@
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
 #include "SurfaceAnalysisDialog.h"
+#include "MassPropertiesDialog.h"
+#include "ReportExportDialog.h"
+#include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
 #include "ReconstructSurfaceDialog.h"
 #include "RepairMeshDialog.h"
@@ -275,6 +278,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
+    connect(_viewportWidget, &ViewportWidget::toolCommandRequested, this, &ModelViewer::executeToolCommand);
 	_viewportWidget->setAttribute(Qt::WA_DeleteOnClose);
 	_viewportWidget->setFormat(format);
 	_viewportWidget->setMouseTracking(true);
@@ -875,14 +879,10 @@ void ModelViewer::attachNavigationOverlay()
 		_viewportWidget->refreshDetachedNavigationOverlayTheme();
 		updateNavigationOverlayGeometry();
 		_navigationOverlay->show();
-		// attachOverlayPanel() raises this panel above every existing sibling,
-		// including the ViewToolbar (created earlier, in ViewportWidget's own
-		// constructor) - ViewToolbar only reclaims top stacking order the next
-		// time it animates in via showAnimated(). Without this, its initial
-		// partially-visible sliver at startup renders behind the panel until
-		// the first auto-hide/reveal cycle fixes the order.
-		if (ViewToolbar* toolbar = _viewportWidget->getViewToolbar())
-			toolbar->raise();
+		// The navigation overlay and tabbed toolbar are viewport siblings.
+		// Raise the outer container so both pages and the pin remain above
+		// the overlay immediately, including when the toolbar is pinned.
+		_viewportWidget->raiseViewportToolbar();
 		QMetaObject::invokeMethod(this, [this]()
 		{
 			if (_navigationOverlay && _viewportWidget)
@@ -3671,7 +3671,7 @@ void ModelViewer::openShrinkWrapDialog()
 	dialog->activateWindow();
 }
 
-void ModelViewer::openSurfaceAnalysisDialog()
+void ModelViewer::openSurfaceAnalysisDialog(const QString& mode)
 {
 	SurfaceAnalysisDialog* dialog = findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly);
 	if (!dialog)
@@ -3682,6 +3682,7 @@ void ModelViewer::openSurfaceAnalysisDialog()
 	// No tree-selection seeding - see this function's declaration comment
 	// in ModelViewer.h for why (acts on the live viewport selection at
 	// Apply-click time, not a fixed working list).
+    if (!mode.isEmpty()) dialog->selectMode(mode);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -7287,4 +7288,22 @@ void ModelViewer::editMeshMaterial()
 	} else {
 		MainWindow::showStatusMessage(tr("Editing material of %1").arg(meshName));
 	}
+}
+
+void ModelViewer::executeToolCommand(const QString& command)
+{
+    // Both the menu and this document's toolbar use the same entry point.
+    if (command == QLatin1String("measure")) openMeasurementDialog();
+    else if (command == QLatin1String("annotate")) openAnnotationDialog();
+    else if (command == QLatin1String("analysis")) openSurfaceAnalysisDialog();
+    else if (command == QLatin1String("curvature") || command == QLatin1String("thickness") || command == QLatin1String("deviation")) openSurfaceAnalysisDialog(command);
+    else if (command == QLatin1String("shrink")) openShrinkWrapDialog();
+    else if (command == QLatin1String("subdivide")) openSubdivisionDialog();
+    else if (command == QLatin1String("reconstruct")) openReconstructSurfaceDialog();
+    else if (command == QLatin1String("repair")) openRepairMeshDialog();
+    else if (command == QLatin1String("fill")) openFillHolesDialog();
+    else if (command == QLatin1String("uv")) openUVGenerationDialog();
+    else if (command == QLatin1String("mass")) { MassPropertiesDialog dialog(this, this); dialog.exec(); }
+    else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }
+    else if (command == QLatin1String("batch")) { BatchRenderViewsDialog dialog(this, this); dialog.exec(); }
 }

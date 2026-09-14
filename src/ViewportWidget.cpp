@@ -262,8 +262,9 @@ _floorPlane(nullptr),
 
 
 	// Setup the view toolbar
-	_viewToolbar = new ViewToolbar(this);
-	_viewToolbar->reposition(width(), height());
+	_tabbedToolbar = new TabbedViewportToolbar(this);
+	_viewToolbar = _tabbedToolbar->viewToolbar();
+    connect(_tabbedToolbar, &TabbedViewportToolbar::commandRequested, this, &ViewportWidget::toolCommandRequested);
 
 	connect(_viewToolbar, &ViewToolbar::zoomViewRequested, this, [this]() {
 		setZoomingActive(true);
@@ -12446,12 +12447,18 @@ void ViewportWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 	update();
 }
 
+void ViewportWidget::raiseViewportToolbar()
+{
+    // Overlay panels are siblings of the container, not of its toolbar pages.
+    // Raising must preserve the current hidden/pinned state and selected tab.
+    if (_tabbedToolbar)
+        _tabbedToolbar->raise();
+}
+
 void ViewportWidget::resizeEvent(QResizeEvent* event)
 {
-	if (_viewToolbar)
-	{
-		_viewToolbar->reposition(width(), height()); // Move completely below widget
-	}
+	if (_tabbedToolbar)
+        _tabbedToolbar->reposition();
 	if (_lassoOverlay)
 	{
 		_lassoOverlay->setGeometry(rect());
@@ -13386,57 +13393,9 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	updateViewCubeHover(e->pos(), e->buttons());
 
 
-	// Auto-hide/show the view toolbar
-	if (_viewToolbar && e->buttons() == Qt::NoButton)
-	{
-		const int revealMargin = 30; // e.g., 30 px threshold
-
-		QRect hidden = _viewToolbar->hiddenRect();
-		QRect revealArea(hidden.left(), hidden.top() - revealMargin, hidden.width(), revealMargin * 2);
-
-		if (revealArea.contains(e->pos()) || _viewToolbar->underMouse())
-		{
-			_viewToolbar->showAnimated();
-		}
-		else
-		{
-			// Store the timer as a member (optional) to manage it better
-			auto timer = new QTimer(this);
-			timer->setSingleShot(true);
-			connect(timer, &QTimer::timeout, this, [this, timer]() {
-				if (!_viewToolbar)
-				{
-					timer->deleteLater(); // Clean up the timer
-					return; // Exit safely
-				}
-
-				QPoint globalPos = QCursor::pos();
-				QPoint localPos = mapFromGlobal(globalPos);
-				QRect hidden = _viewToolbar->hiddenRect();
-				QRect revealArea(hidden.left(), hidden.top() - 30, hidden.width(), 60);
-
-				bool isFlyoutVisible = _viewToolbar->isFlyoutMenuVisible();
-
-				if (!revealArea.contains(localPos) &&
-					!_viewToolbar->underMouse() &&
-					!isFlyoutVisible)
-				{
-					_viewToolbar->hideAnimated();
-				}
-
-				timer->deleteLater(); // Clean up the timer
-				});
-
-			// Start the timer
-			timer->start(2000);
-
-			// Ensure proper cleanup of the timer if the toolbar is deleted
-			connect(_viewToolbar, &QObject::destroyed, timer, [timer]() {
-				timer->stop();
-				timer->deleteLater();
-				});
-		}
-	}
+    // The container owns one hide timer for both pages and their flyouts.
+    if (_tabbedToolbar && e->buttons() == Qt::NoButton)
+        _tabbedToolbar->trackPointer(e->pos());
 
 	// Hover highlight feedback for the transform gizmo.
 	bool gizmoHovered = false;

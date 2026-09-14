@@ -51,6 +51,7 @@
 #include <QString>
 #include <array>
 #include "ViewToolbar.h"
+#include "TabbedViewportToolbar.h"
 #include "SceneUtils.h"
 #include "PunctualLights.h"
 #include "KTX2Loader.h"
@@ -1045,6 +1046,7 @@ public:
 	bool areLightsShown() const { return _renderCtrl.showLights(); }
 
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
+    void raiseViewportToolbar();
 
 	// Releases every GPU-context-bound resource's GL handles (via
 	// _gpuResourceRegistry.releaseAll() - see IGpuContextResource.h) without
@@ -1126,6 +1128,7 @@ public:
 	using RuntimeAnimationFileState  = AnimationRuntimeController::RuntimeAnimationFileState;
 
 signals:
+    void toolCommandRequested(const QString& command);
 	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
 	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
 	// clearMeshStore()) - NOT on an ordinary DeleteMeshCommand::redo(),
@@ -1730,6 +1733,7 @@ private:
 	VisibilityComputationHelper::ClippingContext _clippingCtx;
 
 	ViewToolbar* _viewToolbar;
+    TabbedViewportToolbar* _tabbedToolbar = nullptr;
 
 	QSet<int> _keys;
 	DisplayMode _displayMode;

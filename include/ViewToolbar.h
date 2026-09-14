@@ -23,13 +23,10 @@ class ViewToolbar : public QWidget
     Q_OBJECT
 
 public:
-    explicit ViewToolbar(QWidget* parent = nullptr);
+    explicit ViewToolbar(QWidget* viewport, QWidget* parent = nullptr);
+    QSize sizeHint() const override;
+    void stopScrolling();
 
-    void showAnimated();
-    void hideAnimated();
-    QRect visibleRect() const;
-    QRect hiddenRect() const;
-    void reposition(int widgetWidth, int widgetHeight);
     bool isFlyoutMenuVisible() const;
 
     void setDefaultCameraModeAction(CameraModeActions mode);
@@ -84,7 +81,7 @@ protected:
 
 private:
     // Scopes a toolbar action's shortcut to "fires while the owning
-    // ViewportWidget (parentWidget(), not this toolbar itself) or one of
+    // explicit owning ViewportWidget, independent of the tab-page parent, or one of
     // its children has focus" - see the .cpp for why this needs both a
     // context change AND an explicit addAction() association, not just
     // setShortcutContext() alone.
@@ -104,6 +101,7 @@ private:
     void checkAndStartAutoScrollRight();
 
 private:
+    QWidget* _viewport; // Shortcut owner; the widget parent is the stacked page container.
     // Scroll infrastructure
     QWidget* _buttonContainer;
     QScrollArea* _scrollArea;
@@ -206,8 +204,4 @@ private:
     QMap<DebugOverlayActions, QAction*> _debugOverlayActions;
     DebugOverlayActions _currentDebugOverlayAction = DebugOverlayActions::BOUNDING_BOX;
 
-    // Animation
-    QPropertyAnimation* _toolbarAnimation;
-    QRect _visibleRect;
-    QRect _hiddenRect;
 };

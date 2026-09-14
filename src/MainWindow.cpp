@@ -733,9 +733,8 @@ MainWindow::MainWindow(QWidget* parent)
 	// ViewportWidget::mouseDoubleClickEvent()'s double-click-a-measurement
 	// gesture, so the two can't drift apart.
 	connect(ui->actionMeasure, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openMeasurementDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("measure"));
+    });
 
 	// Selection -> Filter by Material.../Filter by Color... - modal, one-shot
 	// dialogs (same reasoning as actionExportReport below: no persistent tool
@@ -780,91 +779,74 @@ MainWindow::MainWindow(QWidget* parent)
 	// Tools → Annotate... - opens the non-modal Annotation dialog. Same
 	// shared-implementation reasoning as actionMeasure above.
 	connect(ui->actionAnnotate, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openAnnotationDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("annotate"));
+    });
 
 	// Tools → Export Report... - modal (unlike Measure/Annotate above), since
 	// it's a one-shot batch action with no persistent tool state to keep in
 	// sync with the viewport - no findChild-reuse needed, modality already
 	// prevents stacking a second instance.
 	connect(ui->actionExportReport, &QAction::triggered, this, [this]() {
-		if (!activeMdiChild())
-			return;
-		ReportExportDialog dialog(activeMdiChild(), this);
-		dialog.exec();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("report"));
+    });
 
 	// Tools → Batch Render Views... - same "modal, one-shot batch action"
 	// reasoning as actionExportReport above, just producing individual
 	// offline path-traced image files instead of one PDF.
 	connect(ui->actionBatchRenderViews, &QAction::triggered, this, [this]() {
-		if (!activeMdiChild())
-			return;
-		BatchRenderViewsDialog dialog(activeMdiChild(), this);
-		dialog.exec();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("batch"));
+    });
 
 	// Tools → Mass Properties... - same modal, one-shot, re-derive-from-
 	// scratch-every-open shape as the dialogs above.
 	connect(ui->actionMassProperties, &QAction::triggered, this, [this]() {
-		if (!activeMdiChild())
-			return;
-		MassPropertiesDialog dialog(activeMdiChild(), this);
-		dialog.exec();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("mass"));
+    });
 
 	// Tools → Surface Analysis... - opens the non-modal SurfaceAnalysisDialog,
 	// same wiring shape as actionShrinkWrap above (an ongoing interactive
 	// tool, not a one-shot report like Mass Properties just above).
 	connect(ui->actionSurfaceAnalysis, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openSurfaceAnalysisDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("analysis"));
+    });
 
 	// Tools → Shrink Wrap... - opens the non-modal ShrinkWrapDialog, same
 	// wiring shape as actionMeasure/actionAnnotate above.
 	connect(ui->actionShrinkWrap, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openShrinkWrapDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("shrink"));
+    });
 
 	// Tools → Subdivide Surface... - opens the non-modal SubdivisionDialog,
 	// same wiring shape as actionShrinkWrap above.
 	connect(ui->actionSubdivideSurface, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openSubdivisionDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("subdivide"));
+    });
 
 	// Tools → Reconstruct Surface... - opens the non-modal
 	// ReconstructSurfaceDialog, same wiring shape as actionShrinkWrap above.
 	connect(ui->actionReconstructSurface, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openReconstructSurfaceDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("reconstruct"));
+    });
 
 	// Tools → Repair Mesh... - opens the non-modal RepairMeshDialog, same wiring shape as
 	// actionShrinkWrap above.
 	connect(ui->actionRepairMesh, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openRepairMeshDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("repair"));
+    });
 
 	// Tools → Fill Holes... - opens the non-modal FillHolesDialog, same wiring shape as
 	// actionRepairMesh above.
 	connect(ui->actionFillHoles, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openFillHolesDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("fill"));
+    });
 
 	// Tools → Generate UVs... - opens the non-modal UVGenerationDialog, same
 	// wiring shape as actionShrinkWrap above. Moved here from the scene-tree
 	// context menu now that the dialog owns its own working mesh list
 	// instead of requiring a pre-existing selection.
 	connect(ui->actionGenerateUVs, &QAction::triggered, this, [this]() {
-		if (activeMdiChild())
-			activeMdiChild()->openUVGenerationDialog();
-		});
+        if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("uv"));
+    });
 
 	updateMenus();
 

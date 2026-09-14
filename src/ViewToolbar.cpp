@@ -55,12 +55,12 @@ void ViewToolbar::scopeShortcutToViewport(QAction* action)
     // purposes would then be that menu, which never has focus during normal
     // 3D-viewport use, so the shortcut would just stop firing entirely
     // rather than becoming merely non-ambiguous. addAction() associates the
-    // action with parentWidget() (the actual ViewportWidget that gets focus
+    // action with _viewport (the actual ViewportWidget that gets focus
     // on click - see ViewportWidget::mousePressEvent()) directly, so
     // WidgetWithChildrenShortcut's "owner or a child of it has focus" check
     // has the right widget to check against.
     action->setShortcutContext(Qt::WidgetWithChildrenShortcut);
-    if (QWidget* viewport = parentWidget())
+    if (QWidget* viewport = _viewport)
         viewport->addAction(action);
 }
 
@@ -72,19 +72,20 @@ void ViewToolbar::scopeButtonShortcutToViewport(QAbstractButton* button, const Q
     // above, fixed the same way the (already-confirmed-working) Home
     // shortcut is: an explicit QShortcut parented to the ViewportWidget
     // instead, with WidgetWithChildrenShortcut context.
-    QShortcut* shortcut = new QShortcut(sequence, parentWidget());
+    QShortcut* shortcut = new QShortcut(sequence, _viewport);
     shortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(shortcut, &QShortcut::activated, button, &QAbstractButton::click);
 }
 
-ViewToolbar::ViewToolbar(QWidget* parent)
-    : QWidget(parent)
+ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
+    : QWidget(parent ? parent : viewport)
+    , _viewport(viewport)
     , _isRepositioning(false)
     , _autoScrollTimer(nullptr)
     , _hoverDelayTimer(nullptr)
     , _autoScrollLeft(true)
 {
-    setStyleSheet("background: rgba(255, 255, 255, 100); border: 1px solid gray; border-radius: 4px;");
+    setStyleSheet("background: transparent; border: none;");
     setFixedHeight(76);
 
     QString buttonStyleSheet(
@@ -228,6 +229,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _mainLayout->setSpacing(6);
 
     _scrollArea->setWidget(_buttonContainer);
+    _scrollArea->viewport()->setAutoFillBackground(false);
+    _buttonContainer->setAutoFillBackground(false);
 
     // Right scroll button
     _scrollRightBtn = new QToolButton(this);
@@ -521,8 +524,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonViewModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonViewModes->setAutoRaise(true);
 
-    // WidgetWithChildrenShortcut, targeted at `parent` (the owning
-    // ViewportWidget) rather than `this` (ViewToolbar, a CHILD of it) - see
+    // WidgetWithChildrenShortcut, targeted at `_viewport` (the owning
+    // ViewportWidget) rather than the toolbar page - see
     // the identical fix/reasoning in ModelViewer's constructor for why
     // WindowShortcut's default scope collides across documents now that
     // they're CDockWidgets rather than QMdiSubWindows. Targeting `this`
@@ -531,7 +534,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // is ViewToolbar's PARENT, not one of its children - a
     // WidgetWithChildrenShortcut scoped to the toolbar would then only ever
     // fire while focus sat on one of the toolbar's own buttons.
-    QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), parent);
+    QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), _viewport);
     defaultShortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(defaultShortcut, &QShortcut::activated, _toolButtonViewModes, &QToolButton::click);
 
@@ -891,9 +894,6 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     setDebugOverlayState(DebugOverlayActions::BOUNDING_BOX, false);
 
     // Toolbar animations
-    _toolbarAnimation = new QPropertyAnimation(this, "geometry", this);
-    _toolbarAnimation->setDuration(300);
-    _toolbarAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
     // Auto-scroll timer
     _autoScrollTimer = new QTimer(this);
@@ -921,95 +921,17 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         });
 }
 
-void ViewToolbar::showAnimated()
+QSize ViewToolbar::sizeHint() const
 {
-	// The navigation overlay panel (see ModelViewer::attachNavigationOverlay())
-	// now stretches to the viewport's full height and is raised above sibling
-	// widgets, including this toolbar, in stacking order - without this, the
-	// revealed toolbar would render (and be clickable) behind the panel
-	// wherever the two overlap.
-	raise();
-	if (_toolbarAnimation->state() == QAbstractAnimation::Running)
-		_toolbarAnimation->stop();
-	_toolbarAnimation->setStartValue(geometry());
-	_toolbarAnimation->setEndValue(_visibleRect);
-	_toolbarAnimation->start();
+    ensurePolished();
+    return QSize(_mainLayout->sizeHint().width() + 8, 76);
 }
 
-void ViewToolbar::hideAnimated()
+void ViewToolbar::stopScrolling()
 {
-	if (_toolbarAnimation->state() == QAbstractAnimation::Running)
-		_toolbarAnimation->stop();
-	_toolbarAnimation->setStartValue(geometry());
-	_toolbarAnimation->setEndValue(_hiddenRect);
-	_toolbarAnimation->start();
+    stopAutoScroll();
+    if (_hoverDelayTimer) _hoverDelayTimer->stop();
 }
-
-void ViewToolbar::reposition(int widgetWidth, int widgetHeight)
-{
-    // Prevent recursive calls
-    if (_isRepositioning)
-        return;
-
-    _isRepositioning = true;
-
-    // Calculate maximum toolbar width
-    int maxToolbarWidth = widgetWidth - 20; // 10px margin on each side
-
-    // Calculate minimum width needed for all buttons
-    int totalButtonWidth = 0;
-    for (int i = 0; i < _mainLayout->count(); ++i)
-    {
-        QLayoutItem* item = _mainLayout->itemAt(i);
-        if (item && item->widget())
-        {
-            totalButtonWidth += item->widget()->sizeHint().width();
-        }
-    }
-
-    // Add spacing and margins
-    int buttonCount = _mainLayout->count();
-    totalButtonWidth += (buttonCount - 1) * _mainLayout->spacing();
-    totalButtonWidth += _mainLayout->contentsMargins().left() + _mainLayout->contentsMargins().right();
-
-    // Account for outer layout margins
-    int outerMargins = 4; // 2px on each side
-
-    // Determine toolbar width
-    int toolbarWidth;
-    bool needsScrolling = (totalButtonWidth + outerMargins) > maxToolbarWidth;
-
-    if (needsScrolling)
-    {
-        // Use max width when scrolling is needed
-        toolbarWidth = maxToolbarWidth;
-        _buttonContainer->setMinimumWidth(totalButtonWidth);
-        _buttonContainer->setMaximumWidth(totalButtonWidth);
-    }
-    else
-    {
-        // Use exact width when no scrolling
-        toolbarWidth = totalButtonWidth + outerMargins;
-        _buttonContainer->setMinimumWidth(totalButtonWidth);
-        _buttonContainer->setMaximumWidth(totalButtonWidth);
-    }
-
-    resize(toolbarWidth, 76);
-
-    int x = (widgetWidth - toolbarWidth) / 2;
-    int y = widgetHeight - 76 - 10;
-    move(x, y);
-
-    _visibleRect = QRect(x, y, toolbarWidth, 76);
-    _hiddenRect = _visibleRect.translated(0, 80);
-
-    // Update scroll button visibility after positioning is done
-    _isRepositioning = false;
-    checkScrollButtonsVisibility();
-}
-
-QRect ViewToolbar::visibleRect() const { return _visibleRect; }
-QRect ViewToolbar::hiddenRect() const { return _hiddenRect; }
 
 bool ViewToolbar::isFlyoutMenuVisible() const
 {
@@ -1117,8 +1039,8 @@ void ViewToolbar::setDebugOverlayModesAvailable(bool boundingBox, bool vertexNor
                              _toolButtonDebugOverlays ? _toolButtonDebugOverlays->isChecked() : false);
     }
 
-    if (parentWidget())
-        reposition(parentWidget()->width(), parentWidget()->height());
+    checkScrollButtonsVisibility();
+    updateGeometry();
 }
 
 void ViewToolbar::setDebugOverlayState(DebugOverlayActions mode, bool enabled)
@@ -1192,35 +1114,13 @@ bool ViewToolbar::isCameraUpAxisZUp() const
 
 void ViewToolbar::paintEvent(QPaintEvent* event)
 {
-	QPainter painter(this);
-	painter.setRenderHint(QPainter::Antialiasing);
-
-	QRect r = rect();
-	QColor bg(255, 255, 255, 100);
-	QColor border(100, 100, 100, 160);
-
-	// Draw rounded rectangle background
-	painter.setBrush(bg);
-	painter.setPen(QPen(border, 1));
-	painter.drawRoundedRect(r.adjusted(0, 0, -1, -1), 4, 4);
-
-	QWidget::paintEvent(event); // Optional, not strictly needed here
+    QWidget::paintEvent(event);
 }
 
 void ViewToolbar::resizeEvent(QResizeEvent* event)
 {
     QWidget::resizeEvent(event);
-
-    if (_isRepositioning)
-        return;
-
-    // After resize, check if we need scrolling and adjust toolbar width accordingly
-    QTimer::singleShot(0, this, [this]() {
-        if (parentWidget())
-        {
-            reposition(parentWidget()->width(), parentWidget()->height());
-        }
-        });
+    QTimer::singleShot(0, this, [this]() { checkScrollButtonsVisibility(); });
 }
 
 bool ViewToolbar::eventFilter(QObject* obj, QEvent* event)

@@ -590,7 +590,8 @@ public slots:
 	// this dialog acts on the LIVE viewport selection at the moment Apply is
 	// clicked (same convention MassPropertiesDialog already uses), not a
 	// fixed working list, so there's nothing to seed at open time.
-	void openSurfaceAnalysisDialog();
+	void openSurfaceAnalysisDialog(const QString& mode = QString());
+    void executeToolCommand(const QString& command);
 
 	// Called by CutCommand and PasteCommand to manage cut-mark state.
 	// generation must match s_clipboardGeneration at the time of the call or
