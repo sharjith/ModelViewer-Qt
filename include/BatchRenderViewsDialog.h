@@ -93,6 +93,14 @@ private:
 	void populateResolutionPresets();
 	void syncResolutionPresetFromSpinboxes();
 
+	// Window geometry persistence - same QSettings("<key>/geometry") pattern
+	// every other dialog in this app already uses. This dialog has no
+	// separate Close button (see reject()'s own doc comment on why reject()
+	// - not closeEvent() - is the one actual close path here), so
+	// saveSettings() is called from there.
+	void loadSettings();
+	void saveSettings();
+
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
 
 	QLabel* _noViewsLabel = nullptr;

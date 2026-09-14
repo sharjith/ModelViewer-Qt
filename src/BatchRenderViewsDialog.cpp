@@ -22,6 +22,7 @@
 #include <QApplication>
 #include <QSet>
 #include <QStringList>
+#include <QSettings>
 
 #include <algorithm>
 
@@ -183,6 +184,8 @@ BatchRenderViewsDialog::BatchRenderViewsDialog(ModelViewer* modelViewer, QWidget
 	connect(_browseFolderButton, &QPushButton::clicked, this, &BatchRenderViewsDialog::onBrowseFolderClicked);
 	connect(_startButton, &QPushButton::clicked, this, &BatchRenderViewsDialog::onStartClicked);
 	connect(_cancelButton, &QPushButton::clicked, this, &BatchRenderViewsDialog::onCancelClicked);
+
+	loadSettings();
 }
 
 void BatchRenderViewsDialog::reject()
@@ -192,7 +195,28 @@ void BatchRenderViewsDialog::reject()
 		onCancelClicked();
 		return;
 	}
+	// This dialog has no separate Close button (Start/Cancel only) - the
+	// window's X button and Escape both route here (QDialog's default
+	// closeEvent() calls reject() when the dialog is visible and no
+	// closeEvent() override exists), making this the one real close path
+	// where geometry needs saving, same as every other dialog's
+	// closeEvent()/reject() pair in this app.
+	saveSettings();
 	QDialog::reject();
+}
+
+void BatchRenderViewsDialog::loadSettings()
+{
+	QSettings settings;
+	const QByteArray geometry = settings.value("batchRenderViews/geometry", QByteArray()).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+}
+
+void BatchRenderViewsDialog::saveSettings()
+{
+	QSettings settings;
+	settings.setValue("batchRenderViews/geometry", saveGeometry());
 }
 
 void BatchRenderViewsDialog::populateResolutionPresets()

@@ -14,6 +14,8 @@
 #include <QVector3D>
 #include <QApplication>
 #include <QMap>
+#include <QCloseEvent>
+#include <QSettings>
 
 MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -87,13 +89,44 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	layout->addWidget(_materialTable, 1);
 
 	_closeButton = new QPushButton(tr("Close"), this);
-	connect(_closeButton, &QPushButton::clicked, this, &QDialog::accept);
+	// close(), not accept()/QDialog::done() - done() only hide()s the dialog,
+	// it never reaches closeEvent(), which is where geometry actually gets
+	// saved (see closeEvent()'s own doc comment - same lesson this app
+	// already learned the hard way on SurfaceAnalysisDialog's Close button).
+	connect(_closeButton, &QPushButton::clicked, this, &QWidget::close);
 	auto* buttonRow = new QHBoxLayout();
 	buttonRow->addStretch(1);
 	buttonRow->addWidget(_closeButton);
 	layout->addLayout(buttonRow);
 
 	populate();
+	loadSettings();
+}
+
+void MassPropertiesDialog::closeEvent(QCloseEvent* event)
+{
+	saveSettings();
+	QDialog::closeEvent(event);
+}
+
+void MassPropertiesDialog::reject()
+{
+	saveSettings();
+	QDialog::reject();
+}
+
+void MassPropertiesDialog::loadSettings()
+{
+	QSettings settings;
+	const QByteArray geometry = settings.value("massProperties/geometry", QByteArray()).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+}
+
+void MassPropertiesDialog::saveSettings()
+{
+	QSettings settings;
+	settings.setValue("massProperties/geometry", saveGeometry());
 }
 
 void MassPropertiesDialog::populate()

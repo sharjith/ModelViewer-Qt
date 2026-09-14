@@ -21,6 +21,7 @@
 #include <QApplication>
 #include <QIcon>
 #include <QCloseEvent>
+#include <QSettings>
 #include <QUuid>
 
 #include <algorithm>
@@ -239,6 +240,8 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 
 	_curvatureButton->setChecked(true);
 	onModeChanged();
+
+	loadSettings();
 }
 
 void SurfaceAnalysisDialog::closeEvent(QCloseEvent* event)
@@ -248,6 +251,7 @@ void SurfaceAnalysisDialog::closeEvent(QCloseEvent* event)
 	// applied, since WA_DeleteOnClose means there's no "Clear Overlay"
 	// button left to press afterward.
 	clearAllOverlays();
+	saveSettings();
 	QDialog::closeEvent(event);
 }
 
@@ -257,7 +261,22 @@ void SurfaceAnalysisDialog::reject()
 	// hide()s) - same double-override pattern MeasurementDialog already
 	// uses for this exact reason.
 	clearAllOverlays();
+	saveSettings();
 	QDialog::reject();
+}
+
+void SurfaceAnalysisDialog::loadSettings()
+{
+	QSettings settings;
+	const QByteArray geometry = settings.value("surfaceAnalysis/geometry", QByteArray()).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+}
+
+void SurfaceAnalysisDialog::saveSettings()
+{
+	QSettings settings;
+	settings.setValue("surfaceAnalysis/geometry", saveGeometry());
 }
 
 SurfaceAnalysisDialog::Mode SurfaceAnalysisDialog::currentMode() const
@@ -894,4 +913,19 @@ void SurfaceAnalysisDialog::clearAllOverlays()
 
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 		viewport->update();
+}
+
+void SurfaceAnalysisDialog::selectMode(const QString& mode)
+{
+    Mode selected;
+    if (mode == QLatin1String("curvature")) selected = Mode::Curvature;
+    else if (mode == QLatin1String("thickness")) selected = Mode::WallThickness;
+    else if (mode == QLatin1String("deviation")) selected = Mode::Deviation;
+    else return;
+    // Reopening the current page must retain its displayed result and legend.
+    if (selected == currentMode()) return;
+    if (auto* button = _modeGroup->button(static_cast<int>(selected))) {
+        button->setChecked(true);
+        onModeChanged();
+    }
 }

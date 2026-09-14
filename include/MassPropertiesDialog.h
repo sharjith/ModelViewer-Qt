@@ -5,6 +5,7 @@
 class QTableWidget;
 class QLabel;
 class QPushButton;
+class QCloseEvent;
 class ModelViewer;
 
 // ---------------------------------------------------------------------------
@@ -37,8 +38,22 @@ class MassPropertiesDialog : public QDialog
 public:
 	explicit MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
 
+protected:
+	void closeEvent(QCloseEvent* event) override;
+
+public slots:
+	// Escape reaches here, not closeEvent() (QDialog::reject() only hide()s -
+	// same double-override pattern SurfaceAnalysisDialog/MeasurementDialog
+	// already use to make sure geometry still gets saved on Escape too).
+	void reject() override;
+
 private:
 	void populate();
+
+	// Window geometry persistence - same QSettings("<key>/geometry") pattern
+	// every other dialog in this app already uses.
+	void loadSettings();
+	void saveSettings();
 
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
 

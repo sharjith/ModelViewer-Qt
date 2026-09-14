@@ -56,6 +56,7 @@ class SurfaceAnalysisDialog : public QDialog
 	Q_OBJECT
 public:
 	explicit SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+    void selectMode(const QString& mode);
 
 protected:
 	void closeEvent(QCloseEvent* event) override;
@@ -114,6 +115,12 @@ private:
 	// mesh" requirement reads differently from the other modes' "whole
 	// selection" convention, so the wording depends on both.
 	void updateSelectionStatusLabel();
+
+	// Window geometry persistence - same QSettings("<key>/geometry") pattern
+	// every other dialog in this app already uses (MeasurementDialog,
+	// ShrinkWrapDialog, FillHolesDialog, etc.).
+	void loadSettings();
+	void saveSettings();
 
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
 
