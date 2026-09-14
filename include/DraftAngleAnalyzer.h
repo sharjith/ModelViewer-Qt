@@ -33,4 +33,13 @@ public:
 	// already uses) - draft angle is a physical, scene-relative concept, not
 	// a local/model-space one.
 	static std::vector<float> computeDraftAnglesDegrees(SceneMesh* mesh, const QVector3D& pullDirection);
+
+	// Snapshot-based entry point - identical computation, but reads world-
+	// space points/indices directly instead of a live SceneMesh*, so it's
+	// safe to call from a background thread (AnalysisComputeWorker) against
+	// an AnalysisMeshSnapshot's copied-out geometry. The SceneMesh* overload
+	// above is now a thin wrapper around this one.
+	static std::vector<float> computeDraftAnglesDegrees(
+		const std::vector<float>& points, const std::vector<unsigned int>& indices,
+		const QVector3D& pullDirection);
 };

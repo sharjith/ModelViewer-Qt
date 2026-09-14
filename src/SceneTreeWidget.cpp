@@ -238,6 +238,13 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     connect(this, &QTreeWidget::itemSelectionChanged,
             this, &SceneTreeWidget::onItemSelectionChanged);
 
+    // --- explicit assembly click tracking -------------------------------------
+    // See onItemClicked()'s own doc comment for why this (not
+    // onItemSelectionChanged()'s added/removed delta) is the signal used to
+    // SET _explicitlySelectedAssemblyUuids.
+    connect(this, &QTreeWidget::itemClicked,
+            this, &SceneTreeWidget::onItemClicked);
+
     // --- rename detection via delegate close-editor --------------------------
     connect(itemDelegate(), &QAbstractItemDelegate::commitData,
             this, [this](QWidget*) {
@@ -366,6 +373,10 @@ void SceneTreeWidget::setSelectionByUuids(const QSet<QUuid>& uuids)
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    // Bulk selection set by mesh identity, not a deliberate single-assembly
+    // click - any resulting assembly selection is a fresh closure, never
+    // explicit (see onItemClicked()'s own doc comment).
+    _explicitlySelectedAssemblyUuids.clear();
 
     _updatingTree = false;
 
@@ -403,6 +414,7 @@ void SceneTreeWidget::clearMeshSelection()
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    _explicitlySelectedAssemblyUuids.clear();
 
     _updatingTree = false;
 }
@@ -638,6 +650,9 @@ void SceneTreeWidget::filterItems(const QString& filter)
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    // A search match, not a deliberate click on this specific assembly (see
+    // onItemClicked()'s own doc comment).
+    _explicitlySelectedAssemblyUuids.clear();
 
     _updatingTree = false;
     emit selectionUpdated();
@@ -682,6 +697,13 @@ void SceneTreeWidget::ensureAssemblySelectionAt(const QPoint& localPos)
         _prevSelection.clear();
         for (QTreeWidgetItem* it : selectedItems())
             _prevSelection.insert(it);
+        // item is the exact target of the right-click that invoked this (see
+        // showContextMenu()) - as deliberate a targeting as a left-click
+        // would be, so mark it explicit the same way onItemClicked() does.
+        // clearSelection() above already invalidated any other previously-
+        // explicit assembly, so this is a full replace, not an add.
+        _explicitlySelectedAssemblyUuids.clear();
+        _explicitlySelectedAssemblyUuids.insert(item->data(0, NodeUuidRole).value<QUuid>());
 
         _updatingTree = false;
         emit selectionUpdated();
@@ -743,6 +765,13 @@ bool SceneTreeWidget::selectNodeByUuid(const QUuid& nodeUuid)
     _prevSelection.clear();
     for (QTreeWidgetItem* it : selectedItems())
         _prevSelection.insert(it);
+    // target is exactly what the caller (ModelViewer::showContextMenu()'s
+    // "Select Parent" action) asked to select, by nodeUuid - as deliberate a
+    // targeting as clicking it directly, so mark it explicit the same way
+    // onItemClicked() does. clearSelection() above already invalidated any
+    // other previously-explicit assembly, so this is a full replace.
+    _explicitlySelectedAssemblyUuids.clear();
+    _explicitlySelectedAssemblyUuids.insert(target->data(0, NodeUuidRole).value<QUuid>());
 
     _updatingTree = false;
     emit selectionUpdated();
@@ -894,6 +923,13 @@ void SceneTreeWidget::rebuild()
     clear();
     _uuidToLeaf.clear();
     _prevSelection.clear();
+    // Every QTreeWidgetItem is about to be destroyed and rebuilt - any
+    // "explicit click" provenance tracked against the old items' identities
+    // is meaningless afterward, even if the same node ends up reselected by
+    // finalizeRebuild()'s restore (which only ever re-selects individual
+    // leaf UUIDs, so a restored assembly is always a fresh CLOSURE
+    // selection, never one this rebuild can legitimately call explicit).
+    _explicitlySelectedAssemblyUuids.clear();
 
     SceneNode* root = _sceneGraph->root();
     if (!root)
@@ -1211,11 +1247,48 @@ void SceneTreeWidget::onItemSelectionChanged()
 
     // Refresh prev selection snapshot AFTER propagation
     _prevSelection.clear();
+    QSet<QUuid> stillSelectedAssemblyUuids;
     for (QTreeWidgetItem* it : selectedItems())
+    {
         _prevSelection.insert(it);
+        if (!it->data(0, IsLeafRole).toBool())
+            stillSelectedAssemblyUuids.insert(it->data(0, NodeUuidRole).value<QUuid>());
+    }
+
+    // Prune any explicit flag whose node is no longer selected now that
+    // propagation (applySubtreeSelect/refreshParentSelectionUpward above)
+    // has fully settled - a parent can be auto-deselected (or selected)
+    // there as a side effect of a child's own click, entirely outside the
+    // raw added/removed delta computed before propagation ran, so pruning
+    // against that earlier delta alone would miss it.
+    for (auto it = _explicitlySelectedAssemblyUuids.begin(); it != _explicitlySelectedAssemblyUuids.end(); )
+    {
+        if (!stillSelectedAssemblyUuids.contains(*it))
+            it = _explicitlySelectedAssemblyUuids.erase(it);
+        else
+            ++it;
+    }
 
     // Now notify viewer
     emit selectionUpdated();
+}
+
+void SceneTreeWidget::onItemClicked(QTreeWidgetItem* item, int /*column*/)
+{
+    if (!item || item->data(0, IsLeafRole).toBool())
+        return;
+    // A click toggles selection, not just adds to it - Ctrl-clicking an
+    // already-selected assembly to deselect it still fires this signal, and
+    // must clear the flag rather than (re)inserting it; item->isSelected()
+    // already reflects the fully-propagated post-click state by the time
+    // this fires (itemClicked is emitted from mouseReleaseEvent, after
+    // onItemSelectionChanged()'s own press-time propagation/pruning above
+    // has already run for the same click).
+    const QUuid nodeUuid = item->data(0, NodeUuidRole).value<QUuid>();
+    if (item->isSelected())
+        _explicitlySelectedAssemblyUuids.insert(nodeUuid);
+    else
+        _explicitlySelectedAssemblyUuids.remove(nodeUuid);
 }
 
 
@@ -1979,6 +2052,15 @@ QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
         if (const SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid))
             result.append(node);
     }
+    return result;
+}
+
+QList<const SceneNode*> SceneTreeWidget::explicitlySelectedAssemblyNodes() const
+{
+    QList<const SceneNode*> result;
+    for (const SceneNode* node : selectedAssemblyNodes())
+        if (_explicitlySelectedAssemblyUuids.contains(node->nodeUuid))
+            result.append(node);
     return result;
 }
 

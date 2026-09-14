@@ -2,11 +2,14 @@
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
+#include "RenderableMesh.h"
 #include "DraftAngleAnalyzer.h"
 #include "DeviationAnalyzer.h"
 #include "CurvatureAnalyzer.h"
 #include "WallThicknessAnalyzer.h"
 #include "AnalysisColorRamp.h"
+#include "AnalysisMeshSnapshot.h"
+#include "AnalysisComputeSession.h"
 #include "CoordinateSystemHelper.h"
 
 #include <QVBoxLayout>
@@ -18,13 +21,14 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QMessageBox>
-#include <QApplication>
 #include <QIcon>
 #include <QCloseEvent>
 #include <QSettings>
+#include <QTimer>
 #include <QUuid>
 
 #include <algorithm>
+#include <any>
 #include <cmath>
 #include <limits>
 #include <utility>
@@ -241,11 +245,35 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	_curvatureButton->setChecked(true);
 	onModeChanged();
 
+	// See checkForStaleOverlays()'s own doc comment - runs continuously
+	// rather than being started/stopped around visibility/overlay-count,
+	// since the slot itself already early-outs cheaply when there's nothing
+	// to do.
+	_stalenessTimer = new QTimer(this);
+	_stalenessTimer->setInterval(500);
+	connect(_stalenessTimer, &QTimer::timeout, this, &SurfaceAnalysisDialog::checkForStaleOverlays);
+	_stalenessTimer->start();
+
 	loadSettings();
 }
 
 void SurfaceAnalysisDialog::closeEvent(QCloseEvent* event)
 {
+	// The dialog has WA_DeleteOnClose - actually letting this close while an
+	// AnalysisComputeSession::runBlocking() call is still on the stack
+	// somewhere below this event (reachable because that call runs its own
+	// nested QEventLoop, which is what let this close attempt be processed
+	// at all) would destroy `this` out from under that still-running frame,
+	// a use-after-free once it eventually returns. Redirect to Cancel and
+	// refuse to close instead - the close attempt can be repeated once the
+	// cancellation actually completes and unwinds.
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		event->ignore();
+		return;
+	}
+
 	// See this class's header doc comment - closing (via Close, the window's
 	// X button, or any other path) always clears everything this dialog
 	// applied, since WA_DeleteOnClose means there's no "Clear Overlay"
@@ -257,12 +285,40 @@ void SurfaceAnalysisDialog::closeEvent(QCloseEvent* event)
 
 void SurfaceAnalysisDialog::reject()
 {
-	// Escape doesn't route through closeEvent() (QDialog::reject() only
-	// hide()s) - same double-override pattern MeasurementDialog already
-	// uses for this exact reason.
+	// Same reasoning as closeEvent() above - Escape doesn't route through
+	// closeEvent() (QDialog::reject() only hide()s), so this needs the
+	// identical in-flight guard independently, not just the double-override
+	// pattern MeasurementDialog already uses for the unrelated "don't skip
+	// cleanup" reason.
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
+
 	clearAllOverlays();
 	saveSettings();
 	QDialog::reject();
+}
+
+void SurfaceAnalysisDialog::setComputationInFlight(bool inFlight, QPushButton* activeButton, const QString& buttonText)
+{
+	if (activeButton)
+		activeButton->setText(buttonText);
+
+	const bool enabled = !inFlight;
+	if (_curvatureButton) _curvatureButton->setEnabled(enabled);
+	if (_thicknessButton) _thicknessButton->setEnabled(enabled);
+	if (_deviationButton) _deviationButton->setEnabled(enabled);
+	if (_pullDirectionCombo) _pullDirectionCombo->setEnabled(enabled);
+	if (_referenceMeshCombo) _referenceMeshCombo->setEnabled(enabled);
+	if (_zebraStripeToggle) _zebraStripeToggle->setEnabled(enabled);
+	if (_clearButton) _clearButton->setEnabled(enabled);
+	for (QPushButton* button : { _applyCurvatureButton, _applyDraftButton, _applyThicknessButton, _applyDeviationButton })
+	{
+		if (button && button != activeButton)
+			button->setEnabled(enabled);
+	}
 }
 
 void SurfaceAnalysisDialog::loadSettings()
@@ -333,6 +389,81 @@ void SurfaceAnalysisDialog::onMeshAboutToBeDeleted(SceneMesh* mesh)
 	// regardless, there's nothing left to turn off.
 	_overlay.clearOverlay(mesh);
 	_zebraStripeMeshes.remove(mesh);
+
+	// A background AnalysisComputeSession never dereferences a snapshot's
+	// meshHandle - see AnalysisMeshSnapshot's own doc comment - but the
+	// CALLER (this dialog) does, once the session returns, to re-validate
+	// and apply a result. Record this mesh so that later code skips it
+	// entirely rather than dereferencing a pointer that's dangling by then.
+	if (_activeSession)
+		_deletedWhileComputing.insert(mesh);
+}
+
+void SurfaceAnalysisDialog::checkForStaleOverlays()
+{
+	// Per-document singleton - a background/inactive document's dialog
+	// still exists (findChild-reused) but has no reason to spend even a
+	// cheap check every 500ms while nobody can see its overlays anyway.
+	if (!isVisible())
+		return;
+
+	// Ticks on every transform AND geometry change already (see
+	// RenderableMesh::currentRuntimeBoundsRevision()'s own doc comment) -
+	// comparing against the last value seen here is a cheap way to skip all
+	// the real work below on every tick where genuinely nothing happened,
+	// the same poll-a-monotonic-revision idiom
+	// SceneRuntime::refreshRuntimeVisibilityCacheForCurrentView() already
+	// uses for the identical reason.
+	const quint64 currentRevision = RenderableMesh::currentRuntimeBoundsRevision();
+	if (currentRevision == _lastSeenBoundsRevision)
+		return;
+	_lastSeenBoundsRevision = currentRevision;
+
+	const QList<SceneMesh*> tracked = _overlay.trackedMeshes();
+	if (tracked.isEmpty())
+		return;
+
+	int staleCount = 0;
+	for (SceneMesh* mesh : tracked)
+	{
+		if (!mesh)
+			continue;
+
+		// Re-derive computeCurrentKey()'s parameters/referenceMesh from
+		// this mesh's own already-stored key - isValid() alone can't
+		// reconstruct the analysis-mode-specific parts, and this dialog has
+		// no reason to keep a second, parallel copy of them itself when
+		// _overlay already holds the authoritative one.
+		const SurfaceAnalysisOverlay::CacheKey stored = _overlay.storedKey(mesh);
+		const SurfaceAnalysisOverlay::CacheKey current =
+			SurfaceAnalysisOverlay::computeCurrentKey(mesh, stored.parameters, stored.referenceMesh);
+		if (_overlay.isValid(mesh, current))
+			continue;
+
+		// Auto-clear, not "gray out with a re-Apply prompt" - see
+		// SurfaceAnalysisOverlay's own doc comment on why: no rendering path
+		// supports a grayed-out-but-shown overlay state, and an explicit,
+		// disclosed absence beats an ambiguous stale-looking display. Zebra
+		// Stripe is deliberately left untouched here - it's a live, view-
+		// dependent shader effect re-evaluated every frame from the mesh's
+		// CURRENT geometric normals, not a cached result computed against a
+		// point-in-time snapshot, so a transform change can never make it
+		// stale in the first place (unlike this loop's _overlay-tracked
+		// colormap results).
+		_overlay.clearOverlay(mesh);
+		++staleCount;
+	}
+
+	if (staleCount == 0)
+		return;
+
+	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+		viewport->update();
+
+	if (_selectionStatusLabel)
+	{
+		_selectionStatusLabel->setText(tr("Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.").arg(staleCount));
+	}
 }
 
 void SurfaceAnalysisDialog::updateSelectionStatusLabel()
@@ -401,21 +532,44 @@ void SurfaceAnalysisDialog::onZebraStripeToggled(bool checked)
 
 void SurfaceAnalysisDialog::onApplyDraftAngleClicked()
 {
+	// The button is repurposed into Cancel while a computation is already in
+	// flight (see setComputationInFlight()'s own doc comment) - a re-click in
+	// that state means "cancel", not "start a second overlapping run".
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
 	applyDraftAngleToSelection();
 }
 
 void SurfaceAnalysisDialog::onApplyDeviationClicked()
 {
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
 	applyDeviationToSelection();
 }
 
 void SurfaceAnalysisDialog::onApplyCurvatureClicked()
 {
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
 	applyCurvatureToSelection();
 }
 
 void SurfaceAnalysisDialog::onApplyWallThicknessClicked()
 {
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
 	applyWallThicknessToSelection();
 }
 
@@ -470,49 +624,105 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 
-	struct PerMesh { SceneMesh* mesh; CurvatureResult result; };
+	QVariantMap params;
+	params.insert(QStringLiteral("mode"), QStringLiteral("meanCurvature"));
+
+	std::vector<AnalysisMeshSnapshot> snapshots;
+	snapshots.reserve(selected.size());
+	for (int id : selected)
+		snapshots.push_back(captureAnalysisMeshSnapshot(meshStore.at(id), params));
+
+	_deletedWhileComputing.clear();
+	const QString originalText = _applyCurvatureButton->text();
+	setComputationInFlight(true, _applyCurvatureButton, tr("Cancel"));
+
+	AnalysisComputeSession session(this);
+	_activeSession = &session;
+
+	// CurvatureAnalyzer's repair + interpolated-corrected-curvatures +
+	// per-vertex AABB locate is the heaviest of this dialog's analyzers -
+	// the whole reason this dialog needed a real background worker, not
+	// just a wait cursor.
+	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
+		std::move(snapshots),
+		[](const AnalysisMeshSnapshot& snapshot) -> std::any
+		{
+			return CurvatureAnalyzer::computeMeanCurvature(snapshot.points, snapshot.normals, snapshot.indices);
+		});
+
+	_activeSession = nullptr;
+	setComputationInFlight(false, _applyCurvatureButton, originalText);
+
+	if (outcomes.empty())
+		return; // cancelled - AnalysisComputeSession never half-applies a batch
+
+	struct PerMesh { SceneMesh* mesh; CurvatureResult result; SurfaceAnalysisOverlay::CacheKey key; };
 	std::vector<PerMesh> perMesh;
-	perMesh.reserve(selected.size());
+	perMesh.reserve(outcomes.size());
 
 	float bound = 0.0f;
 	bool anyValid = false;
+	bool anyStale = false;
 	QStringList repairNotes;
 
-	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
-	// own identical note. CurvatureAnalyzer's repair + interpolated-
-	// corrected-curvatures + per-vertex AABB locate below is the heaviest of
-	// this dialog's three analyzers and runs entirely on the UI thread.
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	for (int id : selected)
+	for (const AnalysisComputeSession::PerMeshOutcome& outcome : outcomes)
 	{
-		SceneMesh* mesh = meshStore.at(id);
-		CurvatureResult curvature = CurvatureAnalyzer::computeMeanCurvature(mesh);
-		if (curvature.succeeded)
+		SceneMesh* mesh = outcome.meshHandle;
+		if (!mesh || _deletedWhileComputing.contains(mesh))
 		{
-			repairNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), curvature.repairSummary));
-			for (size_t i = 0; i < curvature.meanCurvaturePerVertex.size(); ++i)
+			anyStale = true;
+			continue; // deleted while this ran - see _deletedWhileComputing's own doc comment
+		}
+
+		// Re-validate against the mesh's CURRENT state before trusting a
+		// result computed on a background thread. See
+		// SurfaceAnalysisOverlay::computeCurrentKey()'s own doc comment.
+		const SurfaceAnalysisOverlay::CacheKey currentKey = SurfaceAnalysisOverlay::computeCurrentKey(mesh, params);
+		if (!(currentKey == outcome.snapshotKey))
+		{
+			anyStale = true;
+			continue; // stale - mesh changed mid-computation, discard rather than apply
+		}
+
+		const CurvatureResult* result = std::any_cast<CurvatureResult>(&outcome.result);
+		if (!result)
+			continue;
+
+		if (result->succeeded)
+		{
+			repairNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), result->repairSummary));
+			for (size_t i = 0; i < result->meanCurvaturePerVertex.size(); ++i)
 			{
-				if (curvature.validPerVertex[i])
+				if (result->validPerVertex[i])
 				{
-					bound = std::max(bound, std::fabs(curvature.meanCurvaturePerVertex[i]));
+					bound = std::max(bound, std::fabs(result->meanCurvaturePerVertex[i]));
 					anyValid = true;
 				}
 			}
 		}
-		perMesh.push_back({ mesh, std::move(curvature) });
+		perMesh.push_back({ mesh, *result, outcome.snapshotKey });
 	}
-	QApplication::restoreOverrideCursor();
+
+	if (perMesh.empty())
+	{
+		if (anyStale)
+		{
+			QMessageBox::information(this, tr("Surface Analysis"),
+				tr("Selection changed during computation - re-run Apply."));
+		}
+		return;
+	}
 
 	const float rangeMin = bound > 1.0e-6f ? -bound : -1.0f;
 	const float rangeMax = bound > 1.0e-6f ? bound : 1.0f;
 
 	// setAnalysisOverlayColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as every other Apply here. Runs
-	// for EVERY mesh regardless of anyValid below (including the all-failed
-	// case) - a mesh whose curvature computation failed must have whatever
-	// UNRELATED overlay it happened to already be showing (e.g. a Draft
-	// Angle result from an earlier Apply) cleared too, not left silently
-	// displayed under this run's new (curvature-scaled) legend.
+	// for EVERY surviving mesh regardless of anyValid below (including the
+	// all-failed case) - a mesh whose curvature computation failed must have
+	// whatever UNRELATED overlay it happened to already be showing (e.g. a
+	// Draft Angle result from an earlier Apply) cleared too, not left
+	// silently displayed under this run's new (curvature-scaled) legend.
 	viewport->makeCurrent();
 	for (PerMesh& pm : perMesh)
 	{
@@ -521,16 +731,8 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 			_overlay.clearOverlay(pm.mesh);
 			continue;
 		}
-
-		SurfaceAnalysisOverlay::CacheKey key;
-		key.geometryRevision = pm.mesh->geometryRevision();
-		key.transform = pm.mesh->combinedRenderTransform();
-		QVariantMap params;
-		params.insert(QStringLiteral("mode"), QStringLiteral("meanCurvature"));
-		key.parameters = params;
-
 		_overlay.applyResult(pm.mesh, pm.result.meanCurvaturePerVertex, pm.result.validPerVertex,
-			key, rangeMin, rangeMax, AnalysisColormap::Diverging);
+			pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging);
 	}
 	viewport->doneCurrent();
 	viewport->update();
@@ -567,47 +769,103 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 
-	struct PerMesh { SceneMesh* mesh; WallThicknessResult result; };
+	QVariantMap params;
+	params.insert(QStringLiteral("mode"), QStringLiteral("wallThickness"));
+
+	std::vector<AnalysisMeshSnapshot> snapshots;
+	snapshots.reserve(selected.size());
+	for (int id : selected)
+		snapshots.push_back(captureAnalysisMeshSnapshot(meshStore.at(id), params));
+
+	_deletedWhileComputing.clear();
+	const QString originalText = _applyThicknessButton->text();
+	setComputationInFlight(true, _applyThicknessButton, tr("Cancel"));
+
+	AnalysisComputeSession session(this);
+	_activeSession = &session;
+
+	// This is the heaviest of this dialog's four analyses (whole-mesh
+	// topology validation, orientation resolution, solid-region
+	// classification, then a full AABB-tree multi-hit ray per face) - the
+	// other reason (besides Curvature) this dialog needed a real background
+	// worker, not just a wait cursor.
+	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
+		std::move(snapshots),
+		[](const AnalysisMeshSnapshot& snapshot) -> std::any
+		{
+			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices);
+		});
+
+	_activeSession = nullptr;
+	setComputationInFlight(false, _applyThicknessButton, originalText);
+
+	if (outcomes.empty())
+		return; // cancelled - AnalysisComputeSession never half-applies a batch
+
+	struct PerMesh { SceneMesh* mesh; WallThicknessResult result; SurfaceAnalysisOverlay::CacheKey key; };
 	std::vector<PerMesh> perMesh;
-	perMesh.reserve(selected.size());
+	perMesh.reserve(outcomes.size());
 
 	float maxThickness = 0.0f;
 	bool anyValid = false;
+	bool anyStale = false;
 	QStringList rejectionNotes;
 
-	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
-	// own identical note. This is the heaviest of this dialog's four
-	// analyses (whole-mesh topology validation, orientation resolution,
-	// solid-region classification, then a full AABB-tree multi-hit ray per
-	// face) and runs entirely on the UI thread below.
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	for (int id : selected)
+	for (const AnalysisComputeSession::PerMeshOutcome& outcome : outcomes)
 	{
-		SceneMesh* mesh = meshStore.at(id);
-		WallThicknessResult thickness = WallThicknessAnalyzer::computeThickness(mesh);
-		if (thickness.succeeded)
+		SceneMesh* mesh = outcome.meshHandle;
+		if (!mesh || _deletedWhileComputing.contains(mesh))
 		{
-			for (size_t i = 0; i < thickness.thicknessPerFace.size(); ++i)
+			anyStale = true;
+			continue; // deleted while this ran - see _deletedWhileComputing's own doc comment
+		}
+
+		// Re-validate against the mesh's CURRENT state before trusting a
+		// result computed on a background thread. See
+		// SurfaceAnalysisOverlay::computeCurrentKey()'s own doc comment.
+		const SurfaceAnalysisOverlay::CacheKey currentKey = SurfaceAnalysisOverlay::computeCurrentKey(mesh, params);
+		if (!(currentKey == outcome.snapshotKey))
+		{
+			anyStale = true;
+			continue; // stale - mesh changed mid-computation, discard rather than apply
+		}
+
+		const WallThicknessResult* result = std::any_cast<WallThicknessResult>(&outcome.result);
+		if (!result)
+			continue;
+
+		if (result->succeeded)
+		{
+			for (size_t i = 0; i < result->thicknessPerFace.size(); ++i)
 			{
-				if (thickness.validPerFace[i])
+				if (result->validPerFace[i])
 				{
-					maxThickness = std::max(maxThickness, thickness.thicknessPerFace[i]);
+					maxThickness = std::max(maxThickness, result->thicknessPerFace[i]);
 					anyValid = true;
 				}
 			}
 		}
 		else
 		{
-			rejectionNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), thickness.rejectionReason));
+			rejectionNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), result->rejectionReason));
 		}
-		perMesh.push_back({ mesh, std::move(thickness) });
+		perMesh.push_back({ mesh, *result, outcome.snapshotKey });
 	}
-	QApplication::restoreOverrideCursor();
 
 	if (_thicknessRejectionNote)
 	{
 		_thicknessRejectionNote->setText(rejectionNotes.join(QStringLiteral("\n")));
 		_thicknessRejectionNote->setVisible(!rejectionNotes.isEmpty());
+	}
+
+	if (perMesh.empty())
+	{
+		if (anyStale)
+		{
+			QMessageBox::information(this, tr("Surface Analysis"),
+				tr("Selection changed during computation - re-run Apply."));
+		}
+		return;
 	}
 
 	// 0 is the natural bottom of the range (zero thickness) rather than the
@@ -616,11 +874,11 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 
 	// setAnalysisOverlayFlatColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as every other Apply here. Runs
-	// for EVERY mesh regardless of anyValid below (including the all-
-	// rejected case) - a REJECTED mesh must have whatever UNRELATED overlay
-	// it happened to already be showing (e.g. a Draft Angle result from an
-	// earlier Apply) cleared too, not left silently displayed under this
-	// run's new (thickness-scaled) legend.
+	// for EVERY surviving mesh regardless of anyValid below (including the
+	// all-rejected case) - a REJECTED mesh must have whatever UNRELATED
+	// overlay it happened to already be showing (e.g. a Draft Angle result
+	// from an earlier Apply) cleared too, not left silently displayed under
+	// this run's new (thickness-scaled) legend.
 	viewport->makeCurrent();
 	for (PerMesh& pm : perMesh)
 	{
@@ -629,16 +887,8 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 			_overlay.clearOverlay(pm.mesh);
 			continue;
 		}
-
-		SurfaceAnalysisOverlay::CacheKey key;
-		key.geometryRevision = pm.mesh->geometryRevision();
-		key.transform = pm.mesh->combinedRenderTransform();
-		QVariantMap params;
-		params.insert(QStringLiteral("mode"), QStringLiteral("wallThickness"));
-		key.parameters = params;
-
 		_overlay.applyFlatResult(pm.mesh, pm.result.thicknessPerFace, pm.result.validPerFace,
-			key, 0.0f, rangeMax, AnalysisColormap::Sequential);
+			pm.key, 0.0f, rangeMax, AnalysisColormap::Sequential);
 	}
 	viewport->doneCurrent();
 	viewport->update();
@@ -673,35 +923,89 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	const QVector3D pullDirection = currentPullDirection();
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 
-	struct PerMesh { SceneMesh* mesh; std::vector<float> angles; };
+	QVariantMap params;
+	params.insert(QStringLiteral("mode"), QStringLiteral("draftAngle"));
+	params.insert(QStringLiteral("pullDirection"), QVariant::fromValue(pullDirection));
+
+	// Captured synchronously, on THIS (main/GL) thread, right before
+	// dispatch - see AnalysisMeshSnapshot's own doc comment for why a
+	// background thread must never read a live SceneMesh directly.
+	std::vector<AnalysisMeshSnapshot> snapshots;
+	snapshots.reserve(selected.size());
+	for (int id : selected)
+		snapshots.push_back(captureAnalysisMeshSnapshot(meshStore.at(id), params));
+
+	_deletedWhileComputing.clear();
+	const QString originalText = _applyDraftButton->text();
+	setComputationInFlight(true, _applyDraftButton, tr("Cancel"));
+
+	AnalysisComputeSession session(this);
+	_activeSession = &session;
+
+	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
+		std::move(snapshots),
+		[pullDirection](const AnalysisMeshSnapshot& snapshot) -> std::any
+		{
+			return DraftAngleAnalyzer::computeDraftAnglesDegrees(snapshot.points, snapshot.indices, pullDirection);
+		});
+
+	_activeSession = nullptr;
+	setComputationInFlight(false, _applyDraftButton, originalText);
+
+	// A cancelled run returns an empty outcome list (AnalysisComputeSession
+	// never half-applies a batch - see its own doc comment) - nothing to do
+	// either way.
+	if (outcomes.empty())
+		return;
+
+	struct PerMesh { SceneMesh* mesh; std::vector<float> angles; SurfaceAnalysisOverlay::CacheKey key; };
 	std::vector<PerMesh> perMesh;
-	perMesh.reserve(selected.size());
+	perMesh.reserve(outcomes.size());
 
 	float minAngle = std::numeric_limits<float>::max();
 	float maxAngle = std::numeric_limits<float>::lowest();
 	bool anyFace = false;
 
-	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
-	// own identical note. Draft Angle's per-face math is the lightest of
-	// this dialog's three analyzers (no CGAL/AABB involved), but still runs
-	// on the UI thread and can take a moment on a very dense mesh.
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	for (int id : selected)
+	for (const AnalysisComputeSession::PerMeshOutcome& outcome : outcomes)
 	{
-		SceneMesh* mesh = meshStore.at(id);
-		std::vector<float> angles = DraftAngleAnalyzer::computeDraftAnglesDegrees(mesh, pullDirection);
-		for (float a : angles)
+		SceneMesh* mesh = outcome.meshHandle;
+		if (!mesh || _deletedWhileComputing.contains(mesh))
+			continue; // deleted while this ran - see _deletedWhileComputing's own doc comment
+
+		// Re-validate against the mesh's CURRENT state before trusting a
+		// result computed on a background thread - it may have been
+		// transformed or otherwise edited while this ran. See
+		// SurfaceAnalysisOverlay::computeCurrentKey()'s own doc comment.
+		const SurfaceAnalysisOverlay::CacheKey currentKey = SurfaceAnalysisOverlay::computeCurrentKey(mesh, params);
+		if (!(currentKey == outcome.snapshotKey))
+			continue; // stale - mesh changed mid-computation, discard this result rather than apply it
+
+		const std::vector<float>* angles = std::any_cast<std::vector<float>>(&outcome.result);
+		if (!angles)
+			continue;
+
+		for (float a : *angles)
 		{
 			minAngle = std::min(minAngle, a);
 			maxAngle = std::max(maxAngle, a);
 			anyFace = true;
 		}
-		perMesh.push_back({ mesh, std::move(angles) });
+		perMesh.push_back({ mesh, *angles, outcome.snapshotKey });
 	}
-	QApplication::restoreOverrideCursor();
 
 	if (!anyFace)
+	{
+		// perMesh.empty() specifically means every outcome was discarded as
+		// stale/deleted above, not just "no triangles in this selection" -
+		// worth telling the user, unlike the latter (which silently returns,
+		// same as before this dialog had a background worker at all).
+		if (perMesh.empty())
+		{
+			QMessageBox::information(this, tr("Surface Analysis"),
+				tr("Selection changed during computation - re-run Apply."));
+		}
 		return;
+	}
 
 	// Symmetric range around zero so the Diverging colormap's white midpoint
 	// genuinely represents zero draft (a wall parallel to the pull
@@ -723,17 +1027,7 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	// actual paintGL() draw call.
 	viewport->makeCurrent();
 	for (PerMesh& pm : perMesh)
-	{
-		SurfaceAnalysisOverlay::CacheKey key;
-		key.geometryRevision = pm.mesh->geometryRevision();
-		key.transform = pm.mesh->combinedRenderTransform();
-		QVariantMap params;
-		params.insert(QStringLiteral("mode"), QStringLiteral("draftAngle"));
-		params.insert(QStringLiteral("pullDirection"), QVariant::fromValue(pullDirection));
-		key.parameters = params;
-
-		_overlay.applyFlatResult(pm.mesh, pm.angles, {}, key, rangeMin, rangeMax, AnalysisColormap::Diverging);
-	}
+		_overlay.applyFlatResult(pm.mesh, pm.angles, {}, pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging);
 	viewport->doneCurrent();
 
 	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QStringLiteral("°")));
@@ -824,13 +1118,64 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 		return;
 	}
 
-	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
-	// own identical note. AABB-tree construction + a nearest-point query per
-	// sampled vertex run entirely on the UI thread below.
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	const std::vector<float> distances = DeviationAnalyzer::computeDeviation(sampledMesh, referenceMesh);
-	QApplication::restoreOverrideCursor();
-	if (distances.empty())
+	QVariantMap params;
+	params.insert(QStringLiteral("mode"), QStringLiteral("deviation"));
+
+	// Only sampledMesh gets its own AnalysisMeshSnapshot/result - Deviation
+	// computes ONE result (for the sampled mesh), not one per input mesh, so
+	// referenceMesh's geometry is captured here (main thread, before
+	// dispatch - same "never a live pointer read from the worker thread"
+	// principle AnalysisMeshSnapshot itself follows) and closed over by
+	// value in the TaskFn below, rather than becoming a second snapshot in
+	// the list.
+	std::vector<AnalysisMeshSnapshot> snapshots;
+	snapshots.push_back(captureAnalysisMeshSnapshot(sampledMesh, params, referenceMesh));
+	const std::vector<float> referencePoints = referenceMesh->getTrsfPoints();
+	const std::vector<unsigned int> referenceIndices = referenceMesh->getIndices();
+
+	_deletedWhileComputing.clear();
+	const QString originalText = _applyDeviationButton->text();
+	setComputationInFlight(true, _applyDeviationButton, tr("Cancel"));
+
+	AnalysisComputeSession session(this);
+	_activeSession = &session;
+
+	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
+		std::move(snapshots),
+		[referencePoints, referenceIndices](const AnalysisMeshSnapshot& snapshot) -> std::any
+		{
+			return DeviationAnalyzer::computeDeviation(snapshot.points, snapshot.indices, referencePoints, referenceIndices);
+		});
+
+	_activeSession = nullptr;
+	setComputationInFlight(false, _applyDeviationButton, originalText);
+
+	if (outcomes.empty())
+		return; // cancelled - AnalysisComputeSession never half-applies a batch
+
+	const AnalysisComputeSession::PerMeshOutcome& outcome = outcomes.front();
+	SceneMesh* mesh = outcome.meshHandle;
+	if (!mesh || _deletedWhileComputing.contains(mesh) || _deletedWhileComputing.contains(referenceMesh))
+	{
+		QMessageBox::information(this, tr("Surface Analysis"),
+			tr("Selection changed during computation - re-run Apply."));
+		return;
+	}
+
+	// Re-validate against both meshes' CURRENT state - either the sampled or
+	// the reference mesh may have been transformed/edited while this ran.
+	// See SurfaceAnalysisOverlay::computeCurrentKey()'s own doc comment.
+	const SurfaceAnalysisOverlay::CacheKey currentKey =
+		SurfaceAnalysisOverlay::computeCurrentKey(mesh, params, referenceMesh);
+	if (!(currentKey == outcome.snapshotKey))
+	{
+		QMessageBox::information(this, tr("Surface Analysis"),
+			tr("Selection changed during computation - re-run Apply."));
+		return;
+	}
+
+	const std::vector<float>* distances = std::any_cast<std::vector<float>>(&outcome.result);
+	if (!distances || distances->empty())
 	{
 		QMessageBox::warning(this, tr("Surface Analysis"),
 			tr("Could not compute deviation - the reference mesh has no usable triangles."));
@@ -842,24 +1187,14 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 	// zero point is physically meaningful, unlike Draft Angle's data-
 	// dependent symmetric bound.
 	float maxDist = 0.0f;
-	for (float d : distances)
+	for (float d : *distances)
 		maxDist = std::max(maxDist, d);
 	const float rangeMax = maxDist > 1.0e-6f ? maxDist : 1.0f;
-
-	SurfaceAnalysisOverlay::CacheKey key;
-	key.geometryRevision = sampledMesh->geometryRevision();
-	key.transform = sampledMesh->combinedRenderTransform();
-	key.referenceMesh = referenceMesh;
-	key.referenceGeometryRevision = referenceMesh->geometryRevision();
-	key.referenceTransform = referenceMesh->combinedRenderTransform();
-	QVariantMap params;
-	params.insert(QStringLiteral("mode"), QStringLiteral("deviation"));
-	key.parameters = params;
 
 	// setAnalysisOverlayColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as applyDraftAngleToSelection().
 	viewport->makeCurrent();
-	_overlay.applyResult(sampledMesh, distances, {}, key, 0.0f, rangeMax, AnalysisColormap::Sequential);
+	_overlay.applyResult(mesh, *distances, {}, outcome.snapshotKey, 0.0f, rangeMax, AnalysisColormap::Sequential);
 	viewport->doneCurrent();
 
 	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, 0.0f, rangeMax, AnalysisColormap::Sequential, QString()));

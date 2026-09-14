@@ -6,14 +6,19 @@
 
 std::vector<float> DraftAngleAnalyzer::computeDraftAnglesDegrees(SceneMesh* mesh, const QVector3D& pullDirection)
 {
-	std::vector<float> result;
 	if (!mesh)
-		return result;
+		return {};
+	return computeDraftAnglesDegrees(mesh->getTrsfPoints(), mesh->getIndices(), pullDirection);
+}
+
+std::vector<float> DraftAngleAnalyzer::computeDraftAnglesDegrees(
+	const std::vector<float>& points, const std::vector<unsigned int>& indices,
+	const QVector3D& pullDirection)
+{
+	std::vector<float> result;
 
 	const QVector3D pull = pullDirection.length() > 1.0e-6f ? pullDirection.normalized() : QVector3D(0.0f, 1.0f, 0.0f);
 
-	const std::vector<float> points = mesh->getTrsfPoints();
-	const std::vector<unsigned int> indices = mesh->getIndices();
 	const size_t faceCount = indices.size() / 3;
 	result.reserve(faceCount);
 

@@ -27,8 +27,15 @@ QMap<QString, QString> ModelViewer::meshToolDisabledReasons() const
         ? tr("Select only triangle meshes\nwith indexed geometry.") : QString();
     const QString booleanUnion = !two.isEmpty() ? two : !triangles
         ? tr("Select only triangle meshes\nwith indexed geometry.") : QString();
+    // explicitlySelectedAssemblyNodes(), NOT selectedAssemblyNodes(): the
+    // tree auto-selects a parent whenever all its direct children are
+    // selected (see SceneTreeWidget::onItemSelectionChanged()), so
+    // selecting every mesh leaf in a multi-mesh assembly would otherwise
+    // read identically to explicitly selecting the assembly itself and
+    // wrongly disable Duplicate, even though duplicateSelectedItems()
+    // already handles that exact leaf set correctly via selectedMeshUuids().
     bool containsMultiMeshAssembly = false;
-    for (const SceneNode* node : treeWidgetModel->selectedAssemblyNodes()) {
+    for (const SceneNode* node : treeWidgetModel->explicitlySelectedAssemblyNodes()) {
         if (_sceneGraph->collectMeshUuids(node).size() > 1) {
             containsMultiMeshAssembly = true;
             break;

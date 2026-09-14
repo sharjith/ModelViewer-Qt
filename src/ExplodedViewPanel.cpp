@@ -1077,11 +1077,11 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
             return;
         QMenu menu(this);
         applyPopupMenuStyle(menu);
-        connect(menu.addAction(tr("Edit Selection...")), &QAction::triggered, this, [this]() {
+        connect(menu.addAction(QIcon(":/icons/res/edit_selection.png"), tr("Edit Selection...")), &QAction::triggered, this, [this]() {
             showExplodedViewSelectionEditor();
         });
         menu.addSeparator();
-        connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
+        connect(menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear Selection")), &QAction::triggered, this, [this]() {
             cancelPickingMode();
             clearAssemblySelection();
             {
@@ -1107,7 +1107,7 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
                 return;
             QMenu menu(this);
             applyPopupMenuStyle(menu);
-            connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
+            connect(menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear Selection")), &QAction::triggered, this, [this]() {
                 stopDraftPreview();
                 if (_viewportWidget && (_viewportWidget->isExplodedViewManualPlacementActive()
                     || _viewportWidget->hasExplodedViewManualPlacement()
@@ -1133,7 +1133,7 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
             return;
         QMenu menu(this);
         applyPopupMenuStyle(menu);
-        connect(menu.addAction(tr("Clear Anchor")), &QAction::triggered, this, [this]() {
+        connect(menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear Anchor")), &QAction::triggered, this, [this]() {
             lineEditAnchor->clear();
             ensureActivePreset().anchorUuid = QUuid();
             markDocumentModified();
@@ -3221,9 +3221,9 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
 
     QMenu menu(this);
     applyPopupMenuStyle(menu);
-    QAction* renameAction = menu.addAction(tr("Rename Preset"));
+    QAction* renameAction = menu.addAction(QIcon(":/icons/res/rename.png"), tr("Rename Preset"));
     menu.addSeparator();
-    QAction* deleteAction = menu.addAction(tr("Delete Preset"));
+    QAction* deleteAction = menu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete Preset"));
     QAction* chosenAction = menu.exec(pushButtonPresetActions
         ? pushButtonPresetActions->mapToGlobal(QPoint(0, pushButtonPresetActions->height()))
         : QCursor::pos());
@@ -4357,7 +4357,7 @@ void ExplodedViewPanel::onCapturedViewsContextMenuRequested(const QPoint& pos)
 
     QAction* groupAction = nullptr;
     if (allTopLevelLeaf)
-        groupAction = menu.addAction(tr("Group Selected"));
+        groupAction = menu.addAction(QIcon(":/icons/res/group_captures.png"), tr("Group Selected"));
 
     QAction* ungroupAction = nullptr;
     QAction* removeAction = nullptr;
@@ -4366,8 +4366,8 @@ void ExplodedViewPanel::onCapturedViewsContextMenuRequested(const QPoint& pos)
         QTreeWidgetItem* selected = selectedItems.front();
         const bool isGroup = selected && selected->data(0, Qt::UserRole + 1).toBool();
         if (isGroup)
-            ungroupAction = menu.addAction(tr("Ungroup"));
-        removeAction = menu.addAction(tr("Remove"));
+            ungroupAction = menu.addAction(QIcon(":/icons/res/ungroup_captures.png"), tr("Ungroup"));
+        removeAction = menu.addAction(QIcon(":/icons/res/delete.png"), tr("Remove"));
     }
 
     QAction* chosen = menu.exec(listWidgetCapturedViews->viewport()->mapToGlobal(pos));

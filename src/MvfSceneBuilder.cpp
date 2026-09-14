@@ -7,6 +7,7 @@
 #include "TextureLocationManager.h"
 #include "GltfCameraData.h"
 #include "RenderableMesh.h"
+#include "LengthUnits.h"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -1178,6 +1179,13 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             nodeObj.insert(QStringLiteral("autoOrientApplied"), true);
         if (node->autoScaleApplied)
             nodeObj.insert(QStringLiteral("autoScaleApplied"), true);
+        // Only-write-if-non-default, same convention as the correction flags
+        // above - an old MVF reader/an old file simply lacks these keys,
+        // correctly resolving to Unknown/false (see resolveEffectiveImportUnit()).
+        if (node->importUnit != LengthUnit::Unknown)
+            nodeObj.insert(QStringLiteral("importUnit"), lengthUnitToString(node->importUnit));
+        if (node->importUnitUserOverridden)
+            nodeObj.insert(QStringLiteral("importUnitUserOverridden"), true);
 
         if (!node->meshUuids.isEmpty())
         {

@@ -357,7 +357,7 @@ void AnimationsPanel::onTreeContextMenuRequested(const QPoint& pos)
 		return;
 
 	QMenu menu(this);
-	QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+	QAction* deleteAction = menu.addAction(QIcon(":/icons/res/delete.png"), isFileItem ? tr("Delete All") : tr("Delete"));
 	const bool playing = _viewportWidget ? _viewportWidget->isAnimationPlaying() : false;
 	deleteAction->setEnabled(!playing);
 	QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));

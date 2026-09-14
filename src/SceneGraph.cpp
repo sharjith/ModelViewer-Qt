@@ -13,7 +13,12 @@ namespace
 //   1 — initial
 //   2 — added importCorrection matrix to fileNode serialization
 //   3 — added autoOrientApplied / autoScaleApplied flags to fileNode serialization
-constexpr quint32 SCENEGRAPH_SESSION_VERSION = 3;
+//   4 — added importUnit / importUnitUserOverridden to node serialization
+//       (units policy - see LengthUnits.h). Exact-match gate below means this
+//       intentionally invalidates old (v3) *session* files only; MVF
+//       documents stay fully compatible via the JSON read path, which has no
+//       such gate and tolerates missing keys.
+constexpr quint32 SCENEGRAPH_SESSION_VERSION = 4;
 
 void writeMatrix(QDataStream& out, const aiMatrix4x4& m)
 {
@@ -254,6 +259,13 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
         node->autoOrientApplied = obj[QStringLiteral("autoOrientApplied")].toBool(false);
         node->autoScaleApplied  = obj[QStringLiteral("autoScaleApplied")].toBool(false);
 
+        // Older MVF files simply lack these keys, correctly yielding
+        // Unknown/false (the same fallback resolveEffectiveImportUnit() already
+        // treats as "nothing set") - no heuristic recovery needed here, unlike
+        // importCorrection above.
+        node->importUnit = lengthUnitFromString(obj[QStringLiteral("importUnit")].toString(), LengthUnit::Unknown);
+        node->importUnitUserOverridden = obj[QStringLiteral("importUnitUserOverridden")].toBool(false);
+
         const QJsonArray bindings = obj[QStringLiteral("meshBindings")].toArray();
         for (const QJsonValue& b : bindings)
         {
@@ -376,6 +388,7 @@ void SceneGraph::serialize(QDataStream& out) const
         writeMatrix(out, node->localTransform);
         writeMatrix(out, node->importCorrection);  // v2: persists autoOrient+autoScale correction
         out << node->autoOrientApplied << node->autoScaleApplied;  // v3
+        out << static_cast<int>(node->importUnit) << node->importUnitUserOverridden;  // v4
 
         out << static_cast<quint32>(node->meshUuids.size());
         for (const QUuid& uuid : node->meshUuids)
@@ -430,6 +443,10 @@ bool SceneGraph::deserialize(QDataStream& in)
             return nullptr;
         }
         in >> node->autoOrientApplied >> node->autoScaleApplied;  // v3
+
+        int importUnitInt = 0;
+        in >> importUnitInt >> node->importUnitUserOverridden;  // v4
+        node->importUnit = static_cast<LengthUnit>(importUnitInt);
 
         in >> meshCount;
         for (quint32 i = 0; i < meshCount; ++i)

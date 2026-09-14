@@ -297,10 +297,10 @@ void MaterialVariantsPanel::onTreeContextMenuRequested(const QPoint& pos)
         return;
 
     QMenu menu(this);
-    QAction* captureAction = isFileItem ? menu.addAction(tr("Capture Current as Variant...")) : nullptr;
-    QAction* setDefaultAction = !isFileItem ? menu.addAction(tr("Set as Default")) : nullptr;
+    QAction* captureAction = isFileItem ? menu.addAction(QIcon(":/icons/res/capture_variant.png"), tr("Capture Current as Variant...")) : nullptr;
+    QAction* setDefaultAction = !isFileItem ? menu.addAction(QIcon(":/icons/res/set_as_default.png"), tr("Set as Default")) : nullptr;
     menu.addSeparator();
-    QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+    QAction* deleteAction = menu.addAction(QIcon(":/icons/res/delete.png"), isFileItem ? tr("Delete All") : tr("Delete"));
     QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
 
     if (chosen == deleteAction)

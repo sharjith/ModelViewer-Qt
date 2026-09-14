@@ -209,7 +209,8 @@
   <widget class="QStatusBar" name="statusBar"/>
   <action name="actionExit">
    <property name="icon">
-    <iconset theme="application-exit"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/exit.png</normaloff>:/icons/res/exit.png</iconset>
    </property>
    <property name="text">
     <string>Exit</string>
@@ -220,7 +221,8 @@
   </action>
   <action name="actionAbout">
    <property name="icon">
-    <iconset theme="help-about"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/about.png</normaloff>:/icons/res/about.png</iconset>
    </property>
    <property name="text">
     <string>About</string>
@@ -440,7 +442,8 @@
   </action>
   <action name="actionNew">
    <property name="icon">
-    <iconset theme="document-new"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/new.png</normaloff>:/icons/res/new.png</iconset>
    </property>
    <property name="text">
     <string>New</string>
@@ -453,6 +456,10 @@
    </property>
   </action>
   <action name="actionTile_Horizontally">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tile_horizontal.png</normaloff>:/icons/res/tile_horizontal.png</iconset>
+   </property>
    <property name="text">
     <string>Tile Horizontally</string>
    </property>
@@ -461,6 +468,10 @@
    </property>
   </action>
   <action name="actionTile_Vertically">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tile_vertical.png</normaloff>:/icons/res/tile_vertical.png</iconset>
+   </property>
    <property name="text">
     <string>Tile Vertically</string>
    </property>
@@ -469,6 +480,10 @@
    </property>
   </action>
   <action name="actionCascade">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/cascade.png</normaloff>:/icons/res/cascade.png</iconset>
+   </property>
    <property name="text">
     <string>Cascade</string>
    </property>
@@ -477,6 +492,10 @@
    </property>
   </action>
   <action name="actionTile">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tile.png</normaloff>:/icons/res/tile.png</iconset>
+   </property>
    <property name="text">
     <string>Tile</string>
    </property>
@@ -486,7 +505,8 @@
   </action>
   <action name="actionClose">
    <property name="icon">
-    <iconset theme="window-close"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_close.png</normaloff>:/icons/res/window_close.png</iconset>
    </property>
    <property name="text">
     <string>Close</string>
@@ -497,7 +517,8 @@
   </action>
   <action name="actionClose_All">
    <property name="icon">
-    <iconset theme="window-close-all"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_close_all.png</normaloff>:/icons/res/window_close_all.png</iconset>
    </property>
    <property name="text">
     <string>Close All</string>
@@ -508,7 +529,8 @@
   </action>
   <action name="actionNext">
    <property name="icon">
-    <iconset theme="window-next"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_next.png</normaloff>:/icons/res/window_next.png</iconset>
    </property>
    <property name="text">
     <string>Next</string>
@@ -519,7 +541,8 @@
   </action>
   <action name="actionPrevious">
    <property name="icon">
-    <iconset theme="window-previous"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/window_previous.png</normaloff>:/icons/res/window_previous.png</iconset>
    </property>
    <property name="text">
     <string>Previous</string>
@@ -530,7 +553,8 @@
   </action>
   <action name="actionOpen">
    <property name="icon">
-    <iconset theme="document-open"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/fileopen.png</normaloff>:/icons/res/fileopen.png</iconset>
    </property>
    <property name="text">
     <string>Open</string>
@@ -544,7 +568,8 @@
   </action>
   <action name="actionImport">
    <property name="icon">
-    <iconset theme="document-import"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/import.png</normaloff>:/icons/res/import.png</iconset>
    </property>
    <property name="text">
     <string>Import</string>
@@ -558,7 +583,8 @@
   </action>
   <action name="actionSave">
    <property name="icon">
-    <iconset theme="document-save"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save.png</normaloff>:/icons/res/save.png</iconset>
    </property>
    <property name="text">
     <string>Save</string>
@@ -572,7 +598,8 @@
   </action>
   <action name="actionSave_As">
    <property name="icon">
-    <iconset theme="document-save-as"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save_as.png</normaloff>:/icons/res/save_as.png</iconset>
    </property>
    <property name="text">
     <string>Save As</string>
@@ -586,7 +613,8 @@
   </action>
   <action name="actionUndo">
    <property name="icon">
-    <iconset theme="edit-undo"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/undo.png</normaloff>:/icons/res/undo.png</iconset>
    </property>
    <property name="text">
     <string>Undo</string>
@@ -603,7 +631,8 @@
   </action>
   <action name="actionRedo">
    <property name="icon">
-    <iconset theme="edit-redo"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/redo.png</normaloff>:/icons/res/redo.png</iconset>
    </property>
    <property name="text">
     <string>Redo</string>
@@ -620,7 +649,8 @@
   </action>
   <action name="actionFileClose">
    <property name="icon">
-    <iconset theme="document-close"/>
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/file_close.png</normaloff>:/icons/res/file_close.png</iconset>
    </property>
    <property name="text">
     <string>Close</string>
@@ -630,6 +660,10 @@
    </property>
   </action>
   <action name="actionExport">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/export.png</normaloff>:/icons/res/export.png</iconset>
+   </property>
    <property name="text">
     <string>Export</string>
    </property>
@@ -646,6 +680,10 @@
    </property>
   </action>
   <action name="actionSettings">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/settings.png</normaloff>:/icons/res/settings.png</iconset>
+   </property>
    <property name="text">
     <string>Settings</string>
    </property>
@@ -654,6 +692,10 @@
    </property>
   </action>
   <action name="actionTextureDebugger">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/texture_debugger.png</normaloff>:/icons/res/texture_debugger.png</iconset>
+   </property>
    <property name="text">
     <string>Texture Debugger</string>
    </property>
@@ -662,6 +704,10 @@
    </property>
   </action>
   <action name="actionRayTracing">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/ray_tracing.png</normaloff>:/icons/res/ray_tracing.png</iconset>
+   </property>
    <property name="text">
     <string>Ray Tracing...</string>
    </property>
@@ -682,6 +728,10 @@
    </property>
   </action>
   <action name="actionFilterByMaterial">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/filter_by_material.png</normaloff>:/icons/res/filter_by_material.png</iconset>
+   </property>
    <property name="text">
     <string>Filter by Material...</string>
    </property>
@@ -694,6 +744,10 @@
    </property>
   </action>
   <action name="actionFilterByColor">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/filter_by_color.png</normaloff>:/icons/res/filter_by_color.png</iconset>
+   </property>
    <property name="text">
     <string>Filter by Color...</string>
    </property>
@@ -706,6 +760,10 @@
    </property>
   </action>
   <action name="actionSaveSelectionSet">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save_selection_set.png</normaloff>:/icons/res/save_selection_set.png</iconset>
+   </property>
    <property name="text">
     <string>Save Selection Set...</string>
    </property>
@@ -714,6 +772,10 @@
    </property>
   </action>
   <action name="actionSaveSceneState">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/save_scene_state.png</normaloff>:/icons/res/save_scene_state.png</iconset>
+   </property>
    <property name="text">
     <string>Save Scene State...</string>
    </property>
@@ -859,6 +921,10 @@
    </property>
   </action>
   <action name="actionQuick_Help">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/quick_help.png</normaloff>:/icons/res/quick_help.png</iconset>
+   </property>
    <property name="text">
     <string>Quick Help</string>
    </property>
@@ -870,6 +936,10 @@
    </property>
   </action>
   <action name="actionTutorial">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/tutorial.png</normaloff>:/icons/res/tutorial.png</iconset>
+   </property>
    <property name="text">
     <string>Tutorial</string>
    </property>
@@ -881,6 +951,10 @@
    </property>
   </action>
   <action name="actionView_Logs">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/view_logs.png</normaloff>:/icons/res/view_logs.png</iconset>
+   </property>
    <property name="text">
     <string>View Logs</string>
    </property>
@@ -889,6 +963,10 @@
    </property>
   </action>
   <action name="actionOpen_Logs_Folder">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/open_logs_folder.png</normaloff>:/icons/res/open_logs_folder.png</iconset>
+   </property>
    <property name="text">
     <string>Open Logs Folder</string>
    </property>
@@ -897,6 +975,10 @@
    </property>
   </action>
   <action name="actionShow_Console">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/show_console.png</normaloff>:/icons/res/show_console.png</iconset>
+   </property>
    <property name="text">
     <string>Show Console</string>
    </property>

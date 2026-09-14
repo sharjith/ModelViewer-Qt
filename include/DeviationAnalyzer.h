@@ -39,4 +39,13 @@ public:
 	// vector if either mesh is null/empty or referenceMesh has no non-
 	// degenerate triangles to measure against.
 	static std::vector<float> computeDeviation(SceneMesh* sampledMesh, SceneMesh* referenceMesh);
+
+	// Snapshot-based entry point - identical computation, but reads world-
+	// space points/indices directly instead of live SceneMesh* pointers, so
+	// it's safe to call from a background thread against two
+	// AnalysisMeshSnapshots' copied-out geometry. The SceneMesh* overload
+	// above is now a thin wrapper around this one.
+	static std::vector<float> computeDeviation(
+		const std::vector<float>& sampledPoints, const std::vector<unsigned int>& sampledIndices,
+		const std::vector<float>& referencePoints, const std::vector<unsigned int>& referenceIndices);
 };

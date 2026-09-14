@@ -81,13 +81,16 @@ namespace
 
 CurvatureResult CurvatureAnalyzer::computeMeanCurvature(SceneMesh* mesh, double ballRadius)
 {
-	CurvatureResult result;
 	if (!mesh)
-		return result;
+		return CurvatureResult();
+	return computeMeanCurvature(mesh->getTrsfPoints(), mesh->getTrsfNormals(), mesh->getIndices(), ballRadius);
+}
 
-	const std::vector<float>& origPoints = mesh->getTrsfPoints();
-	const std::vector<float>& origNormals = mesh->getTrsfNormals();
-	const std::vector<unsigned int> origIndices = mesh->getIndices();
+CurvatureResult CurvatureAnalyzer::computeMeanCurvature(
+	const std::vector<float>& origPoints, const std::vector<float>& origNormals,
+	const std::vector<unsigned int>& origIndices, double ballRadius)
+{
+	CurvatureResult result;
 	const size_t origVertexCount = origPoints.size() / 3;
 	if (origPoints.empty() || origIndices.size() < 3 || origNormals.size() != origPoints.size())
 		return result;

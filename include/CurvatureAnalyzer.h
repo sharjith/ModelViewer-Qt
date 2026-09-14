@@ -54,4 +54,15 @@ public:
 	// value expands the measure over a ball of that world-space radius,
 	// trading locality for noise reduction on a dense/noisy mesh.
 	static CurvatureResult computeMeanCurvature(SceneMesh* mesh, double ballRadius = -1.0);
+
+	// Snapshot-based entry point - identical computation, but reads world-
+	// space points/normals/indices directly instead of a live SceneMesh*, so
+	// it's safe to call from a background thread against an
+	// AnalysisMeshSnapshot's copied-out geometry. The SceneMesh* overload
+	// above is now a thin wrapper around this one. normals.size() must equal
+	// points.size() (same requirement the SceneMesh* overload already had
+	// via getTrsfNormals()).
+	static CurvatureResult computeMeanCurvature(
+		const std::vector<float>& points, const std::vector<float>& normals,
+		const std::vector<unsigned int>& indices, double ballRadius = -1.0);
 };

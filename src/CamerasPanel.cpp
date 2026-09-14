@@ -315,7 +315,7 @@ void CamerasPanel::onTreeContextMenuRequested(const QPoint& pos)
     if (item->data(0, IsSystemCamRole).toBool())
     {
         QMenu menu(this);
-        QAction* captureAction = menu.addAction(tr("Capture Camera View..."));
+        QAction* captureAction = menu.addAction(QIcon(":/icons/res/camera.png"), tr("Capture Camera View..."));
         QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
         if (chosen == captureAction)
             promptCaptureCameraView();

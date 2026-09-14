@@ -705,7 +705,7 @@ void FilterByMaterialDialog::onListContextMenuRequested(const QPoint& pos)
 	const int sourceGroupIndex = item->data(Qt::UserRole).toInt();
 
 	QMenu menu(this);
-	QAction* editAction = menu.addAction(tr("Edit Material..."));
+	QAction* editAction = menu.addAction(QIcon(":/icons/res/material.png"), tr("Edit Material..."));
 
 	// Lets every mesh currently using this material be reassigned to a
 	// DIFFERENT material already present elsewhere in the scene, in one undo

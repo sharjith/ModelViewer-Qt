@@ -80,6 +80,14 @@ public:
 
 	ViewportWidget*    getViewportWidget()    const { return _viewportWidget; }
 	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
+
+	// Document-level units fallback (viewerState["defaultImportUnit"] - see
+	// LengthUnits.h's resolveEffectiveImportUnit()) - used only when a mesh's
+	// owning file node can't resolve its own importUnit. Unknown means
+	// nothing has ever set this; resolution then falls through to the
+	// hardcoded Millimeter default.
+	LengthUnit defaultImportUnit() const { return _defaultImportUnit; }
+	void setDefaultImportUnit(LengthUnit unit) { _defaultImportUnit = unit; }
 	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
 	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
 
@@ -609,6 +617,7 @@ public slots:
 	void deleteSelectedItems();
 	void displaySelectedMeshInfo();
 	void editMeshMaterial();
+	void showImportUnitsDialog(SceneNode* fileNode);
 	void showVisualizationModelPage();
 	void showEnvironmentPage();
 	void showPredefinedMaterialsPage();
@@ -725,6 +734,7 @@ private:
 private:
 	ViewportWidget*   _viewportWidget;
 	SceneGraph* _sceneGraph;
+	LengthUnit _defaultImportUnit = LengthUnit::Unknown;
 
 	Material _material;
 

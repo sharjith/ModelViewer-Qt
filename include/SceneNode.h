@@ -6,6 +6,7 @@
 // types.h (not matrix4x4.h alone) is needed for aiMatrix4x4t's inline
 // constructor definitions (matrix4x4.h only declares them).
 #include <assimp/types.h>
+#include "LengthUnits.h"
 
 // ---------------------------------------------------------------------------
 // SceneNode
@@ -46,6 +47,19 @@ struct SceneNode
     // than heuristically analysing the matrix structure.
     bool autoOrientApplied = false;
     bool autoScaleApplied  = false;
+
+    // Real-world length unit this file's coordinates are authored in - see
+    // resolveEffectiveImportUnit()'s own doc comment for the full resolution
+    // order this participates in. Unknown means nothing has ever set this
+    // (import-time auto-detection and manual correction both write here,
+    // via the same fields - see LengthUnits.h).
+    LengthUnit importUnit = LengthUnit::Unknown;
+    // Distinguishes "nothing has ever set this" from "the user explicitly
+    // confirmed/corrected it" - lets a future importer-side auto-detector
+    // (STEP header unit, glTF-is-always-meters) skip a node the user
+    // already fixed, without needing a third enum state on importUnit
+    // itself.
+    bool importUnitUserOverridden = false;
 
     // Local transform copied from aiNode::mTransformation at build time.
     // Identity matrix for synthetic nodes.

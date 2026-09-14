@@ -21,12 +21,17 @@ namespace
 
 std::vector<float> DeviationAnalyzer::computeDeviation(SceneMesh* sampledMesh, SceneMesh* referenceMesh)
 {
-	std::vector<float> result;
 	if (!sampledMesh || !referenceMesh)
-		return result;
+		return {};
+	return computeDeviation(sampledMesh->getTrsfPoints(), sampledMesh->getIndices(),
+		referenceMesh->getTrsfPoints(), referenceMesh->getIndices());
+}
 
-	const std::vector<float>& refPoints = referenceMesh->getTrsfPoints();
-	const std::vector<unsigned int> refIndices = referenceMesh->getIndices();
+std::vector<float> DeviationAnalyzer::computeDeviation(
+	const std::vector<float>& sampledPoints, const std::vector<unsigned int>& /*sampledIndices*/,
+	const std::vector<float>& refPoints, const std::vector<unsigned int>& refIndices)
+{
+	std::vector<float> result;
 	if (refPoints.empty() || refIndices.size() < 3)
 		return result;
 
@@ -56,7 +61,6 @@ std::vector<float> DeviationAnalyzer::computeDeviation(SceneMesh* sampledMesh, S
 	DevTree tree(triangles.cbegin(), triangles.cend());
 	tree.accelerate_distance_queries();
 
-	const std::vector<float>& sampledPoints = sampledMesh->getTrsfPoints();
 	const size_t vertexCount = sampledPoints.size() / 3;
 	result.reserve(vertexCount);
 	for (size_t v = 0; v < vertexCount; ++v)

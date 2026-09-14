@@ -16720,10 +16720,10 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			if (!hitMeasurement.isNull())
 				setSelectedMeasurementIds({ hitMeasurement });
 			if (_sceneRuntime.visibleSwapped())
-				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedMeasurements);
+				contextMenu.addAction(QIcon(":/icons/res/show.png"), tr("Show"), _viewer, &ModelViewer::showSelectedMeasurements);
 			else
-				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedMeasurements);
-			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedMeasurements);
+				contextMenu.addAction(QIcon(":/icons/res/hide.png"), tr("Hide"), _viewer, &ModelViewer::hideSelectedMeasurements);
+			contextMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), _viewer, &ModelViewer::deleteSelectedMeasurements);
 			contextMenu.exec(mapToGlobal(pos));
 			return;
 		}
@@ -16735,10 +16735,10 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			if (!hitAnnotation.isNull())
 				setSelectedAnnotationIds({ hitAnnotation });
 			if (_sceneRuntime.visibleSwapped())
-				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedAnnotations);
+				contextMenu.addAction(QIcon(":/icons/res/show.png"), tr("Show"), _viewer, &ModelViewer::showSelectedAnnotations);
 			else
-				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedAnnotations);
-			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedAnnotations);
+				contextMenu.addAction(QIcon(":/icons/res/hide.png"), tr("Hide"), _viewer, &ModelViewer::hideSelectedAnnotations);
+			contextMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), _viewer, &ModelViewer::deleteSelectedAnnotations);
 			contextMenu.exec(mapToGlobal(pos));
 			return;
 		}
@@ -16746,37 +16746,37 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 		if (treeWidgetModel->hasMeshSelection() &&
 			(_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds().size() != 0 : _sceneRuntime.displayedObjectsIds().size() != 0))
 		{
-			contextMenu.addAction(tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
+			contextMenu.addAction(QIcon(":/icons/res/center_screen.png"), tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
 			QList<QUuid> selUuids = treeWidgetModel->selectedMeshUuids();
 			if (selUuids.count() <= 1)
 			{
 				// Show "Center Object List" only when the selected mesh is visible
 				QSet<QUuid> visibleUuids = treeWidgetModel->getVisibleUuids();
 				if (selUuids.isEmpty() || visibleUuids.contains(selUuids.first()))
-					contextMenu.addAction(tr("Center Object List"), this, &ViewportWidget::centerDisplayList);
+					contextMenu.addAction(QIcon(":/icons/res/center_object_list.png"), tr("Center Object List"), this, &ViewportWidget::centerDisplayList);
 			}
 			contextMenu.addSeparator();
 			if (_sceneRuntime.visibleSwapped())
-				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedItems);
+				contextMenu.addAction(QIcon(":/icons/res/show.png"), tr("Show"), _viewer, &ModelViewer::showSelectedItems);
 			else
-				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
+				contextMenu.addAction(QIcon(":/icons/res/hide.png"), tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
 			if (_sceneRuntime.displayedObjectsIds().size() > 1)
-				contextMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
+				contextMenu.addAction(QIcon(":/icons/res/show_only.png"), tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
 			contextMenu.addSeparator();
-			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
-			contextMenu.addAction(tr("Edit Material"), _viewer, &ModelViewer::editMeshMaterial);
+			contextMenu.addAction(QIcon(":/icons/res/transformations.png"), tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
+			contextMenu.addAction(QIcon(":/icons/res/material.png"), tr("Edit Material"), _viewer, &ModelViewer::editMeshMaterial);
 			contextMenu.addSeparator();
-			contextMenu.addAction(tr("Split by Connectivity"), _viewer, &ModelViewer::splitSelectedMeshesByConnectivity);
-			contextMenu.addAction(tr("Merge by Adjacency"), _viewer, &ModelViewer::mergeSelectedMeshesByAdjacency);
-			contextMenu.addAction(tr("Merge Selected"), _viewer, &ModelViewer::mergeSelectedMeshes);
-			contextMenu.addAction(tr("Mesh Union"), _viewer, &ModelViewer::unionSelectedMeshes);
-			contextMenu.addAction(tr("Group"), _viewer, &ModelViewer::groupSelectedMeshes);
+			contextMenu.addAction(QIcon(":/icons/res/split_by_connectivity.png"), tr("Split by Connectivity"), _viewer, &ModelViewer::splitSelectedMeshesByConnectivity);
+			contextMenu.addAction(QIcon(":/icons/res/merge_by_adjacency.png"), tr("Merge by Adjacency"), _viewer, &ModelViewer::mergeSelectedMeshesByAdjacency);
+			contextMenu.addAction(QIcon(":/icons/res/merge_selected.png"), tr("Merge Selected"), _viewer, &ModelViewer::mergeSelectedMeshes);
+			contextMenu.addAction(QIcon(":/icons/res/mesh_union.png"), tr("Mesh Union"), _viewer, &ModelViewer::unionSelectedMeshes);
+			contextMenu.addAction(QIcon(":/icons/res/group_meshes.png"), tr("Group"), _viewer, &ModelViewer::groupSelectedMeshes);
 			contextMenu.addSeparator();
-			contextMenu.addAction(tr("Copy"),   _viewer, &ModelViewer::copySelectedItems);
-			contextMenu.addAction(tr("Cut"),    _viewer, &ModelViewer::cutSelectedItems);
-			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);			
+			contextMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"),   _viewer, &ModelViewer::copySelectedItems);
+			contextMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut"),    _viewer, &ModelViewer::cutSelectedItems);
+			contextMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);
 			contextMenu.addSeparator();
-			contextMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
+			contextMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
 		}
 		else
 		{
@@ -16872,7 +16872,7 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			if (ModelViewer::hasClipboardContent())
 			{
 				contextMenu.addSeparator();
-				action = contextMenu.addAction(tr("Paste"));
+				action = contextMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste"));
 				connect(action, &QAction::triggered, this, [this]() {
 					_viewer->pasteIntoSelectedNode(_viewer->sceneGraph()->root());
 					});

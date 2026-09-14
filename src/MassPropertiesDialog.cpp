@@ -4,18 +4,23 @@
 #include "SceneMesh.h"
 #include "MeshProperties.h"
 #include "Material.h"
+#include "LengthUnits.h"
+#include "AnalysisMeshSnapshot.h"
+#include "AnalysisComputeSession.h"
 
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QStringList>
 #include <QVector3D>
-#include <QApplication>
 #include <QMap>
 #include <QCloseEvent>
 #include <QSettings>
+#include <QJsonObject>
+#include <any>
 
 MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -33,21 +38,15 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
 
-	// This app has no real per-document/per-import unit policy yet (a known,
-	// disclosed prerequisite - see MeshProperties.cpp's own doc comment) -
-	// every length-bearing value here is computed straight from the mesh's
-	// raw coordinates on the ASSUMPTION they're millimetres, the same
-	// assumption every other length-bearing control in this app already
-	// makes. Said explicitly here (not just in a code comment) since a
-	// wrongly-labeled engineering measurement is worse than an admittedly
-	// unverified one.
-	auto* unitsNote = new QLabel(tr("Units below assume millimetre input (not yet verified against the "
-	                                 "source file/import) - treat mm²/mm³/kg as provisional. Density comes "
-	                                 "from each mesh's assigned material; library-supplied values are typical/"
-	                                 "nominal figures for a generic grade, not an exact spec - verify before "
-	                                 "relying on Mass for an engineering-critical calculation."), this);
-	unitsNote->setWordWrap(true);
-	layout->addWidget(unitsNote);
+	// A real per-document/per-import unit policy now exists (LengthUnits.h) -
+	// text is refreshed per populate() once it knows whether any selected
+	// mesh actually needed the Unknown->Millimeter fallback (see
+	// resolveEffectiveImportUnit()'s own doc comment); this constructor-time
+	// text is just a placeholder shown before the first populate() call
+	// fills it in properly.
+	_unitsNoteLabel = new QLabel(this);
+	_unitsNoteLabel->setWordWrap(true);
+	layout->addWidget(_unitsNoteLabel);
 
 	_noSelectionLabel = new QLabel(tr("Nothing selected - select one or more meshes first."), this);
 	_noSelectionLabel->setWordWrap(true);
@@ -88,29 +87,94 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_materialTable->setSelectionMode(QAbstractItemView::NoSelection);
 	layout->addWidget(_materialTable, 1);
 
+	// Visible only while populate()'s background computation is in flight -
+	// replaces the old wait-cursor-only feedback now that this genuinely
+	// runs on a worker thread instead of blocking synchronously.
+	_progressBar = new QProgressBar(this);
+	_progressBar->setVisible(false);
+	layout->addWidget(_progressBar);
+
 	_closeButton = new QPushButton(tr("Close"), this);
-	// close(), not accept()/QDialog::done() - done() only hide()s the dialog,
-	// it never reaches closeEvent(), which is where geometry actually gets
-	// saved (see closeEvent()'s own doc comment - same lesson this app
-	// already learned the hard way on SurfaceAnalysisDialog's Close button).
-	connect(_closeButton, &QPushButton::clicked, this, &QWidget::close);
+	// Routed through a real slot, not directly to &QWidget::close - see
+	// onCloseButtonClicked()'s own doc comment for why: it needs to cancel
+	// instead of close while a computation is running.
+	connect(_closeButton, &QPushButton::clicked, this, &MassPropertiesDialog::onCloseButtonClicked);
 	auto* buttonRow = new QHBoxLayout();
 	buttonRow->addStretch(1);
 	buttonRow->addWidget(_closeButton);
 	layout->addLayout(buttonRow);
 
+	if (_modelViewer && _modelViewer->getViewportWidget())
+	{
+		connect(_modelViewer->getViewportWidget(), &ViewportWidget::meshAboutToBeDeleted,
+			this, &MassPropertiesDialog::onMeshAboutToBeDeleted);
+	}
+
 	populate();
 	loadSettings();
 }
 
+void MassPropertiesDialog::onCloseButtonClicked()
+{
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
+	close();
+}
+
+void MassPropertiesDialog::onMeshAboutToBeDeleted(SceneMesh* mesh)
+{
+	if (mesh && _activeSession)
+		_deletedWhileComputing.insert(mesh);
+}
+
+void MassPropertiesDialog::setComputationInFlight(bool inFlight)
+{
+	if (_closeButton)
+		_closeButton->setText(inFlight ? tr("Cancel") : tr("Close"));
+	if (_progressBar)
+	{
+		_progressBar->setVisible(inFlight);
+		if (inFlight)
+		{
+			_progressBar->setRange(0, 0); // indeterminate until the first progress() signal reports a real total
+			_progressBar->setValue(0);
+		}
+	}
+}
+
 void MassPropertiesDialog::closeEvent(QCloseEvent* event)
 {
+	// The dialog has no WA_DeleteOnClose of its own, but ModelViewer::
+	// executeToolCommand() constructs it as a plain stack-local QDialog run
+	// via exec() - letting this close while populate()'s runBlocking() call
+	// is still on the stack below would return control to a stack frame
+	// whose local `this` may already be past its exec() call, same
+	// dangling-frame hazard AnalysisComputeSession's own doc comment
+	// describes. Redirect to Cancel and refuse to close instead.
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		event->ignore();
+		return;
+	}
+
 	saveSettings();
 	QDialog::closeEvent(event);
 }
 
 void MassPropertiesDialog::reject()
 {
+	// Same reasoning as closeEvent() above - Escape doesn't route through
+	// closeEvent() (QDialog::reject() only hide()s).
+	if (_activeSession)
+	{
+		_activeSession->requestCancel();
+		return;
+	}
+
 	saveSettings();
 	QDialog::reject();
 }
@@ -148,6 +212,73 @@ void MassPropertiesDialog::populate()
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	_table->setRowCount(static_cast<int>(selected.size()));
 
+	// Captured up front (main thread), before dispatch, aligned by index
+	// with the snapshot list below - each mesh's own material density and
+	// name. Re-reading these AFTER the computation instead would open a new
+	// race window this dialog's original fully-synchronous code never had
+	// to consider (the mesh's material could be edited mid-computation);
+	// capturing once here, matching AnalysisMeshSnapshot's own "copy out
+	// before dispatch" principle, avoids it.
+	QVariantMap params;
+	params.insert(QStringLiteral("mode"), QStringLiteral("massProperties"));
+	std::vector<AnalysisMeshSnapshot> snapshots;
+	std::vector<float> densityByIndex;
+	std::vector<QString> materialNameByIndex;
+	snapshots.reserve(selected.size());
+	densityByIndex.reserve(selected.size());
+	materialNameByIndex.reserve(selected.size());
+	for (int id : selected)
+	{
+		SceneMesh* mesh = meshStore.at(id);
+		snapshots.push_back(captureAnalysisMeshSnapshot(mesh, params));
+		// Sourced from THIS mesh's own material - no fallback density, ever
+		// (see Material::hasDensity()'s own doc comment on why a material
+		// with no known density must never silently default to one).
+		const Material meshMaterial = mesh->getMaterial();
+		densityByIndex.push_back(meshMaterial.hasDensity() ? meshMaterial.density() : -1.0f);
+		materialNameByIndex.push_back(meshMaterial.name());
+	}
+
+	_deletedWhileComputing.clear();
+	setComputationInFlight(true);
+
+	AnalysisComputeSession session(this);
+	_activeSession = &session;
+
+	// Cheap interim mitigation replaced: MeshProperties' CGAL topology
+	// checks (is_closed/does_self_intersect/does_bound_a_volume) used to run
+	// synchronously on the UI thread here and could take a noticeable
+	// moment on a CAD-sized selection - now genuinely backgrounded, with a
+	// real progress bar and Cancel support.
+	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
+		std::move(snapshots),
+		[](const AnalysisMeshSnapshot& snapshot) -> std::any
+		{
+			return computeMeshGeometry(snapshot.points, snapshot.indices, snapshot.boundingBox);
+		},
+		[this](int processed, int total)
+		{
+			if (_progressBar)
+			{
+				_progressBar->setRange(0, total);
+				_progressBar->setValue(processed);
+			}
+		});
+
+	_activeSession = nullptr;
+	setComputationInFlight(false);
+
+	if (outcomes.empty())
+	{
+		// Cancelled - AnalysisComputeSession never half-applies a batch, and
+		// this dialog's own "recomputed fresh every time it opens" contract
+		// means there's no earlier valid state to fall back to either, so
+		// there's nothing left to show.
+		_table->setVisible(false);
+		_totalsLabel->setVisible(false);
+		return;
+	}
+
 	double knownSurfaceAreaSubtotal = 0.0;
 	int surfaceAreaExcludedCount = 0;
 	QStringList surfaceAreaExclusionReasons;
@@ -183,60 +314,130 @@ void MassPropertiesDialog::populate()
 	};
 	QMap<QString, MaterialMassGroup> massByMaterial;
 
-	// Cheap interim mitigation, not real async: MeshProperties' CGAL topology
-	// checks (is_closed/does_self_intersect/does_bound_a_volume) run
-	// synchronously on the UI thread per mesh below and can take a
-	// noticeable moment on a CAD-sized selection - a busy cursor at least
-	// signals that something is happening rather than looking frozen. Real
-	// background computation with progress/cancellation is a separate,
-	// larger piece of work (see this dialog's own follow-up notes).
-	QApplication::setOverrideCursor(Qt::WaitCursor);
+	// Counts how many selected meshes resolved via the Unknown->Millimeter
+	// fallback (see resolveEffectiveImportUnit()'s own doc comment) rather
+	// than a real, explicitly-known unit - drives _unitsNoteLabel's text
+	// below.
+	int unitFallbackCount = 0;
 
-	int row = 0;
-	for (int id : selected)
+	// resolveEffectiveImportUnit() takes viewerState as a QJsonObject (the
+	// same shape it's persisted in) rather than a bare LengthUnit, so a
+	// document's own defaultImportUnit is wrapped once here rather than
+	// re-wrapped per mesh inside the loop below.
+	QJsonObject documentViewerState;
+	if (_modelViewer->defaultImportUnit() != LengthUnit::Unknown)
+		documentViewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_modelViewer->defaultImportUnit()));
+
+	for (size_t i = 0; i < outcomes.size(); ++i)
 	{
-		SceneMesh* mesh = meshStore.at(id);
-		MeshProperties props(mesh);
+		const AnalysisComputeSession::PerMeshOutcome& outcome = outcomes[i];
+		SceneMesh* mesh = outcome.meshHandle;
+		const int row = static_cast<int>(i);
 
-		// Sourced from THIS mesh's own material - no fallback density, ever
-		// (see Material::hasDensity()'s own doc comment on why a material
-		// with no known density must never silently default to one).
-		const Material meshMaterial = mesh->getMaterial();
-		if (meshMaterial.hasDensity())
-			props.setDensity(meshMaterial.density());
+		if (!mesh || _deletedWhileComputing.contains(mesh))
+		{
+			// Deleted while this ran - see _deletedWhileComputing's own doc
+			// comment. Nothing safe to show for this row at all (not even a
+			// name), and it can't contribute to any total/group.
+			const QString reason = tr("mesh no longer available");
+			_table->setItem(row, 0, new QTableWidgetItem(tr("(deleted)")));
+			_table->setItem(row, 1, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			++surfaceAreaExcludedCount;
+			++volumeExcludedCount;
+			++massExcludedCount;
+			allHaveVolume = false;
+			allHaveMass = false;
+			if (!surfaceAreaExclusionReasons.contains(reason)) surfaceAreaExclusionReasons.append(reason);
+			if (!volumeExclusionReasons.contains(reason)) volumeExclusionReasons.append(reason);
+			if (!massExclusionReasons.contains(reason)) massExclusionReasons.append(reason);
+			continue;
+		}
 
 		_table->setItem(row, 0, new QTableWidgetItem(mesh->getName()));
 
-		// hasValidGeometry() gates this the same way hasValidVolume()/
-		// hasMass() gate the other two columns below - surfaceArea() reads
-		// 0.0f (not a real zero-area result) whenever the per-triangle scan
-		// itself failed (invalid/degenerate indices, or threw), and that
-		// must never be silently summed into the total as if it were a
-		// legitimate answer.
-		if (props.hasValidGeometry())
+		// Volume/surface-area/mass are all invariant under a rigid
+		// translation/rotation, so unlike SurfaceAnalysisDialog's overlays
+		// (which ARE transform-sensitive - Draft Angle depends on world-
+		// space orientation) only a genuine GEOMETRY rebuild mid-computation
+		// (undo, a boolean op, subdivision, ...) invalidates this row's
+		// result - a pure transform change does not. Checked directly
+		// against geometryRevision rather than the full
+		// SurfaceAnalysisOverlay::computeCurrentKey()/CacheKey machinery
+		// (which also compares transform - not the right check for a
+		// quantity that doesn't depend on it).
+		const bool geometryStale = mesh->geometryRevision() != outcome.snapshotKey.geometryRevision;
+		const MeshGeometryComputeResult* result = geometryStale ? nullptr : std::any_cast<MeshGeometryComputeResult>(&outcome.result);
+		if (!result)
 		{
-			_table->setItem(row, 2, new QTableWidgetItem(QString::number(props.surfaceArea(), 'f', 2)));
-			knownSurfaceAreaSubtotal += props.surfaceArea();
+			const QString reason = tr("geometry changed during computation");
+			_table->setItem(row, 1, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			++surfaceAreaExcludedCount;
+			++volumeExcludedCount;
+			++massExcludedCount;
+			allHaveVolume = false;
+			allHaveMass = false;
+			if (!surfaceAreaExclusionReasons.contains(reason)) surfaceAreaExclusionReasons.append(reason);
+			if (!volumeExclusionReasons.contains(reason)) volumeExclusionReasons.append(reason);
+			if (!massExclusionReasons.contains(reason)) massExclusionReasons.append(reason);
+			continue;
+		}
+
+		const float density = densityByIndex[i];
+		const QString materialName = materialNameByIndex[i];
+
+		// Real per-document/per-import unit resolution, replacing the
+		// previous hardcoded millimetre assumption - see LengthUnits.h's
+		// own doc comment for the resolution order. computeMeshGeometry()
+		// returns its result in the mesh's OWN native coordinate units;
+		// surfaceArea scales by lengthScale^2, volume by lengthScale^3,
+		// centerOfMass by lengthScale^1. Every existing scene/MVF file
+		// still resolves to Millimeter (lengthScale == 1.0) today - nothing
+		// sets SceneNode::importUnit or a document-level default yet (Step 9
+		// of this app's units-policy plan, the scene-tree "Import Units..."
+		// action, is not built) - so this is exact-behavior-preserving until
+		// then, not a silent behavior change.
+		const ResolvedLengthUnit resolvedUnit = resolveEffectiveImportUnit(mesh, _modelViewer->sceneGraph(), documentViewerState);
+		if (!resolvedUnit.wasExplicit)
+			++unitFallbackCount;
+		const double lengthScale = lengthUnitToMillimeters(resolvedUnit.unit);
+		const float scaledSurfaceArea = result->surfaceArea * static_cast<float>(lengthScale * lengthScale);
+		const double scaledVolume = result->volume * lengthScale * lengthScale * lengthScale;
+		const QVector3D scaledCenterOfMass = result->centerOfMass * static_cast<float>(lengthScale);
+
+		// hasValidGeometry gates this the same way hasValidVolume/hasMass
+		// gate the other two columns below - surfaceArea reads 0.0f (not a
+		// real zero-area result) whenever the per-triangle scan itself
+		// failed (invalid/degenerate indices, or threw), and that must
+		// never be silently summed into the total as if it were a
+		// legitimate answer.
+		if (result->hasValidGeometry)
+		{
+			_table->setItem(row, 2, new QTableWidgetItem(QString::number(scaledSurfaceArea, 'f', 2)));
+			knownSurfaceAreaSubtotal += scaledSurfaceArea;
 		}
 		else
 		{
-			const QString reason = describeMeshPropertyUnavailableReason(props.volumeUnavailableReason());
+			const QString reason = describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
 			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			if (!surfaceAreaExclusionReasons.contains(reason))
 				surfaceAreaExclusionReasons.append(reason);
 		}
 
-		if (props.hasValidVolume())
+		if (result->hasValidVolume)
 		{
-			_table->setItem(row, 1, new QTableWidgetItem(QString::number(props.volume(), 'f', 2)));
-			knownVolumeSubtotal += props.volume();
-			volumeWeightedCentroidAccum += props.centerOfMass() * props.volume();
-			volumeWeightSum += props.volume();
+			_table->setItem(row, 1, new QTableWidgetItem(QString::number(scaledVolume, 'f', 2)));
+			knownVolumeSubtotal += scaledVolume;
+			volumeWeightedCentroidAccum += scaledCenterOfMass * static_cast<float>(scaledVolume);
+			volumeWeightSum += scaledVolume;
 		}
 		else
 		{
-			const QString reason = describeMeshPropertyUnavailableReason(props.volumeUnavailableReason());
+			const QString reason = describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
 			_table->setItem(row, 1, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++volumeExcludedCount;
 			if (!volumeExclusionReasons.contains(reason))
@@ -244,16 +445,17 @@ void MassPropertiesDialog::populate()
 			allHaveVolume = false;
 		}
 
-		MaterialMassGroup& group = massByMaterial[meshMaterial.name()];
+		MaterialMassGroup& group = massByMaterial[materialName];
 		++group.totalCount;
 
-		if (props.hasMass())
+		if (meshHasMass(result->hasValidVolume, density))
 		{
-			_table->setItem(row, 3, new QTableWidgetItem(QString::number(props.weight(), 'f', 3)));
-			knownMassSubtotal += props.weight();
-			massWeightedCentroidAccum += props.centerOfMass() * props.weight();
-			massWeightSum += props.weight();
-			group.knownMassSubtotal += props.weight();
+			const float weight = computeMeshWeight(scaledVolume, density);
+			_table->setItem(row, 3, new QTableWidgetItem(QString::number(weight, 'f', 3)));
+			knownMassSubtotal += weight;
+			massWeightedCentroidAccum += scaledCenterOfMass * weight;
+			massWeightSum += weight;
+			group.knownMassSubtotal += weight;
 		}
 		else
 		{
@@ -261,9 +463,9 @@ void MassPropertiesDialog::populate()
 			// (there's nothing to multiply a density by) - only surface the
 			// distinct "no density assigned" reason when volume itself was
 			// actually fine.
-			const QString reason = props.hasValidVolume()
+			const QString reason = result->hasValidVolume
 				? describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::MissingDensity)
-				: describeMeshPropertyUnavailableReason(props.volumeUnavailableReason());
+				: describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
 			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++massExcludedCount;
 			if (!massExclusionReasons.contains(reason))
@@ -274,11 +476,29 @@ void MassPropertiesDialog::populate()
 			if (!group.exclusionReasons.contains(reason))
 				group.exclusionReasons.append(reason);
 		}
-
-		++row;
 	}
 
-	QApplication::restoreOverrideCursor();
+	// Only warn about an unverified unit assumption when at least one
+	// selected mesh actually needed the fallback - a mesh with a real,
+	// explicitly-known unit (once Steps 8/9 let one be set) has nothing to
+	// be unsure about. The density/typical-value disclosure below is always
+	// shown regardless, since it's a real, permanent characteristic of the
+	// catalog data, not a resolvable "unknown" state the way units are.
+	// NOTE: no in-app way to correct this yet (Step 9 of this app's own
+	// units-policy plan - a scene-tree "Import Units..." action - is not
+	// built), so the note only discloses the assumption; it doesn't point
+	// the user at a remedy that doesn't exist.
+	QString unitsNote;
+	if (unitFallbackCount > 0)
+	{
+		unitsNote = tr("%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-"
+		               "based results as provisional until this can be corrected per-import. ")
+			.arg(unitFallbackCount).arg(outcomes.size());
+	}
+	unitsNote += tr("Density comes from each mesh's assigned material; library-supplied values are typical/"
+	                 "nominal figures for a generic grade, not an exact spec - verify before relying on Mass "
+	                 "for an engineering-critical calculation.");
+	_unitsNoteLabel->setText(unitsNote);
 
 	// Totals convention, applied identically to volume and mass (and to
 	// every future aggregate this app ever adds alongside them): a complete
@@ -368,9 +588,9 @@ void MassPropertiesDialog::populate()
 
 	// True mass-weighted center of mass - NOT the same thing as the
 	// geometric centroid above, and only meaningful once every mesh in the
-	// selection has a real, known mass (see MeshProperties::hasMass()'s doc
-	// comment on why weighting by a fake/default density would be
-	// physically meaningless). Also guards the zero-total-mass case
+	// selection has a real, known mass (see meshHasMass()'s doc comment on
+	// why weighting by a fake/default density would be physically
+	// meaningless). Also guards the zero-total-mass case
 	// explicitly - density==0 is a legitimately accepted real value, but an
 	// all-zero-mass selection has no well-defined mass-weighted centroid
 	// (would need to divide by zero), independent of "mass" itself being

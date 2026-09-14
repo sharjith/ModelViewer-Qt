@@ -47,12 +47,15 @@ namespace
 
 WallThicknessResult WallThicknessAnalyzer::computeThickness(SceneMesh* mesh)
 {
-	WallThicknessResult result;
 	if (!mesh)
-		return result;
+		return WallThicknessResult();
+	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices());
+}
 
-	const std::vector<float>& origPoints = mesh->getTrsfPoints();
-	const std::vector<unsigned int> origIndices = mesh->getIndices();
+WallThicknessResult WallThicknessAnalyzer::computeThickness(
+	const std::vector<float>& origPoints, const std::vector<unsigned int>& origIndices)
+{
+	WallThicknessResult result;
 	const size_t origVertexCount = origPoints.size() / 3;
 	const size_t origFaceCount = origIndices.size() / 3;
 	if (origPoints.empty() || origIndices.size() < 3)

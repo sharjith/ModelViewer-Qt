@@ -13,8 +13,10 @@ class QLabel;
 class QComboBox;
 class QPushButton;
 class QCloseEvent;
+class QTimer;
 class ModelViewer;
 class SceneMesh;
+class AnalysisComputeSession;
 
 // ---------------------------------------------------------------------------
 // SurfaceAnalysisDialog (Tools -> Surface Analysis...)
@@ -86,6 +88,14 @@ private slots:
 	// SurfaceAnalysisOverlay's own doc comment for why it can't protect
 	// itself from this on its own.
 	void onMeshAboutToBeDeleted(SceneMesh* mesh);
+	// Idle staleness poll - isValid()'s first real caller (see
+	// SurfaceAnalysisOverlay's own doc comment). Ticks on a QTimer, not a
+	// push notification, since no transform-changed signal exists anywhere
+	// on SceneMesh/RenderableMesh - reuses
+	// RenderableMesh::currentRuntimeBoundsRevision() (already ticks on every
+	// transform/geometry change) as a cheap "did anything worth re-checking
+	// happen" gate before doing any real work.
+	void checkForStaleOverlays();
 
 private:
 	enum class Mode { Curvature, WallThickness, Deviation };
@@ -115,6 +125,38 @@ private:
 	// mesh" requirement reads differently from the other modes' "whole
 	// selection" convention, so the wording depends on both.
 	void updateSelectionStatusLabel();
+
+	// Disables every OTHER interactive control in the dialog and repurposes
+	// `activeButton` into a Cancel button (label swapped to `buttonText`) -
+	// same "disable everything except Cancel" idiom RtRenderDialog already
+	// uses for offline ray-trace renders. Only one AnalysisComputeSession can
+	// be in flight at a time dialog-wide (not just per-page) - this is what
+	// makes that true, by preventing the user from switching pages/mode or
+	// clicking a different Apply button while one is running. Called once
+	// with (true, button, tr("Cancel")) before dispatch, once with (false,
+	// button, <the button's own original text>) after.
+	void setComputationInFlight(bool inFlight, QPushButton* activeButton, const QString& buttonText);
+
+	// Non-null only while an AnalysisComputeSession's runBlocking() is on the
+	// call stack somewhere below the current frame - NOT owned by this
+	// dialog (it points at a stack-local object in whichever applyXToSelection()
+	// is currently running); only ever dereferenced to call requestCancel(),
+	// never to access anything that could outlive that stack frame. Lets a
+	// re-click on the now-relabeled Cancel button, or closeEvent()/reject()
+	// firing mid-computation (see their own doc comments on why the dialog
+	// must not be allowed to actually close/be destroyed while a background
+	// thread is still running), reach the active session.
+	AnalysisComputeSession* _activeSession = nullptr;
+
+	// Meshes deleted (via onMeshAboutToBeDeleted()) WHILE _activeSession was
+	// non-null - a background computation's result can still come back
+	// naming one of these via AnalysisComputeSession::PerMeshOutcome::meshHandle
+	// (the worker itself never dereferences it, only carries it as an opaque
+	// token - see AnalysisMeshSnapshot's own doc comment), but by the time
+	// the caller gets it back the pointer is dangling. Checked and skipped
+	// before any outcome's meshHandle is ever dereferenced; cleared at the
+	// start of each applyXToSelection() call.
+	QSet<SceneMesh*> _deletedWhileComputing;
 
 	// Window geometry persistence - same QSettings("<key>/geometry") pattern
 	// every other dialog in this app already uses (MeasurementDialog,
@@ -161,4 +203,12 @@ private:
 	// dialog is the "caller that owns a live instance" its doc comment
 	// refers to.
 	SurfaceAnalysisOverlay _overlay;
+
+	// Drives checkForStaleOverlays() - see that slot's own doc comment.
+	// Runs continuously once this dialog exists (cheap early-out inside the
+	// slot itself when there's nothing tracked or nothing changed, rather
+	// than starting/stopping the timer around visibility/overlay-count
+	// transitions).
+	QTimer* _stalenessTimer = nullptr;
+	quint64 _lastSeenBoundsRevision = 0;
 };

@@ -88,6 +88,37 @@ bool SurfaceAnalysisOverlay::hasOverlay(SceneMesh* mesh) const
 	return mesh && _entries.contains(mesh);
 }
 
+QList<SceneMesh*> SurfaceAnalysisOverlay::trackedMeshes() const
+{
+	return _entries.keys();
+}
+
+SurfaceAnalysisOverlay::CacheKey SurfaceAnalysisOverlay::storedKey(SceneMesh* mesh) const
+{
+	if (!mesh)
+		return CacheKey();
+	auto it = _entries.constFind(mesh);
+	return it == _entries.constEnd() ? CacheKey() : it->key;
+}
+
+SurfaceAnalysisOverlay::CacheKey SurfaceAnalysisOverlay::computeCurrentKey(
+	SceneMesh* mesh, const QVariantMap& parameters, SceneMesh* referenceMesh)
+{
+	CacheKey key;
+	if (!mesh)
+		return key;
+	key.geometryRevision = mesh->geometryRevision();
+	key.transform = mesh->combinedRenderTransform();
+	key.parameters = parameters;
+	if (referenceMesh)
+	{
+		key.referenceMesh = referenceMesh;
+		key.referenceGeometryRevision = referenceMesh->geometryRevision();
+		key.referenceTransform = referenceMesh->combinedRenderTransform();
+	}
+	return key;
+}
+
 void SurfaceAnalysisOverlay::clearOverlay(SceneMesh* mesh)
 {
 	if (!mesh)

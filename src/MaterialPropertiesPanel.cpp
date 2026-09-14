@@ -1020,15 +1020,15 @@ void MaterialPropertiesPanel::connectTextureSignals()
 			// Channel Packing option (if gear button exists)
 			if (_textureSlots[type].gear)
 			{
-				menu.addAction(tr("Channel Packing..."), this, [this, type]() { openPackingDialogFor(type); });
+				menu.addAction(QIcon(":/icons/res/channel_packing.png"), tr("Channel Packing..."), this, [this, type]() { openPackingDialogFor(type); });
 				menu.addSeparator();
 			}
 
 			// Replace option
-			menu.addAction(tr("Replace..."), this, [this, btn]() { btn->click(); });
+			menu.addAction(QIcon(":/icons/res/fileopen.png"), tr("Replace..."), this, [this, btn]() { btn->click(); });
 
 			// Clear option
-			menu.addAction(tr("Clear"), this, [this, type]() {
+			menu.addAction(QIcon(":/icons/res/clear.png"), tr("Clear"), this, [this, type]() {
 				clearTextureMap(type);
 				applyButtonEmptyIcon(_textureSlots[type]);
 				updatePreview();
@@ -4348,11 +4348,11 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
 
 			// Add tree-specific menu items
-			menu.addAction(tr("Copy Name"), this, [materialName]() {
+			menu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy Name"), this, [materialName]() {
 				QApplication::clipboard()->setText(materialName);
 				});
 
-			menu.addAction(tr("Copy Key"), this, [materialKey]() {
+			menu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy Key"), this, [materialKey]() {
 				QApplication::clipboard()->setText(materialKey);
 				});
 
@@ -4365,14 +4365,14 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 			// Allow rename for user materials and unsaved materials (not factory)
 			if (isUserMaterial || isUnsavedMaterial)
 			{
-				menu.addAction(tr("Rename"), this, &MaterialPropertiesPanel::onRenameMaterial);
+				menu.addAction(QIcon(":/icons/res/rename.png"), tr("Rename"), this, &MaterialPropertiesPanel::onRenameMaterial);
 				menu.addSeparator();
 			}
 
 			// Allow deletion if it's a user or unsaved material
 			if (isUserMaterial || isUnsavedMaterial)
 			{
-				menu.addAction(tr("Delete"), this, &MaterialPropertiesPanel::onDeleteMaterial);
+				menu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), this, &MaterialPropertiesPanel::onDeleteMaterial);
 			}
 
 			menu.addSeparator();
@@ -4380,7 +4380,7 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 	}
 
 	// Add global panel option
-	menu.addAction(tr("Clear All Textures"), this, &MaterialPropertiesPanel::onClearAllTextures);
+	menu.addAction(QIcon(":/icons/res/clear_all_maps.png"), tr("Clear All Textures"), this, &MaterialPropertiesPanel::onClearAllTextures);
 	menu.exec(mapToGlobal(pos));
 }
 

@@ -38,6 +38,8 @@
 #include "MaterialPreviewWidget.h"
 #include "MeshProperties.h"
 #include "ModelViewer.h"
+#include "LengthUnits.h"
+#include "ImportUnitsDialog.h"
 #include "ModelViewerApplication.h"
 #include "MvfDocument.h"
 #include "MvfFormat.h"
@@ -311,6 +313,16 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		label_23->setVisible(hasItems);
 		searchBox->setVisible(hasItems);
 	});
+
+	// rebuild() only enqueues work and starts a batching timer - the actual
+	// selection restore happens later, in finalizeRebuild(), entirely under
+	// blockSignals(true) (so selectionUpdated/handleTreeWidgetSelectionChanged
+	// never fire for it - only rebuildComplete() does, once signals are
+	// unblocked again). Calling updateMeshTools() synchronously right after
+	// treeWidgetModel->rebuild() returns (as rebuildTreeFromCurrentState()
+	// used to) would see the tree still empty/mid-reconstruction and disable
+	// every mesh tool regardless of the selection about to be restored.
+	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, &ModelViewer::updateMeshTools);
 
 	// Exploded View Panel — created inside ViewportWidget; wire SceneGraph + selection clearing here.
 	{
@@ -2040,7 +2052,17 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	if (clickedAssembly)
 		treeWidgetModel->ensureAssemblySelectionAt(pos);
 
-	const bool hasMeshes = treeWidgetModel->hasMeshSelection();
+	// NOT hasMeshSelection(): on a first right-click of a previously
+	// unselected assembly, ensureAssemblySelectionAt() above selects only
+	// the assembly item itself (under blocked signals) - hasMeshSelection()
+	// only checks whether a SELECTED item is itself a leaf, so it would read
+	// false here even though the assembly has mesh descendants, hiding the
+	// entire mesh-operations section (Duplicate, Delete, ...) on that first
+	// click. selectedMeshUuids() correctly expands an assembly selection to
+	// its leaf descendants via collectLeaves(), matching what the menu
+	// actions below actually operate on (expandThen() re-expands the same
+	// way right before running).
+	const bool hasMeshes = !treeWidgetModel->selectedMeshUuids().isEmpty();
 
 	if (!hasMeshes && !clickedAssembly) return;
 
@@ -2130,7 +2152,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 
 		if (!parentUuid.isNull())
 		{
-			myMenu.addAction(tr("Select Parent"), this, [this, parentUuid, &actionTaken]() {
+			myMenu.addAction(QIcon(":/icons/res/select_parent.png"), tr("Select Parent"), this, [this, parentUuid, &actionTaken]() {
 				actionTaken = true;
 				treeWidgetModel->selectNodeByUuid(parentUuid);
 			});
@@ -2139,12 +2161,12 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	}
 
 	// ---- Copy / Cut --------------------------------------------------------
-	myMenu.addAction(tr("Copy"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"), this, [this, &actionTaken]() {
 		actionTaken = true;
 		copySelectedItems();
 	});
 
-	myMenu.addAction(tr("Cut"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut"), this, [this, &actionTaken]() {
 		actionTaken = true;
 		cutSelectedItems();
 	});
@@ -2152,24 +2174,50 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
 	if (clickedAssembly && assemblyNode && !s_clipboard.isEmpty())
 	{
-		myMenu.addAction(tr("Paste"), this,
+		myMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste"), this,
 		    [this, assemblyNode, &actionTaken]() {
 		        actionTaken = true;
 		        pasteIntoSelectedNode(assemblyNode);
 		    });
 	}
 
+	// ---- Import Units (synthetic file node only) ---------------------------
+	// SceneNode::importUnit lives on the synthetic per-import file node, not
+	// on an assembly/leaf mesh within it - see LengthUnits.h's own doc
+	// comment for the resolution order this sets the first link of. Reached
+	// here (not from Mass Properties/Surface Analysis themselves) because a
+	// unit is a property of one imported FILE, not of whatever multi-mesh
+	// selection happens to be open in one of those dialogs at the time.
+	if (clickedAssembly && assemblyNode && assemblyNode->isSynthetic)
+	{
+		// Deliberately does NOT set actionTaken - this action never touches
+		// the mesh selection (unlike the expandThen()-wrapped actions below,
+		// or Select Parent above, which both deliberately establish a new
+		// real selection). Leaving actionTaken false lets the "no action
+		// taken" path at the bottom of this function restore the real
+		// pre-click selection (savedSelection), undoing
+		// highlightSingleItemAt()'s purely-visual, signal-blocked narrowing
+		// above - without this, the tree/viewport are left in that
+		// transient single-item state with no real selection underneath it,
+		// so a later empty-viewport click has nothing valid to clear.
+		myMenu.addAction(QIcon(":/icons/res/import_units.png"), tr("Import Units..."), this, [this, nodeUuid = assemblyNode->nodeUuid]() {
+			if (SceneNode* fileNode = _sceneGraph->findNodeByUuid(nodeUuid))
+				showImportUnitsDialog(fileNode);
+		});
+		myMenu.addSeparator();
+	}
+
 	// ---- Mesh operations ---------------------------------------------------
 	if (hasMeshes)
 	{
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Center Screen"),   this, expandThen([this]() { centerScreen(); }));
-		myMenu.addAction(tr("Transformations"), this, expandThen([this]() { showTransformationsPage(); }));
-		myMenu.addAction(tr("Edit Material"),   this, expandThen([this]() { editMeshMaterial(); }));
+		myMenu.addAction(QIcon(":/icons/res/center_screen.png"), tr("Center Screen"), this, expandThen([this]() { centerScreen(); }));
+		myMenu.addAction(QIcon(":/icons/res/transformations.png"), tr("Transformations"), this, expandThen([this]() { showTransformationsPage(); }));
+		myMenu.addAction(QIcon(":/icons/res/material.png"), tr("Edit Material"), this, expandThen([this]() { editMeshMaterial(); }));
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Hide"),      this, expandThen([this]() { hideSelectedItems(); }));
-		myMenu.addAction(tr("Show"),      this, expandThen([this]() { showSelectedItems(); }));
-		myMenu.addAction(tr("Show Only"), this, expandThen([this]() { showOnlySelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/hide.png"), tr("Hide"), this, expandThen([this]() { hideSelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/show.png"), tr("Show"), this, expandThen([this]() { showSelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/show_only.png"), tr("Show Only"), this, expandThen([this]() { showOnlySelectedItems(); }));
 		myMenu.addSeparator();
 		// Duplicate is deliberately a leaf-only shortcut (see c5686ad's commit
 		// message): it clones each mesh flatly back into its own existing
@@ -2183,15 +2231,15 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// same way the ToolsToolbar's Duplicate button already does - only a
 		// genuine multi-mesh assembly still hides this entry.
 		if (!clickedAssembly || singleMeshAssembly)
-			myMenu.addAction(tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
-		myMenu.addAction(tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
-		myMenu.addAction(tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
-		myMenu.addAction(tr("Merge Selected"), this, expandThen([this]() { mergeSelectedMeshes(); }));
-		myMenu.addAction(tr("Mesh Union"), this, expandThen([this]() { unionSelectedMeshes(); }));
-		myMenu.addAction(tr("Group"), this, expandThen([this]() { groupSelectedMeshes(); }));
-		myMenu.addAction(tr("Delete"),    this, expandThen([this]() { deleteSelectedItems(); }));
+			myMenu.addAction(QIcon(":/icons/res/duplicate_meshes.png"), tr("Duplicate"), this, expandThen([this]() { duplicateSelectedItems(); }));
+		myMenu.addAction(QIcon(":/icons/res/split_by_connectivity.png"), tr("Split by Connectivity"), this, expandThen([this]() { splitSelectedMeshesByConnectivity(); }));
+		myMenu.addAction(QIcon(":/icons/res/merge_by_adjacency.png"), tr("Merge by Adjacency"), this, expandThen([this]() { mergeSelectedMeshesByAdjacency(); }));
+		myMenu.addAction(QIcon(":/icons/res/merge_selected.png"), tr("Merge Selected"), this, expandThen([this]() { mergeSelectedMeshes(); }));
+		myMenu.addAction(QIcon(":/icons/res/mesh_union.png"), tr("Mesh Union"), this, expandThen([this]() { unionSelectedMeshes(); }));
+		myMenu.addAction(QIcon(":/icons/res/group_meshes.png"), tr("Group"), this, expandThen([this]() { groupSelectedMeshes(); }));
+		myMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), this, expandThen([this]() { deleteSelectedItems(); }));
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
+		myMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
 	}
 
 	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
@@ -6156,6 +6204,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	if (!result.viewerState.isEmpty())
 	{
 		const QJsonObject& viewerState = result.viewerState;
+		// Older MVF files simply lack this key, correctly yielding Unknown -
+		// resolveEffectiveImportUnit() then falls through to the hardcoded
+		// Millimeter default, same as today's behavior for every such file.
+		_defaultImportUnit = lengthUnitFromString(
+			viewerState[QStringLiteral("defaultImportUnit")].toString(), LengthUnit::Unknown);
 		_viewportWidget->setCameraUpAxisZUp(
 			viewerState[QStringLiteral("cameraUpAxisZUp")].toBool(_viewportWidget->isCameraUpAxisZUp()));
 		_viewportWidget->setProjection(static_cast<ViewProjection>(
@@ -6665,6 +6718,12 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			lightOffset.x(), lightOffset.y(), lightOffset.z()});
 		viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
 		viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
+		// Only-write-if-non-default, same convention SceneNode::importUnit
+		// uses on the per-node side - an old MVF reader/file simply lacks
+		// this key, correctly falling through to the hardcoded Millimeter
+		// default (see resolveEffectiveImportUnit()'s own doc comment).
+		if (_defaultImportUnit != LengthUnit::Unknown)
+			viewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
 		package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
 	}
 
@@ -7231,7 +7290,11 @@ void ModelViewer::rebuildTreeFromCurrentState()
 	_treeRebuildPending = false;
 	treeWidgetModel->rebuild();
 	syncTreeVisibilityFromModel();
-    updateMeshTools();
+	// updateMeshTools() deliberately NOT called here - rebuild() only starts
+	// an async batched reconstruction, so the tree/selection aren't restored
+	// yet at this point. It's connected to SceneTreeWidget::rebuildComplete
+	// instead (see the constructor), which fires once the restore genuinely
+	// finishes.
 }
 
 void ModelViewer::scheduleTreeVisibilitySync(int delayMs)
@@ -7302,6 +7365,15 @@ void ModelViewer::editMeshMaterial()
 	} else {
 		MainWindow::showStatusMessage(tr("Editing material of %1").arg(meshName));
 	}
+}
+
+void ModelViewer::showImportUnitsDialog(SceneNode* fileNode)
+{
+	if (!fileNode)
+		return;
+
+	ImportUnitsDialog dialog(this, fileNode, this);
+	dialog.exec();
 }
 
 void ModelViewer::executeToolCommand(const QString& command)

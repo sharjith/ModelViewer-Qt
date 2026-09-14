@@ -1,13 +1,17 @@
 #pragma once
 
-
-class SceneMesh;
-
-#include <QObject>
 #include <QString>
 #include "BoundingBox.h"
 
-class RenderableMesh;
+// ---------------------------------------------------------------------------
+// Pure, background-thread-safe mesh property computations (surface area,
+// volume, centroid, topology validity, mass) - no class, no SceneMesh*, no
+// live mesh state. Originally a QObject-derived MeshProperties class held
+// this logic tied to a live mesh; it was replaced by these free functions
+// once MassPropertiesDialog moved to AnalysisComputeSession's background
+// worker (its only caller), which needs a plain point/index snapshot rather
+// than a live SceneMesh* to run off the UI thread - see AnalysisMeshSnapshot.
+// ---------------------------------------------------------------------------
 
 // Why volume/mass/centroid are unavailable, surfaced to the UI instead of a
 // bare "N/A" - see the Mass Properties feature's "every validity flag
@@ -31,78 +35,53 @@ enum class MeshPropertyUnavailableReason
 // enum) rather than each call site inventing its own wording.
 QString describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason reason);
 
-class MeshProperties : public QObject
+// Result of the closed/non-self-intersecting/bounds-a-volume topology
+// sequence - see computeMeshTopology()'s own doc comment for the exact
+// ordering and why it matters.
+struct MeshTopologyCheckResult
 {
-	Q_OBJECT
-public:
-	explicit MeshProperties(SceneMesh* mesh, QObject* parent = nullptr);
-
-	SceneMesh* mesh() const;
-	void setMesh(SceneMesh* mesh);
-
-	std::vector<float> meshPoints() const;
-
-	// Always valid whenever the raw per-triangle scan completes (see
-	// hasValidGeometry()) - computable regardless of closure/self-
-	// intersection/orientation, unlike everything below.
-	bool hasValidGeometry() const;
-	float surfaceArea() const; // only meaningful if hasValidGeometry()
-
-	// Valid only when the mesh passes all three checks, in order: closed
-	// (CGAL::is_closed), non-self-intersecting (PMP::does_self_intersect),
-	// and bounds a volume (PMP::does_bound_a_volume) - see
-	// calculateSurfaceAreaAndVolume()'s doc comment for why this exact order
-	// matters (does_bound_a_volume() is undefined behavior on input that
-	// fails the first two).
-	bool hasValidVolume() const;
-	float volume() const; // cubic mm - only meaningful if hasValidVolume()
-	MeshPropertyUnavailableReason volumeUnavailableReason() const; // meaningful only if !hasValidVolume()
-
-	// Geometric (uniform-density) centroid, derived from the same signed-
-	// volume integral as volume() - same validity as volume(), NOT the same
-	// thing as a real mass-weighted center of mass (that needs an actual
-	// density, computed one level up wherever multiple MeshProperties are
-	// combined for a multi-mesh selection).
-	QVector3D centerOfMass() const; // only meaningful if hasValidVolume()
-
-	// Density is deliberately NOT defaulted to any assumed value (e.g. the
-	// old hardcoded 1000 kg/m^3 "water" placeholder) - a mesh has no known
-	// mass at all until something (Material's real density, once wired in a
-	// later step) explicitly supplies one. -1 is a sentinel meaning "not
-	// supplied", never a physically valid density.
-	void setDensity(const float& density);
-	float density() const; // sentinel -1 if hasMass() is false - callers must check hasMass() first
-
-	// True only when BOTH hasValidVolume() and a real (non-sentinel)
-	// density have been supplied. weight() is a live COMPUTED value, not a
-	// cached field - calling setDensity() again always immediately changes
-	// what weight() returns, on the very next call, with nothing to go
-	// stale (the old version cached this in a private field that setDensity()
-	// never refreshed).
-	bool hasMass() const;
-	float weight() const; // kg - only meaningful if hasMass()
-
-	BoundingBox boundingBox() const;
-
-signals:
-
-private:
-	void calculateSurfaceAreaAndVolume();
-
-private:
-	SceneMesh* _mesh;
-	std::vector<float> _meshPoints;
-
-	bool _hasValidGeometry = false;
-	float _surfaceArea = 0.0f;
-
-	bool _hasValidVolume = false;
-	MeshPropertyUnavailableReason _volumeUnavailableReason = MeshPropertyUnavailableReason::None;
-	// Double precision, not float - see calculateSurfaceAreaAndVolume()'s
-	// doc comment on why the old float accumulators lost real precision on
-	// CAD-sized geometry.
-	double _volume = 0.0;
-	QVector3D _centerOfMass;
-
-	float _density = -1.0f; // sentinel: "not supplied" - see setDensity()'s doc comment
+	bool hasValidVolume = false;
+	MeshPropertyUnavailableReason unavailableReason = MeshPropertyUnavailableReason::None;
 };
+
+// The CGAL topology predicate sequence (weld exact-coincident duplicate
+// points, then is_closed -> does_self_intersect -> (only if both pass)
+// does_bound_a_volume, in that exact order - does_bound_a_volume() is
+// documented undefined behavior on non-closed/self-intersecting input) that
+// decides whether a raw point/index soup has a well-defined enclosed volume
+// at all.
+MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, const std::vector<unsigned int>& indices);
+
+// Surface area (always), and (only if computeMeshTopology() found a valid
+// volume) signed volume + volume-weighted centroid, all in the mesh's OWN
+// native coordinate units (i.e. NOT yet scaled by any resolved real-world
+// unit - see LengthUnits.h's resolveEffectiveImportUnit(); the caller
+// multiplies surfaceArea by scale^2, volume by scale^3, and centerOfMass by
+// scale^1 afterward, once it has resolved which unit this mesh's coordinates
+// are actually in).
+struct MeshGeometryComputeResult
+{
+	bool hasValidGeometry = false;
+	float surfaceArea = 0.0f;
+	bool hasValidVolume = false;
+	MeshPropertyUnavailableReason volumeUnavailableReason = MeshPropertyUnavailableReason::None;
+	double volume = 0.0;
+	QVector3D centerOfMass;
+};
+
+// The divergence-theorem surface-area/volume/centroid integral - double-
+// precision accumulators (CAD-sized meshes lose real precision in float),
+// summed relative to the mesh's own bounding-box center rather than the
+// world origin (a known precision trap when real CAD coordinates are far
+// from the origin). The result's centroid is divided by the SIGNED volume,
+// with fabs() applied only to the volume value reported as a magnitude,
+// never to the centroid itself - a centroid legitimately has negative
+// coordinates (e.g. a part centered left of the mesh's own bbox center).
+MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox);
+
+// Mass validity/weight - one real implementation shared by every caller
+// (MassPropertiesDialog's synchronous UI-thread total-accumulation and its
+// AnalysisComputeSession-backed per-mesh computation both need the exact
+// same two-line formula).
+bool meshHasMass(bool hasValidVolume, float density);
+float computeMeshWeight(double volumeInCubicMm, float density); // caller must have already checked meshHasMass(); density in kg/m^3

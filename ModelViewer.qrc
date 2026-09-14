@@ -123,6 +123,47 @@
         <file>res/merge_by_adjacency.png</file>
         <file>res/merge_selected.png</file>
         <file>res/split_by_connectivity.png</file>
+        <file>res/import_units.png</file>
+        <file>res/show_only.png</file>
+        <file>res/show.png</file>
+        <file>res/hide.png</file>
+        <file>res/center_screen.png</file>
+        <file>res/select_parent.png</file>
+        <file>res/paste.png</file>
+        <file>res/cut.png</file>
+        <file>res/copy.png</file>
+        <file>res/texture_debugger.png</file>
+        <file>res/ray_tracing.png</file>
+        <file>res/save_selection_set.png</file>
+        <file>res/filter_by_color.png</file>
+        <file>res/filter_by_material.png</file>
+        <file>res/settings.png</file>
+        <file>res/redo.png</file>
+        <file>res/undo.png</file>
+        <file>res/center_object_list.png</file>
+        <file>res/set_as_default.png</file>
+        <file>res/capture_variant.png</file>
+        <file>res/ungroup_captures.png</file>
+        <file>res/group_captures.png</file>
+        <file>res/edit_selection.png</file>
+        <file>res/rename.png</file>
+        <file>res/channel_packing.png</file>
+        <file>res/show_console.png</file>
+        <file>res/open_logs_folder.png</file>
+        <file>res/view_logs.png</file>
+        <file>res/tutorial.png</file>
+        <file>res/quick_help.png</file>
+        <file>res/about.png</file>
+        <file>res/exit.png</file>
+        <file>res/file_close.png</file>
+        <file>res/window_close_all.png</file>
+        <file>res/window_close.png</file>
+        <file>res/window_previous.png</file>
+        <file>res/window_next.png</file>
+        <file>res/cascade.png</file>
+        <file>res/tile_vertical.png</file>
+        <file>res/tile_horizontal.png</file>
+        <file>res/tile.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

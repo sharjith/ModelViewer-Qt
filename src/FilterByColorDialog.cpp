@@ -563,8 +563,8 @@ void FilterByColorDialog::onListContextMenuRequested(const QPoint& pos)
 		return;
 
 	QMenu menu(this);
-	QAction* copyAction = menu.addAction(tr("Copy Hex Color"));
-	QAction* removeAction = menu.addAction(tr("Remove Color"));
+	QAction* copyAction = menu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy Hex Color"));
+	QAction* removeAction = menu.addAction(QIcon(":/icons/res/delete.png"), tr("Remove Color"));
 	QAction* chosen = menu.exec(_list->viewport()->mapToGlobal(pos));
 	if (chosen == copyAction)
 		QGuiApplication::clipboard()->setText(toQColor(_colors[index]).name().toUpper());

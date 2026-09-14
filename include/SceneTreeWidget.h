@@ -176,6 +176,21 @@ public:
     // Top-level only — does not deduplicate against selected ancestors.
     QList<const SceneNode*> selectedAssemblyNodes() const;
 
+    // Subset of selectedAssemblyNodes() the user actually clicked/targeted
+    // directly, excluding ones selected purely as a side effect of every one
+    // of their direct children being selected (refreshParentSelectionUpward()
+    // enforces "parent selected iff all direct children selected", so a
+    // multi-mesh assembly whose leaves were all individually selected ends
+    // up looking IDENTICAL, in the resulting tree selection, to that same
+    // assembly having been clicked directly - the two cases are only
+    // distinguishable at the moment of the interaction itself, tracked via
+    // _explicitlySelectedAssemblyUuids). Callers that need to tell "user
+    // wants to act on this assembly as a group" apart from "user selected
+    // all its meshes individually" (e.g. deciding whether Duplicate should
+    // fall back to its leaf-only flat-clone behavior) should use this
+    // instead of selectedAssemblyNodes().
+    QList<const SceneNode*> explicitlySelectedAssemblyNodes() const;
+
     // Clear the current selection and select only the item at localPos.
     // Blocks selectionUpdated so no downstream handlers fire.
     // Used by the context menu to give single-item visual feedback.
@@ -286,6 +301,17 @@ protected:
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
     void onItemSelectionChanged();
+
+    // Marks a non-leaf item's node UUID as explicitly selected the moment
+    // the user clicks it - QTreeWidget::itemClicked fires for ANY left-
+    // click landing on an item's row regardless of whether the click
+    // actually changed Qt's selection state, unlike
+    // onItemSelectionChanged()'s added/removed delta (which misses a click
+    // on an item that was already selected, e.g. one that got auto-selected
+    // by refreshParentSelectionUpward() because all its children happened
+    // to already be selected - clicking it directly afterward is a real,
+    // deliberate targeting that delta-based tracking alone can't see).
+    void onItemClicked(QTreeWidgetItem* item, int column);
     void processRebuildBatch();
 
 private:
@@ -388,6 +414,33 @@ private:
     bool _pressExpanded = false;
     bool _pressValid = false;
     QSet<QTreeWidgetItem*> _prevSelection;
+
+    // Node UUIDs of non-leaf items the user (or a caller acting deliberately
+    // on their behalf, e.g. "Select Parent") directly targeted, as opposed
+    // to ones that became selected only because refreshParentSelectionUpward()
+    // enforces "parent selected iff all direct children selected" - see
+    // explicitlySelectedAssemblyNodes()'s own doc comment for why this
+    // distinction can't be recovered from the resulting selection state
+    // alone. Set by onItemClicked() (fires on ANY click landing on an
+    // item's row, regardless of whether the click changed Qt's selection -
+    // onItemSelectionChanged()'s added/removed delta alone would miss a
+    // click on an already-selected item) and by ensureAssemblySelectionAt()/
+    // selectNodeByUuid() for their own equally-deliberate single target
+    // (both bypass onItemClicked, going through blockSignals instead).
+    // Pruned by onItemSelectionChanged() AFTER its own propagation
+    // (applySubtreeSelect/refreshParentSelectionUpward) has fully settled -
+    // not from the raw added/removed delta computed before propagation
+    // runs, since a parent can be auto-deselected (or selected) there as a
+    // side effect of a child's own click, entirely outside that delta. Also
+    // cleared wholesale by every OTHER programmatic (non-click) selection rewrite
+    // (rebuild(), setSelectionByUuids(), clearMeshSelection(),
+    // filterItems()) - none of those represent a deliberate single-assembly
+    // click, so any assembly they leave selected is always a fresh closure
+    // selection, never explicit. Stores UUIDs rather than QTreeWidgetItem*
+    // so a stale entry left behind by a tree rebuild is simply never matched
+    // by explicitlySelectedAssemblyNodes()'s filter, never a dangling
+    // pointer.
+    QSet<QUuid> _explicitlySelectedAssemblyUuids;
 
     // Apply/clear cut-mark gray styling.  Called by markAsCut, clearCutMarks,
     // and finalizeRebuild (to re-apply marks after a tree rebuild).

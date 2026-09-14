@@ -56,4 +56,12 @@ class WallThicknessAnalyzer
 {
 public:
 	static WallThicknessResult computeThickness(SceneMesh* mesh);
+
+	// Snapshot-based entry point - identical computation, but reads world-
+	// space points/indices directly instead of a live SceneMesh*, so it's
+	// safe to call from a background thread against an AnalysisMeshSnapshot's
+	// copied-out geometry. The SceneMesh* overload above is now a thin
+	// wrapper around this one.
+	static WallThicknessResult computeThickness(
+		const std::vector<float>& points, const std::vector<unsigned int>& indices);
 };

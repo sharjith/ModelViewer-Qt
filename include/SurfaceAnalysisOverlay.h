@@ -3,6 +3,7 @@
 #include <QMatrix4x4>
 #include <QVariantMap>
 #include <QHash>
+#include <QList>
 #include <vector>
 
 #include "AnalysisColorRamp.h"
@@ -33,9 +34,14 @@ class SceneMesh;
 // invalidation are NOT yet wired to anything - isValid() currently has no
 // caller, a known, disclosed gap (not a silent one): an in-flight overlay can
 // go stale if the analyzed mesh's geometry changes, or its transform/
-// reference-mesh state changes, while the dialog stays open. This class
-// still provides the mechanism (the cache key already carries everything
-// needed to detect staleness); only the triggers remain to be connected.
+// reference-mesh state changes, while the dialog stays open. computeCurrentKey()/
+// trackedMeshes()/storedKey() below exist specifically so a future idle-poll
+// trigger (planned: comparing RenderableMesh::currentRuntimeBoundsRevision(),
+// which already ticks on every transform change, against a last-seen value -
+// see that revision counter's own doc comment - since no transform-changed
+// signal exists anywhere on SceneMesh/RenderableMesh today) can be added as a
+// pure caller-side addition, with no further changes needed here; that
+// trigger is not wired up yet.
 class SurfaceAnalysisOverlay
 {
 public:
@@ -66,6 +72,20 @@ public:
 				&& referenceTransform == other.referenceTransform;
 		}
 	};
+
+	// Builds the CacheKey for `mesh`'s CURRENT live state (geometry revision +
+	// transform, and the same for `referenceMesh` when given), with the
+	// caller-supplied `parameters` copied straight through unexamined. This is
+	// the one place that logic lives - extracted from what every
+	// SurfaceAnalysisDialog Apply handler used to hand-write inline - reused
+	// at three points: stamping a freshly-captured AnalysisMeshSnapshot's own
+	// key (what a background worker's result is computed against), comparing
+	// against that key once a worker result comes back (reject a stale
+	// result rather than applying it), and periodically re-checking an
+	// already-applied entry's key against isValid() while the dialog sits
+	// idle (catches a later transform-only change - see isValid()'s own doc
+	// comment on why that trigger doesn't exist yet without this).
+	static CacheKey computeCurrentKey(SceneMesh* mesh, const QVariantMap& parameters, SceneMesh* referenceMesh = nullptr);
 
 	// Applies a freshly-computed PER-VERTEX result (curvature/thickness/
 	// deviation - one scalar per vertex, smoothly interpolated across each
@@ -114,6 +134,18 @@ public:
 	// staleness - use isValid() instead when the question is "can I trust
 	// this result", not just "is something currently showing".
 	bool hasOverlay(SceneMesh* mesh) const;
+
+	// Every mesh this instance currently has a cached overlay for - lets a
+	// caller (the idle staleness poll) enumerate what to re-validate without
+	// this class exposing its internal _entries storage directly.
+	QList<SceneMesh*> trackedMeshes() const;
+
+	// The CacheKey a mesh's cached overlay was originally computed against -
+	// a default-constructed CacheKey if `mesh` has no cached entry. Lets a
+	// caller re-derive computeCurrentKey()'s `parameters`/`referenceMesh`
+	// arguments (the analysis-mode-specific parts isValid() alone can't
+	// reconstruct) without needing to have kept its own copy around.
+	CacheKey storedKey(SceneMesh* mesh) const;
 
 	// Definitive teardown for one mesh - calls SceneMesh::clearAnalysisOverlay()
 	// and drops this class's own cached scalar-field data for it. MUST be
