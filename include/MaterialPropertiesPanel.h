@@ -60,6 +60,7 @@ public:
 	QVector3D getAlbedoColor() const;
 	float getMetalness() const;
 	float getRoughness() const;
+	float getDensity() const; // kg/m^3, -1 sentinel if Material::hasDensity() is false
 	float getIOR() const;
 	float getOpacity() const;
 	float getEmissiveStrength() const;
@@ -145,6 +146,9 @@ private slots:
 	void onAlbedoColorPicked();
 	void onMetallicChanged(double value);
 	void onRoughnessChanged(double value);
+	void onDensityChanged(double value);
+	void onDensityNotApplicableToggled(bool checked);
+	void onDensityClearClicked();
 	void onIORChanged(double value);
 	void onOpacityChanged(double value);
 	void onEmissiveStrengthChanged(double value);

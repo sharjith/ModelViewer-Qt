@@ -399,6 +399,12 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onMetallicChanged);
 	if (_ui->roughnessSpin)
 		connect(_ui->roughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onRoughnessChanged);
+	if (_ui->densitySpin)
+		connect(_ui->densitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onDensityChanged);
+	if (_ui->densityNotApplicableCheck)
+		connect(_ui->densityNotApplicableCheck, &QCheckBox::toggled, this, &MaterialPropertiesPanel::onDensityNotApplicableToggled);
+	if (_ui->densityClearButton)
+		connect(_ui->densityClearButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onDensityClearClicked);
 	if (_ui->iorSpin)
 		connect(_ui->iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIORChanged);
 	if (_ui->opacitySpin)
@@ -591,6 +597,12 @@ float MaterialPropertiesPanel::getRoughness() const
 	return _material->roughness();
 }
 
+float MaterialPropertiesPanel::getDensity() const
+{
+	if (!_material || !_material->hasDensity()) return -1.0f;
+	return _material->density();
+}
+
 float MaterialPropertiesPanel::getIOR() const
 {
 	if (!_material) return 1.5f;
@@ -725,6 +737,69 @@ void MaterialPropertiesPanel::onMetallicChanged(double value)
 	}
 }
 void MaterialPropertiesPanel::onRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+
+void MaterialPropertiesPanel::onDensityChanged(double value)
+{
+	// densitySpin's minimum (-1) IS the Unknown sentinel (shown via
+	// specialValueText "Unknown" rather than the literal number) - this
+	// maps straight through to setDensity() with no special-casing needed,
+	// since Material::density()'s own -1 sentinel convention matches
+	// exactly. No preview/GPU-relevant change results from density (it
+	// doesn't affect rendering, only the Mass Properties rollup), so this
+	// deliberately skips updatePreview()/materialChanged() - unlike every
+	// visual scalar property above - while still marking the material
+	// modified so it gets saved.
+	if (_material && !_updateInProgress)
+	{
+		_material->setDensity(static_cast<float>(value));
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+	}
+}
+
+void MaterialPropertiesPanel::onDensityNotApplicableToggled(bool checked)
+{
+	if (_material && !_updateInProgress)
+	{
+		_material->setDensityApplicable(!checked);
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+	}
+	if (_ui->densitySpin)
+	{
+		_ui->densitySpin->setEnabled(!checked);
+		// Refresh the displayed number to match what the material now
+		// reports, under the update guard so this doesn't loop back into
+		// onDensityChanged(). setDensityApplicable() deliberately retains
+		// the underlying _density value across a false->true->false round
+		// trip (see its own comment) so unchecking "Not applicable" can
+		// restore a previously-typed number - but leaving the spinbox
+		// showing stale "Unknown"/old text after that restore would mean
+		// Apply/Mass Properties silently uses a value the UI never
+		// actually displayed.
+		const bool wasUpdating = _updateInProgress;
+		_updateInProgress = true;
+		_ui->densitySpin->setValue(_material && _material->hasDensity() ? _material->density() : -1.0);
+		_updateInProgress = wasUpdating;
+	}
+	if (_ui->densityClearButton)
+		_ui->densityClearButton->setEnabled(!checked);
+}
+
+void MaterialPropertiesPanel::onDensityClearClicked()
+{
+	if (!_material)
+		return;
+	_material->clearDensity();
+	updateUnsavedMaterialInMap();
+	markMaterialAsModified();
+	if (_ui->densitySpin)
+	{
+		_updateInProgress = true;
+		_ui->densitySpin->setValue(-1.0);
+		_updateInProgress = false;
+	}
+}
 void MaterialPropertiesPanel::onIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIOR(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onOpacityChanged(double value) { if (_material && !_updateInProgress) { _material->setOpacity(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setEmissiveStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
@@ -1209,6 +1284,15 @@ void MaterialPropertiesPanel::loadScalarValuesFromMaterial()
 	// Scalar numeric properties
 	if (_ui->metalnessSpin) _ui->metalnessSpin->setValue(_material->metalness());
 	if (_ui->roughnessSpin) _ui->roughnessSpin->setValue(_material->roughness());
+	// hasDensity() ? density() : -1.0 rather than density() directly - a
+	// stale internal value can survive a !isDensityApplicable() material
+	// (see Material::setDensityApplicable()'s own comment on why that's not
+	// eagerly cleared), and the spin box must always show Unknown (-1) for
+	// such a material regardless.
+	if (_ui->densitySpin) _ui->densitySpin->setValue(_material->hasDensity() ? _material->density() : -1.0);
+	if (_ui->densityNotApplicableCheck) _ui->densityNotApplicableCheck->setChecked(!_material->isDensityApplicable());
+	if (_ui->densitySpin) _ui->densitySpin->setEnabled(_material->isDensityApplicable());
+	if (_ui->densityClearButton) _ui->densityClearButton->setEnabled(_material->isDensityApplicable());
 	if (_ui->iorSpin) _ui->iorSpin->setValue(_material->ior());
 	if (_ui->opacitySpin) _ui->opacitySpin->setValue(_material->opacity());
 	if (_ui->emissiveSpin) _ui->emissiveSpin->setValue(_material->emissiveStrength());

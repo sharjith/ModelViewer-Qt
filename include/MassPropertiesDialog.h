@@ -45,5 +45,7 @@ private:
 	QLabel* _noSelectionLabel = nullptr;
 	QTableWidget* _table = nullptr;
 	QLabel* _totalsLabel = nullptr;
+	QLabel* _materialBreakdownLabel = nullptr;
+	QTableWidget* _materialTable = nullptr; // per-material mass breakdown - own scrollable table (P2 Codex fix: an assembly with many materials must not force the dialog past the screen)
 	QPushButton* _closeButton = nullptr;
 };

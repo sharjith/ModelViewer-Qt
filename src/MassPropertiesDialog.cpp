@@ -3,6 +3,7 @@
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
 #include "MeshProperties.h"
+#include "Material.h"
 
 #include <QVBoxLayout>
 #include <QLabel>
@@ -12,6 +13,7 @@
 #include <QStringList>
 #include <QVector3D>
 #include <QApplication>
+#include <QMap>
 
 MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -38,7 +40,10 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	// wrongly-labeled engineering measurement is worse than an admittedly
 	// unverified one.
 	auto* unitsNote = new QLabel(tr("Units below assume millimetre input (not yet verified against the "
-	                                 "source file/import) - treat mm²/mm³/kg as provisional."), this);
+	                                 "source file/import) - treat mm²/mm³/kg as provisional. Density comes "
+	                                 "from each mesh's assigned material; library-supplied values are typical/"
+	                                 "nominal figures for a generic grade, not an exact spec - verify before "
+	                                 "relying on Mass for an engineering-critical calculation."), this);
 	unitsNote->setWordWrap(true);
 	layout->addWidget(unitsNote);
 
@@ -61,6 +66,26 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_totalsLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
 	layout->addWidget(_totalsLabel);
 
+	// Per-material mass breakdown, in its OWN table rather than appended as
+	// more lines onto _totalsLabel above - a selection spanning many
+	// distinctly-named materials would otherwise keep growing that label
+	// without bound and push the table/buttons off-screen. A QTableWidget
+	// scrolls natively within whatever space this layout gives it, the same
+	// way _table above already does, instead of forcing the dialog itself
+	// to grow to fit every row.
+	_materialBreakdownLabel = new QLabel(tr("Mass by Material:"), this);
+	layout->addWidget(_materialBreakdownLabel);
+
+	_materialTable = new QTableWidget(this);
+	_materialTable->setColumnCount(2);
+	_materialTable->setHorizontalHeaderLabels({ tr("Material"), tr("Mass (kg)") });
+	_materialTable->horizontalHeader()->setStretchLastSection(true);
+	_materialTable->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+	_materialTable->verticalHeader()->setVisible(false);
+	_materialTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+	_materialTable->setSelectionMode(QAbstractItemView::NoSelection);
+	layout->addWidget(_materialTable, 1);
+
 	_closeButton = new QPushButton(tr("Close"), this);
 	connect(_closeButton, &QPushButton::clicked, this, &QDialog::accept);
 	auto* buttonRow = new QHBoxLayout();
@@ -81,6 +106,9 @@ void MassPropertiesDialog::populate()
 	_noSelectionLabel->setVisible(selected.empty());
 	_table->setVisible(!selected.empty());
 	_totalsLabel->setVisible(!selected.empty());
+	_materialBreakdownLabel->setVisible(false);
+	_materialTable->setVisible(false);
+	_materialTable->setRowCount(0);
 	if (selected.empty())
 		return;
 
@@ -105,6 +133,23 @@ void MassPropertiesDialog::populate()
 	QVector3D massWeightedCentroidAccum;
 	double massWeightSum = 0.0;
 
+	// Mass rollup grouped by material NAME - the only identity Material
+	// exposes (it carries no UUID), so two differently-configured materials
+	// that happen to share a display name are indistinguishable here; a
+	// known, documented limitation (per Step 8's plan) rather than a silent
+	// inaccuracy. Computed per-mesh, before grouping - each mesh's mass
+	// comes from ITS OWN material's density, never a group-level density
+	// applied after the fact, so two same-named-but-differently-configured
+	// materials never silently share one density value.
+	struct MaterialMassGroup
+	{
+		double knownMassSubtotal = 0.0;
+		int excludedCount = 0;
+		int totalCount = 0;
+		QStringList exclusionReasons;
+	};
+	QMap<QString, MaterialMassGroup> massByMaterial;
+
 	// Cheap interim mitigation, not real async: MeshProperties' CGAL topology
 	// checks (is_closed/does_self_intersect/does_bound_a_volume) run
 	// synchronously on the UI thread per mesh below and can take a
@@ -119,6 +164,13 @@ void MassPropertiesDialog::populate()
 	{
 		SceneMesh* mesh = meshStore.at(id);
 		MeshProperties props(mesh);
+
+		// Sourced from THIS mesh's own material - no fallback density, ever
+		// (see Material::hasDensity()'s own doc comment on why a material
+		// with no known density must never silently default to one).
+		const Material meshMaterial = mesh->getMaterial();
+		if (meshMaterial.hasDensity())
+			props.setDensity(meshMaterial.density());
 
 		_table->setItem(row, 0, new QTableWidgetItem(mesh->getName()));
 
@@ -159,12 +211,16 @@ void MassPropertiesDialog::populate()
 			allHaveVolume = false;
 		}
 
+		MaterialMassGroup& group = massByMaterial[meshMaterial.name()];
+		++group.totalCount;
+
 		if (props.hasMass())
 		{
 			_table->setItem(row, 3, new QTableWidgetItem(QString::number(props.weight(), 'f', 3)));
 			knownMassSubtotal += props.weight();
 			massWeightedCentroidAccum += props.centerOfMass() * props.weight();
 			massWeightSum += props.weight();
+			group.knownMassSubtotal += props.weight();
 		}
 		else
 		{
@@ -180,6 +236,10 @@ void MassPropertiesDialog::populate()
 			if (!massExclusionReasons.contains(reason))
 				massExclusionReasons.append(reason);
 			allHaveMass = false;
+
+			++group.excludedCount;
+			if (!group.exclusionReasons.contains(reason))
+				group.exclusionReasons.append(reason);
 		}
 
 		++row;
@@ -208,18 +268,55 @@ void MassPropertiesDialog::populate()
 			.arg(knownVolumeSubtotal, 0, 'f', 2).arg(volumeExcludedCount).arg(selected.size())
 			.arg(volumeExclusionReasons.join(QStringLiteral(", ")));
 
-	// Mass is always "before Step 8, no material carries a real density"
-	// today - MeshProperties never defaults density to a fake value, so this
-	// correctly reads as fully excluded (known subtotal 0, all meshes
-	// listed as missing density) rather than silently showing the old
-	// hardcoded-1000-kg/m^3 estimate the previous version of this dialog's
-	// source data used to compute.
+	// Mass is sourced entirely from each mesh's own material's density
+	// (Step 8) - MeshProperties never defaults density to a fake value, so
+	// a mesh whose material has no assigned density (or no material at
+	// all) correctly reads as excluded here rather than silently using the
+	// old hardcoded-1000-kg/m^3 estimate this dialog's data used to compute
+	// before Step 8.
 	if (massExcludedCount == 0)
 		totals += tr("Mass: %1 kg\n").arg(knownMassSubtotal, 0, 'f', 3);
 	else
 		totals += tr("Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)\n")
 			.arg(knownMassSubtotal, 0, 'f', 3).arg(massExcludedCount).arg(selected.size())
 			.arg(massExclusionReasons.join(QStringLiteral(", ")));
+
+	// Per-material breakdown, same known-subtotal + excluded-count + reasons
+	// convention as the assembly-level totals above - a group with some but
+	// not all contributing meshes lacking density shows its OWN subtotal and
+	// exclusions, never a bare "-" the way an earlier draft of this dialog
+	// would have. Grouped by material NAME (see massByMaterial's own doc
+	// comment on why - Material carries no UUID).
+	//
+	// Rendered into its own scrollable table (_materialTable), not appended
+	// as more text onto _totalsLabel - a selection spanning many distinctly-
+	// named materials must not keep growing a plain label without bound and
+	// push the rest of the dialog off-screen (P2 Codex fix).
+	_materialBreakdownLabel->setVisible(!massByMaterial.isEmpty());
+	_materialTable->setVisible(!massByMaterial.isEmpty());
+	_materialTable->setRowCount(static_cast<int>(massByMaterial.size()));
+	int materialRow = 0;
+	for (auto it = massByMaterial.constBegin(); it != massByMaterial.constEnd(); ++it)
+	{
+		const MaterialMassGroup& group = it.value();
+		auto* nameItem = new QTableWidgetItem(it.key());
+		nameItem->setToolTip(it.key());
+		_materialTable->setItem(materialRow, 0, nameItem);
+		const QString massText = (group.excludedCount == 0)
+			? tr("%1 kg").arg(group.knownMassSubtotal, 0, 'f', 3)
+			: tr("%1 kg known (%2 of %3 mesh(es) excluded - %4)")
+				.arg(group.knownMassSubtotal, 0, 'f', 3)
+				.arg(group.excludedCount).arg(group.totalCount)
+				.arg(group.exclusionReasons.join(QStringLiteral(", ")));
+		auto* massItem = new QTableWidgetItem(massText);
+		// A mixed-validity group's exclusion-reasons list can run longer than
+		// the column is wide (elided text in a fixed-height row silently hides
+		// which reasons are involved) - the tooltip always carries the full,
+		// un-elided string regardless of column width.
+		massItem->setToolTip(massText);
+		_materialTable->setItem(materialRow, 1, massItem);
+		++materialRow;
+	}
 
 	// Geometric centroid: uniform-density-assumption centroid, volume-
 	// weighted across the selection - available whenever every mesh has a

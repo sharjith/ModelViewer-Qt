@@ -51,6 +51,14 @@ private:
 
     QList<Group> _groups;
     QMap<QString, QVariantMap> _rawByKey;
+    // Item::name lives on the Group entries but "key" isn't unique across
+    // groups' insertion order the way a flat lookup needs - mirrors
+    // _rawByKey's key->value shape so materialForKey() can stamp the
+    // catalog's own display name onto the Material it builds, the same way
+    // every other Material::fromVariantMap() caller in this codebase already
+    // does explicitly (props deliberately excludes "name"/"key" - see the
+    // populating loop's own comment on why).
+    QMap<QString, QString> _nameByKey;
     mutable QMap<QString, QSharedPointer<Material>> _cache;
     mutable QMutex _cacheMutex;
 };

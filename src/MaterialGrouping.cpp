@@ -229,7 +229,21 @@ namespace
 			+ packingKey(mat.packingFor(QStringLiteral("metallic"))) + QLatin1Char('|')
 			+ packingKey(mat.packingFor(QStringLiteral("roughness"))) + QLatin1Char('|')
 			+ packingKey(mat.packingFor(QStringLiteral("ao"))) + QLatin1Char('|')
-			+ packingKey(mat.packingFor(QStringLiteral("opacity")));
+			+ packingKey(mat.packingFor(QStringLiteral("opacity"))) + QLatin1Char('|')
+			// -- Physical properties (Step 8) -- keyed on EFFECTIVE state
+			// (hasDensity()/density()), never raw _density directly: a
+			// material with isDensityApplicable()==false can still carry a
+			// stale retained _density value (Material::setDensityApplicable()'s
+			// own comment explains why it's kept, not cleared, so re-checking
+			// "applicable" can restore what the user typed) - grouping on the
+			// raw value would wrongly split two otherwise-identical
+			// not-applicable materials that merely differ in leftover, unused
+			// stale numbers. hasDensity() collapses that correctly: two
+			// not-applicable materials always key identically here regardless
+			// of what's stashed underneath.
+			+ b(mat.isDensityApplicable()) + QLatin1Char('|')
+			+ b(mat.hasDensity()) + QLatin1Char('|')
+			+ f(mat.hasDensity() ? mat.density() : -1.0f);
 
 		// Every texture slot: the LIVE bound image path (see
 		// liveTexturePath()'s own doc comment for why NOT texture(type).path),

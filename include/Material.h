@@ -214,6 +214,26 @@ public:
 	float opacity() const { return _opacity; }
 	void setOpacity(float opacity);
 
+	// Physical (engineering) properties - deliberately NOT defaulted to any
+	// assumed value (see MeshProperties.h's own identical principle for
+	// volume/mass) - a material has no known density at all until something
+	// explicitly supplies one. Three real states, not just a bool:
+	//   - Not applicable (isDensityApplicable() == false): a thin-film/
+	//     decorative material (car paint, clearcoat, sheen) where a BULK
+	//     density is physically meaningless - assigning one would make a
+	//     solid part rendered with that material report the weight of a
+	//     panel-shaped block of paint.
+	//   - Unknown (applicable but !hasDensity()): density() reads the -1
+	//     sentinel, never a fabricated default.
+	//   - A real value, INCLUDING density()==0 - a legitimate, deliberately
+	//     accepted value, not treated as "unset".
+	bool hasDensity() const { return _densityApplicable && _density >= 0.0f; }
+	float density() const { return _density; } // sentinel -1 if !hasDensity()
+	void setDensity(float density);
+	void clearDensity(); // resets to Unknown - does NOT touch isDensityApplicable()
+	bool isDensityApplicable() const { return _densityApplicable; }
+	void setDensityApplicable(bool applicable);
+
 	// Enhanced emissive properties
 	float emissiveStrength() const { return _emissiveStrength; }
 	void setEmissiveStrength(float strength) { _emissiveStrength = strength; }
@@ -1154,6 +1174,11 @@ private:
 	float _metalness;
 	float _roughness;
 	float _opacity;
+
+	// Physical (engineering) properties - see the accessors above for the
+	// three-state (Not Applicable / Unknown / real value) model.
+	float _density = -1.0f;          // sentinel: "not supplied" (Unknown)
+	bool  _densityApplicable = true; // false for thin-film/decorative presets
 
 	// Advanced PBR properties
 	float _ior; // Index of refraction

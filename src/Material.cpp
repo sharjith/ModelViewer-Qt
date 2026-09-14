@@ -328,7 +328,31 @@ void Material::setRoughness(float roughness)
 
 void Material::setOpacity(float opacity)
 {
-	_opacity = opacity;	
+	_opacity = opacity;
+}
+
+
+void Material::setDensity(float density)
+{
+	_density = density;
+}
+
+void Material::clearDensity()
+{
+	_density = -1.0f;
+}
+
+void Material::setDensityApplicable(bool applicable)
+{
+	// Deliberately does NOT clear _density when set false - hasDensity()
+	// already correctly reports "no density" whenever !applicable
+	// regardless of whatever _density happens to hold, so a user toggling
+	// "Not applicable" off and back on in the UI doesn't lose a value they
+	// already typed. The one place a stale _density alongside
+	// applicable==false actually matters is persistence, where
+	// toVariantMap()/fromVariantMap() enforce the invariant explicitly
+	// (see their own comments) rather than relying on this setter to do it.
+	_densityApplicable = applicable;
 }
 
 Material Material::getPredefinedMaterial(Material::PredefinedMaterials type)
@@ -3589,6 +3613,28 @@ Material Material::fromVariantMap(const QVariantMap& m)
 	}
 
 	if (m.contains("roughness"))        mat._roughness = qBound(0.0f, readFloat(m.value("roughness"), mat._roughness), 1.0f);
+
+	// --- Physical (engineering) properties ---
+	// An old MVF/catalog file with neither key present correctly leaves
+	// mat._densityApplicable/_density at the constructor's own defaults
+	// (true / -1 sentinel = Unknown), not some fabricated value.
+	if (m.contains("densityApplicable"))
+		mat._densityApplicable = readBool(m.value("densityApplicable"), mat._densityApplicable);
+	// densityApplicable:false wins over a present density key - resolves a
+	// hand-edited/corrupted file with both set contradictorily, per this
+	// app's stated precedence rule, rather than leaving it undefined. Only
+	// even attempted when applicable, so the discarded-density case doesn't
+	// need its own separate branch.
+	if (mat._densityApplicable && m.contains("density"))
+	{
+		const float d = readFloat(m.value("density"), -1.0f);
+		// Reject non-finite or negative-non-sentinel stored values back to
+		// Unknown, rather than trusting a corrupted file's number outright -
+		// density()==0 is a legitimate real value and must survive this
+		// check untouched.
+		mat._density = (std::isfinite(d) && d >= 0.0f) ? d : -1.0f;
+	}
+
 	if (m.contains("normalScale"))      mat._normalScale = readFloat(m.value("normalScale"), mat._normalScale);
 	if (m.contains("heightScale"))      mat._heightScale = readFloat(m.value("heightScale"), mat._heightScale);
 	if (m.contains("clearcoatNormalScale")) mat._clearcoatNormalScale = readFloat(m.value("clearcoatNormalScale"), mat._clearcoatNormalScale);
@@ -3872,6 +3918,19 @@ QVariantMap Material::toVariantMap() const
 	// Keep legacy boolean for compatibility
 	m.insert("metallic", QVariant(metallic())); // boolean
 	m.insert("roughness", QVariant(roughness()));
+
+	// --- Physical (engineering) properties ---
+	// densityApplicable is always written; density is written ONLY when
+	// hasDensity() is true - this means a material with applicable==false
+	// never persists a density value even if a stale one is sitting in
+	// memory (see setDensityApplicable()'s own comment on why that's not
+	// cleared eagerly), and one with applicable==true but Unknown density
+	// simply omits the key, matching how an old MVF file with neither key
+	// present already reads as Unknown by default.
+	m.insert("densityApplicable", QVariant(isDensityApplicable()));
+	if (hasDensity())
+		m.insert("density", QVariant(density()));
+
 	m.insert("normalScale", QVariant(normalScale()));
 	m.insert("heightScale", QVariant(heightScale()));
 	m.insert("clearcoatNormalScale", QVariant(clearcoatNormalScale()));

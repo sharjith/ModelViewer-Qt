@@ -281,9 +281,18 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 			{
 				QVariantMap props = it.props; // capture by value
 				const QString key = it.key;
-				// Insert a factory that creates a Material from the props
-				s_materialMap.insert(key, [props]() -> Material {
-					return Material::fromVariantMap(props);
+				const QString name = it.name;
+				// Insert a factory that creates a Material from the props.
+				// fromVariantMap() never touches "name" (MaterialRegistry
+				// deliberately strips it from props before storing - see
+				// its own comment) - stamp it here explicitly, or every
+				// material this factory hands out (and anything grouping by
+				// Material::name(), e.g. Mass Properties' per-material
+				// rollup) comes back with an empty name.
+				s_materialMap.insert(key, [props, name]() -> Material {
+					Material mat = Material::fromVariantMap(props);
+					mat.setName(name);
+					return mat;
 					});
 				itemsInGroup.emplace_back(it.name, it.key);
 			}
@@ -413,8 +422,9 @@ bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 			QVariantMap props = itObj.toVariantMap();
 
 			// Insert/overwrite factory in shared map. User materials override existing keys.
-			// Lambda captures props, userPath, and key to resolve relative texture paths
-			s_materialMap.insert(key, [props, userPath, key]() -> Material {
+			// Lambda captures props, userPath, key, and name to resolve relative texture
+			// paths and stamp the display name (fromVariantMap() never reads "name" itself).
+			s_materialMap.insert(key, [props, userPath, key, name]() -> Material {
 				// Make a copy of props to resolve relative paths
 				QVariantMap propsResolved = props;
 
@@ -468,7 +478,9 @@ bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 					}
 				}
 
-				return Material::fromVariantMap(propsResolved);
+				Material mat = Material::fromVariantMap(propsResolved);
+				mat.setName(name);
+				return mat;
 				});
 
 			s_userMaterialKeys.insert(key);
@@ -653,8 +665,10 @@ bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupL
 	// Update runtime caches: s_materialMap & s_groups
 	QVariantMap propsForCache = matProps;
 
-	// Create lambda that resolves relative texture paths when loading from user library
-	s_materialMap.insert(key, [propsForCache, userPath, key]() -> Material {
+	// Create lambda that resolves relative texture paths when loading from user library.
+	// Captures name too, to stamp it on the built Material - fromVariantMap() never
+	// reads "name" itself.
+	s_materialMap.insert(key, [propsForCache, userPath, key, name]() -> Material {
 		// Get the user materials root path
 		QString userRoot = QFileInfo(userPath).dir().absolutePath();
 		QString materialFolder = QDir(userRoot).filePath(key);
@@ -708,10 +722,12 @@ bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupL
 			}
 		}
 
-		return Material::fromVariantMap(propsResolved);
+		Material mat = Material::fromVariantMap(propsResolved);
+		mat.setName(name);
+		return mat;
 	});
 	s_userMaterialKeys.insert(key);
-	
+
 	// Update s_groups
 	int sGroupIndex = -1;
 	for (int i = 0; i < s_groups.size(); ++i)

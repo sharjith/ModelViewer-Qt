@@ -5294,6 +5294,134 @@ for this texture</string>
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="physicalPropertiesTab">
+      <attribute name="title">
+       <string>Physical Properties</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_physicalTab">
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QScrollArea" name="scrollArea_physical">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="scrollContents_physical">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>586</width>
+            <height>200</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_physical">
+           <property name="leftMargin">
+            <number>2</number>
+           </property>
+           <property name="topMargin">
+            <number>2</number>
+           </property>
+           <property name="rightMargin">
+            <number>2</number>
+           </property>
+           <property name="bottomMargin">
+            <number>2</number>
+           </property>
+           <property name="spacing">
+            <number>2</number>
+           </property>
+           <item row="0" column="0" colspan="2">
+            <widget class="QLabel" name="lblPhysicalPropertiesNote">
+             <property name="text">
+              <string>Bulk density feeds Tools -&gt; Mass Properties' weight calculation. Left as Unknown, this material contributes no mass rather than an assumed value. Values pre-filled from the material library are typical/nominal figures for a generic grade - actual density varies by alloy, grade, and treatment, so verify against a real spec sheet before relying on it for an engineering-critical calculation.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+            <widget class="QCheckBox" name="densityNotApplicableCheck">
+             <property name="toolTip">
+              <string>Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful</string>
+             </property>
+             <property name="text">
+              <string>Not applicable (thin-film/decorative material)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="lblDensity">
+             <property name="text">
+              <string>Density (kg/m³):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="densitySpin">
+             <property name="toolTip">
+              <string>Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.</string>
+             </property>
+             <property name="specialValueText">
+              <string>Unknown</string>
+             </property>
+             <property name="decimals">
+              <number>2</number>
+             </property>
+             <property name="minimum">
+              <double>-1.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>25000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>10.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>-1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QPushButton" name="densityClearButton">
+             <property name="toolTip">
+              <string>Reset density to Unknown</string>
+             </property>
+             <property name="text">
+              <string>Clear (set Unknown)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0" colspan="2">
+            <spacer name="verticalSpacer_physical">
+             <property name="orientation">
+              <enum>Qt::Orientation::Vertical</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>20</width>
+               <height>40</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
   </layout>
