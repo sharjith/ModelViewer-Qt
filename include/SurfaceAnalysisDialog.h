@@ -28,14 +28,12 @@ class SceneMesh;
 // (RenderableMesh::setAnalysisOverlayColors()/setAnalysisOverlayFlatColors(),
 // AnalysisColorRamp, SurfaceAnalysisOverlay).
 //
-// As of this step, four of the five total sub-modes are implemented: Draft
-// Angle (Wall-Thickness panel), Zebra Stripe + mean-curvature colormap (both
-// on the Curvature panel), and unsigned Deviation (its own panel) - see this
-// app's own implementation plan for the build sequence. True ray-based wall
-// thickness is still a "not yet available" placeholder rather than
-// pretending to work; the panel structure is already shaped for it so adding
-// it is additive, not a redesign. Gaussian/principal curvature modes are a
-// documented follow-up to the mean-curvature colormap already shipped here.
+// As of this step, all five sub-modes are implemented: Draft Angle + true
+// ray-based Wall-Thickness (both on the Wall-Thickness panel), Zebra Stripe +
+// mean-curvature colormap (both on the Curvature panel), and unsigned
+// Deviation (its own panel) - see this app's own implementation plan for the
+// build sequence. Gaussian/principal curvature modes remain a documented
+// follow-up to the mean-curvature colormap already shipped here.
 //
 // Non-modal, per-document singleton (ModelViewer::openSurfaceAnalysisDialog()
 // findChild-reuses it), matching MeasurementDialog/ShrinkWrapDialog/
@@ -73,6 +71,7 @@ private slots:
 	void onApplyDraftAngleClicked();
 	void onApplyDeviationClicked();
 	void onApplyCurvatureClicked();
+	void onApplyWallThicknessClicked();
 	void onClearClicked();
 	// Connected to ViewportWidget::selectionChanged - keeps _selectionStatusLabel
 	// live as the user selects/deselects in the scene tree while this
@@ -99,6 +98,7 @@ private:
 	void applyZebraStripeToSelection(bool active);
 	void applyDeviationToSelection();
 	void applyCurvatureToSelection();
+	void applyWallThicknessToSelection();
 	void clearSelectionOverlays();
 	// Repopulates _referenceMeshCombo from the document's currently loaded
 	// meshes, excluding the current selection - called whenever the
@@ -133,6 +133,8 @@ private:
 	// Wall-Thickness page
 	QComboBox* _pullDirectionCombo = nullptr;
 	QPushButton* _applyDraftButton = nullptr;
+	QPushButton* _applyThicknessButton = nullptr;
+	QLabel* _thicknessRejectionNote = nullptr;
 
 	// Deviation page
 	QComboBox* _referenceMeshCombo = nullptr;

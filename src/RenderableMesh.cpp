@@ -2973,6 +2973,25 @@ void RenderableMesh::setAnalysisOverlayFlatColors(const std::vector<float>& rgba
 		return;
 	}
 
+	// Defense in depth: verify every index is actually in range BEFORE
+	// dereferencing any of them below. This mesh's own _indices should
+	// never legitimately contain an out-of-bounds entry, but a caller-side
+	// analyzer bug (or genuinely malformed imported geometry) producing one
+	// would otherwise read _points/_normals out of bounds here - the same
+	// class of bug callers like WallThicknessAnalyzer/CurvatureAnalyzer
+	// already guard against on their OWN side, but this is the one place
+	// every per-face analysis result funnels through before reaching the
+	// GPU, so it gets its own independent check too.
+	const size_t vertexCount = _points.size() / 3;
+	for (unsigned int vi : _indices)
+	{
+		if (vi >= vertexCount)
+		{
+			clearAnalysisOverlay();
+			return;
+		}
+	}
+
 	std::vector<float> dupPositions;
 	std::vector<float> dupNormals;
 	std::vector<float> dupColors;

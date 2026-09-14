@@ -5,6 +5,7 @@
 #include "DraftAngleAnalyzer.h"
 #include "DeviationAnalyzer.h"
 #include "CurvatureAnalyzer.h"
+#include "WallThicknessAnalyzer.h"
 #include "AnalysisColorRamp.h"
 #include "CoordinateSystemHelper.h"
 
@@ -133,18 +134,17 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		_stack->addWidget(page);
 	}
 
-	// Wall-Thickness page - only Draft Angle is implemented so far; true
-	// wall-thickness (ray-based) is a later, harder step (see this class's
-	// own header comment).
+	// Wall-Thickness page - two independent sub-modes, same "one panel,
+	// applying one doesn't clear the other's state, shader shows whichever
+	// was applied last" convention as the Curvature panel.
 	{
 		auto* page = new QWidget();
 		auto* pageLayout = new QVBoxLayout(page);
-		auto* note = new QLabel(tr("Wall-thickness analysis is not yet available. Draft Angle colors each "
-		                            "face by its signed angle to the chosen pull direction - red/positive "
-		                            "is an ordinary moldable wall, blue/negative is an undercut, white is "
-		                            "parallel to the pull direction (zero draft)."), page);
-		note->setWordWrap(true);
-		pageLayout->addWidget(note);
+		auto* draftNote = new QLabel(tr("Draft Angle colors each face by its signed angle to the chosen pull "
+		                            "direction - red/positive is an ordinary moldable wall, blue/negative "
+		                            "is an undercut, white is parallel to the pull direction (zero draft)."), page);
+		draftNote->setWordWrap(true);
+		pageLayout->addWidget(draftNote);
 
 		auto* pullRow = new QHBoxLayout();
 		pullRow->addWidget(new QLabel(tr("Pull direction:"), page));
@@ -166,9 +166,26 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		pullRow->addWidget(_pullDirectionCombo, 1);
 		pageLayout->addLayout(pullRow);
 
-		_applyDraftButton = new QPushButton(tr("Apply"), page);
+		_applyDraftButton = new QPushButton(tr("Apply Draft Angle"), page);
 		connect(_applyDraftButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyDraftAngleClicked);
 		pageLayout->addWidget(_applyDraftButton);
+
+		auto* thicknessNote = new QLabel(tr("Wall-Thickness colors each face by an inward-ray distance to the "
+		                            "opposite wall - blue is thin, red is thick. This is an ESTIMATE, not a "
+		                            "guaranteed true minimum (the true minimum can occur along a direction "
+		                            "other than the surface normal). Requires a closed, non-self-intersecting "
+		                            "mesh that bounds a volume - the whole mesh is rejected with a reason if "
+		                            "it doesn't, not partially colored."), page);
+		thicknessNote->setWordWrap(true);
+		pageLayout->addWidget(thicknessNote);
+		_applyThicknessButton = new QPushButton(tr("Apply Wall-Thickness"), page);
+		connect(_applyThicknessButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyWallThicknessClicked);
+		pageLayout->addWidget(_applyThicknessButton);
+		_thicknessRejectionNote = new QLabel(page);
+		_thicknessRejectionNote->setWordWrap(true);
+		_thicknessRejectionNote->setVisible(false);
+		pageLayout->addWidget(_thicknessRejectionNote);
+
 		pageLayout->addStretch(1);
 		_stack->addWidget(page);
 	}
@@ -265,6 +282,8 @@ void SurfaceAnalysisDialog::onModeChanged()
 	_legendLabel->setVisible(false);
 	if (_curvatureRepairNote)
 		_curvatureRepairNote->setVisible(false);
+	if (_thicknessRejectionNote)
+		_thicknessRejectionNote->setVisible(false);
 
 	if (mode == Mode::Deviation)
 		refreshReferenceMeshCombo();
@@ -376,6 +395,11 @@ void SurfaceAnalysisDialog::onApplyCurvatureClicked()
 	applyCurvatureToSelection();
 }
 
+void SurfaceAnalysisDialog::onApplyWallThicknessClicked()
+{
+	applyWallThicknessToSelection();
+}
+
 void SurfaceAnalysisDialog::onClearClicked()
 {
 	clearSelectionOverlays();
@@ -460,23 +484,24 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 	}
 	QApplication::restoreOverrideCursor();
 
-	if (!anyValid)
-	{
-		QMessageBox::warning(this, tr("Surface Analysis"),
-			tr("Could not compute a usable curvature result for the current selection."));
-		return;
-	}
-
 	const float rangeMin = bound > 1.0e-6f ? -bound : -1.0f;
 	const float rangeMax = bound > 1.0e-6f ? bound : 1.0f;
 
 	// setAnalysisOverlayColors() below uploads a real GPU buffer - same
-	// makeCurrent()/doneCurrent() reasoning as every other Apply here.
+	// makeCurrent()/doneCurrent() reasoning as every other Apply here. Runs
+	// for EVERY mesh regardless of anyValid below (including the all-failed
+	// case) - a mesh whose curvature computation failed must have whatever
+	// UNRELATED overlay it happened to already be showing (e.g. a Draft
+	// Angle result from an earlier Apply) cleared too, not left silently
+	// displayed under this run's new (curvature-scaled) legend.
 	viewport->makeCurrent();
 	for (PerMesh& pm : perMesh)
 	{
 		if (!pm.result.succeeded)
+		{
+			_overlay.clearOverlay(pm.mesh);
 			continue;
+		}
 
 		SurfaceAnalysisOverlay::CacheKey key;
 		key.geometryRevision = pm.mesh->geometryRevision();
@@ -489,6 +514,14 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 			key, rangeMin, rangeMax, AnalysisColormap::Diverging);
 	}
 	viewport->doneCurrent();
+	viewport->update();
+
+	if (!anyValid)
+	{
+		QMessageBox::warning(this, tr("Surface Analysis"),
+			tr("Could not compute a usable curvature result for the current selection."));
+		return;
+	}
 
 	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QString()));
 	_legendLabel->setVisible(true);
@@ -498,8 +531,111 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 		_curvatureRepairNote->setText(repairNotes.join(QStringLiteral("\n")));
 		_curvatureRepairNote->setVisible(true);
 	}
+}
 
+void SurfaceAnalysisDialog::applyWallThicknessToSelection()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	if (selected.empty())
+	{
+		QMessageBox::information(this, tr("Surface Analysis"), tr("Select one or more meshes first."));
+		return;
+	}
+
+	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
+
+	struct PerMesh { SceneMesh* mesh; WallThicknessResult result; };
+	std::vector<PerMesh> perMesh;
+	perMesh.reserve(selected.size());
+
+	float maxThickness = 0.0f;
+	bool anyValid = false;
+	QStringList rejectionNotes;
+
+	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
+	// own identical note. This is the heaviest of this dialog's four
+	// analyses (whole-mesh topology validation, orientation resolution,
+	// solid-region classification, then a full AABB-tree multi-hit ray per
+	// face) and runs entirely on the UI thread below.
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	for (int id : selected)
+	{
+		SceneMesh* mesh = meshStore.at(id);
+		WallThicknessResult thickness = WallThicknessAnalyzer::computeThickness(mesh);
+		if (thickness.succeeded)
+		{
+			for (size_t i = 0; i < thickness.thicknessPerFace.size(); ++i)
+			{
+				if (thickness.validPerFace[i])
+				{
+					maxThickness = std::max(maxThickness, thickness.thicknessPerFace[i]);
+					anyValid = true;
+				}
+			}
+		}
+		else
+		{
+			rejectionNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), thickness.rejectionReason));
+		}
+		perMesh.push_back({ mesh, std::move(thickness) });
+	}
+	QApplication::restoreOverrideCursor();
+
+	if (_thicknessRejectionNote)
+	{
+		_thicknessRejectionNote->setText(rejectionNotes.join(QStringLiteral("\n")));
+		_thicknessRejectionNote->setVisible(!rejectionNotes.isEmpty());
+	}
+
+	// 0 is the natural bottom of the range (zero thickness) rather than the
+	// sampled data's own minimum - same reasoning as Deviation's range.
+	const float rangeMax = maxThickness > 1.0e-6f ? maxThickness : 1.0f;
+
+	// setAnalysisOverlayFlatColors() below uploads a real GPU buffer - same
+	// makeCurrent()/doneCurrent() reasoning as every other Apply here. Runs
+	// for EVERY mesh regardless of anyValid below (including the all-
+	// rejected case) - a REJECTED mesh must have whatever UNRELATED overlay
+	// it happened to already be showing (e.g. a Draft Angle result from an
+	// earlier Apply) cleared too, not left silently displayed under this
+	// run's new (thickness-scaled) legend.
+	viewport->makeCurrent();
+	for (PerMesh& pm : perMesh)
+	{
+		if (!pm.result.succeeded)
+		{
+			_overlay.clearOverlay(pm.mesh);
+			continue;
+		}
+
+		SurfaceAnalysisOverlay::CacheKey key;
+		key.geometryRevision = pm.mesh->geometryRevision();
+		key.transform = pm.mesh->combinedRenderTransform();
+		QVariantMap params;
+		params.insert(QStringLiteral("mode"), QStringLiteral("wallThickness"));
+		key.parameters = params;
+
+		_overlay.applyFlatResult(pm.mesh, pm.result.thicknessPerFace, pm.result.validPerFace,
+			key, 0.0f, rangeMax, AnalysisColormap::Sequential);
+	}
+	viewport->doneCurrent();
 	viewport->update();
+
+	if (!anyValid)
+	{
+		if (rejectionNotes.isEmpty())
+		{
+			QMessageBox::warning(this, tr("Surface Analysis"),
+				tr("Could not compute wall thickness - no face found a valid opposite-wall hit."));
+		}
+		return;
+	}
+
+	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, 0.0f, rangeMax, AnalysisColormap::Sequential, QString()));
+	_legendLabel->setVisible(true);
 }
 
 void SurfaceAnalysisDialog::applyDraftAngleToSelection()
@@ -735,6 +871,8 @@ void SurfaceAnalysisDialog::clearSelectionOverlays()
 	_legendLabel->setVisible(false);
 	if (_curvatureRepairNote)
 		_curvatureRepairNote->setVisible(false);
+	if (_thicknessRejectionNote)
+		_thicknessRejectionNote->setVisible(false);
 
 	viewport->update();
 }
