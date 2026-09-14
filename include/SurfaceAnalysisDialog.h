@@ -28,13 +28,14 @@ class SceneMesh;
 // (RenderableMesh::setAnalysisOverlayColors()/setAnalysisOverlayFlatColors(),
 // AnalysisColorRamp, SurfaceAnalysisOverlay).
 //
-// As of this step, three of the five total sub-modes are implemented: Draft
-// Angle (Wall-Thickness panel), Zebra Stripe (Curvature panel), and unsigned
-// Deviation (its own panel) - see this app's own implementation plan for the
-// build sequence. Curvature colormap and true ray-based wall thickness are
-// still "not yet available" placeholders rather than pretending to work; the
-// panel structure is already shaped for them so adding each is additive, not
-// a redesign.
+// As of this step, four of the five total sub-modes are implemented: Draft
+// Angle (Wall-Thickness panel), Zebra Stripe + mean-curvature colormap (both
+// on the Curvature panel), and unsigned Deviation (its own panel) - see this
+// app's own implementation plan for the build sequence. True ray-based wall
+// thickness is still a "not yet available" placeholder rather than
+// pretending to work; the panel structure is already shaped for it so adding
+// it is additive, not a redesign. Gaussian/principal curvature modes are a
+// documented follow-up to the mean-curvature colormap already shipped here.
 //
 // Non-modal, per-document singleton (ModelViewer::openSurfaceAnalysisDialog()
 // findChild-reuses it), matching MeasurementDialog/ShrinkWrapDialog/
@@ -71,7 +72,20 @@ private slots:
 	void onZebraStripeToggled(bool checked);
 	void onApplyDraftAngleClicked();
 	void onApplyDeviationClicked();
+	void onApplyCurvatureClicked();
 	void onClearClicked();
+	// Connected to ViewportWidget::selectionChanged - keeps _selectionStatusLabel
+	// live as the user selects/deselects in the scene tree while this
+	// non-modal dialog stays open, rather than only ever surfacing "nothing
+	// selected" as an error after the fact when Apply is clicked.
+	void onSelectionChanged();
+	// Connected to ViewportWidget::meshAboutToBeDeleted - both _overlay and
+	// _zebraStripeMeshes hold raw SceneMesh* across event-loop turns (this
+	// dialog is non-modal and can stay open across a delete), so they must
+	// stop tracking a mesh before it's actually destroyed, not after. See
+	// SurfaceAnalysisOverlay's own doc comment for why it can't protect
+	// itself from this on its own.
+	void onMeshAboutToBeDeleted(SceneMesh* mesh);
 
 private:
 	enum class Mode { Curvature, WallThickness, Deviation };
@@ -84,6 +98,7 @@ private:
 	void applyDraftAngleToSelection();
 	void applyZebraStripeToSelection(bool active);
 	void applyDeviationToSelection();
+	void applyCurvatureToSelection();
 	void clearSelectionOverlays();
 	// Repopulates _referenceMeshCombo from the document's currently loaded
 	// meshes, excluding the current selection - called whenever the
@@ -94,8 +109,15 @@ private:
 	// currently selected - used on close (see this class's doc comment),
 	// since by then there's no button left to scope a selection-based clear.
 	void clearAllOverlays();
+	// Recomputes _selectionStatusLabel's text from the viewport's current
+	// selection AND the currently active mode - Deviation's "exactly one
+	// mesh" requirement reads differently from the other modes' "whole
+	// selection" convention, so the wording depends on both.
+	void updateSelectionStatusLabel();
 
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
+
+	QLabel* _selectionStatusLabel = nullptr;
 
 	QButtonGroup* _modeGroup = nullptr;
 	QToolButton* _curvatureButton = nullptr;
@@ -105,6 +127,8 @@ private:
 
 	// Curvature page
 	QPushButton* _zebraStripeToggle = nullptr; // checkable
+	QPushButton* _applyCurvatureButton = nullptr;
+	QLabel* _curvatureRepairNote = nullptr;
 
 	// Wall-Thickness page
 	QComboBox* _pullDirectionCombo = nullptr;

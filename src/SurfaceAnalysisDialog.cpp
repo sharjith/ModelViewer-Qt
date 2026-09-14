@@ -4,6 +4,7 @@
 #include "SceneMesh.h"
 #include "DraftAngleAnalyzer.h"
 #include "DeviationAnalyzer.h"
+#include "CurvatureAnalyzer.h"
 #include "AnalysisColorRamp.h"
 #include "CoordinateSystemHelper.h"
 
@@ -16,13 +17,16 @@
 #include <QComboBox>
 #include <QPushButton>
 #include <QMessageBox>
+#include <QApplication>
 #include <QIcon>
 #include <QCloseEvent>
+#include <QUuid>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <utility>
+#include <QStringList>
 
 SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -38,6 +42,23 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	auto* introLabel = new QLabel(tr("Analyzes the current selection and paints the result directly on the mesh surface."), this);
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
+
+	// Live selection status - this dialog acts on whatever's selected in the
+	// scene tree/viewport (not an independent picker of its own), so this
+	// reflects that selection directly rather than only ever surfacing
+	// "nothing selected" as an error message after the fact when Apply is
+	// clicked. Wording depends on the active mode too (Deviation wants
+	// exactly one mesh; every other mode acts on the whole selection).
+	_selectionStatusLabel = new QLabel(this);
+	_selectionStatusLabel->setWordWrap(true);
+	layout->addWidget(_selectionStatusLabel);
+	if (_modelViewer && _modelViewer->getViewportWidget())
+	{
+		connect(_modelViewer->getViewportWidget(), &ViewportWidget::selectionChanged,
+			this, &SurfaceAnalysisDialog::onSelectionChanged);
+		connect(_modelViewer->getViewportWidget(), &ViewportWidget::meshAboutToBeDeleted,
+			this, &SurfaceAnalysisDialog::onMeshAboutToBeDeleted);
+	}
 
 	// ---- Mode selector: 3-way exclusive icon toggle-button group, not radio
 	// buttons or a dropdown - checkable QToolButtons read as switchable
@@ -75,21 +96,39 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	// ---- Mode-specific pages ----------------------------------------------
 	_stack = new QStackedWidget(this);
 
-	// Curvature page - only Zebra Stripe is implemented so far; the
-	// colormap sub-mode is a later step (see this class's own header
-	// comment).
+	// Curvature page - two independent sub-modes sharing one panel: Zebra
+	// Stripe (a live view-dependent shader effect, no legend/color scale)
+	// and Mean Curvature (a fixed colormap, like Draft Angle/Deviation).
+	// Applying one doesn't automatically clear the other's underlying
+	// state, but the shader only ever shows one at a time (the colormap
+	// overlay takes priority) - Clear Overlay turns both off together.
 	{
 		auto* page = new QWidget();
 		auto* pageLayout = new QVBoxLayout(page);
-		auto* note = new QLabel(tr("Curvature colormap analysis is not yet available. "
-		                            "Zebra Stripe reveals surface continuity as a live, view-dependent "
-		                            "reflection pattern - no legend, since it isn't a fixed color scale."), page);
-		note->setWordWrap(true);
-		pageLayout->addWidget(note);
+		auto* zebraNote = new QLabel(tr("Zebra Stripe reveals surface continuity as a live, view-dependent "
+		                                 "reflection pattern - no legend, since it isn't a fixed color scale."), page);
+		zebraNote->setWordWrap(true);
+		pageLayout->addWidget(zebraNote);
 		_zebraStripeToggle = new QPushButton(tr("Zebra Stripe"), page);
 		_zebraStripeToggle->setCheckable(true);
 		connect(_zebraStripeToggle, &QPushButton::toggled, this, &SurfaceAnalysisDialog::onZebraStripeToggled);
 		pageLayout->addWidget(_zebraStripeToggle);
+
+		auto* curvatureNote = new QLabel(tr("Mean Curvature colors each vertex by how sharply the surface "
+		                                     "bends there - blue is concave, red is convex, white is flat. "
+		                                     "Gaussian/principal curvature modes are not yet available. "
+		                                     "Computed on a repaired copy of the mesh (real connectivity is "
+		                                     "required); any repair made is disclosed below after Apply."), page);
+		curvatureNote->setWordWrap(true);
+		pageLayout->addWidget(curvatureNote);
+		_applyCurvatureButton = new QPushButton(tr("Apply Mean Curvature"), page);
+		connect(_applyCurvatureButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyCurvatureClicked);
+		pageLayout->addWidget(_applyCurvatureButton);
+		_curvatureRepairNote = new QLabel(page);
+		_curvatureRepairNote->setWordWrap(true);
+		_curvatureRepairNote->setVisible(false);
+		pageLayout->addWidget(_curvatureRepairNote);
+
 		pageLayout->addStretch(1);
 		_stack->addWidget(page);
 	}
@@ -101,8 +140,9 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		auto* page = new QWidget();
 		auto* pageLayout = new QVBoxLayout(page);
 		auto* note = new QLabel(tr("Wall-thickness analysis is not yet available. Draft Angle colors each "
-		                            "face by its signed angle to the chosen pull direction - green/positive "
-		                            "is an ordinary moldable wall, red/negative is an undercut."), page);
+		                            "face by its signed angle to the chosen pull direction - red/positive "
+		                            "is an ordinary moldable wall, blue/negative is an undercut, white is "
+		                            "parallel to the pull direction (zero draft)."), page);
 		note->setWordWrap(true);
 		pageLayout->addWidget(note);
 
@@ -217,14 +257,87 @@ void SurfaceAnalysisDialog::onModeChanged()
 	const Mode mode = currentMode();
 	_stack->setCurrentIndex(static_cast<int>(mode));
 	// The legend only means something for a fixed-scale colormapped result
-	// (Draft Angle, Deviation) - hide it for Curvature (Zebra Stripe has no
-	// scale) so a stale legend from a previous run doesn't linger looking
-	// like it applies here. Re-shown by applyDraftAngleToSelection()/
-	// applyDeviationToSelection() themselves once a result actually exists.
+	// (Draft Angle, Mean Curvature, Deviation) - hide it on every mode
+	// switch so a stale legend from a previous run doesn't linger looking
+	// like it applies to whatever's now showing. Re-shown by each apply*()
+	// method itself once a result actually exists (Zebra Stripe never shows
+	// one - it's a live view-dependent effect, not a fixed color scale).
 	_legendLabel->setVisible(false);
+	if (_curvatureRepairNote)
+		_curvatureRepairNote->setVisible(false);
 
 	if (mode == Mode::Deviation)
 		refreshReferenceMeshCombo();
+
+	updateSelectionStatusLabel();
+}
+
+void SurfaceAnalysisDialog::onSelectionChanged()
+{
+	// The Deviation page's reference-mesh choices exclude whatever's
+	// selected (see refreshReferenceMeshCombo()'s doc comment) - that set
+	// changes whenever the selection does, so it needs the same refresh.
+	if (currentMode() == Mode::Deviation)
+		refreshReferenceMeshCombo();
+
+	updateSelectionStatusLabel();
+}
+
+void SurfaceAnalysisDialog::onMeshAboutToBeDeleted(SceneMesh* mesh)
+{
+	if (!mesh)
+		return;
+
+	// The mesh is still alive right now (see the signal's own doc comment) -
+	// clearOverlay() safely calls mesh->clearAnalysisOverlay() one last time
+	// before dropping this dialog's own tracking of it. No GL call needed
+	// for zebra-stripe - the mesh (and its GL resources) are going away
+	// regardless, there's nothing left to turn off.
+	_overlay.clearOverlay(mesh);
+	_zebraStripeMeshes.remove(mesh);
+}
+
+void SurfaceAnalysisDialog::updateSelectionStatusLabel()
+{
+	if (!_selectionStatusLabel || !_modelViewer)
+		return;
+
+	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const Mode mode = currentMode();
+
+	if (selected.empty())
+	{
+		_selectionStatusLabel->setText(tr("No mesh selected - select one or more meshes in the scene tree first."));
+		return;
+	}
+
+	if (mode == Mode::Deviation && selected.size() != 1)
+	{
+		_selectionStatusLabel->setText(tr("%1 meshes selected - Deviation needs exactly one (the scan/comparison side).")
+			.arg(static_cast<int>(selected.size())));
+		return;
+	}
+
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	const std::vector<SceneMesh*> meshStore = viewport ? viewport->getMeshStore() : std::vector<SceneMesh*>();
+	QStringList names;
+	names.reserve(static_cast<int>(selected.size()));
+	for (int id : selected)
+	{
+		if (id >= 0 && static_cast<size_t>(id) < meshStore.size() && meshStore[id])
+			names.append(meshStore[id]->getName());
+	}
+
+	if (mode == Mode::Deviation)
+	{
+		_selectionStatusLabel->setText(tr("Comparing: %1").arg(names.value(0)));
+	}
+	else
+	{
+		_selectionStatusLabel->setText(selected.size() == 1
+			? tr("Selected: %1").arg(names.value(0))
+			: tr("Selected (%1): %2").arg(static_cast<int>(selected.size())).arg(names.join(QStringLiteral(", "))));
+	}
 }
 
 QVector3D SurfaceAnalysisDialog::currentPullDirection() const
@@ -256,6 +369,11 @@ void SurfaceAnalysisDialog::onApplyDraftAngleClicked()
 void SurfaceAnalysisDialog::onApplyDeviationClicked()
 {
 	applyDeviationToSelection();
+}
+
+void SurfaceAnalysisDialog::onApplyCurvatureClicked()
+{
+	applyCurvatureToSelection();
 }
 
 void SurfaceAnalysisDialog::onClearClicked()
@@ -294,6 +412,96 @@ void SurfaceAnalysisDialog::applyZebraStripeToSelection(bool active)
 	viewport->update();
 }
 
+void SurfaceAnalysisDialog::applyCurvatureToSelection()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	if (selected.empty())
+	{
+		QMessageBox::information(this, tr("Surface Analysis"), tr("Select one or more meshes first."));
+		return;
+	}
+
+	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
+
+	struct PerMesh { SceneMesh* mesh; CurvatureResult result; };
+	std::vector<PerMesh> perMesh;
+	perMesh.reserve(selected.size());
+
+	float bound = 0.0f;
+	bool anyValid = false;
+	QStringList repairNotes;
+
+	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
+	// own identical note. CurvatureAnalyzer's repair + interpolated-
+	// corrected-curvatures + per-vertex AABB locate below is the heaviest of
+	// this dialog's three analyzers and runs entirely on the UI thread.
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	for (int id : selected)
+	{
+		SceneMesh* mesh = meshStore.at(id);
+		CurvatureResult curvature = CurvatureAnalyzer::computeMeanCurvature(mesh);
+		if (curvature.succeeded)
+		{
+			repairNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), curvature.repairSummary));
+			for (size_t i = 0; i < curvature.meanCurvaturePerVertex.size(); ++i)
+			{
+				if (curvature.validPerVertex[i])
+				{
+					bound = std::max(bound, std::fabs(curvature.meanCurvaturePerVertex[i]));
+					anyValid = true;
+				}
+			}
+		}
+		perMesh.push_back({ mesh, std::move(curvature) });
+	}
+	QApplication::restoreOverrideCursor();
+
+	if (!anyValid)
+	{
+		QMessageBox::warning(this, tr("Surface Analysis"),
+			tr("Could not compute a usable curvature result for the current selection."));
+		return;
+	}
+
+	const float rangeMin = bound > 1.0e-6f ? -bound : -1.0f;
+	const float rangeMax = bound > 1.0e-6f ? bound : 1.0f;
+
+	// setAnalysisOverlayColors() below uploads a real GPU buffer - same
+	// makeCurrent()/doneCurrent() reasoning as every other Apply here.
+	viewport->makeCurrent();
+	for (PerMesh& pm : perMesh)
+	{
+		if (!pm.result.succeeded)
+			continue;
+
+		SurfaceAnalysisOverlay::CacheKey key;
+		key.geometryRevision = pm.mesh->geometryRevision();
+		key.transform = pm.mesh->combinedRenderTransform();
+		QVariantMap params;
+		params.insert(QStringLiteral("mode"), QStringLiteral("meanCurvature"));
+		key.parameters = params;
+
+		_overlay.applyResult(pm.mesh, pm.result.meanCurvaturePerVertex, pm.result.validPerVertex,
+			key, rangeMin, rangeMax, AnalysisColormap::Diverging);
+	}
+	viewport->doneCurrent();
+
+	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QString()));
+	_legendLabel->setVisible(true);
+
+	if (_curvatureRepairNote)
+	{
+		_curvatureRepairNote->setText(repairNotes.join(QStringLiteral("\n")));
+		_curvatureRepairNote->setVisible(true);
+	}
+
+	viewport->update();
+}
+
 void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
@@ -318,6 +526,11 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	float maxAngle = std::numeric_limits<float>::lowest();
 	bool anyFace = false;
 
+	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
+	// own identical note. Draft Angle's per-face math is the lightest of
+	// this dialog's three analyzers (no CGAL/AABB involved), but still runs
+	// on the UI thread and can take a moment on a very dense mesh.
+	QApplication::setOverrideCursor(Qt::WaitCursor);
 	for (int id : selected)
 	{
 		SceneMesh* mesh = meshStore.at(id);
@@ -330,6 +543,7 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 		}
 		perMesh.push_back({ mesh, std::move(angles) });
 	}
+	QApplication::restoreOverrideCursor();
 
 	if (!anyFace)
 		return;
@@ -382,9 +596,14 @@ void SurfaceAnalysisDialog::refreshReferenceMeshCombo()
 	if (!viewport)
 		return;
 
-	// Preserve the previously chosen reference mesh id across a refresh,
-	// where it's still a valid choice.
-	const int previousId = _referenceMeshCombo->count() > 0 ? _referenceMeshCombo->currentData().toInt() : -1;
+	// Preserve the previously chosen reference mesh across a refresh, where
+	// it's still a valid choice - by UUID, not mesh-store index: an index
+	// captured here can point at a different mesh entirely by the time
+	// applyDeviationToSelection() reads it back (an import/delete reindexes
+	// the store in between), silently comparing against the wrong mesh
+	// while the combo still shows the original name.
+	const QUuid previousUuid = _referenceMeshCombo->count() > 0
+		? _referenceMeshCombo->currentData().toUuid() : QUuid();
 
 	_referenceMeshCombo->clear();
 
@@ -399,12 +618,12 @@ void SurfaceAnalysisDialog::refreshReferenceMeshCombo()
 		// comparison side being measured, not a valid reference for itself.
 		if (std::find(selected.begin(), selected.end(), static_cast<int>(id)) != selected.end())
 			continue;
-		_referenceMeshCombo->addItem(mesh->getName(), QVariant(static_cast<int>(id)));
+		_referenceMeshCombo->addItem(mesh->getName(), QVariant(mesh->uuid()));
 	}
 
-	if (previousId >= 0)
+	if (!previousUuid.isNull())
 	{
-		const int idx = _referenceMeshCombo->findData(QVariant(previousId));
+		const int idx = _referenceMeshCombo->findData(QVariant(previousUuid));
 		if (idx >= 0)
 			_referenceMeshCombo->setCurrentIndex(idx);
 	}
@@ -436,14 +655,26 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	SceneMesh* sampledMesh = meshStore.at(selected.front());
-	const int referenceId = _referenceMeshCombo->currentData().toInt();
-	if (referenceId < 0 || static_cast<size_t>(referenceId) >= meshStore.size())
-		return;
-	SceneMesh* referenceMesh = meshStore.at(referenceId);
+	// Resolved by UUID, not the mesh-store index the combo used to store -
+	// see refreshReferenceMeshCombo()'s doc comment. getMeshByUuid() returns
+	// nullptr if the chosen mesh was deleted since the combo was populated,
+	// which the empty-selection message below covers well enough (no need
+	// for a separate error string for this specific case).
+	const QUuid referenceUuid = _referenceMeshCombo->currentData().toUuid();
+	SceneMesh* referenceMesh = referenceUuid.isNull() ? nullptr : viewport->getMeshByUuid(referenceUuid);
 	if (!referenceMesh || referenceMesh == sampledMesh)
+	{
+		QMessageBox::information(this, tr("Surface Analysis"),
+			tr("The chosen reference mesh is no longer available - pick another one."));
 		return;
+	}
 
+	// Cheap interim mitigation, not real async - see MassPropertiesDialog's
+	// own identical note. AABB-tree construction + a nearest-point query per
+	// sampled vertex run entirely on the UI thread below.
+	QApplication::setOverrideCursor(Qt::WaitCursor);
 	const std::vector<float> distances = DeviationAnalyzer::computeDeviation(sampledMesh, referenceMesh);
+	QApplication::restoreOverrideCursor();
 	if (distances.empty())
 	{
 		QMessageBox::warning(this, tr("Surface Analysis"),
@@ -502,6 +733,8 @@ void SurfaceAnalysisDialog::clearSelectionOverlays()
 	_zebraStripeToggle->setChecked(false);
 	_zebraStripeToggle->blockSignals(false);
 	_legendLabel->setVisible(false);
+	if (_curvatureRepairNote)
+		_curvatureRepairNote->setVisible(false);
 
 	viewport->update();
 }

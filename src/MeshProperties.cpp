@@ -16,6 +16,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
 #include <CGAL/Polygon_mesh_processing/polygon_soup_to_polygon_mesh.h>
+#include <CGAL/Polygon_mesh_processing/repair_polygon_soup.h> // merge_duplicate_points_in_polygon_soup() - see its call site below
 #include <CGAL/Polygon_mesh_processing/self_intersections.h>
 #include <CGAL/Polygon_mesh_processing/orientation.h>
 #include <CGAL/boost/graph/helpers.h> // CGAL::is_closed() - NOT a Polygon_mesh_processing:: function
@@ -179,6 +180,26 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
 			}
 			soupFaces.push_back({ a, b, c });
 		}
+
+		// Weld exact-coincident duplicate points BEFORE the topology check
+		// below - purely a topology-identity fix, not a geometry repair:
+		// a render mesh routinely carries several distinct point-buffer
+		// entries at the SAME position (one per triangle corner, split so
+		// each corner can carry its own normal/UV - e.g. a conventional
+		// 24-vertex cube export, 3 duplicated corners per face for flat
+		// shading). Left unwelded, CGAL sees those as topologically
+		// UNRELATED vertices, so no two triangles ever share a real edge in
+		// its eyes - a perfectly closed, watertight solid then fails
+		// CGAL::is_closed() and gets reported as an open boundary, which is
+		// wrong. merge_duplicate_points_in_polygon_soup() only merges points
+		// at EXACT coordinate equality and remaps face indices accordingly -
+		// it does not move, remove, or alter any actual geometry the way
+		// MeshRepair.h's pipeline can, so this doesn't reopen the "must
+		// report on the mesh's ACTUAL as-imported state" concern in this
+		// function's own doc comment above. Scoped to this local soupPoints/
+		// soupFaces copy only - the surface-area/volume accumulation loop
+		// below reads straight from _meshPoints/indices, unaffected.
+		CGAL::Polygon_mesh_processing::merge_duplicate_points_in_polygon_soup(soupPoints, soupFaces);
 
 		if (!indicesInBounds || !CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh(soupFaces))
 		{

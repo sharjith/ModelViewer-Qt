@@ -24,12 +24,18 @@ class SceneMesh;
 // computed result (e.g. the dialog's legend range slider moving) without
 // re-running the underlying geometry analysis.
 //
-// A caller that owns a live instance of this class (the eventual
-// SurfaceAnalysisDialog) is responsible for actually invoking isValid()/
-// clearOverlay() at the right moments - e.g. connected to whatever signal
-// already fires on mesh geometry change/deletion/undo in this document, and
-// on rendering-mode changes per the overlay lifecycle's own documented
-// requirement. This class provides the mechanism, not the triggers.
+// A caller that owns a live instance of this class (SurfaceAnalysisDialog) is
+// responsible for actually invoking isValid()/clearOverlay() at the right
+// moments. Deletion IS wired up (SurfaceAnalysisDialog connects to
+// ViewportWidget::meshAboutToBeDeleted and calls clearOverlay() before the
+// mesh is destroyed - see that signal's own doc comment). Geometry-edit/undo
+// invalidation (via isValid()'s cache key) and rendering-mode-change
+// invalidation are NOT yet wired to anything - isValid() currently has no
+// caller, a known, disclosed gap (not a silent one): an in-flight overlay can
+// go stale if the analyzed mesh's geometry changes, or its transform/
+// reference-mesh state changes, while the dialog stays open. This class
+// still provides the mechanism (the cache key already carries everything
+// needed to detect staleness); only the triggers remain to be connected.
 class SurfaceAnalysisOverlay
 {
 public:

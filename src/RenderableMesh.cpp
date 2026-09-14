@@ -536,9 +536,21 @@ void RenderableMesh::initBuffers(
 		return;
 
 	// See geometryRevision()'s doc comment - bumped on every real geometry
-	// upload, which is what SurfaceAnalysisOverlay's cache key relies on to
-	// invalidate a stale analysis result.
+	// upload, which is what SurfaceAnalysisOverlay's cache key is built from.
 	++_geometryRevision;
+
+	// A real geometry rebuild invalidates any Surface Analysis overlay this
+	// mesh was showing - its GPU buffers (positions in particular, for the
+	// flat/duplicated-per-face representation) were sized and populated
+	// against the PREVIOUS geometry, and would otherwise silently keep
+	// rendering that stale snapshot on top of whatever shape this mesh now
+	// has. This is the mesh defending itself rather than relying on
+	// SurfaceAnalysisOverlay's cache-key comparison being checked by some
+	// caller before every use (isValid() has no caller today - a known,
+	// separately-disclosed gap for cases THIS check doesn't cover, e.g. a
+	// deviation overlay going stale because the REFERENCE mesh moved, not
+	// the analyzed mesh's own geometry).
+	clearAnalysisOverlay();
 
 	_indices = *indices;
 	_points = *points;

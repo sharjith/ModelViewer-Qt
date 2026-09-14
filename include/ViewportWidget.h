@@ -1126,6 +1126,17 @@ public:
 	using RuntimeAnimationFileState  = AnimationRuntimeController::RuntimeAnimationFileState;
 
 signals:
+	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
+	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
+	// clearMeshStore()) - NOT on an ordinary DeleteMeshCommand::redo(),
+	// which only moves a mesh into the recycle bin (still alive, restorable
+	// via undo). Any long-lived component that tracks raw SceneMesh*
+	// pointers across event-loop turns (e.g. a non-modal dialog's cached
+	// selection) must connect here and drop the pointer before returning -
+	// the mesh is still valid for the duration of this signal, but not
+	// after.
+	void meshAboutToBeDeleted(SceneMesh* mesh);
+
 	void windowZoomEnded();
 	void rotationsSet();
 	void zoomAndPanSet();

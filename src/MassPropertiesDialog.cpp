@@ -11,6 +11,7 @@
 #include <QPushButton>
 #include <QStringList>
 #include <QVector3D>
+#include <QApplication>
 
 MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -27,6 +28,19 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	                                  "recomputed fresh each time this dialog opens."), this);
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
+
+	// This app has no real per-document/per-import unit policy yet (a known,
+	// disclosed prerequisite - see MeshProperties.cpp's own doc comment) -
+	// every length-bearing value here is computed straight from the mesh's
+	// raw coordinates on the ASSUMPTION they're millimetres, the same
+	// assumption every other length-bearing control in this app already
+	// makes. Said explicitly here (not just in a code comment) since a
+	// wrongly-labeled engineering measurement is worse than an admittedly
+	// unverified one.
+	auto* unitsNote = new QLabel(tr("Units below assume millimetre input (not yet verified against the "
+	                                 "source file/import) - treat mm²/mm³/kg as provisional."), this);
+	unitsNote->setWordWrap(true);
+	layout->addWidget(unitsNote);
 
 	_noSelectionLabel = new QLabel(tr("Nothing selected - select one or more meshes first."), this);
 	_noSelectionLabel->setWordWrap(true);
@@ -73,7 +87,9 @@ void MassPropertiesDialog::populate()
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	_table->setRowCount(static_cast<int>(selected.size()));
 
-	double totalSurfaceArea = 0.0;
+	double knownSurfaceAreaSubtotal = 0.0;
+	int surfaceAreaExcludedCount = 0;
+	QStringList surfaceAreaExclusionReasons;
 
 	double knownVolumeSubtotal = 0.0;
 	int volumeExcludedCount = 0;
@@ -89,6 +105,15 @@ void MassPropertiesDialog::populate()
 	QVector3D massWeightedCentroidAccum;
 	double massWeightSum = 0.0;
 
+	// Cheap interim mitigation, not real async: MeshProperties' CGAL topology
+	// checks (is_closed/does_self_intersect/does_bound_a_volume) run
+	// synchronously on the UI thread per mesh below and can take a
+	// noticeable moment on a CAD-sized selection - a busy cursor at least
+	// signals that something is happening rather than looking frozen. Real
+	// background computation with progress/cancellation is a separate,
+	// larger piece of work (see this dialog's own follow-up notes).
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
 	int row = 0;
 	for (int id : selected)
 	{
@@ -97,8 +122,25 @@ void MassPropertiesDialog::populate()
 
 		_table->setItem(row, 0, new QTableWidgetItem(mesh->getName()));
 
-		totalSurfaceArea += props.surfaceArea();
-		_table->setItem(row, 2, new QTableWidgetItem(QString::number(props.surfaceArea(), 'f', 2)));
+		// hasValidGeometry() gates this the same way hasValidVolume()/
+		// hasMass() gate the other two columns below - surfaceArea() reads
+		// 0.0f (not a real zero-area result) whenever the per-triangle scan
+		// itself failed (invalid/degenerate indices, or threw), and that
+		// must never be silently summed into the total as if it were a
+		// legitimate answer.
+		if (props.hasValidGeometry())
+		{
+			_table->setItem(row, 2, new QTableWidgetItem(QString::number(props.surfaceArea(), 'f', 2)));
+			knownSurfaceAreaSubtotal += props.surfaceArea();
+		}
+		else
+		{
+			const QString reason = describeMeshPropertyUnavailableReason(props.volumeUnavailableReason());
+			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			++surfaceAreaExcludedCount;
+			if (!surfaceAreaExclusionReasons.contains(reason))
+				surfaceAreaExclusionReasons.append(reason);
+		}
 
 		if (props.hasValidVolume())
 		{
@@ -143,6 +185,8 @@ void MassPropertiesDialog::populate()
 		++row;
 	}
 
+	QApplication::restoreOverrideCursor();
+
 	// Totals convention, applied identically to volume and mass (and to
 	// every future aggregate this app ever adds alongside them): a complete
 	// real total only when every contributing mesh had a valid value;
@@ -150,7 +194,12 @@ void MassPropertiesDialog::populate()
 	// excluded-mesh count and reasons - never a partial sum silently
 	// presented as if it were the whole selection's total.
 	QString totals;
-	totals += tr("Surface Area: %1 mm²\n").arg(totalSurfaceArea, 0, 'f', 2);
+	if (surfaceAreaExcludedCount == 0)
+		totals += tr("Surface Area: %1 mm²\n").arg(knownSurfaceAreaSubtotal, 0, 'f', 2);
+	else
+		totals += tr("Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)\n")
+			.arg(knownSurfaceAreaSubtotal, 0, 'f', 2).arg(surfaceAreaExcludedCount).arg(selected.size())
+			.arg(surfaceAreaExclusionReasons.join(QStringLiteral(", ")));
 
 	if (volumeExcludedCount == 0)
 		totals += tr("Volume: %1 mm³\n").arg(knownVolumeSubtotal, 0, 'f', 2);

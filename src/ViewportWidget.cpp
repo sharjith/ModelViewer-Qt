@@ -981,6 +981,12 @@ bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
 
 void ViewportWidget::permanentlyDeleteFromBin(const QUuid& uuid)
 {
+	// getMeshByUuid() also checks the recycle bin (see its own doc comment),
+	// so this resolves the still-alive mesh one last time before it's
+	// actually destroyed below - see meshAboutToBeDeleted()'s doc comment.
+	if (SceneMesh* mesh = getMeshByUuid(uuid))
+		emit meshAboutToBeDeleted(mesh);
+
 	if (!_sceneRuntime.permanentlyDeleteFromRecycleBin(uuid))
 		return;
 	qDebug() << "Permanently deleted mesh from recycle bin, uuid:" << uuid;
@@ -17326,6 +17332,15 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
 void ViewportWidget::clearMeshStore()
 {
     makeCurrent();
+
+    // See meshAboutToBeDeleted()'s doc comment - every mesh here is about to
+    // be delete()d by _sceneRuntime.clearMeshStore() below, while still alive
+    // right now.
+    for (SceneMesh* mesh : _sceneRuntime.meshPointers())
+    {
+        if (mesh)
+            emit meshAboutToBeDeleted(mesh);
+    }
 
     if (_sceneRuntime.clearMeshStore())
         emit visibleSwapped(_sceneRuntime.visibleSwapped());
