@@ -16,6 +16,7 @@
 #include "MeasurementOffsetVectorCommand.h"
 #include "MeshColorUtils.h"
 #include "ViewportWidget.h"
+#include "IconCursor.h"
 #include "PickingHelper.h"
 #include "RtSceneBuilder.h"
 #include <QtMath>
@@ -2475,7 +2476,7 @@ void ViewportWidget::beginWindowZoom()
 	_rtInteractionCtrl->notifyCameraInteracting();
 
 	_viewCtrl.setWindowZoomActive(true);
-	setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
+	setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 11, 11));
 }
 
 void ViewportWidget::performWindowZoom()
@@ -2787,7 +2788,7 @@ void ViewportWidget::setRotationActive(bool active)
 {
     const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(active, false, false);
-	setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
+	setCursor(makeIconCursor(":/icons/res/rotatecursor.png", 33, devicePixelRatioF()));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate rotation mode"));
 }
 
@@ -2795,7 +2796,7 @@ void ViewportWidget::setPanningActive(bool active)
 {
     const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(false, active, false);
-	setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
+	setCursor(makeIconCursor(":/icons/res/pancursor.png", 33, devicePixelRatioF()));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate panning mode"));
 }
 
@@ -2803,7 +2804,7 @@ void ViewportWidget::setZoomingActive(bool active)
 {
     const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(false, false, active);
-	setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
+	setCursor(makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 16, 18));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate zooming mode"));
 }
 
@@ -10827,7 +10828,7 @@ void ViewportWidget::setEyedropperArmed(bool armed)
 		}
 
 		_eyedropperPhase = EyedropperPhase::AwaitingSample;
-		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+		setCursor(makeIconCursor(":/icons/res/eye_dropper.png", 48, devicePixelRatioF(), 12, 37));
 	}
 	else
 	{
@@ -10872,7 +10873,7 @@ void ViewportWidget::setColorPickArmed(bool armed)
 			_selectionManager->setHoverHighlightMode(HoverHighlightMode::Disabled);
 		}
 
-		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+		setCursor(makeIconCursor(":/icons/res/eye_dropper.png", 48, devicePixelRatioF(), 12, 37));
 	}
 	else
 	{
@@ -10905,17 +10906,17 @@ void ViewportWidget::restoreArmedToolCursor()
 {
 	if (_colorPickArmed)
 	{
-		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+		setCursor(makeIconCursor(":/icons/res/eye_dropper.png", 48, devicePixelRatioF(), 12, 37));
 		return;
 	}
 
 	switch (_eyedropperPhase)
 	{
 	case EyedropperPhase::AwaitingSample:
-		setCursor(QCursor(QPixmap(":/icons/res/eye_dropper.png"), 4, 28));
+		setCursor(makeIconCursor(":/icons/res/eye_dropper.png", 48, devicePixelRatioF(), 12, 37));
 		break;
 	case EyedropperPhase::Brushing:
-		setCursor(QCursor(QPixmap(":/icons/res/paint_brush.png"), 4, 28));
+		setCursor(makeIconCursor(":/icons/res/paint_brush.png", 48, devicePixelRatioF(), 6, 40));
 		break;
 	case EyedropperPhase::Idle:
 		setCursor(QCursor(Qt::ArrowCursor));
@@ -10941,7 +10942,7 @@ void ViewportWidget::handleEyedropperSampleClick(const QPoint& pixel)
 	_eyedropperPhase = EyedropperPhase::Brushing;
 	_eyedropperStrokeTargets.clear();
 	_eyedropperBrushGestureActive = false; // painting starts on the NEXT press, not this one's own trailing motion
-	setCursor(QCursor(QPixmap(":/icons/res/paint_brush.png"), 4, 28));
+	setCursor(makeIconCursor(":/icons/res/paint_brush.png", 48, devicePixelRatioF(), 6, 40));
 
 	emit eyedropperMaterialSampled(_eyedropperMaterial, mesh->getName());
 }
@@ -13199,7 +13200,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		if (_viewCtrl.windowZoomActive())
 		{
-			setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
+			setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 11, 11));
 		}
 		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl.viewRotating()) && !isGltfCameraActive())
 		{
@@ -13249,7 +13250,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_rtInteractionCtrl->notifyCameraInteracting();
 			_viewCtrl.syncRotationFromCamera(*_primaryCamera);
 			_viewCtrl.setLeftButtonPoint(downPoint);
-			setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
+			setCursor(makeIconCursor(":/icons/res/rotatecursor.png", 33, devicePixelRatioF()));
 			_viewCtrl.setViewMode(ViewMode::NONE);
 
 			const float maxInertiaVelocity = 10.0f; // Adjust as needed
@@ -13290,7 +13291,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_rtInteractionCtrl->notifyCameraInteracting();
 		_viewCtrl.syncRotationFromCamera(*_primaryCamera);
 		_viewCtrl.setRightButtonPoint(downPoint);
-		setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
+		setCursor(makeIconCursor(":/icons/res/rotatecursor.png", 33, devicePixelRatioF()));
 
 		if (dt > 0) {
 			_viewCtrl.setInertiaRotateVelocity(-QVector2D(look) / dt);
@@ -13322,7 +13323,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 		_viewCtrl.setRightButtonPoint(downPoint);
-		setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
+		setCursor(makeIconCursor(":/icons/res/pancursor.png", 33, devicePixelRatioF()));
 
 		// Clamp pan inertia velocity
 		const float maxPanInertiaVelocity = 20.0f; // Adjust as needed
@@ -13410,7 +13411,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_rtInteractionCtrl->notifyCameraInteracting();
 
 		_viewCtrl.setMiddleButtonPoint(downPoint);
-		setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
+		setCursor(makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 16, 18));
 
 		update();
 	}
