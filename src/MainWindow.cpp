@@ -746,6 +746,10 @@ MainWindow::MainWindow(QWidget* parent)
 		if (activeMdiChild())
 			activeMdiChild()->filterSelectionByColor();
 		});
+	connect(ui->actionFilterByBoundingBox, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->filterSelectionByBoundingBox();
+		});
 	// Selection -> Save Selection Set... - a quick way to save without
 	// opening the Selections panel first; same name-prompt shape as that
 	// panel's own Save button.
@@ -1076,6 +1080,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		disconnect(_hasMeshesSyncConnection);
 		ui->actionFilterByMaterial->setEnabled(false);
 		ui->actionFilterByColor->setEnabled(false);
+		ui->actionFilterByBoundingBox->setEnabled(false);
 		disconnect(_materialPropertiesEyedropperConnection);
 		_materialPropertiesPanel->setEyedropperChecked(false);
 
@@ -1233,6 +1238,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 			const bool hasMeshes = !viewport->getMeshStore().empty();
 			ui->actionFilterByMaterial->setEnabled(hasMeshes);
 			ui->actionFilterByColor->setEnabled(hasMeshes);
+			ui->actionFilterByBoundingBox->setEnabled(hasMeshes);
 		};
 		refreshFilterActionsEnabled();
 		_hasMeshesSyncConnection = connect(sceneGraph, &SceneGraph::structureChanged, this, refreshFilterActionsEnabled);
@@ -2359,6 +2365,7 @@ void MainWindow::updateMenus()
 	const bool hasMeshesForFilters = hasMdiChild && !activeMdiChild()->getViewportWidget()->getMeshStore().empty();
 	ui->actionFilterByMaterial->setEnabled(hasMeshesForFilters);
 	ui->actionFilterByColor->setEnabled(hasMeshesForFilters);
+	ui->actionFilterByBoundingBox->setEnabled(hasMeshesForFilters);
 	// Also requires an active selection (short-circuits before dereferencing
 	// activeMdiChild() when hasMdiChild is false) - saving an empty
 	// selection set is meaningless, and this is re-evaluated live on every

@@ -33,9 +33,9 @@ class BoundingBox
 {
 public:
 	BoundingBox();
-	BoundingBox(const double& xMin, const double& yMin, const double& zMin, const double& xMax, const double& yMax, const double& zMax);
+	BoundingBox(const double& xMin, const double& xMax, const double& yMin, const double& yMax, const double& zMin, const double& zMax);
 	virtual ~BoundingBox();
-	void setLimits(const double& xMin, const double& yMin, const double& zMin, const double& xMax, const double& yMax, const double& zMax);
+	void setLimits(const double& xMin, const double& xMax, const double& yMin, const double& yMax, const double& zMin, const double& zMax);
 	void getLimits(double& xMin, double& xMax, double& yMin, double& yMax, double& zMin, double& zMax);
 	inline double xMin() const { return _xMin; }
 	inline double xMax() const { return _xMax; }
@@ -66,6 +66,17 @@ public:
 	std::vector<Point> corners() const;
 	double boundingRadius() const;
 	bool contains(const Point& P) const;
+
+	// True iff `other` is fully enclosed by this box on all three axes
+	// ("Window"-style containment - see FilterByBoundingBoxDialog).
+	bool contains(const BoundingBox& other) const;
+
+	// True iff this box and `other` overlap on all three axes at all
+	// ("Crossing"-style containment). Standard six-comparison AABB overlap
+	// test - the two boxes are disjoint iff they're separated along ANY
+	// single axis, so overlap requires no separation on any of the three.
+	bool intersects(const BoundingBox& other) const;
+
 	void addBox(const BoundingBox&);
 	QRect project(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window);
 private:

@@ -31,6 +31,19 @@ enum class SelectionMode
     Hybrid // Try ray, fallback to color
 };
 
+// How a drag-selection gesture (sweepSelect/lassoSelect) combines its
+// newly-covered meshes with whatever's already selected - Replace and Add
+// existed as a single addToSelection bool; Subtract (Alt+Shift-drag) removes
+// covered meshes from the existing selection instead of adding to it, so a
+// 3-state enum replaces the bool outright rather than growing a second one
+// (which would leave an ambiguous "both true" state).
+enum class SelectionCombineMode
+{
+    Replace,
+    Add,
+    Subtract
+};
+
 /**
  * @class SelectionManager
  * @brief Manages all mesh selection operations and state
@@ -63,7 +76,7 @@ public:
     // Selection operations
     int clickSelect(const QPoint& pixel);
     int hoverSelect(const QPoint& pixel);
-    QList<int> sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection = false);
+    QList<int> sweepSelect(const QPoint& p1, const QPoint& p2, SelectionCombineMode mode = SelectionCombineMode::Replace);
 
     // Freeform-polygon counterpart to sweepSelect() above - same per-mesh
     // screen-space bounding-sphere projection, but tests the projected
@@ -71,7 +84,7 @@ public:
     // QRect's containment/overlap - a center-inside test, simpler than an
     // exact polygon-circle overlap area, consistent with sweepSelect()'s own
     // pragmatic mesh-granularity approximation.
-    QList<int> lassoSelect(const QPolygon& lassoPath, bool addToSelection = false);
+    QList<int> lassoSelect(const QPolygon& lassoPath, SelectionCombineMode mode = SelectionCombineMode::Replace);
     void select(int id);
     void deselect(int id);
     void syncMeshSelectionVisualState();

@@ -1645,8 +1645,8 @@ private:
 	float lowestModelZ()  { return _viewCtrl.visibleLowestZ(); }
 	bool positionGameplayCameraForScene(Camera::CameraMode mode);
 
-	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
-	QList<int> lassoSelect(bool addToSelection = false);  // Freeform selection using _lassoPoints, same shape as sweepSelect() above
+	QList<int> sweepSelect(const QPoint& pixel, SelectionCombineMode mode = SelectionCombineMode::Replace);  // Sweep selection using rubber band
+	QList<int> lassoSelect(SelectionCombineMode mode = SelectionCombineMode::Replace);  // Freeform selection using _lassoPoints, same shape as sweepSelect() above
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
 	unsigned int loadTextureFromFile(const char* path,
 		GLenum wrapS = GL_REPEAT, GLenum wrapT = GL_REPEAT,

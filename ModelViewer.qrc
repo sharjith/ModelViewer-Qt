@@ -137,6 +137,7 @@
         <file>res/save_selection_set.png</file>
         <file>res/filter_by_color.png</file>
         <file>res/filter_by_material.png</file>
+        <file>res/filter_by_bounding_box.png</file>
         <file>res/settings.png</file>
         <file>res/redo.png</file>
         <file>res/undo.png</file>

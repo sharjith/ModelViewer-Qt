@@ -101,7 +101,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     setObjectName(QStringLiteral("standardViewportToolbar"));
     // Scope transparency to the toolbar, so it cannot override tooltip styling.
     setStyleSheet("QWidget#standardViewportToolbar { background: transparent; border: none; }");
-    setFixedHeight(76);
+    setFixedHeight(64);
 
     QString buttonStyleSheet(
         "QToolButton {"
@@ -148,7 +148,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
         "    border: 1px solid gray;"
         "    border-radius: 4px;"
         "    padding: 2px;"
-        "    icon-size: 42px;"
+        "    icon-size: 36px;"
         "}"
         "QMenu::item {"
         "    background: transparent;"
@@ -219,7 +219,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _scrollLeftBtn = new QToolButton(this);
     _scrollLeftBtn->setStyleSheet(scrollButtonStyleSheet);
     _scrollLeftBtn->setText("<");
-    _scrollLeftBtn->setFixedSize(20, 68);
+    _scrollLeftBtn->setFixedSize(20, 56);
     _scrollLeftBtn->setVisible(false);
     _scrollLeftBtn->installEventFilter(this);
     outerLayout->addWidget(_scrollLeftBtn);
@@ -231,7 +231,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _scrollArea->setWidgetResizable(false);
-    _scrollArea->setFixedHeight(72);
+    _scrollArea->setFixedHeight(60);
     _scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
     outerLayout->addWidget(_scrollArea, 1);
 
@@ -239,7 +239,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _buttonContainer = new QWidget();
     _buttonContainer->setObjectName(QStringLiteral("viewToolbarButtons"));
     _buttonContainer->setStyleSheet("QWidget#viewToolbarButtons { background: transparent; }");
-    _buttonContainer->setFixedHeight(72);
+    _buttonContainer->setFixedHeight(60);
     _mainLayout = new QHBoxLayout(_buttonContainer);
     _mainLayout->setContentsMargins(4, 4, 4, 4);
     _mainLayout->setSpacing(6);
@@ -252,7 +252,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _scrollRightBtn = new QToolButton(this);
     _scrollRightBtn->setStyleSheet(scrollButtonStyleSheet);
     _scrollRightBtn->setText(">");
-    _scrollRightBtn->setFixedSize(20, 68);
+    _scrollRightBtn->setFixedSize(20, 56);
     _scrollRightBtn->setVisible(false);
     _scrollRightBtn->installEventFilter(this);
     outerLayout->addWidget(_scrollRightBtn);
@@ -268,7 +268,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Navigation - Rotate, Pan, Zoom grouped in dropdown
     _toolButtonNavigation = new FlyOutViewButton(this);
     _toolButtonNavigation->setIcon(QIcon(":/icons/res/rotateview.png"));
-    _toolButtonNavigation->setIconSize(QSize(48, 48));
+    _toolButtonNavigation->setIconSize(QSize(40, 40));
     _toolButtonNavigation->setToolTip(tr("Navigation"));
     _toolButtonNavigation->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonNavigation->setAutoRaise(true);
@@ -333,7 +333,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnFitAll = new QToolButton(this);
     _btnFitAll->setStyleSheet(buttonStyleSheet);
     _btnFitAll->setIcon(QIcon(":/icons/res/fit-all.png"));
-    _btnFitAll->setIconSize(QSize(48, 48));
+    _btnFitAll->setIconSize(QSize(40, 40));
     _btnFitAll->setToolTip(tr("Fit All"));
     scopeButtonShortcutToViewport(_btnFitAll, QKeySequence(Qt::Key_F));
     _btnFitAll->setAutoRaise(true);
@@ -344,7 +344,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnWindowZoom = new QToolButton(this);
     _btnWindowZoom->setStyleSheet(buttonStyleSheet);
     _btnWindowZoom->setIcon(QIcon(":/icons/res/window-zoom.png"));
-    _btnWindowZoom->setIconSize(QSize(48, 48));
+    _btnWindowZoom->setIconSize(QSize(40, 40));
     _btnWindowZoom->setToolTip(tr("Window Zoom"));
     scopeButtonShortcutToViewport(_btnWindowZoom, QKeySequence(Qt::ALT | Qt::Key_W));
     _btnWindowZoom->setAutoRaise(true);
@@ -357,7 +357,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnLassoSelect = new QToolButton(this);
     _btnLassoSelect->setStyleSheet(buttonStyleSheet);
     _btnLassoSelect->setIcon(QIcon(":/icons/res/lasso_select.png"));
-    _btnLassoSelect->setIconSize(QSize(48, 48));
+    _btnLassoSelect->setIconSize(QSize(40, 40));
     _btnLassoSelect->setToolTip(tr("Lasso Select"));
     _btnLassoSelect->setCheckable(true);
     _btnLassoSelect->setAutoRaise(true);
@@ -368,7 +368,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Camera Modes
     _toolButtonCameraModes = new FlyOutViewButton(this);
     _toolButtonCameraModes->setIcon(QIcon(":/icons/res/camera_orbit.png"));
-    _toolButtonCameraModes->setIconSize(QSize(48, 48));
+    _toolButtonCameraModes->setIconSize(QSize(40, 40));
     _toolButtonCameraModes->setToolTip(tr("Camera Modes"));
     _toolButtonCameraModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonCameraModes->setAutoRaise(true);
@@ -416,7 +416,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     _toolButtonCameraUpAxis = new FlyOutViewButton(this);
     _toolButtonCameraUpAxis->setIcon(QIcon(":/icons/res/camera_z_up.png"));
-    _toolButtonCameraUpAxis->setIconSize(QSize(48, 48));
+    _toolButtonCameraUpAxis->setIconSize(QSize(40, 40));
     _toolButtonCameraUpAxis->setToolTip(tr("Camera Up Axis"));
     _toolButtonCameraUpAxis->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonCameraUpAxis->setAutoRaise(true);
@@ -446,7 +446,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnTurntable = new QToolButton(this);
     _btnTurntable->setStyleSheet(buttonStyleSheet);
     _btnTurntable->setIcon(QIcon(":/icons/res/camera_orbit_anim.png"));
-    _btnTurntable->setIconSize(QSize(48, 48));
+    _btnTurntable->setIconSize(QSize(40, 40));
     _btnTurntable->setToolTip(tr("Turntable"));
     _btnTurntable->setCheckable(true);
     _btnTurntable->setAutoRaise(true);
@@ -457,7 +457,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Standard Views
     _toolButtonViews = new FlyOutViewButton(this);
     _toolButtonViews->setIcon(QIcon(":/icons/res/top.png"));
-    _toolButtonViews->setIconSize(QSize(48, 48));
+    _toolButtonViews->setIconSize(QSize(40, 40));
     _toolButtonViews->setToolTip(tr("Standard Views"));
     _toolButtonViews->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonViews->setAutoRaise(true);
@@ -539,7 +539,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Isometric Views
     _toolButtonViewModes = new FlyOutViewButton(this);
     _toolButtonViewModes->setIcon(QIcon(":/icons/res/isometric.png"));
-    _toolButtonViewModes->setIconSize(QSize(48, 48));
+    _toolButtonViewModes->setIconSize(QSize(40, 40));
     _toolButtonViewModes->setToolTip(tr("Axonometric View"));
     _toolButtonViewModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonViewModes->setAutoRaise(true);
@@ -612,7 +612,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _projToggleButton->setCheckable(true);
     _projToggleButton->setChecked(false);
     _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
-    _projToggleButton->setIconSize(QSize(48, 48));
+    _projToggleButton->setIconSize(QSize(40, 40));
     _projToggleButton->setToolTip(tr("Toggle Projection"));
     scopeButtonShortcutToViewport(_projToggleButton, QKeySequence(Qt::SHIFT | Qt::Key_P));
     _mainLayout->addWidget(_projToggleButton);
@@ -636,7 +636,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _multiBtn = new QToolButton(this);
     _multiBtn->setStyleSheet(buttonStyleSheet);
     _multiBtn->setIcon(QIcon(":/icons/res/multiview.png"));
-    _multiBtn->setIconSize(QSize(48, 48));
+    _multiBtn->setIconSize(QSize(40, 40));
     _multiBtn->setToolTip(tr("Toggle Multi-View"));
     _multiBtn->setCheckable(true);
     _multiBtn->setAutoRaise(true);
@@ -648,7 +648,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Display Modes
     _toolButtonDisplayModes = new FlyOutViewButton(this);
     _toolButtonDisplayModes->setIcon(QIcon(":/icons/res/shaded.png"));
-    _toolButtonDisplayModes->setIconSize(QSize(48, 48));
+    _toolButtonDisplayModes->setIconSize(QSize(40, 40));
     _toolButtonDisplayModes->setToolTip(tr("Display Modes"));
     _toolButtonDisplayModes->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonDisplayModes->setAutoRaise(true);
@@ -658,7 +658,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _realisticBtn = new QToolButton(this);
     _realisticBtn->setStyleSheet(buttonStyleSheet);
     _realisticBtn->setIcon(QIcon(":/icons/res/realshaded.png"));
-    _realisticBtn->setIconSize(QSize(48, 48));
+    _realisticBtn->setIconSize(QSize(40, 40));
     _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
     _realisticBtn->setCheckable(true);
     _realisticBtn->setAutoRaise(true);
@@ -733,7 +733,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Rendering Mode
     _toolButtonRenderingMode = new FlyOutViewButton(this);
     _toolButtonRenderingMode->setIcon(QIcon(":/icons/res/ads_mode.png"));
-    _toolButtonRenderingMode->setIconSize(QSize(48, 48));
+    _toolButtonRenderingMode->setIconSize(QSize(40, 40));
     _toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));
     _toolButtonRenderingMode->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonRenderingMode->setAutoRaise(true);
@@ -776,7 +776,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // Shading Normal Mode (Smooth / Flat)
     _toolButtonShadingNormal = new FlyOutViewButton(this);
     _toolButtonShadingNormal->setIcon(QIcon(":/icons/res/smooth_shaded.png"));
-    _toolButtonShadingNormal->setIconSize(QSize(48, 48));
+    _toolButtonShadingNormal->setIconSize(QSize(40, 40));
     _toolButtonShadingNormal->setToolTip(tr("Shading Normal"));
     _toolButtonShadingNormal->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonShadingNormal->setAutoRaise(true);
@@ -812,7 +812,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _sectionBtn = new QToolButton(this);
     _sectionBtn->setStyleSheet(buttonStyleSheet);
     _sectionBtn->setIcon(QIcon(":/icons/res/section.png"));
-    _sectionBtn->setIconSize(QSize(48, 48));
+    _sectionBtn->setIconSize(QSize(40, 40));
     _sectionBtn->setToolTip(tr("Clipping Planes"));
     _sectionBtn->setCheckable(true);
     _sectionBtn->setAutoRaise(true);
@@ -824,7 +824,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _explodedBtn = new QToolButton(this);
     _explodedBtn->setStyleSheet(buttonStyleSheet);
     _explodedBtn->setIcon(QIcon(":/icons/res/exploded_view.png"));
-    _explodedBtn->setIconSize(QSize(48, 48));
+    _explodedBtn->setIconSize(QSize(40, 40));
     _explodedBtn->setToolTip(tr("Exploded View"));
     _explodedBtn->setCheckable(true);
     _explodedBtn->setAutoRaise(true);
@@ -836,7 +836,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _swapBtn = new QToolButton(this);
     _swapBtn->setStyleSheet(buttonStyleSheet);
     _swapBtn->setIcon(QIcon(":/icons/res/swapvisible.png"));
-    _swapBtn->setIconSize(QSize(48, 48));
+    _swapBtn->setIconSize(QSize(40, 40));
     _swapBtn->setToolTip(tr("Swap Visible"));
     _swapBtn->setCheckable(true);
     _swapBtn->setAutoRaise(true);
@@ -848,7 +848,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _axisBtn = new QToolButton(this);
     _axisBtn->setStyleSheet(buttonStyleSheet);
     _axisBtn->setIcon(QIcon(":/icons/res/showAxis.png"));
-    _axisBtn->setIconSize(QSize(48, 48));
+    _axisBtn->setIconSize(QSize(40, 40));
     _axisBtn->setToolTip(tr("Show/Hide Axis"));
     _axisBtn->setCheckable(true);
     _axisBtn->setChecked(true);
@@ -875,7 +875,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _toolButtonDebugOverlays->setCheckable(true);
     _toolButtonDebugOverlays->setChecked(false);
     _toolButtonDebugOverlays->setIcon(QIcon(debugOverlayIconPath(_currentDebugOverlayAction, false)));
-    _toolButtonDebugOverlays->setIconSize(QSize(48, 48));
+    _toolButtonDebugOverlays->setIconSize(QSize(40, 40));
     _toolButtonDebugOverlays->setToolTip(tr("Debug Overlays"));
     _toolButtonDebugOverlays->setPopupMode(QToolButton::DelayedPopup);
     _toolButtonDebugOverlays->setAutoRaise(true);
@@ -950,7 +950,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 QSize ViewToolbar::sizeHint() const
 {
     ensurePolished();
-    return QSize(_mainLayout->sizeHint().width() + 8, 76);
+    return QSize(_mainLayout->sizeHint().width() + 8, 64);
 }
 
 void ViewToolbar::stopScrolling()

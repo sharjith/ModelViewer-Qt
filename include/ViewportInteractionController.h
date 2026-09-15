@@ -143,10 +143,10 @@ public:
     const BoundingBox& boundingBox() const               { return _boundingBox; }
     void setBoundingBox(const BoundingBox& box)          { _boundingBox = box; }
     void expandBoundingBox(const BoundingBox& box)       { _boundingBox.addBox(box); }
-    void setBoundingBoxLimits(double xmin, double ymin, double zmin,
-                              double xmax, double ymax, double zmax)
+    void setBoundingBoxLimits(double xmin, double xmax, double ymin,
+                              double ymax, double zmin, double zmax)
     {
-        _boundingBox.setLimits(xmin, ymin, zmin, xmax, ymax, zmax);
+        _boundingBox.setLimits(xmin, xmax, ymin, ymax, zmin, zmax);
     }
 
     float visibleHighestZ() const                        { return _visibleHighestZ; }
@@ -206,6 +206,14 @@ public:
 
     bool shiftDragActive() const                         { return _shiftDragActive; }
     void setShiftDragActive(bool active)                 { _shiftDragActive = active; }
+
+    // Same press-time latch idiom as shiftDragActive() above, for the
+    // Alt+Shift Subtract-mode combo (see ViewportWidget::mouseReleaseEvent's
+    // sweep/lasso branches) - covers the case where the user releases Alt or
+    // Shift before releasing the mouse button.
+    bool altShiftDragActive() const                      { return _altShiftDragActive; }
+    void setAltShiftDragActive(bool active)               { _altShiftDragActive = active; }
+
     const QPoint& sweepStartPoint() const                { return _sweepStartPoint; }
     void setSweepStartPoint(const QPoint& point)         { _sweepStartPoint = point; }
 
@@ -443,6 +451,7 @@ private:
     float     _rubberBandRadius          = 0.0f;
     QVector3D _rubberBandCenter;
     bool      _shiftDragActive           = false;
+    bool      _altShiftDragActive        = false;
     QPoint    _sweepStartPoint;
 
     // ---- Transform-gizmo drag state ----------------------------------------

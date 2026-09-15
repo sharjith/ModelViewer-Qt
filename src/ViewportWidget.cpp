@@ -2476,7 +2476,7 @@ void ViewportWidget::beginWindowZoom()
 	_rtInteractionCtrl->notifyCameraInteracting();
 
 	_viewCtrl.setWindowZoomActive(true);
-	setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 11, 11));
+	setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 15, 14));
 }
 
 void ViewportWidget::performWindowZoom()
@@ -2804,7 +2804,7 @@ void ViewportWidget::setZoomingActive(bool active)
 {
     const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
 	_viewCtrl.setNavigationModes(false, false, active);
-	setCursor(makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 16, 18));
+	setCursor(makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 11, 13));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate zooming mode"));
 }
 
@@ -2877,7 +2877,7 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 	_viewCtrl.setBoundingSphereCenter(0, 0, 0);
 	_viewCtrl.setBoundingSphereRadius(0.0f);
-	_viewCtrl.setBoundingBoxLimits(-0.001, -0.001, -0.001, 0.001, 0.001, 0.001);
+	_viewCtrl.setBoundingBoxLimits(-0.001, 0.001, -0.001, 0.001, -0.001, 0.001);
 	_viewCtrl.setVisibleLowestZ(-1.0f);
 	_viewCtrl.setVisibleHighestZ(1.0f);
 
@@ -2950,7 +2950,7 @@ void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	// boxes at each point - they don't drive lowestZ/highestZ (that value
 	// only ever feeds the floor plane/grid placement, a mesh-scale concept).
 	auto expandBoundsWithPoint = [&](const QVector3D& p) {
-		const BoundingBox pointBox(p.x(), p.y(), p.z(), p.x(), p.y(), p.z());
+		const BoundingBox pointBox(p.x(), p.x(), p.y(), p.y(), p.z(), p.z());
 		if (firstBox)
 		{
 			_viewCtrl.setBoundingBox(pointBox);
@@ -12753,6 +12753,9 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 
 		// Track if Shift is held for drag selection mode
 		_viewCtrl.setShiftDragActive((e->modifiers() & Qt::ShiftModifier) != 0);
+		// Track Alt+Shift together for Subtract-mode drag selection - see
+		// mouseReleaseEvent's sweep/lasso branches for where this is consumed.
+		_viewCtrl.setAltShiftDragActive((e->modifiers() & (Qt::AltModifier | Qt::ShiftModifier)) == (Qt::AltModifier | Qt::ShiftModifier));
 		_viewCtrl.setSweepStartPoint(e->position().toPoint());
 
 		if (_viewCtrl.viewPanning() || _viewCtrl.viewZooming() || _viewCtrl.viewRotating())
@@ -12920,17 +12923,28 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
         _rubberBand->hide();
+
+		// Shared by the lasso and sweep-select branches below - lets the
+		// user decide Replace/Add/Subtract right up to release, not just at
+		// press (same "prefer release-time state, fall back to a press-time
+		// latch in case the modifier was released early" reasoning for both
+		// Shift and Alt+Shift). Subtract is checked first so it wins when
+		// both apply - Alt+Shift necessarily has the Shift bit set too, so
+		// without this ordering it would also satisfy the Add check below.
+		const bool shiftHeldAtRelease = (e->modifiers() & Qt::ShiftModifier) != 0;
+		const bool altShiftHeldAtRelease = (e->modifiers() & (Qt::AltModifier | Qt::ShiftModifier)) == (Qt::AltModifier | Qt::ShiftModifier);
+		const bool subtract = altShiftHeldAtRelease || _viewCtrl.altShiftDragActive();
+		const bool add = !subtract && (shiftHeldAtRelease || _viewCtrl.shiftDragActive());
+		const SelectionCombineMode combineMode = subtract ? SelectionCombineMode::Subtract
+			: add ? SelectionCombineMode::Add : SelectionCombineMode::Replace;
+
 		if (_viewCtrl.windowZoomActive())
 		{
 			performWindowZoom();
 		}
 		else if (_lassoDragging)
 		{
-			// Same shift-at-release-time preference as the rectangle sweep
-			// select below - lets the user decide additive/replace right up
-			// to release, not just at press.
-			bool shiftHeldAtRelease = (e->modifiers() & Qt::ShiftModifier) != 0;
-			lassoSelect(shiftHeldAtRelease);
+			lassoSelect(combineMode);
 			_lassoDragging = false;
 			_lassoPoints.clear();
 			if (_lassoOverlay)
@@ -12966,14 +12980,15 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		}
 		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
-			// Sweep select: check shift status at release time to determine if we should add to selection
-			bool shiftHeldAtRelease = (e->modifiers() & Qt::ShiftModifier) != 0;
-			// Prefer the current shift state at release time over the state at press time
-			bool addToSelection = shiftHeldAtRelease || _viewCtrl.shiftDragActive();
-
-			sweepSelect(e->pos(), addToSelection);
-			_viewCtrl.setShiftDragActive(false);  // Reset the flag
+			sweepSelect(e->pos(), combineMode);
 		}
+
+		// Reset both drag latches for the next gesture - harmless to do
+		// unconditionally even for branches that didn't consume combineMode
+		// (windowZoom/eyedropper), and keeps the two latches' lifecycle
+		// symmetric rather than only resetting after a sweep-select release.
+		_viewCtrl.setShiftDragActive(false);
+		_viewCtrl.setAltShiftDragActive(false);
 	}
 
 	if (e->button() & Qt::RightButton)
@@ -13187,7 +13202,16 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			{
 				_lassoPoints << e->pos();
 				if (_lassoOverlay)
+				{
+					// Use the same current-modifier plus press-time-latch rule
+					// as mouseReleaseEvent, so the preview cannot turn orange
+					// while the pending gesture will still subtract.
+					const bool subtractPreview =
+						((e->modifiers() & (Qt::AltModifier | Qt::ShiftModifier)) == (Qt::AltModifier | Qt::ShiftModifier))
+						|| _viewCtrl.altShiftDragActive();
+					_lassoOverlay->setSubtractMode(subtractPreview);
 					_lassoOverlay->setPoints(_lassoPoints);
+				}
 			}
 			else if (_eyedropperPhase == EyedropperPhase::Brushing && _eyedropperBrushGestureActive)
 			{
@@ -13200,7 +13224,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		if (_viewCtrl.windowZoomActive())
 		{
-			setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 11, 11));
+			setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 15, 14));
 		}
 		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl.viewRotating()) && !isGltfCameraActive())
 		{
@@ -13411,7 +13435,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_rtInteractionCtrl->notifyCameraInteracting();
 
 		_viewCtrl.setMiddleButtonPoint(downPoint);
-		setCursor(makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 16, 18));
+		setCursor(makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 11, 13));
 
 		update();
 	}
@@ -13730,6 +13754,13 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 		setEyedropperArmed(false);
 		setLassoToolArmed(false);
 		setColorPickArmed(false);
+		// A left-button release still arrives after cancelling an in-progress
+		// lasso. Clear the hidden rectangle too, so that release cannot fall
+		// through to sweepSelect() with geometry left by an earlier gesture.
+		if (_rubberBand)
+			_rubberBand->setGeometry(QRect());
+		_viewCtrl.setShiftDragActive(false);
+		_viewCtrl.setAltShiftDragActive(false);
 		setCursor(QCursor(Qt::ArrowCursor));
 		MainWindow::showStatusMessage("");
 
@@ -14525,23 +14556,23 @@ unsigned int ViewportWidget::loadTextureFromFile(
 	return textureID;
 }
 
-QList<int> ViewportWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
+QList<int> ViewportWidget::sweepSelect(const QPoint& pixel, SelectionCombineMode mode)
 {
 	if (!_selectionManager || !_rubberBand || _rubberBand->geometry().isNull())
 		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
 
-	const QList<int> selectedIds = _selectionManager->sweepSelect(_viewCtrl.leftButtonPoint(), pixel, addToSelection);
+	const QList<int> selectedIds = _selectionManager->sweepSelect(_viewCtrl.leftButtonPoint(), pixel, mode);
 	emit selectionChanged(selectedIds);
 	emit sweepSelectionDone(selectedIds);
 	return selectedIds;
 }
 
-QList<int> ViewportWidget::lassoSelect(bool addToSelection)
+QList<int> ViewportWidget::lassoSelect(SelectionCombineMode mode)
 {
 	if (!_selectionManager || _lassoPoints.size() < 3)
 		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
 
-	const QList<int> selectedIds = _selectionManager->lassoSelect(_lassoPoints, addToSelection);
+	const QList<int> selectedIds = _selectionManager->lassoSelect(_lassoPoints, mode);
 	emit selectionChanged(selectedIds);
 	emit sweepSelectionDone(selectedIds); // reuse - same "a multi-select gesture just completed" meaning as sweepSelect()'s own emit
 	return selectedIds;

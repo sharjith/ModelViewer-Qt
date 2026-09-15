@@ -165,6 +165,7 @@
     <addaction name="separator"/>
     <addaction name="actionFilterByMaterial"/>
     <addaction name="actionFilterByColor"/>
+    <addaction name="actionFilterByBoundingBox"/>
     <addaction name="separator"/>
     <addaction name="actionViewSwap"/>
     <addaction name="separator"/>
@@ -756,6 +757,22 @@
    </property>
    <property name="toolTip">
     <string>Select every mesh in the scene whose color matches a chosen target
+(import a model first)</string>
+   </property>
+  </action>
+  <action name="actionFilterByBoundingBox">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/filter_by_bounding_box.png</normaloff>:/icons/res/filter_by_bounding_box.png</iconset>
+   </property>
+   <property name="text">
+    <string>Filter by Bounding Box...</string>
+   </property>
+   <property name="statusTip">
+    <string>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits</string>
+   </property>
+   <property name="toolTip">
+    <string>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits
 (import a model first)</string>
    </property>
   </action>

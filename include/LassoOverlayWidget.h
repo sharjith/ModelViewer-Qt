@@ -17,9 +17,17 @@ public:
 	// Replaces the drag path and repaints. An empty/short polygon draws nothing.
 	void setPoints(const QPolygon& points);
 
+	// Live preview of which combine mode releasing now would apply - checked
+	// continuously during the drag using the same current-modifier and
+	// press-time-latch rules as mouseReleaseEvent(). Red for Subtract, orange
+	// otherwise (Replace/Add look identical here - orange already meant
+	// "select" for both before this feature existed).
+	void setSubtractMode(bool subtract);
+
 protected:
 	void paintEvent(QPaintEvent* event) override;
 
 private:
 	QPolygon _points;
+	bool _subtractMode = false;
 };

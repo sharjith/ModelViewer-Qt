@@ -58,6 +58,7 @@
 #include "MeshColorUtils.h"
 #include "FilterByMaterialDialog.h"
 #include "FilterByColorDialog.h"
+#include "FilterByBoundingBoxDialog.h"
 #include "SaveSelectionSetCommand.h"
 #include "DeleteSelectionSetCommand.h"
 #include "SaveSceneStateCommand.h"
@@ -550,13 +551,18 @@ void ModelViewer::setListRow(int index)
 
 void ModelViewer::setListRows(QList<int> indices)
 {
-	if (indices.isEmpty())
-		return;
-
 	// Build selection set from indices
 	QSet<int> newSelection;
 	for (int index : indices)
 		newSelection.insert(index);
+
+	// An empty result is meaningful for Replace and Subtract gestures: it
+	// clears the previous selection. Avoid pushing an undo command only when
+	// the authoritative tree selection already matches the gesture result.
+	const std::vector<int> currentIds = getSelectedIDs();
+	const QSet<int> currentSelection(currentIds.cbegin(), currentIds.cend());
+	if (newSelection == currentSelection)
+		return;
 
 	// Apply selection with undo support
 	setSelectionWithUndo(newSelection);
@@ -4065,13 +4071,16 @@ void ModelViewer::filterSelectionByMaterial()
 	if (_viewportWidget->getMeshStore().empty())
 		return;
 
-	// Mutually exclusive with Filter by Color - both dialogs live-push their
-	// own idea of the "current filter selection" independently, so having
-	// both open at once means whichever one you touch last silently wins,
-	// with no indication the other dialog's criteria are still armed.
-	// Closing it (not just hiding it) goes through its normal closeEvent()/
-	// saveSettings() and self-deletes via WA_DeleteOnClose.
+	// Mutually exclusive with Filter by Color and Filter by Bounding Box -
+	// all three dialogs live-push their own idea of the "current filter
+	// selection" independently, so having more than one open at once means
+	// whichever one you touch last silently wins, with no indication the
+	// others' criteria are still armed. Closing it (not just hiding it)
+	// goes through its normal closeEvent()/saveSettings() and self-deletes
+	// via WA_DeleteOnClose.
 	if (auto* other = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+	if (auto* other = findChild<FilterByBoundingBoxDialog*>(QString(), Qt::FindDirectChildrenOnly))
 		other->close();
 
 	// Non-modal, per-document singleton - same findChild-reuse-or-create
@@ -4095,9 +4104,11 @@ void ModelViewer::filterSelectionByColor()
 	if (meshStore.empty())
 		return;
 
-	// Mutually exclusive with Filter by Material - see the matching comment
-	// in filterSelectionByMaterial() for why.
+	// Mutually exclusive with Filter by Material and Filter by Bounding Box -
+	// see the matching comment in filterSelectionByMaterial() for why.
 	if (auto* other = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+	if (auto* other = findChild<FilterByBoundingBoxDialog*>(QString(), Qt::FindDirectChildrenOnly))
 		other->close();
 
 	auto* dialog = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly);
@@ -4125,6 +4136,66 @@ void ModelViewer::filterSelectionByColor()
 		const QVector<QVector3D> initialColors = dedupedColors({}, selectionColors);
 
 		dialog = new FilterByColorDialog(this, initialColors, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
+void ModelViewer::filterSelectionByBoundingBox()
+{
+	std::vector<SceneMesh*> meshStore = _viewportWidget->getMeshStore();
+	if (meshStore.empty())
+		return;
+
+	// Mutually exclusive with Filter by Material and Filter by Color - see
+	// the matching comment in filterSelectionByMaterial() for why.
+	if (auto* other = findChild<FilterByMaterialDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+	if (auto* other = findChild<FilterByColorDialog*>(QString(), Qt::FindDirectChildrenOnly))
+		other->close();
+
+	auto* dialog = findChild<FilterByBoundingBoxDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		// Seed the six limits from the current selection's combined bounds
+		// (real prior intent, same reasoning as filterSelectionByColor()'s
+		// own seeding) - or, if nothing is selected, from the whole scene's
+		// combined bounds, so the dialog never opens with a degenerate
+		// all-zero box that would silently match nothing. Only done for a
+		// fresh dialog - reopening an already-open one keeps whatever limits
+		// the user already set (re-seed via its own "Use Current Selection's
+		// Bounds" button instead).
+		const std::vector<int> currentSelection = getSelectedIDs();
+		BoundingBox initialBounds;
+		bool any = false;
+		auto includeMesh = [&](SceneMesh* mesh) {
+			if (!mesh)
+				return;
+			if (!any)
+			{
+				initialBounds = mesh->getBoundingBox();
+				any = true;
+			}
+			else
+			{
+				initialBounds.addBox(mesh->getBoundingBox());
+			}
+		};
+		if (!currentSelection.empty())
+		{
+			for (int id : currentSelection)
+				if (id >= 0 && id < static_cast<int>(meshStore.size()))
+					includeMesh(meshStore[id]);
+		}
+		else
+		{
+			for (SceneMesh* mesh : meshStore)
+				includeMesh(mesh);
+		}
+
+		dialog = new FilterByBoundingBoxDialog(this, initialBounds, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
 	dialog->show();

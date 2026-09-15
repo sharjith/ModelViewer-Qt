@@ -10,7 +10,7 @@
 
 ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
 {
-    setFixedHeight(76);
+    setFixedHeight(64);
     setAutoFillBackground(false);
     setStyleSheet(QStringLiteral("QToolButton { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 5px; }"
         "QToolButton:hover { background: rgba(0, 120, 215, 50); border-color: #0078D7; }"
@@ -20,8 +20,10 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     row->setSpacing(2);
     _left = new QToolButton(this);
     _left->setArrowType(Qt::LeftArrow);
+    _left->setFixedSize(20, 56);
     _right = new QToolButton(this);
     _right->setArrowType(Qt::RightArrow);
+    _right->setFixedSize(20, 56);
     _scroll = new QScrollArea(this);
     _scroll->setStyleSheet(QStringLiteral("QScrollArea { background: transparent; border: none; }"));
     _scroll->viewport()->setAutoFillBackground(false);
@@ -49,7 +51,7 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
         auto* button = new QToolButton(_content);
         button->setDefaultAction(action);
         button->setAutoRaise(true);
-        button->setIconSize(QSize(48, 48));
+        button->setIconSize(QSize(40, 40));
         commands->addWidget(button);
         return button;
     };
@@ -108,8 +110,8 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     // Resolve style-dependent button metrics before freezing content width.
     _content->ensurePolished();
     _content->setFixedWidth(commands->sizeHint().width());
-    connect(_left, &QToolButton::clicked, this, [this]() { _scroll->horizontalScrollBar()->setValue(_scroll->horizontalScrollBar()->value() - 140); });
-    connect(_right, &QToolButton::clicked, this, [this]() { _scroll->horizontalScrollBar()->setValue(_scroll->horizontalScrollBar()->value() + 140); });
+    connect(_left, &QToolButton::clicked, this, [this]() { _scroll->horizontalScrollBar()->setValue(_scroll->horizontalScrollBar()->value() - 110); });
+    connect(_right, &QToolButton::clicked, this, [this]() { _scroll->horizontalScrollBar()->setValue(_scroll->horizontalScrollBar()->value() + 110); });
     connect(_scroll->horizontalScrollBar(), &QScrollBar::valueChanged, this, &ToolsToolbar::updateScrollButtons);
     connect(_scroll->horizontalScrollBar(), &QScrollBar::rangeChanged, this, &ToolsToolbar::updateScrollButtons);
     _left->setAutoRepeat(true);
@@ -119,7 +121,7 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     updateScrollButtons();
     setMeshToolAvailability({});
 }
-QSize ToolsToolbar::sizeHint() const { return QSize(_content->width() + 8, 76); }
+QSize ToolsToolbar::sizeHint() const { return QSize(_content->width() + 8, 64); }
 bool ToolsToolbar::isFlyoutMenuVisible() const { return _analysisMenu->isVisible() || _mergeMenu->isVisible(); }
 void ToolsToolbar::setMeshToolAvailability(const QMap<QString, QString>& disabledReasons)
 {

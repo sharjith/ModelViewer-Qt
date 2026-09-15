@@ -27,9 +27,9 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
         "QWidget#tabbedViewportToolbar { background: rgba(255, 255, 255, 100); border: 1px solid rgba(100, 100, 100, 160); border-radius: 5px; }"
         "QStackedWidget#toolbarPages { background: transparent; border: none; }"
         "QTabBar#toolbarTabs { background: transparent; }"
-        "QTabBar#toolbarTabs::tab { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 4px 24px; }"
-        "QTabBar#toolbarTabs::tab:hover { background: rgba(0, 120, 215, 50); }"
-        "QTabBar#toolbarTabs::tab:selected { background: rgba(0, 120, 215, 70); border-color: rgba(0, 120, 215, 150); }"
+        "QTabBar#toolbarTabs::tab { color: #1f4e79; background: rgba(215, 235, 250, 220); border: 1px solid rgba(42, 130, 218, 140); border-radius: 4px; padding: 3px 22px; font-size: 12px; }"
+        "QTabBar#toolbarTabs::tab:hover { background: #c2e1f7; }"
+        "QTabBar#toolbarTabs::tab:selected { color: #ffffff; background: #2a82da; border-color: #ffffff; }"
         "QToolButton#toolbarPin { background: transparent; border: 1px solid transparent; border-radius: 4px; }"
         "QToolButton#toolbarPin:hover { background: rgba(0, 120, 215, 50); }"
         "QToolButton#toolbarPin:checked { background: rgba(0, 120, 215, 70); border-color: rgba(0, 120, 215, 150); }"));
@@ -49,10 +49,10 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
     _pinButton->setCheckable(true);
     _pinButton->setAutoRaise(true);
     _pinButton->setFocusPolicy(Qt::TabFocus);
-    _pinButton->setIconSize(QSize(20, 20));
-    _pinButton->setFixedSize(28, 28);
+    _pinButton->setIconSize(QSize(18, 18));
+    _pinButton->setFixedSize(26, 26);
     // Balance the pin's width so the tabs remain centred in the toolbar.
-    tabsRow->addSpacing(28);
+    tabsRow->addSpacing(26);
     tabsRow->addStretch();
     tabsRow->addWidget(_tabs);
     tabsRow->addStretch();
@@ -102,7 +102,10 @@ void TabbedViewportToolbar::reposition()
     _tabs->ensurePolished();
     const int desired = std::max(_standard->sizeHint().width(), _tools->sizeHint().width()) + 6;
     const int w = std::max(1, std::min(desired, _viewport->width() - 20));
-    const int h = 80 + std::max(_tabs->sizeHint().height(), _pinButton->height());
+    const QMargins margins = layout()->contentsMargins();
+    const int pageHeight = std::max(_standard->sizeHint().height(), _tools->sizeHint().height());
+    const int h = pageHeight + std::max(_tabs->sizeHint().height(), _pinButton->height())
+        + margins.top() + margins.bottom();
     setFixedSize(w, h);
     move((_viewport->width() - w) / 2, _revealed ? _viewport->height() - h - 10 : _viewport->height() + 2);
 }

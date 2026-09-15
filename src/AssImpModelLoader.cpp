@@ -2253,7 +2253,7 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 
 	if (!firstVertex)
 	{
-		info.boundingBox.setLimits(minX, minY, minZ, maxX, maxY, maxZ);
+		info.boundingBox.setLimits(minX, maxX, minY, maxY, minZ, maxZ);
 		info.minDimension = minMeshDimension;
 		info.maxDimension = maxMeshDimension;
 	}

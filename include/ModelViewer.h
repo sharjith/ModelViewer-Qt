@@ -374,6 +374,15 @@ public slots:
 	// albedo, or averaged per-vertex color for Point Set Reconstruction
 	// meshes) falls within a shared tolerance of ANY of them.
 	void filterSelectionByColor();
+	// Selection -> Filter by Bounding Box...: same shape as
+	// filterSelectionByMaterial()/filterSelectionByColor() above, but opens
+	// FilterByBoundingBoxDialog - the user sets world-space X/Y/Z min/max
+	// limits (a fresh dialog seeds them from the current selection's
+	// combined bounds, or the whole scene's if nothing is selected), and
+	// matches every mesh whose world-space bounding box either fully falls
+	// within the limits or merely overlaps them, per the dialog's own
+	// containment-mode choice.
+	void filterSelectionByBoundingBox();
 	// Selection -> Save Selection Set... (also SelectionSetsPanel's own Save
 	// button): saves the current viewport selection (mesh UUIDs, not the
 	// runtime int ids - see SelectionSetData.h) under `name`, via an
