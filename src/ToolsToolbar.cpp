@@ -1,4 +1,5 @@
 #include "ToolsToolbar.h"
+#include "FlyOutViewButton.h"
 #include "LanguageManager.h"
 #include <QAction>
 #include <QFrame>
@@ -42,13 +43,13 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     row->addWidget(_scroll, 1);
     row->addWidget(_right);
     _analysisMenu = new QMenu(this);
-    auto add = [this, commands](const char* text, const char* icon, const char* command) {
+    auto add = [this, commands](const char* text, const char* icon, const char* command, bool flyout = false) {
         auto* action = new QAction(QIcon(QStringLiteral(":/icons/res/") + QLatin1String(icon) + QStringLiteral(".png")), tr(text), this);
         auto translate = [action, text]() { action->setText(ToolsToolbar::tr(text)); action->setToolTip(ToolsToolbar::tr(text)); };
         connect(&LanguageManager::instance(), &LanguageManager::languageChanged, action, translate);
         translate();
         connect(action, &QAction::triggered, this, [this, command]() { emit commandRequested(QLatin1String(command)); });
-        auto* button = new QToolButton(_content);
+        QToolButton* button = flyout ? new FlyOutViewButton(_content) : new QToolButton(_content);
         button->setDefaultAction(action);
         button->setAutoRaise(true);
         button->setIconSize(QSize(40, 40));
@@ -61,9 +62,12 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     add(QT_TR_NOOP("Mass Properties"), "mass_properties", "mass");
     auto* meshInfo = add(QT_TR_NOOP("Mesh Info"), "mesh_info", "mesh_info");
     _meshActions.insert("mesh_info", meshInfo->defaultAction());
-    auto* analysis = add(QT_TR_NOOP("Surface Analysis"), "surface_analysis", "analysis");
+    auto* analysis = add(QT_TR_NOOP("Surface Analysis"), "surface_analysis", "analysis", true);
+    _analysisMenu->setStyleSheet(FlyOutViewButton::menuStyleSheet());
+    _analysisMenu->addAction(analysis->defaultAction());
+    connect(_analysisMenu, &QMenu::triggered, analysis, &QToolButton::setDefaultAction);
     analysis->setMenu(_analysisMenu);
-    analysis->setPopupMode(QToolButton::MenuButtonPopup);
+    analysis->setPopupMode(QToolButton::DelayedPopup);
     const char* modeNames[] = {QT_TR_NOOP("Curvature / Zebra Stripe"), QT_TR_NOOP("Wall Thickness / Draft Angle"), QT_TR_NOOP("Deviation")};
     const char* modeIcons[] = {"curvature_analysis", "wall_thickness", "deviation_analysis"};
     const char* modeCommands[] = {"curvature", "thickness", "deviation"};

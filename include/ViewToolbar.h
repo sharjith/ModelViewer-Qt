@@ -52,6 +52,7 @@ public:
     bool isCameraUpAxisZUp() const;
     void setTurntableChecked(bool checked); // syncs _btnTurntable when stopped externally (e.g. manual camera interaction)
     void setLassoSelectChecked(bool checked); // syncs _btnLassoSelect when disarmed externally (e.g. another tool took over)
+    void setSelectionFiltersEnabled(bool enabled);
 
 signals:
     void viewActionsChanged();
@@ -77,6 +78,7 @@ signals:
     void debugOverlayToggled(bool enabled);
     void turntableToggled(bool enabled);
     void lassoSelectToggled(bool enabled);
+    void selectionFilterRequested(const QString& filter);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -125,6 +127,9 @@ private:
     QAction* _fitAllAction;
     QAction* _windowZoomAction;
     QAction* _lassoSelectAction;
+    QAction* _filterByMaterialAction;
+    QAction* _filterByColorAction;
+    QAction* _filterByBoundingBoxAction;
     QAction* _turntableAction;
     QAction* _projectionAction;
     QAction* _multiViewAction;

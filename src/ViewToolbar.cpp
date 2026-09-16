@@ -142,46 +142,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
         "}"
     );
 
-    QString flyoutStyleSheet(
-        "QMenu {"
-        "    background-color: rgba(255, 255, 255, 100);"
-        "    border: 1px solid gray;"
-        "    border-radius: 4px;"
-        "    padding: 2px;"
-        "    icon-size: 36px;"
-        "}"
-        "QMenu::item {"
-        "    background: transparent;"
-        "    background-color: #f0f0f0;"
-        "    border: 1px solid #c0c0c0;"
-        "    border-radius: 4px;"
-        "    padding: 5px 8px;"
-        "    margin: 3px;"
-        "    min-width: 120px;"
-        "    min-height: 30px;"
-        "    font-weight: normal;"
-        "    color: black;"
-        "}"
-        "QMenu::item:selected {"
-        "    background-color: #e0e0ff;"
-        "    border: 1px solid #a0a0ff;"
-        "    color: black;"
-        "}"
-        "QMenu::item:pressed {"
-        "    background-color: #d0d0ff;"
-        "    border: 1px solid #8080ff;"
-        "    color: black;"
-        "}"
-        "QMenu::icon {"
-        "    padding-left: 10px;"
-        "    padding-right: 8px;"
-        "}"
-        "QMenu::separator {"
-        "    height: 1px;"
-        "    background-color: #c0c0c0;"
-        "    margin: 4px 8px;"
-        "}"
-    );
+    const QString flyoutStyleSheet = FlyOutViewButton::menuStyleSheet();
 
     QString flyoutToggleButtonStyleSheet(
         "QToolButton {"
@@ -354,8 +315,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     // Lasso Select - freeform-polygon drag selection, stays armed across
     // multiple drags (toggle) rather than Window Zoom's one-shot gesture.
-    _btnLassoSelect = new QToolButton(this);
-    _btnLassoSelect->setStyleSheet(buttonStyleSheet);
+    _btnLassoSelect = new FlyOutViewButton(this);
     _btnLassoSelect->setIcon(QIcon(":/icons/res/lasso_select.png"));
     _btnLassoSelect->setIconSize(QSize(40, 40));
     _btnLassoSelect->setToolTip(tr("Lasso Select"));
@@ -364,6 +324,26 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _mainLayout->addWidget(_btnLassoSelect);
     _lassoSelectAction = bindButtonAction(_btnLassoSelect, QStringLiteral("lassoSelectAction"));
     connect(_lassoSelectAction, &QAction::triggered, this, [this](bool checked) { emit lassoSelectToggled(checked); });
+    auto* selectionMenu = new QMenu(this);
+    selectionMenu->setStyleSheet(flyoutStyleSheet);
+    selectionMenu->addAction(_lassoSelectAction);
+    selectionMenu->addSeparator();
+    const auto addFilter = [this, selectionMenu](const char* icon, const QString& text, const QString& command) {
+        auto* action = selectionMenu->addAction(QIcon(QStringLiteral(":/icons/res/") + QLatin1String(icon)), text);
+        action->setToolTip(text);
+        connect(action, &QAction::triggered, this, [this, action, command] {
+            _btnLassoSelect->setDefaultAction(action);
+            emit selectionFilterRequested(command);
+        });
+        return action;
+    };
+    _filterByMaterialAction = addFilter("filter_by_material.png", tr("Filter by Material..."), QStringLiteral("material"));
+    _filterByColorAction = addFilter("filter_by_color.png", tr("Filter by Color..."), QStringLiteral("color"));
+    _filterByBoundingBoxAction = addFilter("filter_by_bounding_box.png", tr("Filter by Bounding Box..."), QStringLiteral("boundingBox"));
+    connect(_lassoSelectAction, &QAction::triggered, this, [this] { _btnLassoSelect->setDefaultAction(_lassoSelectAction); });
+    _btnLassoSelect->setMenu(selectionMenu);
+    _btnLassoSelect->setPopupMode(QToolButton::DelayedPopup);
+    setSelectionFiltersEnabled(false);
 
     // Camera Modes
     _toolButtonCameraModes = new FlyOutViewButton(this);
@@ -961,7 +941,7 @@ void ViewToolbar::stopScrolling()
 
 bool ViewToolbar::isFlyoutMenuVisible() const
 {
-	return (_toolButtonViewModes &&
+	return (_btnLassoSelect && _btnLassoSelect->menu() && _btnLassoSelect->menu()->isVisible()) || (_toolButtonViewModes &&
 		_toolButtonViewModes->menu() &&
 		_toolButtonViewModes->menu()->isVisible()) ||
 		(_toolButtonCameraModes &&
@@ -980,7 +960,7 @@ void ViewToolbar::syncMenuState(const QVariantMap& state)
 {
     const auto checked = [&state](const char* key) { return state.value(QLatin1String(key)).toBool(); };
     // Command handlers use triggered(), so assigning state never dispatches a command.
-    _lassoSelectAction->setChecked(checked("lasso"));
+    setLassoSelectChecked(checked("lasso"));
     _turntableAction->setChecked(checked("turntable"));
     _projectionAction->setChecked(checked("perspective"));
     _multiViewAction->setChecked(checked("multi"));
@@ -1145,6 +1125,15 @@ void ViewToolbar::setLassoSelectChecked(bool checked)
 {
     // Only triggered() dispatches commands; checked-state sync is passive.
     _lassoSelectAction->setChecked(checked);
+    if (checked) _btnLassoSelect->setDefaultAction(_lassoSelectAction);
+}
+
+void ViewToolbar::setSelectionFiltersEnabled(bool enabled)
+{
+    _filterByMaterialAction->setEnabled(enabled);
+    _filterByColorAction->setEnabled(enabled);
+    _filterByBoundingBoxAction->setEnabled(enabled);
+    if (!enabled) _btnLassoSelect->setDefaultAction(_lassoSelectAction);
 }
 
 void ViewToolbar::setSectionViewChecked(bool checked)
@@ -1227,6 +1216,11 @@ void ViewToolbar::retranslateUI()
     _windowZoomAction->setText(tr("Window Zoom"));
     _lassoSelectAction->setText(tr("Lasso Select"));
     _lassoSelectAction->setToolTip(tr("Lasso Select"));
+    _filterByMaterialAction->setText(tr("Filter by Material..."));
+    _filterByColorAction->setText(tr("Filter by Color..."));
+    _filterByBoundingBoxAction->setText(tr("Filter by Bounding Box..."));
+    for (auto* action : {_filterByMaterialAction, _filterByColorAction, _filterByBoundingBoxAction})
+        action->setToolTip(action->text());
     _turntableAction->setText(tr("Turntable"));
     _turntableAction->setToolTip(tr("Turntable"));
     _projectionAction->setText(tr("Toggle Projection"));

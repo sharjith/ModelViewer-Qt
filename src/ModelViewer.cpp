@@ -415,6 +415,19 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
 		this, &ModelViewer::onRenderingModeSelected);
 
+	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::selectionFilterRequested,
+		this, [this](const QString& filter) {
+			_viewportWidget->setLassoToolArmed(false);
+			if (filter == QStringLiteral("material")) filterSelectionByMaterial();
+			else if (filter == QStringLiteral("color")) filterSelectionByColor();
+			else if (filter == QStringLiteral("boundingBox")) filterSelectionByBoundingBox();
+		});
+	const auto refreshSelectionFilters = [this] {
+		_viewportWidget->getViewToolbar()->setSelectionFiltersEnabled(!_viewportWidget->getMeshStore().empty());
+	};
+	connect(_sceneGraph, &SceneGraph::structureChanged, this, refreshSelectionFilters);
+	refreshSelectionFilters();
+
 	// Connect ViewToolbar navigation selection
 	connect(_viewportWidget->getViewToolbar(), &ViewToolbar::rotateViewRequested,
 		_viewportWidget, [this]() { _viewportWidget->setRotationActive(true); });
