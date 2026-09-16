@@ -3,6 +3,7 @@
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
 
+#include <algorithm>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -12,6 +13,7 @@
 #include <QDoubleSpinBox>
 #include <QRadioButton>
 #include <QShowEvent>
+#include <QHideEvent>
 #include <QCloseEvent>
 #include <QEvent>
 #include <QMdiArea>
@@ -30,6 +32,9 @@ namespace
 	// would silently reject almost every real-world value otherwise.
 	constexpr double kSpinRange = 1.0e7;
 	constexpr int kSpinDecimals = 3;
+	// Minimum gap a drag must leave between a Min/Max face pair - prevents
+	// dragging a face past its partner into a degenerate/inverted box.
+	constexpr double kMinBoxGap = 1.0e-3;
 
 	// Walks up the parent chain from a widget inside the MDI area to find the
 	// QMdiArea itself - same helper as FilterByColorDialog.cpp/
@@ -168,6 +173,45 @@ FilterByBoundingBoxDialog::FilterByBoundingBoxDialog(ModelViewer* modelViewer,
 			connect(undoStack, &QUndoStack::indexChanged, this, &FilterByBoundingBoxDialog::onUndoStackIndexChanged, Qt::QueuedConnection);
 	}
 
+	// Draggable 6-face box gizmo in the viewport - the primary way to adjust
+	// the limits, with these spin boxes as a precise refinement on top (per
+	// explicit direction: the gizmo is the primary manipulation mode here).
+	// createBoundingBoxGizmos() is idempotent, so this is safe even if a
+	// PREVIOUS FilterByBoundingBoxDialog instance for this same document
+	// already created them - re-wiring onDragged below every time is still
+	// required, though: that previous instance is gone (WA_DeleteOnClose),
+	// so its own lambdas captured a now-dangling `this` and MUST be
+	// overwritten with fresh ones bound to this instance.
+	if (_modelViewer && _modelViewer->getViewportWidget())
+	{
+		ViewportWidget* vw = _modelViewer->getViewportWidget();
+		vw->createBoundingBoxGizmos();
+		// Each face writes into its own one paired spin box, clamped so it
+		// can never cross its partner (Min can't pass Max and vice versa) -
+		// setValue() fires valueChanged -> onLimitsChanged() -> updateMatches(),
+		// which also repositions all 6 gizmos (including the other 4 whose
+		// SIZE - not position - depends on this one value), so no separate
+		// reposition call is needed here.
+		vw->bboxGizmoXMin()->onDragged = [this](float worldX) {
+			_xMinSpin->setValue(std::min(static_cast<double>(worldX), _xMaxSpin->value() - kMinBoxGap));
+		};
+		vw->bboxGizmoXMax()->onDragged = [this](float worldX) {
+			_xMaxSpin->setValue(std::max(static_cast<double>(worldX), _xMinSpin->value() + kMinBoxGap));
+		};
+		vw->bboxGizmoYMin()->onDragged = [this](float worldY) {
+			_yMinSpin->setValue(std::min(static_cast<double>(worldY), _yMaxSpin->value() - kMinBoxGap));
+		};
+		vw->bboxGizmoYMax()->onDragged = [this](float worldY) {
+			_yMaxSpin->setValue(std::max(static_cast<double>(worldY), _yMinSpin->value() + kMinBoxGap));
+		};
+		vw->bboxGizmoZMin()->onDragged = [this](float worldZ) {
+			_zMinSpin->setValue(std::min(static_cast<double>(worldZ), _zMaxSpin->value() - kMinBoxGap));
+		};
+		vw->bboxGizmoZMax()->onDragged = [this](float worldZ) {
+			_zMaxSpin->setValue(std::max(static_cast<double>(worldZ), _zMinSpin->value() + kMinBoxGap));
+		};
+	}
+
 	loadSettings();
 	updateMatches();
 }
@@ -175,10 +219,19 @@ FilterByBoundingBoxDialog::FilterByBoundingBoxDialog(ModelViewer* modelViewer,
 void FilterByBoundingBoxDialog::showEvent(QShowEvent* event)
 {
 	QDialog::showEvent(event);
+	if (_modelViewer && _modelViewer->getViewportWidget())
+		_modelViewer->getViewportWidget()->setBoundingBoxGizmosVisible(true);
 	// The scene may have changed while this dialog was hidden behind another
 	// document tab - recompute against a fresh mesh store rather than
 	// trusting a stale match set.
 	updateMatches();
+}
+
+void FilterByBoundingBoxDialog::hideEvent(QHideEvent* event)
+{
+	QDialog::hideEvent(event);
+	if (_modelViewer && _modelViewer->getViewportWidget())
+		_modelViewer->getViewportWidget()->setBoundingBoxGizmosVisible(false);
 }
 
 void FilterByBoundingBoxDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
@@ -284,6 +337,12 @@ void FilterByBoundingBoxDialog::updateMatches()
 	                          _yMinSpin->value(), _yMaxSpin->value(),
 	                          _zMinSpin->value(), _zMaxSpin->value());
 	const bool fullyInside = _fullyInsideRadio->isChecked();
+
+	// Keeps the 6-face gizmo in sync with every path that can change a
+	// limit - direct spin-box edits (valueChanged -> onLimitsChanged() ->
+	// here), "Use Current Selection's Bounds", and this dialog's own initial
+	// construction - one call site instead of repeating it at each of them.
+	_modelViewer->getViewportWidget()->updateBoundingBoxGizmos(limits);
 
 	std::vector<SceneMesh*> meshStore = _modelViewer->getViewportWidget()->getMeshStore();
 

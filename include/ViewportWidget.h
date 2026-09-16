@@ -200,6 +200,26 @@ public:
 	// checkbox toggles (no coefficient/bounds change to justify the fuller
 	// updateClippingPlane() in that case, just a visibility flip).
 	void updatePlaneGizmos();
+	// Filter by Bounding Box's 6-face gizmo - see _bboxGizmoXMin's own doc
+	// comment for the ownership/lifecycle shape. createBoundingBoxGizmos()
+	// is idempotent (safe to call every time the dialog opens, same as
+	// createCappingPlanes()'s own null-check pattern) and must be called
+	// before the getters below return non-null for the first time.
+	void createBoundingBoxGizmos();
+	// Repositions/resizes all 6 faces from the given world-space limits -
+	// each face's OTHER-two-axis extent comes from the box's OWN current
+	// size (not the scene bounds, unlike the clipping-plane gizmos), so
+	// changing any one limit can resize up to 4 of the 6 faces, not just
+	// reposition one - call this on every limit change, not just the axis
+	// that moved. No-op if createBoundingBoxGizmos() hasn't run yet.
+	void updateBoundingBoxGizmos(const BoundingBox& limits);
+	void setBoundingBoxGizmosVisible(bool visible);
+	PlaneGizmo* bboxGizmoXMin() const { return _bboxGizmoXMin; }
+	PlaneGizmo* bboxGizmoXMax() const { return _bboxGizmoXMax; }
+	PlaneGizmo* bboxGizmoYMin() const { return _bboxGizmoYMin; }
+	PlaneGizmo* bboxGizmoYMax() const { return _bboxGizmoYMax; }
+	PlaneGizmo* bboxGizmoZMin() const { return _bboxGizmoZMin; }
+	PlaneGizmo* bboxGizmoZMax() const { return _bboxGizmoZMax; }
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
@@ -1570,15 +1590,24 @@ private:
 	// callback). Reuses the exact same screen-space-axis-projection formula
 	// as updateTransformGizmoTranslationDrag() above, aimed at the
 	// PlaneGizmo's own fixed axis instead of a mesh's local axis.
+	// Every PlaneGizmo currently in play - the 3 clipping-plane gizmos plus
+	// the 6 Filter by Bounding Box face gizmos (entries are null before
+	// createBoundingBoxGizmos() has ever run for this document, or always
+	// for the 3 clip ones only if that's never happened - callers already
+	// null-check/isVisible()-check each entry). Single source of truth for
+	// hitTestPlaneGizmos()/updatePlaneGizmoHover()/renderPlaneGizmos(), so
+	// both gizmo families share one hit-test/hover/render pipeline instead
+	// of duplicating it.
+	std::array<PlaneGizmo*, 9> allPlaneGizmos() const;
 	PlaneGizmo* hitTestPlaneGizmos(const QPoint& pixel); // not const - calls getCameraForPoint(), which isn't const
 	bool beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel);
 	void updatePlaneGizmoDrag(const QPoint& pixel);
 	void finishPlaneGizmoDrag();
 	// Mouse-move-only hover tracking (no button held) - separate from the
-	// drag path above. Ray-hit-tests the same 3 gizmos and toggles
-	// setHovered() on whichever one is currently under the cursor, clearing
-	// it on whichever previously held it, so the gizmo about to be grabbed
-	// visually stands out before the user commits to a drag.
+	// drag path above. Ray-hit-tests every gizmo in allPlaneGizmos() and
+	// toggles setHovered() on whichever one is currently under the cursor,
+	// clearing it on whichever previously held it, so the gizmo about to be
+	// grabbed visually stands out before the user commits to a drag.
 	void updatePlaneGizmoHover(const QPoint& pixel);
 	void renderPlaneGizmos();
 	void drawLights();
@@ -2243,6 +2272,24 @@ private:
 	PlaneGizmo* _clipPlaneGizmoX = nullptr;
 	PlaneGizmo* _clipPlaneGizmoY = nullptr;
 	PlaneGizmo* _clipPlaneGizmoZ = nullptr;
+
+	// Filter by Bounding Box's 6-face gizmo - one PlaneGizmo per face
+	// (Min/Max on each axis), independently positioned/sized so together
+	// they read as a box (per the user's own explicit direction, allowed to
+	// overlap slightly at the edges rather than being a fused/watertight
+	// mesh - same reasoning as the 3 clipping-plane gizmos above, just 6
+	// instead of 3). Lazily constructed by createBoundingBoxGizmos() the
+	// first time FilterByBoundingBoxDialog opens for this document (unlike
+	// the clipping-plane gizmos, which always exist once the viewport does)
+	// so a document that never opens that dialog never pays for 6 unused
+	// PlaneRenderables. FilterByBoundingBoxDialog owns "what a drag means"
+	// via onDragged, same as the clipping-plane gizmos' owner does.
+	PlaneGizmo* _bboxGizmoXMin = nullptr;
+	PlaneGizmo* _bboxGizmoXMax = nullptr;
+	PlaneGizmo* _bboxGizmoYMin = nullptr;
+	PlaneGizmo* _bboxGizmoYMax = nullptr;
+	PlaneGizmo* _bboxGizmoZMin = nullptr;
+	PlaneGizmo* _bboxGizmoZMax = nullptr;
 
 	// Single active plane-gizmo drag session (never more than one at once,
 	// unlike the multi-mesh transform gizmo - no mesh-id-keyed map needed).

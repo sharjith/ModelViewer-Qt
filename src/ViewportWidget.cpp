@@ -911,6 +911,12 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_clipPlaneGizmoX) { delete _clipPlaneGizmoX; _clipPlaneGizmoX = nullptr; }
 	if (_clipPlaneGizmoY) { delete _clipPlaneGizmoY; _clipPlaneGizmoY = nullptr; }
 	if (_clipPlaneGizmoZ) { delete _clipPlaneGizmoZ; _clipPlaneGizmoZ = nullptr; }
+	if (_bboxGizmoXMin) { delete _bboxGizmoXMin; _bboxGizmoXMin = nullptr; }
+	if (_bboxGizmoXMax) { delete _bboxGizmoXMax; _bboxGizmoXMax = nullptr; }
+	if (_bboxGizmoYMin) { delete _bboxGizmoYMin; _bboxGizmoYMin = nullptr; }
+	if (_bboxGizmoYMax) { delete _bboxGizmoYMax; _bboxGizmoYMax = nullptr; }
+	if (_bboxGizmoZMin) { delete _bboxGizmoZMin; _bboxGizmoZMin = nullptr; }
+	if (_bboxGizmoZMax) { delete _bboxGizmoZMax; _bboxGizmoZMax = nullptr; }
 	if (_floorPlane) { delete _floorPlane; _floorPlane = nullptr; }
 	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
 	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
@@ -3344,9 +3350,9 @@ void ViewportWidget::updatePlaneGizmos()
 
 void ViewportWidget::renderPlaneGizmos()
 {
-	const bool anyVisible = (_clipPlaneGizmoX && _clipPlaneGizmoX->isVisible())
-		|| (_clipPlaneGizmoY && _clipPlaneGizmoY->isVisible())
-		|| (_clipPlaneGizmoZ && _clipPlaneGizmoZ->isVisible());
+	const std::array<PlaneGizmo*, 9> gizmos = allPlaneGizmos();
+	const bool anyVisible = std::any_of(gizmos.begin(), gizmos.end(),
+		[](PlaneGizmo* g) { return g && g->isVisible(); });
 	if (!anyVisible)
 		return;
 
@@ -3354,7 +3360,7 @@ void ViewportWidget::renderPlaneGizmos()
 	// binds its own shader program - every existing caller in this file
 	// (e.g. the cap-fill quads' own drawSectionCapping()) explicitly binds
 	// the shader immediately before each render() call, and this is no
-	// exception. All 3 gizmos share the same general scene shader
+	// exception. All 9 gizmos share the same general scene shader
 	// (_renderCtrl.fgShader()), so one bind covers all of them.
 	_renderCtrl.fgShader()->bind();
 	// Depth WRITE (not test) disabled for this whole draw: each gizmo's
@@ -3408,6 +3414,15 @@ void ViewportWidget::renderPlaneGizmos()
 	// fragments of the actual model on the very next opaque/transparent
 	// pass (this frame's remainder, or next frame's).
 	_renderCtrl.fgShader()->setUniformValue("gizmoClipEnabled", false);
+	// Filter by Bounding Box's 6 faces are already sized to the box's own
+	// current extents (see updateBoundingBoxGizmos()), never to something
+	// larger that would need trimming, so no truncation pass for these -
+	// gizmoClipEnabled is already false from the reset above.
+	for (PlaneGizmo* gizmo : { _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax })
+	{
+		if (gizmo && gizmo->isVisible())
+			gizmo->render();
+	}
 	glDepthMask(GL_TRUE);
 	// Same reasoning as the floor-plane's own two SceneMesh::resetSharedUniformStateCache()
 	// call sites: the gizmos just wrote non-SceneMesh material uniforms into the shared
@@ -3415,6 +3430,12 @@ void ViewportWidget::renderPlaneGizmos()
 	// frame's opaque/transparent pass) will wrongly trust its cached signature and skip
 	// re-publishing its own material, inheriting the gizmo's leftover color/opacity instead.
 	SceneMesh::resetSharedUniformStateCache();
+}
+
+std::array<PlaneGizmo*, 9> ViewportWidget::allPlaneGizmos() const
+{
+	return { _clipPlaneGizmoX, _clipPlaneGizmoY, _clipPlaneGizmoZ,
+	         _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax };
 }
 
 PlaneGizmo* ViewportWidget::hitTestPlaneGizmos(const QPoint& pixel)
@@ -3457,7 +3478,7 @@ PlaneGizmo* ViewportWidget::hitTestPlaneGizmos(const QPoint& pixel)
 	// fixed iteration order regardless of which one the user meant to grab.
 	PlaneGizmo* closest = nullptr;
 	float closestDistance = std::numeric_limits<float>::max();
-	for (PlaneGizmo* gizmo : { _clipPlaneGizmoX, _clipPlaneGizmoY, _clipPlaneGizmoZ })
+	for (PlaneGizmo* gizmo : allPlaneGizmos())
 	{
 		float distance = 0.0f;
 		if (gizmo && gizmo->isVisible() && gizmo->hitTestRay(rayOrigin, rayDir, distance) && distance < closestDistance)
@@ -3541,9 +3562,9 @@ void ViewportWidget::updatePlaneGizmoHover(const QPoint& pixel)
 {
 	if (_activePlaneGizmoDrag)
 		return; // dragging already forces its own state - don't fight it
-	const bool anyVisible = (_clipPlaneGizmoX && _clipPlaneGizmoX->isVisible())
-		|| (_clipPlaneGizmoY && _clipPlaneGizmoY->isVisible())
-		|| (_clipPlaneGizmoZ && _clipPlaneGizmoZ->isVisible());
+	const std::array<PlaneGizmo*, 9> gizmos = allPlaneGizmos();
+	const bool anyVisible = std::any_of(gizmos.begin(), gizmos.end(),
+		[](PlaneGizmo* g) { return g && g->isVisible(); });
 	if (!anyVisible && !_hoveredPlaneGizmo)
 		return;
 
@@ -5378,6 +5399,106 @@ void ViewportWidget::createCappingPlanes()
 	// (Optional) if supported:
 	GLfloat aniso = 8.0f;
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
+}
+
+void ViewportWidget::createBoundingBoxGizmos()
+{
+	if (_bboxGizmoXMin)
+		return; // idempotent - safe to call every time FilterByBoundingBoxDialog opens
+
+	// Called from FilterByBoundingBoxDialog's constructor, i.e. in response
+	// to a menu action, NOT from initializeGL()/paintGL() - unlike
+	// createCappingPlanes() (called from initializeGL(), where a context is
+	// already guaranteed current), this needs its own makeCurrent(), same
+	// convention as every other runtime (outside GL callbacks) GPU resource
+	// creation in this file.
+	makeCurrent();
+
+	auto makeGizmo = [this](PlaneGizmo::Axis axis, const QColor& defaultColor) {
+		auto* fill = new PlaneRenderable(_renderCtrl.fgShader(), QVector3D(0, 0, 0), 1, 1, 1, 1);
+		registerDecorationGpuResource(fill, [this] { return _renderCtrl.fgShader(); });
+		std::array<PlaneRenderable*, 4> border;
+		for (PlaneRenderable*& strip : border)
+		{
+			strip = new PlaneRenderable(_renderCtrl.fgShader(), QVector3D(0, 0, 0), 1, 1, 1, 1);
+			registerDecorationGpuResource(strip, [this] { return _renderCtrl.fgShader(); });
+		}
+		// Same hover/drag highlight colors as the clipping-plane gizmos, for
+		// one consistent gizmo color language across both features.
+		return new PlaneGizmo(axis, fill, border, _renderCtrl.fgShader(),
+			defaultColor, QColor(255, 214, 0), QColor(255, 140, 0));
+	};
+	// Same per-axis default tint as the clipping-plane gizmos (X-normal
+	// teal, Y-normal purple, Z-normal yellow) - there's no cap-fill hatch
+	// convention to match here (this dialog has no hatch/capping concept at
+	// all), but reusing the same 3 colors keeps "which world axis a plane
+	// is normal to" reading consistently across both features.
+	_bboxGizmoXMin = makeGizmo(PlaneGizmo::Axis::X, QColor::fromRgbF(0.20f, 0.5f, 0.5f));
+	_bboxGizmoXMax = makeGizmo(PlaneGizmo::Axis::X, QColor::fromRgbF(0.20f, 0.5f, 0.5f));
+	_bboxGizmoYMin = makeGizmo(PlaneGizmo::Axis::Y, QColor::fromRgbF(0.5f, 0.20f, 0.5f));
+	_bboxGizmoYMax = makeGizmo(PlaneGizmo::Axis::Y, QColor::fromRgbF(0.5f, 0.20f, 0.5f));
+	_bboxGizmoZMin = makeGizmo(PlaneGizmo::Axis::Z, QColor::fromRgbF(0.5f, 0.5f, 0.20f));
+	_bboxGizmoZMax = makeGizmo(PlaneGizmo::Axis::Z, QColor::fromRgbF(0.5f, 0.5f, 0.20f));
+
+	doneCurrent();
+}
+
+void ViewportWidget::updateBoundingBoxGizmos(const BoundingBox& limits)
+{
+	if (!_bboxGizmoXMin)
+		return; // createBoundingBoxGizmos() never called for this document - dialog not open (yet)
+
+	// reposition() below calls PlaneRenderable::setPlane(), which re-uploads
+	// GPU geometry immediately (uploadGeometry()) rather than deferring to
+	// the next render() - fine for every OTHER caller of this function
+	// (spin-box edits, drags, "Use Current Selection's Bounds"), all of
+	// which run while the viewport has already painted at least once and
+	// therefore has an ambiently-current GL context, but
+	// FilterByBoundingBoxDialog's constructor calls this (via
+	// updateMatches()) synchronously, right after createBoundingBoxGizmos()'s
+	// OWN makeCurrent()/doneCurrent() bracket has already closed - with no
+	// current context on that very first call, the upload silently no-ops
+	// and every face keeps its harmless 1x1 placeholder geometry from
+	// construction until something else happens to run with an ambiently-
+	// current context (confirmed real bug: gizmo invisible until the user
+	// first touched a spin box). makeCurrent() when already current is a
+	// cheap no-op, so bracket unconditionally rather than special-casing
+	// just the cold-start caller.
+	makeCurrent();
+
+	// Each face's OTHER-two-axis extent is the BOX'S OWN current size (not
+	// the scene bounds, unlike the clipping-plane gizmos' 1.3x-margin-over-
+	// scene-bounds extent) - per the user's explicit direction, a bounding-
+	// box face reads as bounded to the region it actually filters, not an
+	// oversized handle. reposition()'s own worldCenter parameter's other-
+	// two-axis components place each face at the box's OWN center on those
+	// axes (already anticipated by reposition()'s existing doc comment,
+	// written for exactly this case), so changing any ONE limit can move
+	// the box's center and resize up to 4 of the 6 faces - reposition all 6
+	// from the full current limits every time, not just the one that moved.
+	const float xExtent = static_cast<float>(limits.getXSize());
+	const float yExtent = static_cast<float>(limits.getYSize());
+	const float zExtent = static_cast<float>(limits.getZSize());
+	const float xMid = static_cast<float>((limits.xMin() + limits.xMax()) * 0.5);
+	const float yMid = static_cast<float>((limits.yMin() + limits.yMax()) * 0.5);
+	const float zMid = static_cast<float>((limits.zMin() + limits.zMax()) * 0.5);
+	_bboxGizmoXMin->reposition(QVector3D(static_cast<float>(limits.xMin()), yMid, zMid), yExtent, zExtent);
+	_bboxGizmoXMax->reposition(QVector3D(static_cast<float>(limits.xMax()), yMid, zMid), yExtent, zExtent);
+	_bboxGizmoYMin->reposition(QVector3D(xMid, static_cast<float>(limits.yMin()), zMid), zExtent, xExtent);
+	_bboxGizmoYMax->reposition(QVector3D(xMid, static_cast<float>(limits.yMax()), zMid), zExtent, xExtent);
+	_bboxGizmoZMin->reposition(QVector3D(xMid, yMid, static_cast<float>(limits.zMin())), xExtent, yExtent);
+	_bboxGizmoZMax->reposition(QVector3D(xMid, yMid, static_cast<float>(limits.zMax())), xExtent, yExtent);
+
+	doneCurrent();
+}
+
+void ViewportWidget::setBoundingBoxGizmosVisible(bool visible)
+{
+	if (!_bboxGizmoXMin)
+		return;
+	for (PlaneGizmo* gizmo : { _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax })
+		gizmo->setVisible(visible);
+	update();
 }
 
 void ViewportWidget::createLights()

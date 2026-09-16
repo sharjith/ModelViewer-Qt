@@ -11,6 +11,7 @@ class QRadioButton;
 class ModelViewer;
 class QMdiSubWindow;
 class QShowEvent;
+class QHideEvent;
 class QCloseEvent;
 
 // "Selection -> Filter by Bounding Box..." - lets the user type world-space
@@ -55,6 +56,12 @@ public:
 
 protected:
 	void showEvent(QShowEvent* event) override;
+	// Hides the viewport's 6-face bounding-box gizmo whenever this dialog
+	// itself is hidden - covers explicit hide (onActiveSubWindowChanged's
+	// own setVisible(false) when a different document's tab activates) and
+	// close (QWidget::close() hides before the close event fires) with one
+	// override rather than duplicating the call at every hide path.
+	void hideEvent(QHideEvent* event) override;
 	// Refreshes matches/live selection when this dialog's window regains
 	// OS-level activation - same gap FilterByColorDialog's identical
 	// override closes (see its own doc comment).
