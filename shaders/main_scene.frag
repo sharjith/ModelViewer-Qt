@@ -54,6 +54,28 @@ uniform int primitiveMode;  // 0=POINTS, 1=LINES, 2=LINE_LOOP, 3=LINE_STRIP, 4+=
 
 uniform float opacity;
 
+// PlaneGizmo multi-plane truncation (ViewportWidget::renderPlaneGizmos()) -
+// trims a clipping-plane gizmo's own quad against the OTHER currently-active
+// clip planes, so with several gizmos visible at once they read as a clean
+// trimmed box-corner instead of each extending full-size straight through
+// the others. Mirrors clipping_plane.frag's own proven-correct otherApply/
+// otherThresh/otherFlipped multi-plane cap trim test exactly (same
+// "discard unless on the REMOVED side of every other active axis" sense) -
+// gizmoClipEnabled is false for every ordinary mesh/material draw (the
+// caller resets it to false immediately after the gizmo draw calls, since
+// nothing else in this shader's normal per-mesh path ever touches it), so
+// this is a no-op for anything other than the gizmo quads themselves.
+uniform bool  gizmoClipEnabled     = false;
+uniform bool  gizmoClipApplyX      = false;
+uniform bool  gizmoClipApplyY      = false;
+uniform bool  gizmoClipApplyZ      = false;
+uniform float gizmoClipThreshX     = 0.0;
+uniform float gizmoClipThreshY     = 0.0;
+uniform float gizmoClipThreshZ     = 0.0;
+uniform bool  gizmoClipFlippedX    = false;
+uniform bool  gizmoClipFlippedY    = false;
+uniform bool  gizmoClipFlippedZ    = false;
+
 // ADS light maps
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
@@ -832,6 +854,20 @@ void main()
 	if (!twoSided && !isFrontFacing && !floorRendering)
 	{
 		discard;
+	}
+
+	// PlaneGizmo multi-plane truncation - see the uniform declarations above
+	// for the full doc comment. v_position is already world-space (used the
+	// same way a few lines below via "cameraPos - v_position"), so this can
+	// reuse it directly without any new varying.
+	if (gizmoClipEnabled)
+	{
+		if (gizmoClipApplyX && (gizmoClipFlippedX ? (v_position.x >= gizmoClipThreshX) : (v_position.x <= gizmoClipThreshX)))
+			discard;
+		if (gizmoClipApplyY && (gizmoClipFlippedY ? (v_position.y >= gizmoClipThreshY) : (v_position.y <= gizmoClipThreshY)))
+			discard;
+		if (gizmoClipApplyZ && (gizmoClipFlippedZ ? (v_position.z >= gizmoClipThreshZ) : (v_position.z <= gizmoClipThreshZ)))
+			discard;
 	}
 
 	// Early discard for reflected pass beyond fade start

@@ -14,6 +14,7 @@
 #include <QProxyStyle>
 #include <QRadioButton>
 #include <QStyleOptionButton>
+#include <QSignalBlocker>
 #include <QUrl>
 
 // helper: simple extension check (same filters as file dialog)
@@ -182,6 +183,20 @@ ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 	for (QCheckBox* box : findChildren<QCheckBox*>())
 		installOverlayEditorCheckBoxStyle(box);
 
+	// setupUi() applies the .ui file's "checked" default directly to the
+	// widget, but connectSlotsByName() (which wires up on_checkBoxCapping_toggled()
+	// etc. via Qt's auto-connect) only runs at the END of setupUi() - so a
+	// checkbox that starts checked in the .ui never actually fires its
+	// toggled() signal for that initial state, and checkBoxCapping's
+	// underlying render-side flag (_renderCtrl._cappingEnabled, read by
+	// drawSectionCapping()) stays at its own separate false default even
+	// though the checkbox itself displays checked. Force them back in sync
+	// here - trivial flag setters, safe to call before the viewport has
+	// rendered anything yet. checkBoxShowGizmo needs no equivalent fix:
+	// isGizmoVisible() reads checkBoxShowGizmo->isChecked() live on demand
+	// rather than caching a synced copy, so it can't desync this way.
+	_viewportWidget->setCappingPlanesEnabled(checkBoxCapping->isChecked());
+
 	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
 		retranslateUi(this);
 		});
@@ -277,6 +292,35 @@ void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double
 	doubleSpinBoxXYCoeff->setSingleStep((zMax - zMin) / 50.0);
 	doubleSpinBoxYZCoeff->setSingleStep((xMax - xMin) / 50.0);
 	doubleSpinBoxZXCoeff->setSingleStep((yMax - yMin) / 50.0);
+}
+
+bool ClippingPlanesEditor::isGizmoVisible() const
+{
+	return checkBoxShowGizmo->isChecked();
+}
+
+void ClippingPlanesEditor::setXCoeffDisplay(double value)
+{
+	const QSignalBlocker blocker(doubleSpinBoxYZCoeff); // X-normal plane is named "YZ" (the plane it spans)
+	doubleSpinBoxYZCoeff->setValue(value);
+}
+
+void ClippingPlanesEditor::setYCoeffDisplay(double value)
+{
+	const QSignalBlocker blocker(doubleSpinBoxZXCoeff); // Y-normal plane is named "ZX"
+	doubleSpinBoxZXCoeff->setValue(value);
+}
+
+void ClippingPlanesEditor::setZCoeffDisplay(double value)
+{
+	const QSignalBlocker blocker(doubleSpinBoxXYCoeff); // Z-normal plane is named "XY"
+	doubleSpinBoxXYCoeff->setValue(value);
+}
+
+void ClippingPlanesEditor::on_checkBoxShowGizmo_toggled(bool /*checked*/)
+{
+	_viewportWidget->updatePlaneGizmos();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)

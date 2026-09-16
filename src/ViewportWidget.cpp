@@ -40,7 +40,9 @@
 #include "TextRenderer.h"
 #include "Utils.h"
 #include <algorithm>
+#include <array>
 #include <iostream>
+#include <limits>
 #include <QCryptographicHash>
 #include <QOpenGLContext>
 #include <QDateTime>
@@ -905,6 +907,10 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_clippingPlaneXY) { delete _clippingPlaneXY; _clippingPlaneXY = nullptr; }
 	if (_clippingPlaneYZ) { delete _clippingPlaneYZ; _clippingPlaneYZ = nullptr; }
 	if (_clippingPlaneZX) { delete _clippingPlaneZX; _clippingPlaneZX = nullptr; }
+	// PlaneGizmo::~PlaneGizmo() deletes its own owned fill + 4 border PlaneRenderables.
+	if (_clipPlaneGizmoX) { delete _clipPlaneGizmoX; _clipPlaneGizmoX = nullptr; }
+	if (_clipPlaneGizmoY) { delete _clipPlaneGizmoY; _clipPlaneGizmoY = nullptr; }
+	if (_clipPlaneGizmoZ) { delete _clipPlaneGizmoZ; _clipPlaneGizmoZ = nullptr; }
 	if (_floorPlane) { delete _floorPlane; _floorPlane = nullptr; }
 	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
 	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
@@ -3299,6 +3305,257 @@ void ViewportWidget::updateClippingPlane()
 	_clippingPlanesEditor->setCoefficientLimits(-_viewCtrl.boundingBox().getXSize()/2, _viewCtrl.boundingBox().getXSize()/2,
 		-_viewCtrl.boundingBox().getYSize() / 2, _viewCtrl.boundingBox().getYSize() / 2,
 		-_viewCtrl.boundingBox().getZSize() / 2, _viewCtrl.boundingBox().getZSize() / 2);
+
+	updatePlaneGizmos();
+}
+
+void ViewportWidget::updatePlaneGizmos()
+{
+	if (!_clipPlaneGizmoX || !_clipPlaneGizmoY || !_clipPlaneGizmoZ)
+		return;
+
+	// True world position of each clipping plane, same formula the cap-fill
+	// hatch-origin uniforms already use (ViewportWidget.cpp's
+	// drawSectionCapping(), e.g. "xPlane = P.getX() + clippingXCoeff()") -
+	// the plane's actual geometric location, independent of the flip-state-
+	// dependent sign juggling that ONLY affects the cap-FILL quad's cut
+	// side, not where the cut itself is.
+	const Point P = _viewCtrl.boundingBox().center();
+	const QVector3D sceneCenter(P.getX(), P.getY(), P.getZ());
+
+	// Extends a bit beyond the scene bounds (not the cap-fill quads' 100x
+	// "looks infinite" scale, which is tuned for a different visual
+	// purpose) - comfortably bigger than the model so it's easy to grab,
+	// without being absurdly oversized.
+	constexpr float kMargin = 1.3f;
+	const float xExtent = static_cast<float>(_viewCtrl.boundingBox().getXSize()) * kMargin;
+	const float yExtent = static_cast<float>(_viewCtrl.boundingBox().getYSize()) * kMargin;
+	const float zExtent = static_cast<float>(_viewCtrl.boundingBox().getZSize()) * kMargin;
+
+	const bool gizmoOn = _clippingPlanesEditor && _clippingPlanesEditor->isGizmoVisible();
+	_clipPlaneGizmoX->setVisible(gizmoOn && yzClippingEnabled());
+	_clipPlaneGizmoY->setVisible(gizmoOn && zxClippingEnabled());
+	_clipPlaneGizmoZ->setVisible(gizmoOn && xyClippingEnabled());
+
+	_clipPlaneGizmoX->reposition(QVector3D(sceneCenter.x() + _renderCtrl.clippingXCoeff(), sceneCenter.y(), sceneCenter.z()), yExtent, zExtent);
+	_clipPlaneGizmoY->reposition(QVector3D(sceneCenter.x(), sceneCenter.y() + _renderCtrl.clippingYCoeff(), sceneCenter.z()), zExtent, xExtent);
+	_clipPlaneGizmoZ->reposition(QVector3D(sceneCenter.x(), sceneCenter.y(), sceneCenter.z() + _renderCtrl.clippingZCoeff()), xExtent, yExtent);
+}
+
+void ViewportWidget::renderPlaneGizmos()
+{
+	const bool anyVisible = (_clipPlaneGizmoX && _clipPlaneGizmoX->isVisible())
+		|| (_clipPlaneGizmoY && _clipPlaneGizmoY->isVisible())
+		|| (_clipPlaneGizmoZ && _clipPlaneGizmoZ->isVisible());
+	if (!anyVisible)
+		return;
+
+	// RenderableMesh::render() (which PlaneRenderable uses as-is) never
+	// binds its own shader program - every existing caller in this file
+	// (e.g. the cap-fill quads' own drawSectionCapping()) explicitly binds
+	// the shader immediately before each render() call, and this is no
+	// exception. All 3 gizmos share the same general scene shader
+	// (_renderCtrl.fgShader()), so one bind covers all of them.
+	_renderCtrl.fgShader()->bind();
+	// Depth WRITE (not test) disabled for this whole draw: each gizmo's
+	// border strips are exactly coplanar with its own fill quad (see
+	// PlaneGizmo::reposition()'s own doc comment on why an earlier version's
+	// one-sided Z-nudge was wrong - it made the border vanish from whichever
+	// side it wasn't nudged toward). With depth write off, fill and border
+	// fragments both test against the already-opaque scene's depth (so the
+	// gizmo still correctly hides behind real solid geometry in front of
+	// it) but never occlude EACH OTHER, so the border draws over the fill
+	// in plain draw order regardless of which side the camera is on.
+	glDepthMask(GL_FALSE);
+	// Truncate each gizmo against the OTHER currently-active clip planes, so
+	// several simultaneously-visible gizmos read as a clean trimmed box
+	// corner instead of each extending full-size straight through the
+	// others. A first attempt reused GL_CLIP_DISTANCE0/1/2 the same way
+	// drawMeshesWithClipping() clips the real model (kept the intersection
+	// of the OTHER planes' own "kept" half-spaces), but that trimmed the
+	// wrong (opposite) side. This instead mirrors the cap-fill quads' own
+	// proven-correct multi-plane trim (drawSectionCapping()'s otherApply/
+	// otherThresh/otherFlipped uniforms in clipping_plane.frag - discard
+	// unless on the REMOVED side of every other active axis) via a small
+	// parallel discard block added to main_scene.frag, gated behind
+	// gizmoClipEnabled (see that shader's own doc comment) so it's a no-op
+	// for every other draw. _clippingCtx is already rebuilt once per frame
+	// (rebuildClippingContext(), well before this call) and is the exact
+	// same threshold/flipped source drawSectionCapping() itself trusts.
+	auto renderTruncated = [this](PlaneGizmo* gizmo, bool applyX, bool applyY, bool applyZ) {
+		if (!gizmo || !gizmo->isVisible())
+			return;
+		QOpenGLShaderProgram* prog = _renderCtrl.fgShader();
+		prog->setUniformValue("gizmoClipEnabled", true);
+		prog->setUniformValue("gizmoClipApplyX", applyX);
+		prog->setUniformValue("gizmoClipApplyY", applyY);
+		prog->setUniformValue("gizmoClipApplyZ", applyZ);
+		prog->setUniformValue("gizmoClipThreshX", _clippingCtx.x.threshold);
+		prog->setUniformValue("gizmoClipThreshY", _clippingCtx.y.threshold);
+		prog->setUniformValue("gizmoClipThreshZ", _clippingCtx.z.threshold);
+		prog->setUniformValue("gizmoClipFlippedX", _clippingCtx.x.flipped);
+		prog->setUniformValue("gizmoClipFlippedY", _clippingCtx.y.flipped);
+		prog->setUniformValue("gizmoClipFlippedZ", _clippingCtx.z.flipped);
+		gizmo->render();
+	};
+	renderTruncated(_clipPlaneGizmoX, false, _clippingCtx.zxEnabled, _clippingCtx.xyEnabled);
+	renderTruncated(_clipPlaneGizmoY, _clippingCtx.yzEnabled, false, _clippingCtx.xyEnabled);
+	renderTruncated(_clipPlaneGizmoZ, _clippingCtx.yzEnabled, _clippingCtx.zxEnabled, false);
+	// Reset for every OTHER draw that shares this program - nothing in the
+	// normal per-mesh path (SceneMesh's own uniform-signature cache
+	// included) knows about this uniform or would ever set it back to
+	// false itself, so leaving it true here would silently discard
+	// fragments of the actual model on the very next opaque/transparent
+	// pass (this frame's remainder, or next frame's).
+	_renderCtrl.fgShader()->setUniformValue("gizmoClipEnabled", false);
+	glDepthMask(GL_TRUE);
+	// Same reasoning as the floor-plane's own two SceneMesh::resetSharedUniformStateCache()
+	// call sites: the gizmos just wrote non-SceneMesh material uniforms into the shared
+	// fgShader, so invalidate SceneMesh's cache or the next SceneMesh to render (next
+	// frame's opaque/transparent pass) will wrongly trust its cached signature and skip
+	// re-publishing its own material, inheriting the gizmo's leftover color/opacity instead.
+	SceneMesh::resetSharedUniformStateCache();
+}
+
+PlaneGizmo* ViewportWidget::hitTestPlaneGizmos(const QPoint& pixel)
+{
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
+	if (viewport.width() <= 0 || viewport.height() <= 0)
+		return nullptr;
+	Camera* camera = getCameraForPoint(pixel);
+	if (!camera)
+		return nullptr;
+
+	// World-space ray for this pixel - replicates SelectionManager::convertClickToRay()'s
+	// own NDC-unprojection technique exactly (that method is private to SelectionManager,
+	// so the math is duplicated here rather than reused).
+	const int yInverted = height() - pixel.y() - 1;
+	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
+
+	const float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
+	const float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
+
+	const QVector4D nearNDC(ndcX, ndcY, -1.0f, 1.0f);
+	const QVector4D farNDC(ndcX, ndcY, 1.0f, 1.0f);
+	const QMatrix4x4 inv = (projectionMatrix * viewMatrix).inverted();
+
+	QVector4D nearWorld = inv * nearNDC;
+	QVector4D farWorld = inv * farNDC;
+	if (qFuzzyIsNull(nearWorld.w()) || qFuzzyIsNull(farWorld.w()))
+		return nullptr;
+	nearWorld /= nearWorld.w();
+	farWorld /= farWorld.w();
+
+	const QVector3D rayOrigin = nearWorld.toVector3D();
+	const QVector3D rayDir = (farWorld.toVector3D() - rayOrigin).normalized();
+
+	// Test ALL visible gizmos and keep the closest hit along the ray - a
+	// screen-space-only test can't disambiguate when several large,
+	// translucent gizmo planes overlap on screen (e.g. multiple clipping
+	// axes enabled at once), always favoring whichever came first in this
+	// fixed iteration order regardless of which one the user meant to grab.
+	PlaneGizmo* closest = nullptr;
+	float closestDistance = std::numeric_limits<float>::max();
+	for (PlaneGizmo* gizmo : { _clipPlaneGizmoX, _clipPlaneGizmoY, _clipPlaneGizmoZ })
+	{
+		float distance = 0.0f;
+		if (gizmo && gizmo->isVisible() && gizmo->hitTestRay(rayOrigin, rayDir, distance) && distance < closestDistance)
+		{
+			closestDistance = distance;
+			closest = gizmo;
+		}
+	}
+	return closest;
+}
+
+bool ViewportWidget::beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel)
+{
+	if (!gizmo)
+		return false;
+	_activePlaneGizmoDrag = gizmo;
+	_planeGizmoDragStartPixel = pixel;
+	_planeGizmoDragStartPosition = gizmo->position();
+	gizmo->setDragging(true);
+	return true;
+}
+
+void ViewportWidget::updatePlaneGizmoDrag(const QPoint& pixel)
+{
+	if (!_activePlaneGizmoDrag)
+		return;
+
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
+	const Camera* camera = getCameraForPoint(pixel);
+	if (!camera)
+		return;
+
+	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
+
+	// Same screen-space-axis-projection technique as
+	// updateTransformGizmoTranslationDrag() above (ViewportWidget.cpp) -
+	// project a pivot and a second point one dragScale further along the
+	// gizmo's own fixed axis, measure mouse movement as a scalar dot-
+	// product along that projected 2D line, convert back to world units by
+	// the same projection ratio. pivotWorld uses the gizmo's actual current
+	// center (not just axisDirection() * position()) so a bounding-box
+	// face whose center sits away from the origin on its other two axes -
+	// see PlaneGizmo::worldCenter()'s own doc comment - still projects
+	// correctly.
+	const QVector3D axisDir = _activePlaneGizmoDrag->axisDirection();
+	const QVector3D pivotWorld = _activePlaneGizmoDrag->worldCenter();
+	const float dragScale = std::max(_activePlaneGizmoDrag->dragScaleReference(), 1.0e-3f);
+	const QVector3D axisEndWorld = pivotWorld + axisDir * dragScale;
+
+	const QVector3D pivotScreen3 = pivotWorld.project(viewMatrix, projectionMatrix, viewport);
+	const QVector3D axisEndScreen3 = axisEndWorld.project(viewMatrix, projectionMatrix, viewport);
+
+	const QVector2D pivotScreen(pivotScreen3.x(), pivotScreen3.y());
+	const QVector2D axisScreen = QVector2D(axisEndScreen3.x(), axisEndScreen3.y()) - pivotScreen;
+	const float axisScreenLength = axisScreen.length();
+	if (axisScreenLength <= 1.0e-4f)
+		return;
+
+	const QVector2D axisScreenDir = axisScreen / axisScreenLength;
+	const QVector2D mouseDelta = QVector2D(pixel.x() - _planeGizmoDragStartPixel.x(),
+		_planeGizmoDragStartPixel.y() - pixel.y());
+	const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
+	const float worldDistance = (projectedPixels / axisScreenLength) * dragScale;
+
+	const float newPosition = _planeGizmoDragStartPosition + worldDistance;
+	if (_activePlaneGizmoDrag->onDragged)
+		_activePlaneGizmoDrag->onDragged(newPosition);
+
+	update();
+}
+
+void ViewportWidget::finishPlaneGizmoDrag()
+{
+	if (_activePlaneGizmoDrag)
+		_activePlaneGizmoDrag->setDragging(false);
+	_activePlaneGizmoDrag = nullptr;
+}
+
+void ViewportWidget::updatePlaneGizmoHover(const QPoint& pixel)
+{
+	if (_activePlaneGizmoDrag)
+		return; // dragging already forces its own state - don't fight it
+	const bool anyVisible = (_clipPlaneGizmoX && _clipPlaneGizmoX->isVisible())
+		|| (_clipPlaneGizmoY && _clipPlaneGizmoY->isVisible())
+		|| (_clipPlaneGizmoZ && _clipPlaneGizmoZ->isVisible());
+	if (!anyVisible && !_hoveredPlaneGizmo)
+		return;
+
+	PlaneGizmo* hit = anyVisible ? hitTestPlaneGizmos(pixel) : nullptr;
+	if (hit == _hoveredPlaneGizmo)
+		return;
+	if (_hoveredPlaneGizmo)
+		_hoveredPlaneGizmo->setHovered(false);
+	if (hit)
+		hit->setHovered(true);
+	_hoveredPlaneGizmo = hit;
+	update();
 }
 
 void ViewportWidget::showClippingPlaneEditor(bool show)
@@ -5021,6 +5278,93 @@ void ViewportWidget::createCappingPlanes()
 		registerDecorationGpuResource(_clippingPlaneYZ, [this] { return _renderCtrl.clippingPlaneShader(); });
 		registerDecorationGpuResource(_clippingPlaneZX, [this] { return _renderCtrl.clippingPlaneShader(); });
 	}
+
+	if (_clipPlaneGizmoX == nullptr)
+	{
+		// General scene shader (_renderCtrl.fgShader()), not
+		// clippingPlaneShader() - these are plain translucent Material-lit
+		// quads (see PlaneGizmo's own constructor), not participants in the
+		// stencil-capping technique the cap-fill quads above use, so they
+		// don't need that shader's hatch/multi-plane-trim uniforms at all.
+		// Builds one gizmo's fill + 4 border-frame PlaneRenderables, all
+		// GPU-registered the same way the cap-fill quads above are.
+		auto makeGizmo = [this](PlaneGizmo::Axis axis, const QColor& defaultColor) {
+			auto* fill = new PlaneRenderable(_renderCtrl.fgShader(), QVector3D(0, 0, 0), 1, 1, 1, 1);
+			registerDecorationGpuResource(fill, [this] { return _renderCtrl.fgShader(); });
+			std::array<PlaneRenderable*, 4> border;
+			for (PlaneRenderable*& strip : border)
+			{
+				strip = new PlaneRenderable(_renderCtrl.fgShader(), QVector3D(0, 0, 0), 1, 1, 1, 1);
+				registerDecorationGpuResource(strip, [this] { return _renderCtrl.fgShader(); });
+			}
+			// Hover/drag colors match this app's existing highlight
+			// conventions elsewhere (mesh hover gold - see e.g. fgShader's
+			// own "hoverColor" uniform at ViewportWidget.cpp:6358 - and the
+			// clip-plane cap-fill shader's own "selected" orange tint at
+			// shaders/clipping_plane.frag), so the gizmo's states read as
+			// consistent with the rest of the viewport rather than
+			// introducing a third, unrelated color language.
+			return new PlaneGizmo(axis, fill, border, _renderCtrl.fgShader(),
+				defaultColor, QColor(255, 214, 0), QColor(255, 140, 0));
+		};
+		// Default colors match the cap-fill quads' own hardcoded per-axis
+		// base tint (ViewportWidget.cpp's drawSectionCapping(), the
+		// "planeColor" uniform set right before each of the YZ/ZX/XY
+		// _clippingPlane*->render() calls) so a gizmo and the hatch fill it
+		// controls read as the same surface, not two unrelated colors.
+		_clipPlaneGizmoX = makeGizmo(PlaneGizmo::Axis::X, QColor::fromRgbF(0.20f, 0.5f, 0.5f));  // matches YZ planeColor
+		_clipPlaneGizmoY = makeGizmo(PlaneGizmo::Axis::Y, QColor::fromRgbF(0.5f, 0.20f, 0.5f));  // matches ZX planeColor
+		_clipPlaneGizmoZ = makeGizmo(PlaneGizmo::Axis::Z, QColor::fromRgbF(0.5f, 0.5f, 0.20f));  // matches XY planeColor
+
+		// Drag callbacks: convert the raw world-space position PlaneGizmo's
+		// drag code reports back into a clip coefficient (coefficient =
+		// world position - scene bounding-box center, the exact inverse of
+		// updatePlaneGizmos()'s own "worldPos = sceneCenter + coeff"
+		// formula), apply it, and push the value into the matching spin box
+		// (signal-blocked, so it doesn't re-trigger its own
+		// on_doubleSpinBox*Coeff_valueChanged() -> setClippingXCoeff() for
+		// the exact same value this callback just applied directly).
+		// Must call the FULL updateClippingPlane() here, not just
+		// updatePlaneGizmos() - updateClippingPlane() is also the only place
+		// that repositions the cap-fill hatch quads (_clippingPlaneXY/YZ/ZX)
+		// from the current coefficient. Calling updatePlaneGizmos() alone
+		// (an earlier version of this code did) left the cap fill frozen at
+		// wherever it was before the drag started, since nothing else
+		// reprojects it - the coefficient-range recompute this also redoes
+		// is redundant mid-drag but trivial, not worth losing cap-fill
+		// tracking over.
+		//
+		// Clamped to the exact same range ClippingPlanesEditor's own spin
+		// boxes already allow (updateClippingPlane()'s own
+		// setCoefficientLimits() call: +-halfSize per axis, derived from the
+		// live scene bounding box) - without this a drag could push the
+		// coefficient (and therefore the cap-fill/gizmo position) past what
+		// the spin box UI itself permits, desyncing the two.
+		_clipPlaneGizmoX->onDragged = [this](float worldX) {
+			const float half = static_cast<float>(_viewCtrl.boundingBox().getXSize()) * 0.5f;
+			const float coeff = std::clamp(worldX - static_cast<float>(_viewCtrl.boundingBox().center().getX()), -half, half);
+			setClippingXCoeff(coeff);
+			if (_clippingPlanesEditor)
+				_clippingPlanesEditor->setXCoeffDisplay(coeff);
+			updateClippingPlane();
+		};
+		_clipPlaneGizmoY->onDragged = [this](float worldY) {
+			const float half = static_cast<float>(_viewCtrl.boundingBox().getYSize()) * 0.5f;
+			const float coeff = std::clamp(worldY - static_cast<float>(_viewCtrl.boundingBox().center().getY()), -half, half);
+			setClippingYCoeff(coeff);
+			if (_clippingPlanesEditor)
+				_clippingPlanesEditor->setYCoeffDisplay(coeff);
+			updateClippingPlane();
+		};
+		_clipPlaneGizmoZ->onDragged = [this](float worldZ) {
+			const float half = static_cast<float>(_viewCtrl.boundingBox().getZSize()) * 0.5f;
+			const float coeff = std::clamp(worldZ - static_cast<float>(_viewCtrl.boundingBox().center().getZ()), -half, half);
+			setClippingZCoeff(coeff);
+			if (_clippingPlanesEditor)
+				_clippingPlanesEditor->setZCoeffDisplay(coeff);
+			updateClippingPlane();
+		};
+	}
     _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
@@ -5599,6 +5943,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 	render(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
+	renderPlaneGizmos();
 	if (_measurementController)
 		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
 	if (_annotationController)
@@ -12742,6 +13087,24 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 		}
 		if (_transformGizmo)
 			_transformGizmo->clearInteraction();
+
+		// PlaneGizmo (Clipping Planes / Filter by Bounding Box) - same
+		// priority tier as the mesh transform gizmo above: claims the click
+		// (and returns) before it can fall through to ViewCube/selection/
+		// rubber-band. Excluded from the same Ctrl-nav gate the transform
+		// gizmo uses, for the same reason.
+		if (!(e->modifiers() & Qt::ControlModifier))
+		{
+			if (PlaneGizmo* hitGizmo = hitTestPlaneGizmos(clickPoint))
+			{
+				if (beginPlaneGizmoDrag(hitGizmo, clickPoint))
+				{
+					update();
+					return;
+				}
+			}
+		}
+
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming()
 			&& handleViewCubeClick(clickPoint))
@@ -12836,6 +13199,12 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoRotating())
 	{
 		finishTransformGizmoRotationDrag(true);
+		update();
+		return;
+	}
+	if ((e->button() & Qt::LeftButton) && _activePlaneGizmoDrag)
+	{
+		finishPlaneGizmoDrag();
 		update();
 		return;
 	}
@@ -13193,6 +13562,18 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		_viewCtrl.setLastMouseTime(currentTime);
 		return;
 	}
+	if (_activePlaneGizmoDrag && (e->buttons() & Qt::LeftButton))
+	{
+		updatePlaneGizmoDrag(e->pos());
+		_viewCtrl.setLastMousePos(currentPos);
+		_viewCtrl.setLastMouseTime(currentTime);
+		return;
+	}
+	// Pure hover (no button held, no other interaction in progress) - lets
+	// the gizmo about to be grabbed stand out before the user commits to a
+	// drag. Gated to NoButton so it never runs mid camera-orbit/pan.
+	if (e->buttons() == Qt::NoButton)
+		updatePlaneGizmoHover(e->pos());
 
 	if (e->buttons() == Qt::LeftButton && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 	{

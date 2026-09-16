@@ -29,6 +29,7 @@ class ToolsToolbar;
 #include "FillHolesController.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
+#include "PlaneGizmo.h"
 #include "FloorPlane.h"
 #include "SceneRuntime.h"
 #include "RenderableMesh.h"
@@ -191,6 +192,14 @@ public:
 	}
 
 	void updateClippingPlane();
+	// Recomputes the 3 clipping-plane gizmos' position/extent/visibility
+	// from current clip-coefficient/enabled/flip state and the scene
+	// bounding box - called from updateClippingPlane() (the same function
+	// that already recomputes the cap-fill quads from the same inputs) and
+	// directly from ClippingPlanesEditor whenever its own "Show Gizmo"
+	// checkbox toggles (no coefficient/bounds change to justify the fuller
+	// updateClippingPlane() in that case, just a visibility flip).
+	void updatePlaneGizmos();
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
@@ -1552,6 +1561,26 @@ private:
 	bool beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
 	void updateTransformGizmoRotationDrag(const QPoint& pixel);
 	void finishTransformGizmoRotationDrag(bool commit);
+
+	// PlaneGizmo drag interaction (Clipping Planes / Filter by Bounding Box)
+	// - see include/PlaneGizmo.h's own doc comment for why this is a
+	// separate, independent drag session from the mesh transform gizmo's
+	// above (not reusable: that one writes into per-mesh-id transform maps,
+	// this one just reports a scalar position to a caller-supplied
+	// callback). Reuses the exact same screen-space-axis-projection formula
+	// as updateTransformGizmoTranslationDrag() above, aimed at the
+	// PlaneGizmo's own fixed axis instead of a mesh's local axis.
+	PlaneGizmo* hitTestPlaneGizmos(const QPoint& pixel); // not const - calls getCameraForPoint(), which isn't const
+	bool beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel);
+	void updatePlaneGizmoDrag(const QPoint& pixel);
+	void finishPlaneGizmoDrag();
+	// Mouse-move-only hover tracking (no button held) - separate from the
+	// drag path above. Ray-hit-tests the same 3 gizmos and toggles
+	// setHovered() on whichever one is currently under the cursor, clearing
+	// it on whichever previously held it, so the gizmo about to be grabbed
+	// visually stands out before the user commits to a drag.
+	void updatePlaneGizmoHover(const QPoint& pixel);
+	void renderPlaneGizmos();
 	void drawLights();
 
 	void bindIBLTextures();
@@ -2201,6 +2230,31 @@ private:
 	PlaneRenderable* _clippingPlaneXY;
 	PlaneRenderable* _clippingPlaneYZ;
 	PlaneRenderable* _clippingPlaneZX;
+
+	// Draggable translucent gizmo planes for Clipping Planes - see
+	// include/PlaneGizmo.h. Paired naming with _clippingPlaneXY/YZ/ZX above,
+	// but these are separate PlaneRenderable/PlaneGizmo instances (not the
+	// same objects re-tinted) - the cap-fill quads participate in the
+	// stencil-capping render pass and must stay exactly as they are; the
+	// gizmo quads are a purely additive, independent visual+hit-test layer.
+	// Constructed alongside _clippingPlaneXY/YZ/ZX; visible only while
+	// ClippingPlanesEditor's own "Show Gizmo" checkbox is checked AND that
+	// axis's clipping is enabled.
+	PlaneGizmo* _clipPlaneGizmoX = nullptr;
+	PlaneGizmo* _clipPlaneGizmoY = nullptr;
+	PlaneGizmo* _clipPlaneGizmoZ = nullptr;
+
+	// Single active plane-gizmo drag session (never more than one at once,
+	// unlike the multi-mesh transform gizmo - no mesh-id-keyed map needed).
+	PlaneGizmo* _activePlaneGizmoDrag = nullptr;
+	QPoint _planeGizmoDragStartPixel;
+	float _planeGizmoDragStartPosition = 0.0f;
+
+	// Whichever gizmo (if any) is currently under the cursor with no button
+	// held - see updatePlaneGizmoHover()'s own doc comment. Tracked
+	// separately from _activePlaneGizmoDrag so hover can be cleared on the
+	// previously-hovered gizmo even after the pointer moves off it entirely.
+	PlaneGizmo* _hoveredPlaneGizmo = nullptr;
 
 
 	Camera* _primaryCamera;

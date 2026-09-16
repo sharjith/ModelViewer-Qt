@@ -262,6 +262,9 @@
               <property name="text">
                <string>Capping</string>
               </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
              </widget>
             </item>
             <item>
@@ -272,6 +275,19 @@ performance, then restore them once idle</string>
               </property>
               <property name="text">
                <string>Disable For Interaction</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="checkBoxShowGizmo">
+              <property name="toolTip">
+               <string>Show draggable handles in the viewport for each enabled clipping plane</string>
+              </property>
+              <property name="text">
+               <string>Show Gizmo</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
               </property>
              </widget>
             </item>
