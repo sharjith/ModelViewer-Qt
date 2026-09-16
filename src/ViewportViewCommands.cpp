@@ -29,9 +29,11 @@ QVariantMap ViewportWidget::viewMenuState() const
     state["meshEdges"] = getDisplayMode() == DisplayMode::MESH_EDGES;
     state["wireframe"] = getDisplayMode() == DisplayMode::WIREFRAME;
     state["shadedEdges"] = getDisplayMode() == DisplayMode::SHADED_WITH_EDGES;
-    state["ads"] = getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
-    state["pbr"] = getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING;
-    state["rayTraced"] = getRenderingMode() == RenderingMode::RAY_TRACED;
+    // Ray tracing is armed separately; getRenderingMode() reports its raster fallback.
+    const bool rayTraced = isRayTracedRenderingModeArmed();
+    state["ads"] = !rayTraced && getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
+    state["pbr"] = !rayTraced && getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING;
+    state["rayTraced"] = rayTraced;
     state["smooth"] = shadingNormalMode() == ShadingNormalMode::SMOOTH;
     state["flat"] = shadingNormalMode() == ShadingNormalMode::FLAT;
     state["realistic"] = isRealismEnabled();
