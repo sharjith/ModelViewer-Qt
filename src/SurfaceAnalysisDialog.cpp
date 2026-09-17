@@ -358,7 +358,7 @@ bool SurfaceAnalysisDialog::hoverReadoutEnabled() const
 	return _hoverReadoutToggle && _hoverReadoutToggle->isChecked();
 }
 
-QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor) const
+QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor, QColor& outTextColor) const
 {
 	if (!anchor.isValid() || !_modelViewer || !_modelViewer->getViewportWidget())
 		return QString();
@@ -371,6 +371,22 @@ QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor)
 	bool isFlat = false;
 	if (!_overlay.scalarAt(mesh, anchor.triangleIndex, anchor.barycentric, value, isFlat))
 		return QString();
+
+	// Same lightness() < 128 -> white / else black convention this app's
+	// own hatch-line-color picker already used (see the now-removed
+	// on_pushButtonHatchColor_clicked() this was lifted from) - picks
+	// whichever of black/white actually reads clearly against the exact
+	// heatmap color at this point, not a fixed color that goes invisible
+	// over the ramp's lighter bands. Falls back to white (this function's
+	// existing default before outTextColor existed) if colorAt() somehow
+	// fails right after scalarAt() just succeeded - shouldn't happen since
+	// both resolve the same entry, but a readout with a slightly-wrong
+	// color is still better than none.
+	QColor heatmapColor;
+	if (_overlay.colorAt(mesh, anchor.triangleIndex, anchor.barycentric, heatmapColor))
+		outTextColor = (heatmapColor.lightness() < 128) ? Qt::white : Qt::black;
+	else
+		outTextColor = Qt::white;
 
 	// Draft Angle is detected via isFlat, not a Mode value - it's a separate
 	// Apply button on the Wall-Thickness page, not one of currentMode()'s 3

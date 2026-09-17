@@ -291,6 +291,29 @@ all at once</string>
            </property>
           </widget>
          </item>
+         <item row="10" column="0">
+          <widget class="QLabel" name="labelNavigationTreeFontSize">
+           <property name="text">
+            <string>Navigation Tree Font Size</string>
+           </property>
+          </widget>
+         </item>
+         <item row="10" column="1">
+          <widget class="QSpinBox" name="spinBoxNavigationTreeFontSize">
+           <property name="toolTip">
+            <string>Point size of the Scene Tree / Navigation panel's text</string>
+           </property>
+           <property name="minimum">
+            <number>7</number>
+           </property>
+           <property name="maximum">
+            <number>16</number>
+           </property>
+           <property name="value">
+            <number>9</number>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item row="1" column="0">
@@ -593,7 +616,25 @@ all at once</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_13">
        <item row="0" column="0">
-        <widget class="QGroupBox" name="viewportGroupBox">
+        <widget class="QScrollArea" name="scrollAreaDisplay">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::Shape::NoFrame</enum>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidgetContentsDisplay">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>890</width>
+            <height>900</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="gridLayoutDisplayInner">
+           <item row="0" column="0">
+            <widget class="QGroupBox" name="viewportGroupBox">
          <property name="title">
           <string>Viewport</string>
          </property>
@@ -796,6 +837,37 @@ accurate render, or off</string>
             </property>
            </widget>
           </item>
+          <item row="11" column="0">
+           <widget class="QLabel" name="overlayTextScaleLabel">
+            <property name="text">
+             <string>Overlay Text Scale:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="2">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxOverlayTextScale">
+            <property name="toolTip">
+             <string>Size multiplier for in-viewport text: Measurement/Annotation
+labels, the plane-gizmo drag readout, and the Surface Analysis
+hover readout</string>
+            </property>
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="minimum">
+             <double>0.500000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>2.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
@@ -983,6 +1055,10 @@ on)</string>
          </property>
         </spacer>
        </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="tabRendering">
@@ -991,7 +1067,25 @@ on)</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_9">
        <item row="0" column="0">
-        <widget class="QLabel" name="label_6">
+        <widget class="QScrollArea" name="scrollAreaRendering">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <property name="frameShape">
+          <enum>QFrame::Shape::NoFrame</enum>
+         </property>
+         <widget class="QWidget" name="scrollAreaWidgetContentsRendering">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>890</width>
+            <height>1400</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="gridLayoutRenderingInner">
+           <item row="0" column="0">
+            <widget class="QLabel" name="label_6">
          <property name="text">
           <string>Display Mode</string>
          </property>
@@ -1342,7 +1436,185 @@ on)</string>
          </item>
         </layout>
        </item>
-       <item row="5" column="1">
+       <item row="5" column="0" colspan="2">
+        <widget class="QGroupBox" name="sectionCappingGroupBox">
+         <property name="title">
+          <string>Section Capping</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayoutSectionCapping">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelSectionCappingMode">
+            <property name="text">
+             <string>Default Mode</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="comboBoxSectionCappingMode">
+            <property name="toolTip">
+             <string>Default cap fill for new documents: a procedural hatch pattern, or an image texture</string>
+            </property>
+            <item>
+             <property name="text">
+              <string>Procedural</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Textured</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchPattern">
+            <property name="text">
+             <string>Hatch Pattern</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="comboBoxSectionCappingHatchPattern">
+            <property name="toolTip">
+             <string>Default direction/pattern of the procedural hatch lines</string>
+            </property>
+            <item>
+             <property name="text">
+              <string>Diagonal 45</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Diagonal 135</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Horizontal</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Vertical</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Grid</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Cross Hatch</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchTiling">
+            <property name="text">
+             <string>Hatch Tiling</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="spinBoxSectionCappingHatchTiling">
+            <property name="toolTip">
+             <string>Default number of times the hatch pattern repeats across a cap</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>500</number>
+            </property>
+            <property name="value">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchThickness">
+            <property name="text">
+             <string>Hatch Thickness</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchThickness">
+            <property name="toolTip">
+             <string>Default width of the hatch lines</string>
+            </property>
+            <property name="decimals">
+             <number>3</number>
+            </property>
+            <property name="minimum">
+             <double>0.008000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>0.100000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.001000000000000</double>
+            </property>
+            <property name="value">
+             <double>0.050000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchIntensity">
+            <property name="text">
+             <string>Hatch Intensity</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchIntensity">
+            <property name="toolTip">
+             <string>Default opacity of the hatch pattern over a cap</string>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchColor">
+            <property name="text">
+             <string>Hatch Line Color</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QPushButton" name="pushButtonSectionCappingHatchColor">
+            <property name="toolTip">
+             <string>Pick the default hatch line color</string>
+            </property>
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="6" column="1">
         <spacer name="verticalSpacer_2">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
@@ -1354,6 +1626,10 @@ on)</string>
           </size>
          </property>
         </spacer>
+       </item>
+          </layout>
+         </widget>
+        </widget>
        </item>
       </layout>
      </widget>

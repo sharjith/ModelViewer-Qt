@@ -162,6 +162,19 @@ public:
 	bool scalarAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
 	              float& outValue, bool& outIsFlat) const;
 
+	// The exact displayed color at one surface point - scalarAt()'s raw
+	// value, normalized against this mesh's own stored rangeMin/rangeMax and
+	// mapped through its own stored colormap, the identical formula
+	// AnalysisColorRamp::mapToRGBA() used to color the mesh in the first
+	// place (so this always matches what the eye actually sees there, not
+	// an approximation). For a mouse-hover readout that needs to pick a
+	// legible text color against whatever the analysis heatmap painted
+	// underneath it (see SurfaceAnalysisDialog::hoverReadoutText()). Same
+	// false-on-no-overlay/out-of-range/invalid-sample conditions as
+	// scalarAt().
+	bool colorAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
+	             QColor& outColor) const;
+
 	// Definitive teardown for one mesh - calls SceneMesh::clearAnalysisOverlay()
 	// and drops this class's own cached scalar-field data for it. MUST be
 	// called before `mesh` is destroyed (see the Entry doc comment below) -

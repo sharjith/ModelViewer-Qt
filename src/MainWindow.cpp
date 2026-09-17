@@ -2246,8 +2246,20 @@ void MainWindow::on_actionSettings_triggered()
 				vp->loadBgColorSettings();
 				vp->loadNavigationSettings();
 				vp->loadRenderSettings();
+				vp->loadTextOverlaySettings();
 
 				vp->restoreCameraPose(pose);
+
+				// Navigation Tree font size - a plain Qt widget font, not a
+				// TextRenderer concern like the overlay text scale above, so
+				// it's applied directly here rather than through a
+				// ViewportWidget "load...Settings()" method.
+				if (SceneTreeWidget* tree = viewer->getTreeModel())
+				{
+					QFont treeFont = tree->font();
+					treeFont.setPointSize(settingsDialog->generalNavigationTreeFontSize());
+					tree->setFont(treeFont);
+				}
 			}
 		}
 		// Re-read QSettings now that they have been committed (OK / Apply).

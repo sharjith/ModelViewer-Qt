@@ -262,8 +262,10 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
     // A press with no item under the cursor - OR one that lands in a row's ANCESTOR
     // indentation gutter (the blank connector-line columns to the left of the item's own
-    // expand/collapse toggle - see isInAncestorIndentationGutter()) - is explicitly forwarded
-    // (via QCoreApplication::sendEvent, position-mapped) to _viewportWidget rather than
+    // expand/collapse toggle - see isInAncestorIndentationGutter()) - OR one that lands past
+    // an item's own rendered content on the trailing/right side (see isPastItemContent(), the
+    // symmetric case: the column is sized to the widest sibling, so a short item's row still
+    // extends well past its own text) - is explicitly forwarded
     // just ignore()'d - same overlay-passthrough rationale as wheelEvent() below (blank tree
     // background/gutter is where the 3D viewport shows through visually), but plain
     // event->ignore() does not reliably reach the viewport here: QTreeWidget/QAbstractItemView
@@ -286,6 +288,24 @@ protected:
     // the tree still zooms the 3D view like scrolling anywhere else in it.
     void wheelEvent(QWheelEvent* event) override;
 
+    // Right-click (or the Menu key / other platform trigger) landing on the same "transparent
+    // overlay background" territory mousePressEvent() forwards - no item, the ancestor gutter,
+    // or past an item's own rendered content - is forwarded to _viewportWidget's own context
+    // menu instead of raising the tree's. This can't reuse the CustomContextMenu-policy signal
+    // path the rest of the tree's context menu uses (ModelViewer::showContextMenu(), wired to
+    // customContextMenuRequested()): with that policy QWidget::event() emits the signal itself
+    // for EVERY right-click in the widget's bounds before this class ever sees it, regardless of
+    // hit-test - there's no way to conditionally suppress one particular emission. Switching to
+    // Qt::DefaultContextMenu policy instead (see constructor) routes every request through this
+    // virtual first, where a hit-test can decide: on real content, manually emit
+    // customContextMenuRequested() to keep ModelViewer::showContextMenu() working exactly as
+    // before; on background, call _viewportWidget->showContextMenu() directly (a plain function
+    // call, made public on ViewportWidget for exactly this - not a re-synthesized QContextMenuEvent
+    // sent through the event system, nor a manually emitted signal: both were tried and proved
+    // unreliable in practice, likely interacting with in-flight mouse-gesture state a forwarded
+    // right-button press/release already left on the viewport via mousePressEvent()'s forwarding).
+    void contextMenuEvent(QContextMenuEvent* event) override;
+
     // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
     // comment above for why this exists instead of relying on event->ignore() propagation.
     void forwardToViewport(QMouseEvent* event);
@@ -297,6 +317,15 @@ protected:
     // out of the gutter, so this never claims a click meant to expand/collapse item itself -
     // only genuinely decorative ancestor guide lines read as "click through to the viewport".
     bool isInAncestorIndentationGutter(const QPoint& pos, QTreeWidgetItem* item) const;
+
+    // True when `pos` falls to the RIGHT of item's own rendered content (its checkbox/icon/text,
+    // as measured by the item delegate's natural sizeHint) but still within its row. The column
+    // is sized via ResizeToContents to fit the WIDEST visible sibling, so a short item's row rect
+    // (visualRect()/itemAt() hit area) still extends well past its own text all the way to that
+    // shared column width - blank space where the transparent overlay shows the 3D viewport
+    // through, same "click through to the viewport" territory as isInAncestorIndentationGutter()
+    // covers on the left, just on the trailing side instead.
+    bool isPastItemContent(const QPoint& pos, QTreeWidgetItem* item) const;
 
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);

@@ -34,6 +34,7 @@ public:
     bool generalConfirmExit() const { return general_confirmExit; }
     bool generalProgressiveLoading() const { return general_progressiveLoading; }
     bool generalAnimateProgressiveFit() const { return general_animateProgressiveFit; }
+    int generalNavigationTreeFontSize() const { return general_navigationTreeFontSize; }
 
     // Camera tab
     int cameraProjectionModeIndex() const { return camera_projectionModeIndex; }
@@ -62,6 +63,9 @@ public:
     bool displayVsync() const { return display_vsync; }
     QString displayDefaultSkyboxHDRI() const { return display_defaultSkyboxHDRI; }
     QString displayDefaultSkyboxLDRI() const { return display_defaultSkyboxLDRI; }
+    // Multiplier for TextRenderer::setGlobalScale() - see that method's own
+    // doc comment for the full list of text it affects.
+    double displayOverlayTextScale() const { return display_overlayTextScale; }
 
     // Navigation group
     int navigationModeIndex() const { return navigation_modeIndex; }
@@ -77,6 +81,16 @@ public:
     int renderingShadingNormalIndex() const { return rendering_shadingNormalIndex; }
     int renderingMsaaIndex() const { return rendering_msaaIndex; }
     int renderingAnisotropyIndex() const { return rendering_anisotropyIndex; }
+
+    // Section Capping (default cap-fill style for new documents - seeded
+    // into SceneRenderController's hatch fields once at document creation,
+    // see ViewportWidget::createCappingPlanes())
+    int sectionCappingModeIndex() const { return sectionCapping_modeIndex; }
+    int sectionCappingHatchPatternIndex() const { return sectionCapping_hatchPatternIndex; }
+    int sectionCappingHatchTiling() const { return sectionCapping_hatchTiling; }
+    double sectionCappingHatchThickness() const { return sectionCapping_hatchThickness; }
+    double sectionCappingHatchIntensity() const { return sectionCapping_hatchIntensity; }
+    QColor sectionCappingHatchLineColor() const { return sectionCapping_hatchLineColor; }
 
     // Lighting
     bool lightingEnableLighting() const { return lighting_enableLighting; }
@@ -168,6 +182,12 @@ private slots:
     void on_shadingNormalComboBox_currentIndexChanged();
     void on_msaaComboBox_currentIndexChanged();
     void on_anisotropyComboBox_currentIndexChanged();
+    void on_comboBoxSectionCappingMode_currentIndexChanged();
+    void on_comboBoxSectionCappingHatchPattern_currentIndexChanged();
+    void on_spinBoxSectionCappingHatchTiling_valueChanged();
+    void on_doubleSpinBoxSectionCappingHatchThickness_valueChanged();
+    void on_doubleSpinBoxSectionCappingHatchIntensity_valueChanged();
+    void on_pushButtonSectionCappingHatchColor_clicked();
     void on_enableLightingCheckBox_stateChanged();
     void on_enableShadowsCheckBox_stateChanged();
     void on_ambientLightSlider_valueChanged();
@@ -194,7 +214,9 @@ private slots:
     void on_radioButtonExportMeshes_toggled(bool checked);
     void on_checkProgressiveLoading_stateChanged();
     void on_checkAnimateProgressiveFit_stateChanged();
+    void on_spinBoxNavigationTreeFontSize_valueChanged();
     void on_vsyncCheckBox_stateChanged();
+    void on_doubleSpinBoxOverlayTextScale_valueChanged();
     void on_enableLoggingCheckBox_stateChanged();
 	void on_enableConsoleCheckBox_stateChanged();
     void on_logLevelComboBox_currentIndexChanged();
@@ -225,6 +247,7 @@ private:
 	int general_undoLimit = 50;
     bool general_progressiveLoading = false;
     bool general_animateProgressiveFit = true;
+    int general_navigationTreeFontSize = 9; // overwritten from QApplication::font() in setDefaultValues() before first show
 
     // Camera tab
     int camera_projectionModeIndex = 0;
@@ -254,6 +277,7 @@ private:
     bool display_vsync = true;
     QString display_defaultSkyboxHDRI; // "" = no preference; matched by preset folder name
     QString display_defaultSkyboxLDRI; // "" = no preference; matched by preset folder name
+    double display_overlayTextScale = 1.0;
 
     // Navigation group
     int navigation_modeIndex = 0;
@@ -269,6 +293,16 @@ private:
     int rendering_shadingNormalIndex = 0;
     int rendering_msaaIndex = 0;
     int rendering_anisotropyIndex = 0;
+
+    // Section Capping - same hardcoded values SceneRenderController's own
+    // member initializers used before this tab existed (see
+    // SceneRenderController.h's _hatchMode/_hatchPattern/etc.).
+    int sectionCapping_modeIndex = 0;          // "Procedural"
+    int sectionCapping_hatchPatternIndex = 0;  // "Diagonal 45"
+    int sectionCapping_hatchTiling = 100;
+    double sectionCapping_hatchThickness = 0.05;
+    double sectionCapping_hatchIntensity = 1.0;
+    QColor sectionCapping_hatchLineColor = Qt::black;
 
     // Lighting
     bool lighting_enableLighting = true;

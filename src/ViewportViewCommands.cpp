@@ -16,6 +16,7 @@ QVariantMap ViewportWidget::viewMenuState() const
     state["rotate"] = _viewCtrl.viewRotating();
     state["pan"] = _viewCtrl.viewPanning();
     state["zoom"] = _viewCtrl.viewZooming();
+    state["windowZoom"] = _viewCtrl.windowZoomActive();
     state["orbit"] = cameraMode() == Camera::CameraMode::Orbit;
     state["fly"] = cameraMode() == Camera::CameraMode::Fly;
     state["firstPerson"] = cameraMode() == Camera::CameraMode::FirstPerson;

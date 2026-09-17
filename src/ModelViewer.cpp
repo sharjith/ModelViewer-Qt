@@ -1,4 +1,4 @@
-﻿#include "FloatingPanelDialog.h"
+#include "FloatingPanelDialog.h"
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
 #include "MeasurementVisibilityCommand.h"
@@ -38,6 +38,7 @@
 #include "MaterialPreviewWidget.h"
 #include "MeshProperties.h"
 #include "ModelViewer.h"
+#include "ToolsToolbar.h"
 #include "LengthUnits.h"
 #include "ImportUnitsDialog.h"
 #include "ModelViewerApplication.h"
@@ -215,6 +216,17 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	int maxUndo = settings.value("spinBoxUndoLimit", 50).toInt(); // Keep last 50 operations as default
 	_undoStack->setUndoLimit(maxUndo);
 
+	// Settings -> General -> Navigation Tree Font Size - seeded once here
+	// (MainWindow's SettingsDialog::settingsChanged handler re-applies this
+	// live to every already-open document's tree, same as the other
+	// per-document Settings values it pushes).
+	if (treeWidgetModel)
+	{
+		QFont treeFont = treeWidgetModel->font();
+		treeFont.setPointSize(settings.value("spinBoxNavigationTreeFontSize", treeFont.pointSize()).toInt());
+		treeWidgetModel->setFont(treeFont);
+	}
+
 	// Seed the default HDRI/LDRI skybox indices from the configured Settings presets
 	// (if any). Presets are matched by folder name rather than index, since the
 	// scanned folder list (and therefore index order) can change if presets are
@@ -361,7 +373,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
-	treeWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
+	// NOT setContextMenuPolicy(Qt::CustomContextMenu) here - that would silently override
+	// SceneTreeWidget's own constructor, which deliberately sets Qt::DefaultContextMenu so its
+	// contextMenuEvent() override gets a chance to hit-test each request first (forwarding a
+	// right-click on the transparent overlay background to the viewport's own context menu
+	// instead of raising the tree's - see that override's doc comment). With CustomContextMenu
+	// policy, QWidget::event() emits customContextMenuRequested() directly for EVERY right-click
+	// regardless of position, before that override - or this connection - ever runs.
 	connect(treeWidgetModel, &SceneTreeWidget::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
 	// Rename via tree widget's internal delegate handling
@@ -1154,6 +1172,7 @@ void ModelViewer::openMeasurementDialog(const QUuid& selectId)
 		dialog = new MeasurementDialog(this, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("measure"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -1175,6 +1194,7 @@ void ModelViewer::openAnnotationDialog(const QUuid& selectId)
 		dialog = new AnnotationDialog(this, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("annotate"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3746,6 +3766,7 @@ void ModelViewer::openShrinkWrapDialog()
 	// dialog or the menu was clicked again while it was already open with a
 	// new tree selection made since.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("shrink"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3763,6 +3784,7 @@ void ModelViewer::openSurfaceAnalysisDialog(const QString& mode)
 	// in ModelViewer.h for why (acts on the live viewport selection at
 	// Apply-click time, not a fixed working list).
     if (!mode.isEmpty()) dialog->selectMode(mode);
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("analysis"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3788,6 +3810,7 @@ void ModelViewer::openSubdivisionDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openShrinkWrapDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("subdivide"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3813,6 +3836,7 @@ void ModelViewer::openReconstructSurfaceDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openShrinkWrapDialog()/openSubdivisionDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("reconstruct"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3838,6 +3862,7 @@ void ModelViewer::openRepairMeshDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openShrinkWrapDialog()/openSubdivisionDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("repair"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3881,6 +3906,7 @@ void ModelViewer::openFillHolesDialog()
 	// Same seed-with-current-tree-selection convention as
 	// openRepairMeshDialog()/openShrinkWrapDialog() above.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("fill"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();
@@ -3966,6 +3992,7 @@ void ModelViewer::openUVGenerationDialog()
 	// dialog or the menu was clicked again while it was already open with a
 	// new tree selection made since. Mirrors openShrinkWrapDialog() exactly.
 	dialog->addCurrentTreeSelection();
+    _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("uv"), dialog);
 	dialog->show();
 	dialog->raise();
 	dialog->activateWindow();

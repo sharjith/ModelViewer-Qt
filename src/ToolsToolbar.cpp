@@ -3,6 +3,7 @@
 #include "LanguageManager.h"
 #include <QAction>
 #include <QFrame>
+#include <QEvent>
 #include <QHBoxLayout>
 #include <QMenu>
 #include <QScrollArea>
@@ -15,7 +16,8 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     setAutoFillBackground(false);
     setStyleSheet(QStringLiteral("QToolButton { background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 5px; }"
         "QToolButton:hover { background: rgba(0, 120, 215, 50); border-color: #0078D7; }"
-        "QToolButton:pressed { background: rgba(0, 120, 215, 100); border-color: #005A9E; }"));
+        "QToolButton:pressed { background: rgba(0, 120, 215, 100); border-color: #005A9E; }"
+        "QToolButton:checked { background: rgba(0, 150, 100, 100); border-color: #008000; }"));
     auto* row = new QHBoxLayout(this);
     row->setContentsMargins(2, 2, 2, 2);
     row->setSpacing(2);
@@ -48,12 +50,16 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
         auto translate = [action, text]() { action->setText(ToolsToolbar::tr(text)); action->setToolTip(ToolsToolbar::tr(text)); };
         connect(&LanguageManager::instance(), &LanguageManager::languageChanged, action, translate);
         translate();
-        connect(action, &QAction::triggered, this, [this, command]() { emit commandRequested(QLatin1String(command)); });
+        connect(action, &QAction::triggered, this, [this, command]() {
+            emit commandRequested(QLatin1String(command));
+            refreshActiveTools();
+        });
         QToolButton* button = flyout ? new FlyOutViewButton(_content) : new QToolButton(_content);
         button->setDefaultAction(action);
         button->setAutoRaise(true);
         button->setIconSize(QSize(40, 40));
         commands->addWidget(button);
+        _commandButtons.insert(QLatin1String(command), button);
         return button;
     };
     auto separator = [commands]() { auto* line = new QFrame; line->setFrameShape(QFrame::VLine); commands->addWidget(line); };
@@ -66,6 +72,7 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     _analysisMenu->setStyleSheet(FlyOutViewButton::menuStyleSheet());
     _analysisMenu->addAction(analysis->defaultAction());
     connect(_analysisMenu, &QMenu::triggered, analysis, &QToolButton::setDefaultAction);
+    connect(_analysisMenu, &QMenu::triggered, this, &ToolsToolbar::refreshActiveTools);
     analysis->setMenu(_analysisMenu);
     analysis->setPopupMode(QToolButton::DelayedPopup);
     const char* modeNames[] = {QT_TR_NOOP("Curvature / Zebra Stripe"), QT_TR_NOOP("Wall Thickness / Draft Angle"), QT_TR_NOOP("Deviation")};
@@ -76,7 +83,10 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
         const char* name = modeNames[i];
         connect(&LanguageManager::instance(), &LanguageManager::languageChanged, action, [action, name]() { action->setText(ToolsToolbar::tr(name)); });
         const QString command = QLatin1String(modeCommands[i]);
-        connect(action, &QAction::triggered, this, [this, command]() { emit commandRequested(command); });
+        connect(action, &QAction::triggered, this, [this, command]() {
+            emit commandRequested(command);
+            refreshActiveTools();
+        });
     }
     separator();
     auto meshTool = [this, &add](const char* name, const char* command) {
@@ -126,6 +136,37 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     setMeshToolAvailability({});
 }
 QSize ToolsToolbar::sizeHint() const { return QSize(_content->width() + 8, 64); }
+void ToolsToolbar::trackToolWindow(const QString& command, QWidget* window)
+{
+    auto* button = _commandButtons.value(command);
+    if (!button || !window || _toolWindows.value(button) == window) return;
+    _toolWindows.insert(button, window);
+    window->installEventFilter(this);
+    connect(window, &QObject::destroyed, this, &ToolsToolbar::refreshActiveTools);
+    refreshActiveTools();
+}
+
+void ToolsToolbar::refreshActiveTools()
+{
+    for (auto it = _toolWindows.cbegin(); it != _toolWindows.cend(); ++it) {
+        auto* button = it.key();
+        const bool active = it.value() && !it.value()->isHidden();
+        const auto actions = button->menu() ? button->menu()->actions()
+                                           : QList<QAction*>{button->defaultAction()};
+        for (auto* action : actions) {
+            action->setCheckable(true);
+            action->setChecked(active && action == button->defaultAction());
+        }
+    }
+}
+
+bool ToolsToolbar::eventFilter(QObject* watched, QEvent* event)
+{
+    if (event->type() == QEvent::Show || event->type() == QEvent::Hide)
+        refreshActiveTools();
+    return QWidget::eventFilter(watched, event);
+}
+
 bool ToolsToolbar::isFlyoutMenuVisible() const { return _analysisMenu->isVisible() || _mergeMenu->isVisible(); }
 void ToolsToolbar::setMeshToolAvailability(const QMap<QString, QString>& disabledReasons)
 {

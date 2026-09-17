@@ -1,6 +1,9 @@
 #include "SurfaceAnalysisOverlay.h"
 #include "SceneMesh.h"
 
+#include <algorithm>
+#include <cmath>
+
 void SurfaceAnalysisOverlay::applyResult(
 	SceneMesh* mesh,
 	const std::vector<float>& scalarPerSample,
@@ -162,6 +165,29 @@ bool SurfaceAnalysisOverlay::scalarAt(SceneMesh* mesh, int triangleIndex, const 
 	outValue = entry.scalarPerSample[i0] * barycentric.x()
 	         + entry.scalarPerSample[i1] * barycentric.y()
 	         + entry.scalarPerSample[i2] * barycentric.z();
+	return true;
+}
+
+bool SurfaceAnalysisOverlay::colorAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
+                                      QColor& outColor) const
+{
+	float value = 0.0f;
+	bool isFlat = false;
+	if (!scalarAt(mesh, triangleIndex, barycentric, value, isFlat))
+		return false;
+
+	const auto it = _entries.constFind(mesh);
+	if (it == _entries.constEnd())
+		return false; // scalarAt() above already required this entry to exist - defensive only
+	const Entry& entry = it.value();
+
+	// Same normalization AnalysisColorRamp::mapToRGBA() itself uses - see
+	// that function for the degenerate-range (rangeMin == rangeMax) case.
+	const float range = entry.rangeMax - entry.rangeMin;
+	const float t = (std::abs(range) < 1.0e-9f)
+		? 0.5f
+		: std::clamp((value - entry.rangeMin) / range, 0.0f, 1.0f);
+	outColor = AnalysisColorRamp::colorForNormalized(t, entry.colormap);
 	return true;
 }
 

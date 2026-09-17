@@ -81,7 +81,17 @@ public:
 	// introduced by this) that switching pages without re-applying leaves
 	// both showing stale labeling for whatever's still actually painted on
 	// the mesh.
-	QString hoverReadoutText(const MeshSurfaceAnchor& anchor) const;
+	//
+	// outTextColor is picked for legibility against the EXACT heatmap color
+	// at this point (via SurfaceAnalysisOverlay::colorAt() + the same
+	// lightness() < 128 -> white / else black convention this app's own
+	// hatch-color picker already used) - a fixed white readout was
+	// unreadable over the lighter/near-white bands of the color ramp
+	// (confirmed real bug, not hypothetical: the Diverging colormap's own
+	// white midpoint and the Sequential ramp's pale-yellow band are both
+	// bright enough that white-on-white text vanished). Left untouched
+	// (caller's own default) when this returns an empty string.
+	QString hoverReadoutText(const MeshSurfaceAnchor& anchor, QColor& outTextColor) const;
 
 protected:
 	void closeEvent(QCloseEvent* event) override;

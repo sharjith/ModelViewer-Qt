@@ -5,6 +5,20 @@
 #include "ui_ClippingPlanesEditor.h"
 
 class ViewportWidget;
+
+// In-viewport overlay for the 3 clipping planes - which axes are active,
+// where, flipped or not, capped or not, gizmo on/off. Cap-fill STYLE
+// (Procedural vs. Textured mode, hatch pattern/tiling/thickness/intensity/
+// line color) is deliberately NOT here - it moved to Settings -> Rendering
+// -> Section Capping as a once-per-document default (seeded in
+// ViewportWidget::createCappingPlanes()), since it's a "set once, rarely
+// revisited" preference, not something touched during interactive work like
+// everything else this panel hosts. The one exception is the texture
+// PICKER itself (pushButtonTexture) - which specific image file to use is a
+// per-use content choice, not a preference, so it stays here, shown only
+// when the Settings-configured default mode is Textured (checked once at
+// construction via ViewportWidget::clippingPlaneHatchMode() - mode itself
+// is no longer a live in-panel toggle).
 class ClippingPlanesEditor : public QWidget, Ui::ClippingPlanesEditor
 {
 	Q_OBJECT
@@ -47,18 +61,8 @@ protected slots:
 	void on_doubleSpinBoxYZCoeff_valueChanged(double val);
 	void on_doubleSpinBoxZXCoeff_valueChanged(double val);
 	void on_pushButtonResetCoeffs_clicked();
-	void on_radioButtonProcedural_toggled(bool checked);
-	void on_comboBoxHatchMode_currentIndexChanged(int index);
-	void on_spinBoxHatchTiling_valueChanged(int val);
-	void on_doubleSpinBoxThickness_valueChanged(double val);
-	void on_doubleSpinBoxIntensity_valueChanged(double val);
-	void on_pushButtonHatchColor_clicked();
 	void on_pushButtonTexture_clicked();
-	void on_pushButtonDefaultValues_clicked();	
 	void on_pushButtonResetAll_clicked();
-
-private:
-	void resetProceduralTextureValues();
 
 private:
 	ViewportWidget* _viewportWidget;

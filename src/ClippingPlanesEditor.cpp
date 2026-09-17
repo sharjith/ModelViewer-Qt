@@ -5,14 +5,12 @@
 #include "PathUtils.h"
 #include <QCheckBox>
 #include <QKeyEvent>
-#include <QColorDialog>
 #include <QFileDialog>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
 #include <QPainter>
 #include <QProxyStyle>
-#include <QRadioButton>
 #include <QStyleOptionButton>
 #include <QSignalBlocker>
 #include <QUrl>
@@ -201,6 +199,13 @@ ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 		retranslateUi(this);
 		});
 
+	// Texture picker is only relevant when the Settings-configured default
+	// mode is Textured - see this class's own header doc comment. Checked
+	// once here (mode is no longer a live in-panel toggle), not re-checked
+	// later, matching how other Settings-seeded per-document defaults
+	// (e.g. up-axis) don't retroactively update an already-open document.
+	pushButtonTexture->setVisible(_viewportWidget->clippingPlaneHatchMode() == ClippingPlaneHatchMode::TEXTURE);
+
 	// enable drag/drop on the single texture button (no header changes)
 	pushButtonTexture->setAcceptDrops(true);
 	// parent the filter to 'this' so it will be deleted with the editor
@@ -221,43 +226,9 @@ void ClippingPlanesEditor::applyContrastTheme(const QColor& textColor)
 
 	const QString blackTextStyle = QStringLiteral("color: rgb(0, 0, 0);");
 	const bool lightText = textColor.lightnessF() >= 0.5;
-	const QColor indicatorFill = lightText ? QColor(24, 24, 24, 160) : QColor(255, 255, 255, 180);
-	const QString radioIndicatorStyle = QString(
-		"QRadioButton { color: rgb(%1, %2, %3); }"
-		"QRadioButton::indicator {"
-		" width: 13px;"
-		" height: 13px;"
-		" border-radius: 6.5px;"
-		" border: 1px solid rgba(%1, %2, %3, 220);"
-		" background-color: rgba(%4, %5, %6, %7);"
-		"}"
-		"QRadioButton::indicator:checked {"
-		" border: 1px solid rgba(%1, %2, %3, 220);"
-		" background-color: qradialgradient("
-		"   cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,"
-		"   stop:0 rgb(%1, %2, %3),"
-		"   stop:0.6 rgb(%1, %2, %3),"
-		"   stop:0.65 transparent,"
-		"   stop:1 transparent);"
-		"}"
-		"QRadioButton::indicator:unchecked:hover,"
-		"QRadioButton::indicator:checked:hover {"
-		" border: 1px solid rgb(%1, %2, %3);"
-		"}")
-		.arg(textColor.red())
-		.arg(textColor.green())
-		.arg(textColor.blue())
-		.arg(indicatorFill.red())
-		.arg(indicatorFill.green())
-		.arg(indicatorFill.blue())
-		.arg(indicatorFill.alpha());
 	pushButtonResetCoeffs->setStyleSheet(blackTextStyle);
-	pushButtonDefaultValues->setStyleSheet(blackTextStyle);
 	pushButtonResetAll->setStyleSheet(blackTextStyle);
 	pushButtonTexture->setStyleSheet(QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);"));
-	comboBoxHatchMode->setStyleSheet(blackTextStyle);
-	radioButtonProcedural->setStyleSheet(radioIndicatorStyle);
-	radioButtonTextured->setStyleSheet(radioIndicatorStyle);
 
 	for (QCheckBox* box : findChildren<QCheckBox*>())
 	{
@@ -412,57 +383,6 @@ void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
 	doubleSpinBoxYZCoeff->setValue(0);
 }
 
-void ClippingPlanesEditor::on_radioButtonProcedural_toggled(bool checked)
-{
-	_viewportWidget->setClippingPlaneHatchMode(checked ? ClippingPlaneHatchMode::PROCEDURAL : ClippingPlaneHatchMode::TEXTURE);
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_comboBoxHatchMode_currentIndexChanged(int index)
-{
-	_viewportWidget->setClippingPlaneHatchPattern(static_cast<HatchPattern>(index));
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_spinBoxHatchTiling_valueChanged(int val)
-{
-	_viewportWidget->setHatchTiling(val);
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_doubleSpinBoxThickness_valueChanged(double val)
-{
-	_viewportWidget->setHatchLineThickness(static_cast<float>(val));
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_doubleSpinBoxIntensity_valueChanged(double val)
-{
-	_viewportWidget->setHatchIntensity(static_cast<float>(val));
-	_viewportWidget->updateClippingPlane();
-	_viewportWidget->update();
-}
-
-void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
-{
-	QColor color = QColorDialog::getColor(QColor(0,0,0), this, tr("Select Hatch Color"));
-	if (color.isValid())
-	{		
-		pushButtonHatchColor->setStyleSheet(
-			QString("background-color: %1; color: %2;")
-			.arg(color.name())
-			.arg(color.lightness() < 128 ? "#FFFFFF" : "#000000")
-		);
-		_viewportWidget->setHatchLineColor(color);
-		_viewportWidget->updateClippingPlane();
-		_viewportWidget->update();
-	}
-}
-
 void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 {
 	const QString path = PathUtils::getDataDirectory() + "/";
@@ -496,11 +416,6 @@ void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 	}
 }
 
-void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
-{
-	resetProceduralTextureValues();
-}
-
 void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
 {
 	// set default values
@@ -513,19 +428,18 @@ void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
 	checkBoxFlipXY->setChecked(false);
 	checkBoxFlipYZ->setChecked(false);
 	checkBoxFlipZX->setChecked(false);
-	checkBoxCapping->setChecked(false);
-	radioButtonProcedural->setChecked(true);
-	resetProceduralTextureValues();
+	// Capping and Show Gizmo both default to checked now (see
+	// ClippingPlanesEditor.ui's own "checked" properties) - this button's
+	// own tooltip promises "Reset every clipping plane setting to its
+	// default", so it needs to reset TO that, not to the stale false
+	// defaults from before that change (a real bug: capping silently
+	// stayed off after a reset even though a brand new panel starts with
+	// it on).
+	checkBoxCapping->setChecked(true);
+	checkBoxShowGizmo->setChecked(true);
+	// Mode/pattern/tiling/thickness/intensity/line color are no longer
+	// per-document state (see this class's own header doc comment) - only
+	// the texture PICK itself (which file, if any) resets here.
 	pushButtonTexture->setText(tr("Select Texture"));
 	pushButtonTexture->setIcon(QIcon());
-}
-
-void ClippingPlanesEditor::resetProceduralTextureValues()
-{
-	comboBoxHatchMode->setCurrentIndex(0);
-	spinBoxHatchTiling->setValue(100);
-	doubleSpinBoxThickness->setValue(0.05);
-	doubleSpinBoxIntensity->setValue(1.0f);
-	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");
-	_viewportWidget->setHatchLineColor(QColor(0, 0, 0));
 }

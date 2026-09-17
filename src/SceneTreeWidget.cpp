@@ -5,6 +5,7 @@
 #include "RenderableMesh.h"
 
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QElapsedTimer>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -218,7 +219,9 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     header()->setStretchLastSection(false);
     header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
-    setContextMenuPolicy(Qt::CustomContextMenu);
+    // DefaultContextMenu (not CustomContextMenu) so contextMenuEvent() below sees every
+    // request first and can hit-test it - see that override's doc comment (header) for why.
+    setContextMenuPolicy(Qt::DefaultContextMenu);
     setEditTriggers(QAbstractItemView::DoubleClicked
                   | QAbstractItemView::EditKeyPressed);
     setAnimated(true);
@@ -1031,6 +1034,22 @@ bool SceneTreeWidget::isInAncestorIndentationGutter(const QPoint& pos, QTreeWidg
     return pos.x() < contentRect.left() - indentation();
 }
 
+bool SceneTreeWidget::isPastItemContent(const QPoint& pos, QTreeWidgetItem* item) const
+{
+    if (!item)
+        return true;
+
+    const QModelIndex index = indexFromItem(item, 0);
+    const QRect contentRect = visualRect(index);
+
+    QStyleOptionViewItem opt;
+    initViewItemOption(&opt);
+    opt.rect = contentRect;
+    const int naturalWidth = itemDelegate()->sizeHint(opt, index).width();
+
+    return pos.x() > contentRect.left() + naturalWidth;
+}
+
 void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
 {
     // No item under the cursor, or the click landed in that item's ANCESTOR indentation
@@ -1042,7 +1061,8 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
     // below for the rest of this gesture, so a click-drag (orbit/pan) starting here reaches
     // the viewport too, not just a static click.
     QTreeWidgetItem* hitItem = itemAt(event->pos());
-    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem))
+    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem) ||
+        isPastItemContent(event->pos(), hitItem))
     {
         _forwardingClickToViewport = true;
         forwardToViewport(event);
@@ -1117,6 +1137,38 @@ void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
 void SceneTreeWidget::wheelEvent(QWheelEvent* event)
 {
     event->ignore();
+}
+
+// See this override's doc comment in the header for why DefaultContextMenu policy (routing
+// every request through here first) replaces the CustomContextMenu policy the rest of the
+// tree's context menu still logically relies on (ModelViewer::showContextMenu(), wired to
+// customContextMenuRequested()) - this manually emits that same signal for on-content requests
+// so that connection keeps working exactly as before.
+void SceneTreeWidget::contextMenuEvent(QContextMenuEvent* event)
+{
+    QTreeWidgetItem* hitItem = itemAt(event->pos());
+    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem) ||
+        isPastItemContent(event->pos(), hitItem))
+    {
+        if (_viewportWidget)
+        {
+            // Call ViewportWidget::showContextMenu() directly - a plain function call, not a
+            // synthesized event sendEvent()'d through QWidget's event()/policy machinery, nor a
+            // manually emitted signal relying on that same machinery on the receiving end. Both
+            // of those go through several layers of Qt event/signal dispatch that can silently
+            // swallow or misroute the request (e.g. interaction with whatever in-flight mouse
+            // gesture state a forwarded right-button press/release already left on the viewport
+            // - see mousePressEvent()'s forwarding, which runs for every button, right included).
+            // A direct call has none of that: it just builds and shows the menu.
+            const QPoint viewportPos = mapTo(_viewportWidget, event->pos());
+            _viewportWidget->showContextMenu(viewportPos);
+        }
+        event->accept();
+        return;
+    }
+
+    emit customContextMenuRequested(event->pos());
+    event->accept();
 }
 
 // ---------------------------------------------------------------------------

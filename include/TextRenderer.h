@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <map>
 
 #include <QtOpenGL>
@@ -75,6 +76,19 @@ public:
 	unsigned int height() const;
 	void setHeight(const unsigned int& height);
 
+	// Multiplies every subsequent RenderText()/textWidth()/
+	// textVerticalExtentVBottom() call's own `scale` argument - the single
+	// hook the app-wide "Overlay Text Scale" Settings value goes through
+	// (see ViewportWidget's own seeding of this at construction), so every
+	// existing call site (Measurement/Annotation labels, axis/bounding-box
+	// labels, the plane-gizmo drag readout, the Surface Analysis hover
+	// readout) respects it automatically without each one needing its own
+	// Settings read. Clamped away from 0/negative - a caller passing its own
+	// scale of 0 for some other reason shouldn't combine with a broken
+	// multiplier to produce garbage.
+	void setGlobalScale(float scale) { _globalScale = std::max(0.1f, scale); }
+	float globalScale() const { return _globalScale; }
+
 	// The loaded font's nominal size in pixels - RenderText() has no
 	// built-in concept of a line break (see its doc comment), so a caller
 	// that wants multi-line text needs this to space successive
@@ -104,4 +118,6 @@ private:
 
 	VAlignment _vAlignment;
 	HAlignment _hAlignment;
+
+	float _globalScale = 1.0f;
 };

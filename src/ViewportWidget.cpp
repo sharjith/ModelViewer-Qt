@@ -715,7 +715,13 @@ _floorPlane(nullptr),
 	_lowerLayout->setRowWrapPolicy(QFormLayout::DontWrapRows);
 	_lowerLayout->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
 
-	int toolbarHeight = _viewToolbar->height();
+	// _viewToolbar is only the button-row sub-widget INSIDE _tabbedToolbar
+	// (see "_viewToolbar = _tabbedToolbar->viewToolbar();" above) - using
+	// its height alone undercounts the tab-selector row TabbedViewportToolbar
+	// adds on top, so the Clipping Planes/Exploded View panels (anchored to
+	// this margin) sat low enough to crowd the now-taller tabbed toolbar.
+	// _tabbedToolbar->height() is the full combined height.
+	int toolbarHeight = _tabbedToolbar->height();
 	_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
 
 	_clippingPlanesEditor = new ClippingPlanesEditor(this);
@@ -1232,6 +1238,8 @@ void ViewportWidget::initializeGL()
 	_axisTextRenderer = new TextRenderer(_renderCtrl.textShader(), width(), height());
 	_axisTextRenderer->Load(path + "fonts/arialbd.ttf", 16);
 	_renderCtrl.textShader()->release();
+
+	loadTextOverlaySettings();
 
 	createCappingPlanes();
 
@@ -2492,12 +2500,14 @@ void ViewportWidget::beginWindowZoom()
 	_rtInteractionCtrl->notifyCameraInteracting();
 
 	_viewCtrl.setWindowZoomActive(true);
+	emit viewStateChanged();
 	setCursor(makeIconCursor(":/icons/res/window-zoom-cursor.png", 32, devicePixelRatioF(), 15, 14));
 }
 
 void ViewportWidget::performWindowZoom()
 {
 	_viewCtrl.setWindowZoomActive(false);
+	emit viewStateChanged();
 
 	QRect zoomRect = _rubberBand->geometry();
 	if (zoomRect.width() == 0 || zoomRect.height() == 0)
@@ -3436,7 +3446,7 @@ void ViewportWidget::renderPlaneGizmos()
 	SceneMesh::resetSharedUniformStateCache();
 }
 
-void ViewportWidget::drawFloatingLabel(const QString& text, const QPoint& pixel)
+void ViewportWidget::drawFloatingLabel(const QString& text, const QPoint& pixel, const QColor& color)
 {
 	if (text.isEmpty() || !_axisTextRenderer)
 		return;
@@ -3457,19 +3467,20 @@ void ViewportWidget::drawFloatingLabel(const QString& text, const QPoint& pixel)
 	// sitting on top of the cursor glyph itself.
 	_axisTextRenderer->RenderText(text.toStdString(),
 		static_cast<float>(pixel.x()) + 8.0f, static_cast<float>(pixel.y()) - 8.0f, 1,
-		QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
+		QVector3D(static_cast<float>(color.redF()), static_cast<float>(color.greenF()), static_cast<float>(color.blueF())),
+		TextRenderer::VAlignment::VBOTTOM);
 }
 
 void ViewportWidget::drawPlaneGizmoDragLabel()
 {
 	if (!_activePlaneGizmoDrag)
 		return;
-	drawFloatingLabel(_planeGizmoDragLabelText, _planeGizmoDragLabelPixel);
+	drawFloatingLabel(_planeGizmoDragLabelText, _planeGizmoDragLabelPixel, Qt::white);
 }
 
 void ViewportWidget::drawSurfaceAnalysisHoverLabel()
 {
-	drawFloatingLabel(_surfaceAnalysisHoverText, _surfaceAnalysisHoverPixel);
+	drawFloatingLabel(_surfaceAnalysisHoverText, _surfaceAnalysisHoverPixel, _surfaceAnalysisHoverTextColor);
 }
 
 void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
@@ -3488,11 +3499,13 @@ void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 	}
 
 	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
-	const QString text = dialog->hoverReadoutText(anchor);
-	if (text == _surfaceAnalysisHoverText && pixel == _surfaceAnalysisHoverPixel)
+	QColor textColor = Qt::white;
+	const QString text = dialog->hoverReadoutText(anchor, textColor);
+	if (text == _surfaceAnalysisHoverText && pixel == _surfaceAnalysisHoverPixel && textColor == _surfaceAnalysisHoverTextColor)
 		return;
 	_surfaceAnalysisHoverText = text;
 	_surfaceAnalysisHoverPixel = pixel;
+	_surfaceAnalysisHoverTextColor = textColor;
 	update();
 }
 
@@ -4188,6 +4201,11 @@ void ViewportWidget::setClippingPlaneHatchMode(ClippingPlaneHatchMode mode)
 {
 	_renderCtrl.setHatchMode(mode);
 	update();
+}
+
+ClippingPlaneHatchMode ViewportWidget::clippingPlaneHatchMode() const
+{
+	return _renderCtrl.hatchMode();
 }
 
 void ViewportWidget::setClippingPlaneHatchPattern(HatchPattern pattern)
@@ -5528,6 +5546,31 @@ void ViewportWidget::createCappingPlanes()
 		wireDragUndo(_clipPlaneGizmoX, [this] { return _renderCtrl.clippingXCoeff(); }, applyXCoeff, tr("Drag Clipping Plane"));
 		wireDragUndo(_clipPlaneGizmoY, [this] { return _renderCtrl.clippingYCoeff(); }, applyYCoeff, tr("Drag Clipping Plane"));
 		wireDragUndo(_clipPlaneGizmoZ, [this] { return _renderCtrl.clippingZCoeff(); }, applyZCoeff, tr("Drag Clipping Plane"));
+	}
+
+	// Seed this document's cap-fill style from the user's configured
+	// default (Settings -> Rendering -> Section Capping), the same
+	// QSettings-read-at-construction pattern already used for
+	// "comboCameraUpAxis"/"comboDefaultView" above in this class - replaces
+	// SceneRenderController's own hardcoded member-initializer defaults
+	// (PROCEDURAL/Diagonal 45/100/0.05/1.0/black) as the effective source of
+	// truth without needing to touch that class. Mode is intentionally only
+	// read here, once - see ClippingPlanesEditor's own doc comment on why
+	// it's no longer a live in-panel toggle.
+	{
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		_renderCtrl.setHatchMode(static_cast<ClippingPlaneHatchMode>(
+			settings.value("sectionCappingMode", 0).toInt()));
+		_renderCtrl.setHatchPattern(static_cast<HatchPattern>(
+			settings.value("sectionCappingHatchPattern", 0).toInt()));
+		_renderCtrl.setHatchTiling(settings.value("sectionCappingHatchTiling", 100).toInt());
+		_renderCtrl.setHatchThickness(static_cast<float>(
+			settings.value("sectionCappingHatchThickness", 0.05).toDouble()));
+		_renderCtrl.setHatchIntensity(static_cast<float>(
+			settings.value("sectionCappingHatchIntensity", 1.0).toDouble()));
+		const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
+		_renderCtrl.setHatchLineColor(QVector3D(static_cast<float>(hatchColor.redF()),
+			static_cast<float>(hatchColor.greenF()), static_cast<float>(hatchColor.blueF())));
 	}
     _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
@@ -10748,6 +10791,17 @@ void ViewportWidget::loadBgColorSettings()
 		bgStyleValue.isValid() && bgStyleValue.canConvert<int>() ? bgStyleValue.toInt() : 0);
 }
 
+void ViewportWidget::loadTextOverlaySettings()
+{
+	if (!_textRenderer || !_axisTextRenderer)
+		return; // called from initializeGL() before either exists otherwise
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const float overlayTextScale = static_cast<float>(
+		settings.value("doubleSpinBoxOverlayTextScale", 1.0).toDouble());
+	_textRenderer->setGlobalScale(overlayTextScale);
+	_axisTextRenderer->setGlobalScale(overlayTextScale);
+}
+
 void ViewportWidget::loadNavigationSettings()
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -14391,8 +14445,8 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	if (key == Qt::Key_Escape)
 	{
 		_viewCtrl.clearNavigationModes();
-        emit viewStateChanged();
 		_viewCtrl.setWindowZoomActive(false);
+        emit viewStateChanged();
 		// Disarm explicitly rather than relying on the unconditional
 		// setCursor() below - eyedropper changes the cursor (see
 		// setEyedropperArmed()'s own cursor handling), and leaving it

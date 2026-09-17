@@ -230,6 +230,11 @@ public:
 	QWidget* takeOverlayPanel(QWidget* contentWidget);
 	void refreshDetachedNavigationOverlayTheme();
 	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
+	// Thin _renderCtrl.hatchMode() passthrough - lets ClippingPlanesEditor
+	// decide the texture picker's one-time visibility (only shown when the
+	// Settings-configured default mode is Textured) without needing its own
+	// copy of the Settings-seeded value.
+	ClippingPlaneHatchMode clippingPlaneHatchMode() const;
 	void setClippingPlaneHatchPattern(HatchPattern pattern);
 	void setHatchTiling(int tiling);
 	void setHatchLineThickness(float width);
@@ -569,6 +574,12 @@ public:
 	void loadBgColorSettings();
 	void loadNavigationSettings();
 	void loadRenderSettings();
+	// Settings -> Display -> Overlay Text Scale, re-read and re-applied to
+	// both TextRenderer instances - callable both at construction
+	// (initializeGL()) and live from MainWindow's SettingsDialog::
+	// settingsChanged() handler, same "load...Settings()" shape as the
+	// three siblings above.
+	void loadTextOverlaySettings();
 
 	struct CameraPose
 	{
@@ -1412,8 +1423,14 @@ public slots:
 	// Remove all extension-level debug uniform+texture overrides for meshId.
 	void clearDebugExtensionOverrides(int meshId);
 
-private slots:
+	// Builds and shows the viewport's own context menu at pos (viewport-local coordinates).
+	// Public (not just the private slot connected to this widget's own customContextMenuRequested)
+	// so SceneTreeWidget::contextMenuEvent() can call it directly for a right-click landing on
+	// its transparent overlay background - a plain function call, not another signal/event
+	// round-trip, after the signal-emission forwarding attempt proved unreliable in practice.
 	void showContextMenu(const QPoint& pos);
+
+private slots:
 	void centerDisplayList();
 	void setBackgroundColor();
 	
@@ -1613,8 +1630,12 @@ private:
 	// Draws `text` at `pixel` via _axisTextRenderer, offset up-right of the
 	// cursor - shared by drawPlaneGizmoDragLabel() and
 	// drawSurfaceAnalysisHoverLabel() below, the two floating-numeric-
-	// readout call sites in this file.
-	void drawFloatingLabel(const QString& text, const QPoint& pixel);
+	// readout call sites in this file. color defaults to white for the
+	// gizmo-drag caller (a fixed viewport background, not a variable-color
+	// heatmap); the Surface Analysis caller picks per-pixel contrast
+	// instead - see SurfaceAnalysisDialog::hoverReadoutText()'s own doc
+	// comment on why a fixed color isn't legible there.
+	void drawFloatingLabel(const QString& text, const QPoint& pixel, const QColor& color = Qt::white);
 	// Draws _planeGizmoDragLabelText at _planeGizmoDragLabelPixel - no-op
 	// when no drag is active. Called as its own step right after
 	// renderPlaneGizmos() (2D pixel-space text, not part of that function's
@@ -2326,6 +2347,7 @@ private:
 	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
 	QString _surfaceAnalysisHoverText;
 	QPoint _surfaceAnalysisHoverPixel;
+	QColor _surfaceAnalysisHoverTextColor = Qt::white;
 
 	// Whichever gizmo (if any) is currently under the cursor with no button
 	// held - see updatePlaneGizmoHover()'s own doc comment. Tracked

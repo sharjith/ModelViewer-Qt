@@ -3,6 +3,7 @@
 #include "FlyOutViewButton.h"
 #include "LanguageManager.h"
 #include <QHBoxLayout>
+#include <QFrame>
 #include <QToolButton>
 #include <QMenu>
 #include <QAction>
@@ -223,8 +224,11 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     connect(_scrollArea->horizontalScrollBar(), &QScrollBar::valueChanged,
         this, &ViewToolbar::updateScrollButtons);
 
-    // Now add all the toolbar buttons to _mainLayout
-    // (Keep all your existing button creation code here, just replace 'layout' with '_mainLayout')
+    auto separator = [this]() {
+        auto* line = new QFrame(_buttonContainer);
+        line->setFrameShape(QFrame::VLine);
+        _mainLayout->addWidget(line);
+    };
 
     // Navigation - Rotate, Pan, Zoom grouped in dropdown
     _toolButtonNavigation = new FlyOutViewButton(this);
@@ -307,6 +311,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _btnWindowZoom->setIcon(QIcon(":/icons/res/window-zoom.png"));
     _btnWindowZoom->setIconSize(QSize(40, 40));
     _btnWindowZoom->setToolTip(tr("Window Zoom"));
+    _btnWindowZoom->setCheckable(true);
     scopeButtonShortcutToViewport(_btnWindowZoom, QKeySequence(Qt::ALT | Qt::Key_W));
     _btnWindowZoom->setAutoRaise(true);
     _mainLayout->addWidget(_btnWindowZoom);
@@ -346,6 +351,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     setSelectionFiltersEnabled(false);
 
     // Camera Modes
+    separator();
     _toolButtonCameraModes = new FlyOutViewButton(this);
     _toolButtonCameraModes->setIcon(QIcon(":/icons/res/camera_orbit.png"));
     _toolButtonCameraModes->setIconSize(QSize(40, 40));
@@ -435,6 +441,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     connect(_turntableAction, &QAction::triggered, this, [this](bool checked) { emit turntableToggled(checked); });
 
     // Standard Views
+    separator();
     _toolButtonViews = new FlyOutViewButton(this);
     _toolButtonViews->setIcon(QIcon(":/icons/res/top.png"));
     _toolButtonViews->setIconSize(QSize(40, 40));
@@ -626,6 +633,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     connect(_multiViewAction, &QAction::triggered, this, [this](bool checked) { emit multiViewToggled(checked); });
 
     // Display Modes
+    separator();
     _toolButtonDisplayModes = new FlyOutViewButton(this);
     _toolButtonDisplayModes->setIcon(QIcon(":/icons/res/shaded.png"));
     _toolButtonDisplayModes->setIconSize(QSize(40, 40));
@@ -789,6 +797,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _toolButtonShadingNormal->setDefaultAction(_smoothShaded);
 
     // Section View
+    separator();
     _sectionBtn = new QToolButton(this);
     _sectionBtn->setStyleSheet(buttonStyleSheet);
     _sectionBtn->setIcon(QIcon(":/icons/res/section.png"));
@@ -825,6 +834,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     connect(_swapVisibleAction, &QAction::triggered, this, [this](bool checked) { emit swapVisibleToggled(checked); });
 
     // Show/Hide Axis
+    separator();
     _axisBtn = new QToolButton(this);
     _axisBtn->setStyleSheet(buttonStyleSheet);
     _axisBtn->setIcon(QIcon(":/icons/res/showAxis.png"));
@@ -961,6 +971,7 @@ void ViewToolbar::syncMenuState(const QVariantMap& state)
     const auto checked = [&state](const char* key) { return state.value(QLatin1String(key)).toBool(); };
     // Command handlers use triggered(), so assigning state never dispatches a command.
     setLassoSelectChecked(checked("lasso"));
+    _windowZoomAction->setChecked(checked("windowZoom"));
     _turntableAction->setChecked(checked("turntable"));
     _projectionAction->setChecked(checked("perspective"));
     _multiViewAction->setChecked(checked("multi"));
