@@ -228,6 +228,15 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	_legendLabel->setVisible(false);
 	layout->addWidget(_legendLabel);
 
+	// Shared across all 3 pages, same as _legendLabel above - the readout
+	// itself is mode-agnostic (see hoverReadoutText()). Default on: a
+	// numeric readout under the cursor is directly useful the first time
+	// someone applies an overlay, not something that needs discovering.
+	_hoverReadoutToggle = new QPushButton(tr("Show Readout on Hover"), this);
+	_hoverReadoutToggle->setCheckable(true);
+	_hoverReadoutToggle->setChecked(true);
+	layout->addWidget(_hoverReadoutToggle);
+
 	auto* bottomRow = new QHBoxLayout();
 	_clearButton = new QPushButton(tr("Clear Overlay"), this);
 	connect(_clearButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onClearClicked);
@@ -342,6 +351,51 @@ SurfaceAnalysisDialog::Mode SurfaceAnalysisDialog::currentMode() const
 	if (_deviationButton->isChecked())
 		return Mode::Deviation;
 	return Mode::Curvature;
+}
+
+bool SurfaceAnalysisDialog::hoverReadoutEnabled() const
+{
+	return _hoverReadoutToggle && _hoverReadoutToggle->isChecked();
+}
+
+QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor) const
+{
+	if (!anchor.isValid() || !_modelViewer || !_modelViewer->getViewportWidget())
+		return QString();
+
+	SceneMesh* mesh = _modelViewer->getViewportWidget()->getMeshByUuid(anchor.meshUuid);
+	if (!mesh)
+		return QString();
+
+	float value = 0.0f;
+	bool isFlat = false;
+	if (!_overlay.scalarAt(mesh, anchor.triangleIndex, anchor.barycentric, value, isFlat))
+		return QString();
+
+	// Draft Angle is detected via isFlat, not a Mode value - it's a separate
+	// Apply button on the Wall-Thickness page, not one of currentMode()'s 3
+	// values (see this class's own Mode enum doc comment). Every other case
+	// is labeled from currentMode() - same page/mode the legend currently
+	// reflects. Unit suffixes match the legend's own exactly (legendGradient()
+	// calls in applyDraftAngleToSelection()/applyCurvatureToSelection()/
+	// applyWallThicknessToSelection()/applyDeviationToSelection() - only
+	// Draft Angle passes a non-empty unit string, "°"; the other three pass
+	// QString() because this app has no fixed distance-unit convention
+	// across imported models), so the readout never shows a unit the legend
+	// doesn't also claim.
+	if (isFlat)
+		return tr("Draft: %1°").arg(value, 0, 'f', 2);
+
+	switch (currentMode())
+	{
+	case Mode::Curvature:
+		return tr("Curvature: %1").arg(value, 0, 'f', 4);
+	case Mode::WallThickness:
+		return tr("Thickness: %1").arg(value, 0, 'f', 3);
+	case Mode::Deviation:
+		return tr("Deviation: %1").arg(value, 0, 'f', 3);
+	}
+	return QString();
 }
 
 void SurfaceAnalysisDialog::onModeChanged()

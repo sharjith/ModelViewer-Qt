@@ -119,6 +119,52 @@ SurfaceAnalysisOverlay::CacheKey SurfaceAnalysisOverlay::computeCurrentKey(
 	return key;
 }
 
+bool SurfaceAnalysisOverlay::scalarAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
+                                       float& outValue, bool& outIsFlat) const
+{
+	if (!mesh || triangleIndex < 0)
+		return false;
+	const auto it = _entries.constFind(mesh);
+	if (it == _entries.constEnd())
+		return false;
+	const Entry& entry = it.value();
+	outIsFlat = entry.isFlat;
+
+	if (entry.isFlat)
+	{
+		const size_t idx = static_cast<size_t>(triangleIndex);
+		if (idx >= entry.scalarPerSample.size())
+			return false;
+		if (idx < entry.validPerSample.size() && !entry.validPerSample[idx])
+			return false;
+		outValue = entry.scalarPerSample[idx];
+		return true;
+	}
+
+	const std::vector<unsigned int> meshIndices = mesh->indices();
+	const size_t base = static_cast<size_t>(triangleIndex) * 3;
+	if (base + 2 >= meshIndices.size())
+		return false;
+	const unsigned int i0 = meshIndices[base];
+	const unsigned int i1 = meshIndices[base + 1];
+	const unsigned int i2 = meshIndices[base + 2];
+	const size_t sampleCount = entry.scalarPerSample.size();
+	if (i0 >= sampleCount || i1 >= sampleCount || i2 >= sampleCount)
+		return false;
+	if (!entry.validPerSample.empty())
+	{
+		const bool valid0 = i0 >= entry.validPerSample.size() || entry.validPerSample[i0];
+		const bool valid1 = i1 >= entry.validPerSample.size() || entry.validPerSample[i1];
+		const bool valid2 = i2 >= entry.validPerSample.size() || entry.validPerSample[i2];
+		if (!valid0 || !valid1 || !valid2)
+			return false;
+	}
+	outValue = entry.scalarPerSample[i0] * barycentric.x()
+	         + entry.scalarPerSample[i1] * barycentric.y()
+	         + entry.scalarPerSample[i2] * barycentric.z();
+	return true;
+}
+
 void SurfaceAnalysisOverlay::clearOverlay(SceneMesh* mesh)
 {
 	if (!mesh)

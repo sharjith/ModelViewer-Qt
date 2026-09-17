@@ -21,11 +21,13 @@
 #include "RtSceneBuilder.h"
 #include <QtMath>
 #include "SelectionManager.h"
+#include "SurfaceAnalysisDialog.h"
 #include "TransformGizmo.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialVariantsPanel.h"
 #include "ModelViewer.h"
+#include "PlaneGizmoDragCommand.h"
 #include "SceneTreeWidget.h"
 #include "AnimationsPanel.h"
 #include "ModelViewerApplication.h"
@@ -41,8 +43,10 @@
 #include "Utils.h"
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <QCryptographicHash>
 #include <QOpenGLContext>
 #include <QDateTime>
@@ -3432,6 +3436,66 @@ void ViewportWidget::renderPlaneGizmos()
 	SceneMesh::resetSharedUniformStateCache();
 }
 
+void ViewportWidget::drawFloatingLabel(const QString& text, const QPoint& pixel)
+{
+	if (text.isEmpty() || !_axisTextRenderer)
+		return;
+	// `pixel` is a raw mouse-event QPoint, ALREADY in the top-down pixel
+	// convention (small y = top of screen) that RenderText()/the per-frame
+	// text-shader ortho projection actually expect - confirmed by measuring
+	// captured frames: VAlignment::VBOTTOM's y is the text's BOTTOM anchor,
+	// with the glyph extending toward SMALLER y (up-screen) from there,
+	// matching plain top-down pixels directly. This does NOT need the
+	// height()-y flip MeasurementController/AnnotationController's own
+	// hover labels apply - that flip exists ONLY to convert
+	// QVector3D::project()'s OpenGL-style bottom-up output (Y increases
+	// upward) into this same top-down convention; applying it a second time
+	// to an already-top-down mouse pixel inverted the label's vertical
+	// placement entirely (it rendered BELOW-right of the cursor instead of
+	// above-right - confirmed by pixel-measuring a screen recording, not
+	// guessed). +8 right, -8 up (smaller y) - close to the tip without
+	// sitting on top of the cursor glyph itself.
+	_axisTextRenderer->RenderText(text.toStdString(),
+		static_cast<float>(pixel.x()) + 8.0f, static_cast<float>(pixel.y()) - 8.0f, 1,
+		QVector3D(1.0f, 1.0f, 1.0f), TextRenderer::VAlignment::VBOTTOM);
+}
+
+void ViewportWidget::drawPlaneGizmoDragLabel()
+{
+	if (!_activePlaneGizmoDrag)
+		return;
+	drawFloatingLabel(_planeGizmoDragLabelText, _planeGizmoDragLabelPixel);
+}
+
+void ViewportWidget::drawSurfaceAnalysisHoverLabel()
+{
+	drawFloatingLabel(_surfaceAnalysisHoverText, _surfaceAnalysisHoverPixel);
+}
+
+void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
+{
+	SurfaceAnalysisDialog* dialog = _viewer
+		? _viewer->findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly)
+		: nullptr;
+	if (!dialog || !dialog->hoverReadoutEnabled())
+	{
+		if (!_surfaceAnalysisHoverText.isEmpty())
+		{
+			_surfaceAnalysisHoverText.clear();
+			update();
+		}
+		return;
+	}
+
+	const MeshSurfaceAnchor anchor = _selectionManager->pickSurfaceAnchor(pixel);
+	const QString text = dialog->hoverReadoutText(anchor);
+	if (text == _surfaceAnalysisHoverText && pixel == _surfaceAnalysisHoverPixel)
+		return;
+	_surfaceAnalysisHoverText = text;
+	_surfaceAnalysisHoverPixel = pixel;
+	update();
+}
+
 std::array<PlaneGizmo*, 9> ViewportWidget::allPlaneGizmos() const
 {
 	return { _clipPlaneGizmoX, _clipPlaneGizmoY, _clipPlaneGizmoZ,
@@ -3498,6 +3562,8 @@ bool ViewportWidget::beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel)
 	_planeGizmoDragStartPixel = pixel;
 	_planeGizmoDragStartPosition = gizmo->position();
 	gizmo->setDragging(true);
+	if (gizmo->onDragStarted)
+		gizmo->onDragStarted();
 	return true;
 }
 
@@ -3544,9 +3610,33 @@ void ViewportWidget::updatePlaneGizmoDrag(const QPoint& pixel)
 	const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
 	const float worldDistance = (projectedPixels / axisScreenLength) * dragScale;
 
-	const float newPosition = _planeGizmoDragStartPosition + worldDistance;
+	float newPosition = _planeGizmoDragStartPosition + worldDistance;
+
+	// Shift-to-snap: snap to exactly 0 (quick re-center) when already close,
+	// otherwise round to a fixed, scene-scale-independent precision. Simple
+	// and predictable rather than a "nice number" algorithm tuned to scene
+	// size - easy to adjust later if it feels wrong in practice.
+	if (QGuiApplication::queryKeyboardModifiers() & Qt::ShiftModifier)
+	{
+		constexpr float kSnapZeroTolerance = 0.05f;
+		constexpr float kSnapPrecision = 0.1f;
+		if (std::abs(newPosition) <= kSnapZeroTolerance)
+			newPosition = 0.0f;
+		else
+			newPosition = std::round(newPosition / kSnapPrecision) * kSnapPrecision;
+	}
+
 	if (_activePlaneGizmoDrag->onDragged)
 		_activePlaneGizmoDrag->onDragged(newPosition);
+
+	// Live numeric readout, drawn by drawPlaneGizmoDragLabel() - lets the
+	// user read the exact value they just set without looking away to the
+	// spin box, closing the gap between "gizmo is the primary manipulation
+	// mode" and "you can't tell what you did without the spin box".
+	const QString axisLetter = _activePlaneGizmoDrag->axis() == PlaneGizmo::Axis::X ? QStringLiteral("X")
+		: _activePlaneGizmoDrag->axis() == PlaneGizmo::Axis::Y ? QStringLiteral("Y") : QStringLiteral("Z");
+	_planeGizmoDragLabelText = QStringLiteral("%1: %2").arg(axisLetter).arg(newPosition, 0, 'f', 3);
+	_planeGizmoDragLabelPixel = pixel;
 
 	update();
 }
@@ -3554,7 +3644,11 @@ void ViewportWidget::updatePlaneGizmoDrag(const QPoint& pixel)
 void ViewportWidget::finishPlaneGizmoDrag()
 {
 	if (_activePlaneGizmoDrag)
+	{
 		_activePlaneGizmoDrag->setDragging(false);
+		if (_activePlaneGizmoDrag->onDragFinished)
+			_activePlaneGizmoDrag->onDragFinished();
+	}
 	_activePlaneGizmoDrag = nullptr;
 }
 
@@ -3576,6 +3670,16 @@ void ViewportWidget::updatePlaneGizmoHover(const QPoint& pixel)
 	if (hit)
 		hit->setHovered(true);
 	_hoveredPlaneGizmo = hit;
+	// No existing "hover -> cursor change" convention elsewhere in this file
+	// (cursor changes are otherwise only tied to active TOOL mode, e.g. the
+	// rotate/pan/zoom/eyedropper cursors set via makeIconCursor()) - this is
+	// a new, small addition specifically for gizmo hover, reusing that same
+	// helper with the dedicated pullcursor.png artwork (already in
+	// ModelViewer.qrc, unused until now) and the same
+	// setCursor(QCursor(Qt::ArrowCursor)) reset those tool cursors already
+	// use, so it composes rather than fights with them.
+	setCursor(hit ? makeIconCursor(":/icons/res/pullcursor.png", 33, devicePixelRatioF())
+	              : QCursor(Qt::ArrowCursor));
 	update();
 }
 
@@ -5361,30 +5465,69 @@ void ViewportWidget::createCappingPlanes()
 		// live scene bounding box) - without this a drag could push the
 		// coefficient (and therefore the cap-fill/gizmo position) past what
 		// the spin box UI itself permits, desyncing the two.
-		_clipPlaneGizmoX->onDragged = [this](float worldX) {
-			const float half = static_cast<float>(_viewCtrl.boundingBox().getXSize()) * 0.5f;
-			const float coeff = std::clamp(worldX - static_cast<float>(_viewCtrl.boundingBox().center().getX()), -half, half);
+		//
+		// applyXCoeff/Y/Z is the one place that actually pushes a coefficient
+		// out to the render state + spin box + cap-fill/gizmo reposition -
+		// reused by both onDragged (every mouse-move frame, no undo) and the
+		// undo command's setter below (undo()/redo()), so undo/redo produces
+		// the exact same side effects a live drag does instead of a
+		// hand-duplicated subset of them.
+		auto applyXCoeff = [this](float coeff) {
 			setClippingXCoeff(coeff);
 			if (_clippingPlanesEditor)
 				_clippingPlanesEditor->setXCoeffDisplay(coeff);
 			updateClippingPlane();
 		};
-		_clipPlaneGizmoY->onDragged = [this](float worldY) {
-			const float half = static_cast<float>(_viewCtrl.boundingBox().getYSize()) * 0.5f;
-			const float coeff = std::clamp(worldY - static_cast<float>(_viewCtrl.boundingBox().center().getY()), -half, half);
+		auto applyYCoeff = [this](float coeff) {
 			setClippingYCoeff(coeff);
 			if (_clippingPlanesEditor)
 				_clippingPlanesEditor->setYCoeffDisplay(coeff);
 			updateClippingPlane();
 		};
-		_clipPlaneGizmoZ->onDragged = [this](float worldZ) {
-			const float half = static_cast<float>(_viewCtrl.boundingBox().getZSize()) * 0.5f;
-			const float coeff = std::clamp(worldZ - static_cast<float>(_viewCtrl.boundingBox().center().getZ()), -half, half);
+		auto applyZCoeff = [this](float coeff) {
 			setClippingZCoeff(coeff);
 			if (_clippingPlanesEditor)
 				_clippingPlanesEditor->setZCoeffDisplay(coeff);
 			updateClippingPlane();
 		};
+		_clipPlaneGizmoX->onDragged = [this, applyXCoeff](float worldX) {
+			const float half = static_cast<float>(_viewCtrl.boundingBox().getXSize()) * 0.5f;
+			const float coeff = std::clamp(worldX - static_cast<float>(_viewCtrl.boundingBox().center().getX()), -half, half);
+			applyXCoeff(coeff);
+		};
+		_clipPlaneGizmoY->onDragged = [this, applyYCoeff](float worldY) {
+			const float half = static_cast<float>(_viewCtrl.boundingBox().getYSize()) * 0.5f;
+			const float coeff = std::clamp(worldY - static_cast<float>(_viewCtrl.boundingBox().center().getY()), -half, half);
+			applyYCoeff(coeff);
+		};
+		_clipPlaneGizmoZ->onDragged = [this, applyZCoeff](float worldZ) {
+			const float half = static_cast<float>(_viewCtrl.boundingBox().getZSize()) * 0.5f;
+			const float coeff = std::clamp(worldZ - static_cast<float>(_viewCtrl.boundingBox().center().getZ()), -half, half);
+			applyZCoeff(coeff);
+		};
+
+		// One undo step per completed drag (not per mouse-move frame, and
+		// not for direct spin-box typing - that stays as-is, unchanged
+		// behavior) - see PlaneGizmoDragCommand's own doc comment. The
+		// shared_ptr<float> just gives onDragStarted/onDragFinished a place
+		// to pass the "value before this drag" between two separate
+		// callback invocations; it outlives any single drag since it's
+		// captured by both lambdas for the gizmo's whole lifetime.
+		auto wireDragUndo = [this](PlaneGizmo* gizmo, std::function<float()> currentCoeff,
+			std::function<void(float)> apply, const QString& text) {
+			auto oldCoeff = std::make_shared<float>(0.0f);
+			gizmo->onDragStarted = [oldCoeff, currentCoeff]() { *oldCoeff = currentCoeff(); };
+			gizmo->onDragFinished = [this, oldCoeff, currentCoeff, apply, text]() {
+				const float newCoeff = currentCoeff();
+				if (std::abs(newCoeff - *oldCoeff) < 1.0e-6f)
+					return; // click with no real movement - nothing to undo
+				_viewer->getUndoStack()->push(new PlaneGizmoDragCommand(
+					_viewer, this, apply, *oldCoeff, newCoeff, text));
+			};
+		};
+		wireDragUndo(_clipPlaneGizmoX, [this] { return _renderCtrl.clippingXCoeff(); }, applyXCoeff, tr("Drag Clipping Plane"));
+		wireDragUndo(_clipPlaneGizmoY, [this] { return _renderCtrl.clippingYCoeff(); }, applyYCoeff, tr("Drag Clipping Plane"));
+		wireDragUndo(_clipPlaneGizmoZ, [this] { return _renderCtrl.clippingZCoeff(); }, applyZCoeff, tr("Drag Clipping Plane"));
 	}
     _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
@@ -6065,6 +6208,8 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	render(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
 	renderPlaneGizmos();
+	drawPlaneGizmoDragLabel();
+	drawSurfaceAnalysisHoverLabel();
 	if (_measurementController)
 		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
 	if (_annotationController)
@@ -13694,7 +13839,10 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	// the gizmo about to be grabbed stand out before the user commits to a
 	// drag. Gated to NoButton so it never runs mid camera-orbit/pan.
 	if (e->buttons() == Qt::NoButton)
+	{
 		updatePlaneGizmoHover(e->pos());
+		updateSurfaceAnalysisHoverReadout(e->pos());
+	}
 
 	if (e->buttons() == Qt::LeftButton && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 	{

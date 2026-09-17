@@ -4,6 +4,8 @@
 #include <QVector3D>
 #include <QSet>
 
+#include "MeshSurfaceAnchor.h"
+
 #include "SurfaceAnalysisOverlay.h"
 
 class QToolButton;
@@ -59,6 +61,27 @@ class SurfaceAnalysisDialog : public QDialog
 public:
 	explicit SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
     void selectMode(const QString& mode);
+
+	// True only while this dialog is open AND its "Show Readout on Hover"
+	// toggle is checked - ViewportWidget checks this before doing any
+	// picking work on mouse-move, so hovering costs nothing when the
+	// feature isn't in use.
+	bool hoverReadoutEnabled() const;
+
+	// Formats the scalar value at `anchor` (from SelectionManager::
+	// pickSurfaceAnchor(), the same hover-picking already driving
+	// Measurement/Annotation hover previews) as "<Mode>: <value>[unit]" for
+	// display near the cursor - empty string if `anchor` doesn't resolve to
+	// a mesh with an active overlay, or the sample there is invalid. Draft
+	// Angle is detected via SurfaceAnalysisOverlay::scalarAt()'s own
+	// outIsFlat (it's not one of Mode's 3 values - see currentMode()'s own
+	// doc comment); every other case is labeled from currentMode(), the
+	// SAME page/mode the legend currently reflects, so the readout and
+	// legend never disagree - including the pre-existing convention (not
+	// introduced by this) that switching pages without re-applying leaves
+	// both showing stale labeling for whatever's still actually painted on
+	// the mesh.
+	QString hoverReadoutText(const MeshSurfaceAnchor& anchor) const;
 
 protected:
 	void closeEvent(QCloseEvent* event) override;
@@ -190,6 +213,10 @@ private:
 	QPushButton* _applyDeviationButton = nullptr;
 
 	QLabel* _legendLabel = nullptr;
+	// Shared across all 3 pages (same reasoning as _legendLabel/_clearButton
+	// above being shared rather than duplicated per page - the readout
+	// itself is mode-agnostic, see hoverReadoutText()) - default checked.
+	QPushButton* _hoverReadoutToggle = nullptr; // checkable
 	QPushButton* _clearButton = nullptr;
 
 	// Meshes zebra-stripe is currently active on - SurfaceAnalysisOverlay

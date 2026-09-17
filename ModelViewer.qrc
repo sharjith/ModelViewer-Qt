@@ -4,6 +4,7 @@
         <file>res/import.png</file>
         <file>res/pancursor.png</file>
         <file>res/rotatecursor.png</file>
+        <file>res/pullcursor.png</file>
         <file>res/zoomcursor.png</file>
         <file>res/window-zoom-cursor.png</file>
         <file>res/fit-all.png</file>

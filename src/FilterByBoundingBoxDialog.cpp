@@ -2,8 +2,11 @@
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
+#include "PlaneGizmoDragCommand.h"
 
 #include <algorithm>
+#include <cmath>
+#include <memory>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGridLayout>
@@ -210,6 +213,32 @@ FilterByBoundingBoxDialog::FilterByBoundingBoxDialog(ModelViewer* modelViewer,
 		vw->bboxGizmoZMax()->onDragged = [this](float worldZ) {
 			_zMaxSpin->setValue(std::max(static_cast<double>(worldZ), _zMinSpin->value() + kMinBoxGap));
 		};
+
+		// One undo step per completed drag (not per mouse-move frame, and
+		// not for direct spin-box typing) - see PlaneGizmoDragCommand's own
+		// doc comment. The setter is just spin->setValue(), the exact same
+		// call onDragged above already makes, so undo/redo goes through the
+		// identical valueChanged -> onLimitsChanged -> updateMatches path a
+		// live drag does.
+		auto wireDragUndo = [this, vw](PlaneGizmo* gizmo, QDoubleSpinBox* spin, const QString& text) {
+			auto oldValue = std::make_shared<double>(0.0);
+			gizmo->onDragStarted = [oldValue, spin]() { *oldValue = spin->value(); };
+			gizmo->onDragFinished = [this, vw, oldValue, spin, text]() {
+				const double newValue = spin->value();
+				if (std::abs(newValue - *oldValue) < kMinBoxGap)
+					return; // click with no real movement - nothing to undo
+				_modelViewer->getUndoStack()->push(new PlaneGizmoDragCommand(
+					_modelViewer, vw,
+					[spin](float v) { spin->setValue(v); },
+					static_cast<float>(*oldValue), static_cast<float>(newValue), text));
+			};
+		};
+		wireDragUndo(vw->bboxGizmoXMin(), _xMinSpin, tr("Drag Bounding Box Face"));
+		wireDragUndo(vw->bboxGizmoXMax(), _xMaxSpin, tr("Drag Bounding Box Face"));
+		wireDragUndo(vw->bboxGizmoYMin(), _yMinSpin, tr("Drag Bounding Box Face"));
+		wireDragUndo(vw->bboxGizmoYMax(), _yMaxSpin, tr("Drag Bounding Box Face"));
+		wireDragUndo(vw->bboxGizmoZMin(), _zMinSpin, tr("Drag Bounding Box Face"));
+		wireDragUndo(vw->bboxGizmoZMax(), _zMaxSpin, tr("Drag Bounding Box Face"));
 	}
 
 	loadSettings();

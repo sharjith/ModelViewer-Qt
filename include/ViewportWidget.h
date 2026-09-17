@@ -1610,6 +1610,22 @@ private:
 	// grabbed visually stands out before the user commits to a drag.
 	void updatePlaneGizmoHover(const QPoint& pixel);
 	void renderPlaneGizmos();
+	// Draws `text` at `pixel` via _axisTextRenderer, offset up-right of the
+	// cursor - shared by drawPlaneGizmoDragLabel() and
+	// drawSurfaceAnalysisHoverLabel() below, the two floating-numeric-
+	// readout call sites in this file.
+	void drawFloatingLabel(const QString& text, const QPoint& pixel);
+	// Draws _planeGizmoDragLabelText at _planeGizmoDragLabelPixel - no-op
+	// when no drag is active. Called as its own step right after
+	// renderPlaneGizmos() (2D pixel-space text, not part of that function's
+	// 3D scene-shader draw calls).
+	void drawPlaneGizmoDragLabel();
+	// Mouse-move-only (no button held) readout for the Surface Analysis
+	// dialog's active heatmap - see SurfaceAnalysisDialog::hoverReadoutText()'s
+	// own doc comment. No-op (and no picking work done) unless that dialog
+	// is currently open with its own "Show Readout on Hover" toggle checked.
+	void updateSurfaceAnalysisHoverReadout(const QPoint& pixel);
+	void drawSurfaceAnalysisHoverLabel();
 	void drawLights();
 
 	void bindIBLTextures();
@@ -2296,6 +2312,20 @@ private:
 	PlaneGizmo* _activePlaneGizmoDrag = nullptr;
 	QPoint _planeGizmoDragStartPixel;
 	float _planeGizmoDragStartPosition = 0.0f;
+
+	// Live numeric readout shown next to the cursor while a plane-gizmo drag
+	// is in progress - set every drag-move frame in updatePlaneGizmoDrag(),
+	// drawn by drawPlaneGizmoDragLabel() (gated on _activePlaneGizmoDrag !=
+	// nullptr, so no separate "valid" flag is needed).
+	QString _planeGizmoDragLabelText;
+	QPoint _planeGizmoDragLabelPixel;
+
+	// Same shape as the plane-gizmo drag label above, for Surface Analysis'
+	// mouse-hover numeric readout - set (or cleared to empty, which
+	// drawSurfaceAnalysisHoverLabel() treats as "nothing to draw") by
+	// updateSurfaceAnalysisHoverReadout() on plain mouse-move.
+	QString _surfaceAnalysisHoverText;
+	QPoint _surfaceAnalysisHoverPixel;
 
 	// Whichever gizmo (if any) is currently under the cursor with no button
 	// held - see updatePlaneGizmoHover()'s own doc comment. Tracked

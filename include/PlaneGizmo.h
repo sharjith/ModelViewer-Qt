@@ -141,6 +141,24 @@ public:
 	// ViewportWidget's drag code never hardcodes either behavior itself.
 	std::function<void(float)> onDragged;
 
+	// Invoked once by ViewportWidget::beginPlaneGizmoDrag() right as a drag
+	// begins (before the first onDragged call) - the owner uses this to
+	// snapshot "the value before this drag" for an undo command it will push
+	// in onDragFinished below. Kept separate from onDragged (which fires
+	// every mouse-move frame with no undo involvement, for live preview -
+	// same pattern as TransformGizmo's own drag mutation) so the owner isn't
+	// left guessing which of many onDragged calls was the FIRST one.
+	std::function<void()> onDragStarted;
+
+	// Invoked once by ViewportWidget::finishPlaneGizmoDrag() right as a drag
+	// ends (mouse release) - the owner pushes exactly one undo command here
+	// (e.g. PlaneGizmoDragCommand), using the value captured in
+	// onDragStarted and whatever onDragged last reported. A drag that never
+	// actually changed the value (e.g. a click with no movement) is still
+	// safe to push - QUndoCommand doesn't require the old/new values differ,
+	// though an owner is free to skip the push itself if they're equal.
+	std::function<void()> onDragFinished;
+
 private:
 	void applyVisualState();
 

@@ -2,6 +2,7 @@
 
 #include <QMatrix4x4>
 #include <QVariantMap>
+#include <QVector3D>
 #include <QHash>
 #include <QList>
 #include <vector>
@@ -146,6 +147,20 @@ public:
 	// arguments (the analysis-mode-specific parts isValid() alone can't
 	// reconstruct) without needing to have kept its own copy around.
 	CacheKey storedKey(SceneMesh* mesh) const;
+
+	// Raw scalar value at one surface point, for a mouse-hover numeric
+	// readout (see SurfaceAnalysisDialog::hoverReadoutText(), which owns
+	// unit/mode formatting - this method only resolves the number). Draft
+	// Angle (isFlat) indexes `scalarPerSample` directly by triangleIndex (one
+	// value per triangle, in the SAME order as `mesh`'s index buffer, per
+	// applyFlatResult()'s own doc comment); every other mode barycentric-
+	// interpolates the triangle's 3 vertex samples (indices()[3*triangleIndex+0..2],
+	// matching MeshSurfaceAnchor::triangleIndex/barycentric's own documented
+	// convention). Returns false (leaving outValue/outIsFlat untouched) if
+	// `mesh` has no cached overlay, triangleIndex is out of range, or any
+	// sample involved is marked invalid.
+	bool scalarAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
+	              float& outValue, bool& outIsFlat) const;
 
 	// Definitive teardown for one mesh - calls SceneMesh::clearAnalysisOverlay()
 	// and drops this class's own cached scalar-field data for it. MUST be
