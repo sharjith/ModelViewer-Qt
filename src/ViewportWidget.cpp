@@ -14158,6 +14158,11 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
     if (_tabbedToolbar && e->buttons() == Qt::NoButton)
         _tabbedToolbar->trackPointer(e->pos());
 
+    // Same hover-reveal proximity tracking as the toolbar above, for the
+    // nav panel's own pin/auto-hide (ModelViewer::attachNavigationOverlay()).
+    if (_viewer && e->buttons() == Qt::NoButton)
+        _viewer->trackPointerForNavigation(e->pos());
+
 	// Hover highlight feedback for the transform gizmo.
 	bool gizmoHovered = false;
 	if (e->buttons() == Qt::NoButton)

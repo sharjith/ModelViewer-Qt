@@ -29,6 +29,8 @@
 class QTabWidget;
 class QToolButton;
 class QFrame;
+class QTimer;
+class QPropertyAnimation;
 
 struct UVDialogResult
 {
@@ -205,13 +207,22 @@ public:
 	QSet<QUuid> getSelectedUuids() const;
 
 	// Attaches the navigation tree as a permanent transparent overlay on this
-	// document's own viewport - called once from the constructor; there's no
-	// docked/detached toggle anymore, only collapsed/expanded (see
-	// _navCollapseButton below). updateNavigationOverlayGeometry()
-	// repositions/resizes it on viewport resize (see resizeEvent()) and on
-	// collapse/expand.
+	// document's own viewport - called once from the constructor. Hover-reveal
+	// like TabbedViewportToolbar: pinned (default) keeps it always fully
+	// visible; unpinned narrows it to just the left-edge chevron strip after
+	// _navHideTimer's idle timeout, re-expanding on hover/proximity (see
+	// _navCollapseButton below). The separate navPinButton (.ui, in the
+	// panel's own search-box row) controls the pinned/unpinned choice itself.
+	// updateNavigationOverlayGeometry() repositions/resizes the overlay on
+	// viewport resize (see resizeEvent()) and on reveal/hide.
 	void attachNavigationOverlay();
 	void updateNavigationOverlayGeometry();
+
+	// Called from ViewportWidget::mouseMoveEvent() on every passive move (no
+	// button held), mirroring _tabbedToolbar->trackPointer() - reveals the
+	// nav panel when the pointer is near its collapsed strip (or already
+	// pinned/interacting), otherwise arms the auto-hide timer.
+	void trackPointerForNavigation(const QPoint& viewportPos);
 
 	// Applies material to meshUuid via an undo-able ApplyMaterialCommand.
 	// Extracted from what used to be an inline lambda on
@@ -782,16 +793,52 @@ private:
 	int _skyBoxHDRIIndex = 0;
 
 	QPointer<QWidget> _navigationOverlay;
-	// Chevron button glued to the overlay's own left edge (a child of the
+	// Chevron strip glued to the overlay's own left edge (a child of the
 	// composite widget passed to attachOverlayPanel(), not of gridLayout -
 	// the overlay is an absolutely-positioned floating child of
-	// _viewportWidget, not a normal side-by-side grid column, so the
-	// button has to live and move with it, not in the document's outer
-	// layout). Collapsing hides modelNavigationWidget entirely (not just
-	// its contents) and shrinks the overlay down to just this button via
-	// updateNavigationOverlayGeometry().
+	// _viewportWidget, not a normal side-by-side grid column, so it has to
+	// live and move with it, not in the document's outer layout). Always
+	// visible regardless of reveal state - it's the hover-sensitive area
+	// (see eventFilter()'s Enter/Leave handling for it, and
+	// trackPointerForNavigation()'s proximity check) that reveals/hides the
+	// panel on hover instead of the old click-to-toggle. The separate PIN
+	// button (navPinButton, a real .ui member inside modelNavigationWidget's
+	// own search-box row - only present/visible while the panel itself is
+	// revealed) controls whether it's allowed to auto-hide at all; this
+	// strip is purely the reveal/hide trigger + collapsed-state indicator.
 	QToolButton* _navCollapseButton = nullptr;
-	bool _navigationCollapsed = false;
+	bool _navigationPinned = true;
+	// Current visual state (true = fully open). Drives
+	// updateNavigationOverlayGeometry()'s width choice; kept in sync with
+	// _navRevealAnimation's start/end rather than driven by it directly, so
+	// a resize mid-animation can always read "what should this be right now"
+	// without inspecting animation internals.
+	bool _navigationRevealed = true;
+	QPropertyAnimation* _navRevealAnimation = nullptr;
+	QTimer* _navHideTimer = nullptr;
+	// Debounces both hover-reveal triggers - trackPointerForNavigation()'s
+	// proximity check AND _navCollapseButton's own direct Enter event (Qt
+	// delivers that one straight to the button, never through
+	// ViewportWidget::mouseMoveEvent(), so it needed the same treatment) -
+	// while pinned=false. The cursor must still be within the sensitive
+	// zone once this single-shot timer elapses before actually revealing,
+	// filtering out a cursor path that merely passed through/over that
+	// area on the way elsewhere. Reveals instantly when pinned instead, in
+	// both call sites, since there's nothing to filter for a panel that's
+	// always open anyway.
+	QTimer* _navRevealDelayTimer = nullptr;
+	void revealNavigation();
+	void tryHideNavigation();
+	bool isNavigationInteracting() const;
+	// Local, per-instance apply only (button sync + reveal/hide) - see its
+	// own doc comment (.cpp) for why this must not write QSettings or
+	// broadcast to other instances itself.
+	void applyNavigationPinned(bool pinned);
+	// The actual toggle entry point: writes the persisted preference once,
+	// then calls applyNavigationPinned() on every open ModelViewer, matching
+	// TabbedViewportToolbar::setPinnedPreference()'s identical pattern.
+	static void setNavigationPinnedPreference(bool pinned);
+	void updateNavPinButton();
 	// User-draggable width, mirroring _lightTreeResizeHandle's pattern in
 	// VisualizationEnvironmentPanel (a thin QFrame line, event-filtered for
 	// mouse press/move/release) but horizontal instead of vertical - glued
@@ -801,6 +848,7 @@ private:
 	int _navigationOverlayWidth = 420;
 	qreal _navResizeDragStartX = 0.0;
 	int _navResizeDragStartWidth = 0;
+	bool _navResizeDragActive = false;
 
 	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 

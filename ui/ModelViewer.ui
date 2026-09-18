@@ -114,6 +114,34 @@
              </property>
             </widget>
            </item>
+           <item>
+            <widget class="QToolButton" name="navPinButton">
+             <property name="minimumSize">
+              <size>
+               <width>22</width>
+               <height>22</height>
+              </size>
+             </property>
+             <property name="maximumSize">
+              <size>
+               <width>22</width>
+               <height>22</height>
+              </size>
+             </property>
+             <property name="toolTip">
+              <string>Keep navigation panel visible</string>
+             </property>
+             <property name="checkable">
+              <bool>true</bool>
+             </property>
+             <property name="checked">
+              <bool>true</bool>
+             </property>
+             <property name="autoRaise">
+              <bool>true</bool>
+             </property>
+            </widget>
+           </item>
           </layout>
          </item>
          <item>

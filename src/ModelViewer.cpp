@@ -85,7 +85,11 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QPainter>
+#include <QPropertyAnimation>
+#include <QEasingCurve>
+#include <QCursor>
 #include <QProxyStyle>
+#include <QSignalBlocker>
 #include <QThread>
 #include <QTimer>
 #include <QToolButton>
@@ -99,6 +103,15 @@
 #include <QtMath>
 #include <cmath>
 #include <limits>
+
+// Width of the nav panel's narrowed/collapsed strip - just enough for
+// _navCollapseButton itself, matching its own locked 14px width plus the
+// overlay wrapper's own 6px margins (see ViewportWidget::attachOverlayPanel()).
+// Shared by updateNavigationOverlayGeometry() (the actual geometry target),
+// tryHideNavigation() (the hide animation's end value), and
+// trackPointerForNavigation() (the hover-sensitive proximity threshold) so
+// the three can't drift apart from each other.
+static constexpr int kNavigationCollapsedWidth = 26;
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
@@ -319,12 +332,19 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// SceneTreeWidget::rebuild() only enqueues work and starts a batching
 	// timer (see processRebuildBatch()) - topLevelItemCount() is still 0
 	// (or stale) immediately after calling it, so the search box/label
-	// visibility toggle has to wait for the tree to actually finish
+	// enabled-state toggle has to wait for the tree to actually finish
 	// populating, not run right after rebuild() returns.
+	//
+	// setEnabled(), not setVisible(): hiding/showing this row changed how
+	// much space it occupies in modelNavigationWidget's layout, which showed
+	// up as the panel's own reveal width looking different (a visible jump)
+	// between an empty document and one with a loaded model. Staying visible
+	// but grayed out when there's nothing to search keeps the panel's layout
+	// identical either way - only its usability changes.
 	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, [this]() {
 		const bool hasItems = treeWidgetModel->topLevelItemCount() > 0;
-		label_23->setVisible(hasItems);
-		searchBox->setVisible(hasItems);
+		label_23->setEnabled(hasItems);
+		searchBox->setEnabled(hasItems);
 	});
 
 	// rebuild() only enqueues work and starts a batching timer - the actual
@@ -830,39 +850,76 @@ void ModelViewer::attachNavigationOverlay()
 	treeWidgetModel->setDetachedOverlayMode(true);
 
 	// A freshly created document always starts with an empty tree (loadFile()
-	// runs after this, not before) - hidden until the SceneTreeWidget::
-	// rebuildComplete() handler below finds actual content, which is the
-	// sole source of truth for this from here on (covers loading, deleting
-	// down to nothing, etc.).
-	label_23->setVisible(false);
-	searchBox->setVisible(false);
+	// runs after this, not before) - grayed out (not hidden - see the
+	// rebuildComplete() handler below for why) until it actually finds
+	// content, which is the sole source of truth for this from here on
+	// (covers loading, deleting down to nothing, etc.).
+	label_23->setEnabled(false);
+	searchBox->setEnabled(false);
 
-	// Collapsed state is shared across documents (persisted, not per-
-	// instance) - a new document should open already collapsed if the user
-	// left it that way on another one, and that should survive a restart
-	// too, same as the other QSettings-backed UI state in this app.
+	// Pinned state is shared across documents (persisted, not per-instance) -
+	// a new document should open already pinned/unpinned to match whatever
+	// the user left it as on another one, and that should survive a restart
+	// too, same as the other QSettings-backed UI state in this app. Starts
+	// already at its resting geometry (no animation, no hide-timer flash of
+	// full width) - _navRevealAnimation/_navHideTimer are for USER-triggered
+	// reveal/hide afterward, not this initial setup.
 	{
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		_navigationCollapsed = settings.value(QStringLiteral("NavigationPanelCollapsed"), false).toBool();
+		_navigationPinned = settings.value(QStringLiteral("NavigationPanelPinned"), true).toBool();
 	}
+	_navigationRevealed = _navigationPinned;
+
+	// navPinButton is a real .ui member (ModelViewer.ui's search-box row,
+	// right of searchBox) - only present/visible while modelNavigationWidget
+	// itself is, since it's part of the panel's own content, not the
+	// always-visible collapsed strip. Transparent background at every state
+	// (including checked/pinned) - the icon swap (pin.png/unpin.png, see
+	// updateNavPinButton()) is the only persistent state indicator; only
+	// hover gets a faint highlight, same treatment as _navCollapseButton.
+	navPinButton->setStyleSheet(QStringLiteral(
+		"QToolButton { background: transparent; border: none; }"
+		"QToolButton:hover { background: rgba(128,128,128,60); border: none; }"));
+	// Set checked (and icon/tooltip via updateNavPinButton()) BEFORE
+	// connecting toggled() below, so this initial sync can't recursively
+	// re-enter applyNavigationPinned() during construction.
+	navPinButton->setChecked(_navigationPinned);
+	updateNavPinButton();
+	connect(navPinButton, &QToolButton::toggled, this, [](bool pinned) {
+		ModelViewer::setNavigationPinnedPreference(pinned);
+	});
 
 	// The overlay is an absolutely-positioned floating child of
 	// _viewportWidget (see attachOverlayPanel() below), not a normal
-	// side-by-side grid column - so the collapse button has to be wrapped
+	// side-by-side grid column - so the chevron strip has to be wrapped
 	// INSIDE the same content widget that gets attached as the overlay,
 	// glued to modelNavigationWidget's own left edge, rather than living
 	// in this document's outer gridLayout (which attachOverlayPanel()
-	// reparents modelNavigationWidget away from entirely).
+	// reparents modelNavigationWidget away from entirely). Always visible
+	// regardless of reveal state - it's the hover-sensitive area
+	// trackPointerForNavigation()/eventFilter()'s Enter-Leave handling
+	// reveal/hide from, replacing the old click-to-toggle.
 	_navCollapseButton = new QToolButton();
 	_navCollapseButton->setObjectName(QStringLiteral("navCollapseButton"));
 	_navCollapseButton->setMinimumSize(14, 0);
 	_navCollapseButton->setMaximumSize(14, QWIDGETSIZE_MAX);
 	_navCollapseButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
 	_navCollapseButton->setAutoRaise(true);
-	_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
-	_navCollapseButton->setToolTip(_navigationCollapsed
-		? tr("Expand the model navigation panel")
-		: tr("Collapse the model navigation panel"));
+	// Transparent at rest, a faint highlight only while actually hovered - so
+	// the strip reads as part of the translucent overlay, not opaque widget
+	// chrome sitting on top of the viewer.
+	_navCollapseButton->setStyleSheet(QStringLiteral(
+		"QToolButton { background: transparent; border: none; }"
+		"QToolButton:hover { background: rgba(128,128,128,60); border: none; }"));
+	_navCollapseButton->setText(_navigationRevealed ? QStringLiteral("◀") : QStringLiteral("▶"));
+	// Only "hover to show" is ever actually true here - hovering an already-
+	// shown panel never hides it, only moving away (when unpinned) does, so
+	// this tooltip must not claim hover does both, updated per reveal state
+	// below alongside the chevron text.
+	_navCollapseButton->setToolTip(_navigationRevealed
+		? tr("Auto-hides after a few seconds when unpinned")
+		: tr("Hover to show the navigation panel"));
+	_navCollapseButton->installEventFilter(this);
 
 	// Right-edge counterpart to _navCollapseButton above - an invisible drag
 	// strip the user can pull to resize the panel, matching the established
@@ -893,31 +950,9 @@ void ModelViewer::attachNavigationOverlay()
 	navCompositeLayout->addWidget(modelNavigationWidget, 1);
 	navCompositeLayout->addWidget(_navResizeHandle);
 
-	// Apply the persisted collapsed state loaded above.
-	modelNavigationWidget->setVisible(!_navigationCollapsed);
-	_navResizeHandle->setVisible(!_navigationCollapsed);
-
-	// Whole panel (not just its contents) hides on collapse - the button
-	// stays behind (it's a sibling in navComposite, not a child of
-	// modelNavigationWidget) so it's still clickable to re-expand. The
-	// resize handle hides too - there's nothing to resize while collapsed.
-	// updateNavigationOverlayGeometry() shrinks the overlay's own width to
-	// match so the collapsed state doesn't leave 400+px of dead space.
-	// Persisted (not just applied to this document) so every other open or
-	// subsequently-opened document starts collapsed/expanded the same way.
-	connect(_navCollapseButton, &QToolButton::clicked, this, [this]() {
-		_navigationCollapsed = !_navigationCollapsed;
-		modelNavigationWidget->setVisible(!_navigationCollapsed);
-		_navResizeHandle->setVisible(!_navigationCollapsed);
-		_navCollapseButton->setText(_navigationCollapsed ? QStringLiteral("▶") : QStringLiteral("◀"));
-		_navCollapseButton->setToolTip(_navigationCollapsed
-			? tr("Expand the model navigation panel")
-			: tr("Collapse the model navigation panel"));
-		updateNavigationOverlayGeometry();
-
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		settings.setValue(QStringLiteral("NavigationPanelCollapsed"), _navigationCollapsed);
-	});
+	// Apply the persisted reveal state loaded above.
+	modelNavigationWidget->setVisible(_navigationRevealed);
+	_navResizeHandle->setVisible(_navigationRevealed);
 
 	_navigationOverlay = _viewportWidget->attachOverlayPanel(
 		navComposite,
@@ -927,6 +962,58 @@ void ModelViewer::attachNavigationOverlay()
 
 	if (_navigationOverlay)
 	{
+		// Hover-reveal machinery, mirroring TabbedViewportToolbar's own
+		// _animation/_hideTimer exactly (220ms OutCubic, single-shot hide
+		// timer) - just animating geometry (width) instead of pos, since
+		// this panel resizes in place rather than sliding off-screen.
+		_navRevealAnimation = new QPropertyAnimation(_navigationOverlay, "geometry", this);
+		_navRevealAnimation->setDuration(220);
+		_navRevealAnimation->setEasingCurve(QEasingCurve::OutCubic);
+		// Connected once, here, not inside tryHideNavigation() - Qt::UniqueConnection
+		// only dedupes plain member-function-pointer connections, not lambdas, so
+		// reconnecting a lambda per hide cycle would silently accumulate duplicate
+		// handlers over the panel's lifetime. Checking _navigationRevealed here
+		// correctly no-ops when a REVEAL (not hide) animation is what just finished.
+		connect(_navRevealAnimation, &QPropertyAnimation::finished, this, [this]()
+		{
+			if (!_navigationRevealed)
+			{
+				modelNavigationWidget->setVisible(false);
+				_navResizeHandle->setVisible(false);
+			}
+		});
+		_navHideTimer = new QTimer(this);
+		_navHideTimer->setSingleShot(true);
+		_navHideTimer->setInterval(5000);
+		connect(_navHideTimer, &QTimer::timeout, this, &ModelViewer::tryHideNavigation);
+
+		// Hover-intent delay for trackPointerForNavigation()'s proximity check
+		// only - re-checks the cursor is STILL in the sensitive zone (via
+		// QCursor::pos(), same technique TabbedViewportToolbar::tryHide() uses
+		// to read current position from inside a timer callback) before
+		// actually revealing, rather than reacting to the very first frame
+		// the cursor was seen there. _navCollapseButton's own direct hover
+		// (eventFilter()'s Enter handling) stays instant - deliberately
+		// landing on the button itself isn't the "just passing through" case
+		// this guards against.
+		_navRevealDelayTimer = new QTimer(this);
+		_navRevealDelayTimer->setSingleShot(true);
+		_navRevealDelayTimer->setInterval(200);
+		connect(_navRevealDelayTimer, &QTimer::timeout, this, [this]()
+		{
+			if (!_viewportWidget)
+				return;
+			const QPoint pos = _viewportWidget->mapFromGlobal(QCursor::pos());
+			if (pos.x() <= kNavigationCollapsedWidth)
+				revealNavigation();
+		});
+		// Note: no event filter installed on _navigationOverlay itself for
+		// Enter/Leave - _navCollapseButton (above) is the actual hover-
+		// sensitive trigger. Hovering the REVEALED panel's own content
+		// (search box, tree) instead just needs isNavigationInteracting()'s
+		// underMouse() check, re-evaluated whenever _navHideTimer fires, to
+		// keep it open - no separate live tracking needed for that part.
+
 		_viewportWidget->refreshDetachedNavigationOverlayTheme();
 		updateNavigationOverlayGeometry();
 		_navigationOverlay->show();
@@ -941,9 +1028,175 @@ void ModelViewer::attachNavigationOverlay()
 		}, Qt::QueuedConnection);
 	}
 
-	// setVisible(), not show() - must still respect a persisted collapsed
+	// setVisible(), not show() - must still respect the persisted reveal
 	// state instead of unconditionally forcing this on.
-	modelNavigationWidget->setVisible(!_navigationCollapsed);
+	modelNavigationWidget->setVisible(_navigationRevealed);
+}
+
+void ModelViewer::revealNavigation()
+{
+	if (!_navigationOverlay || !_navRevealAnimation)
+		return;
+
+	if (_navHideTimer)
+		_navHideTimer->stop();
+	if (_navRevealDelayTimer)
+		_navRevealDelayTimer->stop();
+	_navigationOverlay->raise();
+	// The nav panel is pinned by default, so this whole function (and its
+	// raise() above) runs on nearly every mouse move over the viewport via
+	// trackPointerForNavigation() - unconditionally re-raising here would
+	// permanently win the stacking order against TabbedViewportToolbar's own
+	// raise() calls (attachNavigationOverlay()'s one-time
+	// raiseViewportToolbar() at construction only established the ordering
+	// once, not permanently). Re-assert it right after every time this
+	// panel raises itself, so the toolbar always ends up back on top
+	// regardless of how often either one raises.
+	if (_viewportWidget)
+		_viewportWidget->raiseViewportToolbar();
+	if (_navigationRevealed)
+		return;
+
+	_navigationRevealed = true;
+	if (_navCollapseButton)
+	{
+		_navCollapseButton->setText(QStringLiteral("◀"));
+		_navCollapseButton->setToolTip(tr("Auto-hides after a few seconds when unpinned"));
+	}
+	// Shown immediately (not on animation finish) so content is visible AS
+	// the panel widens, matching how it visually reads as "sliding open"
+	// rather than popping in only once the animation completes.
+	modelNavigationWidget->setVisible(true);
+	_navResizeHandle->setVisible(true);
+	_navRevealAnimation->stop();
+	_navRevealAnimation->setStartValue(_navigationOverlay->geometry());
+	_navRevealAnimation->setEndValue(QRect(0, 0, _navigationOverlayWidth, _navigationOverlay->height()));
+	_navRevealAnimation->start();
+}
+
+void ModelViewer::tryHideNavigation()
+{
+	if (!_navigationOverlay || !_navRevealAnimation)
+		return;
+
+	if (_navigationPinned)
+	{
+		if (_navHideTimer)
+			_navHideTimer->stop();
+		return;
+	}
+
+	if (isNavigationInteracting())
+	{
+		if (_navHideTimer)
+			_navHideTimer->start();
+		return;
+	}
+
+	if (!_navigationRevealed)
+		return;
+
+	_navigationRevealed = false;
+	if (_navCollapseButton)
+	{
+		_navCollapseButton->setText(QStringLiteral("▶"));
+		_navCollapseButton->setToolTip(tr("Hover to show the navigation panel"));
+	}
+	_navRevealAnimation->stop();
+	_navRevealAnimation->setStartValue(_navigationOverlay->geometry());
+	_navRevealAnimation->setEndValue(QRect(0, 0, kNavigationCollapsedWidth, _navigationOverlay->height()));
+	// Content stays visible until the animation's finished handler (connected
+	// once, at construction - see attachNavigationOverlay()) hides it, only
+	// once fully narrowed - hiding it up front would squash/reflow the
+	// search box and tree into the shrinking width for the whole animation
+	// instead of a clean slide-closed.
+	_navRevealAnimation->start();
+}
+
+bool ModelViewer::isNavigationInteracting() const
+{
+	if (!_navigationOverlay)
+		return false;
+	if (_navigationOverlay->underMouse() || _navResizeDragActive)
+		return true;
+	QWidget* focus = QApplication::focusWidget();
+	return focus && (focus == _navigationOverlay || _navigationOverlay->isAncestorOf(focus));
+}
+
+// Local, per-instance state application only - no QSettings write, no
+// broadcast to other documents. Mirrors TabbedViewportToolbar::applyPinned()
+// exactly, including why the split exists: setNavigationPinnedPreference()
+// below calls this on EVERY open ModelViewer (this one included), so this
+// method must never itself write settings or re-iterate instances, or that
+// would recurse/duplicate the write per open document.
+void ModelViewer::applyNavigationPinned(bool pinned)
+{
+	_navigationPinned = pinned;
+	// navPinButton is a real .ui member, valid from setupUi() on - no null
+	// guard needed the way the old dynamically-constructed _navPinButton
+	// pointer required.
+	const QSignalBlocker blocker(navPinButton);
+	navPinButton->setChecked(pinned);
+	updateNavPinButton();
+	if (pinned)
+		revealNavigation();
+	else if (_navHideTimer)
+		_navHideTimer->start();
+}
+
+// The actual pin-button toggle handler (see the toggled() connection in
+// attachNavigationOverlay()) - writes the persisted preference once, then
+// applies it uniformly to every open document's nav panel, matching
+// TabbedViewportToolbar::setPinnedPreference()'s identical app-wide sync.
+void ModelViewer::setNavigationPinnedPreference(bool pinned)
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.setValue(QStringLiteral("NavigationPanelPinned"), pinned);
+	for (QWidget* widget : QApplication::allWidgets())
+	{
+		if (auto* viewer = qobject_cast<ModelViewer*>(widget))
+			viewer->applyNavigationPinned(pinned);
+	}
+}
+
+void ModelViewer::updateNavPinButton()
+{
+	navPinButton->setIcon(QIcon(_navigationPinned ? QStringLiteral(":/icons/res/pin.png")
+	                                               : QStringLiteral(":/icons/res/unpin.png")));
+	const QString text = _navigationPinned
+		? tr("Allow navigation panel to hide automatically")
+		: tr("Keep navigation panel visible");
+	navPinButton->setToolTip(text);
+	navPinButton->setAccessibleName(text);
+}
+
+void ModelViewer::trackPointerForNavigation(const QPoint& viewportPos)
+{
+	if (!_navigationOverlay)
+		return;
+
+	// Pinned or already genuinely interacting with the panel: reveal
+	// instantly, same as before - only the pure proximity case below (cursor
+	// merely passing through the collapsed strip's x-range) gets debounced.
+	if (_navigationPinned || isNavigationInteracting())
+	{
+		if (_navRevealDelayTimer)
+			_navRevealDelayTimer->stop();
+		revealNavigation();
+		return;
+	}
+
+	if (viewportPos.x() <= kNavigationCollapsedWidth)
+	{
+		if (_navRevealDelayTimer && !_navRevealDelayTimer->isActive())
+			_navRevealDelayTimer->start();
+		return;
+	}
+
+	if (_navRevealDelayTimer)
+		_navRevealDelayTimer->stop();
+	if (_navHideTimer && !_navHideTimer->isActive())
+		_navHideTimer->start();
 }
 
 void ModelViewer::updateNavigationOverlayGeometry()
@@ -957,10 +1210,12 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	// against the viewport's top-left edge for a seamless look.
 	const int overlayTop = 0;
 	const int overlayLeft = 0;
-	// Just enough for the collapse button itself once collapsed - matches
-	// its own locked 14px width plus the overlay wrapper's own 6px margins
-	// (see attachOverlayPanel()).
-	const int overlayCollapsedWidth = 26;
+	// A live reveal/hide animation and a direct geometry write (this
+	// function, called e.g. from viewport resizeEvent()) must never fight
+	// each other - stop it and just jump straight to whatever the current
+	// reveal state's target geometry is.
+	if (_navRevealAnimation)
+		_navRevealAnimation->stop();
 	// Full height, no bottom margin - deliberately overlaps the bottom-docked
 	// ViewToolbar's hover-reveal strip (see ViewportWidget::mouseMoveEvent())
 	// wherever the two intersect, so the toolbar won't auto-reveal while the
@@ -969,7 +1224,7 @@ void ModelViewer::updateNavigationOverlayGeometry()
 	_navigationOverlay->setGeometry(
 		overlayLeft,
 		overlayTop,
-		_navigationCollapsed ? overlayCollapsedWidth : _navigationOverlayWidth,
+		_navigationRevealed ? _navigationOverlayWidth : kNavigationCollapsedWidth,
 		std::max(120, _viewportWidget->height() - overlayTop));
 }
 
@@ -1691,6 +1946,11 @@ bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 			{
 				_navResizeDragStartX = me->globalPosition().x();
 				_navResizeDragStartWidth = _navigationOverlayWidth;
+				// isNavigationInteracting() covers the drag for the rest of its
+				// duration - a resize-drag counts as "still using the panel"
+				// just as much as an open flyout counts for
+				// TabbedViewportToolbar::isInteracting().
+				_navResizeDragActive = true;
 				return true;
 			}
 			break;
@@ -1708,10 +1968,41 @@ bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 			break;
 
 		case QEvent::MouseButtonRelease:
+			_navResizeDragActive = false;
 			return true;
 
 		default:
 			break;
+		}
+	}
+
+	if (watched == _navCollapseButton)
+	{
+		// The always-visible left-edge strip is the actual hover-sensitive
+		// trigger now (replacing the old click-to-toggle) -
+		// trackPointerForNavigation() (called from
+		// ViewportWidget::mouseMoveEvent()) handles proximity from elsewhere
+		// in the bare viewport; this handles the cursor actually reaching the
+		// strip itself. Qt delivers Enter/Leave for the button directly (it's
+		// the topmost widget under the cursor there), never routing through
+		// ViewportWidget::mouseMoveEvent() at all - so this is the path
+		// anyone hovering the visible strip actually hits, and needs the
+		// same hover-intent delay as the proximity check, not an instant
+		// reveal, or a quick cursor pass over the strip pops the panel open
+		// exactly like the un-debounced proximity case did.
+		if (event->type() == QEvent::Enter)
+		{
+			if (_navigationPinned)
+				revealNavigation();
+			else if (_navRevealDelayTimer && !_navRevealDelayTimer->isActive())
+				_navRevealDelayTimer->start();
+		}
+		else if (event->type() == QEvent::Leave)
+		{
+			if (_navRevealDelayTimer)
+				_navRevealDelayTimer->stop();
+			if (!_navigationPinned && _navHideTimer)
+				_navHideTimer->start();
 		}
 	}
 
