@@ -199,6 +199,35 @@ public:
     }
 };
 
+// Thin, semi-transparent, hover-to-reveal scrollbars - kept as its own string (rather than an
+// inline setStyleSheet() call only in the constructor) because setDetachedOverlayMode(true)
+// clears the tree's stylesheet to restyle its palette instead, and must reapply THIS rather than
+// clearing to empty, or the scrollbars would lose their styling the moment the tree becomes a
+// viewer overlay (the mode this styling exists for). See setDetachedOverlayMode() below and the
+// constructor. Scoped to QScrollBar only so the active theme's own tree/item styling keeps
+// cascading through untouched.
+static QString scrollbarOverlayStyleSheet()
+{
+    return QStringLiteral(
+        "QScrollBar:vertical { background: transparent; width: 10px; margin: 0px; }"
+        "QScrollBar::handle:vertical { background: rgba(128,128,128,0); border-radius: 4px; min-height: 24px; }"
+        // Lighter fill + a darker outline (not just a higher-alpha mid-gray) so the handle reads
+        // against both light and dark viewport backgrounds - a flat mid-gray fill alone stays
+        // low-contrast against a dark/near-black scene almost regardless of alpha, since it's
+        // blending toward a backdrop that's already close to its own tone.
+        "QScrollBar[hovered=\"true\"]::handle:vertical { background: rgba(200,200,200,235); border: 1px solid rgba(40,40,40,190); }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; background: transparent; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+        "QScrollBar:horizontal { background: transparent; height: 10px; margin: 0px; }"
+        "QScrollBar::handle:horizontal { background: rgba(128,128,128,0); border-radius: 4px; min-width: 24px; }"
+        // Same light-fill + dark-outline treatment as the vertical handle above, for the same
+        // reason - contrast against whatever's locally behind it, not just a translucent
+        // mid-gray that only reads well over a light backdrop.
+        "QScrollBar[hovered=\"true\"]::handle:horizontal { background: rgba(200,200,200,235); border: 1px solid rgba(40,40,40,190); }"
+        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; background: transparent; }"
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }");
+}
+
 // ---------------------------------------------------------------------------
 // SceneTreeWidget
 // ---------------------------------------------------------------------------
@@ -228,7 +257,17 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     setRootIsDecorated(true);
     setUniformRowHeights(true);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    setStyle(new PlusMinusStyle(style()));              
+
+    // Thin, semi-transparent, hover-to-reveal scrollbars so a long/wide tree doesn't read as
+    // opaque widget chrome sitting on top of the viewer - the handle is invisible (alpha 0)
+    // until the mouse enters the scrollbar's own strip (full track width/height, not just the
+    // handle itself - see eventFilter()'s Enter/Leave handling below), matching the same
+    // "transparent overlay" feel the rest of the tree's background already has.
+    setStyleSheet(scrollbarOverlayStyleSheet());
+    horizontalScrollBar()->installEventFilter(this);
+    verticalScrollBar()->installEventFilter(this);
+
+    setStyle(new PlusMinusStyle(style()));
     setItemDelegate(new OverlayTreeItemDelegate(this));
     setProperty("detachedOverlayMode", false);
     viewport()->setProperty("detachedOverlayMode", false);
@@ -852,7 +891,10 @@ void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
           setAttribute(Qt::WA_NoSystemBackground, true);
           viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
           viewport()->setAttribute(Qt::WA_StyledBackground, false);
-          setStyleSheet(QString());
+          // NOT setStyleSheet(QString()) - that would also wipe the scrollbar hover-reveal
+          // styling (see scrollbarOverlayStyleSheet()'s doc comment), which needs to keep
+          // working in exactly this mode.
+          setStyleSheet(scrollbarOverlayStyleSheet());
       }
     else
     {
@@ -1050,6 +1092,17 @@ bool SceneTreeWidget::isPastItemContent(const QPoint& pos, QTreeWidgetItem* item
     return pos.x() > contentRect.left() + naturalWidth;
 }
 
+// Combines the three "this is the transparent overlay's empty background, not real tree
+// content" tests - no item at all, the ancestor indentation gutter, or past an item's own
+// rendered content - shared by every pass-through call site (mousePressEvent(),
+// mouseMoveEvent()'s passive-hover forward, mouseDoubleClickEvent(), contextMenuEvent()) so
+// they can't silently drift apart from each other.
+bool SceneTreeWidget::isOnOverlayBackground(const QPoint& pos) const
+{
+    QTreeWidgetItem* hitItem = itemAt(pos);
+    return !hitItem || isInAncestorIndentationGutter(pos, hitItem) || isPastItemContent(pos, hitItem);
+}
+
 void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
 {
     // No item under the cursor, or the click landed in that item's ANCESTOR indentation
@@ -1060,9 +1113,7 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
     // starting a rubber-band drag) and keep forwarding mouseMoveEvent()/mouseReleaseEvent()
     // below for the rest of this gesture, so a click-drag (orbit/pan) starting here reaches
     // the viewport too, not just a static click.
-    QTreeWidgetItem* hitItem = itemAt(event->pos());
-    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem) ||
-        isPastItemContent(event->pos(), hitItem))
+    if (isOnOverlayBackground(event->pos()))
     {
         _forwardingClickToViewport = true;
         forwardToViewport(event);
@@ -1118,7 +1169,36 @@ void SceneTreeWidget::mouseMoveEvent(QMouseEvent* event)
         return;
     }
 
+    // Passive hover (no button held) over the same overlay-background territory
+    // mousePressEvent()/mouseDoubleClickEvent()/contextMenuEvent() already treat as "the
+    // viewer showing through" - relay it too, so mesh hover-highlight preview and the
+    // viewport's own cursor updates keep working there exactly as if the tree weren't in the
+    // way, not just during an active click-drag gesture. Cheap per move: isOnOverlayBackground()
+    // is a couple of rect compares plus (only when over a real, too-short row) one delegate
+    // sizeHint() call; the actual hover work this triggers in ViewportWidget (its ray-cast/
+    // hit-test) is the SAME cost hovering bare viewport pixels already pays today, not new
+    // work - Settings > Rendering's own "Hover Highlight Mode" (Ray-cast Preview/Accurate/
+    // Disabled) already governs that cost independent of this relay.
+    if (event->buttons() == Qt::NoButton && isOnOverlayBackground(event->pos()))
+    {
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
     QTreeWidget::mouseMoveEvent(event);
+}
+
+void SceneTreeWidget::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (isOnOverlayBackground(event->pos()))
+    {
+        forwardToViewport(event);
+        event->accept();
+        return;
+    }
+
+    QTreeWidget::mouseDoubleClickEvent(event);
 }
 
 void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
@@ -1139,6 +1219,24 @@ void SceneTreeWidget::wheelEvent(QWheelEvent* event)
     event->ignore();
 }
 
+// See this override's doc comment in the header for why the scrollbars need their own
+// dynamic-property-driven hover state instead of a plain QSS :hover rule.
+bool SceneTreeWidget::eventFilter(QObject* watched, QEvent* event)
+{
+    if ((watched == horizontalScrollBar() || watched == verticalScrollBar()) &&
+        (event->type() == QEvent::Enter || event->type() == QEvent::Leave))
+    {
+        auto* bar = qobject_cast<QWidget*>(watched);
+        bar->setProperty("hovered", event->type() == QEvent::Enter);
+        // A dynamic property change alone doesn't retrigger stylesheet evaluation - the
+        // standard Qt idiom to force it is an unpolish/polish/update cycle.
+        bar->style()->unpolish(bar);
+        bar->style()->polish(bar);
+        bar->update();
+    }
+    return QTreeWidget::eventFilter(watched, event);
+}
+
 // See this override's doc comment in the header for why DefaultContextMenu policy (routing
 // every request through here first) replaces the CustomContextMenu policy the rest of the
 // tree's context menu still logically relies on (ModelViewer::showContextMenu(), wired to
@@ -1146,9 +1244,7 @@ void SceneTreeWidget::wheelEvent(QWheelEvent* event)
 // so that connection keeps working exactly as before.
 void SceneTreeWidget::contextMenuEvent(QContextMenuEvent* event)
 {
-    QTreeWidgetItem* hitItem = itemAt(event->pos());
-    if (!hitItem || isInAncestorIndentationGutter(event->pos(), hitItem) ||
-        isPastItemContent(event->pos(), hitItem))
+    if (isOnOverlayBackground(event->pos()))
     {
         if (_viewportWidget)
         {

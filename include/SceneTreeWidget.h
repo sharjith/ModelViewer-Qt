@@ -279,8 +279,15 @@ protected:
     // same gesture (_forwardingClickToViewport) regardless of where the cursor drifts, so a
     // click-drag (orbit/pan) that starts in the gutter works too, not just a static click.
     void mousePressEvent(QMouseEvent* event) override;
+    // Also forwards passive hover (no button held) over the same background territory, not just
+    // an active click-drag gesture - see the .cpp definition for the full rationale and a
+    // performance note.
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    // Same background hit-test as mousePressEvent() - a double-click landing there reaches the
+    // viewport's own mouseDoubleClickEvent() instead of QAbstractItemView's default (which does
+    // effectively nothing for a click with no item hit).
+    void mouseDoubleClickEvent(QMouseEvent* event) override;
     // Ignored (not scrolled) rather than accepted - the tree lives as a
     // transparent overlay glued to the viewport (see
     // ModelViewer::attachNavigationOverlay()), and an ignored wheel event
@@ -306,6 +313,13 @@ protected:
     // right-button press/release already left on the viewport via mousePressEvent()'s forwarding).
     void contextMenuEvent(QContextMenuEvent* event) override;
 
+    // Watches the two scrollbars (installed on them in the constructor) for Enter/Leave to
+    // drive the hover-to-reveal "hovered" dynamic property the scrollbar stylesheet keys off of
+    // - see the constructor's setStyleSheet() call for why a dynamic property + [hovered="true"]
+    // selector, not a plain QSS :hover rule (that would only trigger over the tiny handle thumb
+    // itself, not the full scrollbar strip a user should be able to hover anywhere in).
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
     // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
     // comment above for why this exists instead of relying on event->ignore() propagation.
     void forwardToViewport(QMouseEvent* event);
@@ -326,6 +340,12 @@ protected:
     // through, same "click through to the viewport" territory as isInAncestorIndentationGutter()
     // covers on the left, just on the trailing side instead.
     bool isPastItemContent(const QPoint& pos, QTreeWidgetItem* item) const;
+
+    // Combines the three checks above (no item / ancestor gutter / past item content) into the
+    // single "is pos on the transparent overlay's background" test every pass-through call site
+    // (mousePressEvent(), mouseMoveEvent()'s hover forward, mouseDoubleClickEvent(),
+    // contextMenuEvent()) shares, so they can't quietly drift apart from each other.
+    bool isOnOverlayBackground(const QPoint& pos) const;
 
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
