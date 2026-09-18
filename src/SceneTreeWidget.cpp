@@ -112,6 +112,19 @@ public:
             p->restore();
             return;
         }
+
+        // QTreeView::drawRow() paints the branch/indentation area's background via THIS
+        // primitive directly - entirely outside the item delegate, with State_Selected still
+        // set for that first call (see its own comment: "background of the branch (in selected
+        // state...) is now delegated to the style using PE_PanelItemViewRow") - which is exactly
+        // where a lingering native selection tint kept showing up even after
+        // OverlayTreeItemDelegate::paint() was drawing its own narrower, theme-independent
+        // highlight for the item's own content column. Suppress it entirely for the overlay
+        // tree: every bit of highlighting there is now hand-drawn by the delegate on purpose,
+        // so nothing else should paint a row-level background at all.
+        if (pe == PE_PanelItemViewRow && w && w->property("detachedOverlayMode").toBool())
+            return;
+
         QProxyStyle::drawPrimitive(pe, opt, p, w);
     }
 };
@@ -141,6 +154,40 @@ public:
             opt.palette.setColor(QPalette::WindowText, detachedTextColor);
             opt.palette.setColor(QPalette::ButtonText, detachedTextColor);
             opt.palette.setColor(QPalette::HighlightedText, detachedHighlightTextColor);
+        }
+
+        // Draw the selected/hover background OURSELVES, sized to the item's own natural content
+        // width, then strip State_Selected/State_MouseOver before delegating the rest of the
+        // painting (icon/text/checkbox) to the native style. Three earlier attempts relying on
+        // the native/CSS-driven CE_ItemViewItem background painting (a painter clip, then
+        // shrinking opt.rect, then measuring with a state-neutral option) each fixed one
+        // mechanism but never actually got a visible highlight back - state-dependent
+        // sizeFromContents(), render-rule caching, and clip-region re-intersection inside
+        // QStyleSheetStyle all interact in ways that proved unpredictable across this app's
+        // several bundled QSS themes. Drawing a simple, theme-independent, always-correct
+        // highlight directly - matching the same adaptive-contrast approach already used below
+        // for the checkbox indicator - sidesteps all of that instead of continuing to fight it.
+        if (detachedOverlay && (opt.state & (QStyle::State_Selected | QStyle::State_MouseOver)))
+        {
+            QStyleOptionViewItem neutralOpt(opt);
+            neutralOpt.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver);
+            const int naturalWidth = sizeHint(neutralOpt, index).width();
+
+            QRect highlightRect = opt.rect;
+            highlightRect.setWidth(qMin(highlightRect.width(), naturalWidth));
+            if (highlightRect.width() > 0 && highlightRect.height() > 0)
+            {
+                const bool isSelected = (opt.state & QStyle::State_Selected) != 0;
+                QColor fill = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+                fill.setAlpha(isSelected ? 95 : 55);
+                painter->save();
+                painter->setPen(Qt::NoPen);
+                painter->setBrush(fill);
+                painter->drawRect(highlightRect);
+                painter->restore();
+            }
+
+            opt.state &= ~(QStyle::State_Selected | QStyle::State_MouseOver);
         }
 
         if (!detachedOverlay || !(opt.features & QStyleOptionViewItem::HasCheckIndicator))
@@ -199,13 +246,11 @@ public:
     }
 };
 
-// Thin, semi-transparent, hover-to-reveal scrollbars - kept as its own string (rather than an
-// inline setStyleSheet() call only in the constructor) because setDetachedOverlayMode(true)
-// clears the tree's stylesheet to restyle its palette instead, and must reapply THIS rather than
-// clearing to empty, or the scrollbars would lose their styling the moment the tree becomes a
-// viewer overlay (the mode this styling exists for). See setDetachedOverlayMode() below and the
-// constructor. Scoped to QScrollBar only so the active theme's own tree/item styling keeps
-// cascading through untouched.
+// Thin, semi-transparent, hover-to-reveal scrollbars - kept as its own string (shared by both
+// QScrollBar instances) rather than inlined per call site. Applied directly to
+// horizontalScrollBar()/verticalScrollBar() in the constructor, NOT via setStyleSheet() on the
+// tree itself - see that call site's own doc comment for why (shadows the active theme's
+// QTreeView::item:selected/:hover rules for this widget otherwise).
 static QString scrollbarOverlayStyleSheet()
 {
     return QStringLiteral(
@@ -258,12 +303,30 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     setUniformRowHeights(true);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
+    // Passive hover (mouse moved with no button held) only generates QEvent::MouseMove - and
+    // therefore only reaches mouseMoveEvent() below - when the receiving widget has mouse
+    // tracking enabled; without it, a plain hover over this tree's background never fired
+    // mouseMoveEvent() at all, silently no-op'ing its forward-to-viewport logic. This is
+    // independent of the ITEM hover highlight (QEvent::HoverMove, driven by Qt::WA_Hover, which
+    // QAbstractItemView already enables unconditionally for :hover styling) - tracking only
+    // affects plain mouse-move delivery.
+    viewport()->setMouseTracking(true);
+
     // Thin, semi-transparent, hover-to-reveal scrollbars so a long/wide tree doesn't read as
     // opaque widget chrome sitting on top of the viewer - the handle is invisible (alpha 0)
     // until the mouse enters the scrollbar's own strip (full track width/height, not just the
     // handle itself - see eventFilter()'s Enter/Leave handling below), matching the same
-    // "transparent overlay" feel the rest of the tree's background already has.
-    setStyleSheet(scrollbarOverlayStyleSheet());
+    // "transparent overlay" feel the rest of the tree's background already has. Applied directly
+    // to each QScrollBar instance, NOT via setStyleSheet() on the tree itself - the latter would
+    // give this widget its own non-empty style sheet, which shadows the active theme's app-level
+    // QTreeView::item:selected/:hover rules for THIS widget (Qt merges ancestor stylesheets, but
+    // in practice a widget-level sheet reliably wins for its OWN selector resolution even for
+    // rules it doesn't repeat - confirmed by this exact regression: selection/hover fill went
+    // fully transparent the moment a tree-level stylesheet existed at all). Styling the
+    // scrollbars directly can't shadow anything - they're leaf widgets with nothing of their own
+    // competing for the same selectors.
+    horizontalScrollBar()->setStyleSheet(scrollbarOverlayStyleSheet());
+    verticalScrollBar()->setStyleSheet(scrollbarOverlayStyleSheet());
     horizontalScrollBar()->installEventFilter(this);
     verticalScrollBar()->installEventFilter(this);
 
@@ -891,10 +954,11 @@ void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
           setAttribute(Qt::WA_NoSystemBackground, true);
           viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
           viewport()->setAttribute(Qt::WA_StyledBackground, false);
-          // NOT setStyleSheet(QString()) - that would also wipe the scrollbar hover-reveal
-          // styling (see scrollbarOverlayStyleSheet()'s doc comment), which needs to keep
-          // working in exactly this mode.
-          setStyleSheet(scrollbarOverlayStyleSheet());
+          // Clearing THIS widget's own stylesheet - not the scrollbars', which keep their
+          // scrollbarOverlayStyleSheet() set directly on them in the constructor and are
+          // unaffected by anything here (see that call's own doc comment for why it's applied
+          // there and not on the tree itself).
+          setStyleSheet(QString());
       }
     else
     {
