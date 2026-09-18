@@ -10286,10 +10286,11 @@ void ViewportWidget::render(Camera* camera)
 	}
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
+	const bool cappedClippingActive = _renderCtrl.cappingEnabled() &&
+		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled());
 	if (!interactivePtOverlayShowing &&
-		_renderCtrl.cappingEnabled() &&
-		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
-		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled()))
+		cappedClippingActive &&
+		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.0f, 1.0f); // pull forward
@@ -10298,8 +10299,9 @@ void ViewportWidget::render(Camera* camera)
 	}
 
 	// --- 3) Ground ---
+	// Capping is a default preference; it must not hide ground without an active cut.
 	if (_realismEnabled &&
-		_renderCtrl.groundMode() != GroundMode::None && !_renderCtrl.cappingEnabled() &&
+		_renderCtrl.groundMode() != GroundMode::None && !cappedClippingActive &&
 		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
 	{
@@ -12913,9 +12915,10 @@ void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& to
 	_renderCtrl.fgShader()->release();
 
 	// --- RENDER 3: SECTION CAPS ---
-	if (_renderCtrl.cappingEnabled() &&
-		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
-		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled()))
+	const bool cappedClippingActive = _renderCtrl.cappingEnabled() &&
+		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled());
+	if (cappedClippingActive &&
+		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.0f, 1.0f);
@@ -12925,7 +12928,7 @@ void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& to
 
 	// --- RENDER 4: GROUND ---
 	if (_realismEnabled &&
-		_renderCtrl.groundMode() != GroundMode::None && !_renderCtrl.cappingEnabled() &&
+		_renderCtrl.groundMode() != GroundMode::None && !cappedClippingActive &&
 		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
 	{

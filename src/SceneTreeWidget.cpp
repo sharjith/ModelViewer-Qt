@@ -76,7 +76,16 @@ static const TreeIcons& treeIcons()
 class PlusMinusStyle : public QProxyStyle
 {
 public:
-    using QProxyStyle::QProxyStyle;
+    // Constructed once per SceneTreeWidget instance (see the constructor's
+    // setStyle(new PlusMinusStyle(style(), this))) and never shared with any other widget, so
+    // _owner is always the one tree this style belongs to - a reliable source for
+    // "detachedOverlayMode" independent of whatever `w` a given drawPrimitive() call happens to
+    // pass in. That matters because it's not always the tree itself or its viewport(): some Qt
+    // internal calls (QTreeView::drawRow()'s separate "current row" focus-rect draw - see the
+    // PE_FrameFocusRect case below) call style()->drawPrimitive() with NO widget argument at
+    // all (defaults to nullptr), so a `w && w->property(...)` check silently never suppresses
+    // that specific call no matter what `w` would have said had it been passed.
+    explicit PlusMinusStyle(QStyle* base, QWidget* owner) : QProxyStyle(base), _owner(owner) {}
 
     void drawPrimitive(PrimitiveElement    pe,
                        const QStyleOption* opt,
@@ -113,6 +122,9 @@ public:
             return;
         }
 
+        const bool ownerIsDetachedOverlay =
+            _owner && _owner->property("detachedOverlayMode").toBool();
+
         // QTreeView::drawRow() paints the branch/indentation area's background via THIS
         // primitive directly - entirely outside the item delegate, with State_Selected still
         // set for that first call (see its own comment: "background of the branch (in selected
@@ -122,11 +134,20 @@ public:
         // highlight for the item's own content column. Suppress it entirely for the overlay
         // tree: every bit of highlighting there is now hand-drawn by the delegate on purpose,
         // so nothing else should paint a row-level background at all.
-        if (pe == PE_PanelItemViewRow && w && w->property("detachedOverlayMode").toBool())
+        if (pe == PE_PanelItemViewRow && ownerIsDetachedOverlay)
             return;
+
+        // (The native "current item" focus rect is handled differently - not here. See
+        // OverlayTreeItemDelegate::paint()'s State_HasFocus stripping: two earlier attempts at
+        // suppressing it from this class instead, via a PE_FrameFocusRect case here, each turned
+        // out to target the wrong call site. Clearing the state flag at its source is simpler
+        // and doesn't depend on which style instance ends up handling the draw.)
 
         QProxyStyle::drawPrimitive(pe, opt, p, w);
     }
+
+private:
+    QWidget* _owner = nullptr;
 };
 
 class OverlayTreeItemDelegate : public QStyledItemDelegate
@@ -154,6 +175,19 @@ public:
             opt.palette.setColor(QPalette::WindowText, detachedTextColor);
             opt.palette.setColor(QPalette::ButtonText, detachedTextColor);
             opt.palette.setColor(QPalette::HighlightedText, detachedHighlightTextColor);
+
+            // Strip State_HasFocus here, at the SOURCE, rather than trying to suppress whatever
+            // native primitive/control ends up drawing the focus rect downstream - two attempts
+            // at the latter (checking a widget property in PlusMinusStyle::drawPrimitive(), via
+            // both the `w` parameter and a stored owner pointer) each targeted a real but
+            // ultimately wrong call site (CE_ItemViewItem's own focus frame; then a
+            // QTreeView::drawRow() code path that turned out to require allColumnsShowFocus,
+            // which is false here and never enabled anywhere in this codebase - so it was never
+            // actually firing). QCommonStyle::drawControl(CE_ItemViewItem)'s focus-rect block is
+            // gated purely on state flags IN THE OPTION ITSELF, regardless of which style
+            // instance ends up handling it - clearing the flag here means nothing downstream can
+            // draw it no matter which widget/style/proxy path Qt happens to route through.
+            opt.state &= ~QStyle::State_HasFocus;
         }
 
         // Draw the selected/hover background OURSELVES, sized to the item's own natural content
@@ -330,7 +364,19 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     horizontalScrollBar()->installEventFilter(this);
     verticalScrollBar()->installEventFilter(this);
 
-    setStyle(new PlusMinusStyle(style()));
+    setStyle(new PlusMinusStyle(style(), this));
+    // QWidget::style() has no parent-chain fallback (checks only its own extra->style, else
+    // QApplication::style() directly - confirmed in Qt6 source) - viewport() is a SEPARATE
+    // widget from the outer QTreeWidget the line above set this style on, so without this it
+    // silently falls back to the plain app-level style. That mattered here: item painting
+    // (QStyledItemDelegate::paint() -> style->drawControl(CE_ItemViewItem, ...)) resolves style
+    // via option.widget, which Qt sets to viewport() - so the PE_FrameFocusRect suppression
+    // above was structurally unreachable for that call despite matching PE_PanelItemViewRow's
+    // own suppression exactly, because THAT one runs via QTreeView::drawRow()'s plain style()
+    // call on the outer widget instead. style() (not a fresh PlusMinusStyle) reuses the exact
+    // object just constructed above, including the QStyleSheetStyle wrapper setStyle() may have
+    // added around it for the active app-level theme - see QWidget::setStyle()'s own handling.
+    viewport()->setStyle(style());
     setItemDelegate(new OverlayTreeItemDelegate(this));
     setProperty("detachedOverlayMode", false);
     viewport()->setProperty("detachedOverlayMode", false);
