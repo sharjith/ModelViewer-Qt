@@ -920,6 +920,22 @@ void ModelViewer::attachNavigationOverlay()
 		? tr("Auto-hides after a few seconds when unpinned")
 		: tr("Hover to show the navigation panel"));
 	_navCollapseButton->installEventFilter(this);
+	// Click shortcut, pinned state only - see _navCollapseButton's own doc
+	// comment. Goes through setNavigationPinnedPreference() (not a local-only
+	// applyNavigationPinned()) so it persists and syncs to every open
+	// document exactly like actually clicking navPinButton off would;
+	// collapseNavigationNow() then handles the "and hide" half immediately
+	// for this document, bypassing tryHideNavigation()'s own
+	// isNavigationInteracting() guard, which would otherwise keep it open
+	// since the cursor is necessarily still over the strip right after this
+	// click.
+	connect(_navCollapseButton, &QToolButton::clicked, this, [this]()
+	{
+		if (!_navigationPinned)
+			return;
+		ModelViewer::setNavigationPinnedPreference(false);
+		collapseNavigationNow();
+	});
 
 	// Right-edge counterpart to _navCollapseButton above - an invisible drag
 	// strip the user can pull to resize the panel, matching the established
@@ -1093,8 +1109,18 @@ void ModelViewer::tryHideNavigation()
 		return;
 	}
 
-	if (!_navigationRevealed)
+	collapseNavigationNow();
+}
+
+void ModelViewer::collapseNavigationNow()
+{
+	if (!_navigationOverlay || !_navRevealAnimation || !_navigationRevealed)
 		return;
+
+	if (_navHideTimer)
+		_navHideTimer->stop();
+	if (_navRevealDelayTimer)
+		_navRevealDelayTimer->stop();
 
 	_navigationRevealed = false;
 	if (_navCollapseButton)

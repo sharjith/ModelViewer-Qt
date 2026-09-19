@@ -806,6 +806,11 @@ private:
 	// own search-box row - only present/visible while the panel itself is
 	// revealed) controls whether it's allowed to auto-hide at all; this
 	// strip is purely the reveal/hide trigger + collapsed-state indicator.
+	// One click exception: while pinned, clicking this strip (its clicked()
+	// connection in attachNavigationOverlay()) is a shortcut for unpinning
+	// and collapsing at once, instead of unpinning via navPinButton and then
+	// waiting out the auto-hide delay. Unpinned, clicking it does nothing -
+	// hover already reveals/hides it.
 	QToolButton* _navCollapseButton = nullptr;
 	bool _navigationPinned = true;
 	// Current visual state (true = fully open). Drives
@@ -829,6 +834,15 @@ private:
 	QTimer* _navRevealDelayTimer = nullptr;
 	void revealNavigation();
 	void tryHideNavigation();
+	// The actual collapse - animates to the narrow strip and flips
+	// _navigationRevealed unconditionally, with none of tryHideNavigation()'s
+	// own pinned/isNavigationInteracting() guards. tryHideNavigation() calls
+	// this once its guards pass; the strip's pinned-click shortcut (see
+	// _navCollapseButton's own doc comment) calls it directly, since an
+	// explicit click should collapse at once even though the cursor is
+	// necessarily still over the strip right after clicking it (which would
+	// otherwise make isNavigationInteracting() keep it open).
+	void collapseNavigationNow();
 	bool isNavigationInteracting() const;
 	// Local, per-instance apply only (button sync + reveal/hide) - see its
 	// own doc comment (.cpp) for why this must not write QSettings or
