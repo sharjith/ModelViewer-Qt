@@ -93,14 +93,15 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
         });
     }
     separator();
-    auto meshTool = [this, &add](const char* name, const char* command) {
-        auto* button = add(name, command, command);
+    auto meshTool = [this, &add](const char* name, const char* command, bool flyout = false) {
+        auto* button = add(name, command, command, flyout);
         _meshActions.insert(QLatin1String(command), button->defaultAction());
         return button;
     };
     meshTool(QT_TR_NOOP("Split by Connectivity"), "split_by_connectivity");
-    auto* merge = meshTool(QT_TR_NOOP("Merge Selected"), "merge_selected");
+    auto* merge = meshTool(QT_TR_NOOP("Merge Selected"), "merge_selected", true);
     _mergeMenu = new QMenu(this);
+    _mergeMenu->setStyleSheet(FlyOutViewButton::menuStyleSheet());
     _mergeMenu->setToolTipsVisible(true);
     _mergeMenu->addAction(merge->defaultAction());
     auto* adjacency = _mergeMenu->addAction(QIcon(":/icons/res/merge_by_adjacency.png"), tr("Merge by Adjacency"));
@@ -109,8 +110,9 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, adjacency, [adjacency] {
         adjacency->setText(ToolsToolbar::tr("Merge by Adjacency"));
     });
+    connect(_mergeMenu, &QMenu::triggered, merge, &QToolButton::setDefaultAction);
     merge->setMenu(_mergeMenu);
-    merge->setPopupMode(QToolButton::MenuButtonPopup);
+    merge->setPopupMode(QToolButton::DelayedPopup);
     meshTool(QT_TR_NOOP("Mesh Union"), "mesh_union");
     separator();
     meshTool(QT_TR_NOOP("Group"), "group_meshes");
