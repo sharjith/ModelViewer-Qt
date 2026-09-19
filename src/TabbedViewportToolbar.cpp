@@ -82,6 +82,7 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
         reveal();
     });
     connect(_tools, &ToolsToolbar::commandRequested, this, &TabbedViewportToolbar::commandRequested);
+    connect(_tools, &ToolsToolbar::contentSizeChanged, this, &TabbedViewportToolbar::reposition);
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
         _tabs->setTabText(0, tr("Standard"));
         _tabs->setTabText(1, tr("Tools"));

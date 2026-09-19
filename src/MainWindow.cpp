@@ -25,6 +25,7 @@
 #include "ThemeManager.h"
 #include "LanguageManager.h"
 #include "ViewportWidget.h"
+#include "ToolsToolbar.h"
 #include <QtOpenGL>
 #include <QProgressBar>
 #include <QPushButton>
@@ -2274,6 +2275,7 @@ void MainWindow::on_actionSettings_triggered()
 		const bool hasMdiChild = (activeMdiChild() != nullptr);
 		ui->actionVisualizationSeparator->setVisible(enabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(enabled && hasMdiChild);
+		ToolsToolbar::setTextureDebuggerVisibleEverywhere(enabled);
 	});
 
 	connect(settingsDialog, &SettingsDialog::clearCachesRequested, this, [this]() {
@@ -2404,6 +2406,7 @@ void MainWindow::updateMenus()
 		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();
 		ui->actionVisualizationSeparator->setVisible(debugEnabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(debugEnabled && hasMdiChild);
+		ToolsToolbar::setTextureDebuggerVisibleEverywhere(debugEnabled);
 	}
 	ui->actionTile->setEnabled(hasMdiChild);
 	ui->actionTile_Horizontally->setEnabled(hasMdiChild);

@@ -2,6 +2,9 @@
 #include "FlyOutViewButton.h"
 #include "LanguageManager.h"
 #include <QAction>
+#include <QApplication>
+#include <QCoreApplication>
+#include <QSettings>
 #include <QFrame>
 #include <QEvent>
 #include <QHBoxLayout>
@@ -36,6 +39,7 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     _scroll->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _content = new QWidget;
     auto* commands = new QHBoxLayout(_content);
+    _commands = commands;
     commands->setContentsMargins(2, 2, 2, 2);
     commands->setSpacing(3);
     _scroll->setWidget(_content);
@@ -62,7 +66,7 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
         _commandButtons.insert(QLatin1String(command), button);
         return button;
     };
-    auto separator = [commands]() { auto* line = new QFrame; line->setFrameShape(QFrame::VLine); commands->addWidget(line); };
+    auto separator = [commands]() { auto* line = new QFrame; line->setFrameShape(QFrame::VLine); commands->addWidget(line); return line; };
     add(QT_TR_NOOP("Measure"), "measure", "measure");
     add(QT_TR_NOOP("Annotate"), "annotate", "annotate");
     add(QT_TR_NOOP("Mass Properties"), "mass_properties", "mass");
@@ -121,6 +125,15 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     separator();
     add(QT_TR_NOOP("Export Report"), "export_report", "report");
     add(QT_TR_NOOP("Batch Render Views"), "batch_render_views", "batch");
+    // Diagnostic section: only shown while the Settings > Debug checkbox is on, same rule as the menu entry.
+    _debugSeparator = separator();
+    _debugButton = add(QT_TR_NOOP("Texture Debugger"), "texture_debugger", "texture_debug");
+    {
+        QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+        const bool showDebug = settings.value("showTextureDebugPanelCheckBox", false).toBool();
+        _debugSeparator->setVisible(showDebug);
+        _debugButton->setVisible(showDebug);
+    }
     // Resolve style-dependent button metrics before freezing content width.
     _content->ensurePolished();
     _content->setFixedWidth(commands->sizeHint().width());
@@ -136,6 +149,25 @@ ToolsToolbar::ToolsToolbar(QWidget* parent) : QWidget(parent)
     setMeshToolAvailability({});
 }
 QSize ToolsToolbar::sizeHint() const { return QSize(_content->width() + 8, 64); }
+void ToolsToolbar::setTextureDebuggerVisible(bool visible)
+{
+    if (!_debugButton || _debugButton->isHidden() == !visible) return;
+    _debugSeparator->setVisible(visible);
+    _debugButton->setVisible(visible);
+    _content->ensurePolished();
+    _commands->invalidate();
+    _content->setFixedWidth(_commands->sizeHint().width());
+    updateGeometry();
+    updateScrollButtons();
+    emit contentSizeChanged();
+}
+void ToolsToolbar::setTextureDebuggerVisibleEverywhere(bool visible)
+{
+    for (QWidget* widget : QApplication::allWidgets()) {
+        if (auto* toolbar = qobject_cast<ToolsToolbar*>(widget))
+            toolbar->setTextureDebuggerVisible(visible);
+    }
+}
 void ToolsToolbar::trackToolWindow(const QString& command, QWidget* window)
 {
     auto* button = _commandButtons.value(command);

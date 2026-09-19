@@ -378,6 +378,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _textureDebugPanel, &TextureDebugPanel::onTextureReadbackReady);
 		connect(_textureDebugPanel, &TextureDebugPanel::requestPBRMode,
 		        this, [this]() { onRenderingModeSelected("PBR"); });
+		// Keep the Tools-tab button highlighted while the panel is open, like the other tool dialogs.
+		_viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("texture_debug"), _textureDebugPanel);
 	}
 
 	connect(_sceneGraph, &SceneGraph::structureChanged,
@@ -7821,4 +7823,5 @@ void ModelViewer::executeToolCommand(const QString& command)
     else if (command == QLatin1String("mass")) { MassPropertiesDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("batch")) { BatchRenderViewsDialog dialog(this, this); dialog.exec(); }
+    else if (command == QLatin1String("texture_debug")) showTextureDebugPanel();
 }

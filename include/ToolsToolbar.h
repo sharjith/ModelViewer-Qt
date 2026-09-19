@@ -3,6 +3,8 @@
 #include <QMap>
 #include <QPointer>
 class QAction;
+class QFrame;
+class QHBoxLayout;
 class QScrollArea;
 class QToolButton;
 class QMenu;
@@ -16,8 +18,12 @@ public:
     bool isFlyoutMenuVisible() const;
     void setMeshToolAvailability(const QMap<QString, QString>& disabledReasons);
     void trackToolWindow(const QString& command, QWidget* window);
+    // The Texture Debugger section follows the same Settings checkbox as the Visualization menu entry.
+    void setTextureDebuggerVisible(bool visible);
+    static void setTextureDebuggerVisibleEverywhere(bool visible);
 signals:
     void commandRequested(const QString& command);
+    void contentSizeChanged();
 protected:
     void resizeEvent(QResizeEvent* event) override;
     bool eventFilter(QObject* watched, QEvent* event) override;
@@ -26,6 +32,9 @@ private:
     void refreshActiveTools();
     QScrollArea* _scroll;
     QWidget* _content;
+    QHBoxLayout* _commands = nullptr;
+    QFrame* _debugSeparator = nullptr;
+    QToolButton* _debugButton = nullptr;
     QToolButton* _left;
     QToolButton* _right;
     QMenu* _analysisMenu;
