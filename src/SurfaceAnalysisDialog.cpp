@@ -236,6 +236,17 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	_hoverReadoutToggle->setCheckable(true);
 	_hoverReadoutToggle->setChecked(true);
 	layout->addWidget(_hoverReadoutToggle);
+	// hoverReadoutEnabled() is only ever re-checked lazily, on the next
+	// passive mouse move (updateSurfaceAnalysisHoverReadout()) - without
+	// this, unchecking the toggle while the pointer sits still left the old
+	// readout label on screen until the mouse happened to move again.
+	connect(_hoverReadoutToggle, &QPushButton::toggled, this, [this](bool checked) {
+		if (!checked)
+		{
+			if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+				viewport->clearSurfaceAnalysisHoverReadout();
+		}
+	});
 
 	auto* bottomRow = new QHBoxLayout();
 	_clearButton = new QPushButton(tr("Clear Overlay"), this);
@@ -528,7 +539,14 @@ void SurfaceAnalysisDialog::checkForStaleOverlays()
 		return;
 
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+	{
+		// A stale overlay this loop just auto-cleared may be the one the
+		// cached hover-readout text was computed from - same reasoning as
+		// clearSelectionOverlays()/clearAllOverlays(), just reached from this
+		// periodic check instead of a button/close event.
+		viewport->clearSurfaceAnalysisHoverReadout();
 		viewport->update();
+	}
 
 	if (_selectionStatusLabel)
 	{
@@ -1298,6 +1316,7 @@ void SurfaceAnalysisDialog::clearSelectionOverlays()
 	if (_thicknessRejectionNote)
 		_thicknessRejectionNote->setVisible(false);
 
+	viewport->clearSurfaceAnalysisHoverReadout();
 	viewport->update();
 }
 
@@ -1317,7 +1336,10 @@ void SurfaceAnalysisDialog::clearAllOverlays()
 	_overlay.clearAll();
 
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
+	{
+		viewport->clearSurfaceAnalysisHoverReadout();
 		viewport->update();
+	}
 }
 
 void SurfaceAnalysisDialog::selectMode(const QString& mode)

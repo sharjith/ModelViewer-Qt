@@ -1430,6 +1430,15 @@ public slots:
 	// round-trip, after the signal-emission forwarding attempt proved unreliable in practice.
 	void showContextMenu(const QPoint& pos);
 
+	// Immediately drops the cached Surface Analysis hover-readout text (see
+	// updateSurfaceAnalysisHoverReadout()'s own doc comment for why this
+	// can't just wait for the next passive mouse move) - public so
+	// SurfaceAnalysisDialog can call it directly when the hover-readout
+	// toggle is turned off, "Clear Overlay" is pressed, or the dialog itself
+	// closes, instead of leaving a stale numeric label on screen indefinitely
+	// while the pointer sits still.
+	void clearSurfaceAnalysisHoverReadout();
+
 private slots:
 	void centerDisplayList();
 	void setBackgroundColor();

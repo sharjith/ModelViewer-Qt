@@ -3483,6 +3483,20 @@ void ViewportWidget::drawSurfaceAnalysisHoverLabel()
 	drawFloatingLabel(_surfaceAnalysisHoverText, _surfaceAnalysisHoverPixel, _surfaceAnalysisHoverTextColor);
 }
 
+void ViewportWidget::clearSurfaceAnalysisHoverReadout()
+{
+	// updateSurfaceAnalysisHoverReadout() below only re-checks
+	// hoverReadoutEnabled()/recomputes the text on the NEXT passive mouse
+	// move - so turning the toggle off, pressing Clear Overlay, or closing
+	// the analysis dialog while the pointer sits still left the old numeric
+	// label on screen indefinitely (confirmed real bug). Called directly
+	// from those three actions instead of waiting for a mouse move.
+	if (_surfaceAnalysisHoverText.isEmpty())
+		return;
+	_surfaceAnalysisHoverText.clear();
+	update();
+}
+
 void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 {
 	SurfaceAnalysisDialog* dialog = _viewer
@@ -3683,16 +3697,19 @@ void ViewportWidget::updatePlaneGizmoHover(const QPoint& pixel)
 	if (hit)
 		hit->setHovered(true);
 	_hoveredPlaneGizmo = hit;
-	// No existing "hover -> cursor change" convention elsewhere in this file
-	// (cursor changes are otherwise only tied to active TOOL mode, e.g. the
-	// rotate/pan/zoom/eyedropper cursors set via makeIconCursor()) - this is
-	// a new, small addition specifically for gizmo hover, reusing that same
-	// helper with the dedicated pullcursor.png artwork (already in
-	// ModelViewer.qrc, unused until now) and the same
-	// setCursor(QCursor(Qt::ArrowCursor)) reset those tool cursors already
-	// use, so it composes rather than fights with them.
-	setCursor(hit ? makeIconCursor(":/icons/res/pullcursor.png", 33, devicePixelRatioF())
-	              : QCursor(Qt::ArrowCursor));
+	// Leaving a gizmo must restore whatever cursor the CURRENT armed tool
+	// wants, not unconditionally the plain arrow - hardcoding arrow here
+	// clobbered the eyedropper/color-pick cursor if either was armed while
+	// hovering a clipping/bounding-box plane (confirmed real bug: hovering
+	// showed the pull cursor, leaving left the arrow, even though clicking
+	// still performed the armed tool's action). restoreArmedToolCursor()
+	// already exists for exactly this - see its own use in the
+	// rotate/pan/zoom-drag-end path for the identical "don't clobber an
+	// armed tool's cursor" reasoning.
+	if (hit)
+		setCursor(makeIconCursor(":/icons/res/pullcursor.png", 33, devicePixelRatioF()));
+	else
+		restoreArmedToolCursor();
 	update();
 }
 
@@ -13416,7 +13433,15 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 		// (and returns) before it can fall through to ViewCube/selection/
 		// rubber-band. Excluded from the same Ctrl-nav gate the transform
 		// gizmo uses, for the same reason.
-		if (!(e->modifiers() & Qt::ControlModifier))
+		//
+		// Gated on !multiViewActive() - renderPlaneGizmos() (like
+		// drawTransformGizmo() above it) is only ever called from
+		// renderSingleView(), never renderMultiView(), so these gizmos simply
+		// don't draw in the 4-view split. Without this guard, hit-testing
+		// stayed live there anyway - an enabled clipping/bounding-box face
+		// became an invisible region that still intercepted clicks and
+		// started drags in every sub-view (confirmed real bug).
+		if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.multiViewActive())
 		{
 			if (PlaneGizmo* hitGizmo = hitTestPlaneGizmos(clickPoint))
 			{
@@ -13894,10 +13919,14 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	// Pure hover (no button held, no other interaction in progress) - lets
 	// the gizmo about to be grabbed stand out before the user commits to a
-	// drag. Gated to NoButton so it never runs mid camera-orbit/pan.
+	// drag. Gated to NoButton so it never runs mid camera-orbit/pan, and to
+	// !multiViewActive() so the hover highlight/cursor doesn't respond to an
+	// invisible gizmo the same way the click handling in mousePressEvent()
+	// no longer does - see that guard's own comment.
 	if (e->buttons() == Qt::NoButton)
 	{
-		updatePlaneGizmoHover(e->pos());
+		if (!_viewCtrl.multiViewActive())
+			updatePlaneGizmoHover(e->pos());
 		updateSurfaceAnalysisHoverReadout(e->pos());
 	}
 

@@ -123,6 +123,23 @@ private:
 
 	// Set for the duration of an undo/redo-triggered rebuild - see
 	// onUndoStackIndexChanged()'s doc comment. Same confirmed-real-bug
-	// prevention as FilterByColorDialog's identical flag.
+	// prevention as FilterByColorDialog's identical flag. Must stay a pure
+	// no-op in updateMatches() (never re-apply the recomputed selection) -
+	// confirmed real bug: reapplying here fought a plain Undo of one of this
+	// dialog's own SelectionCommands, since that command doesn't touch the
+	// spin boxes, so the very next queued rebuild recomputed the SAME
+	// selection the user just undid and silently reinstated it.
 	bool _suppressLiveSelectionPush = false;
+
+	// Set for the duration of one plane-gizmo drag (onDragStarted to
+	// onDragFinished in wireDragUndo()) - distinct from
+	// _suppressLiveSelectionPush above. While active, updateMatches()
+	// applies the live-matching selection directly (bypassing the undo
+	// stack) so the highlight still tracks the box in real time as the user
+	// drags, without creating a separate SelectionCommand per frame. The
+	// resulting selection change is folded into the single
+	// PlaneGizmoDragCommand pushed at onDragFinished instead, whose setter
+	// restores the matching captured selection alongside the limit - one
+	// coherent undo step for the whole drag rather than two.
+	bool _dragLiveSelectionSyncActive = false;
 };

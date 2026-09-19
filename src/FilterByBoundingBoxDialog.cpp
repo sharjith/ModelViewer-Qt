@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QDoubleSpinBox>
+#include <QPointer>
 #include <QRadioButton>
 #include <QShowEvent>
 #include <QHideEvent>
@@ -222,15 +223,99 @@ FilterByBoundingBoxDialog::FilterByBoundingBoxDialog(ModelViewer* modelViewer,
 		// live drag does.
 		auto wireDragUndo = [this, vw](PlaneGizmo* gizmo, QDoubleSpinBox* spin, const QString& text) {
 			auto oldValue = std::make_shared<double>(0.0);
-			gizmo->onDragStarted = [oldValue, spin]() { *oldValue = spin->value(); };
-			gizmo->onDragFinished = [this, vw, oldValue, spin, text]() {
+			auto oldSelection = std::make_shared<QSet<int>>();
+			gizmo->onDragStarted = [this, oldValue, oldSelection, spin]() {
+				*oldValue = spin->value();
+				const std::vector<int> ids = _modelViewer->getSelectedIDs();
+				*oldSelection = QSet<int>(ids.cbegin(), ids.cend());
+				// Live-drag frames (onDragged -> onLimitsChanged ->
+				// updateMatches()) apply the tracking selection directly
+				// instead of pushing one SelectionCommand per frame - see
+				// _dragLiveSelectionSyncActive's doc comment. Cleared in
+				// onDragFinished below, once the final selection has been
+				// captured.
+				_dragLiveSelectionSyncActive = true;
+			};
+			gizmo->onDragFinished = [this, vw, oldValue, oldSelection, spin, text]() {
+				_dragLiveSelectionSyncActive = false;
 				const double newValue = spin->value();
 				if (std::abs(newValue - *oldValue) < kMinBoxGap)
 					return; // click with no real movement - nothing to undo
+				// The selection already tracks the finished drag's final box
+				// (applied live, frame by frame, while _dragLiveSelectionSyncActive
+				// was set) - capture it now rather than recomputing, so the
+				// undo command below can restore it exactly on redo. Snapshot
+				// both into plain QSet<int> values (not the reused oldSelection
+				// shared_ptr) - wireDragUndo's onDragStarted overwrites that
+				// shared_ptr's pointee on the NEXT drag of this same face, which
+				// would otherwise silently corrupt THIS command's already-
+				// captured old selection out from under it.
+				const std::vector<int> currentIds = _modelViewer->getSelectedIDs();
+				const QSet<int> newSelectionSnapshot(currentIds.cbegin(), currentIds.cend());
+				const QSet<int> oldSelectionSnapshot = *oldSelection;
+				// spin is a child of THIS dialog (WA_DeleteOnClose), but the
+				// command below lives on the document's own QUndoStack, which
+				// outlives the dialog - closing it and later hitting Undo/Redo
+				// would otherwise call setValue() on an already-destroyed
+				// QDoubleSpinBox. QPointer-guard the setter so it safely no-ops
+				// once the dialog is gone instead of a use-after-free; reopening
+				// this filter already starts from a fresh seed (see the
+				// constructor's own doc comment), so there is no durable
+				// per-document state left for the entry to usefully apply to
+				// at that point anyway.
+				QPointer<QDoubleSpinBox> spinPtr(spin);
+				const float capturedOldValue = static_cast<float>(*oldValue);
+				// Captured by value (not read through `this->_modelViewer`
+				// inside the setter below) - _modelViewer is a member of THIS
+				// dialog, so touching it through `this` after the dialog is
+				// closed (WA_DeleteOnClose) would itself be a use-after-free,
+				// independent of spinPtr's own null check. The command already
+				// lives on _modelViewer's own QUndoStack, which by construction
+				// outlives both the dialog and the command, so this raw pointer
+				// needs no separate guard.
+				ModelViewer* const modelViewerPtr = _modelViewer;
 				_modelViewer->getUndoStack()->push(new PlaneGizmoDragCommand(
 					_modelViewer, vw,
-					[spin](float v) { spin->setValue(v); },
-					static_cast<float>(*oldValue), static_cast<float>(newValue), text));
+					[this, spinPtr, modelViewerPtr, oldSelectionSnapshot, newSelectionSnapshot, capturedOldValue](float v) {
+						// spinPtr null means the dialog (and `this`) is gone -
+						// skip only the now-defunct spin-box/live-filter update
+						// in that case, never touch `this` itself. Confirmed
+						// real bug: returning here unconditionally used to also
+						// skip the selection restoration below, so Undo/Redo
+						// consumed this command's history entry without ever
+						// reversing its selection change once the dialog had
+						// been closed.
+						if (spinPtr)
+						{
+							// spinPtr->setValue() below synchronously re-enters
+							// onLimitsChanged() -> updateMatches() via the DIRECT
+							// (non-queued) valueChanged connection - unlike the
+							// indexChanged-driven rebuild (onUndoStackIndexChanged(),
+							// deliberately Qt::QueuedConnection precisely to avoid
+							// this), this path has no existing guard against
+							// updateMatches() pushing a brand new SelectionCommand
+							// while THIS command's own undo()/redo() is still on
+							// the QUndoStack call stack. Same suppression flag,
+							// same reasoning, just applied at the other trigger
+							// site.
+							_suppressLiveSelectionPush = true;
+							spinPtr->setValue(v);
+							_suppressLiveSelectionPush = false;
+						}
+						// v is handed back verbatim from PlaneGizmoDragCommand -
+						// bit-identical to capturedOldValue on undo() or to the
+						// pushed newValue on redo() - so comparing against it
+						// reliably picks the matching captured selection,
+						// restoring limit and selection together as ONE undo
+						// step instead of the two separate entries a plain
+						// live-drag SelectionCommand + plane command would
+						// otherwise leave behind. Runs unconditionally (even
+						// with the dialog closed) - it's durable document
+						// selection state, not tied to the dialog's own
+						// lifetime the way the spin box is.
+						modelViewerPtr->setSelectionWithoutUndo(v == capturedOldValue ? oldSelectionSnapshot : newSelectionSnapshot);
+					},
+					capturedOldValue, static_cast<float>(newValue), text));
 			};
 		};
 		wireDragUndo(vw->bboxGizmoXMin(), _xMinSpin, tr("Drag Bounding Box Face"));
@@ -410,8 +495,24 @@ void FilterByBoundingBoxDialog::updateMatches()
 	if (newSelection == currentSelection)
 		return;
 
-	// Never push from an undo/redo-triggered rebuild - see
-	// _suppressLiveSelectionPush's doc comment.
+	// Live plane-gizmo drag in progress: keep the highlighted selection
+	// tracking the box in real time, but apply it directly (bypassing the
+	// undo stack) instead of pushing a SelectionCommand per frame - the
+	// whole drag folds into the single PlaneGizmoDragCommand pushed at
+	// onDragFinished (see _dragLiveSelectionSyncActive's doc comment).
+	if (_dragLiveSelectionSyncActive)
+	{
+		_modelViewer->setSelectionWithoutUndo(newSelection);
+		return;
+	}
+
+	// Never touch the selection from an undo/redo-triggered rebuild - see
+	// _suppressLiveSelectionPush's doc comment. Confirmed real bug: reapplying
+	// the recomputed selection here (even via the non-undo setter) fought a
+	// plain Undo of one of this dialog's own SelectionCommands, since that
+	// command restores the selection alone without touching the spin boxes -
+	// the very next queued rebuild would recompute the SAME selection that
+	// was just undone and silently reinstate it.
 	if (_suppressLiveSelectionPush)
 		return;
 
