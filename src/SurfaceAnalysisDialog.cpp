@@ -81,7 +81,7 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		auto* button = new QToolButton(this);
 		button->setText(text);
 		button->setIcon(QIcon(iconPath));
-		button->setIconSize(QSize(32, 32));
+		button->setIconSize(QSize(48, 48));
 		button->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 		button->setCheckable(true);
 		button->setAutoRaise(true);
