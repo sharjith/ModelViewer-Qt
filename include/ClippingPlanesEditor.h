@@ -2,6 +2,7 @@
 
 
 #include <QDialog>
+#include "BoundingBox.h"
 #include "ui_ClippingPlanesEditor.h"
 
 class ViewportWidget;
@@ -46,6 +47,19 @@ public:
 	void setYCoeffDisplay(double value);
 	void setZCoeffDisplay(double value);
 
+	// ---- Box clipping (4th mode) --------------------------------------------
+	// Box limits are ABSOLUTE world coordinates (unlike the relative axis
+	// coefficients above), so their spin boxes get their own range setter fed
+	// from the scene's real min/max - not setCoefficientLimits()'s zero-centered
+	// half-sizes, which would clamp a model located away from the origin.
+	// Face order is 0..5 = xMin, xMax, yMin, yMax, zMin, zMax throughout.
+	void setBoxLimitRanges(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax);
+	// Display-only pushes (QSignalBlocker-guarded, like the *CoeffDisplay setters
+	// above): keep the spin boxes live during a gizmo drag / undo without
+	// feeding back into setBoxClippingLimit() for the value that call just applied.
+	void setBoxLimitDisplay(int face, double value);
+	void setBoxLimitsDisplay(const BoundingBox& limits);
+
 protected slots:
 	void keyPressEvent(QKeyEvent* e);
 	void on_checkBoxXY_toggled(bool checked);
@@ -60,10 +74,23 @@ protected slots:
 	void on_doubleSpinBoxXYCoeff_valueChanged(double val);
 	void on_doubleSpinBoxYZCoeff_valueChanged(double val);
 	void on_doubleSpinBoxZXCoeff_valueChanged(double val);
+	void on_checkBoxBoxClip_toggled(bool checked);
+	void on_checkBoxBoxKeepInside_toggled(bool checked);
+	void on_doubleSpinBoxBoxXMin_valueChanged(double val);
+	void on_doubleSpinBoxBoxXMax_valueChanged(double val);
+	void on_doubleSpinBoxBoxYMin_valueChanged(double val);
+	void on_doubleSpinBoxBoxYMax_valueChanged(double val);
+	void on_doubleSpinBoxBoxZMin_valueChanged(double val);
+	void on_doubleSpinBoxBoxZMax_valueChanged(double val);
+	void on_pushButtonBoxReset_clicked();
 	void on_pushButtonResetCoeffs_clicked();
 	void on_pushButtonTexture_clicked();
 	void on_pushButtonResetAll_clicked();
 
 private:
+	// The six box-limit spin boxes indexed by face (0..5 = xMin, xMax, yMin,
+	// yMax, zMin, zMax) - one place to iterate them instead of six named uses.
+	QDoubleSpinBox* boxSpin(int face) const;
+
 	ViewportWidget* _viewportWidget;
 };

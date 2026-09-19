@@ -220,6 +220,33 @@ public:
 	PlaneGizmo* bboxGizmoYMax() const { return _bboxGizmoYMax; }
 	PlaneGizmo* bboxGizmoZMin() const { return _bboxGizmoZMin; }
 	PlaneGizmo* bboxGizmoZMax() const { return _bboxGizmoZMax; }
+
+	// ---- Box clipping (4th Clipping Planes mode) --------------------------
+	// Limits are absolute world coordinates; face order everywhere is 0..5 =
+	// xMin, xMax, yMin, yMax, zMin, zMax. The Clipping Planes editor owns the
+	// enable/flip checkboxes and the six spin boxes; these are the entry points
+	// it (and the box's own gizmo drags/undo) call.
+	// Turns box mode on/off. The first enable seeds the limits (see
+	// resetBoxClippingLimits()); later enables keep whatever the user set.
+	void setBoxClippingEnabled(bool enabled);
+	// false (default): keep the outside, cut a box-shaped hole. true: keep only the inside (crop).
+	void setBoxClippingKeepInside(bool keepInside) { _renderCtrl.setBoxClippingKeepInside(keepInside); }
+	// Re-seeds the box centered on the scene bounding-box center, half the scene's
+	// size per axis (matching CAD Assistant's default), and syncs the editor's
+	// spin boxes.
+	void resetBoxClippingLimits();
+	// The single place a box face limit changes: clamps against the partner face
+	// (kMinBoxGap) and the scene-derived absolute range, applies it, syncs the
+	// editor's spin box and the gizmos. Reused by spin-box edits, gizmo drags and
+	// the drag's undo/redo so all three produce identical side effects.
+	void setBoxClippingLimit(int face, double value);
+	double boxClippingLimit(int face) const;
+	// Absolute range a box limit on `axis` (0=X,1=Y,2=Z) may take: the scene
+	// bounds plus a margin, so a face can be dragged a bit past the model.
+	void boxClippingLimitRange(int axis, double& outMin, double& outMax) const;
+	// Positions/shows the 6 box-clip gizmos from the current state (visible only
+	// while box mode is on AND the editor's "Show Gizmo" is checked).
+	void updateClipBoxGizmos();
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
@@ -1524,10 +1551,51 @@ private:
 
 	void drawMesh(QOpenGLShaderProgram* prog);
 
-	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY
+	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY,
+	// or one of the box-clip constants below. Box constants are deliberately >= 0
+	// (a negative value means "no clipping" to every consumer) and are dispatched
+	// BEFORE the axis-only checks in isMeshVisible()/collectVisibleMeshIdsForPass():
+	// the axis-only "invisible in all clip passes" test is vacuously true when no
+	// axis plane is enabled, which would cull the whole scene in box mode.
+	static constexpr int kCullBoxCrop = 100; // box mode, keep inside (crop): one pass, 6 clip distances
+	static constexpr int kCullBoxHole = 101; // box mode, keep outside (hole, the default): one pass, fragment discard
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
+	// One model-draw pass of the current clipping configuration: enableMask has
+	// bit i set for each GL_CLIP_DISTANCE0+i to enable during the pass, cullIndex
+	// is the activeClipPlaneIndex handed to the draw/cull functions.
+	struct ClipPass
+	{
+		unsigned int enableMask = 0;
+		int          cullIndex  = -1;
+		bool         boxDiscard = false; // flipped box mode: main_scene.frag discards fragments inside the box
+	};
+	// Sets main_scene.frag's boxDiscardEnabled on BOTH fgShader() and the flat-
+	// shading program (glProgramUniform1i, no bind needed). Owned by the model
+	// draw loops, never left on: that shader is also used by the floor and the
+	// plane gizmos, and uniforms persist, so a leftover true would punch a
+	// box-shaped hole in them. BoxDiscardGuard resets it to false when a loop
+	// exits by any path.
+	void setBoxDiscardEnabled(bool enabled);
+	struct BoxDiscardGuard
+	{
+		explicit BoxDiscardGuard(ViewportWidget* w) : _w(w) {}
+		~BoxDiscardGuard() { _w->setBoxDiscardEnabled(false); }
+		BoxDiscardGuard(const BoxDiscardGuard&) = delete;
+		BoxDiscardGuard& operator=(const BoxDiscardGuard&) = delete;
+		ViewportWidget* _w;
+	};
+	// Shared by drawMeshesWithClipping() and the SSS opaque pass so the pass
+	// structure lives in one place. Axis mode: one single-bit pass per enabled
+	// plane (the union-of-half-spaces technique - see drawMeshesWithClipping()).
+	// Box crop: ONE pass with all six clip distances (native GL AND semantics).
+	// Box hole (keep outside, the default): one pass, no clip distances - a fragment discard in
+	// main_scene.frag does the clipping (ClipPass::boxDiscard). Single-pass on
+	// purpose: a six-pass union would draw transparent fragments several times and
+	// depth-sort transparent meshes only within each pass. No clipping: one pass,
+	// no distances.
+	std::vector<ClipPass> currentClipPasses() const;
 	void drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera);
 
@@ -1546,6 +1614,19 @@ private:
 	                                  std::vector<int>& out) const;
 
 	void drawSectionCapping();
+	// Box-mode counterpart of drawSectionCapping()'s per-axis loop (called from it
+	// when box clipping is on): up to six stencil-fill + cap-quad sub-passes, one
+	// per box face. Each face's stencil fill uses ONLY that face's own clip
+	// distance - the same single-plane parity recipe the axis loop uses, NOT all
+	// six planes at once (that would count crossings over the whole entry->exit
+	// segment through the box and give even parity, i.e. no cap, for any solid
+	// bigger than the box). The cap quad is then trimmed to the face's rectangle
+	// in clipping_plane.frag (boxTrim*).
+	void drawBoxSectionCapping(float localCappingSceneDiag);
+	// collectCappingGroups()/computeLocalCappingSceneDiag() planeIndex values
+	// kCapPlaneBoxFaceBase + face (face 0..5 = xMin, xMax, yMin, yMax, zMin, zMax)
+	// address the six box-clip faces; 0..2 remain the axis planes.
+	static constexpr int kCapPlaneBoxFaceBase = 10;
 	// Draws exactly the given mesh ids (opaque/transparent split, no re-filtering -
 	// callers are expected to have already applied whatever culling they need).
 	// Used by drawSectionCapping() to fill the stencil for one isolated capping
@@ -1624,7 +1705,7 @@ private:
 	// hitTestPlaneGizmos()/updatePlaneGizmoHover()/renderPlaneGizmos(), so
 	// both gizmo families share one hit-test/hover/render pipeline instead
 	// of duplicating it.
-	std::array<PlaneGizmo*, 9> allPlaneGizmos() const;
+	std::array<PlaneGizmo*, 15> allPlaneGizmos() const;
 	PlaneGizmo* hitTestPlaneGizmos(const QPoint& pixel); // not const - calls getCameraForPoint(), which isn't const
 	bool beginPlaneGizmoDrag(PlaneGizmo* gizmo, const QPoint& pixel);
 	void updatePlaneGizmoDrag(const QPoint& pixel);
@@ -1757,6 +1838,11 @@ private:
 		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR,
 		bool flipY = false);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
+	// The six box-clip half-space planes (order: xMin, xMax, yMin, yMax, zMin,
+	// zMax) in the same view-space form setupClippingUniforms() builds for the
+	// per-axis planes - see its doc comment. Shared by setupClippingUniforms()
+	// (main mesh shaders) and drawSectionCapping() (stencil-fill shader).
+	void buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6]);
 
 	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
 	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
@@ -1843,6 +1929,7 @@ private:
 	// rebuildClippingContext(). Avoids repeated look-ups inside tight render loops.
 	VisibilityComputationHelper::FrustumContext  _frustumCtx;
 	VisibilityComputationHelper::ClippingContext _clippingCtx;
+	VisibilityComputationHelper::BoxClippingContext _boxClipCtx;
 
 	ViewToolbar* _viewToolbar;
     TabbedViewportToolbar* _tabbedToolbar = nullptr;
@@ -2305,6 +2392,13 @@ private:
 	PlaneRenderable* _clippingPlaneXY;
 	PlaneRenderable* _clippingPlaneYZ;
 	PlaneRenderable* _clippingPlaneZX;
+	// ONE shared unit quad (1x1, XY plane through the origin) that
+	// drawBoxSectionCapping() re-poses per box face via its render transform
+	// (translate + rotate + scale) - unlike the three per-axis cap quads above,
+	// which are each rebuilt/oversized per plane, all six box faces can share
+	// one because the fragment-shader box trim (clipping_plane.frag's boxTrim*)
+	// bounds the visible cap, not the quad's own size.
+	PlaneRenderable* _clippingPlaneBox = nullptr;
 
 	// Draggable translucent gizmo planes for Clipping Planes - see
 	// include/PlaneGizmo.h. Paired naming with _clippingPlaneXY/YZ/ZX above,
@@ -2336,6 +2430,22 @@ private:
 	PlaneGizmo* _bboxGizmoYMax = nullptr;
 	PlaneGizmo* _bboxGizmoZMin = nullptr;
 	PlaneGizmo* _bboxGizmoZMax = nullptr;
+
+	// Box-clip mode's OWN 6 face gizmos (Clipping Planes editor) - deliberately not
+	// shared with _bboxGizmo* above: each PlaneGizmo carries a single set of
+	// onDragStarted/onDragged/onDragFinished callbacks, so two features owning the
+	// same instances would silently overwrite each other's wiring, and the two
+	// boxes are independent state. Built eagerly in createCappingPlanes() like the
+	// 3 axis clip gizmos.
+	PlaneGizmo* _clipBoxGizmoXMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoXMax = nullptr;
+	PlaneGizmo* _clipBoxGizmoYMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoYMax = nullptr;
+	PlaneGizmo* _clipBoxGizmoZMin = nullptr;
+	PlaneGizmo* _clipBoxGizmoZMax = nullptr;
+	// True once the box limits have been seeded from the scene (first enable, or
+	// an explicit reset) so later enables don't overwrite the user's box.
+	bool _boxClipLimitsSeeded = false;
 
 	// Single active plane-gizmo drag session (never more than one at once,
 	// unlike the multi-mesh transform gizmo - no mesh-id-keyed map needed).

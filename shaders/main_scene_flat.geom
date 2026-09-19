@@ -159,6 +159,8 @@ void main()
         gl_ClipDistance[1] = gl_in[i].gl_ClipDistance[1];
         gl_ClipDistance[2] = gl_in[i].gl_ClipDistance[2];
         gl_ClipDistance[3] = gl_in[i].gl_ClipDistance[3];
+        gl_ClipDistance[4] = gl_in[i].gl_ClipDistance[4];
+        gl_ClipDistance[5] = gl_in[i].gl_ClipDistance[5];
         EmitVertex();
     }
     EndPrimitive();

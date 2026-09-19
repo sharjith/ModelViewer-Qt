@@ -48,6 +48,10 @@ uniform mat4 jointMatrices[128];
 
 uniform vec4 clipPlane;
 
+// Box clipping (4th clipping mode) - see main_scene.vert.
+uniform vec4 clipPlaneBox[6];
+uniform bool clipPlaneBoxEnabled;
+
 // All per-vertex varyings go into this single interface block.
 // The geometry shader receives them as gs_fg_in[i].* (unambiguous)
 // and writes them back to the fragment shader as individual v_* outputs.
@@ -216,8 +220,22 @@ void main()
 
     // Clip distances for hardware clipping
     vec4 viewPos = modelViewMatrix * skinnedPosition;
-    gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
-    gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
-    gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
-    gl_ClipDistance[3] = dot(clipPlane,  viewPos);
+    if (clipPlaneBoxEnabled)
+    {
+        gl_ClipDistance[0] = dot(clipPlaneBox[0], viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneBox[1], viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneBox[2], viewPos);
+        gl_ClipDistance[3] = dot(clipPlaneBox[3], viewPos);
+        gl_ClipDistance[4] = dot(clipPlaneBox[4], viewPos);
+        gl_ClipDistance[5] = dot(clipPlaneBox[5], viewPos);
+    }
+    else
+    {
+        gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
+        gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
+        gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
+        gl_ClipDistance[3] = dot(clipPlane,  viewPos);
+        gl_ClipDistance[4] = 1.0;
+        gl_ClipDistance[5] = 1.0;
+    }
 }

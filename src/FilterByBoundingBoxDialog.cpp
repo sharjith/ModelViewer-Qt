@@ -38,7 +38,7 @@ namespace
 	constexpr int kSpinDecimals = 3;
 	// Minimum gap a drag must leave between a Min/Max face pair - prevents
 	// dragging a face past its partner into a degenerate/inverted box.
-	constexpr double kMinBoxGap = 1.0e-3;
+	// kMinBoxGap now lives in BoundingBox.h (shared with the Clipping Planes editor's box mode).
 
 	// Walks up the parent chain from a widget inside the MDI area to find the
 	// QMdiArea itself - same helper as FilterByColorDialog.cpp/

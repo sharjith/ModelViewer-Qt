@@ -518,6 +518,7 @@ _floorPlane(nullptr),
 	_clippingPlaneXY = nullptr;
 	_clippingPlaneYZ = nullptr;
 	_clippingPlaneZX = nullptr;
+	_clippingPlaneBox = nullptr;
 
 	_renderCtrl.setCappingEnabled(false);
 	_renderCtrl.setCappingTexture(0);
@@ -917,6 +918,7 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_clippingPlaneXY) { delete _clippingPlaneXY; _clippingPlaneXY = nullptr; }
 	if (_clippingPlaneYZ) { delete _clippingPlaneYZ; _clippingPlaneYZ = nullptr; }
 	if (_clippingPlaneZX) { delete _clippingPlaneZX; _clippingPlaneZX = nullptr; }
+	if (_clippingPlaneBox) { delete _clippingPlaneBox; _clippingPlaneBox = nullptr; }
 	// PlaneGizmo::~PlaneGizmo() deletes its own owned fill + 4 border PlaneRenderables.
 	if (_clipPlaneGizmoX) { delete _clipPlaneGizmoX; _clipPlaneGizmoX = nullptr; }
 	if (_clipPlaneGizmoY) { delete _clipPlaneGizmoY; _clipPlaneGizmoY = nullptr; }
@@ -927,6 +929,12 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_bboxGizmoYMax) { delete _bboxGizmoYMax; _bboxGizmoYMax = nullptr; }
 	if (_bboxGizmoZMin) { delete _bboxGizmoZMin; _bboxGizmoZMin = nullptr; }
 	if (_bboxGizmoZMax) { delete _bboxGizmoZMax; _bboxGizmoZMax = nullptr; }
+	for (PlaneGizmo** gizmo : { &_clipBoxGizmoXMin, &_clipBoxGizmoXMax, &_clipBoxGizmoYMin,
+	                            &_clipBoxGizmoYMax, &_clipBoxGizmoZMin, &_clipBoxGizmoZMax })
+	{
+		delete *gizmo;
+		*gizmo = nullptr;
+	}
 	if (_floorPlane) { delete _floorPlane; _floorPlane = nullptr; }
 	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
 	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
@@ -1108,6 +1116,16 @@ void ViewportWidget::initializeGL()
 	GLfloat maxAniso = 0.0f;
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 	ModelViewerApplication::setSupportedAnisotropicFilteringLevel(maxAniso);
+
+	// Box clipping drives clip distance slots 0..5 (6 simultaneous half-spaces);
+	// the GL 4.5 core minimum is 8, so this should always hold - logged so a
+	// driver that reports less shows up immediately in the run log rather than as
+	// a silently wrong crop.
+	GLint maxClipDistances = 0;
+	glGetIntegerv(GL_MAX_CLIP_DISTANCES, &maxClipDistances);
+	qInfo() << "GL_MAX_CLIP_DISTANCES =" << maxClipDistances << "(box clipping needs >= 6)";
+	if (maxClipDistances < 6)
+		qWarning() << "Box clipping needs 6 clip distances but the driver only supports" << maxClipDistances;
 
 	// Sheen is part of the guaranteed 0..31 budget, so its LUTs live on fixed
 	// units 8/9 instead of using the older overflow/fallback layout.
@@ -3326,7 +3344,36 @@ void ViewportWidget::updateClippingPlane()
 		-_viewCtrl.boundingBox().getYSize() / 2, _viewCtrl.boundingBox().getYSize() / 2,
 		-_viewCtrl.boundingBox().getZSize() / 2, _viewCtrl.boundingBox().getZSize() / 2);
 
+	// Box limits are ABSOLUTE world coordinates, so their spin boxes take the
+	// scene's real min/max (plus margin) - NOT the zero-centered half-sizes the
+	// relative axis coefficients above use, which would clamp a model sitting
+	// away from the origin.
+	double rangeMin[3], rangeMax[3];
+	for (int axis = 0; axis < 3; ++axis)
+		boxClippingLimitRange(axis, rangeMin[axis], rangeMax[axis]);
+	_clippingPlanesEditor->setBoxLimitRanges(rangeMin[0], rangeMax[0], rangeMin[1], rangeMax[1], rangeMin[2], rangeMax[2]);
+
+	// If the scene moved/changed so much that the stored box no longer fits the new
+	// range on some axis (e.g. the visible scene jumped to a distant region), the
+	// box is meaningless for it and its spin boxes cannot even display the stored
+	// values - re-seed it from the new scene, which updates the stored limits, the
+	// spin boxes and the gizmos together. Only once the user has a seeded box.
+	if (_boxClipLimitsSeeded)
+	{
+		constexpr double kEps = 1.0e-6;
+		bool fits = true;
+		for (int face = 0; face < 6 && fits; ++face)
+		{
+			const int axis = face / 2;
+			const double v = boxClippingLimit(face);
+			fits = v >= rangeMin[axis] - kEps && v <= rangeMax[axis] + kEps;
+		}
+		if (!fits)
+			resetBoxClippingLimits();
+	}
+
 	updatePlaneGizmos();
+	updateClipBoxGizmos();
 }
 
 void ViewportWidget::updatePlaneGizmos()
@@ -3364,7 +3411,7 @@ void ViewportWidget::updatePlaneGizmos()
 
 void ViewportWidget::renderPlaneGizmos()
 {
-	const std::array<PlaneGizmo*, 9> gizmos = allPlaneGizmos();
+	const std::array<PlaneGizmo*, 15> gizmos = allPlaneGizmos();
 	const bool anyVisible = std::any_of(gizmos.begin(), gizmos.end(),
 		[](PlaneGizmo* g) { return g && g->isVisible(); });
 	if (!anyVisible)
@@ -3432,7 +3479,10 @@ void ViewportWidget::renderPlaneGizmos()
 	// current extents (see updateBoundingBoxGizmos()), never to something
 	// larger that would need trimming, so no truncation pass for these -
 	// gizmoClipEnabled is already false from the reset above.
-	for (PlaneGizmo* gizmo : { _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax })
+	// Box-clip mode's 6 faces likewise (sized to the box's own extents, see
+	// updateClipBoxGizmos()).
+	for (PlaneGizmo* gizmo : { _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax,
+	                           _clipBoxGizmoXMin, _clipBoxGizmoXMax, _clipBoxGizmoYMin, _clipBoxGizmoYMax, _clipBoxGizmoZMin, _clipBoxGizmoZMax })
 	{
 		if (gizmo && gizmo->isVisible())
 			gizmo->render();
@@ -3523,10 +3573,11 @@ void ViewportWidget::updateSurfaceAnalysisHoverReadout(const QPoint& pixel)
 	update();
 }
 
-std::array<PlaneGizmo*, 9> ViewportWidget::allPlaneGizmos() const
+std::array<PlaneGizmo*, 15> ViewportWidget::allPlaneGizmos() const
 {
 	return { _clipPlaneGizmoX, _clipPlaneGizmoY, _clipPlaneGizmoZ,
-	         _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax };
+	         _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax,
+	         _clipBoxGizmoXMin, _clipBoxGizmoXMax, _clipBoxGizmoYMin, _clipBoxGizmoYMax, _clipBoxGizmoZMin, _clipBoxGizmoZMax };
 }
 
 PlaneGizmo* ViewportWidget::hitTestPlaneGizmos(const QPoint& pixel)
@@ -3683,7 +3734,7 @@ void ViewportWidget::updatePlaneGizmoHover(const QPoint& pixel)
 {
 	if (_activePlaneGizmoDrag)
 		return; // dragging already forces its own state - don't fight it
-	const std::array<PlaneGizmo*, 9> gizmos = allPlaneGizmos();
+	const std::array<PlaneGizmo*, 15> gizmos = allPlaneGizmos();
 	const bool anyVisible = std::any_of(gizmos.begin(), gizmos.end(),
 		[](PlaneGizmo* g) { return g && g->isVisible(); });
 	if (!anyVisible && !_hoveredPlaneGizmo)
@@ -5439,6 +5490,13 @@ void ViewportWidget::createCappingPlanes()
 		registerDecorationGpuResource(_clippingPlaneZX, [this] { return _renderCtrl.clippingPlaneShader(); });
 	}
 
+	if (_clippingPlaneBox == nullptr)
+	{
+		// Unit quad - drawBoxSectionCapping() scales/rotates/translates it per box face.
+		_clippingPlaneBox = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1, 1, 1, 1);
+		registerDecorationGpuResource(_clippingPlaneBox, [this] { return _renderCtrl.clippingPlaneShader(); });
+	}
+
 	if (_clipPlaneGizmoX == nullptr)
 	{
 		// General scene shader (_renderCtrl.fgShader()), not
@@ -5563,6 +5621,39 @@ void ViewportWidget::createCappingPlanes()
 		wireDragUndo(_clipPlaneGizmoX, [this] { return _renderCtrl.clippingXCoeff(); }, applyXCoeff, tr("Drag Clipping Plane"));
 		wireDragUndo(_clipPlaneGizmoY, [this] { return _renderCtrl.clippingYCoeff(); }, applyYCoeff, tr("Drag Clipping Plane"));
 		wireDragUndo(_clipPlaneGizmoZ, [this] { return _renderCtrl.clippingZCoeff(); }, applyZCoeff, tr("Drag Clipping Plane"));
+
+		// Box-clip mode's 6 face gizmos - same per-axis tint as the axis gizmos
+		// above (min/max share their axis color). Wiring is deliberately the same
+		// shape as the axis gizmos', but every path funnels through
+		// setBoxClippingLimit(), the one place a face limit changes (clamping,
+		// spin-box sync, gizmo reposition), so a drag, a spin-box edit and
+		// undo/redo all have identical side effects. No dialog-lifetime/QPointer
+		// guards are needed here (unlike FilterByBoundingBoxDialog's WA_DeleteOnClose
+		// dialog): the Clipping Planes editor and these gizmos live exactly as
+		// long as this ViewportWidget, which also owns the undo stack's viewer.
+		const QColor axisTint[3] = { QColor::fromRgbF(0.20f, 0.5f, 0.5f), QColor::fromRgbF(0.5f, 0.20f, 0.5f), QColor::fromRgbF(0.5f, 0.5f, 0.20f) };
+		PlaneGizmo** boxGizmos[6] = { &_clipBoxGizmoXMin, &_clipBoxGizmoXMax, &_clipBoxGizmoYMin,
+		                              &_clipBoxGizmoYMax, &_clipBoxGizmoZMin, &_clipBoxGizmoZMax };
+		for (int face = 0; face < 6; ++face)
+		{
+			const int axis = face / 2;
+			*boxGizmos[face] = makeGizmo(static_cast<PlaneGizmo::Axis>(axis), axisTint[axis]);
+			PlaneGizmo* gizmo = *boxGizmos[face];
+
+			gizmo->onDragged = [this, face](float world) { setBoxClippingLimit(face, world); };
+
+			auto oldValue = std::make_shared<float>(0.0f);
+			gizmo->onDragStarted = [this, face, oldValue]() { *oldValue = static_cast<float>(boxClippingLimit(face)); };
+			gizmo->onDragFinished = [this, face, oldValue]() {
+				const float newValue = static_cast<float>(boxClippingLimit(face));
+				if (std::abs(newValue - *oldValue) < 1.0e-6f)
+					return; // click with no real movement - nothing to undo
+				_viewer->getUndoStack()->push(new PlaneGizmoDragCommand(
+					_viewer, this,
+					[this, face](float v) { setBoxClippingLimit(face, v); },
+					*oldValue, newValue, tr("Drag Clipping Box Face")));
+			};
+		}
 	}
 
 	// Seed this document's cap-fill style from the user's configured
@@ -5702,6 +5793,129 @@ void ViewportWidget::setBoundingBoxGizmosVisible(bool visible)
 	for (PlaneGizmo* gizmo : { _bboxGizmoXMin, _bboxGizmoXMax, _bboxGizmoYMin, _bboxGizmoYMax, _bboxGizmoZMin, _bboxGizmoZMax })
 		gizmo->setVisible(visible);
 	update();
+}
+
+// ---------------------------------------------------------------------------
+// Box clipping (4th Clipping Planes mode)
+// ---------------------------------------------------------------------------
+
+void ViewportWidget::setBoxClippingEnabled(bool enabled)
+{
+	_renderCtrl.setBoxClippingEnabled(enabled);
+	if (enabled && !_boxClipLimitsSeeded)
+		resetBoxClippingLimits();
+}
+
+void ViewportWidget::resetBoxClippingLimits()
+{
+	// Centered on the scene bounding-box center, half the scene's size on each axis
+	// (center +/- 25% of the size) - matches CAD Assistant's default clip box, which
+	// keeps the box CENTERED on the model center rather than growing out from it. A
+	// box equal to the scene would clip nothing, so it starts noticeably smaller.
+	const BoundingBox& sb = _viewCtrl.boundingBox();
+	const double cx = (sb.xMin() + sb.xMax()) * 0.5, hx = std::max(sb.getXSize() * 0.25, kMinBoxGap);
+	const double cy = (sb.yMin() + sb.yMax()) * 0.5, hy = std::max(sb.getYSize() * 0.25, kMinBoxGap);
+	const double cz = (sb.zMin() + sb.zMax()) * 0.5, hz = std::max(sb.getZSize() * 0.25, kMinBoxGap);
+	const BoundingBox limits(cx - hx, cx + hx, cy - hy, cy + hy, cz - hz, cz + hz);
+	_renderCtrl.setBoxClippingLimits(limits);
+	_boxClipLimitsSeeded = true;
+	if (_clippingPlanesEditor)
+		_clippingPlanesEditor->setBoxLimitsDisplay(limits);
+	updateClipBoxGizmos();
+	update();
+}
+
+double ViewportWidget::boxClippingLimit(int face) const
+{
+	const BoundingBox& box = _renderCtrl.boxClippingLimits();
+	switch (face)
+	{
+	case 0: return box.xMin();
+	case 1: return box.xMax();
+	case 2: return box.yMin();
+	case 3: return box.yMax();
+	case 4: return box.zMin();
+	default: return box.zMax();
+	}
+}
+
+void ViewportWidget::boxClippingLimitRange(int axis, double& outMin, double& outMax) const
+{
+	const BoundingBox& sb = _viewCtrl.boundingBox();
+	const double sceneMin = axis == 0 ? sb.xMin() : (axis == 1 ? sb.yMin() : sb.zMin());
+	const double sceneMax = axis == 0 ? sb.xMax() : (axis == 1 ? sb.yMax() : sb.zMax());
+	// Half the scene's size of slack on each side, so a face can be dragged a bit
+	// past the model (e.g. to fully enclose it), with a floor for degenerate scenes.
+	const double margin = std::max((sceneMax - sceneMin) * 0.5, 1.0);
+	outMin = sceneMin - margin;
+	outMax = sceneMax + margin;
+}
+
+void ViewportWidget::setBoxClippingLimit(int face, double value)
+{
+	if (face < 0 || face > 5)
+		return;
+	const int axis = face / 2;
+	const bool isMax = (face % 2) == 1;
+
+	const BoundingBox& current = _renderCtrl.boxClippingLimits();
+	double lo[3] = { current.xMin(), current.yMin(), current.zMin() };
+	double hi[3] = { current.xMax(), current.yMax(), current.zMax() };
+
+	double rangeMin = 0.0, rangeMax = 0.0;
+	boxClippingLimitRange(axis, rangeMin, rangeMax);
+
+	// std::min/std::max chains rather than std::clamp: the bounds can cross for a
+	// degenerate scene/box and clamp() with lo > hi is undefined.
+	double clamped = value;
+	if (isMax)
+		clamped = std::min(std::max(clamped, lo[axis] + kMinBoxGap), std::max(rangeMax, lo[axis] + kMinBoxGap));
+	else
+		clamped = std::max(std::min(clamped, hi[axis] - kMinBoxGap), std::min(rangeMin, hi[axis] - kMinBoxGap));
+	(isMax ? hi : lo)[axis] = clamped;
+
+	_renderCtrl.setBoxClippingLimits(BoundingBox(lo[0], hi[0], lo[1], hi[1], lo[2], hi[2]));
+	if (_clippingPlanesEditor)
+		_clippingPlanesEditor->setBoxLimitDisplay(face, clamped);
+	updateClipBoxGizmos();
+	update();
+}
+
+void ViewportWidget::updateClipBoxGizmos()
+{
+	if (!_clipBoxGizmoXMin)
+		return;
+
+	PlaneGizmo* const gizmos[6] = { _clipBoxGizmoXMin, _clipBoxGizmoXMax, _clipBoxGizmoYMin,
+	                                _clipBoxGizmoYMax, _clipBoxGizmoZMin, _clipBoxGizmoZMax };
+	const bool on = _renderCtrl.boxClippingEnabled() && _clippingPlanesEditor && _clippingPlanesEditor->isGizmoVisible();
+	for (PlaneGizmo* gizmo : gizmos)
+		gizmo->setVisible(on);
+	if (!on)
+		return;
+
+	// reposition() re-uploads geometry immediately; bracket with makeCurrent()
+	// for the same cold-start reason updateBoundingBoxGizmos() documents.
+	makeCurrent();
+
+	// Same layout rule as updateBoundingBoxGizmos(): each face spans the box's OWN
+	// extents on the other two axes and sits at the box's center on them, so any
+	// one limit changing can resize up to four faces - reposition all six.
+	const BoundingBox& box = _renderCtrl.boxClippingLimits();
+	const float xExtent = static_cast<float>(box.getXSize());
+	const float yExtent = static_cast<float>(box.getYSize());
+	const float zExtent = static_cast<float>(box.getZSize());
+	const float xMid = static_cast<float>((box.xMin() + box.xMax()) * 0.5);
+	const float yMid = static_cast<float>((box.yMin() + box.yMax()) * 0.5);
+	const float zMid = static_cast<float>((box.zMin() + box.zMax()) * 0.5);
+	_clipBoxGizmoXMin->reposition(QVector3D(static_cast<float>(box.xMin()), yMid, zMid), yExtent, zExtent);
+	_clipBoxGizmoXMax->reposition(QVector3D(static_cast<float>(box.xMax()), yMid, zMid), yExtent, zExtent);
+	_clipBoxGizmoYMin->reposition(QVector3D(xMid, static_cast<float>(box.yMin()), zMid), zExtent, xExtent);
+	_clipBoxGizmoYMax->reposition(QVector3D(xMid, static_cast<float>(box.yMax()), zMid), zExtent, xExtent);
+	_clipBoxGizmoZMin->reposition(QVector3D(xMid, yMid, static_cast<float>(box.zMin())), xExtent, yExtent);
+	_clipBoxGizmoZMax->reposition(QVector3D(xMid, yMid, static_cast<float>(box.zMax())), xExtent, yExtent);
+
+	doneCurrent();
 }
 
 void ViewportWidget::createLights()
@@ -6700,7 +6914,10 @@ std::vector<std::vector<int>> ViewportWidget::collectCappingGroups(int planeInde
 		// applied, so the test would incorrectly drop them.
 		if (!mesh->hasSkinning() && VCH::isMeshOutside(mesh, _frustumCtx))
 			continue;
-		if (!VCH::isMeshStraddlesCapPlane(mesh, planeIndex, _clippingCtx))
+		const bool straddles = planeIndex >= kCapPlaneBoxFaceBase
+			? VCH::isMeshStraddlesBoxFace(mesh, planeIndex - kCapPlaneBoxFaceBase, _boxClipCtx)
+			: VCH::isMeshStraddlesCapPlane(mesh, planeIndex, _clippingCtx);
+		if (!straddles)
 			continue;
 
 		// Group by the mesh's owning scene-graph node - an authoritative,
@@ -6764,6 +6981,9 @@ float ViewportWidget::computeLocalCappingSceneDiag() const
 	if (_renderCtrl.yzClippingEnabled()) accumulate(0);
 	if (_renderCtrl.zxClippingEnabled()) accumulate(1);
 	if (_renderCtrl.xyClippingEnabled()) accumulate(2);
+	if (_renderCtrl.boxClippingEnabled())
+		for (int face = 0; face < 6; ++face)
+			accumulate(kCapPlaneBoxFaceBase + face);
 
 	if (!haveExtent)
 		return _viewCtrl.boundingBox().boundingRadius() * 2.0f;
@@ -7440,7 +7660,14 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 	if (VCH::isBoundingBoxOutside(runtimeNode.subtreeBounds, _frustumCtx))
 		return;
 
-	if (activeClipPlaneIndex >= 0)
+	// Box-clip passes take no tree-level pruning: the axis-only checks below
+	// would be vacuously true here (no axis plane enabled) and drop the ENTIRE
+	// tree, and a box-based subtree prune would additionally need to know the
+	// subtree holds no skinned meshes (their bounds may be bind-pose - see
+	// isMeshVisible()), which RuntimeVisibilityNode does not currently record.
+	// The mesh-level test in isMeshVisible() below still culls per mesh.
+	const bool isBoxPass = activeClipPlaneIndex == kCullBoxCrop || activeClipPlaneIndex == kCullBoxHole;
+	if (activeClipPlaneIndex >= 0 && !isBoxPass)
 	{
 		if (VCH::isBoundingBoxInvisibleInAllClipPasses(runtimeNode.subtreeBounds, _clippingCtx))
 			return;
@@ -7493,6 +7720,16 @@ void ViewportWidget::rebuildClippingContext()
 	_clippingCtx.yzEnabled = _renderCtrl.yzClippingEnabled();
 	_clippingCtx.zxEnabled = _renderCtrl.zxClippingEnabled();
 	_clippingCtx.xyEnabled = _renderCtrl.xyClippingEnabled();
+
+	const BoundingBox& box = _renderCtrl.boxClippingLimits();
+	_boxClipCtx.min[0] = static_cast<float>(box.xMin());
+	_boxClipCtx.max[0] = static_cast<float>(box.xMax());
+	_boxClipCtx.min[1] = static_cast<float>(box.yMin());
+	_boxClipCtx.max[1] = static_cast<float>(box.yMax());
+	_boxClipCtx.min[2] = static_cast<float>(box.zMin());
+	_boxClipCtx.max[2] = static_cast<float>(box.zMax());
+	_boxClipCtx.enabled = _renderCtrl.boxClippingEnabled();
+	_boxClipCtx.keepInside = _renderCtrl.boxClippingKeepInside();
 }
 
 // Returns the minimum bounding-sphere radius among meshes that are completely
@@ -7588,6 +7825,16 @@ bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneInd
 
 	// 2. No clip planes in this pass → frustum result is final
 	if (activeClipPlaneIndex < 0) return true;
+
+	// 2b. Box-clip passes are dispatched here, BEFORE the axis-only steps below:
+	//     step 3's "invisible in all clip passes" is vacuously true when no axis
+	//     plane is enabled, which would cull every mesh in box mode. Skinned
+	//     meshes are never culled by the box tests (bind-pose bounds) - see
+	//     VisibilityComputationHelper::isMeshOutsideBox().
+	if (activeClipPlaneIndex == kCullBoxCrop)
+		return !VCH::isMeshOutsideBox(mesh, _boxClipCtx);
+	if (activeClipPlaneIndex == kCullBoxHole)
+		return !VCH::isMeshFullyInsideBox(mesh, _boxClipCtx);
 
 	// 3. Pre-pass elimination: if ALL active planes fully clip this mesh it is
 	//    invisible across every union pass — skip it entirely
@@ -7696,42 +7943,66 @@ void ViewportWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	//glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::HOLLOW_MESH ? GL_LINE : GL_FILL);
 	//glLineWidth(_displayMode == DisplayMode::HOLLOW_MESH ? 1.25 : 1.0);
 
+	BoxDiscardGuard boxDiscardGuard(this);
+	for (const ClipPass& pass : currentClipPasses())
+	{
+		for (int bit = 0; bit < 6; ++bit)
+			if (pass.enableMask & (1u << bit))
+				glEnable(GL_CLIP_DISTANCE0 + bit);
+		setBoxDiscardEnabled(pass.boxDiscard);
+
+		if (transparentPass) drawTransparentMeshes(prog, pass.cullIndex);
+		else                 drawOpaqueMeshes(prog, pass.cullIndex);
+
+		setBoxDiscardEnabled(false);
+		for (int bit = 0; bit < 6; ++bit)
+			if (pass.enableMask & (1u << bit))
+				glDisable(GL_CLIP_DISTANCE0 + bit);
+	}
+}
+
+void ViewportWidget::setBoxDiscardEnabled(bool enabled)
+{
+	QOpenGLShaderProgram* programs[2] = { _renderCtrl.fgShader(), _renderCtrl.fgFlatShader() };
+	for (QOpenGLShaderProgram* program : programs)
+	{
+		if (!program || !program->isLinked())
+			continue;
+		const GLint location = program->uniformLocation("boxDiscardEnabled");
+		if (location >= 0)
+			glProgramUniform1i(program->programId(), location, enabled ? 1 : 0);
+	}
+}
+
+std::vector<ViewportWidget::ClipPass> ViewportWidget::currentClipPasses() const
+{
+	std::vector<ClipPass> passes;
+
+	// Box mode is mutually exclusive with the axis planes (enforced by
+	// ClippingPlanesEditor); checked first so it wins if both were ever set.
+	if (_renderCtrl.boxClippingEnabled())
+	{
+		if (_renderCtrl.boxClippingKeepInside())
+			passes.push_back({ 0x3Fu, kCullBoxCrop }); // all 6 clip distances at once
+		else
+			passes.push_back({ 0u, kCullBoxHole, true }); // default: fragment discard clips it - see main_scene.frag
+		return passes;
+	}
+
 	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
-	// If any clipping is active
-	if (_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled())
-	{
-		// Then draw meshes with clip planes enabled.
-		// Each pass activates one plane to produce the union of all half-spaces.
-		// activeClipPlaneIndex (0/1/2) tells the draw functions which single plane
-		// is active so per-pass AABB culling tests only that plane.
-		if (_renderCtrl.yzClippingEnabled())
-		{
-			glEnable(GL_CLIP_DISTANCE0);
-			if (transparentPass) drawTransparentMeshes(prog, 0);
-			else                 drawOpaqueMeshes(prog, 0);
-			glDisable(GL_CLIP_DISTANCE0);
-		}
-		if (_renderCtrl.zxClippingEnabled())
-		{
-			glEnable(GL_CLIP_DISTANCE1);
-			if (transparentPass) drawTransparentMeshes(prog, 1);
-			else                 drawOpaqueMeshes(prog, 1);
-			glDisable(GL_CLIP_DISTANCE1);
-		}
-		if (_renderCtrl.xyClippingEnabled())
-		{
-			glEnable(GL_CLIP_DISTANCE2);
-			if (transparentPass) drawTransparentMeshes(prog, 2);
-			else                 drawOpaqueMeshes(prog, 2);
-			glDisable(GL_CLIP_DISTANCE2);
-		}
-	}
-	else
-	{
-		// No clipping at all — frustum culling only (activeClipPlaneIndex = -1)
-		if (transparentPass) drawTransparentMeshes(prog);
-		else                 drawOpaqueMeshes(prog);
-	}
+	// Axis planes: each pass activates ONE plane to produce the union of all
+	// half-spaces (a notch removed from an otherwise intact solid).
+	// activeClipPlaneIndex (0/1/2) tells the draw functions which single plane
+	// is active so per-pass AABB culling tests only that plane.
+	if (_renderCtrl.yzClippingEnabled()) passes.push_back({ 1u << 0, 0 });
+	if (_renderCtrl.zxClippingEnabled()) passes.push_back({ 1u << 1, 1 });
+	if (_renderCtrl.xyClippingEnabled()) passes.push_back({ 1u << 2, 2 });
+
+	// No clipping at all - frustum culling only (activeClipPlaneIndex = -1)
+	if (passes.empty())
+		passes.push_back({ 0u, -1 });
+
+	return passes;
 }
 
 
@@ -7947,6 +8218,23 @@ void ViewportWidget::drawSectionCapping()
 	// hatch below - see computeLocalCappingSceneDiag()'s doc comment.
 	const float localCappingSceneDiag = computeLocalCappingSceneDiag();
 
+	// Box mode takes over the whole capping pass; the axis loop below is skipped
+	// (box and axis modes are mutually exclusive). clipPlaneBoxEnabled is set in
+	// BOTH branches (it persists on the program) so the stencil-fill shader can
+	// never keep box clip distances after the mode is switched off.
+	const bool boxMode = _renderCtrl.boxClippingEnabled();
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneBoxEnabled", boxMode);
+	if (boxMode)
+	{
+		QVector4D boxPlanes[6];
+		buildBoxClipPlanes(pos, boxPlanes);
+		_renderCtrl.clippedMeshShader()->setUniformValueArray("clipPlaneBox", boxPlanes, 6);
+		drawBoxSectionCapping(localCappingSceneDiag);
+		glDisable(GL_STENCIL_TEST);
+		glDisable(GL_CULL_FACE);
+		return;
+	}
+
 	for (int i = 0; i < 3; ++i)
 	{
 		// Skip this axis entirely when its plane is disabled — previously the full
@@ -8054,6 +8342,10 @@ void ViewportWidget::drawSectionCapping()
 				// flipped values VisibilityComputationHelper's own culling
 				// tests already trust) rather than re-deriving a second
 				// representation of "kept" that could drift from it.
+				// Uniform hygiene: the box-clip cap path (drawBoxSectionCapping())
+				// sets this on the SAME program and it persists - see
+				// clipping_plane.frag's boxTrim* declaration comment.
+				_renderCtrl.clippingPlaneShader()->setUniformValue("boxTrimEnabled", false);
 				_renderCtrl.clippingPlaneShader()->setUniformValue("otherApplyX", i != 0 && _clippingCtx.yzEnabled);
 				_renderCtrl.clippingPlaneShader()->setUniformValue("otherApplyY", i != 1 && _clippingCtx.zxEnabled);
 				_renderCtrl.clippingPlaneShader()->setUniformValue("otherApplyZ", i != 2 && _clippingCtx.xyEnabled);
@@ -8169,6 +8461,135 @@ void ViewportWidget::drawSectionCapping()
 	// clipped object is drawn with color and depth enabled.
 	glDisable(GL_STENCIL_TEST);
 	glDisable(GL_CULL_FACE);	
+}
+
+void ViewportWidget::drawBoxSectionCapping(float localCappingSceneDiag)
+{
+	const BoundingBox& box = _renderCtrl.boxClippingLimits();
+	const float lo[3] = { static_cast<float>(box.xMin()), static_cast<float>(box.yMin()), static_cast<float>(box.zMin()) };
+	const float hi[3] = { static_cast<float>(box.xMax()), static_cast<float>(box.yMax()), static_cast<float>(box.zMax()) };
+	const float maxDim = std::max({ hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], 1.0e-3f });
+	// Big enough to cover any face rectangle when centered on it; the fragment
+	// shader trim (not this size) is what bounds the visible cap.
+	const float quadSize = maxDim * 2.0f;
+
+	const Point P = _viewCtrl.boundingBox().center();
+	QOpenGLShaderProgram* capShader = _renderCtrl.clippingPlaneShader();
+
+	// Same per-axis tint and hatch (U, V) basis the axis cap path uses:
+	// X faces span (Y, Z), Y faces span (Z, X), Z faces span (X, Y).
+	static const QVector3D kPlaneColor[3] = { QVector3D(0.20f, 0.5f, 0.5f), QVector3D(0.5f, 0.20f, 0.5f), QVector3D(0.5f, 0.5f, 0.20f) };
+	static const QVector3D kUDir[3] = { QVector3D(0.f, 1.f, 0.f), QVector3D(0.f, 0.f, 1.f), QVector3D(1.f, 0.f, 0.f) };
+	static const QVector3D kVDir[3] = { QVector3D(0.f, 0.f, 1.f), QVector3D(1.f, 0.f, 0.f), QVector3D(0.f, 1.f, 0.f) };
+
+	// Draws face `face`'s cap quad. Bound/uniform-set per call because
+	// PlaneRenderable::render() releases the program (same reason the axis
+	// path re-binds before every plane).
+	auto drawCapQuad = [&](int face)
+	{
+		const int axis = face / 2;
+		const float planePos = (face % 2 == 0) ? lo[axis] : hi[axis];
+
+		capShader->bind();
+		capShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+		capShader->setProperty("viewMatrix", QVariant::fromValue(_viewCtrl.viewMatrix()));
+		capShader->setUniformValue("viewMatrix", _viewCtrl.viewMatrix());
+		capShader->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+		glActiveTexture(GL_TEXTURE6);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
+		capShader->setUniformValue("hatchMap", 6);
+
+		// Uniform hygiene (see clipping_plane.frag's boxTrim* comment): the
+		// per-axis trim must be OFF for every box cap draw, or a stale
+		// otherApply* left by an earlier axis-mode frame would discard valid
+		// box caps.
+		capShader->setUniformValue("otherApplyX", false);
+		capShader->setUniformValue("otherApplyY", false);
+		capShader->setUniformValue("otherApplyZ", false);
+		capShader->setUniformValue("boxTrimEnabled", true);
+		capShader->setUniformValue("boxTrimMin", QVector3D(lo[0], lo[1], lo[2]));
+		capShader->setUniformValue("boxTrimMax", QVector3D(hi[0], hi[1], hi[2]));
+		capShader->setUniformValue("boxTrimEps", maxDim * 1.0e-4f);
+		capShader->setUniformValue("boxTrimAxis", axis);
+
+		const bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE;
+		const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
+		capShader->setUniformValue("worldUnitsPerTile", localCappingSceneDiag / tilesAcross);
+		capShader->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+		capShader->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
+		capShader->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
+		capShader->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
+		capShader->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
+		capShader->setUniformValue("useTexture", wantTexture);
+		capShader->setUniformValue("textureFlip", QVector2D(1.0f, 1.0f));
+
+		// Pose the shared unit quad (local XY plane, normal +Z) onto the face:
+		// translate to the face-rectangle center, rotate local +Z onto the
+		// face's axis (Y rotation +90 deg maps +Z to +X; X rotation -90 deg maps
+		// +Z to +Y), then scale up. Culling is off in this pass, so the quad's
+		// facing/winding does not matter.
+		QVector3D center(0.5f * (lo[0] + hi[0]), 0.5f * (lo[1] + hi[1]), 0.5f * (lo[2] + hi[2]));
+		center[axis] = planePos;
+		QMatrix4x4 model;
+		model.translate(center);
+		if (axis == 0)
+			model.rotate(90.0f, 0.0f, 1.0f, 0.0f);
+		else if (axis == 1)
+			model.rotate(-90.0f, 1.0f, 0.0f, 0.0f);
+		model.scale(quadSize);
+		_clippingPlaneBox->setSceneRenderTransformFast(model);
+
+		capShader->setUniformValue("planeColor", kPlaneColor[axis]);
+		QVector3D hatchOrigin(P.getX(), P.getY(), P.getZ());
+		hatchOrigin[axis] = planePos;
+		capShader->setUniformValue("hatchOrigin", hatchOrigin);
+		capShader->setUniformValue("uDir", kUDir[axis]);
+		capShader->setUniformValue("vDir", kVDir[axis]);
+		_clippingPlaneBox->render();
+	};
+
+	glEnable(GL_STENCIL_TEST);
+	glDisable(GL_CULL_FACE);
+
+	for (int face = 0; face < 6; ++face)
+	{
+		const std::vector<std::vector<int>> groups = collectCappingGroups(kCapPlaneBoxFaceBase + face);
+		if (groups.empty())
+			continue;
+
+		// ONLY this face's clip distance is enabled for its stencil fill - see
+		// this method's declaration comment for why not all six.
+		glEnable(GL_CLIP_DISTANCE0 + face);
+
+		for (const std::vector<int>& group : groups)
+		{
+			// Identical single-plane parity fill as the axis path in
+			// drawSectionCapping() (see the comments there for each step).
+			glStencilMask(0xFF);
+			glClear(GL_STENCIL_BUFFER_BIT);
+			glDisable(GL_DEPTH_TEST);
+			glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+			glDepthMask(GL_FALSE);
+
+			glStencilMask(0x01);
+			glStencilFunc(GL_ALWAYS, 1, 0x01);
+			glStencilOp(GL_KEEP, GL_INVERT, GL_INVERT);
+			drawMeshSubset(_renderCtrl.clippedMeshShader(), group);
+			glStencilMask(0xFF);
+
+			glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+			glEnable(GL_DEPTH_TEST);
+			glStencilFunc(GL_EQUAL, 1, 0xFF);
+			glDepthMask(GL_TRUE);
+
+			// The cap quad itself must not be clip-tested (only the fill pass is).
+			glDisable(GL_CLIP_DISTANCE0 + face);
+			drawCapQuad(face);
+			glEnable(GL_CLIP_DISTANCE0 + face);
+		}
+
+		glDisable(GL_CLIP_DISTANCE0 + face);
+	}
 }
 
 void ViewportWidget::drawVertexNormals()
@@ -10303,8 +10724,7 @@ void ViewportWidget::render(Camera* camera)
 	}
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
-	const bool cappedClippingActive = _renderCtrl.cappingEnabled() &&
-		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled());
+	const bool cappedClippingActive = _renderCtrl.cappingEnabled() && _renderCtrl.anyClippingEnabled();
 	if (!interactivePtOverlayShowing &&
 		cappedClippingActive &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
@@ -10970,7 +11390,7 @@ void ViewportWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D
 {
 	prog->bind();
 	RenderableMesh::recordProgramBindCall(true);
-	if (_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || !(_renderCtrl.clipDX() == 0 && _renderCtrl.clipDY() == 0 && _renderCtrl.clipDZ() == 0))
+	if (_renderCtrl.anyClippingEnabled() || !(_renderCtrl.clipDX() == 0 && _renderCtrl.clipDY() == 0 && _renderCtrl.clipDZ() == 0))
 	{
 		prog->setUniformValue("sectionActive", true);
 	}
@@ -10988,6 +11408,55 @@ void ViewportWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D
 		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl.boundingBox().center().getZ()))));
 	prog->setUniformValue("clipPlane", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
 		pos.x() * _renderCtrl.clipDX() + pos.y() * _renderCtrl.clipDY() + pos.z() * _renderCtrl.clipDZ()));
+
+	// Box clipping (4th mode). The enabled flag is set every call (true OR false)
+	// so a program left with box mode on can never keep it after the mode is
+	// switched off.
+	const bool boxOn = _renderCtrl.boxClippingEnabled();
+	prog->setUniformValue("clipPlaneBoxEnabled", boxOn);
+	if (boxOn)
+	{
+		QVector4D boxPlanes[6];
+		buildBoxClipPlanes(pos, boxPlanes);
+		prog->setUniformValueArray("clipPlaneBox", boxPlanes, 6);
+
+		// Hole mode's (keep-outside, the default) fragment-discard limits (world space). Only the LIMITS
+		// are uploaded here; boxDiscardEnabled is owned by the model draw loops
+		// (setBoxDiscardEnabled()), never set true from this function - it is
+		// also called for programs/draws that must not get a hole.
+		const BoundingBox& box = _renderCtrl.boxClippingLimits();
+		prog->setUniformValue("boxDiscardMin", QVector3D(static_cast<float>(box.xMin()), static_cast<float>(box.yMin()), static_cast<float>(box.zMin())));
+		prog->setUniformValue("boxDiscardMax", QVector3D(static_cast<float>(box.xMax()), static_cast<float>(box.yMax()), static_cast<float>(box.zMax())));
+	}
+}
+
+// Box-clip half-space planes, built with the EXACT construction the per-axis
+// planes above use - (mv.map(n + pos).xyz, k * (pos_axis - threshold)) - rather
+// than a re-derived "standard" plane equation, so the two stay consistent with
+// the camera-relative view matrix. n = k * axis unit vector points INTO the
+// kept half-space; the signed distance is then k * (p_axis - threshold), >= 0 on
+// the kept side. Keep-inside (crop) keeps the inside: the min face keeps +axis, the
+// max face keeps -axis. Keep-outside (hole, the default) inverts both signs.
+void ViewportWidget::buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6])
+{
+	const BoundingBox& box = _renderCtrl.boxClippingLimits();
+	const float lo[3] = { static_cast<float>(box.xMin()), static_cast<float>(box.yMin()), static_cast<float>(box.zMin()) };
+	const float hi[3] = { static_cast<float>(box.xMax()), static_cast<float>(box.yMax()), static_cast<float>(box.zMax()) };
+	const float posv[3] = { pos.x(), pos.y(), pos.z() };
+	const float keepInside = _renderCtrl.boxClippingKeepInside() ? 1.0f : -1.0f;
+
+	for (int axis = 0; axis < 3; ++axis)
+	{
+		for (int side = 0; side < 2; ++side) // 0 = min face, 1 = max face
+		{
+			const float k = (side == 0 ? 1.0f : -1.0f) * keepInside;
+			const float threshold = side == 0 ? lo[axis] : hi[axis];
+			QVector3D dir(0.0f, 0.0f, 0.0f);
+			dir[axis] = k;
+			out[axis * 2 + side] = QVector4D(_viewCtrl.modelViewMatrix().map(dir + pos),
+				k * (posv[axis] - threshold));
+		}
+	}
 }
 
 
@@ -12932,8 +13401,7 @@ void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& to
 	_renderCtrl.fgShader()->release();
 
 	// --- RENDER 3: SECTION CAPS ---
-	const bool cappedClippingActive = _renderCtrl.cappingEnabled() &&
-		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled());
+	const bool cappedClippingActive = _renderCtrl.cappingEnabled() && _renderCtrl.anyClippingEnabled();
 	if (cappedClippingActive &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
@@ -13030,30 +13498,20 @@ void ViewportWidget::renderToSSSBuffer(Camera* camera)
 	setCommonUniforms(_renderCtrl.fgShader(), camera);
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", true);
 
-	if (_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled())
+	BoxDiscardGuard boxDiscardGuard(this);
+	for (const ClipPass& pass : currentClipPasses())
 	{
-		if (_renderCtrl.yzClippingEnabled())
-		{
-			glEnable(GL_CLIP_DISTANCE0);
-			drawSSSMeshesOnly(_renderCtrl.fgShader(), 0);
-			glDisable(GL_CLIP_DISTANCE0);
-		}
-		if (_renderCtrl.zxClippingEnabled())
-		{
-			glEnable(GL_CLIP_DISTANCE1);
-			drawSSSMeshesOnly(_renderCtrl.fgShader(), 1);
-			glDisable(GL_CLIP_DISTANCE1);
-		}
-		if (_renderCtrl.xyClippingEnabled())
-		{
-			glEnable(GL_CLIP_DISTANCE2);
-			drawSSSMeshesOnly(_renderCtrl.fgShader(), 2);
-			glDisable(GL_CLIP_DISTANCE2);
-		}
-	}
-	else
-	{
-		drawSSSMeshesOnly(_renderCtrl.fgShader());
+		for (int bit = 0; bit < 6; ++bit)
+			if (pass.enableMask & (1u << bit))
+				glEnable(GL_CLIP_DISTANCE0 + bit);
+		setBoxDiscardEnabled(pass.boxDiscard);
+
+		drawSSSMeshesOnly(_renderCtrl.fgShader(), pass.cullIndex);
+
+		setBoxDiscardEnabled(false);
+		for (int bit = 0; bit < 6; ++bit)
+			if (pass.enableMask & (1u << bit))
+				glDisable(GL_CLIP_DISTANCE0 + bit);
 	}
 
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", false); // reset before release

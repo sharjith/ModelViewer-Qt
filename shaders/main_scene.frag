@@ -76,6 +76,19 @@ uniform bool  gizmoClipFlippedX    = false;
 uniform bool  gizmoClipFlippedY    = false;
 uniform bool  gizmoClipFlippedZ    = false;
 
+// Box clipping, keep-outside ("hole", the DEFAULT box mode): the box's interior is removed and
+// everything outside is kept. That is a UNION of six outside half-spaces, which
+// one hardware clip-distance pass cannot express and which multi-pass union would
+// double-blend / mis-sort for transparent meshes - so it is done as a single
+// fragment discard instead, world space (v_position), strictly inside the box.
+// boxDiscardEnabled is true ONLY while the hole-mode model draw loops run (set
+// and reset by ViewportWidget::setBoxDiscardEnabled()); this shader is also used
+// by the floor and the plane gizmos, which must never get a hole. Keep-inside
+// (crop) mode does not use this at all - it clips with gl_ClipDistance.
+uniform bool  boxDiscardEnabled = false;
+uniform vec3  boxDiscardMin;
+uniform vec3  boxDiscardMax;
+
 // ADS light maps
 uniform sampler2D texture_diffuse;
 uniform sampler2D texture_specular;
@@ -869,6 +882,12 @@ void main()
 		if (gizmoClipApplyZ && (gizmoClipFlippedZ ? (v_position.z >= gizmoClipThreshZ) : (v_position.z <= gizmoClipThreshZ)))
 			discard;
 	}
+
+	// Box clipping, hole (keep-outside) mode - see the uniform declarations above.
+	if (boxDiscardEnabled &&
+		all(greaterThan(v_position, boxDiscardMin)) &&
+		all(lessThan(v_position, boxDiscardMax)))
+		discard;
 
 	// Early discard for reflected pass beyond fade start
 	if (isReflectedPass)

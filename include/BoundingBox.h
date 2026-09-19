@@ -29,6 +29,11 @@
 
 class Point;
 
+// Minimum gap a Min/Max face pair must keep - prevents dragging or typing a
+// face past its partner into a degenerate/inverted box. Shared by Filter by
+// Bounding Box and the Clipping Planes editor's box mode.
+constexpr double kMinBoxGap = 1.0e-3;
+
 class BoundingBox
 {
 public:

@@ -15,6 +15,8 @@
 #include <QSignalBlocker>
 #include <QUrl>
 
+#include <algorithm>
+
 // helper: simple extension check (same filters as file dialog)
 static bool isImageFileExtension(const QString& path)
 {
@@ -206,6 +208,12 @@ ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 	// (e.g. up-axis) don't retroactively update an already-open document.
 	pushButtonTexture->setVisible(_viewportWidget->clippingPlaneHatchMode() == ClippingPlaneHatchMode::TEXTURE);
 
+	// The box's six limit fields + Reset only take space while Box mode is on, so
+	// the panel is exactly as tall as before until the user opts in (it is a
+	// bottom-anchored overlay with no scrolling - see ViewportWidget's
+	// _lowerLayout).
+	widgetBoxLimits->setVisible(checkBoxBoxClip->isChecked());
+
 	// enable drag/drop on the single texture button (no header changes)
 	pushButtonTexture->setAcceptDrops(true);
 	// parent the filter to 'this' so it will be deleted with the editor
@@ -228,6 +236,7 @@ void ClippingPlanesEditor::applyContrastTheme(const QColor& textColor)
 	const bool lightText = textColor.lightnessF() >= 0.5;
 	pushButtonResetCoeffs->setStyleSheet(blackTextStyle);
 	pushButtonResetAll->setStyleSheet(blackTextStyle);
+	pushButtonBoxReset->setStyleSheet(blackTextStyle);
 	pushButtonTexture->setStyleSheet(QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);"));
 
 	for (QCheckBox* box : findChildren<QCheckBox*>())
@@ -291,7 +300,99 @@ void ClippingPlanesEditor::setZCoeffDisplay(double value)
 void ClippingPlanesEditor::on_checkBoxShowGizmo_toggled(bool /*checked*/)
 {
 	_viewportWidget->updatePlaneGizmos();
+	_viewportWidget->updateClipBoxGizmos();
 	_viewportWidget->update();
+}
+
+QDoubleSpinBox* ClippingPlanesEditor::boxSpin(int face) const
+{
+	switch (face)
+	{
+	case 0: return doubleSpinBoxBoxXMin;
+	case 1: return doubleSpinBoxBoxXMax;
+	case 2: return doubleSpinBoxBoxYMin;
+	case 3: return doubleSpinBoxBoxYMax;
+	case 4: return doubleSpinBoxBoxZMin;
+	default: return doubleSpinBoxBoxZMax;
+	}
+}
+
+void ClippingPlanesEditor::setBoxLimitRanges(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax)
+{
+	const double lo[3] = { xMin, yMin, zMin };
+	const double hi[3] = { xMax, yMax, zMax };
+	for (int face = 0; face < 6; ++face)
+	{
+		QDoubleSpinBox* spin = boxSpin(face);
+		const int axis = face / 2;
+		// Blocked: setRange() can clamp the current value and would otherwise emit
+		// valueChanged -> setBoxClippingLimit() from what is only a range update.
+		const QSignalBlocker blocker(spin);
+		spin->setRange(lo[axis], hi[axis]);
+		spin->setSingleStep(std::max((hi[axis] - lo[axis]) / 50.0, 1.0e-3));
+		// setRange() may have clamped the displayed value (e.g. the scene moved
+		// to a distant region) while the STORED limit is unchanged, leaving field
+		// and render state out of sync. Re-show the stored limit; if it no longer
+		// fits the new range the caller (ViewportWidget::updateClippingPlane())
+		// re-seeds the box, which then updates both together.
+		spin->setValue(_viewportWidget->boxClippingLimit(face));
+	}
+}
+
+void ClippingPlanesEditor::setBoxLimitDisplay(int face, double value)
+{
+	if (face < 0 || face > 5)
+		return;
+	QDoubleSpinBox* spin = boxSpin(face);
+	const QSignalBlocker blocker(spin);
+	spin->setValue(value);
+}
+
+void ClippingPlanesEditor::setBoxLimitsDisplay(const BoundingBox& limits)
+{
+	setBoxLimitDisplay(0, limits.xMin());
+	setBoxLimitDisplay(1, limits.xMax());
+	setBoxLimitDisplay(2, limits.yMin());
+	setBoxLimitDisplay(3, limits.yMax());
+	setBoxLimitDisplay(4, limits.zMin());
+	setBoxLimitDisplay(5, limits.zMax());
+}
+
+void ClippingPlanesEditor::on_checkBoxBoxClip_toggled(bool checked)
+{
+	// Box mode and the three per-axis planes are mutually exclusive (union-notch
+	// and intersection-box semantics can't meaningfully combine). Unchecking the
+	// axis boxes lets their own toggled handlers run, so the render state follows.
+	if (checked)
+	{
+		checkBoxXY->setChecked(false);
+		checkBoxYZ->setChecked(false);
+		checkBoxZX->setChecked(false);
+	}
+	widgetBoxLimits->setVisible(checked);
+	_viewportWidget->setBoxClippingEnabled(checked);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
+}
+
+void ClippingPlanesEditor::on_checkBoxBoxKeepInside_toggled(bool checked)
+{
+	// Unchecked (default): keep the outside, cut a box-shaped hole. Checked: keep
+	// only the inside (crop to the box).
+	_viewportWidget->setBoxClippingKeepInside(checked);
+	_viewportWidget->update();
+}
+
+void ClippingPlanesEditor::on_doubleSpinBoxBoxXMin_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(0, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxXMax_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(1, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxYMin_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(2, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxYMax_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(3, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxZMin_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(4, val); }
+void ClippingPlanesEditor::on_doubleSpinBoxBoxZMax_valueChanged(double val) { _viewportWidget->setBoxClippingLimit(5, val); }
+
+void ClippingPlanesEditor::on_pushButtonBoxReset_clicked()
+{
+	_viewportWidget->resetBoxClippingLimits();
 }
 
 void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
@@ -303,20 +404,27 @@ void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 
 void ClippingPlanesEditor::on_checkBoxXY_toggled(bool checked)
 {
-	_viewportWidget->setXYClippingEnabled(checked);	
+	// Mutually exclusive with Box mode - see on_checkBoxBoxClip_toggled().
+	if (checked && checkBoxBoxClip->isChecked())
+		checkBoxBoxClip->setChecked(false);
+	_viewportWidget->setXYClippingEnabled(checked);
 	_viewportWidget->updateClippingPlane();
 	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxYZ_toggled(bool checked)
 {
-	_viewportWidget->setYZClippingEnabled(checked);	
+	if (checked && checkBoxBoxClip->isChecked())
+		checkBoxBoxClip->setChecked(false);
+	_viewportWidget->setYZClippingEnabled(checked);
 	_viewportWidget->updateClippingPlane();
 	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxZX_toggled(bool checked)
-{	
+{
+	if (checked && checkBoxBoxClip->isChecked())
+		checkBoxBoxClip->setChecked(false);
 	_viewportWidget->setZXClippingEnabled(checked);
 	_viewportWidget->updateClippingPlane();
 	_viewportWidget->update();
@@ -428,6 +536,12 @@ void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
 	checkBoxFlipXY->setChecked(false);
 	checkBoxFlipYZ->setChecked(false);
 	checkBoxFlipZX->setChecked(false);
+	// Box mode: off, back to the default keep-outside (hole), and re-seeded so its
+	// next enable starts from a fresh default box (its toggled handler hides the
+	// limit fields again).
+	checkBoxBoxKeepInside->setChecked(false);
+	checkBoxBoxClip->setChecked(false);
+	_viewportWidget->resetBoxClippingLimits();
 	// Capping and Show Gizmo both default to checked now (see
 	// ClippingPlanesEditor.ui's own "checked" properties) - this button's
 	// own tooltip promises "Reset every clipping plane setting to its
