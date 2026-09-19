@@ -347,6 +347,21 @@ _floorPlane(nullptr),
 		 showClippingPlaneEditor(enabled);
 		 });
 
+	 // Picking a preset from the Clipping Planes flyout applies exactly that
+	 // combination through the panel's own checkboxes (so its mutual-exclusion and
+	 // render-state handlers run as if the user had ticked them) and opens the
+	 // panel; the main button click is unchanged and only shows/hides it.
+	 connect(_viewToolbar, &ViewToolbar::clippingPresetRequested, this, [this](bool xy, bool yz, bool zx, bool box) {
+		 _clippingPlanesEditor->applyPreset(xy, yz, zx, box);
+		 // "No Clipping" (all false) just switches everything off - no reason to
+		 // pop the panel open for that; any real combination opens it.
+		 if (xy || yz || zx || box)
+		 {
+			 showClippingPlaneEditor(true);
+			 _viewToolbar->setSectionViewChecked(true);
+		 }
+		 });
+
 	 connect(_viewToolbar, &ViewToolbar::explodedViewToggled, this, [this](bool enabled) {
 		 showExplodedViewPanel(enabled);
 		 });
@@ -3374,6 +3389,14 @@ void ViewportWidget::updateClippingPlane()
 
 	updatePlaneGizmos();
 	updateClipBoxGizmos();
+
+	// Keep the toolbar's Clipping Planes flyout icon in step with whichever
+	// planes/box are enabled, however that came about (panel checkboxes, a preset,
+	// Reset All). ViewToolbar only touches its icon when the combination changed,
+	// so calling this on every update - including each frame of a gizmo drag - is
+	// cheap. The toolbar may not exist yet during early initialization.
+	if (_viewToolbar)
+		_viewToolbar->setClippingState(xyClippingEnabled(), yzClippingEnabled(), zxClippingEnabled(), _renderCtrl.boxClippingEnabled());
 }
 
 void ViewportWidget::updatePlaneGizmos()

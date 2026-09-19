@@ -14,6 +14,15 @@
         <file>res/trimetric.png</file>
         <file>res/multiview.png</file>
         <file>res/section.png</file>
+        <file>res/clip_xy.png</file>
+        <file>res/clip_yz.png</file>
+        <file>res/clip_zx.png</file>
+        <file>res/clip_yz_zx.png</file>
+        <file>res/clip_xy_zx.png</file>
+        <file>res/clip_xy_yz.png</file>
+        <file>res/clip_xy_yz_zx.png</file>
+        <file>res/clip_box.png</file>
+        <file>res/clip_none.png</file>
         <file>res/Ortho.png</file>
         <file>res/Perspective.png</file>
         <file>res/shaded.png</file>

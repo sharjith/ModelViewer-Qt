@@ -33,6 +33,48 @@ QString debugOverlayIconPath(DebugOverlayActions action, bool enabled)
 
     return QStringLiteral(":/icons/res/hide_bounding_box.png");
 }
+
+// Clipping Planes flyout presets, in menu order. xy/yz/zx use the panel's own
+// naming (XY = the Z-normal plane, YZ = X-normal, ZX = Y-normal). Entry 0 is "No
+// Clipping" (everything off) - the way back to the empty state from the toolbar;
+// then every one of the seven non-empty plane combinations plus Box, so any state
+// the panel can be in maps to exactly one entry.
+struct ClippingPresetInfo
+{
+    const char* icon;
+    bool xy, yz, zx, box;
+};
+constexpr ClippingPresetInfo kClippingPresets[] = {
+    { ":/icons/res/clip_none.png",     false, false, false, false },
+    { ":/icons/res/clip_xy.png",       true,  false, false, false },
+    { ":/icons/res/clip_yz.png",       false, true,  false, false },
+    { ":/icons/res/clip_zx.png",       false, false, true,  false },
+    { ":/icons/res/clip_yz_zx.png",    false, true,  true,  false },
+    { ":/icons/res/clip_xy_zx.png",    true,  false, true,  false },
+    { ":/icons/res/clip_xy_yz.png",    true,  true,  false, false },
+    { ":/icons/res/clip_xy_yz_zx.png", true,  true,  true,  false },
+    { ":/icons/res/clip_box.png",      false, false, false, true  },
+};
+constexpr int kClippingPresetCount = static_cast<int>(sizeof(kClippingPresets) / sizeof(kClippingPresets[0]));
+// Shown on the button while no plane and no box is enabled: the same block and
+// hole, uncut, with a faint dashed plane - "clipping available, nothing applied".
+constexpr const char* kGenericClippingIcon = ":/icons/res/clip_none.png";
+
+QString clippingPresetText(int index)
+{
+    switch (index)
+    {
+    case 0: return ViewToolbar::tr("No Clipping");
+    case 1: return ViewToolbar::tr("XY Plane");
+    case 2: return ViewToolbar::tr("YZ Plane");
+    case 3: return ViewToolbar::tr("ZX Plane");
+    case 4: return ViewToolbar::tr("YZ + ZX");
+    case 5: return ViewToolbar::tr("XY + ZX");
+    case 6: return ViewToolbar::tr("XY + YZ");
+    case 7: return ViewToolbar::tr("XY + YZ + ZX");
+    default: return ViewToolbar::tr("Box");
+    }
+}
 }
 
 void ViewToolbar::scopeShortcutToViewport(QAction* action)
@@ -798,16 +840,45 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     // Section View
     separator();
-    _sectionBtn = new QToolButton(this);
-    _sectionBtn->setStyleSheet(buttonStyleSheet);
-    _sectionBtn->setIcon(QIcon(":/icons/res/section.png"));
+    // A toggle button with a flyout (same shape as the Debug Overlays button
+    // below): the main click still only shows/hides the Clipping Planes panel
+    // through _sectionAction, which stays the button's default action; the
+    // flyout (press-and-hold) picks a preset combination of planes / the box.
+    // The button's icon follows the current combination by changing
+    // _sectionAction's icon (a default-action button mirrors its action), not
+    // the button's own - see setClippingState().
+    _sectionBtn = new FlyOutViewButton(this);
+    _sectionBtn->setStyleSheet(flyoutToggleButtonStyleSheet);
+    _sectionBtn->setIcon(QIcon(kGenericClippingIcon));
     _sectionBtn->setIconSize(QSize(40, 40));
     _sectionBtn->setToolTip(tr("Clipping Planes"));
     _sectionBtn->setCheckable(true);
+    _sectionBtn->setPopupMode(QToolButton::DelayedPopup);
     _sectionBtn->setAutoRaise(true);
     _mainLayout->addWidget(_sectionBtn);
     _sectionAction = bindButtonAction(_sectionBtn, QStringLiteral("sectionAction"));
     connect(_sectionAction, &QAction::triggered, this, [this](bool checked) { emit sectionViewToggled(checked); });
+
+    QMenu* clippingMenu = new QMenu;
+    clippingMenu->setStyleSheet(flyoutStyleSheet);
+    for (int i = 0; i < kClippingPresetCount; ++i)
+    {
+        if (i == 1)
+            clippingMenu->addSeparator(); // sets "No Clipping" apart from the combinations
+        const ClippingPresetInfo& preset = kClippingPresets[i];
+        QAction* presetAction = clippingMenu->addAction(QIcon(QString::fromLatin1(preset.icon)), clippingPresetText(i));
+        presetAction->setCheckable(true);
+        _clippingPresetActions.append(presetAction);
+        connect(presetAction, &QAction::triggered, this, [this, i]() {
+            const ClippingPresetInfo& p = kClippingPresets[i];
+            emit clippingPresetRequested(p.xy, p.yz, p.zx, p.box);
+            // Normalize the check marks/icon right away: the entry just toggled
+            // its own check state, and re-picking the current preset changes no
+            // clipping state, so nothing else would call setClippingState().
+            setClippingState(p.xy, p.yz, p.zx, p.box);
+        });
+    }
+    _sectionBtn->setMenu(clippingMenu);
 
     // Exploded View
     _explodedBtn = new QToolButton(this);
@@ -951,7 +1022,8 @@ void ViewToolbar::stopScrolling()
 
 bool ViewToolbar::isFlyoutMenuVisible() const
 {
-	return (_btnLassoSelect && _btnLassoSelect->menu() && _btnLassoSelect->menu()->isVisible()) || (_toolButtonViewModes &&
+	return (_btnLassoSelect && _btnLassoSelect->menu() && _btnLassoSelect->menu()->isVisible()) ||
+		(_sectionBtn && _sectionBtn->menu() && _sectionBtn->menu()->isVisible()) || (_toolButtonViewModes &&
 		_toolButtonViewModes->menu() &&
 		_toolButtonViewModes->menu()->isVisible()) ||
 		(_toolButtonCameraModes &&
@@ -1153,6 +1225,36 @@ void ViewToolbar::setSectionViewChecked(bool checked)
     _sectionAction->setChecked(checked);
 }
 
+void ViewToolbar::setClippingState(bool xy, bool yz, bool zx, bool box)
+{
+    if (!_sectionAction)
+        return;
+
+    int match = -1;
+    for (int i = 0; i < kClippingPresetCount; ++i)
+    {
+        const ClippingPresetInfo& p = kClippingPresets[i];
+        if (p.xy == xy && p.yz == yz && p.zx == zx && p.box == box)
+        {
+            match = i;
+            break;
+        }
+    }
+
+    // Passive: QAction::setChecked() emits toggled(), never triggered(), and only
+    // triggered() dispatches clippingPresetRequested().
+    for (int i = 0; i < _clippingPresetActions.size(); ++i)
+        _clippingPresetActions[i]->setChecked(i == match);
+
+    // The panel calls this on every clipping-plane update (including each frame of
+    // a gizmo drag), so only touch the button's icon when the combination changed.
+    if (match != _currentClippingPreset)
+    {
+        _sectionAction->setIcon(QIcon(QString::fromLatin1(match >= 0 ? kClippingPresets[match].icon : kGenericClippingIcon)));
+        _currentClippingPreset = match;
+    }
+}
+
 void ViewToolbar::setExplodedViewChecked(bool checked)
 {
     // Only triggered() dispatches commands; checked-state sync is passive.
@@ -1311,6 +1413,8 @@ void ViewToolbar::retranslateUI()
 
 	// Section View
 	_sectionAction->setToolTip(tr("Clipping Planes"));
+	for (int i = 0; i < _clippingPresetActions.size(); ++i)
+		_clippingPresetActions[i]->setText(clippingPresetText(i));
 
 	// Exploded View
 	_explodedAction->setToolTip(tr("Exploded View"));

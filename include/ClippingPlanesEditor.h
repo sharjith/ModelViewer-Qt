@@ -47,6 +47,13 @@ public:
 	void setYCoeffDisplay(double value);
 	void setZCoeffDisplay(double value);
 
+	// Applies one of the toolbar flyout's presets: exactly this combination of the
+	// three planes (or, if `box`, the box) on and everything else off. Goes through
+	// the checkboxes so their own toggled handlers - mutual exclusion with Box,
+	// render state, viewport update - run exactly as if the user had ticked them.
+	// xy/yz/zx use this panel's own naming (XY = the Z-normal plane).
+	void applyPreset(bool xy, bool yz, bool zx, bool box);
+
 	// ---- Box clipping (4th mode) --------------------------------------------
 	// Box limits are ABSOLUTE world coordinates (unlike the relative axis
 	// coefficients above), so their spin boxes get their own range setter fed

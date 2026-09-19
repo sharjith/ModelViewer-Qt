@@ -47,6 +47,12 @@ public:
     void setDefaultShadingNormalModeAction(ShadingNormalModeActions mode);
     void setSwapVisibleChecked(bool checked);
     void setSectionViewChecked(bool checked);
+    // Passive sync of the Clipping Planes button's flyout to the panel's current
+    // combination: shows the matching preset's icon on the button and checks the
+    // matching flyout entry, or falls back to the generic clipping icon when no
+    // plane and no box is enabled. Never emits clippingPresetRequested().
+    // xy/yz/zx name the planes as the panel does (XY = the Z-normal plane, etc.).
+    void setClippingState(bool xy, bool yz, bool zx, bool box);
     void setExplodedViewChecked(bool checked);
     void setCameraUpAxisZUp(bool zUp);
     bool isCameraUpAxisZUp() const;
@@ -71,6 +77,11 @@ signals:
     void windowZoomRequested();
     void multiViewToggled(bool enabled);
     void sectionViewToggled(bool enabled);
+    // A clipping preset was picked from the Clipping Planes flyout: enable exactly
+    // this combination of planes (or the box) and disable the rest. The main
+    // button click is unchanged and still only shows/hides the panel
+    // (sectionViewToggled).
+    void clippingPresetRequested(bool xy, bool yz, bool zx, bool box);
     void explodedViewToggled(bool enabled);
     void swapVisibleToggled(bool enabled);
     void axisDisplayToggled(bool enabled);
@@ -191,8 +202,14 @@ private:
     QAction* _vertexNormalsOverlay;
     QAction* _faceNormalsOverlay;
 
+    // Clipping Planes flyout: one action per preset, in the fixed order of
+    // kClippingPresets in the .cpp (No Clipping, XY, YZ, ZX, YZ+ZX, XY+ZX, XY+YZ,
+    // XY+YZ+ZX, Box).
+    QList<QAction*> _clippingPresetActions;
+    int _currentClippingPreset = 0; // index into the presets; 0 = No Clipping
+
     // Other buttons
-    QToolButton* _sectionBtn;
+    QToolButton* _sectionBtn; // a FlyOutViewButton: main click toggles the panel, the flyout picks a preset
     QToolButton* _explodedBtn;
     QToolButton* _swapBtn;
     QToolButton* _axisBtn;

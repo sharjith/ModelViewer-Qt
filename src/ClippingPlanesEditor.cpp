@@ -304,6 +304,23 @@ void ClippingPlanesEditor::on_checkBoxShowGizmo_toggled(bool /*checked*/)
 	_viewportWidget->update();
 }
 
+void ClippingPlanesEditor::applyPreset(bool xy, bool yz, bool zx, bool box)
+{
+	if (box)
+	{
+		// Ticking Box unticks the three planes itself (see on_checkBoxBoxClip_toggled()).
+		checkBoxBoxClip->setChecked(true);
+		return;
+	}
+
+	// Box off first, then the planes: an axis handler would also untick Box when it
+	// is newly ticked, but doing it explicitly keeps this independent of that.
+	checkBoxBoxClip->setChecked(false);
+	checkBoxXY->setChecked(xy);
+	checkBoxYZ->setChecked(yz);
+	checkBoxZX->setChecked(zx);
+}
+
 QDoubleSpinBox* ClippingPlanesEditor::boxSpin(int face) const
 {
 	switch (face)
