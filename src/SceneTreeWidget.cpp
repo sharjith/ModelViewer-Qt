@@ -122,6 +122,12 @@ public:
             return;
         }
 
+        // The scrollbars are transparent hover-to-reveal strips, so the small square where the
+        // horizontal and vertical ones meet must not paint either - QAbstractScrollArea draws it
+        // with this primitive on the tree itself, and it otherwise shows as a lone box.
+        if (pe == PE_PanelScrollAreaCorner)
+            return;
+
         const bool ownerIsDetachedOverlay =
             _owner && _owner->property("detachedOverlayMode").toBool();
 
@@ -285,11 +291,15 @@ public:
 // horizontalScrollBar()/verticalScrollBar() in the constructor, NOT via setStyleSheet() on the
 // tree itself - see that call site's own doc comment for why (shadows the active theme's
 // QTreeView::item:selected/:hover rules for this widget otherwise).
+// The strip is the wheel-capture hit area too (see eventFilter()), so it is wide enough to hover
+// and grab comfortably without slipping onto the tree body, where the wheel zooms the viewport.
+static constexpr int kScrollbarThickness = 14;
+
 static QString scrollbarOverlayStyleSheet()
 {
     return QStringLiteral(
-        "QScrollBar:vertical { background: transparent; width: 10px; margin: 0px; }"
-        "QScrollBar::handle:vertical { background: rgba(128,128,128,0); border-radius: 4px; min-height: 24px; }"
+        "QScrollBar:vertical { background: transparent; width: %1px; margin: 0px; }"
+        "QScrollBar::handle:vertical { background: rgba(128,128,128,0); border-radius: %2px; min-height: 32px; }"
         // Lighter fill + a darker outline (not just a higher-alpha mid-gray) so the handle reads
         // against both light and dark viewport backgrounds - a flat mid-gray fill alone stays
         // low-contrast against a dark/near-black scene almost regardless of alpha, since it's
@@ -297,14 +307,16 @@ static QString scrollbarOverlayStyleSheet()
         "QScrollBar[hovered=\"true\"]::handle:vertical { background: rgba(200,200,200,235); border: 1px solid rgba(40,40,40,190); }"
         "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; background: transparent; }"
         "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
-        "QScrollBar:horizontal { background: transparent; height: 10px; margin: 0px; }"
-        "QScrollBar::handle:horizontal { background: rgba(128,128,128,0); border-radius: 4px; min-width: 24px; }"
+        "QScrollBar:horizontal { background: transparent; height: %1px; margin: 0px; }"
+        "QScrollBar::handle:horizontal { background: rgba(128,128,128,0); border-radius: %2px; min-width: 32px; }"
         // Same light-fill + dark-outline treatment as the vertical handle above, for the same
         // reason - contrast against whatever's locally behind it, not just a translucent
         // mid-gray that only reads well over a light backdrop.
         "QScrollBar[hovered=\"true\"]::handle:horizontal { background: rgba(200,200,200,235); border: 1px solid rgba(40,40,40,190); }"
         "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0px; background: transparent; }"
-        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }");
+        "QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal { background: transparent; }")
+        .arg(kScrollbarThickness)
+        .arg(kScrollbarThickness / 2 - 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1333,6 +1345,19 @@ void SceneTreeWidget::wheelEvent(QWheelEvent* event)
 // dynamic-property-driven hover state instead of a plain QSS :hover rule.
 bool SceneTreeWidget::eventFilter(QObject* watched, QEvent* event)
 {
+    if ((watched == horizontalScrollBar() || watched == verticalScrollBar()) &&
+        event->type() == QEvent::Wheel)
+    {
+        // Let the scrollbar scroll exactly as it normally would, then swallow the event even
+        // when it has nothing left to scroll: QAbstractSlider ignore()s a wheel event it can't
+        // act on (already at the min/max), which would relay it to the parent chain and end up
+        // zooming the viewport behind this overlay. A direct event() call doesn't re-enter this
+        // filter. Wheel over the tree body is untouched - wheelEvent() still ignores it on purpose.
+        watched->event(event);
+        event->accept();
+        return true;
+    }
+
     if ((watched == horizontalScrollBar() || watched == verticalScrollBar()) &&
         (event->type() == QEvent::Enter || event->type() == QEvent::Leave))
     {

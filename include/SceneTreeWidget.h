@@ -317,7 +317,9 @@ protected:
     // drive the hover-to-reveal "hovered" dynamic property the scrollbar stylesheet keys off of
     // - see the constructor's setStyleSheet() call for why a dynamic property + [hovered="true"]
     // selector, not a plain QSS :hover rule (that would only trigger over the tiny handle thumb
-    // itself, not the full scrollbar strip a user should be able to hover anywhere in).
+    // itself, not the full scrollbar strip a user should be able to hover anywhere in). Also
+    // consumes wheel events that land on either scrollbar (after letting it scroll) so they are
+    // never relayed to the viewport once the scrollbar hits an extent.
     bool eventFilter(QObject* watched, QEvent* event) override;
 
     // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
