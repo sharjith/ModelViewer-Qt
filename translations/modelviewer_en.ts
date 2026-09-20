@@ -102,53 +102,57 @@
 <context>
     <name>AnimationsPanel</name>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="85"/>
+        <location filename="../src/AnimationsPanel.cpp" line="86"/>
+        <location filename="../src/AnimationsPanel.cpp" line="189"/>
         <source>Loop</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="86"/>
+        <location filename="../src/AnimationsPanel.cpp" line="87"/>
+        <location filename="../src/AnimationsPanel.cpp" line="190"/>
         <source>Speed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="88"/>
+        <location filename="../src/AnimationsPanel.cpp" line="89"/>
         <source>0:00.00 / 0:00.00</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="89"/>
-        <location filename="../src/AnimationsPanel.cpp" line="479"/>
+        <location filename="../src/AnimationsPanel.cpp" line="90"/>
+        <location filename="../src/AnimationsPanel.cpp" line="492"/>
         <source>Play</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="90"/>
+        <location filename="../src/AnimationsPanel.cpp" line="91"/>
+        <location filename="../src/AnimationsPanel.cpp" line="192"/>
         <source>Reset</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="98"/>
+        <location filename="../src/AnimationsPanel.cpp" line="99"/>
+        <location filename="../src/AnimationsPanel.cpp" line="191"/>
         <source>Playback speed</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="174"/>
+        <location filename="../src/AnimationsPanel.cpp" line="176"/>
         <source>Clip %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="360"/>
+        <location filename="../src/AnimationsPanel.cpp" line="373"/>
         <source>Delete All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="360"/>
+        <location filename="../src/AnimationsPanel.cpp" line="373"/>
         <source>Delete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/AnimationsPanel.cpp" line="479"/>
+        <location filename="../src/AnimationsPanel.cpp" line="492"/>
         <source>Pause</source>
         <translation type="unfinished"></translation>
     </message>
@@ -476,58 +480,62 @@ color, if Gradient is off)</source>
 <context>
     <name>CamerasPanel</name>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="335"/>
+        <location filename="../src/CamerasPanel.cpp" line="346"/>
         <source>Delete All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="68"/>
-        <location filename="../src/CamerasPanel.cpp" line="335"/>
+        <location filename="../src/CamerasPanel.cpp" line="69"/>
+        <location filename="../src/CamerasPanel.cpp" line="171"/>
+        <location filename="../src/CamerasPanel.cpp" line="346"/>
         <source>Delete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="66"/>
+        <location filename="../src/CamerasPanel.cpp" line="67"/>
+        <location filename="../src/CamerasPanel.cpp" line="169"/>
         <source>Capture View...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="67"/>
+        <location filename="../src/CamerasPanel.cpp" line="68"/>
+        <location filename="../src/CamerasPanel.cpp" line="170"/>
         <source>Save the current viewport camera pose as a new view</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="69"/>
+        <location filename="../src/CamerasPanel.cpp" line="70"/>
+        <location filename="../src/CamerasPanel.cpp" line="172"/>
         <source>Delete the last selected camera</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="146"/>
+        <location filename="../src/CamerasPanel.cpp" line="148"/>
         <source>Captured Views</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="318"/>
+        <location filename="../src/CamerasPanel.cpp" line="329"/>
         <source>Capture Camera View...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="359"/>
+        <location filename="../src/CamerasPanel.cpp" line="370"/>
         <source>Capture Camera</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="360"/>
+        <location filename="../src/CamerasPanel.cpp" line="371"/>
         <source>View name:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="361"/>
+        <location filename="../src/CamerasPanel.cpp" line="372"/>
         <source>View %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/CamerasPanel.cpp" line="381"/>
+        <location filename="../src/CamerasPanel.cpp" line="392"/>
         <source>System Camera</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3071,68 +3079,82 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="192"/>
+        <location filename="../src/MainWindow.cpp" line="197"/>
+        <location filename="../src/MainWindow.cpp" line="903"/>
         <source>Variants</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="195"/>
+        <location filename="../src/MainWindow.cpp" line="200"/>
+        <location filename="../src/MainWindow.cpp" line="904"/>
         <source>Animations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="198"/>
+        <location filename="../src/MainWindow.cpp" line="203"/>
+        <location filename="../src/MainWindow.cpp" line="905"/>
         <source>Cameras</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="219"/>
+        <location filename="../src/MainWindow.cpp" line="224"/>
+        <location filename="../src/MainWindow.cpp" line="909"/>
         <source>Selections</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="222"/>
+        <location filename="../src/MainWindow.cpp" line="227"/>
+        <location filename="../src/MainWindow.cpp" line="910"/>
         <source>States</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="229"/>
-        <location filename="../src/MainWindow.cpp" line="230"/>
+        <location filename="../src/MainWindow.cpp" line="234"/>
+        <location filename="../src/MainWindow.cpp" line="235"/>
+        <location filename="../src/MainWindow.cpp" line="919"/>
+        <location filename="../src/MainWindow.cpp" line="920"/>
         <source>Auto Fit View On Hide/Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="231"/>
+        <location filename="../src/MainWindow.cpp" line="236"/>
+        <location filename="../src/MainWindow.cpp" line="924"/>
         <source>Selection Highlighting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="232"/>
+        <location filename="../src/MainWindow.cpp" line="237"/>
+        <location filename="../src/MainWindow.cpp" line="925"/>
         <source>Selection Highlighting in Viewer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="282"/>
+        <location filename="../src/MainWindow.cpp" line="287"/>
+        <location filename="../src/MainWindow.cpp" line="896"/>
         <source>Document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="305"/>
+        <location filename="../src/MainWindow.cpp" line="313"/>
+        <location filename="../src/MainWindow.cpp" line="914"/>
         <source>Materials</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="311"/>
+        <location filename="../src/MainWindow.cpp" line="319"/>
+        <location filename="../src/MainWindow.cpp" line="915"/>
         <source>Transformations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="315"/>
+        <location filename="../src/MainWindow.cpp" line="323"/>
+        <location filename="../src/MainWindow.cpp" line="898"/>
         <source>Properties</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="328"/>
+        <location filename="../src/MainWindow.cpp" line="336"/>
+        <location filename="../src/MainWindow.cpp" line="900"/>
         <source>Environment</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3142,103 +3164,118 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="556"/>
-        <location filename="../src/MainWindow.cpp" line="886"/>
+        <location filename="../src/MainWindow.cpp" line="117"/>
+        <source>Applying theme...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="141"/>
+        <source>Creating panels and docks...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="564"/>
+        <location filename="../src/MainWindow.cpp" line="930"/>
         <source>Recent...</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="570"/>
-        <location filename="../src/MainWindow.cpp" line="894"/>
+        <location filename="../src/MainWindow.cpp" line="578"/>
+        <location filename="../src/MainWindow.cpp" line="938"/>
         <source>Close the active window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="575"/>
-        <location filename="../src/MainWindow.cpp" line="896"/>
+        <location filename="../src/MainWindow.cpp" line="583"/>
+        <location filename="../src/MainWindow.cpp" line="940"/>
         <source>Close the active document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="580"/>
-        <location filename="../src/MainWindow.cpp" line="898"/>
+        <location filename="../src/MainWindow.cpp" line="588"/>
+        <location filename="../src/MainWindow.cpp" line="942"/>
         <source>Close all the windows</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="585"/>
-        <location filename="../src/MainWindow.cpp" line="900"/>
+        <location filename="../src/MainWindow.cpp" line="593"/>
+        <location filename="../src/MainWindow.cpp" line="944"/>
         <source>Move the focus to the next window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="590"/>
-        <location filename="../src/MainWindow.cpp" line="902"/>
+        <location filename="../src/MainWindow.cpp" line="598"/>
+        <location filename="../src/MainWindow.cpp" line="946"/>
         <source>Move the focus to the previous window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="762"/>
+        <location filename="../src/MainWindow.cpp" line="770"/>
         <source>Save Selection Set</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="763"/>
+        <location filename="../src/MainWindow.cpp" line="771"/>
         <source>Name for this selection:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="777"/>
+        <location filename="../src/MainWindow.cpp" line="785"/>
         <source>Save Scene State</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="778"/>
+        <location filename="../src/MainWindow.cpp" line="786"/>
         <source>Name for this state:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="890"/>
+        <location filename="../src/MainWindow.cpp" line="865"/>
+        <source>Restoring window layout...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="934"/>
         <source>Cancel Loading</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1766"/>
+        <location filename="../src/MainWindow.cpp" line="1810"/>
         <source>Tutorial Display Method</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1767"/>
+        <location filename="../src/MainWindow.cpp" line="1811"/>
         <source>How would you like to view the tutorial?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1768"/>
+        <location filename="../src/MainWindow.cpp" line="1812"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1771"/>
+        <location filename="../src/MainWindow.cpp" line="1815"/>
         <source>Dialog Window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1772"/>
+        <location filename="../src/MainWindow.cpp" line="1816"/>
         <source>Web Browser</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1775"/>
+        <location filename="../src/MainWindow.cpp" line="1819"/>
         <source>Remember my choice</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1823"/>
+        <location filename="../src/MainWindow.cpp" line="1867"/>
         <source>Tutorial Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1824"/>
+        <location filename="../src/MainWindow.cpp" line="1868"/>
         <source>Tutorial file not found at:
 %1
 
@@ -3246,12 +3283,12 @@ Please ensure the tutorial files are installed correctly.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1858"/>
+        <location filename="../src/MainWindow.cpp" line="1902"/>
         <source>Logs Folder Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1859"/>
+        <location filename="../src/MainWindow.cpp" line="1903"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -3259,75 +3296,75 @@ Please ensure the application has permission to create and access the logs direc
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2050"/>
+        <location filename="../src/MainWindow.cpp" line="2094"/>
         <source>Error</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2050"/>
+        <location filename="../src/MainWindow.cpp" line="2094"/>
         <source>
 Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2094"/>
+        <location filename="../src/MainWindow.cpp" line="2138"/>
         <source>Open Model File</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2443"/>
+        <location filename="../src/MainWindow.cpp" line="2487"/>
         <source>&amp;Undo %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2445"/>
-        <location filename="../src/MainWindow.cpp" line="2457"/>
+        <location filename="../src/MainWindow.cpp" line="2489"/>
+        <location filename="../src/MainWindow.cpp" line="2501"/>
         <source>&amp;Undo</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2448"/>
+        <location filename="../src/MainWindow.cpp" line="2492"/>
         <source>&amp;Redo %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2450"/>
-        <location filename="../src/MainWindow.cpp" line="2458"/>
+        <location filename="../src/MainWindow.cpp" line="2494"/>
+        <location filename="../src/MainWindow.cpp" line="2502"/>
         <source>&amp;Redo</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2570"/>
+        <location filename="../src/MainWindow.cpp" line="2614"/>
         <source>Confirm Exit</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2571"/>
+        <location filename="../src/MainWindow.cpp" line="2615"/>
         <source>Are you sure you want to exit the application?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2626"/>
+        <location filename="../src/MainWindow.cpp" line="2670"/>
         <source>&amp;%1 %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2628"/>
+        <location filename="../src/MainWindow.cpp" line="2672"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2629"/>
+        <location filename="../src/MainWindow.cpp" line="2673"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2660"/>
+        <location filename="../src/MainWindow.cpp" line="2704"/>
         <source>File Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2661"/>
+        <location filename="../src/MainWindow.cpp" line="2705"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation></translation>
     </message>
@@ -5202,64 +5239,70 @@ Modify it and then click &apos;Save&apos; to persist it to your library.</source
 <context>
     <name>MaterialVariantsPanel</name>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="63"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="64"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="144"/>
         <source>Add Variant...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="64"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="65"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="145"/>
         <source>Capture the current file&apos;s live material state as a new variant</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="65"/>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="301"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="66"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="146"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="314"/>
         <source>Set as Default</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="66"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="67"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="147"/>
         <source>Make the active variant&apos;s material the file&apos;s fallback/default</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="68"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="69"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="149"/>
         <source>Delete the active variant</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="129"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="131"/>
         <source>Default</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="300"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="313"/>
         <source>Capture Current as Variant...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="303"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="316"/>
         <source>Delete All</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="356"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="369"/>
         <source>Capture Variant</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="357"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="370"/>
         <source>Variant name:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="358"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="371"/>
         <source>Variant %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="67"/>
-        <location filename="../src/MaterialVariantsPanel.cpp" line="303"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="68"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="148"/>
+        <location filename="../src/MaterialVariantsPanel.cpp" line="316"/>
         <source>Delete</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6596,9 +6639,9 @@ Use Copy and Paste for a multi-mesh assembly.</source>
 <context>
     <name>QObject</name>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1578"/>
-        <location filename="../src/MainWindow.cpp" line="1604"/>
-        <location filename="../src/MainWindow.cpp" line="1643"/>
+        <location filename="../src/MainWindow.cpp" line="1622"/>
+        <location filename="../src/MainWindow.cpp" line="1648"/>
+        <location filename="../src/MainWindow.cpp" line="1687"/>
         <source>Cancel Loading</source>
         <translation type="unfinished"></translation>
     </message>
@@ -6608,32 +6651,38 @@ Use Copy and Paste for a multi-mesh assembly.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="89"/>
+        <location filename="../src/main.cpp" line="107"/>
         <source>Starting ModelViewer...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/main.cpp" line="110"/>
-        <source>Loading language...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/main.cpp" line="114"/>
         <source>Initializing logging...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="137"/>
+        <location filename="../src/main.cpp" line="133"/>
         <source>Creating main window...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="148"/>
-        <source>Preparing workspace and initializing GPU ray tracing...</source>
+        <location filename="../src/main.cpp" line="146"/>
+        <source>Preparing workspace and detecting GPU ray tracing...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="167"/>
+        <location filename="../src/main.cpp" line="148"/>
+        <source>Preparing workspace...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/main.cpp" line="158"/>
+        <location filename="../src/main.cpp" line="177"/>
+        <source>Starting the viewport...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/main.cpp" line="186"/>
         <source>Ready</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10324,27 +10373,30 @@ Continue?</source>
 <context>
     <name>SceneStatesPanel</name>
     <message>
-        <location filename="../src/SceneStatesPanel.cpp" line="17"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="18"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="43"/>
         <source>Saved scene states for this document:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SceneStatesPanel.cpp" line="23"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="26"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="44"/>
         <source>Save Current State...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SceneStatesPanel.cpp" line="24"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="27"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="45"/>
         <source>Delete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SceneStatesPanel.cpp" line="70"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="82"/>
         <source>Save Scene State</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SceneStatesPanel.cpp" line="71"/>
+        <location filename="../src/SceneStatesPanel.cpp" line="83"/>
         <source>Name for this state:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10352,37 +10404,40 @@ Continue?</source>
 <context>
     <name>SelectionSetsPanel</name>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="17"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="18"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="43"/>
         <source>Saved selections for this document:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="23"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="26"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="44"/>
         <source>Save Current Selection...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="24"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="27"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="45"/>
         <source>Delete</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="51"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="63"/>
         <source>%1 (1 mesh)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="52"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="64"/>
         <source>%1 (%2 meshes)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="127"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="139"/>
         <source>Save Selection Set</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SelectionSetsPanel.cpp" line="128"/>
+        <location filename="../src/SelectionSetsPanel.cpp" line="140"/>
         <source>Name for this selection:</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11826,6 +11881,14 @@ The panel shows GPU-side texture bindings for the selected mesh.</source>
     <message>
         <location filename="../src/ShrinkWrapDialog.cpp" line="271"/>
         <source>%1: %2 mesh(es), %3 vertices, %4 triangles.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>StartupSplash</name>
+    <message>
+        <location filename="../src/StartupSplash.cpp" line="20"/>
+        <source>Version %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -13472,94 +13535,94 @@ Switch to PBR now?</source>
 <context>
     <name>ViewToolbar</name>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="339"/>
-        <location filename="../src/ViewToolbar.cpp" line="1524"/>
+        <location filename="../src/ViewToolbar.cpp" line="324"/>
+        <location filename="../src/ViewToolbar.cpp" line="1509"/>
         <source>Rotate View</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="343"/>
-        <location filename="../src/ViewToolbar.cpp" line="1525"/>
+        <location filename="../src/ViewToolbar.cpp" line="328"/>
+        <location filename="../src/ViewToolbar.cpp" line="1510"/>
         <source>Pan View</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="347"/>
-        <location filename="../src/ViewToolbar.cpp" line="1526"/>
+        <location filename="../src/ViewToolbar.cpp" line="332"/>
+        <location filename="../src/ViewToolbar.cpp" line="1511"/>
         <source>Zoom View</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="397"/>
-        <location filename="../src/ViewToolbar.cpp" line="1499"/>
-        <location filename="../src/ViewToolbar.cpp" line="1519"/>
+        <location filename="../src/ViewToolbar.cpp" line="382"/>
+        <location filename="../src/ViewToolbar.cpp" line="1484"/>
+        <location filename="../src/ViewToolbar.cpp" line="1504"/>
         <source>Fit All</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="408"/>
-        <location filename="../src/ViewToolbar.cpp" line="1500"/>
-        <location filename="../src/ViewToolbar.cpp" line="1520"/>
+        <location filename="../src/ViewToolbar.cpp" line="393"/>
+        <location filename="../src/ViewToolbar.cpp" line="1485"/>
+        <location filename="../src/ViewToolbar.cpp" line="1505"/>
         <source>Window Zoom</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="453"/>
-        <location filename="../src/ViewToolbar.cpp" line="1529"/>
+        <location filename="../src/ViewToolbar.cpp" line="438"/>
+        <location filename="../src/ViewToolbar.cpp" line="1514"/>
         <source>Camera Modes</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="460"/>
-        <location filename="../src/ViewToolbar.cpp" line="1530"/>
+        <location filename="../src/ViewToolbar.cpp" line="445"/>
+        <location filename="../src/ViewToolbar.cpp" line="1515"/>
         <source>Orbit</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="463"/>
-        <location filename="../src/ViewToolbar.cpp" line="1531"/>
+        <location filename="../src/ViewToolbar.cpp" line="448"/>
+        <location filename="../src/ViewToolbar.cpp" line="1516"/>
         <source>Fly</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="466"/>
-        <location filename="../src/ViewToolbar.cpp" line="1532"/>
+        <location filename="../src/ViewToolbar.cpp" line="451"/>
+        <location filename="../src/ViewToolbar.cpp" line="1517"/>
         <source>First Person</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="550"/>
-        <location filename="../src/ViewToolbar.cpp" line="1539"/>
+        <location filename="../src/ViewToolbar.cpp" line="535"/>
+        <location filename="../src/ViewToolbar.cpp" line="1524"/>
         <source>Top</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="553"/>
-        <location filename="../src/ViewToolbar.cpp" line="1540"/>
+        <location filename="../src/ViewToolbar.cpp" line="538"/>
+        <location filename="../src/ViewToolbar.cpp" line="1525"/>
         <source>Front</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="556"/>
-        <location filename="../src/ViewToolbar.cpp" line="1541"/>
+        <location filename="../src/ViewToolbar.cpp" line="541"/>
+        <location filename="../src/ViewToolbar.cpp" line="1526"/>
         <source>Left</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="559"/>
-        <location filename="../src/ViewToolbar.cpp" line="1542"/>
+        <location filename="../src/ViewToolbar.cpp" line="544"/>
+        <location filename="../src/ViewToolbar.cpp" line="1527"/>
         <source>Bottom</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="562"/>
-        <location filename="../src/ViewToolbar.cpp" line="1543"/>
+        <location filename="../src/ViewToolbar.cpp" line="547"/>
+        <location filename="../src/ViewToolbar.cpp" line="1528"/>
         <source>Rear</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="332"/>
-        <location filename="../src/ViewToolbar.cpp" line="1523"/>
+        <location filename="../src/ViewToolbar.cpp" line="317"/>
+        <location filename="../src/ViewToolbar.cpp" line="1508"/>
         <source>Navigation</source>
         <translation type="unfinished"></translation>
     </message>
@@ -13609,357 +13672,357 @@ Switch to PBR now?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="103"/>
+        <location filename="../src/ViewToolbar.cpp" line="88"/>
         <source>NE Corner</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="104"/>
+        <location filename="../src/ViewToolbar.cpp" line="89"/>
         <source>NW Corner</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="105"/>
+        <location filename="../src/ViewToolbar.cpp" line="90"/>
         <source>SW Corner</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="106"/>
+        <location filename="../src/ViewToolbar.cpp" line="91"/>
         <source>SE Corner</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="116"/>
+        <location filename="../src/ViewToolbar.cpp" line="101"/>
         <source>NE</source>
         <comment>compass corner abbreviation</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="117"/>
+        <location filename="../src/ViewToolbar.cpp" line="102"/>
         <source>NW</source>
         <comment>compass corner abbreviation</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="118"/>
+        <location filename="../src/ViewToolbar.cpp" line="103"/>
         <source>SW</source>
         <comment>compass corner abbreviation</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="119"/>
+        <location filename="../src/ViewToolbar.cpp" line="104"/>
         <source>SE</source>
         <comment>compass corner abbreviation</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="421"/>
-        <location filename="../src/ViewToolbar.cpp" line="1501"/>
-        <location filename="../src/ViewToolbar.cpp" line="1502"/>
+        <location filename="../src/ViewToolbar.cpp" line="406"/>
+        <location filename="../src/ViewToolbar.cpp" line="1486"/>
+        <location filename="../src/ViewToolbar.cpp" line="1487"/>
         <source>Lasso Select</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="440"/>
-        <location filename="../src/ViewToolbar.cpp" line="1503"/>
+        <location filename="../src/ViewToolbar.cpp" line="425"/>
+        <location filename="../src/ViewToolbar.cpp" line="1488"/>
         <source>Filter by Material...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="441"/>
-        <location filename="../src/ViewToolbar.cpp" line="1504"/>
+        <location filename="../src/ViewToolbar.cpp" line="426"/>
+        <location filename="../src/ViewToolbar.cpp" line="1489"/>
         <source>Filter by Color...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="442"/>
-        <location filename="../src/ViewToolbar.cpp" line="1505"/>
+        <location filename="../src/ViewToolbar.cpp" line="427"/>
+        <location filename="../src/ViewToolbar.cpp" line="1490"/>
         <source>Filter by Bounding Box...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="501"/>
-        <location filename="../src/ViewToolbar.cpp" line="1533"/>
+        <location filename="../src/ViewToolbar.cpp" line="486"/>
+        <location filename="../src/ViewToolbar.cpp" line="1518"/>
         <source>Camera Up Axis</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="508"/>
-        <location filename="../src/ViewToolbar.cpp" line="1534"/>
+        <location filename="../src/ViewToolbar.cpp" line="493"/>
+        <location filename="../src/ViewToolbar.cpp" line="1519"/>
         <source>Z-Up</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="509"/>
-        <location filename="../src/ViewToolbar.cpp" line="1535"/>
+        <location filename="../src/ViewToolbar.cpp" line="494"/>
+        <location filename="../src/ViewToolbar.cpp" line="1520"/>
         <source>Y-Up</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="531"/>
-        <location filename="../src/ViewToolbar.cpp" line="1508"/>
-        <location filename="../src/ViewToolbar.cpp" line="1509"/>
+        <location filename="../src/ViewToolbar.cpp" line="516"/>
+        <location filename="../src/ViewToolbar.cpp" line="1493"/>
+        <location filename="../src/ViewToolbar.cpp" line="1494"/>
         <source>Turntable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="543"/>
-        <location filename="../src/ViewToolbar.cpp" line="1538"/>
+        <location filename="../src/ViewToolbar.cpp" line="528"/>
+        <location filename="../src/ViewToolbar.cpp" line="1523"/>
         <source>Standard Views</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="565"/>
-        <location filename="../src/ViewToolbar.cpp" line="1544"/>
+        <location filename="../src/ViewToolbar.cpp" line="550"/>
+        <location filename="../src/ViewToolbar.cpp" line="1529"/>
         <source>Right</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="625"/>
-        <location filename="../src/ViewToolbar.cpp" line="1547"/>
+        <location filename="../src/ViewToolbar.cpp" line="610"/>
+        <location filename="../src/ViewToolbar.cpp" line="1532"/>
         <source>Axonometric View</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="651"/>
-        <location filename="../src/ViewToolbar.cpp" line="695"/>
-        <location filename="../src/ViewToolbar.cpp" line="1548"/>
+        <location filename="../src/ViewToolbar.cpp" line="636"/>
+        <location filename="../src/ViewToolbar.cpp" line="680"/>
+        <location filename="../src/ViewToolbar.cpp" line="1533"/>
         <source>Isometric</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="654"/>
-        <location filename="../src/ViewToolbar.cpp" line="1560"/>
+        <location filename="../src/ViewToolbar.cpp" line="639"/>
+        <location filename="../src/ViewToolbar.cpp" line="1545"/>
         <source>Dimetric</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="657"/>
-        <location filename="../src/ViewToolbar.cpp" line="1561"/>
+        <location filename="../src/ViewToolbar.cpp" line="642"/>
+        <location filename="../src/ViewToolbar.cpp" line="1546"/>
         <source>Trimetric</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="731"/>
-        <location filename="../src/ViewToolbar.cpp" line="1555"/>
+        <location filename="../src/ViewToolbar.cpp" line="716"/>
+        <location filename="../src/ViewToolbar.cpp" line="1540"/>
         <source>Next Corner</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="755"/>
-        <location filename="../src/ViewToolbar.cpp" line="1510"/>
-        <location filename="../src/ViewToolbar.cpp" line="1565"/>
+        <location filename="../src/ViewToolbar.cpp" line="740"/>
+        <location filename="../src/ViewToolbar.cpp" line="1495"/>
+        <location filename="../src/ViewToolbar.cpp" line="1550"/>
         <source>Toggle Projection</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="766"/>
-        <location filename="../src/ViewToolbar.cpp" line="1200"/>
+        <location filename="../src/ViewToolbar.cpp" line="751"/>
+        <location filename="../src/ViewToolbar.cpp" line="1185"/>
         <source>Switch to Perspective</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="770"/>
+        <location filename="../src/ViewToolbar.cpp" line="755"/>
         <source>Switch to Orthographic</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="780"/>
-        <location filename="../src/ViewToolbar.cpp" line="1197"/>
-        <location filename="../src/ViewToolbar.cpp" line="1558"/>
+        <location filename="../src/ViewToolbar.cpp" line="765"/>
+        <location filename="../src/ViewToolbar.cpp" line="1182"/>
+        <location filename="../src/ViewToolbar.cpp" line="1543"/>
         <source>Cavalier</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="781"/>
-        <location filename="../src/ViewToolbar.cpp" line="1198"/>
-        <location filename="../src/ViewToolbar.cpp" line="1559"/>
+        <location filename="../src/ViewToolbar.cpp" line="766"/>
+        <location filename="../src/ViewToolbar.cpp" line="1183"/>
+        <location filename="../src/ViewToolbar.cpp" line="1544"/>
         <source>Cabinet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="783"/>
-        <location filename="../src/ViewToolbar.cpp" line="1556"/>
+        <location filename="../src/ViewToolbar.cpp" line="768"/>
+        <location filename="../src/ViewToolbar.cpp" line="1541"/>
         <source>Perspective</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="784"/>
-        <location filename="../src/ViewToolbar.cpp" line="1196"/>
-        <location filename="../src/ViewToolbar.cpp" line="1557"/>
+        <location filename="../src/ViewToolbar.cpp" line="769"/>
+        <location filename="../src/ViewToolbar.cpp" line="1181"/>
+        <location filename="../src/ViewToolbar.cpp" line="1542"/>
         <source>Orthographic</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="799"/>
-        <location filename="../src/ViewToolbar.cpp" line="1511"/>
-        <location filename="../src/ViewToolbar.cpp" line="1568"/>
+        <location filename="../src/ViewToolbar.cpp" line="784"/>
+        <location filename="../src/ViewToolbar.cpp" line="1496"/>
+        <location filename="../src/ViewToolbar.cpp" line="1553"/>
         <source>Toggle Multi-View</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="812"/>
-        <location filename="../src/ViewToolbar.cpp" line="1571"/>
+        <location filename="../src/ViewToolbar.cpp" line="797"/>
+        <location filename="../src/ViewToolbar.cpp" line="1556"/>
         <source>Display Modes</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="822"/>
-        <location filename="../src/ViewToolbar.cpp" line="1572"/>
+        <location filename="../src/ViewToolbar.cpp" line="807"/>
+        <location filename="../src/ViewToolbar.cpp" line="1557"/>
         <source>Realistic Rendering (Shift+R)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="845"/>
-        <location filename="../src/ViewToolbar.cpp" line="1580"/>
+        <location filename="../src/ViewToolbar.cpp" line="830"/>
+        <location filename="../src/ViewToolbar.cpp" line="1565"/>
         <source>Shaded with Edges</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="897"/>
-        <location filename="../src/ViewToolbar.cpp" line="1593"/>
+        <location filename="../src/ViewToolbar.cpp" line="882"/>
+        <location filename="../src/ViewToolbar.cpp" line="1578"/>
         <source>Rendering Mode</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="904"/>
-        <location filename="../src/ViewToolbar.cpp" line="1594"/>
+        <location filename="../src/ViewToolbar.cpp" line="889"/>
+        <location filename="../src/ViewToolbar.cpp" line="1579"/>
         <source>ADS (Blinn-Phong)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="905"/>
-        <location filename="../src/ViewToolbar.cpp" line="1595"/>
+        <location filename="../src/ViewToolbar.cpp" line="890"/>
+        <location filename="../src/ViewToolbar.cpp" line="1580"/>
         <source>PBR (Metallic-Roughness)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="906"/>
+        <location filename="../src/ViewToolbar.cpp" line="891"/>
         <source>Ray Traced</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="940"/>
-        <location filename="../src/ViewToolbar.cpp" line="1575"/>
+        <location filename="../src/ViewToolbar.cpp" line="925"/>
+        <location filename="../src/ViewToolbar.cpp" line="1560"/>
         <source>Shading Normal</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="947"/>
-        <location filename="../src/ViewToolbar.cpp" line="1576"/>
+        <location filename="../src/ViewToolbar.cpp" line="932"/>
+        <location filename="../src/ViewToolbar.cpp" line="1561"/>
         <source>Flat Shaded</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="950"/>
+        <location filename="../src/ViewToolbar.cpp" line="935"/>
         <source>Smooth Shaded</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1070"/>
-        <location filename="../src/ViewToolbar.cpp" line="1584"/>
+        <location filename="../src/ViewToolbar.cpp" line="1055"/>
+        <location filename="../src/ViewToolbar.cpp" line="1569"/>
         <source>Debug Overlays</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1077"/>
-        <location filename="../src/ViewToolbar.cpp" line="1586"/>
+        <location filename="../src/ViewToolbar.cpp" line="1062"/>
+        <location filename="../src/ViewToolbar.cpp" line="1571"/>
         <source>Bounding Box</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1079"/>
-        <location filename="../src/ViewToolbar.cpp" line="1588"/>
+        <location filename="../src/ViewToolbar.cpp" line="1064"/>
+        <location filename="../src/ViewToolbar.cpp" line="1573"/>
         <source>Vertex Normals</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1081"/>
-        <location filename="../src/ViewToolbar.cpp" line="1590"/>
+        <location filename="../src/ViewToolbar.cpp" line="1066"/>
+        <location filename="../src/ViewToolbar.cpp" line="1575"/>
         <source>Face Normals</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1200"/>
+        <location filename="../src/ViewToolbar.cpp" line="1185"/>
         <source>Switch to %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1248"/>
+        <location filename="../src/ViewToolbar.cpp" line="1233"/>
         <source>%1 - click for the next axonometric type</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="129"/>
+        <location filename="../src/ViewToolbar.cpp" line="114"/>
         <source>Isometric corner %1 - click for the next corner</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1512"/>
+        <location filename="../src/ViewToolbar.cpp" line="1497"/>
         <source>Realistic Rendering</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="833"/>
-        <location filename="../src/ViewToolbar.cpp" line="1573"/>
+        <location filename="../src/ViewToolbar.cpp" line="818"/>
+        <location filename="../src/ViewToolbar.cpp" line="1558"/>
         <source>Shaded</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="836"/>
-        <location filename="../src/ViewToolbar.cpp" line="1577"/>
+        <location filename="../src/ViewToolbar.cpp" line="821"/>
+        <location filename="../src/ViewToolbar.cpp" line="1562"/>
         <source>Hollow Mesh</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="839"/>
-        <location filename="../src/ViewToolbar.cpp" line="1578"/>
+        <location filename="../src/ViewToolbar.cpp" line="824"/>
+        <location filename="../src/ViewToolbar.cpp" line="1563"/>
         <source>Mesh Edges</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="842"/>
-        <location filename="../src/ViewToolbar.cpp" line="1579"/>
+        <location filename="../src/ViewToolbar.cpp" line="827"/>
+        <location filename="../src/ViewToolbar.cpp" line="1564"/>
         <source>Wireframe</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="984"/>
-        <location filename="../src/ViewToolbar.cpp" line="1513"/>
-        <location filename="../src/ViewToolbar.cpp" line="1598"/>
+        <location filename="../src/ViewToolbar.cpp" line="969"/>
+        <location filename="../src/ViewToolbar.cpp" line="1498"/>
+        <location filename="../src/ViewToolbar.cpp" line="1583"/>
         <source>Clipping Planes</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1018"/>
-        <location filename="../src/ViewToolbar.cpp" line="1514"/>
-        <location filename="../src/ViewToolbar.cpp" line="1603"/>
+        <location filename="../src/ViewToolbar.cpp" line="1003"/>
+        <location filename="../src/ViewToolbar.cpp" line="1499"/>
+        <location filename="../src/ViewToolbar.cpp" line="1588"/>
         <source>Exploded View</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1030"/>
-        <location filename="../src/ViewToolbar.cpp" line="1515"/>
-        <location filename="../src/ViewToolbar.cpp" line="1606"/>
+        <location filename="../src/ViewToolbar.cpp" line="1015"/>
+        <location filename="../src/ViewToolbar.cpp" line="1500"/>
+        <location filename="../src/ViewToolbar.cpp" line="1591"/>
         <source>Swap Visible</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1043"/>
-        <location filename="../src/ViewToolbar.cpp" line="1516"/>
-        <location filename="../src/ViewToolbar.cpp" line="1609"/>
+        <location filename="../src/ViewToolbar.cpp" line="1028"/>
+        <location filename="../src/ViewToolbar.cpp" line="1501"/>
+        <location filename="../src/ViewToolbar.cpp" line="1594"/>
         <source>Show/Hide Axis</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1053"/>
-        <location filename="../src/ViewToolbar.cpp" line="1204"/>
+        <location filename="../src/ViewToolbar.cpp" line="1038"/>
+        <location filename="../src/ViewToolbar.cpp" line="1189"/>
         <source>Show the trihedron</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="1058"/>
-        <location filename="../src/ViewToolbar.cpp" line="1204"/>
+        <location filename="../src/ViewToolbar.cpp" line="1043"/>
+        <location filename="../src/ViewToolbar.cpp" line="1189"/>
         <source>Hide the trihedron</source>
         <translation></translation>
     </message>
