@@ -10,6 +10,10 @@
         <file>res/fit-all.png</file>
         <file>res/window-zoom.png</file>
         <file>res/isometric.png</file>
+        <file>res/isometric_se.png</file>
+        <file>res/isometric_ne.png</file>
+        <file>res/isometric_nw.png</file>
+        <file>res/isometric_sw.png</file>
         <file>res/dimetric.png</file>
         <file>res/trimetric.png</file>
         <file>res/multiview.png</file>
