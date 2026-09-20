@@ -287,7 +287,7 @@ void ClippingPlanesEditor::setXCoeffDisplay(double value)
 
 void ClippingPlanesEditor::setYCoeffDisplay(double value)
 {
-	const QSignalBlocker blocker(doubleSpinBoxZXCoeff); // Y-normal plane is named "ZX"
+	const QSignalBlocker blocker(doubleSpinBoxZXCoeff); // Y-normal plane is labelled "XZ"
 	doubleSpinBoxZXCoeff->setValue(value);
 }
 

@@ -761,7 +761,7 @@ void QuickHelpDialog::setupAdvancedFeaturesTab()
 		tr("<p>Cut through a model with up to three axis-aligned clipping planes to see internal "
 		   "structure, opened via the Section View button on the View Toolbar.</p>"
 		   "<ul>"
-		   "<li><b>XY / YZ / ZX:</b> Enable each plane independently; each has its own 'Flip' toggle "
+		   "<li><b>XY / YZ / XZ:</b> Enable each plane independently; by default each cuts away the half facing you in its matching standard view (Top, Right or Front), so the cut face is visible, and each has its own 'Flip' toggle "
 		   "to reverse which side is cut away</li>"
 		   "<li><b>Coefficient:</b> A numeric field per plane that positions it along its axis</li>"
 		   "<li><b>Capping:</b> Fills the cut cross-section with a solid cap instead of leaving it hollow</li>"

@@ -2267,6 +2267,11 @@ void ViewportWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 	}
 
 	_viewCtrl.setCameraUpAxisZUp(zUp);
+	// The Y-normal clipping plane's default cut side depends on the up axis (see
+	// SceneRenderController::clippingYFlipped()); refresh its drawing right away.
+	_renderCtrl.setClippingYDefaultInverted(zUp);
+	if (_clippingPlaneXY && _clippingPlaneYZ && _clippingPlaneZX && _clippingPlanesEditor)
+		updateClippingPlane();
 	syncCameraWorldUp();
 	rotateCurrentCameraAroundWorldX(zUp ? 90.0f : -90.0f);
 	updateEnvMapRotationMatrix();

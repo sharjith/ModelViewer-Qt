@@ -192,10 +192,10 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Clip the model with a plane along the ZX axes</string>
+               <string>Clip the model with a plane along the XZ axes</string>
               </property>
               <property name="text">
-               <string>ZX</string>
+               <string>XZ</string>
               </property>
               <property name="checkable">
                <bool>true</bool>
@@ -240,7 +240,7 @@
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
               <property name="toolTip">
-               <string>Position of the ZX clipping plane along its normal</string>
+               <string>Position of the XZ clipping plane along its normal</string>
               </property>
               <property name="minimum">
                <double>-99999.000000000000000</double>
@@ -263,7 +263,7 @@
                </size>
               </property>
               <property name="toolTip">
-               <string>Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/ZX planes while on.</string>
+               <string>Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.</string>
               </property>
               <property name="text">
                <string>Box</string>

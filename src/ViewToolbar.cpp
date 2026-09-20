@@ -35,7 +35,8 @@ QString debugOverlayIconPath(DebugOverlayActions action, bool enabled)
 }
 
 // Clipping Planes flyout presets, in menu order. xy/yz/zx use the panel's own
-// naming (XY = the Z-normal plane, YZ = X-normal, ZX = Y-normal). Entry 0 is "No
+// naming (XY = the Z-normal plane, YZ = X-normal, XZ = Y-normal; the struct/icon
+// names keep the historical "zx"). Entry 0 is "No
 // Clipping" (everything off) - the way back to the empty state from the toolbar;
 // then every one of the seven non-empty plane combinations plus Box, so any state
 // the panel can be in maps to exactly one entry.
@@ -67,11 +68,11 @@ QString clippingPresetText(int index)
     case 0: return ViewToolbar::tr("No Clipping");
     case 1: return ViewToolbar::tr("XY Plane");
     case 2: return ViewToolbar::tr("YZ Plane");
-    case 3: return ViewToolbar::tr("ZX Plane");
-    case 4: return ViewToolbar::tr("YZ + ZX");
-    case 5: return ViewToolbar::tr("XY + ZX");
+    case 3: return ViewToolbar::tr("XZ Plane");
+    case 4: return ViewToolbar::tr("YZ + XZ");
+    case 5: return ViewToolbar::tr("XY + XZ");
     case 6: return ViewToolbar::tr("XY + YZ");
-    case 7: return ViewToolbar::tr("XY + YZ + ZX");
+    case 7: return ViewToolbar::tr("XY + YZ + XZ");
     default: return ViewToolbar::tr("Box");
     }
 }

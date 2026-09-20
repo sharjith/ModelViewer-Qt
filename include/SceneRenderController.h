@@ -372,8 +372,14 @@ public:
 
     bool  clippingXFlipped()              const { return _clipXFlipped; }
     void  setClippingXFlipped(bool v)           { _clipXFlipped = v; }
-    bool  clippingYFlipped()              const { return _clipYFlipped; }
+    // The Y-normal plane (labelled XZ) cuts away the half facing the viewer of its standard
+    // view by default: the Top view (+Y) in a Y-up scene, the Front view (-Y) in a Z-up one, so
+    // its cut face is visible without touching Flip. clippingYFlipped() is that EFFECTIVE sense
+    // (what every draw/culling/capping consumer wants); setClippingYFlipped() stores the Flip
+    // checkbox itself, i.e. the choice relative to that default.
+    bool  clippingYFlipped()              const { return _clipYFlipped != _clipYDefaultInverted; }
     void  setClippingYFlipped(bool v)           { _clipYFlipped = v; }
+    void  setClippingYDefaultInverted(bool v)   { _clipYDefaultInverted = v; }
     bool  clippingZFlipped()              const { return _clipZFlipped; }
     void  setClippingZFlipped(bool v)           { _clipZFlipped = v; }
 
@@ -784,6 +790,7 @@ private:
     bool  _clipXYEnabled  = false;
     bool  _clipXFlipped   = false;
     bool  _clipYFlipped   = false;
+    bool  _clipYDefaultInverted = true;   // matches the app's default Z-up camera; ViewportWidget keeps it in step
     bool  _clipZFlipped   = false;
     float _clipXCoeff     = 0.0f;
     float _clipYCoeff     = 0.0f;
