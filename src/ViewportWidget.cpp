@@ -14770,6 +14770,9 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	if (isGltfCameraActive())
 		return;
 
+	if (e->angleDelta().y() != 0)
+		showWheelZoomCursor();
+
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
 	setSectionCapsInteractionSuppressed(true);
@@ -14861,6 +14864,45 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	resizeGL(width(), height());
 	_rtInteractionCtrl->notifyCameraInteracting();
 	update();
+}
+
+void ViewportWidget::showWheelZoomCursor()
+{
+	// A button drag already owns the cursor (its own rotate/pan/zoom cursor,
+	// restored on release) - leave it alone.
+	if (QApplication::mouseButtons() != Qt::NoButton)
+		return;
+
+	if (!_wheelZoomCursorTimer)
+	{
+		_wheelZoomCursorTimer = new QTimer(this);
+		_wheelZoomCursorTimer->setSingleShot(true);
+		_wheelZoomCursorTimer->setInterval(350);
+		connect(_wheelZoomCursorTimer, &QTimer::timeout, this, &ViewportWidget::endWheelZoomCursor);
+	}
+
+	// Only the first tick of a burst swaps the cursor; later ticks just push the timeout back.
+	if (!_wheelZoomCursorTimer->isActive())
+	{
+		_hadExplicitCursorBeforeWheelZoom = testAttribute(Qt::WA_SetCursor);
+		_cursorBeforeWheelZoom = cursor();
+		_wheelZoomCursor = makeIconCursor(":/icons/res/zoomcursor.png", 33, devicePixelRatioF(), 11, 13);
+		setCursor(_wheelZoomCursor);
+	}
+	_wheelZoomCursorTimer->start();
+}
+
+void ViewportWidget::endWheelZoomCursor()
+{
+	// Undo only our own change: a drag, an armed tool or a navigation mode may have set a
+	// different cursor during the burst, and that one must win.
+	if (cursor().pixmap().cacheKey() != _wheelZoomCursor.pixmap().cacheKey())
+		return;
+
+	if (_hadExplicitCursorBeforeWheelZoom)
+		setCursor(_cursorBeforeWheelZoom);
+	else
+		unsetCursor();
 }
 
 void ViewportWidget::keyPressEvent(QKeyEvent* event)

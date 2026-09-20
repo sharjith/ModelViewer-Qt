@@ -2005,6 +2005,13 @@ private:
 	// that it covers both eyedroppers.
 	void restoreArmedToolCursor();
 
+	// Scroll-wheel zoom shows the same zoom cursor a drag-zoom does, for the
+	// duration of one wheel "burst" (each wheel tick restarts a short timer);
+	// endWheelZoomCursor() hands back whatever cursor was showing before, unless
+	// something else (a drag, an armed tool) has changed it in the meantime.
+	void showWheelZoomCursor();
+	void endWheelZoomCursor();
+
 	// Continuous auto-orbit for presentation/demo purposes - same ~60fps tick
 	// shape as _inertiaTimer, but a constant velocity instead of a decaying
 	// one. Mutually exclusive with _inertiaTimer via stopAnimations() (see
@@ -2555,6 +2562,10 @@ private:
 	bool  _smoothNavigation     = true;
 	float _mouseSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
 	float _wheelSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
+	QTimer* _wheelZoomCursorTimer = nullptr;
+	QCursor _wheelZoomCursor;
+	QCursor _cursorBeforeWheelZoom;
+	bool    _hadExplicitCursorBeforeWheelZoom = false;
 
 	// Derive the user model transform for one file directly from its meshes'
 	// TRS state.  Returns true (and fills outTransform) only when every mesh
