@@ -405,6 +405,10 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->densityNotApplicableCheck, &QCheckBox::toggled, this, &MaterialPropertiesPanel::onDensityNotApplicableToggled);
 	if (_ui->densityClearButton)
 		connect(_ui->densityClearButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onDensityClearClicked);
+	if (_ui->shellThicknessSpin)
+		connect(_ui->shellThicknessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onShellThicknessChanged);
+	if (_ui->shellThicknessClearButton)
+		connect(_ui->shellThicknessClearButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onShellThicknessClearClicked);
 	if (_ui->iorSpin)
 		connect(_ui->iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIORChanged);
 	if (_ui->opacitySpin)
@@ -784,6 +788,46 @@ void MaterialPropertiesPanel::onDensityNotApplicableToggled(bool checked)
 	}
 	if (_ui->densityClearButton)
 		_ui->densityClearButton->setEnabled(!checked);
+	// The shell thickness is meaningless for a thin-film/decorative material too, and follows the same flag.
+	if (_ui->shellThicknessSpin)
+	{
+		_ui->shellThicknessSpin->setEnabled(!checked);
+		const bool wasUpdating = _updateInProgress;
+		_updateInProgress = true;
+		_ui->shellThicknessSpin->setValue(_material && _material->hasShellThickness() ? _material->shellThickness() : 0.0);
+		_updateInProgress = wasUpdating;
+	}
+	if (_ui->shellThicknessClearButton)
+		_ui->shellThicknessClearButton->setEnabled(!checked);
+}
+
+void MaterialPropertiesPanel::onShellThicknessChanged(double value)
+{
+	// Same shape as onDensityChanged(): the spin box's minimum (0) IS the Unknown sentinel, shown through
+	// specialValueText, and setShellThickness() maps <= 0 to "unset". Like density this doesn't affect
+	// rendering, so no preview update - only mark the material modified so it gets saved.
+	if (_material && !_updateInProgress)
+	{
+		_material->setShellThickness(static_cast<float>(value));
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+	}
+}
+
+void MaterialPropertiesPanel::onShellThicknessClearClicked()
+{
+	if (!_material)
+		return;
+	_material->clearShellThickness();
+	updateUnsavedMaterialInMap();
+	markMaterialAsModified();
+	if (_ui->shellThicknessSpin)
+	{
+		const bool wasUpdating = _updateInProgress;
+		_updateInProgress = true;
+		_ui->shellThicknessSpin->setValue(0.0);
+		_updateInProgress = wasUpdating;
+	}
 }
 
 void MaterialPropertiesPanel::onDensityClearClicked()
@@ -1293,6 +1337,9 @@ void MaterialPropertiesPanel::loadScalarValuesFromMaterial()
 	if (_ui->densityNotApplicableCheck) _ui->densityNotApplicableCheck->setChecked(!_material->isDensityApplicable());
 	if (_ui->densitySpin) _ui->densitySpin->setEnabled(_material->isDensityApplicable());
 	if (_ui->densityClearButton) _ui->densityClearButton->setEnabled(_material->isDensityApplicable());
+	if (_ui->shellThicknessSpin) _ui->shellThicknessSpin->setValue(_material->hasShellThickness() ? _material->shellThickness() : 0.0);
+	if (_ui->shellThicknessSpin) _ui->shellThicknessSpin->setEnabled(_material->isDensityApplicable());
+	if (_ui->shellThicknessClearButton) _ui->shellThicknessClearButton->setEnabled(_material->isDensityApplicable());
 	if (_ui->iorSpin) _ui->iorSpin->setValue(_material->ior());
 	if (_ui->opacitySpin) _ui->opacitySpin->setValue(_material->opacity());
 	if (_ui->emissiveSpin) _ui->emissiveSpin->setValue(_material->emissiveStrength());

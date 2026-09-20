@@ -54,6 +54,8 @@ QColor AnalysisColorRamp::colorForNormalized(float t, AnalysisColormap colormap)
 		const qreal hueDegrees = (1.0 - static_cast<qreal>(t)) * 240.0;
 		return QColor::fromHsvF(hueDegrees / 360.0, 1.0, 1.0);
 	}
+	case AnalysisColormap::Threshold:
+		return t < 0.5f ? QColor(214, 48, 49) : QColor(46, 160, 96);
 	case AnalysisColormap::Diverging:
 	default:
 	{
@@ -84,7 +86,8 @@ QPixmap AnalysisColorRamp::legendGradient(
 	int width, int height,
 	float rangeMin, float rangeMax,
 	AnalysisColormap colormap,
-	const QString& unitSuffix)
+	const QString& unitSuffix,
+	bool openEndedMax)
 {
 	QPixmap pixmap(std::max(width, 1), std::max(height, 1));
 	pixmap.fill(Qt::transparent);
@@ -104,9 +107,29 @@ QPixmap AnalysisColorRamp::legendGradient(
 
 	painter.setPen(Qt::black);
 	const QString minLabel = QString::number(rangeMin, 'g', 3) + unitSuffix;
-	const QString maxLabel = QString::number(rangeMax, 'g', 3) + unitSuffix;
+	const QString maxLabel = (openEndedMax ? QString(QChar(0x2265)) + QLatin1Char(' ') : QString())
+		+ QString::number(rangeMax, 'g', 3) + unitSuffix;
 	painter.drawText(QRect(0, barHeight, width / 2, height - barHeight), Qt::AlignLeft | Qt::AlignVCenter, minLabel);
 	painter.drawText(QRect(width / 2, barHeight, width - width / 2, height - barHeight), Qt::AlignRight | Qt::AlignVCenter, maxLabel);
 
+	return pixmap;
+}
+
+QPixmap AnalysisColorRamp::thresholdLegend(int width, int height, const QString& belowText, const QString& aboveText)
+{
+	QPixmap pixmap(std::max(width, 1), std::max(height, 1));
+	pixmap.fill(Qt::transparent);
+
+	QPainter painter(&pixmap);
+	painter.setRenderHint(QPainter::Antialiasing, true);
+
+	const int barHeight = std::max(static_cast<int>(height * 0.6), 4);
+	const int half = width / 2;
+	painter.fillRect(QRect(0, 0, half, barHeight), colorForNormalized(0.0f, AnalysisColormap::Threshold));
+	painter.fillRect(QRect(half, 0, width - half, barHeight), colorForNormalized(1.0f, AnalysisColormap::Threshold));
+
+	painter.setPen(Qt::black);
+	painter.drawText(QRect(0, barHeight, half, height - barHeight), Qt::AlignLeft | Qt::AlignVCenter, belowText);
+	painter.drawText(QRect(half, barHeight, width - half, height - barHeight), Qt::AlignRight | Qt::AlignVCenter, aboveText);
 	return pixmap;
 }

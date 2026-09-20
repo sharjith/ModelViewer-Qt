@@ -11,6 +11,7 @@
 #include "AnalysisMeshSnapshot.h"
 #include "AnalysisComputeSession.h"
 #include "CoordinateSystemHelper.h"
+#include "LengthUnits.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -19,6 +20,9 @@
 #include <QStackedWidget>
 #include <QLabel>
 #include <QComboBox>
+#include <QCheckBox>
+#include <QDoubleSpinBox>
+#include <QJsonObject>
 #include <QPushButton>
 #include <QMessageBox>
 #include <QIcon>
@@ -26,6 +30,7 @@
 #include <QSettings>
 #include <QTimer>
 #include <QUuid>
+#include <QDebug>
 
 #include <algorithm>
 #include <any>
@@ -175,17 +180,71 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		connect(_applyDraftButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyDraftAngleClicked);
 		pageLayout->addWidget(_applyDraftButton);
 
-		auto* thicknessNote = new QLabel(tr("Wall-Thickness colors each face by an inward-ray distance to the "
-		                            "opposite wall - blue is thin, red is thick. This is an ESTIMATE, not a "
-		                            "guaranteed true minimum (the true minimum can occur along a direction "
-		                            "other than the surface normal). Requires a closed, non-self-intersecting "
-		                            "mesh that bounds a volume - the whole mesh is rejected with a reason if "
-		                            "it doesn't, not partially colored."), page);
+		auto* thicknessNote = new QLabel(tr("Wall-Thickness estimates how thick the material is behind each point of "
+		                            "the surface - blue is thin, red is thick. Local thickness samples many points "
+		                            "per face and casts rays into the material from each, so thin ribs and slots are "
+		                            "found, the result does not depend on how the surface was triangulated, and the "
+		                            "colours show where WITHIN a large face the value changes; the ray spread sets how "
+		                            "far off the straight-in direction those rays may fan out (0 = straight in only). "
+		                            "Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact "
+		                            "minima. Requires a closed, non-self-intersecting mesh that bounds a volume - "
+		                            "otherwise the whole mesh is rejected with a reason, never partially colored. "
+		                            "Hovering a value writes the ray behind it to the log."), page);
 		thicknessNote->setWordWrap(true);
 		pageLayout->addWidget(thicknessNote);
+
+		auto* methodRow = new QHBoxLayout();
+		methodRow->addWidget(new QLabel(tr("Method:"), page));
+		_thicknessMethodCombo = new QComboBox(page);
+		_thicknessMethodCombo->addItem(tr("Local thickness (recommended)"), QVariant(0));
+		_thicknessMethodCombo->addItem(tr("Normal ray (fast)"), QVariant(1));
+		methodRow->addWidget(_thicknessMethodCombo, 1);
+		pageLayout->addLayout(methodRow);
+
+		// Local thickness only: how far off the straight-in direction the rays from each sample may fan out.
+		auto* spreadRow = new QHBoxLayout();
+		spreadRow->addWidget(new QLabel(tr("Ray spread:"), page));
+		_thicknessSpreadSpin = new QDoubleSpinBox(page);
+		_thicknessSpreadSpin->setSuffix(QStringLiteral("\u00B0"));
+		_thicknessSpreadSpin->setDecimals(0);
+		_thicknessSpreadSpin->setRange(0.0, 45.0);
+		_thicknessSpreadSpin->setSingleStep(5.0);
+		_thicknessSpreadSpin->setValue(0.0);
+		_thicknessSpreadSpin->setToolTip(tr("0 measures straight in from each sample (the wall directly behind it). "
+		                                    "Larger values also probe obliquely, which finds thin features beside a "
+		                                    "sample but reads a flat face's sloped neighbours as thinner."));
+		spreadRow->addWidget(_thicknessSpreadSpin, 1);
+		pageLayout->addLayout(spreadRow);
+		connect(_thicknessMethodCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int)
+		{
+			_thicknessSpreadSpin->setEnabled(_thicknessMethodCombo->currentData().toInt() == 0);
+		});
+
 		_applyThicknessButton = new QPushButton(tr("Apply Wall-Thickness"), page);
 		connect(_applyThicknessButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyWallThicknessClicked);
 		pageLayout->addWidget(_applyThicknessButton);
+
+		// Pass/fail display: on a chunky machined part a continuous ramp mostly shows the part's size, while
+		// "is anything thinner than my limit" is the question that matters. Re-colours the existing result.
+		auto* limitRow = new QHBoxLayout();
+		_thicknessHighlightCheck = new QCheckBox(tr("Highlight walls thinner than:"), page);
+		limitRow->addWidget(_thicknessHighlightCheck);
+		_thicknessLimitSpin = new QDoubleSpinBox(page);
+		_thicknessLimitSpin->setSuffix(tr(" mm"));
+		_thicknessLimitSpin->setDecimals(2);
+		_thicknessLimitSpin->setRange(0.01, 100000.0);
+		_thicknessLimitSpin->setSingleStep(0.5);
+		_thicknessLimitSpin->setValue(1.0);
+		limitRow->addWidget(_thicknessLimitSpin, 1);
+		pageLayout->addLayout(limitRow);
+		connect(_thicknessHighlightCheck, &QCheckBox::toggled, this, &SurfaceAnalysisDialog::onThicknessDisplayChanged);
+		connect(_thicknessLimitSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &SurfaceAnalysisDialog::onThicknessDisplayChanged);
+
+		_thicknessSummaryLabel = new QLabel(page);
+		_thicknessSummaryLabel->setWordWrap(true);
+		_thicknessSummaryLabel->setVisible(false);
+		pageLayout->addWidget(_thicknessSummaryLabel);
+
 		_thicknessRejectionNote = new QLabel(page);
 		_thicknessRejectionNote->setWordWrap(true);
 		_thicknessRejectionNote->setVisible(false);
@@ -379,9 +438,11 @@ QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor,
 		return QString();
 
 	float value = 0.0f;
-	bool isFlat = false;
-	if (!_overlay.scalarAt(mesh, anchor.triangleIndex, anchor.barycentric, value, isFlat))
+	AnalysisKind kind = AnalysisKind::Curvature;
+	if (!_overlay.scalarAt(mesh, anchor.triangleIndex, anchor.barycentric, value, kind))
 		return QString();
+	if (kind == AnalysisKind::WallThickness)
+		logThicknessWitness(mesh, anchor, value);
 
 	// Same lightness() < 128 -> white / else black convention this app's
 	// own hatch-line-color picker already used (see the now-removed
@@ -399,30 +460,62 @@ QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor,
 	else
 		outTextColor = Qt::white;
 
-	// Draft Angle is detected via isFlat, not a Mode value - it's a separate
-	// Apply button on the Wall-Thickness page, not one of currentMode()'s 3
-	// values (see this class's own Mode enum doc comment). Every other case
-	// is labeled from currentMode() - same page/mode the legend currently
-	// reflects. Unit suffixes match the legend's own exactly (legendGradient()
-	// calls in applyDraftAngleToSelection()/applyCurvatureToSelection()/
-	// applyWallThicknessToSelection()/applyDeviationToSelection() - only
-	// Draft Angle passes a non-empty unit string, "°"; the other three pass
-	// QString() because this app has no fixed distance-unit convention
-	// across imported models), so the readout never shows a unit the legend
-	// doesn't also claim.
-	if (isFlat)
-		return tr("Draft: %1°").arg(value, 0, 'f', 2);
-
-	switch (currentMode())
+	// The label comes from the analysis kind the overlay itself recorded - NOT from how the result was uploaded.
+	// (Draft Angle and Wall-Thickness are both per-face, so "per-face" used to mean "Draft" and a thickness value
+	// was shown as degrees.) Wall thickness is stored in millimetres (see applyWallThicknessToSelection()), which
+	// the legend states too; the other distance-like modes keep no unit because this app has no fixed length-unit
+	// convention across imported models.
+	switch (kind)
 	{
-	case Mode::Curvature:
+	case AnalysisKind::DraftAngle:
+		return tr("Draft: %1°").arg(value, 0, 'f', 2);
+	case AnalysisKind::Curvature:
 		return tr("Curvature: %1").arg(value, 0, 'f', 4);
-	case Mode::WallThickness:
-		return tr("Thickness: %1").arg(value, 0, 'f', 3);
-	case Mode::Deviation:
+	case AnalysisKind::WallThickness:
+		return tr("Thickness: %1 mm").arg(value, 0, 'f', 3);
+	case AnalysisKind::Deviation:
 		return tr("Deviation: %1").arg(value, 0, 'f', 3);
 	}
 	return QString();
+}
+
+void SurfaceAnalysisDialog::logThicknessWitness(SceneMesh* mesh, const MeshSurfaceAnchor& anchor, float valueMm) const
+{
+	// Writes the ray behind the hovered sub-triangle's value to the log - once per sample, not once per mouse move -
+	// so a value that looks wrong can be checked against the geometry: where the ray started, where it left the
+	// material, how far it went and at what angle.
+	const auto it = _thicknessWitness.constFind(mesh);
+	if (it == _thicknessWitness.constEnd())
+		return;
+	const ThicknessWitnessSet& set = it.value();
+	const size_t triangle = static_cast<size_t>(anchor.triangleIndex);
+	if (triangle >= set.gridN.size() || triangle >= set.offset.size() || set.gridN[triangle] == 0)
+		return;
+	const int n = set.gridN[triangle];
+	const int sample = SubTriangleGrid::indexAt(n, anchor.barycentric.y(), anchor.barycentric.z());
+	if (mesh == _lastLoggedThicknessMesh && anchor.triangleIndex == _lastLoggedThicknessTriangle && sample == _lastLoggedThicknessSample)
+		return;
+	_lastLoggedThicknessMesh = mesh;
+	_lastLoggedThicknessTriangle = anchor.triangleIndex;
+	_lastLoggedThicknessSample = sample;
+
+	const size_t index = static_cast<size_t>(set.offset[triangle]) + static_cast<size_t>(sample);
+	if (index >= set.witness.size())
+		return;
+	const WallThicknessWitness& w = set.witness[index];
+	if (w.hitTriangle < 0)
+		return;
+
+	const double lengthMm = static_cast<double>(w.distance) * set.toMm;
+	qInfo().noquote() << QStringLiteral("[WallThickness] '%1' triangle %2 (%3x%3 samples), sample %4: %5 mm | ray angle %6 deg, "
+		"length %7 mm, from (%8, %9, %10) to (%11, %12, %13), leaves through triangle %14 | length / cos(angle) = %15 mm "
+		"| points in model units, lengths in mm")
+		.arg(mesh->getName()).arg(anchor.triangleIndex).arg(n).arg(sample)
+		.arg(valueMm, 0, 'f', 3).arg(w.angleDegrees, 0, 'f', 1).arg(lengthMm, 0, 'f', 3)
+		.arg(w.origin[0], 0, 'g', 7).arg(w.origin[1], 0, 'g', 7).arg(w.origin[2], 0, 'g', 7)
+		.arg(w.hit[0], 0, 'g', 7).arg(w.hit[1], 0, 'g', 7).arg(w.hit[2], 0, 'g', 7)
+		.arg(w.hitTriangle)
+		.arg(lengthMm / std::max(1.0e-6, std::cos(static_cast<double>(w.angleDegrees) * 3.14159265358979323846 / 180.0)), 0, 'f', 3);
 }
 
 void SurfaceAnalysisDialog::onModeChanged()
@@ -440,6 +533,8 @@ void SurfaceAnalysisDialog::onModeChanged()
 		_curvatureRepairNote->setVisible(false);
 	if (_thicknessRejectionNote)
 		_thicknessRejectionNote->setVisible(false);
+	if (_thicknessSummaryLabel)
+		_thicknessSummaryLabel->setVisible(false);
 
 	if (mode == Mode::Deviation)
 		refreshReferenceMeshCombo();
@@ -469,6 +564,9 @@ void SurfaceAnalysisDialog::onMeshAboutToBeDeleted(SceneMesh* mesh)
 	// for zebra-stripe - the mesh (and its GL resources) are going away
 	// regardless, there's nothing left to turn off.
 	_overlay.clearOverlay(mesh);
+	_thicknessWitness.remove(mesh);
+	if (_lastLoggedThicknessMesh == mesh)
+		_lastLoggedThicknessMesh = nullptr;
 	_zebraStripeMeshes.remove(mesh);
 
 	// A background AnalysisComputeSession never dereferences a snapshot's
@@ -820,7 +918,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 			continue;
 		}
 		_overlay.applyResult(pm.mesh, pm.result.meanCurvaturePerVertex, pm.result.validPerVertex,
-			pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging);
+			pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging, AnalysisKind::Curvature);
 	}
 	viewport->doneCurrent();
 	viewport->update();
@@ -859,6 +957,14 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 
 	QVariantMap params;
 	params.insert(QStringLiteral("mode"), QStringLiteral("wallThickness"));
+	// The method is part of the cache key: switching it must not leave a result computed the other way looking valid.
+	WallThicknessParams analysisParams;
+	analysisParams.method = (_thicknessMethodCombo && _thicknessMethodCombo->currentData().toInt() == 1)
+		? WallThicknessMethod::NormalRay : WallThicknessMethod::LocalThickness;
+	params.insert(QStringLiteral("method"), static_cast<int>(analysisParams.method));
+	analysisParams.coneHalfAngleDegrees = _thicknessSpreadSpin ? _thicknessSpreadSpin->value() : 0.0;
+	if (analysisParams.method == WallThicknessMethod::LocalThickness)
+		params.insert(QStringLiteral("spreadDegrees"), analysisParams.coneHalfAngleDegrees);
 
 	std::vector<AnalysisMeshSnapshot> snapshots;
 	snapshots.reserve(selected.size());
@@ -879,9 +985,9 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	// worker, not just a wait cursor.
 	const std::vector<AnalysisComputeSession::PerMeshOutcome> outcomes = session.runBlocking(
 		std::move(snapshots),
-		[](const AnalysisMeshSnapshot& snapshot) -> std::any
+		[analysisParams](const AnalysisMeshSnapshot& snapshot) -> std::any
 		{
-			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices);
+			return WallThicknessAnalyzer::computeThickness(snapshot.points, snapshot.indices, analysisParams);
 		});
 
 	_activeSession = nullptr;
@@ -895,6 +1001,7 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	perMesh.reserve(outcomes.size());
 
 	float maxThickness = 0.0f;
+	std::vector<float> pooledThickness; // every valid value, in mm, across all meshes - for the robust range
 	bool anyValid = false;
 	bool anyStale = false;
 	QStringList rejectionNotes;
@@ -922,22 +1029,48 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 		if (!result)
 			continue;
 
-		if (result->succeeded)
+		WallThicknessResult scaled = *result;
+		if (scaled.succeeded)
 		{
-			for (size_t i = 0; i < result->thicknessPerFace.size(); ++i)
+			// The analyzer works in the mesh's own coordinate units; convert to millimetres once, here, so the
+			// overlay's stored values, the legend and the hover readout all speak the same unit.
+			const float toMm = static_cast<float>(lengthScaleForMesh(mesh));
+			for (size_t i = 0; i < scaled.thicknessPerFace.size(); ++i)
 			{
-				if (result->validPerFace[i])
-				{
-					maxThickness = std::max(maxThickness, result->thicknessPerFace[i]);
+				scaled.thicknessPerFace[i] *= toMm;
+				if (scaled.validPerFace[i])
 					anyValid = true;
-				}
 			}
+			for (float& v : scaled.samples.values)
+				v *= toMm; // NaN (no value) stays NaN
+			// The display and the robust range are driven by the per-sample values when there are any (Local
+			// thickness), otherwise by the per-triangle ones.
+			const bool useSamples = !scaled.samples.values.empty();
+			const std::vector<float>& rangeSource = useSamples ? scaled.samples.values : scaled.thicknessPerFace;
+			for (size_t i = 0; i < rangeSource.size(); ++i)
+			{
+				const float v = rangeSource[i];
+				if (!std::isfinite(v) || (!useSamples && !scaled.validPerFace[i]))
+					continue;
+				maxThickness = std::max(maxThickness, v);
+				pooledThickness.push_back(v);
+			}
+			ThicknessWitnessSet& witness = _thicknessWitness[mesh];
+			witness = ThicknessWitnessSet();
+			if (!scaled.sampleWitness.empty())
+			{
+				witness.gridN = scaled.samples.gridN;
+				witness.offset = scaled.samples.offset;
+				witness.witness = scaled.sampleWitness;
+				witness.toMm = toMm;
+			}
+			_lastLoggedThicknessMesh = nullptr;
 		}
 		else
 		{
 			rejectionNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), result->rejectionReason));
 		}
-		perMesh.push_back({ mesh, *result, outcome.snapshotKey });
+		perMesh.push_back({ mesh, scaled, outcome.snapshotKey });
 	}
 
 	if (_thicknessRejectionNote)
@@ -958,7 +1091,21 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 
 	// 0 is the natural bottom of the range (zero thickness) rather than the
 	// sampled data's own minimum - same reasoning as Deviation's range.
-	const float rangeMax = maxThickness > 1.0e-6f ? maxThickness : 1.0f;
+	// The TOP of the ramp is the 98th percentile rather than the maximum: one long ray (across the whole part)
+	// used to set the scale and push every ordinary wall into the same blue-green. Values above it clamp to the
+	// top colour, and the legend says so (">= max").
+	float rangeMax = maxThickness > 1.0e-6f ? maxThickness : 1.0f;
+	if (pooledThickness.size() >= 16)
+	{
+		const size_t rank = std::min(pooledThickness.size() - 1, static_cast<size_t>(std::ceil(pooledThickness.size() * 0.98)) - 1);
+		std::nth_element(pooledThickness.begin(), pooledThickness.begin() + rank, pooledThickness.end());
+		const float p98 = pooledThickness[rank];
+		if (p98 > 1.0e-6f)
+			rangeMax = p98;
+	}
+	_thicknessRangeMax = rangeMax;
+	const bool highlight = _thicknessHighlightCheck && _thicknessHighlightCheck->isChecked();
+	const float limitMm = _thicknessLimitSpin ? static_cast<float>(_thicknessLimitSpin->value()) : 1.0f;
 
 	// setAnalysisOverlayFlatColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as every other Apply here. Runs
@@ -975,8 +1122,10 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 			_overlay.clearOverlay(pm.mesh);
 			continue;
 		}
-		_overlay.applyFlatResult(pm.mesh, pm.result.thicknessPerFace, pm.result.validPerFace,
-			pm.key, 0.0f, rangeMax, AnalysisColormap::Sequential);
+		// Local thickness supplies sub-triangle samples (drawn as such); Normal ray only has one value per triangle.
+		_overlay.applyRefinedResult(pm.mesh, pm.result.thicknessPerFace, pm.result.validPerFace, pm.result.samples,
+			pm.key, 0.0f, highlight ? 2.0f * limitMm : rangeMax,
+			highlight ? AnalysisColormap::Threshold : AnalysisColormap::Sequential, AnalysisKind::WallThickness);
 	}
 	viewport->doneCurrent();
 	viewport->update();
@@ -991,8 +1140,147 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 		return;
 	}
 
-	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, 0.0f, rangeMax, AnalysisColormap::Sequential, QString()));
+	updateThicknessLegendAndSummary();
+}
+
+double SurfaceAnalysisDialog::lengthScaleForMesh(SceneMesh* mesh) const
+{
+	if (!_modelViewer || !mesh)
+		return 1.0;
+	// Same resolution Mass Properties uses (a document default, a per-import unit, else the millimetre fallback).
+	QJsonObject documentViewerState;
+	if (_modelViewer->defaultImportUnit() != LengthUnit::Unknown)
+		documentViewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_modelViewer->defaultImportUnit()));
+	const ResolvedLengthUnit resolved = resolveEffectiveImportUnit(mesh, _modelViewer->sceneGraph(), documentViewerState);
+	return lengthUnitToMillimeters(resolved.unit);
+}
+
+void SurfaceAnalysisDialog::onThicknessDisplayChanged()
+{
+	// Nothing to do until a Wall-Thickness result exists; otherwise switch every such overlay between the
+	// continuous ramp and the pass/fail threshold map (values are already in mm and cached in _overlay).
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+
+	const bool highlight = _thicknessHighlightCheck && _thicknessHighlightCheck->isChecked();
+	const float limitMm = _thicknessLimitSpin ? static_cast<float>(_thicknessLimitSpin->value()) : 1.0f;
+
+	bool any = false;
+	viewport->makeCurrent();
+	for (SceneMesh* mesh : _overlay.trackedMeshes())
+	{
+		AnalysisKind kind;
+		if (!_overlay.kindOf(mesh, kind) || kind != AnalysisKind::WallThickness)
+			continue;
+		if (highlight)
+			_overlay.recolor(mesh, 0.0f, 2.0f * limitMm, AnalysisColormap::Threshold);
+		else
+			_overlay.recolor(mesh, 0.0f, _thicknessRangeMax, AnalysisColormap::Sequential);
+		any = true;
+	}
+	viewport->doneCurrent();
+	if (!any)
+		return;
+
+	updateThicknessLegendAndSummary();
+	viewport->clearSurfaceAnalysisHoverReadout(); // its cached text/colour was computed from the old colouring
+	viewport->update();
+}
+
+void SurfaceAnalysisDialog::updateThicknessLegendAndSummary()
+{
+	const bool highlight = _thicknessHighlightCheck && _thicknessHighlightCheck->isChecked();
+	const float limitMm = _thicknessLimitSpin ? static_cast<float>(_thicknessLimitSpin->value()) : 1.0f;
+
+	float thinnest = std::numeric_limits<float>::max();
+	double areaBelow = 0.0, areaTotal = 0.0;
+	int meshCount = 0;
+	for (SceneMesh* mesh : _overlay.trackedMeshes())
+	{
+		AnalysisKind kind;
+		std::vector<float> values;
+		std::vector<bool> valid;
+		if (!_overlay.kindOf(mesh, kind) || kind != AnalysisKind::WallThickness || !_overlay.scalarField(mesh, values, valid))
+			continue;
+		++meshCount;
+
+		// Area weighting (not a face count): a CAD tessellation mixes huge and tiny triangles, and the share of
+		// the SURFACE under the limit is what the number should mean.
+		const std::vector<float> points = mesh->getTrsfPoints();
+		const std::vector<unsigned int> indices = mesh->getIndices();
+		const SubTriangleField* refined = _overlay.refinedFieldOf(mesh);
+		for (size_t f = 0; f < values.size(); ++f)
+		{
+			if (f < valid.size() && !valid[f])
+				continue;
+			thinnest = std::min(thinnest, values[f]);
+			const size_t base = f * 3;
+			if (base + 2 >= indices.size())
+				continue;
+			const size_t ia = indices[base] * 3ull, ib = indices[base + 1] * 3ull, ic = indices[base + 2] * 3ull;
+			if (ia + 2 >= points.size() || ib + 2 >= points.size() || ic + 2 >= points.size())
+				continue;
+			const QVector3D pa(points[ia], points[ia + 1], points[ia + 2]);
+			const QVector3D pb(points[ib], points[ib + 1], points[ib + 2]);
+			const QVector3D pc(points[ic], points[ic + 1], points[ic + 2]);
+			const double area = 0.5 * QVector3D::crossProduct(pb - pa, pc - pa).length();
+			if (refined && f < refined->gridN.size() && refined->gridN[f] > 0)
+			{
+				// Each sub-triangle of an n x n grid covers 1/n^2 of the triangle and has its own value.
+				const size_t samples = static_cast<size_t>(refined->gridN[f]) * refined->gridN[f];
+				const size_t first = refined->offset[f];
+				if (first + samples <= refined->values.size())
+				{
+					const double share = area / static_cast<double>(samples);
+					for (size_t k = 0; k < samples; ++k)
+					{
+						const float v = refined->values[first + k];
+						if (std::isnan(v))
+							continue;
+						areaTotal += share;
+						if (v < limitMm)
+							areaBelow += share;
+					}
+					continue;
+				}
+			}
+			areaTotal += area;
+			if (values[f] < limitMm)
+				areaBelow += area;
+		}
+	}
+	if (meshCount == 0)
+	{
+		_legendLabel->setVisible(false);
+		if (_thicknessSummaryLabel)
+			_thicknessSummaryLabel->setVisible(false);
+		return;
+	}
+
+	if (highlight)
+	{
+		_legendLabel->setPixmap(AnalysisColorRamp::thresholdLegend(280, 44,
+			tr("< %1 mm").arg(limitMm, 0, 'g', 4), tr(">= %1 mm").arg(limitMm, 0, 'g', 4)));
+	}
+	else
+	{
+		_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, 0.0f, _thicknessRangeMax,
+			AnalysisColormap::Sequential, tr(" mm"), true));
+	}
 	_legendLabel->setVisible(true);
+
+	if (_thicknessSummaryLabel)
+	{
+		QString summary = tr("Thinnest wall found: %1 mm.").arg(thinnest, 0, 'g', 4);
+		if (highlight && areaTotal > 0.0)
+		{
+			summary += QLatin1Char(' ') + tr("%1% of the analysed surface is thinner than %2 mm.")
+				.arg(100.0 * areaBelow / areaTotal, 0, 'f', 1).arg(limitMm, 0, 'g', 4);
+		}
+		_thicknessSummaryLabel->setText(summary);
+		_thicknessSummaryLabel->setVisible(true);
+	}
 }
 
 void SurfaceAnalysisDialog::applyDraftAngleToSelection()
@@ -1115,7 +1403,7 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	// actual paintGL() draw call.
 	viewport->makeCurrent();
 	for (PerMesh& pm : perMesh)
-		_overlay.applyFlatResult(pm.mesh, pm.angles, {}, pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging);
+		_overlay.applyFlatResult(pm.mesh, pm.angles, {}, pm.key, rangeMin, rangeMax, AnalysisColormap::Diverging, AnalysisKind::DraftAngle);
 	viewport->doneCurrent();
 
 	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, rangeMin, rangeMax, AnalysisColormap::Diverging, QStringLiteral("°")));
@@ -1282,7 +1570,7 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 	// setAnalysisOverlayColors() below uploads a real GPU buffer - same
 	// makeCurrent()/doneCurrent() reasoning as applyDraftAngleToSelection().
 	viewport->makeCurrent();
-	_overlay.applyResult(mesh, *distances, {}, outcome.snapshotKey, 0.0f, rangeMax, AnalysisColormap::Sequential);
+	_overlay.applyResult(mesh, *distances, {}, outcome.snapshotKey, 0.0f, rangeMax, AnalysisColormap::Sequential, AnalysisKind::Deviation);
 	viewport->doneCurrent();
 
 	_legendLabel->setPixmap(AnalysisColorRamp::legendGradient(280, 44, 0.0f, rangeMax, AnalysisColormap::Sequential, QString()));
@@ -1334,6 +1622,8 @@ void SurfaceAnalysisDialog::clearAllOverlays()
 	_zebraStripeMeshes.clear();
 
 	_overlay.clearAll();
+	_thicknessWitness.clear();
+	_lastLoggedThicknessMesh = nullptr;
 
 	if (ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr)
 	{

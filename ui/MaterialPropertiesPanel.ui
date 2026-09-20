@@ -5403,7 +5403,49 @@ for this texture</string>
              </property>
             </widget>
            </item>
-           <item row="4" column="0" colspan="2">
+           <item row="4" column="0">
+            <widget class="QLabel" name="lblShellThickness">
+             <property name="text">
+              <string>Shell thickness (mm):</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QDoubleSpinBox" name="shellThicknessSpin">
+             <property name="toolTip">
+              <string>Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.</string>
+             </property>
+             <property name="specialValueText">
+              <string>Unknown</string>
+             </property>
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="minimum">
+              <double>0.000000000000000</double>
+             </property>
+             <property name="maximum">
+              <double>10000.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+             <property name="value">
+              <double>0.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <widget class="QPushButton" name="shellThicknessClearButton">
+             <property name="toolTip">
+              <string>Reset shell thickness to Unknown</string>
+             </property>
+             <property name="text">
+              <string>Clear (set Unknown)</string>
+             </property>
+            </widget>
+           </item>
+           <item row="6" column="0" colspan="2">
             <spacer name="verticalSpacer_physical">
              <property name="orientation">
               <enum>Qt::Orientation::Vertical</enum>

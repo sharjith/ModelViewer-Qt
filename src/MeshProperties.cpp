@@ -3,6 +3,8 @@
 #include <iostream>
 #include <array>
 #include <cmath>
+#include <numeric>
+#include <unordered_map>
 
 // CGAL is used here ONLY to answer "is this raw triangle soup actually a
 // closed, non-self-intersecting solid" - deliberately NOT MeshRepair.h's
@@ -111,6 +113,125 @@ float computeMeshWeight(double volumeInCubicMm, float density)
 	return static_cast<float>(density * volumeInCubicMm / 1.0e9);
 }
 
+namespace
+{
+	// Result of splitting a mesh into connected pieces and classifying each one.
+	struct PieceSplit
+	{
+		bool ok = false;
+		std::vector<unsigned char> faceIsSolid; // per ORIGINAL face: 1 = belongs to a valid solid piece, 0 = shell
+		int solidPieces = 0;
+		int shellPieces = 0;
+	};
+
+	size_t findRoot(std::vector<size_t>& parent, size_t x)
+	{
+		while (parent[x] != x)
+		{
+			parent[x] = parent[parent[x]]; // path halving
+			x = parent[x];
+		}
+		return x;
+	}
+
+	// Splits the mesh into connected pieces (faces sharing a welded vertex) and runs the same closed ->
+	// non-self-intersecting -> bounds-a-volume predicate sequence as computeMeshTopology() on each piece on its
+	// own. A piece that fails any step - or that isn't even a valid polygon mesh (non-manifold sheets) - is a
+	// SHELL: still perfectly good for area, just without an enclosed volume.
+	PieceSplit classifyPieces(const std::vector<float>& points, const std::vector<unsigned int>& indices)
+	{
+		PieceSplit split;
+		const size_t faceCount = indices.size() / 3;
+
+		std::vector<PropsPoint3> soupPoints;
+		soupPoints.reserve(points.size() / 3);
+		for (size_t i = 0; i + 2 < points.size(); i += 3)
+			soupPoints.emplace_back(points[i + 0], points[i + 1], points[i + 2]);
+
+		std::vector<std::array<std::size_t, 3>> soupFaces;
+		soupFaces.reserve(faceCount);
+		for (size_t i = 0; i + 2 < indices.size(); i += 3)
+		{
+			const unsigned int a = indices[i + 0], b = indices[i + 1], c = indices[i + 2];
+			if (a >= soupPoints.size() || b >= soupPoints.size() || c >= soupPoints.size())
+				return split; // out-of-bounds index: no reliable classification, caller falls back to whole-mesh behaviour
+			soupFaces.push_back({ a, b, c });
+		}
+
+		// Same seam-welding as computeMeshTopology(): a per-face-normal-split export would otherwise look like a
+		// pile of disconnected triangles.
+		CGAL::Polygon_mesh_processing::merge_duplicate_points_in_polygon_soup(soupPoints, soupFaces);
+		if (soupFaces.size() != faceCount)
+			return split; // welding must stay 1:1 with the original faces for the per-face result below
+
+		std::vector<size_t> parent(soupPoints.size());
+		std::iota(parent.begin(), parent.end(), size_t(0));
+		for (const auto& f : soupFaces)
+		{
+			const size_t ra = findRoot(parent, f[0]);
+			const size_t rb = findRoot(parent, f[1]);
+			const size_t rc = findRoot(parent, f[2]);
+			parent[rb] = ra;
+			parent[findRoot(parent, rc)] = ra;
+		}
+
+		std::unordered_map<size_t, std::vector<size_t>> facesOfPiece;
+		for (size_t f = 0; f < faceCount; ++f)
+			facesOfPiece[findRoot(parent, soupFaces[f][0])].push_back(f);
+
+		split.faceIsSolid.assign(faceCount, 0);
+		for (const auto& piece : facesOfPiece)
+		{
+			std::unordered_map<size_t, size_t> localIndex;
+			std::vector<PropsPoint3> localPoints;
+			std::vector<std::array<std::size_t, 3>> localFaces;
+			localFaces.reserve(piece.second.size());
+			for (size_t f : piece.second)
+			{
+				std::array<std::size_t, 3> lf{};
+				for (int k = 0; k < 3; ++k)
+				{
+					const size_t global = soupFaces[f][k];
+					auto it = localIndex.find(global);
+					if (it == localIndex.end())
+					{
+						it = localIndex.emplace(global, localPoints.size()).first;
+						localPoints.push_back(soupPoints[global]);
+					}
+					lf[k] = it->second;
+				}
+				localFaces.push_back(lf);
+			}
+
+			bool solid = false;
+			if (CGAL::Polygon_mesh_processing::is_polygon_soup_a_polygon_mesh(localFaces))
+			{
+				PropsMesh pieceMesh;
+				CGAL::Polygon_mesh_processing::polygon_soup_to_polygon_mesh(localPoints, localFaces, pieceMesh);
+				// Short-circuit order matters: does_bound_a_volume() is undefined behaviour on non-closed or
+				// self-intersecting input (see computeMeshGeometry()'s note).
+				solid = CGAL::is_closed(pieceMesh)
+					&& !CGAL::Polygon_mesh_processing::does_self_intersect(pieceMesh)
+					&& CGAL::Polygon_mesh_processing::does_bound_a_volume(pieceMesh);
+			}
+
+			if (solid)
+			{
+				++split.solidPieces;
+				for (size_t f : piece.second)
+					split.faceIsSolid[f] = 1;
+			}
+			else
+			{
+				++split.shellPieces;
+			}
+		}
+
+		split.ok = true;
+		return split;
+	}
+}
+
 MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox)
 {
 	MeshGeometryComputeResult result;
@@ -132,6 +253,11 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 	// in release builds - so this app must enforce the ordering itself, not
 	// rely on CGAL's own assert to catch a violation): is_closed, THEN
 	// does_self_intersect, THEN (only if both pass) does_bound_a_volume.
+	//
+	// Whole mesh first (the common, cheap case). Only when that fails is
+	// the mesh split into connected pieces and each classified on its own,
+	// so one open sheet - or one overlapping pair of solids - in an
+	// otherwise sound import no longer makes the ENTIRE mesh unusable.
 	// ------------------------------------------------------------------
 	{
 		const MeshTopologyCheckResult topology = computeMeshTopology(points, indices);
@@ -139,10 +265,37 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 		result.volumeUnavailableReason = topology.unavailableReason;
 	}
 
+	// Empty = "no per-piece information": with hasValidVolume every face is solid, without it none is.
+	std::vector<unsigned char> faceIsSolid;
+	bool hasPieceInfo = false;
+	if (result.hasValidVolume)
+	{
+		result.solidPieceCount = 1; // at least one; the exact count isn't needed on this path
+	}
+	else
+	{
+		const PieceSplit split = classifyPieces(points, indices);
+		if (split.ok)
+		{
+			hasPieceInfo = true;
+			faceIsSolid = split.faceIsSolid;
+			result.solidPieceCount = split.solidPieces;
+			result.shellPieceCount = split.shellPieces;
+			// Every piece individually solid (e.g. two separate solids that merely overlap, which failed the
+			// whole-mesh self-intersection test) is a usable volume; the whole-mesh reason no longer applies.
+			if (split.shellPieces == 0 && split.solidPieces > 0)
+			{
+				result.hasValidVolume = true;
+				result.volumeUnavailableReason = MeshPropertyUnavailableReason::None;
+			}
+		}
+	}
+
 	// ------------------------------------------------------------------
-	// Step 2: accumulate surface area (always) and, only if step 1 passed,
-	// signed volume + volume-weighted centroid, via the divergence theorem.
-	// Double precision, not float (float accumulators lose real precision on
+	// Step 2: accumulate surface area (always), the signed volume + volume-
+	// weighted centroid of the SOLID pieces via the divergence theorem, and
+	// the area + area-weighted centroid of the SHELL pieces. Double
+	// precision, not float (float accumulators lose real precision on
 	// CAD-sized meshes), and summed relative to the mesh's own bounding-box
 	// center rather than the world origin - a known precision trap when
 	// real CAD coordinates are far from (0,0,0). Result is in the mesh's OWN
@@ -157,6 +310,8 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 	double surfaceAreaAccum = 0.0;
 	double volumeAccum = 0.0;
 	double xCen = 0.0, yCen = 0.0, zCen = 0.0;
+	double shellAreaAccum = 0.0;
+	double shellX = 0.0, shellY = 0.0, shellZ = 0.0;
 
 	try
 	{
@@ -172,13 +327,22 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 			const double area = static_cast<double>(QVector3D::crossProduct(p2 - p1, p3 - p1).length()) * 0.5;
 			surfaceAreaAccum += area;
 
-			if (result.hasValidVolume)
+			const size_t face = i / 3;
+			const bool solidFace = hasPieceInfo ? (faceIsSolid[face] != 0) : result.hasValidVolume;
+			if (solidFace)
 			{
 				const double triVolume = static_cast<double>(QVector3D::dotProduct(p1, QVector3D::crossProduct(p2, p3))) / 6.0;
 				volumeAccum += triVolume;
 				xCen += ((static_cast<double>(p1.x()) + p2.x() + p3.x()) / 4.0) * triVolume;
 				yCen += ((static_cast<double>(p1.y()) + p2.y() + p3.y()) / 4.0) * triVolume;
 				zCen += ((static_cast<double>(p1.z()) + p2.z() + p3.z()) / 4.0) * triVolume;
+			}
+			else if (hasPieceInfo)
+			{
+				shellAreaAccum += area;
+				shellX += ((static_cast<double>(p1.x()) + p2.x() + p3.x()) / 3.0) * area;
+				shellY += ((static_cast<double>(p1.y()) + p2.y() + p3.y()) / 3.0) * area;
+				shellZ += ((static_cast<double>(p1.z()) + p2.z() + p3.z()) / 3.0) * area;
 			}
 		}
 	}
@@ -193,7 +357,7 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 	result.hasValidGeometry = true;
 	result.surfaceArea = static_cast<float>(surfaceAreaAccum);
 
-	if (result.hasValidVolume)
+	if (result.solidPieceCount > 0 && std::fabs(volumeAccum) > 0.0)
 	{
 		// Divide the signed moment accumulators by the SIGNED volume - this
 		// alone produces the correct centroid, with no abs() involved
@@ -209,5 +373,59 @@ MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, 
 		result.volume = std::fabs(volumeAccum);
 	}
 
+	if (shellAreaAccum > 0.0)
+	{
+		result.shellSurfaceArea = shellAreaAccum;
+		result.shellCentroid = QVector3D(
+			static_cast<float>(shellX / shellAreaAccum),
+			static_cast<float>(shellY / shellAreaAccum),
+			static_cast<float>(shellZ / shellAreaAccum)) + refOrigin;
+	}
+
 	return result;
+}
+
+MeshVolumeSummary summarizeMeshVolume(const MeshGeometryComputeResult& geometry, double lengthScale, float shellThicknessMm)
+{
+	MeshVolumeSummary summary;
+	const double scale2 = lengthScale * lengthScale;
+	const double scale3 = scale2 * lengthScale;
+	const double solidVolume = geometry.solidPieceCount > 0 ? geometry.volume * scale3 : 0.0;
+	const QVector3D solidCom = geometry.centerOfMass * static_cast<float>(lengthScale);
+
+	if (geometry.hasValidVolume)
+	{
+		summary.valid = true;
+		summary.volume = solidVolume;
+		summary.centerOfMass = solidCom;
+		return summary;
+	}
+
+	// Not a plain solid. Shell pieces can still be used - but only with a real thickness supplied.
+	const bool hasShellPieces = geometry.hasValidGeometry && geometry.shellPieceCount > 0 && geometry.shellSurfaceArea > 0.0;
+	if (!hasShellPieces)
+	{
+		summary.reason = geometry.volumeUnavailableReason;
+		return summary;
+	}
+	if (!(shellThicknessMm > 0.0f))
+	{
+		summary.reason = geometry.volumeUnavailableReason;
+		summary.shellCapable = true; // a shell thickness on the material would make this mesh usable
+		return summary;
+	}
+
+	const double shellVolume = geometry.shellSurfaceArea * scale2 * static_cast<double>(shellThicknessMm);
+	const double total = solidVolume + shellVolume;
+	summary.valid = true;
+	summary.shellPieceCount = geometry.shellPieceCount;
+	summary.shellVolume = shellVolume;
+	summary.volume = total;
+	if (total > 0.0)
+	{
+		const QVector3D shellCom = geometry.shellCentroid * static_cast<float>(lengthScale);
+		summary.centerOfMass = (solidCom * static_cast<float>(solidVolume) + shellCom * static_cast<float>(shellVolume))
+			/ static_cast<float>(total);
+	}
+	return summary;
 }

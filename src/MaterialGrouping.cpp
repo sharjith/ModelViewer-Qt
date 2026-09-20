@@ -243,7 +243,11 @@ namespace
 			// of what's stashed underneath.
 			+ b(mat.isDensityApplicable()) + QLatin1Char('|')
 			+ b(mat.hasDensity()) + QLatin1Char('|')
-			+ f(mat.hasDensity() ? mat.density() : -1.0f);
+			+ f(mat.hasDensity() ? mat.density() : -1.0f) + QLatin1Char('|')
+			// Shell thickness (Mass Properties pseudo-thickness for open surfaces) - effective state only,
+			// for the same reason as density above.
+			+ b(mat.hasShellThickness()) + QLatin1Char('|')
+			+ f(mat.hasShellThickness() ? mat.shellThickness() : -1.0f);
 
 		// Every texture slot: the LIVE bound image path (see
 		// liveTexturePath()'s own doc comment for why NOT texture(type).path),

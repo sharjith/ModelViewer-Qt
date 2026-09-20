@@ -16,7 +16,10 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
+#include <limits>
+#include <thread>
 #include <variant>
 
 namespace
@@ -43,17 +46,360 @@ namespace
 		}
 		return true;
 	}
+
+	using VolumeIdMap = WtMesh::Property_map<FaceDescriptor, std::size_t>;
+
+	// Where a ray hit a triangle (or, for a ray lying in the hit triangle's plane, the nearer segment endpoint - the
+	// same "nearest wins" rule the normal-ray path uses), and its distance from `origin`.
+	template <typename Variant>
+	bool hitPointFrom(const Variant& intersection, const double origin[3], double outHit[3], double& outDistance)
+	{
+		if (const WtPoint3* p = std::get_if<WtPoint3>(&intersection))
+		{
+			outHit[0] = CGAL::to_double(p->x()); outHit[1] = CGAL::to_double(p->y()); outHit[2] = CGAL::to_double(p->z());
+		}
+		else if (const WtKernel::Segment_3* seg = std::get_if<WtKernel::Segment_3>(&intersection))
+		{
+			const WtPoint3 sp = seg->source();
+			const WtPoint3 tp = seg->target();
+			const double s[3] = { CGAL::to_double(sp.x()), CGAL::to_double(sp.y()), CGAL::to_double(sp.z()) };
+			const double t[3] = { CGAL::to_double(tp.x()), CGAL::to_double(tp.y()), CGAL::to_double(tp.z()) };
+			const double sd = (s[0] - origin[0]) * (s[0] - origin[0]) + (s[1] - origin[1]) * (s[1] - origin[1]) + (s[2] - origin[2]) * (s[2] - origin[2]);
+			const double td = (t[0] - origin[0]) * (t[0] - origin[0]) + (t[1] - origin[1]) * (t[1] - origin[1]) + (t[2] - origin[2]) * (t[2] - origin[2]);
+			const double* nearer = sd <= td ? s : t;
+			outHit[0] = nearer[0]; outHit[1] = nearer[1]; outHit[2] = nearer[2];
+		}
+		else
+		{
+			return false;
+		}
+		const double dx = outHit[0] - origin[0], dy = outHit[1] - origin[1], dz = outHit[2] - origin[2];
+		outDistance = std::sqrt(dx * dx + dy * dy + dz * dz);
+		return std::isfinite(outDistance);
+	}
+
+	// Everything computeLocalThickness() produces, indexed by ORIGINAL triangle (degenerate/skipped triangles stay
+	// invalid / gridN 0).
+	struct LocalThicknessOutput
+	{
+		std::vector<float> thickness;
+		std::vector<bool> valid;
+		SubTriangleField samples;
+		std::vector<WallThicknessWitness> sampleWitness; // parallel to samples.values
+	};
+
+	// LocalThickness estimator - see WallThicknessMethod's doc comment for what it measures and why. `mesh` is
+	// the oriented (outward-facing) working mesh, `tree` its AABB tree, `volumeIds` the solid-region id of each
+	// face; origFaceIndex[k] is the original triangle of working face k, and origPoints/origIndices the original
+	// geometry - sample positions and the sub-triangle grid are defined against the ORIGINAL vertex order, so the
+	// renderer (which only knows the original triangles) can place them. Returns false only if the face numbering
+	// assumption below does not hold, in which case the caller falls back to the normal-ray path.
+	bool computeLocalThickness(
+		const WtMesh& mesh, AABBTree& tree, const VolumeIdMap& volumeIds,
+		const std::vector<size_t>& origFaceIndex,
+		const std::vector<float>& origPoints, const std::vector<unsigned int>& origIndices,
+		const WallThicknessParams& params, LocalThicknessOutput& out)
+	{
+		struct FaceGeom
+		{
+			double a[3]{}, b[3]{}, c[3]{};      // working-mesh vertices (define the outward normal)
+			double oa[3]{}, ob[3]{}, oc[3]{};   // ORIGINAL-order vertices (define the sample grid)
+			double n[3]{};                      // outward unit normal
+			double area = 0.0;
+			bool ok = false;
+		};
+
+		const size_t faceCount = mesh.number_of_faces();
+		const size_t origFaceCount = origIndices.size() / 3;
+		if (faceCount == 0 || origFaceIndex.size() < faceCount)
+			return false;
+
+		std::vector<FaceGeom> geom(faceCount);
+		std::vector<FaceDescriptor> faceOf(faceCount);
+		double bbMin[3] = { 1e300, 1e300, 1e300 }, bbMax[3] = { -1e300, -1e300, -1e300 };
+		size_t k = 0;
+		for (FaceDescriptor f : faces(mesh))
+		{
+			// The whole scheme indexes per-face data by creation order == descriptor index (polygon_soup_to_
+			// polygon_mesh() adds faces one by one, no removals) - the same assumption the normal-ray loop
+			// makes. Verify it rather than trust it.
+			if (k >= faceCount || static_cast<size_t>(f.idx()) != k)
+				return false;
+			faceOf[k] = f;
+
+			const auto h = halfedge(f, mesh);
+			const WtPoint3& pa = mesh.point(source(h, mesh));
+			const WtPoint3& pb = mesh.point(target(h, mesh));
+			const WtPoint3& pc = mesh.point(target(next(h, mesh), mesh));
+			FaceGeom& g = geom[k];
+			const WtPoint3* pts[3] = { &pa, &pb, &pc };
+			double* out3[3] = { g.a, g.b, g.c };
+			for (int v = 0; v < 3; ++v)
+			{
+				out3[v][0] = CGAL::to_double(pts[v]->x());
+				out3[v][1] = CGAL::to_double(pts[v]->y());
+				out3[v][2] = CGAL::to_double(pts[v]->z());
+				for (int axis = 0; axis < 3; ++axis)
+				{
+					bbMin[axis] = std::min(bbMin[axis], out3[v][axis]);
+					bbMax[axis] = std::max(bbMax[axis], out3[v][axis]);
+				}
+			}
+			const double e1[3] = { g.b[0] - g.a[0], g.b[1] - g.a[1], g.b[2] - g.a[2] };
+			const double e2[3] = { g.c[0] - g.a[0], g.c[1] - g.a[1], g.c[2] - g.a[2] };
+			const double nx = e1[1] * e2[2] - e1[2] * e2[1];
+			const double ny = e1[2] * e2[0] - e1[0] * e2[2];
+			const double nz = e1[0] * e2[1] - e1[1] * e2[0];
+			const double len = std::sqrt(nx * nx + ny * ny + nz * nz);
+			if (len > 0.0 && std::isfinite(len))
+			{
+				g.n[0] = nx / len; g.n[1] = ny / len; g.n[2] = nz / len;
+				g.area = 0.5 * len;
+				g.ok = true;
+			}
+
+			const size_t origFace = origFaceIndex[k];
+			if (origFace >= origFaceCount)
+				return false;
+			double* origOut[3] = { g.oa, g.ob, g.oc };
+			for (int v = 0; v < 3; ++v)
+			{
+				const size_t vi = origIndices[origFace * 3 + v];
+				if (vi * 3 + 2 >= origPoints.size())
+					return false;
+				for (int axis = 0; axis < 3; ++axis)
+					origOut[v][axis] = static_cast<double>(origPoints[vi * 3 + axis]);
+			}
+			++k;
+		}
+		if (k != faceCount)
+			return false;
+
+		// ---- Sample density: spacing is a fraction of the model, not of any one triangle, so a huge CAD
+		// triangle gets many samples and a tiny one gets one. Widened if the total would exceed the budget. ----
+		const double diag = std::sqrt((bbMax[0] - bbMin[0]) * (bbMax[0] - bbMin[0])
+			+ (bbMax[1] - bbMin[1]) * (bbMax[1] - bbMin[1]) + (bbMax[2] - bbMin[2]) * (bbMax[2] - bbMin[2]));
+		double spacing = diag / static_cast<double>(std::max(1, params.samplesAcrossBoundingBox));
+		if (!(spacing > 0.0) || !std::isfinite(spacing))
+			spacing = 1.0;
+		constexpr int kMaxSubdivisions = 8;
+		std::vector<int> subdivisions(faceCount, 1);
+		for (int attempt = 0; attempt < 8; ++attempt)
+		{
+			size_t total = 0;
+			for (size_t i = 0; i < faceCount; ++i)
+			{
+				const int n = geom[i].ok
+					? std::clamp(static_cast<int>(std::ceil(std::sqrt(2.0 * geom[i].area) / spacing)), 1, kMaxSubdivisions)
+					: 1;
+				subdivisions[i] = n;
+				total += static_cast<size_t>(n) * static_cast<size_t>(n);
+			}
+			if (total <= params.sampleBudget)
+				break;
+			spacing *= std::sqrt(static_cast<double>(total) / static_cast<double>(params.sampleBudget)) * 1.05;
+		}
+
+		// Per-sample value storage, indexed through the ORIGINAL triangle so the renderer needs no knowledge of the
+		// working mesh: gridN/offset per original triangle, all samples in one flat array (NaN = no value).
+		out.samples.gridN.assign(origFaceCount, 0);
+		out.samples.offset.assign(origFaceCount, 0);
+		std::vector<size_t> sampleBase(faceCount, 0);
+		size_t totalSamples = 0;
+		for (size_t i = 0; i < faceCount; ++i)
+		{
+			sampleBase[i] = totalSamples;
+			const size_t origFace = origFaceIndex[i];
+			out.samples.gridN[origFace] = static_cast<unsigned char>(subdivisions[i]);
+			out.samples.offset[origFace] = static_cast<unsigned int>(totalSamples);
+			totalSamples += static_cast<size_t>(subdivisions[i]) * static_cast<size_t>(subdivisions[i]);
+		}
+		out.samples.values.assign(totalSamples, std::numeric_limits<float>::quiet_NaN());
+		out.thickness.assign(origFaceCount, 0.0f);
+		out.sampleWitness.assign(totalSamples, WallThicknessWitness());
+
+		// ---- The ray cone, in a frame whose +z is the inward normal: the axis alone at a 0 degree spread,
+		// otherwise also an inner ring (6 rays at half the cone angle) and an outer ring (12 rays at the full
+		// angle). cr.z = cos(angle from the inward normal), kept for the tangent-sphere diameter. ----
+		struct ConeRay { double x, y, z; };
+		std::vector<ConeRay> cone;
+		const double pi = std::acos(-1.0);
+		const double coneDegrees = std::clamp(params.coneHalfAngleDegrees, 0.0, 45.0);
+		cone.push_back({ 0.0, 0.0, 1.0 });
+		if (coneDegrees >= 0.5)
+		{
+			const double coneAngle = coneDegrees * pi / 180.0;
+			for (int i = 0; i < 6; ++i)
+			{
+				const double theta = coneAngle * 0.5, phi = 2.0 * pi * i / 6.0;
+				cone.push_back({ std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta) });
+			}
+			for (int i = 0; i < 12; ++i)
+			{
+				const double theta = coneAngle, phi = 2.0 * pi * (i + 0.5) / 12.0;
+				cone.push_back({ std::sin(theta) * std::cos(phi), std::sin(theta) * std::sin(phi), std::cos(theta) });
+			}
+		}
+
+		// The tree must be fully built BEFORE it is queried from several threads (a query on an unbuilt tree
+		// builds it lazily, which is not safe to race).
+		tree.build();
+
+		const double minAlignment = params.minExitAlignment;
+		std::vector<unsigned char> validFlags(faceCount, 0);
+
+		const auto processFace = [&](size_t i)
+		{
+			const FaceGeom& g = geom[i];
+			if (!g.ok)
+				return;
+			const FaceDescriptor self = faceOf[i];
+			const size_t ownVolume = volumeIds[self];
+			const size_t origFace = origFaceIndex[i];
+
+			// Inward normal and an arbitrary orthonormal frame around it.
+			const double in[3] = { -g.n[0], -g.n[1], -g.n[2] };
+			const int helperAxis = (std::abs(in[0]) <= std::abs(in[1]) && std::abs(in[0]) <= std::abs(in[2])) ? 0
+				: (std::abs(in[1]) <= std::abs(in[2]) ? 1 : 2);
+			double helper[3] = { 0, 0, 0 };
+			helper[helperAxis] = 1.0;
+			double t[3] = { in[1] * helper[2] - in[2] * helper[1], in[2] * helper[0] - in[0] * helper[2], in[0] * helper[1] - in[1] * helper[0] };
+			const double tLen = std::sqrt(t[0] * t[0] + t[1] * t[1] + t[2] * t[2]);
+			if (!(tLen > 0.0))
+				return;
+			for (double& v : t) v /= tLen;
+			const double b[3] = { in[1] * t[2] - in[2] * t[1], in[2] * t[0] - in[0] * t[2], in[0] * t[1] - in[1] * t[0] };
+
+			const int n = subdivisions[i];
+			float* sampleValues = out.samples.values.data() + sampleBase[i];
+			WallThicknessWitness* sampleWitnesses = out.sampleWitness.data() + sampleBase[i];
+			double faceMin = 0.0;
+			bool faceValid = false;
+
+			SubTriangleGrid::forEach(n, [&](int sampleIndex, double, double, double, double, double, double, double cu, double cv)
+			{
+				const double origin[3] = {
+					g.oa[0] + cu * (g.ob[0] - g.oa[0]) + cv * (g.oc[0] - g.oa[0]),
+					g.oa[1] + cu * (g.ob[1] - g.oa[1]) + cv * (g.oc[1] - g.oa[1]),
+					g.oa[2] + cu * (g.ob[2] - g.oa[2]) + cv * (g.oc[2] - g.oa[2]) };
+
+				double sampleMin = 0.0;
+				bool sampleValid = false;
+				WallThicknessWitness sampleWitness;
+				for (const ConeRay& cr : cone)
+				{
+					const double d[3] = {
+						t[0] * cr.x + b[0] * cr.y + in[0] * cr.z,
+						t[1] * cr.x + b[1] * cr.y + in[1] * cr.z,
+						t[2] * cr.x + b[2] * cr.y + in[2] * cr.z };
+					const WtRay3 ray(WtPoint3(origin[0], origin[1], origin[2]), WtKernel::Vector_3(d[0], d[1], d[2]));
+
+					// Nearest hit, never the origin face itself (the origin lies strictly inside it).
+					const auto hit = tree.first_intersection(ray, [self](const FaceDescriptor& id) { return id == self; });
+					if (!hit)
+						continue;
+					double hitPoint[3] = { 0, 0, 0 };
+					double distance = 0.0;
+					if (!hitPointFrom(hit->first, origin, hitPoint, distance))
+						continue;
+
+					const FaceDescriptor hitFace = hit->second;
+					if (volumeIds[hitFace] != ownVolume)
+						continue; // a different solid region (a separate body sharing this mesh)
+					const size_t hitIndex = static_cast<size_t>(hitFace.idx());
+					const FaceGeom& hg = geom[hitIndex];
+					if (!hg.ok)
+						continue;
+					// The ray must EXIT the material through a wall that faces back at the surface.
+					const double leaving = hg.n[0] * d[0] + hg.n[1] * d[1] + hg.n[2] * d[2];
+					const double facingBack = hg.n[0] * in[0] + hg.n[1] * in[1] + hg.n[2] * in[2];
+					if (leaving <= 0.0 || facingBack < minAlignment)
+						continue;
+
+					// The largest sphere TANGENT to the surface at this sample that a wall point at `distance`
+					// along a ray at angle theta from the inward normal does not cross has diameter
+					// distance / cos(theta) (a sphere tangent at p with centre p + r*n contains the point
+					// p + L*d exactly when L <= 2 r cos(theta)). Over a flat wall of thickness w every ray gives
+					// >= w with equality on the axis; across a round bar of diameter D every ray gives exactly D -
+					// so the minimum over the cone is unbiased for both, unlike projecting the distance onto
+					// the normal (distance * cos), which reads a round bar up to 25% thin at a 30 degree cone.
+					const double diameter = distance / cr.z; // cr.z = cos(angle to the inward normal)
+					if (!sampleValid || diameter < sampleMin)
+					{
+						sampleMin = diameter;
+						sampleValid = true;
+						for (int axis = 0; axis < 3; ++axis)
+						{
+							sampleWitness.origin[axis] = static_cast<float>(origin[axis]);
+							sampleWitness.hit[axis] = static_cast<float>(hitPoint[axis]);
+						}
+						sampleWitness.angleDegrees = static_cast<float>(std::acos(std::clamp(cr.z, -1.0, 1.0)) * 180.0 / pi);
+						sampleWitness.distance = static_cast<float>(distance);
+						sampleWitness.hitTriangle = hitIndex < origFaceIndex.size() ? static_cast<int>(origFaceIndex[hitIndex]) : -1;
+					}
+				}
+				if (!sampleValid)
+					return;
+				sampleValues[sampleIndex] = static_cast<float>(sampleMin);
+				sampleWitnesses[sampleIndex] = sampleWitness;
+				if (!faceValid || sampleMin < faceMin)
+				{
+					faceMin = sampleMin;
+					faceValid = true;
+				}
+			});
+
+			if (faceValid && std::isfinite(faceMin))
+			{
+				out.thickness[origFace] = static_cast<float>(faceMin);
+				validFlags[i] = 1;
+			}
+		};
+
+		// Faces are independent: split them across the available cores in small chunks.
+		const unsigned hardware = std::thread::hardware_concurrency();
+		const unsigned threadCount = std::clamp(hardware == 0 ? 4u : hardware, 1u, 16u);
+		std::atomic<size_t> next{ 0 };
+		constexpr size_t kChunk = 32;
+		const auto worker = [&]()
+		{
+			for (;;)
+			{
+				const size_t begin = next.fetch_add(kChunk);
+				if (begin >= faceCount)
+					break;
+				const size_t end = std::min(begin + kChunk, faceCount);
+				for (size_t i = begin; i < end; ++i)
+				{
+					try { processFace(i); }
+					catch (...) { validFlags[i] = 0; } // never let a CGAL exception escape a worker thread
+				}
+			}
+		};
+		std::vector<std::thread> pool;
+		for (unsigned i = 1; i < threadCount; ++i)
+			pool.emplace_back(worker);
+		worker();
+		for (std::thread& th : pool)
+			th.join();
+
+		out.valid.assign(origFaceCount, false);
+		for (size_t i = 0; i < faceCount; ++i)
+			out.valid[origFaceIndex[i]] = validFlags[i] != 0;
+		return true;
+	}
 }
 
-WallThicknessResult WallThicknessAnalyzer::computeThickness(SceneMesh* mesh)
+WallThicknessResult WallThicknessAnalyzer::computeThickness(SceneMesh* mesh, const WallThicknessParams& params)
 {
 	if (!mesh)
 		return WallThicknessResult();
-	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices());
+	return computeThickness(mesh->getTrsfPoints(), mesh->getIndices(), params);
 }
 
 WallThicknessResult WallThicknessAnalyzer::computeThickness(
-	const std::vector<float>& origPoints, const std::vector<unsigned int>& origIndices)
+	const std::vector<float>& origPoints, const std::vector<unsigned int>& origIndices,
+	const WallThicknessParams& params)
 {
 	WallThicknessResult result;
 	const size_t origVertexCount = origPoints.size() / 3;
@@ -221,6 +567,22 @@ WallThicknessResult WallThicknessAnalyzer::computeThickness(
 	// index k here always corresponds to origFaceIndex[k]. ----
 	result.thicknessPerFace.assign(origFaceCount, 0.0f);
 	result.validPerFace.assign(origFaceCount, false);
+
+	if (params.method == WallThicknessMethod::LocalThickness)
+	{
+		LocalThicknessOutput local;
+		if (computeLocalThickness(workingMesh, aabbTree, volumeIdMap, origFaceIndex, origPoints, origIndices, params, local))
+		{
+			// Already indexed by ORIGINAL triangle (degenerate faces dropped from the working mesh stay invalid).
+			result.thicknessPerFace = std::move(local.thickness);
+			result.validPerFace = std::move(local.valid);
+			result.samples = std::move(local.samples);
+			result.sampleWitness = std::move(local.sampleWitness);
+			result.succeeded = true;
+			return result;
+		}
+		// Face numbering did not match expectations: fall through to the normal-ray estimate rather than fail.
+	}
 
 	struct Hit { double distance; std::size_t volumeId; };
 

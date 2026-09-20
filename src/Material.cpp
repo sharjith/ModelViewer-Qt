@@ -342,6 +342,16 @@ void Material::clearDensity()
 	_density = -1.0f;
 }
 
+void Material::setShellThickness(float thicknessMm)
+{
+	_shellThickness = (std::isfinite(thicknessMm) && thicknessMm > 0.0f) ? thicknessMm : -1.0f;
+}
+
+void Material::clearShellThickness()
+{
+	_shellThickness = -1.0f;
+}
+
 void Material::setDensityApplicable(bool applicable)
 {
 	// Deliberately does NOT clear _density when set false - hasDensity()
@@ -3634,6 +3644,9 @@ Material Material::fromVariantMap(const QVariantMap& m)
 		// check untouched.
 		mat._density = (std::isfinite(d) && d >= 0.0f) ? d : -1.0f;
 	}
+	// Shell thickness follows the same rules: absent key = unset, and an invalid stored value reads back as unset.
+	if (mat._densityApplicable && m.contains("shellThickness"))
+		mat.setShellThickness(readFloat(m.value("shellThickness"), -1.0f));
 
 	if (m.contains("normalScale"))      mat._normalScale = readFloat(m.value("normalScale"), mat._normalScale);
 	if (m.contains("heightScale"))      mat._heightScale = readFloat(m.value("heightScale"), mat._heightScale);
@@ -3930,6 +3943,8 @@ QVariantMap Material::toVariantMap() const
 	m.insert("densityApplicable", QVariant(isDensityApplicable()));
 	if (hasDensity())
 		m.insert("density", QVariant(density()));
+	if (hasShellThickness())
+		m.insert("shellThickness", QVariant(shellThickness()));
 
 	m.insert("normalScale", QVariant(normalScale()));
 	m.insert("heightScale", QVariant(heightScale()));

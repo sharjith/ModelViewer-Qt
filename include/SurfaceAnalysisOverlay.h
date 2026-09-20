@@ -8,8 +8,15 @@
 #include <vector>
 
 #include "AnalysisColorRamp.h"
+#include "SubTriangleGrid.h"
 
 class SceneMesh;
+
+// Which analysis produced an overlay. Stored with each cached result so consumers (the hover readout's label)
+// never have to guess it from HOW the result was uploaded - per-face vs per-vertex says nothing about the
+// analysis: Draft Angle and Wall-Thickness are both per-face, and a readout that treated "per-face" as
+// "Draft Angle" mislabelled every thickness value as degrees.
+enum class AnalysisKind { Curvature, DraftAngle, WallThickness, Deviation };
 
 // Tracks which meshes currently have an active Surface Analysis overlay
 // (curvature/thickness/deviation heatmap - see RenderableMesh::
@@ -101,7 +108,8 @@ public:
 		const std::vector<bool>& validPerSample,
 		const CacheKey& key,
 		float rangeMin, float rangeMax,
-		AnalysisColormap colormap);
+		AnalysisColormap colormap,
+		AnalysisKind kind);
 
 	// Same as applyResult() above, but for a PER-FACE result (draft angle -
 	// one scalar per TRIANGLE, uploaded via RenderableMesh::
@@ -114,7 +122,24 @@ public:
 		const std::vector<bool>& validPerFace,
 		const CacheKey& key,
 		float rangeMin, float rangeMax,
-		AnalysisColormap colormap);
+		AnalysisColormap colormap,
+		AnalysisKind kind);
+
+	// Same as applyFlatResult(), but each triangle is additionally drawn as an n x n grid of sub-triangles, each in
+	// the colour of its OWN value (see SubTriangleGrid) - so a result measured at many points per triangle (wall
+	// thickness) shows where within a large triangle the value changes, instead of one colour per triangle.
+	// scalarPerFace/validPerFace are the per-triangle summary (used for statistics and as the fallback);
+	// `refined` holds the per-sub-triangle values in the SAME units, NaN where a sample has no value. Uploaded via
+	// RenderableMesh::setAnalysisOverlaySubTriangleColors().
+	void applyRefinedResult(
+		SceneMesh* mesh,
+		const std::vector<float>& scalarPerFace,
+		const std::vector<bool>& validPerFace,
+		const SubTriangleField& refined,
+		const CacheKey& key,
+		float rangeMin, float rangeMax,
+		AnalysisColormap colormap,
+		AnalysisKind kind);
 
 	// Re-runs ONLY the color mapping (not the underlying geometry analysis)
 	// against the already-cached scalar field for `mesh`, via whichever
@@ -159,8 +184,22 @@ public:
 	// convention). Returns false (leaving outValue/outIsFlat untouched) if
 	// `mesh` has no cached overlay, triangleIndex is out of range, or any
 	// sample involved is marked invalid.
+	// outKind reports which analysis produced the value (see AnalysisKind) - use it, not the upload
+	// representation, to label a readout.
 	bool scalarAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
-	              float& outValue, bool& outIsFlat) const;
+	              float& outValue, AnalysisKind& outKind) const;
+
+	// The per-sub-triangle values of `mesh`'s cached overlay if it was applied via applyRefinedResult(); null
+	// otherwise (no overlay, or a plain per-triangle/per-vertex one). Valid until the next apply/clear.
+	const SubTriangleField* refinedFieldOf(SceneMesh* mesh) const;
+
+	// The analysis kind of `mesh`'s cached overlay; false if it has none.
+	bool kindOf(SceneMesh* mesh, AnalysisKind& outKind) const;
+
+	// Copies of the cached scalar field (per triangle for a flat result, per vertex otherwise) and its validity
+	// flags, so a caller can re-derive statistics or re-colour with different parameters without re-running the
+	// analysis. False if `mesh` has no cached overlay.
+	bool scalarField(SceneMesh* mesh, std::vector<float>& outValues, std::vector<bool>& outValid) const;
 
 	// The exact displayed color at one surface point - scalarAt()'s raw
 	// value, normalized against this mesh's own stored rangeMin/rangeMax and
@@ -212,6 +251,10 @@ private:
 		// Which RenderableMesh upload path this result uses - see
 		// applyResult() vs applyFlatResult()'s doc comments.
 		bool isFlat = false;
+		AnalysisKind kind = AnalysisKind::Curvature;
+		// Non-empty only for a result applied via applyRefinedResult() (always also isFlat): the per-sub-triangle
+		// values the display and the hover readout use in place of the per-triangle scalar.
+		SubTriangleField refined;
 	};
 
 	// Keyed directly by SceneMesh* - unlike Scene States/Selection Sets

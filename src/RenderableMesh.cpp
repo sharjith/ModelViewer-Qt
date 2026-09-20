@@ -2,6 +2,7 @@
 #include "Point.h"
 #include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
+#include "SubTriangleGrid.h"
 #include "SceneMesh.h"
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
@@ -3029,7 +3030,13 @@ void RenderableMesh::setAnalysisOverlayFlatColors(const std::vector<float>& rgba
 		}
 	}
 
-	_analysisFlatVertexCount = static_cast<unsigned int>(faceCount * 3);
+	uploadAnalysisFlatBuffers(dupPositions, dupNormals, dupColors);
+}
+
+void RenderableMesh::uploadAnalysisFlatBuffers(
+	const std::vector<float>& positions, const std::vector<float>& normals, const std::vector<float>& colors)
+{
+	_analysisFlatVertexCount = static_cast<unsigned int>(positions.size() / 3);
 
 	// Lazily created - most meshes never use draft-angle mode, so this small
 	// extra VAO/buffer set shouldn't cost anything for the common case.
@@ -3046,31 +3053,129 @@ void RenderableMesh::setAnalysisOverlayFlatColors(const std::vector<float>& rgba
 
 	_analysisFlatPositionBuffer.bind();
 	_analysisFlatPositionBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-	_analysisFlatPositionBuffer.allocate(dupPositions.data(), static_cast<int>(dupPositions.size() * sizeof(float)));
+	_analysisFlatPositionBuffer.allocate(positions.data(), static_cast<int>(positions.size() * sizeof(float)));
 	_prog->enableAttributeArray("vertexPosition");
 	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
 	_analysisFlatNormalBuffer.bind();
 	_analysisFlatNormalBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-	_analysisFlatNormalBuffer.allocate(dupNormals.data(), static_cast<int>(dupNormals.size() * sizeof(float)));
+	_analysisFlatNormalBuffer.allocate(normals.data(), static_cast<int>(normals.size() * sizeof(float)));
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
 	_analysisFlatColorBuffer.bind();
 	_analysisFlatColorBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
-	_analysisFlatColorBuffer.allocate(dupColors.data(), static_cast<int>(dupColors.size() * sizeof(float)));
+	_analysisFlatColorBuffer.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
 	_prog->enableAttributeArray("analysisColor");
 	_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
 
 	_analysisFlatVAO.release();
 
-	// Mutually exclusive with the per-vertex path above - see this method's
-	// doc comment in RenderableMesh.h.
+	// Mutually exclusive with the per-vertex path above - see
+	// setAnalysisOverlayFlatColors()'s doc comment in RenderableMesh.h.
 	_analysisOverlayColors.clear();
 	_hasAnalysisOverlay = false;
 
 	_hasAnalysisFlatOverlay = true;
 	markUniformsDirty();
+}
+
+void RenderableMesh::setAnalysisOverlaySubTriangleColors(
+	const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgbaPerSample)
+{
+	const size_t faceCount = _indices.size() / 3;
+	if (rgbaPerSample.empty() || faceCount == 0 || _points.empty() || _normals.empty()
+		|| gridN.size() != faceCount || offset.size() != faceCount)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+	const size_t vertexCount = _points.size() / 3;
+	if (_normals.size() / 3 < vertexCount)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+
+	// Pass 1 - validate everything BEFORE reading it (same defense in depth as setAnalysisOverlayFlatColors()),
+	// and size the output: each triangle with grid resolution n contributes n*n sub-triangles; a triangle with no
+	// grid (n == 0) contributes nothing and is simply not overdrawn.
+	size_t subTriangleCount = 0;
+	for (size_t f = 0; f < faceCount; ++f)
+	{
+		for (int corner = 0; corner < 3; ++corner)
+		{
+			if (_indices[f * 3 + corner] >= vertexCount)
+			{
+				clearAnalysisOverlay();
+				return;
+			}
+		}
+		const size_t n = gridN[f];
+		if (n == 0)
+			continue;
+		if (static_cast<size_t>(offset[f]) + n * n > rgbaPerSample.size() / 4)
+		{
+			clearAnalysisOverlay();
+			return;
+		}
+		subTriangleCount += n * n;
+	}
+	if (subTriangleCount == 0)
+	{
+		clearAnalysisOverlay();
+		return;
+	}
+
+	std::vector<float> positions;
+	std::vector<float> normals;
+	std::vector<float> colors;
+	positions.reserve(subTriangleCount * 9);
+	normals.reserve(subTriangleCount * 9);
+	colors.reserve(subTriangleCount * 12);
+
+	for (size_t f = 0; f < faceCount; ++f)
+	{
+		const int n = gridN[f];
+		if (n == 0)
+			continue;
+		const unsigned int vi[3] = { _indices[f * 3], _indices[f * 3 + 1], _indices[f * 3 + 2] };
+		const size_t firstSample = offset[f];
+
+		// Position/normal at barycentric (u, v) of this triangle: P = v0 + u (v1 - v0) + v (v2 - v0), i.e. weights
+		// (1 - u - v, u, v) on the three corners. Normals are interpolated the same way and renormalised, which for
+		// a flat CAD face (equal corner normals) is exactly that normal.
+		const auto pushVertex = [&](double u, double v)
+		{
+			const float w[3] = { static_cast<float>(1.0 - u - v), static_cast<float>(u), static_cast<float>(v) };
+			float nrm[3] = { 0, 0, 0 };
+			for (int axis = 0; axis < 3; ++axis)
+			{
+				positions.push_back(w[0] * _points[vi[0] * 3 + axis] + w[1] * _points[vi[1] * 3 + axis] + w[2] * _points[vi[2] * 3 + axis]);
+				nrm[axis] = w[0] * _normals[vi[0] * 3 + axis] + w[1] * _normals[vi[1] * 3 + axis] + w[2] * _normals[vi[2] * 3 + axis];
+			}
+			const float len = std::sqrt(nrm[0] * nrm[0] + nrm[1] * nrm[1] + nrm[2] * nrm[2]);
+			for (int axis = 0; axis < 3; ++axis)
+				normals.push_back(len > 1.0e-12f ? nrm[axis] / len : _normals[vi[0] * 3 + axis]);
+		};
+
+		SubTriangleGrid::forEach(n, [&](int sample, double u0, double v0, double u1, double v1, double u2, double v2, double, double)
+		{
+			pushVertex(u0, v0);
+			pushVertex(u1, v1);
+			pushVertex(u2, v2);
+			const size_t c = (firstSample + static_cast<size_t>(sample)) * 4;
+			for (int corner = 0; corner < 3; ++corner)
+			{
+				colors.push_back(rgbaPerSample[c + 0]);
+				colors.push_back(rgbaPerSample[c + 1]);
+				colors.push_back(rgbaPerSample[c + 2]);
+				colors.push_back(rgbaPerSample[c + 3]);
+			}
+		});
+	}
+
+	uploadAnalysisFlatBuffers(positions, normals, colors);
 }
 
 void RenderableMesh::setAnalysisOverlayActive(bool active)

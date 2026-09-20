@@ -53,10 +53,17 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	layout->addWidget(_noSelectionLabel);
 
 	_table = new QTableWidget(this);
-	_table->setColumnCount(4);
-	_table->setHorizontalHeaderLabels({ tr("Mesh"), tr("Volume (mm³)"), tr("Surface Area (mm²)"), tr("Mass (kg)") });
+	_table->setColumnCount(5);
+	_table->setHorizontalHeaderLabels({ tr("Mesh"), tr("Material"), tr("Volume (mm³)"), tr("Surface Area (mm²)"), tr("Mass (kg)") });
+	// Every column is user-resizable (Interactive) - the Mesh column used to be Stretch, which cannot be dragged.
+	// Widths start at sensible values and the last column takes up any slack when the dialog is widened.
+	_table->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
 	_table->horizontalHeader()->setStretchLastSection(true);
-	_table->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+	_table->horizontalHeader()->setMinimumSectionSize(60);
+	_table->setColumnWidth(0, 190);
+	_table->setColumnWidth(1, 150);
+	_table->setColumnWidth(2, 130);
+	_table->setColumnWidth(3, 150);
 	_table->verticalHeader()->setVisible(false);
 	_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	_table->setSelectionMode(QAbstractItemView::NoSelection);
@@ -223,9 +230,11 @@ void MassPropertiesDialog::populate()
 	params.insert(QStringLiteral("mode"), QStringLiteral("massProperties"));
 	std::vector<AnalysisMeshSnapshot> snapshots;
 	std::vector<float> densityByIndex;
+	std::vector<float> shellThicknessByIndex; // mm; <= 0 = unset - see Material::shellThickness()
 	std::vector<QString> materialNameByIndex;
 	snapshots.reserve(selected.size());
 	densityByIndex.reserve(selected.size());
+	shellThicknessByIndex.reserve(selected.size());
 	materialNameByIndex.reserve(selected.size());
 	for (int id : selected)
 	{
@@ -236,6 +245,7 @@ void MassPropertiesDialog::populate()
 		// with no known density must never silently default to one).
 		const Material meshMaterial = mesh->getMaterial();
 		densityByIndex.push_back(meshMaterial.hasDensity() ? meshMaterial.density() : -1.0f);
+		shellThicknessByIndex.push_back(meshMaterial.hasShellThickness() ? meshMaterial.shellThickness() : -1.0f);
 		materialNameByIndex.push_back(meshMaterial.name());
 	}
 
@@ -320,6 +330,11 @@ void MassPropertiesDialog::populate()
 	// below.
 	int unitFallbackCount = 0;
 
+	// Meshes whose open surfaces were counted as area x shell thickness, and meshes excluded that a shell
+	// thickness on their material WOULD have included - both drive a footnote below.
+	int shellMeshCount = 0;
+	int shellCapableExcludedCount = 0;
+
 	// resolveEffectiveImportUnit() takes viewerState as a QJsonObject (the
 	// same shape it's persisted in) rather than a bare LengthUnit, so a
 	// document's own defaultImportUnit is wrapped once here rather than
@@ -341,9 +356,10 @@ void MassPropertiesDialog::populate()
 			// name), and it can't contribute to any total/group.
 			const QString reason = tr("mesh no longer available");
 			_table->setItem(row, 0, new QTableWidgetItem(tr("(deleted)")));
-			_table->setItem(row, 1, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 1, new QTableWidgetItem(QStringLiteral("-")));
 			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 4, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			++volumeExcludedCount;
 			++massExcludedCount;
@@ -356,6 +372,13 @@ void MassPropertiesDialog::populate()
 		}
 
 		_table->setItem(row, 0, new QTableWidgetItem(mesh->getName()));
+		{
+			// The material applied to this mesh, so its density / shell thickness source is visible right here.
+			const QString materialName = materialNameByIndex[i].isEmpty() ? QStringLiteral("-") : materialNameByIndex[i];
+			auto* materialItem = new QTableWidgetItem(materialName);
+			materialItem->setToolTip(materialName);
+			_table->setItem(row, 1, materialItem);
+		}
 
 		// Volume/surface-area/mass are all invariant under a rigid
 		// translation/rotation, so unlike SurfaceAnalysisDialog's overlays
@@ -372,9 +395,9 @@ void MassPropertiesDialog::populate()
 		if (!result)
 		{
 			const QString reason = tr("geometry changed during computation");
-			_table->setItem(row, 1, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 4, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			++volumeExcludedCount;
 			++massExcludedCount;
@@ -405,8 +428,12 @@ void MassPropertiesDialog::populate()
 			++unitFallbackCount;
 		const double lengthScale = lengthUnitToMillimeters(resolvedUnit.unit);
 		const float scaledSurfaceArea = result->surfaceArea * static_cast<float>(lengthScale * lengthScale);
-		const double scaledVolume = result->volume * lengthScale * lengthScale * lengthScale;
-		const QVector3D scaledCenterOfMass = result->centerOfMass * static_cast<float>(lengthScale);
+		// Solid pieces use their real volume; open-surface pieces count as area x the material's shell
+		// thickness when one is set (see summarizeMeshVolume()). Everything below - the volume column, the
+		// totals, mass and the centroids - reads this summary rather than the raw geometry result.
+		const MeshVolumeSummary volumeSummary = summarizeMeshVolume(*result, lengthScale, shellThicknessByIndex[i]);
+		const double scaledVolume = volumeSummary.volume;
+		const QVector3D scaledCenterOfMass = volumeSummary.centerOfMass;
 
 		// hasValidGeometry gates this the same way hasValidVolume/hasMass
 		// gate the other two columns below - surfaceArea reads 0.0f (not a
@@ -416,29 +443,41 @@ void MassPropertiesDialog::populate()
 		// legitimate answer.
 		if (result->hasValidGeometry)
 		{
-			_table->setItem(row, 2, new QTableWidgetItem(QString::number(scaledSurfaceArea, 'f', 2)));
+			_table->setItem(row, 3, new QTableWidgetItem(QString::number(scaledSurfaceArea, 'f', 2)));
 			knownSurfaceAreaSubtotal += scaledSurfaceArea;
 		}
 		else
 		{
 			const QString reason = describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
-			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			if (!surfaceAreaExclusionReasons.contains(reason))
 				surfaceAreaExclusionReasons.append(reason);
 		}
 
-		if (result->hasValidVolume)
+		if (volumeSummary.valid)
 		{
-			_table->setItem(row, 1, new QTableWidgetItem(QString::number(scaledVolume, 'f', 2)));
+			QString volumeText = QString::number(scaledVolume, 'f', 2);
+			auto* volumeItem = new QTableWidgetItem();
+			if (volumeSummary.shellPieceCount > 0)
+			{
+				volumeText = tr("%1 (incl. shell)").arg(volumeText);
+				volumeItem->setToolTip(tr("%1 mm³ of this volume is open surface area x the material's shell thickness (%2 open piece(s)).")
+					.arg(volumeSummary.shellVolume, 0, 'f', 2).arg(volumeSummary.shellPieceCount));
+				++shellMeshCount;
+			}
+			volumeItem->setText(volumeText);
+			_table->setItem(row, 2, volumeItem);
 			knownVolumeSubtotal += scaledVolume;
 			volumeWeightedCentroidAccum += scaledCenterOfMass * static_cast<float>(scaledVolume);
 			volumeWeightSum += scaledVolume;
 		}
 		else
 		{
-			const QString reason = describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
-			_table->setItem(row, 1, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			if (volumeSummary.shellCapable)
+				++shellCapableExcludedCount;
+			const QString reason = describeMeshPropertyUnavailableReason(volumeSummary.reason);
+			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++volumeExcludedCount;
 			if (!volumeExclusionReasons.contains(reason))
 				volumeExclusionReasons.append(reason);
@@ -448,10 +487,10 @@ void MassPropertiesDialog::populate()
 		MaterialMassGroup& group = massByMaterial[materialName];
 		++group.totalCount;
 
-		if (meshHasMass(result->hasValidVolume, density))
+		if (meshHasMass(volumeSummary.valid, density))
 		{
 			const float weight = computeMeshWeight(scaledVolume, density);
-			_table->setItem(row, 3, new QTableWidgetItem(QString::number(weight, 'f', 3)));
+			_table->setItem(row, 4, new QTableWidgetItem(QString::number(weight, 'f', 3)));
 			knownMassSubtotal += weight;
 			massWeightedCentroidAccum += scaledCenterOfMass * weight;
 			massWeightSum += weight;
@@ -463,10 +502,10 @@ void MassPropertiesDialog::populate()
 			// (there's nothing to multiply a density by) - only surface the
 			// distinct "no density assigned" reason when volume itself was
 			// actually fine.
-			const QString reason = result->hasValidVolume
+			const QString reason = volumeSummary.valid
 				? describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::MissingDensity)
-				: describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
-			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+				: describeMeshPropertyUnavailableReason(volumeSummary.reason);
+			_table->setItem(row, 4, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
 			++massExcludedCount;
 			if (!massExclusionReasons.contains(reason))
 				massExclusionReasons.append(reason);
@@ -498,6 +537,16 @@ void MassPropertiesDialog::populate()
 	unitsNote += tr("Density comes from each mesh's assigned material; library-supplied values are typical/"
 	                 "nominal figures for a generic grade, not an exact spec - verify before relying on Mass "
 	                 "for an engineering-critical calculation.");
+	if (shellMeshCount > 0)
+	{
+		unitsNote += QLatin1Char(' ') + tr("%1 mesh(es) include open surfaces counted as area x the material's shell thickness - "
+		                                    "a pseudo volume, not an enclosed one.").arg(shellMeshCount);
+	}
+	if (shellCapableExcludedCount > 0)
+	{
+		unitsNote += QLatin1Char(' ') + tr("%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their "
+		                                    "material (Materials > Physical Properties) to include them.").arg(shellCapableExcludedCount);
+	}
 	_unitsNoteLabel->setText(unitsNote);
 
 	// Totals convention, applied identically to volume and mass (and to

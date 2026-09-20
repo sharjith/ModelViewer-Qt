@@ -3,16 +3,21 @@
 #include <QDialog>
 #include <QVector3D>
 #include <QSet>
+#include <QHash>
+#include <vector>
 
 #include "MeshSurfaceAnchor.h"
 
 #include "SurfaceAnalysisOverlay.h"
+#include "WallThicknessAnalyzer.h"
 
 class QToolButton;
 class QButtonGroup;
 class QStackedWidget;
 class QLabel;
 class QComboBox;
+class QCheckBox;
+class QDoubleSpinBox;
 class QPushButton;
 class QCloseEvent;
 class QTimer;
@@ -109,6 +114,9 @@ private slots:
 	void onApplyCurvatureClicked();
 	void onApplyWallThicknessClicked();
 	void onClearClicked();
+	// The "highlight walls thinner than" checkbox / limit changed: re-colour the existing Wall-Thickness result
+	// (threshold map or the continuous ramp) without recomputing anything.
+	void onThicknessDisplayChanged();
 	// Connected to ViewportWidget::selectionChanged - keeps _selectionStatusLabel
 	// live as the user selects/deselects in the scene tree while this
 	// non-modal dialog stays open, rather than only ever surfacing "nothing
@@ -143,6 +151,12 @@ private:
 	void applyDeviationToSelection();
 	void applyCurvatureToSelection();
 	void applyWallThicknessToSelection();
+	// Legend + one-line summary (thinnest wall, share of surface under the limit) for the meshes that currently
+	// show a Wall-Thickness result.
+	void updateThicknessLegendAndSummary();
+	// Millimetres-per-unit scale for a mesh: multiplies its native-unit distances into millimetres, via the
+	// same import-unit resolution Mass Properties uses.
+	double lengthScaleForMesh(SceneMesh* mesh) const;
 	void clearSelectionOverlays();
 	// Repopulates _referenceMeshCombo from the document's currently loaded
 	// meshes, excluding the current selection - called whenever the
@@ -216,7 +230,33 @@ private:
 	QComboBox* _pullDirectionCombo = nullptr;
 	QPushButton* _applyDraftButton = nullptr;
 	QPushButton* _applyThicknessButton = nullptr;
+	QComboBox* _thicknessMethodCombo = nullptr;       // Local thickness / Normal ray
+	QCheckBox* _thicknessHighlightCheck = nullptr;    // switch the display to a pass/fail threshold map
+	QDoubleSpinBox* _thicknessLimitSpin = nullptr;    // the limit, in mm
+	QDoubleSpinBox* _thicknessSpreadSpin = nullptr;   // Local thickness ray spread (cone half angle), degrees
+	QLabel* _thicknessSummaryLabel = nullptr;
 	QLabel* _thicknessRejectionNote = nullptr;
+	// Top of the continuous ramp (mm) for the current result: a robust percentile rather than the maximum, so one
+	// long ray cannot squash everything else into a single colour.
+	float _thicknessRangeMax = 1.0f;
+
+	// What the hover log needs to explain a displayed thickness value: per mesh, the ray behind each
+	// sub-triangle sample (see WallThicknessResult::sampleWitness), the grid that locates a sample from a surface
+	// point, and the mesh-units -> mm factor. Replaced on every Wall-Thickness apply; only consulted while the
+	// mesh's overlay is a wall-thickness one.
+	struct ThicknessWitnessSet
+	{
+		std::vector<unsigned char> gridN;
+		std::vector<unsigned int> offset;
+		std::vector<WallThicknessWitness> witness;
+		float toMm = 1.0f;
+	};
+	QHash<SceneMesh*, ThicknessWitnessSet> _thicknessWitness;
+	// Last hovered sample that was logged, so a still cursor does not repeat the same line on every mouse move.
+	mutable SceneMesh* _lastLoggedThicknessMesh = nullptr;
+	mutable int _lastLoggedThicknessTriangle = -1;
+	mutable int _lastLoggedThicknessSample = -1;
+	void logThicknessWitness(SceneMesh* mesh, const MeshSurfaceAnchor& anchor, float valueMm) const;
 
 	// Deviation page
 	QComboBox* _referenceMeshCombo = nullptr;

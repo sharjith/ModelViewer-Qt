@@ -3997,162 +3997,183 @@ Ununterstütztes Dateiformat: </translation>
     </message>
     <message>
         <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="82"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="89"/>
         <source>Mass (kg)</source>
         <translation>Masse (kg)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="77"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="84"/>
         <source>Mass by Material:</source>
         <translation>Masse nach Material:</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="82"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="89"/>
         <source>Material</source>
         <translation>Material</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="136"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="104"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="143"/>
         <source>Close</source>
         <translation>Schließen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="136"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="143"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="342"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="357"/>
         <source>mesh no longer available</source>
         <translation>Mesh nicht mehr verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="343"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="358"/>
         <source>(deleted)</source>
         <translation>(gelöscht)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="344"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="345"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="346"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="375"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="376"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="377"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="425"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="441"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="469"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="360"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="361"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="362"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="398"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="399"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="400"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="452"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="480"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="508"/>
         <source>N/A (%1)</source>
         <translation>k. A. (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="374"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="397"/>
         <source>geometry changed during computation</source>
         <translation>Geometrie hat sich während der Berechnung geändert</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="494"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="464"/>
+        <source>%1 (incl. shell)</source>
+        <translation>%1 (inkl. Schale)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="465"/>
+        <source>%1 mm³ of this volume is open surface area x the material&apos;s shell thickness (%2 open piece(s)).</source>
+        <translation>%1 mm³ dieses Volumens stammen aus offener Oberfläche × Schalendicke des Materials (%2 offene(s) Teil(e)).</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="533"/>
         <source>%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-based results as provisional until this can be corrected per-import. </source>
         <translation>%1 von %2 Mesh(es) verwenden eine unbestätigte Standardeinheit (Millimeter) – behandeln Sie längenbasierte Ergebnisse als vorläufig, bis dies pro Import korrigiert werden kann. </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="498"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="537"/>
         <source>Density comes from each mesh&apos;s assigned material; library-supplied values are typical/nominal figures for a generic grade, not an exact spec - verify before relying on Mass for an engineering-critical calculation.</source>
         <translation>Die Dichte stammt aus dem jeweils zugewiesenen Material des Meshes; aus der Bibliothek stammende Werte sind typische/nominale Angaben für eine allgemeine Sorte, keine exakte Spezifikation – prüfen Sie sie, bevor Sie sich für eine technisch kritische Berechnung auf die Masse verlassen.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="511"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="542"/>
+        <source>%1 mesh(es) include open surfaces counted as area x the material&apos;s shell thickness - a pseudo volume, not an enclosed one.</source>
+        <translation>%1 Mesh(es) enthalten offene Flächen, die als Fläche × Schalendicke des Materials gezählt werden – ein Pseudovolumen, kein umschlossenes.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="547"/>
+        <source>%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their material (Materials &gt; Physical Properties) to include them.</source>
+        <translation>%1 Mesh(es) sind offene Flächen und wurden ausgeschlossen – legen Sie für deren Material eine Schalendicke fest (Materialien &gt; Physikalische Eigenschaften), um sie einzubeziehen.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="560"/>
         <source>Surface Area: %1 mm²
 </source>
         <translation>Oberfläche: %1 mm²
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="513"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="562"/>
         <source>Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Oberfläche: %1 mm² bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="518"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="567"/>
         <source>Volume: %1 mm³
 </source>
         <translation>Volumen: %1 mm³
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="520"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="569"/>
         <source>Volume: %1 mm³ known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Volumen: %1 mm³ bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="531"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="580"/>
         <source>Mass: %1 kg
 </source>
         <translation>Masse: %1 kg
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="533"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="582"/>
         <source>Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Masse: %1 kg bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="559"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="608"/>
         <source>%1 kg</source>
         <translation>%1 kg</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="560"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="609"/>
         <source>%1 kg known (%2 of %3 mesh(es) excluded - %4)</source>
         <translation>%1 kg bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="580"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="629"/>
         <source>Geometric Centroid: X %1, Y %2, Z %3
 </source>
         <translation>Geometrischer Schwerpunkt: X %1, Y %2, Z %3
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="585"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="634"/>
         <source>Geometric Centroid: N/A (%1)
 </source>
         <translation>Geometrischer Schwerpunkt: k. A. (%1)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="586"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="635"/>
         <source>selection has zero total volume</source>
         <translation>Auswahl hat das Gesamtvolumen null</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="586"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="635"/>
         <source>not every mesh has a valid volume</source>
         <translation>nicht jedes Mesh hat ein gültiges Volumen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="601"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="650"/>
         <source>Mass-Weighted Center of Mass: X %1, Y %2, Z %3</source>
         <translation>Massengewichteter Massenschwerpunkt: X %1, Y %2, Z %3</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="606"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="655"/>
         <source>Mass-Weighted Center of Mass: N/A (%1)</source>
         <translation>Massengewichteter Massenschwerpunkt: k. A. (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="607"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="656"/>
         <source>not every mesh has a known mass</source>
         <translation>nicht jedes Mesh hat eine bekannte Masse</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="607"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="656"/>
         <source>selection has zero total mass</source>
         <translation>Auswahl hat die Gesamtmasse null</translation>
     </message>
@@ -4565,7 +4586,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="271"/>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="2735"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1497"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1544"/>
         <source>Roughness</source>
         <translation>Rauheit</translation>
     </message>
@@ -4578,7 +4599,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="281"/>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="872"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1498"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1545"/>
         <source>Ambient Occlusion</source>
         <translation>Umgebungsverdeckung</translation>
     </message>
@@ -4591,7 +4612,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="291"/>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="1725"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1499"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1546"/>
         <source>Opacity</source>
         <translation>Deckkraft</translation>
     </message>
@@ -4763,7 +4784,7 @@ Ununterstütztes Dateiformat: </translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="585"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4375"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4422"/>
         <source>Delete</source>
         <translation>Löschen</translation>
     </message>
@@ -5372,7 +5393,7 @@ für diese Textur öffnen</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="2185"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1496"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1543"/>
         <source>Metallic</source>
         <translation>Metallic</translation>
     </message>
@@ -5637,6 +5658,7 @@ Trans.-Farbe</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5377"/>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5419"/>
         <source>Unknown</source>
         <translation>Unbekannt</translation>
     </message>
@@ -5647,299 +5669,315 @@ Trans.-Farbe</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="5402"/>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5444"/>
         <source>Clear (set Unknown)</source>
         <translation>Löschen (Unbekannt)</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="478"/>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5409"/>
+        <source>Shell thickness (mm):</source>
+        <translation>Schalendicke (mm):</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5416"/>
+        <source>Pseudo thickness in millimetres. Lets Mass Properties treat an open or sheet-like surface of this material (sheet metal, laminates) as area x thickness, instead of reporting it as having no volume. Closed solids ignore it and use their real volume. Leave Unknown to keep open surfaces excluded.</source>
+        <translation>Pseudodicke in Millimetern. Lässt Masseneigenschaften eine offene oder blechartige Fläche dieses Materials (Blech, Laminate) als Fläche × Dicke behandeln, statt sie als volumenlos zu melden. Geschlossene Körper ignorieren den Wert und verwenden ihr echtes Volumen. Auf „Unbekannt“ belassen, damit offene Flächen ausgeschlossen bleiben.</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5441"/>
+        <source>Reset shell thickness to Unknown</source>
+        <translation>Schalendicke auf Unbekannt zurücksetzen</translation>
+    </message>
+    <message>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="482"/>
         <source>Unsaved Materials</source>
         <translation>Nicht gespeicherte Materialien</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="479"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="483"/>
         <source>You have %1 unsaved material(s) in the library. Would you like to save them before closing?</source>
         <translation>Sie haben %1 nicht gespeicherte(s) Material(ien) in der Bibliothek. Möchten Sie sie vor dem Schließen speichern?</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="494"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="498"/>
         <source>Manual Save Required</source>
         <translation>Manuelles Speichern erforderlich</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="495"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="499"/>
         <source>Please save each unsaved material individually by selecting it and clicking &apos;Save&apos;.</source>
         <translation>Bitte speichern Sie jedes nicht gespeicherte Material einzeln, indem Sie es auswählen und auf „Speichern“ klicken.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="710"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="714"/>
         <source>Select Albedo Color</source>
         <translation>Albedofarbe auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="811"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="855"/>
         <source>Select Emissive Color</source>
         <translation>Emissionsfarbe auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="829"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="873"/>
         <source>Select Sheen Color</source>
         <translation>Glanzfarbe auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="854"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="898"/>
         <source>Select Diffuse Transmission Color</source>
         <translation>Farbe der diffusen Transmission auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="870"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="914"/>
         <source>Select Specular Color</source>
         <translation>Glanzlichtfarbe auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="886"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="930"/>
         <source>Select Attenuation Color</source>
         <translation>Abschwächungsfarbe auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1023"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1067"/>
         <source>Channel Packing...</source>
         <translation>Kanalpackung...</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1028"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1072"/>
         <source>Replace...</source>
         <translation>Ersetzen...</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1031"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1075"/>
         <source>Clear</source>
         <translation>Löschen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1450"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1497"/>
         <source>UV-</source>
         <translation>UV-</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1456"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1503"/>
         <source>UV%1</source>
         <translation>UV%1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1500"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1547"/>
         <source>Texture</source>
         <translation>Textur</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2042"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2089"/>
         <source>Select Texture</source>
         <translation>Textur auswählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2043"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2090"/>
         <source>Image Files (*.png *.jpg *.jpeg *.bmp *.tga);;All Files (*)</source>
         <translation>Bilddateien (*.png *.jpg *.jpeg *.bmp *.tga);;Alle Dateien (*)</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2051"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4383"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2098"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4430"/>
         <source>Clear All Textures</source>
         <translation>Alle Texturen löschen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2052"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2099"/>
         <source>Are you sure you want to clear all textures?</source>
         <translation>Möchten Sie wirklich alle Texturen löschen?</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2272"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3143"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3992"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2319"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3190"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4039"/>
         <source>No Material</source>
         <translation>Kein Material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2272"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3143"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2319"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3190"/>
         <source>No material is currently bound to save.</source>
         <translation>Derzeit ist kein Material zum Speichern gebunden.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2301"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2845"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2866"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3174"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2348"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2892"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2913"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3221"/>
         <source>Material Name</source>
         <translation>Materialname</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2302"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2349"/>
         <source>Enter name for material:</source>
         <translation>Namen für Material eingeben:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2324"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4064"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2371"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4111"/>
         <source>Choose Category</source>
         <translation>Kategorie wählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2325"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2372"/>
         <source>Select a category to save into:</source>
         <translation>Wählen Sie eine Kategorie zum Speichern aus:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2347"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2897"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3240"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2394"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2944"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3287"/>
         <source>Folder Creation Failed</source>
         <translation>Ordnererstellung fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2348"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2898"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3241"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2395"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2945"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3288"/>
         <source>Could not create material folder: %1</source>
         <translation>Materialordner konnte nicht erstellt werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2402"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2996"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3338"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2449"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3043"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3385"/>
         <source>Save Material Failed</source>
         <translation>Material konnte nicht gespeichert werden</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2521"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2699"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3132"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3449"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2568"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2746"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3179"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3496"/>
         <source>Material Saved</source>
         <translation>Material gespeichert</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2522"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2569"/>
         <source>New user material &apos;%1&apos; has been created in category &apos;%2&apos;.</source>
         <translation>Neues Benutzermaterial „%1“ wurde in Kategorie „%2“ erstellt.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2699"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2746"/>
         <source>User material &apos;%1&apos; has been updated.</source>
         <translation>Benutzermaterial „%1“ wurde aktualisiert.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2707"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2883"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2754"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2930"/>
         <source>Save Failed</source>
         <translation>Speichern fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2707"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2754"/>
         <source>Failed to save material: %1</source>
         <translation>Material konnte nicht gespeichert werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2813"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3220"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2860"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3267"/>
         <source>Choose Group</source>
         <translation>Gruppe wählen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2814"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3221"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2861"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3268"/>
         <source>Select a group to save into:</source>
         <translation>Wählen Sie eine Gruppe zum Speichern aus:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2835"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2882"/>
         <source>Save As New User Material</source>
         <translation>Als neues Benutzermaterial speichern</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2836"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2883"/>
         <source>You are saving changes to a factory material. A new user material will be created instead of modifying the factory material.</source>
         <translation>Sie speichern Änderungen an einem Werksmaterial. Anstatt das Werksmaterial zu ändern, wird ein neues Benutzermaterial erstellt.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2846"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2867"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2893"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2914"/>
         <source>Display name for material:</source>
         <translation>Anzeigename für Material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2883"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2930"/>
         <source>Invalid material name/key/group.</source>
         <translation>Ungültiger Materialname/-schlüssel/-gruppe.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3133"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3180"/>
         <source>Material &apos;%1&apos; successfully saved to your library under category &apos;%2&apos;.</source>
         <translation>Material „%1“ erfolgreich in Ihrer Bibliothek unter Kategorie „%2“ gespeichert.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3175"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3222"/>
         <source>Enter name for new material:</source>
         <translation>Namen für neues Material eingeben:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3450"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3497"/>
         <source>New user material &apos;%1&apos; has been created.</source>
         <translation>Neues Benutzermaterial „%1“ wurde erstellt.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3520"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3708"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3999"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3567"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3755"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4046"/>
         <source>No Library</source>
         <translation>Keine Bibliothek</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3520"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3708"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3999"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3567"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3755"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4046"/>
         <source>Material library not available.</source>
         <translation>Materialbibliothek nicht verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3527"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3715"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3574"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3762"/>
         <source>No Selection</source>
         <translation>Keine Auswahl</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3527"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3574"/>
         <source>Please select a material to delete.</source>
         <translation>Bitte wählen Sie ein zu löschendes Material aus.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3537"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3722"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3584"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3769"/>
         <source>Invalid Selection</source>
         <translation>Ungültige Auswahl</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3537"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3722"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3584"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3769"/>
         <source>Could not determine material key.</source>
         <translation>Materialschlüssel konnte nicht ermittelt werden.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3547"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3594"/>
         <source>Cannot Delete Factory Material</source>
         <translation>Werksmaterial kann nicht gelöscht werden</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3548"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3595"/>
         <source>Factory materials cannot be deleted. Only user-created or unsaved materials can be removed.</source>
         <translation>Werksmaterialien können nicht gelöscht werden. Nur benutzererstellte oder nicht gespeicherte Materialien können entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3555"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3602"/>
         <source>Delete Material?</source>
         <translation>Material löschen?</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3556"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3603"/>
         <source>Are you sure you want to remove &apos;%1&apos; from your library?
 
 This cannot be undone.</source>
@@ -5948,173 +5986,173 @@ This cannot be undone.</source>
 Dies kann nicht rückgängig gemacht werden.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3569"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3751"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3616"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3798"/>
         <source>Invalid Material</source>
         <translation>Ungültiges Material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3569"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3751"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3616"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3798"/>
         <source>Could not determine material group.</source>
         <translation>Materialgruppe konnte nicht ermittelt werden.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3644"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3691"/>
         <source>Delete Failed</source>
         <translation>Löschen fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3645"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3692"/>
         <source>Failed to delete material from library:
 %1</source>
         <translation>Material konnte nicht aus der Bibliothek gelöscht werden:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3662"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3709"/>
         <source>Folder Deletion Failed</source>
         <translation>Ordnerlöschung fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3663"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3710"/>
         <source>Could not delete material folder. The material was removed from the library, but texture files remain at:
 %1</source>
         <translation>Materialordner konnte nicht gelöscht werden. Das Material wurde aus der Bibliothek entfernt, aber Texturdateien verbleiben unter:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3698"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3745"/>
         <source>Material Deleted</source>
         <translation>Material gelöscht</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3699"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3746"/>
         <source>Material &apos;%1&apos; has been removed from your library.</source>
         <translation>Material „%1“ wurde aus Ihrer Bibliothek entfernt.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3715"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3762"/>
         <source>Please select a material to rename.</source>
         <translation>Bitte wählen Sie ein umzubenennendes Material aus.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3733"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3780"/>
         <source>Cannot Rename</source>
         <translation>Umbenennen nicht möglich</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3734"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3781"/>
         <source>Only user-created and unsaved materials can be renamed. Factory materials cannot be renamed.</source>
         <translation>Nur benutzererstellte und nicht gespeicherte Materialien können umbenannt werden. Werksmaterialien können nicht umbenannt werden.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3759"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3806"/>
         <source>Rename Material</source>
         <translation>Material umbenennen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3760"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3807"/>
         <source>Enter new name for material:</source>
         <translation>Neuen Namen für Material eingeben:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3795"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3842"/>
         <source>Duplicate Name</source>
         <translation>Doppelter Name</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3796"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3843"/>
         <source>A material with name &apos;%1&apos; already exists in this group.</source>
         <translation>Ein Material mit dem Namen „%1“ existiert bereits in dieser Gruppe.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3832"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3879"/>
         <source>File Not Found</source>
         <translation>Datei nicht gefunden</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3833"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3880"/>
         <source>User materials file does not exist: %1</source>
         <translation>Benutzermaterialdatei existiert nicht: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3842"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3889"/>
         <source>Read Failed</source>
         <translation>Lesen fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3843"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3890"/>
         <source>Failed to open user materials file for reading: %1</source>
         <translation>Benutzermaterialdatei konnte nicht zum Lesen geöffnet werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3855"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3902"/>
         <source>Parse Failed</source>
         <translation>Analyse fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3856"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3903"/>
         <source>Failed to parse user materials JSON: %1</source>
         <translation>JSON der Benutzermaterialien konnte nicht analysiert werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3918"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3965"/>
         <source>Rename Failed</source>
         <translation>Umbenennen fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3919"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3966"/>
         <source>Material with key &apos;%1&apos; not found in group &apos;%2&apos;. Check the debug log for details.</source>
         <translation>Material mit Schlüssel „%1“ wurde in Gruppe „%2“ nicht gefunden. Details im Debug-Protokoll.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3929"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3976"/>
         <source>Write Failed</source>
         <translation>Schreiben fehlgeschlagen</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3930"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3977"/>
         <source>Failed to open user materials file for writing: %1</source>
         <translation>Benutzermaterialdatei konnte nicht zum Schreiben geöffnet werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3982"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4029"/>
         <source>Material Renamed</source>
         <translation>Material umbenannt</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3983"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4030"/>
         <source>Material has been renamed to &apos;%1&apos;.</source>
         <translation>Material wurde in „%1“ umbenannt.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3992"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4039"/>
         <source>No material is currently loaded to create from.</source>
         <translation>Derzeit ist kein Material geladen, von dem aus erstellt werden kann.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4020"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4067"/>
         <source>New Material Name</source>
         <translation>Neuer Materialname</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4021"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4068"/>
         <source>Enter a name for the new material:</source>
         <translation>Geben Sie einen Namen für das neue Material ein:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4065"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4112"/>
         <source>Select a category for this material:</source>
         <translation>Wählen Sie eine Kategorie für dieses Material aus:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4183"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4230"/>
         <source>Material Created</source>
         <translation>Material erstellt</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4184"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4231"/>
         <source>New material &apos;%1&apos; created in category &apos;%2&apos;.
 
 Modify it and then click &apos;Save&apos; to persist it to your library.</source>
@@ -6123,17 +6161,17 @@ Modify it and then click &apos;Save&apos; to persist it to your library.</source
 Ändern Sie es und klicken Sie dann auf „Speichern“, um es in Ihrer Bibliothek zu speichern.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4351"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4398"/>
         <source>Copy Name</source>
         <translation>Namen kopieren</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4355"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4402"/>
         <source>Copy Key</source>
         <translation>Schlüssel kopieren</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4368"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4415"/>
         <source>Rename</source>
         <translation>Umbenennen</translation>
     </message>
@@ -8750,32 +8788,32 @@ Verwenden Sie Kopieren und Einfügen für eine Baugruppe mit mehreren Meshes.</t
         <translation>, Selbstdurchdringungen konnten NICHT vollständig behoben werden</translation>
     </message>
     <message>
-        <location filename="../src/MeshProperties.cpp" line="94"/>
+        <location filename="../src/MeshProperties.cpp" line="96"/>
         <source>invalid geometry</source>
         <translation>ungültige Geometrie</translation>
     </message>
     <message>
-        <location filename="../src/MeshProperties.cpp" line="95"/>
+        <location filename="../src/MeshProperties.cpp" line="97"/>
         <source>open surface</source>
         <translation>offene Fläche</translation>
     </message>
     <message>
-        <location filename="../src/MeshProperties.cpp" line="96"/>
+        <location filename="../src/MeshProperties.cpp" line="98"/>
         <source>self-intersecting</source>
         <translation>selbstdurchdringend</translation>
     </message>
     <message>
-        <location filename="../src/MeshProperties.cpp" line="97"/>
+        <location filename="../src/MeshProperties.cpp" line="99"/>
         <source>unresolved orientation</source>
         <translation>ungeklärte Orientierung</translation>
     </message>
     <message>
-        <location filename="../src/MeshProperties.cpp" line="98"/>
+        <location filename="../src/MeshProperties.cpp" line="100"/>
         <source>no density assigned</source>
         <translation>keine Dichte zugewiesen</translation>
     </message>
     <message>
-        <location filename="../src/MeshProperties.cpp" line="100"/>
+        <location filename="../src/MeshProperties.cpp" line="102"/>
         <source>unknown</source>
         <translation>unbekannt</translation>
     </message>
@@ -14316,252 +14354,320 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
 <context>
     <name>SurfaceAnalysisDialog</name>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="41"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="680"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="709"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="798"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="830"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="854"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="953"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="988"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1007"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1092"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1182"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1188"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1204"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1248"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1260"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1268"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="46"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="778"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="807"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="896"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="928"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="952"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1086"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1137"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1295"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1380"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1470"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1476"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1492"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1536"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1548"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1556"/>
         <source>Surface Analysis</source>
         <translation>Oberflächenanalyse</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="48"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="53"/>
         <source>Analyzes the current selection and paints the result directly on the mesh surface.</source>
         <translation>Analysiert die aktuelle Auswahl und malt das Ergebnis direkt auf die Mesh-Oberfläche.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="93"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="98"/>
         <source>Curvature</source>
         <translation>Krümmung</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="94"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="99"/>
         <source>Wall-Thickness</source>
         <translation>Wandstärke</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="95"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="100"/>
         <source>Deviation</source>
         <translation>Abweichung</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="114"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="119"/>
         <source>Zebra Stripe reveals surface continuity as a live, view-dependent reflection pattern - no legend, since it isn&apos;t a fixed color scale.</source>
         <translation>Zebrastreifen zeigt die Flächenkontinuität als Live-Reflexionsmuster, das von der Ansicht abhängt – keine Legende, da es keine feste Farbskala ist.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="118"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="123"/>
         <source>Zebra Stripe</source>
         <translation>Zebrastreifen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="123"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="128"/>
         <source>Mean Curvature colors each vertex by how sharply the surface bends there - blue is concave, red is convex, white is flat. Gaussian/principal curvature modes are not yet available. Computed on a repaired copy of the mesh (real connectivity is required); any repair made is disclosed below after Apply.</source>
         <translation>Mittlere Krümmung färbt jeden Vertex danach, wie stark sich die Fläche dort biegt – blau ist konkav, rot ist konvex, weiß ist eben. Gauß-/Hauptkrümmungsmodi sind noch nicht verfügbar. Berechnet auf einer reparierten Kopie des Meshes (echte Konnektivität ist erforderlich); jede durchgeführte Reparatur wird nach dem Anwenden unten angezeigt.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="130"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="135"/>
         <source>Apply Mean Curvature</source>
         <translation>Mittlere Krümmung anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="148"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="153"/>
         <source>Draft Angle colors each face by its signed angle to the chosen pull direction - red/positive is an ordinary moldable wall, blue/negative is an undercut, white is parallel to the pull direction (zero draft).</source>
         <translation>Entformungsschräge färbt jede Fläche nach ihrem vorzeichenbehafteten Winkel zur gewählten Entformungsrichtung – rot/positiv ist eine gewöhnliche formbare Wand, blau/negativ ist ein Hinterschnitt, weiß ist parallel zur Entformungsrichtung (keine Schräge).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="155"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="160"/>
         <source>Pull direction:</source>
         <translation>Entformungsrichtung:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="157"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="162"/>
         <source>+X</source>
         <translation>+X</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="158"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="163"/>
         <source>-X</source>
         <translation>-X</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="159"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="164"/>
         <source>+Y</source>
         <translation>+Y</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="160"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="165"/>
         <source>-Y</source>
         <translation>-Y</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="161"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="166"/>
         <source>+Z</source>
         <translation>+Z</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="162"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="167"/>
         <source>-Z</source>
         <translation>-Z</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="174"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="179"/>
         <source>Apply Draft Angle</source>
         <translation>Entformungsschräge anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="178"/>
-        <source>Wall-Thickness colors each face by an inward-ray distance to the opposite wall - blue is thin, red is thick. This is an ESTIMATE, not a guaranteed true minimum (the true minimum can occur along a direction other than the surface normal). Requires a closed, non-self-intersecting mesh that bounds a volume - the whole mesh is rejected with a reason if it doesn&apos;t, not partially colored.</source>
-        <translation>Wandstärke färbt jede Fläche nach dem Abstand eines nach innen gerichteten Strahls zur gegenüberliegenden Wand – blau ist dünn, rot ist dick. Dies ist eine SCHÄTZUNG, kein garantiertes wahres Minimum (das wahre Minimum kann in einer anderen Richtung als der Flächennormalen auftreten). Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nicht teilweise eingefärbt.</translation>
+        <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Local thickness samples many points per face and casts a cone of rays into the material, so thin ribs and slots are found and the result does not depend on how the surface was triangulated; Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored.</source>
+        <translation type="vanished">Wandstärke schätzt, wie dick das Material hinter jedem Punkt der Oberfläche ist – blau ist dünn, rot ist dick. Die lokale Dicke tastet viele Punkte pro Fläche ab und schickt einen Strahlenkegel ins Material, sodass dünne Rippen und Schlitze erkannt werden und das Ergebnis nicht von der Triangulierung der Oberfläche abhängt; Normalenstrahl ist die ältere, schnellere Ein-Strahl-Schätzung. Beide sind SCHÄTZUNGEN, keine exakten Minima. Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nie teilweise eingefärbt.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="186"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="197"/>
+        <source>Method:</source>
+        <translation>Methode:</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="199"/>
+        <source>Local thickness (recommended)</source>
+        <translation>Lokale Dicke (empfohlen)</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="200"/>
+        <source>Normal ray (fast)</source>
+        <translation>Normalenstrahl (schnell)</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="475"/>
+        <source>Thickness: %1 mm</source>
+        <translation>Dicke: %1 mm</translation>
+    </message>
+    <message>
+        <source>Wall-Thickness colors each face by an inward-ray distance to the opposite wall - blue is thin, red is thick. This is an ESTIMATE, not a guaranteed true minimum (the true minimum can occur along a direction other than the surface normal). Requires a closed, non-self-intersecting mesh that bounds a volume - the whole mesh is rejected with a reason if it doesn&apos;t, not partially colored.</source>
+        <translation type="vanished">Wandstärke färbt jede Fläche nach dem Abstand eines nach innen gerichteten Strahls zur gegenüberliegenden Wand – blau ist dünn, rot ist dick. Dies ist eine SCHÄTZUNG, kein garantiertes wahres Minimum (das wahre Minimum kann in einer anderen Richtung als der Flächennormalen auftreten). Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nicht teilweise eingefärbt.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="223"/>
         <source>Apply Wall-Thickness</source>
         <translation>Wandstärke anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="203"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="230"/>
+        <source>Highlight walls thinner than:</source>
+        <translation>Wände hervorheben, die dünner sind als:</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="233"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1269"/>
+        <source> mm</source>
+        <translation> mm</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="262"/>
         <source>Colors the selected mesh by its unsigned distance to a reference mesh&apos;s surface - dark blue is a close match, red is the largest deviation found. Both meshes must already be aligned in the same coordinate frame and use the same units; a plain offset between them will read as a false deviation. This is a sampled result (measured per vertex), not exhaustive coverage.</source>
         <translation>Färbt das ausgewählte Mesh nach seinem vorzeichenlosen Abstand zur Oberfläche eines Referenz-Meshes – dunkelblau ist eine gute Übereinstimmung, rot ist die größte gefundene Abweichung. Beide Meshes müssen bereits im selben Koordinatensystem ausgerichtet sein und dieselben Einheiten verwenden; ein einfacher Versatz zwischen ihnen wird als falsche Abweichung gelesen. Dies ist ein stichprobenartiges Ergebnis (pro Vertex gemessen), keine lückenlose Abdeckung.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="212"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="271"/>
         <source>Reference mesh:</source>
         <translation>Referenz-Mesh:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="217"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="276"/>
         <source>Apply</source>
         <translation>Anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="235"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="294"/>
         <source>Show Readout on Hover</source>
         <translation>Anzeige beim Überfahren einblenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="252"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="311"/>
         <source>Clear Overlay</source>
         <translation>Overlay löschen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="256"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="315"/>
         <source>Close</source>
         <translation>Schließen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="414"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="471"/>
         <source>Draft: %1°</source>
         <translation>Entformungsschräge: %1°</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="419"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="473"/>
         <source>Curvature: %1</source>
         <translation>Krümmung: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="421"/>
         <source>Thickness: %1</source>
-        <translation>Stärke: %1</translation>
+        <translation type="vanished">Stärke: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="423"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="183"/>
+        <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Local thickness samples many points per face and casts rays into the material from each, so thin ribs and slots are found, the result does not depend on how the surface was triangulated, and the colours show where WITHIN a large face the value changes; the ray spread sets how far off the straight-in direction those rays may fan out (0 = straight in only). Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes the ray behind it to the log.</source>
+        <translation>Wandstärke schätzt, wie dick das Material hinter jedem Punkt der Oberfläche ist – blau ist dünn, rot ist dick. Die lokale Dicke tastet viele Punkte pro Fläche ab und schickt von jedem aus Strahlen ins Material, sodass dünne Rippen und Schlitze erkannt werden, das Ergebnis nicht von der Triangulierung der Oberfläche abhängt und die Farben zeigen, wo sich der Wert INNERHALB einer großen Fläche ändert; die Strahlenstreuung legt fest, wie weit diese Strahlen von der geraden Richtung nach innen abweichen dürfen (0 = nur gerade nach innen). Normalenstrahl ist die ältere, schnellere Ein-Strahl-Schätzung. Beide sind SCHÄTZUNGEN, keine exakten Minima. Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nie teilweise eingefärbt. Beim Überfahren eines Werts wird der zugehörige Strahl ins Protokoll geschrieben.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="206"/>
+        <source>Ray spread:</source>
+        <translation>Strahlenstreuung:</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
+        <source>0 measures straight in from each sample (the wall directly behind it). Larger values also probe obliquely, which finds thin features beside a sample but reads a flat face&apos;s sloped neighbours as thinner.</source>
+        <translation>0 misst von jeder Stichprobe aus gerade nach innen (die Wand direkt dahinter). Größere Werte tasten auch schräg ab, was dünne Merkmale neben einer Stichprobe findet, aber schräge Nachbarn einer ebenen Fläche als dünner liest.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="477"/>
         <source>Deviation: %1</source>
         <translation>Abweichung: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="553"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="651"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation>Overlay für %1 Mesh(es) gelöscht – Transformation geändert, klicken Sie auf Anwenden, um neu zu berechnen.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="567"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="665"/>
         <source>No mesh selected - select one or more meshes in the scene tree first.</source>
         <translation>Kein Mesh ausgewählt – wählen Sie zuerst ein oder mehrere Meshes im Szenenbaum aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="573"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="671"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation>%1 Meshes ausgewählt – Abweichung benötigt genau eines (die Scan-/Vergleichsseite).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="590"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="688"/>
         <source>Comparing: %1</source>
         <translation>Vergleiche: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="595"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="693"/>
         <source>Selected: %1</source>
         <translation>Ausgewählt: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="596"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="694"/>
         <source>Selected (%1): %2</source>
         <translation>Ausgewählt (%1): %2</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="680"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="709"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="854"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1007"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="778"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="807"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="952"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1295"/>
         <source>Select one or more meshes first.</source>
         <translation>Wählen Sie zuerst ein oder mehrere Meshes aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="725"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="870"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1028"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1226"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="823"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="976"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1316"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1514"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="799"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="954"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1093"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1249"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1261"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="897"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1087"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1381"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1537"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1549"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation>Auswahl hat sich während der Berechnung geändert – Anwenden erneut ausführen.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="831"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="929"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation>Für die aktuelle Auswahl konnte kein brauchbares Krümmungsergebnis berechnet werden.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="989"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1138"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation>Wandstärke konnte nicht berechnet werden – keine Fläche fand einen gültigen Treffer an der gegenüberliegenden Wand.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1183"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1264"/>
+        <source>&lt; %1 mm</source>
+        <translation>&lt; %1 mm</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1264"/>
+        <source>&gt;= %1 mm</source>
+        <translation>&gt;= %1 mm</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1275"/>
+        <source>Thinnest wall found: %1 mm.</source>
+        <translation>Dünnste Wand: %1 mm.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1278"/>
+        <source>%1% of the analysed surface is thinner than %2 mm.</source>
+        <translation>%1 % der analysierten Fläche sind dünner als %2 mm.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1471"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation>Wählen Sie genau ein Mesh zum Vergleichen aus (die Scan-/Vergleichsseite).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1189"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1477"/>
         <source>No other loaded mesh is available to compare against.</source>
         <translation>Es ist kein anderes geladenes Mesh zum Vergleich verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1205"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1493"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation>Das gewählte Referenz-Mesh ist nicht mehr verfügbar – wählen Sie ein anderes aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1269"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1557"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation>Abweichung konnte nicht berechnet werden – das Referenz-Mesh hat keine verwendbaren Dreiecke.</translation>
     </message>

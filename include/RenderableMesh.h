@@ -532,6 +532,15 @@ public:
 	// fed from a different, separate GPU buffer and draw call).
 	void setAnalysisOverlayFlatColors(const std::vector<float>& rgbaPerFace);
 
+	// Sub-triangle variant of the flat overlay, for an analysis that measures many points per triangle (wall
+	// thickness): triangle t is drawn as a gridN[t] x gridN[t] grid of sub-triangles (see SubTriangleGrid.h for the
+	// numbering and barycentric convention), each in its OWN colour, rgbaPerSample[(offset[t] + k) * 4 ..] for
+	// sub-triangle k. gridN/offset must have one entry per triangle of this mesh; a triangle with gridN 0 is not
+	// overdrawn. Render-only, in mesh-local coordinates, sharing the flat overlay's VAO/buffers - mutually
+	// exclusive with the other two overlay representations exactly as setAnalysisOverlayFlatColors() is.
+	void setAnalysisOverlaySubTriangleColors(
+		const std::vector<unsigned char>& gridN, const std::vector<unsigned int>& offset, const std::vector<float>& rgbaPerSample);
+
 	void setAnalysisOverlayActive(bool active);
 	void clearAnalysisOverlay();
 	bool hasAnalysisOverlay() const { return _hasAnalysisOverlay || _hasAnalysisFlatOverlay; }
@@ -636,6 +645,9 @@ protected:
 	QOpenGLBuffer _analysisFlatNormalBuffer   { QOpenGLBuffer::VertexBuffer };
 	QOpenGLBuffer _analysisFlatColorBuffer    { QOpenGLBuffer::VertexBuffer };
 	unsigned int  _analysisFlatVertexCount = 0;
+	// Uploads already-expanded (3 vertices per drawn triangle) position/normal/colour arrays into the flat overlay's
+	// buffers and switches it on - the shared tail of setAnalysisOverlayFlatColors()/...SubTriangleColors().
+	void uploadAnalysisFlatBuffers(const std::vector<float>& positions, const std::vector<float>& normals, const std::vector<float>& colors);
 	bool          _hasAnalysisFlatOverlay  = false;
 
 	// See setZebraStripeActive()'s doc comment (public section).

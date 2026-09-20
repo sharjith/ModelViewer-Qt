@@ -63,10 +63,27 @@ struct MeshGeometryComputeResult
 {
 	bool hasValidGeometry = false;
 	float surfaceArea = 0.0f;
+	// True only when the WHOLE mesh is solid: at least one closed, non-self-intersecting piece and no piece that
+	// isn't (see the piece breakdown below). volumeUnavailableReason then carries why the mesh as a whole
+	// couldn't be treated as solid (open boundary, self-intersection, ...).
 	bool hasValidVolume = false;
 	MeshPropertyUnavailableReason volumeUnavailableReason = MeshPropertyUnavailableReason::None;
+	// Volume and centre of mass of the SOLID pieces, valid whenever solidPieceCount > 0 - even when other pieces
+	// of the same mesh are open surfaces (hasValidVolume false). Zero/unset otherwise.
 	double volume = 0.0;
 	QVector3D centerOfMass;
+
+	// ---- Piece breakdown -------------------------------------------------------------------------
+	// A mesh is split into its connected pieces and each is classified on its own, so a single import that mixes
+	// closed solids with open sheets (an assembly imported as one mesh) is handled per piece instead of being
+	// rejected wholesale. solidPieceCount is 1 on the fast path where the whole mesh already passed as one
+	// solid (the exact number of pieces isn't needed there).
+	int solidPieceCount = 0;
+	int shellPieceCount = 0;
+	// Area (native units^2) and area-weighted centroid of every piece that is NOT a valid solid - the input to
+	// a shell-thickness volume estimate, see summarizeMeshVolume().
+	double shellSurfaceArea = 0.0;
+	QVector3D shellCentroid;
 };
 
 // The divergence-theorem surface-area/volume/centroid integral - double-
@@ -78,6 +95,23 @@ struct MeshGeometryComputeResult
 // never to the centroid itself - a centroid legitimately has negative
 // coordinates (e.g. a part centered left of the mesh's own bbox center).
 MeshGeometryComputeResult computeMeshGeometry(const std::vector<float>& points, const std::vector<unsigned int>& indices, const BoundingBox& boundingBox);
+
+// The volume a mesh contributes to Mass Properties, in mm^3 / mm, with the shell-thickness rule applied: solid
+// pieces use their real volume; pieces that are open surfaces (sheet metal, laminates) count as area x
+// shellThicknessMm - but ONLY when a positive thickness is supplied. With none they still make the mesh
+// unavailable (never a silent omission), reported with the mesh's own whole-mesh reason. lengthScale converts
+// the mesh's native units to millimetres (see LengthUnits.h).
+struct MeshVolumeSummary
+{
+	bool valid = false;
+	MeshPropertyUnavailableReason reason = MeshPropertyUnavailableReason::None; // meaningful when !valid
+	double volume = 0.0;          // mm^3, solid + shell
+	QVector3D centerOfMass;       // mm, volume-weighted across solid and shell contributions
+	double shellVolume = 0.0;     // the part of `volume` that came from area x thickness
+	int shellPieceCount = 0;      // pieces treated as shells (0 for a plain solid)
+	bool shellCapable = false;    // !valid, but a shell thickness on the material WOULD make it valid
+};
+MeshVolumeSummary summarizeMeshVolume(const MeshGeometryComputeResult& geometry, double lengthScale, float shellThicknessMm);
 
 // Mass validity/weight - one real implementation shared by every caller
 // (MassPropertiesDialog's synchronous UI-thread total-accumulation and its

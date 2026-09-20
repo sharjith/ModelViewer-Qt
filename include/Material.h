@@ -234,6 +234,16 @@ public:
 	bool isDensityApplicable() const { return _densityApplicable; }
 	void setDensityApplicable(bool applicable);
 
+	// Shell thickness (millimetres): a user-supplied PSEUDO thickness that lets Mass Properties treat an open
+	// or sheet-like surface (sheet metal, laminates, a single-sided shell) as area x thickness of this
+	// material instead of reporting it as having no volume. Same "never a fabricated default" principle as
+	// density: unset (-1) simply means Mass Properties keeps refusing open surfaces, with the reason spelled
+	// out. Not applicable for a not-applicable (thin-film/decorative) material, exactly like density.
+	bool hasShellThickness() const { return _densityApplicable && _shellThickness > 0.0f; }
+	float shellThickness() const { return _shellThickness; } // sentinel -1 if unset
+	void setShellThickness(float thicknessMm);               // <= 0 or non-finite clears it
+	void clearShellThickness();
+
 	// Enhanced emissive properties
 	float emissiveStrength() const { return _emissiveStrength; }
 	void setEmissiveStrength(float strength) { _emissiveStrength = strength; }
@@ -1179,6 +1189,7 @@ private:
 	// three-state (Not Applicable / Unknown / real value) model.
 	float _density = -1.0f;          // sentinel: "not supplied" (Unknown)
 	bool  _densityApplicable = true; // false for thin-film/decorative presets
+	float _shellThickness = -1.0f;   // mm; sentinel: "not supplied" - see setShellThickness()
 
 	// Advanced PBR properties
 	float _ior; // Index of refraction

@@ -10,13 +10,15 @@ void SurfaceAnalysisOverlay::applyResult(
 	const std::vector<bool>& validPerSample,
 	const CacheKey& key,
 	float rangeMin, float rangeMax,
-	AnalysisColormap colormap)
+	AnalysisColormap colormap,
+	AnalysisKind kind)
 {
 	if (!mesh)
 		return;
 
 	Entry entry;
 	entry.mesh = mesh;
+	entry.kind = kind;
 	entry.key = key;
 	entry.scalarPerSample = scalarPerSample;
 	entry.validPerSample = validPerSample;
@@ -36,13 +38,15 @@ void SurfaceAnalysisOverlay::applyFlatResult(
 	const std::vector<bool>& validPerFace,
 	const CacheKey& key,
 	float rangeMin, float rangeMax,
-	AnalysisColormap colormap)
+	AnalysisColormap colormap,
+	AnalysisKind kind)
 {
 	if (!mesh)
 		return;
 
 	Entry entry;
 	entry.mesh = mesh;
+	entry.kind = kind;
 	entry.key = key;
 	entry.scalarPerSample = scalarPerFace;
 	entry.validPerSample = validPerFace;
@@ -54,6 +58,54 @@ void SurfaceAnalysisOverlay::applyFlatResult(
 
 	const std::vector<float> rgba = AnalysisColorRamp::mapToRGBA(scalarPerFace, validPerFace, rangeMin, rangeMax, colormap);
 	mesh->setAnalysisOverlayFlatColors(rgba);
+}
+
+namespace
+{
+	// AnalysisColorRamp input for a refined field: valid wherever the sample has a value.
+	std::vector<bool> refinedValidity(const std::vector<float>& values)
+	{
+		std::vector<bool> valid(values.size());
+		for (size_t i = 0; i < values.size(); ++i)
+			valid[i] = !std::isnan(values[i]);
+		return valid;
+	}
+}
+
+void SurfaceAnalysisOverlay::applyRefinedResult(
+	SceneMesh* mesh,
+	const std::vector<float>& scalarPerFace,
+	const std::vector<bool>& validPerFace,
+	const SubTriangleField& refined,
+	const CacheKey& key,
+	float rangeMin, float rangeMax,
+	AnalysisColormap colormap,
+	AnalysisKind kind)
+{
+	if (!mesh)
+		return;
+	if (refined.empty())
+	{
+		// Nothing finer than the triangle itself: the plain per-triangle display is the whole story.
+		applyFlatResult(mesh, scalarPerFace, validPerFace, key, rangeMin, rangeMax, colormap, kind);
+		return;
+	}
+
+	Entry entry;
+	entry.mesh = mesh;
+	entry.kind = kind;
+	entry.key = key;
+	entry.scalarPerSample = scalarPerFace;
+	entry.validPerSample = validPerFace;
+	entry.rangeMin = rangeMin;
+	entry.rangeMax = rangeMax;
+	entry.colormap = colormap;
+	entry.isFlat = true;
+	entry.refined = refined;
+	_entries[mesh] = entry;
+
+	const std::vector<float> rgba = AnalysisColorRamp::mapToRGBA(refined.values, refinedValidity(refined.values), rangeMin, rangeMax, colormap);
+	mesh->setAnalysisOverlaySubTriangleColors(refined.gridN, refined.offset, rgba);
 }
 
 void SurfaceAnalysisOverlay::recolor(SceneMesh* mesh, float rangeMin, float rangeMax, AnalysisColormap colormap)
@@ -68,6 +120,14 @@ void SurfaceAnalysisOverlay::recolor(SceneMesh* mesh, float rangeMin, float rang
 	it->rangeMin = rangeMin;
 	it->rangeMax = rangeMax;
 	it->colormap = colormap;
+
+	if (!it->refined.empty())
+	{
+		const std::vector<float> refinedRgba = AnalysisColorRamp::mapToRGBA(
+			it->refined.values, refinedValidity(it->refined.values), rangeMin, rangeMax, colormap);
+		mesh->setAnalysisOverlaySubTriangleColors(it->refined.gridN, it->refined.offset, refinedRgba);
+		return;
+	}
 
 	const std::vector<float> rgba = AnalysisColorRamp::mapToRGBA(it->scalarPerSample, it->validPerSample, rangeMin, rangeMax, colormap);
 	if (it->isFlat)
@@ -122,8 +182,41 @@ SurfaceAnalysisOverlay::CacheKey SurfaceAnalysisOverlay::computeCurrentKey(
 	return key;
 }
 
+bool SurfaceAnalysisOverlay::kindOf(SceneMesh* mesh, AnalysisKind& outKind) const
+{
+	if (!mesh)
+		return false;
+	const auto it = _entries.constFind(mesh);
+	if (it == _entries.constEnd())
+		return false;
+	outKind = it->kind;
+	return true;
+}
+
+const SubTriangleField* SurfaceAnalysisOverlay::refinedFieldOf(SceneMesh* mesh) const
+{
+	if (!mesh)
+		return nullptr;
+	const auto it = _entries.constFind(mesh);
+	if (it == _entries.constEnd() || it->refined.empty())
+		return nullptr;
+	return &it->refined;
+}
+
+bool SurfaceAnalysisOverlay::scalarField(SceneMesh* mesh, std::vector<float>& outValues, std::vector<bool>& outValid) const
+{
+	if (!mesh)
+		return false;
+	const auto it = _entries.constFind(mesh);
+	if (it == _entries.constEnd())
+		return false;
+	outValues = it->scalarPerSample;
+	outValid = it->validPerSample;
+	return true;
+}
+
 bool SurfaceAnalysisOverlay::scalarAt(SceneMesh* mesh, int triangleIndex, const QVector3D& barycentric,
-                                       float& outValue, bool& outIsFlat) const
+                                       float& outValue, AnalysisKind& outKind) const
 {
 	if (!mesh || triangleIndex < 0)
 		return false;
@@ -131,7 +224,7 @@ bool SurfaceAnalysisOverlay::scalarAt(SceneMesh* mesh, int triangleIndex, const 
 	if (it == _entries.constEnd())
 		return false;
 	const Entry& entry = it.value();
-	outIsFlat = entry.isFlat;
+	outKind = entry.kind;
 
 	if (entry.isFlat)
 	{
@@ -140,6 +233,18 @@ bool SurfaceAnalysisOverlay::scalarAt(SceneMesh* mesh, int triangleIndex, const 
 			return false;
 		if (idx < entry.validPerSample.size() && !entry.validPerSample[idx])
 			return false;
+		if (!entry.refined.empty() && idx < entry.refined.gridN.size() && entry.refined.gridN[idx] > 0)
+		{
+			// The value of the sub-triangle under the cursor - what the display shows there - not the
+			// triangle's summary minimum.
+			const int n = entry.refined.gridN[idx];
+			const size_t sample = static_cast<size_t>(entry.refined.offset[idx])
+				+ static_cast<size_t>(SubTriangleGrid::indexAt(n, barycentric.y(), barycentric.z()));
+			if (sample >= entry.refined.values.size() || std::isnan(entry.refined.values[sample]))
+				return false;
+			outValue = entry.refined.values[sample];
+			return true;
+		}
 		outValue = entry.scalarPerSample[idx];
 		return true;
 	}
@@ -172,8 +277,8 @@ bool SurfaceAnalysisOverlay::colorAt(SceneMesh* mesh, int triangleIndex, const Q
                                       QColor& outColor) const
 {
 	float value = 0.0f;
-	bool isFlat = false;
-	if (!scalarAt(mesh, triangleIndex, barycentric, value, isFlat))
+	AnalysisKind kind = AnalysisKind::Curvature;
+	if (!scalarAt(mesh, triangleIndex, barycentric, value, kind))
 		return false;
 
 	const auto it = _entries.constFind(mesh);

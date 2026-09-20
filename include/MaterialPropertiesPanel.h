@@ -149,6 +149,8 @@ private slots:
 	void onDensityChanged(double value);
 	void onDensityNotApplicableToggled(bool checked);
 	void onDensityClearClicked();
+	void onShellThicknessChanged(double value);
+	void onShellThicknessClearClicked();
 	void onIORChanged(double value);
 	void onOpacityChanged(double value);
 	void onEmissiveStrengthChanged(double value);

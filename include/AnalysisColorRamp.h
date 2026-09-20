@@ -18,7 +18,11 @@ enum class AnalysisColormap
 	Sequential,
 	// Blue -> White -> Red, centered on the midpoint of [rangeMin, rangeMax] -
 	// for SIGNED values where zero is meaningful (draft angle, curvature sign).
-	Diverging
+	Diverging,
+	// Two flat colours split at the midpoint of [rangeMin, rangeMax]: red below, green at or above. A pass/fail
+	// map for "is anything thinner than X" questions - the caller sets the range to [0, 2X] so the split lands
+	// on X. Its legend is thresholdLegend(), not legendGradient().
+	Threshold
 };
 
 class AnalysisColorRamp
@@ -45,7 +49,13 @@ public:
 		int width, int height,
 		float rangeMin, float rangeMax,
 		AnalysisColormap colormap,
-		const QString& unitSuffix = QString());
+		const QString& unitSuffix = QString(),
+		// True when values above rangeMax are clamped to the top colour (a robust range that deliberately
+		// excludes outliers): the max label then reads ">= max" instead of implying max is the largest value.
+		bool openEndedMax = false);
+
+	// Legend for AnalysisColormap::Threshold: two labelled blocks (below / at-or-above the threshold).
+	static QPixmap thresholdLegend(int width, int height, const QString& belowText, const QString& aboveText);
 
 	// The color a single normalized value (0 = rangeMin, 1 = rangeMax) maps
 	// to - exposed publicly since legendGradient() and mapToRGBA() both need
