@@ -24,6 +24,7 @@
 #include "ModelViewer.h"
 #include "ThemeManager.h"
 #include "LanguageManager.h"
+#include "StartupSplash.h"
 #include "TextShrink.h"
 #include "ViewportWidget.h"
 #include "ToolsToolbar.h"
@@ -113,6 +114,7 @@ MainWindow::MainWindow(QWidget* parent)
 	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int themeSettingValue = themeSettings.value("comboBoxTheme", 0).toInt();
 
+	StartupSplash::report(tr("Applying theme..."), 20);
 	ThemeManager* themeManager = new ThemeManager(this);
 	themeManager->setTheme(static_cast<ThemeManager::Theme>(themeSettingValue));
 
@@ -135,6 +137,8 @@ MainWindow::MainWindow(QWidget* parent)
 	});
 	themeCheckTimer->start(1000);
 #endif
+
+	StartupSplash::report(tr("Creating panels and docks..."), 30);
 
 	// Documents live in a native QMdiArea (tabbed, with tiling/cascading/
 	// restoring and most-recently-used Next/Previous via
@@ -858,6 +862,7 @@ MainWindow::MainWindow(QWidget* parent)
 
 	updateMenus();
 
+	StartupSplash::report(tr("Restoring window layout..."), 55);
 	readSettings();
 
 	setAttribute(Qt::WA_DeleteOnClose);
