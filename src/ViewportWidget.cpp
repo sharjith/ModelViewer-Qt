@@ -338,10 +338,13 @@ _floorPlane(nullptr),
 	 
 	 connect(_viewToolbar, &ViewToolbar::windowZoomRequested, this, &ViewportWidget::beginWindowZoom);
 
+	 // A click toggles Perspective <-> the parallel projection used last (orthographic, Cavalier or
+	 // Cabinet); the flyout's explicit picks arrive by name. Both take the viewport command path.
 	 connect(_viewToolbar, &ViewToolbar::projectionToggled, this, [this](bool ortho) {
-		 setProjection(ortho ? ViewProjection::ORTHOGRAPHIC : ViewProjection::PERSPECTIVE);
-		 fitAll();
-		 update();
+		 executeViewCommand(ortho ? QStringLiteral("lastParallel") : QStringLiteral("perspective"), true);
+		 });
+	 connect(_viewToolbar, &ViewToolbar::projectionSelected, this, [this](const QString& command) {
+		 executeViewCommand(command, true);
 		 });
 
 	 connect(_viewToolbar, &ViewToolbar::multiViewToggled, this, [this](bool enabled) {
@@ -1535,6 +1538,8 @@ void ViewportWidget::resizeGL(int width, int height)
 	// Keep the scene radius in the camera up-to-date so that the perspective
 	// far plane always covers the full scene regardless of zoom depth.
 	_primaryCamera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
+	// Cavalier/Cabinet is a shear of the orthographic projection (a scale of 0 switches it off for everything else).
+	_primaryCamera->setOblique(obliqueDepthScale(_viewCtrl.obliqueMode()), kObliqueAngleDegrees);
 	if (_viewCtrl.projection() == ViewProjection::ORTHOGRAPHIC)
 	{
 		_primaryCamera->setProjectionType(Camera::ProjectionType::ORTHOGRAPHIC);		
@@ -2730,6 +2735,42 @@ void ViewportWidget::setProjection(ViewProjection proj)
 	// the projection matrix from it), not before - see the mouse-drag
 	// handlers' identical fix for why.
 	_rtInteractionCtrl->notifyCameraInteracting();
+}
+
+bool ViewportWidget::setObliqueMode(ObliqueMode mode)
+{
+	if (mode == ObliqueMode::NONE)
+	{
+		setProjection(ViewProjection::ORTHOGRAPHIC);
+		return true;
+	}
+	if (!_primaryCamera)
+		return false;
+	// Fly/First-person cameras are always perspective; there is no orbit target to pivot the shear on.
+	if (_primaryCamera->getMode() != Camera::CameraMode::Orbit)
+		return false;
+	if (isRayTracedRenderingModeArmed())
+	{
+		MainWindow::showStatusMessage(tr("Oblique projections are not available in ray-traced mode."));
+		return false;
+	}
+
+	const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
+	// setProjection() first: it resets the oblique mode, which is then applied on top.
+	_viewCtrl.setProjection(ViewProjection::ORTHOGRAPHIC);
+	_viewCtrl.setObliqueMode(mode);
+	_viewCtrl.setPreviousProjection(Camera::ProjectionType::ORTHOGRAPHIC);
+	resizeGL(width(), height());
+	_rtInteractionCtrl->notifyCameraInteracting();
+	return true;
+}
+
+void ViewportWidget::dropObliqueForRayTracing()
+{
+	if (_viewCtrl.obliqueMode() == ObliqueMode::NONE)
+		return;
+	MainWindow::showStatusMessage(tr("Ray tracing does not support oblique projections yet - switched to Orthographic."));
+	setProjection(ViewProjection::ORTHOGRAPHIC);
 }
 
 Camera::CameraMode ViewportWidget::cameraMode() const
@@ -16261,14 +16302,35 @@ float ViewportWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 	float zMin_v =  std::numeric_limits<float>::max();
 	float zMax_v = -std::numeric_limits<float>::max();
 
+	// Oblique (Cavalier/Cabinet) projection: a point t units behind the orbit target lands shifted by
+	// (shiftX, shiftY) * t on screen (see Camera::updateProjectionMatrix()), so the fit has to measure
+	// the SHEARED extents - the unsheared ones would leave the receding side of the model off-screen.
+	// The orbit target sits at the mid-depth returned as cz below, which makes t = zc - cz. The
+	// midpoints cx/cy of the sheared extents are where the target itself must appear (it is not moved
+	// by the shear), so the same projCenter formula still centres the picture. Zero shift (plain
+	// orthographic, perspective) leaves this loop identical to the unsheared one.
+	float shiftX = 0.0f;
+	float shiftY = 0.0f;
+	if (_viewCtrl.projection() == ViewProjection::ORTHOGRAPHIC)
+	{
+		const float rho = obliqueDepthScale(_viewCtrl.obliqueMode());
+		shiftX = rho * std::cos(qDegreesToRadians(kObliqueAngleDegrees));
+		shiftY = rho * std::sin(qDegreesToRadians(kObliqueAngleDegrees));
+	}
 	for (const QVector3D& c : corners)
 	{
-		const float xc = QVector3D::dotProduct(c, right);
-		const float yc = QVector3D::dotProduct(c, up);
 		const float zc = QVector3D::dotProduct(c, viewDir);
+		zMin_v = std::min(zMin_v, zc);  zMax_v = std::max(zMax_v, zc);
+	}
+	const float zMid = (zMin_v + zMax_v) * 0.5f;
+
+	for (const QVector3D& c : corners)
+	{
+		const float zc = QVector3D::dotProduct(c, viewDir);
+		const float xc = QVector3D::dotProduct(c, right) + shiftX * (zc - zMid);
+		const float yc = QVector3D::dotProduct(c, up)    + shiftY * (zc - zMid);
 		xMin_v = std::min(xMin_v, xc);  xMax_v = std::max(xMax_v, xc);
 		yMin_v = std::min(yMin_v, yc);  yMax_v = std::max(yMax_v, yc);
-		zMin_v = std::min(zMin_v, zc);  zMax_v = std::max(zMax_v, zc);
 	}
 
 	// Half-spans: these are the minimum extents required on each side of the
@@ -16659,6 +16721,7 @@ void ViewportWidget::armRayTracedRenderingMode(bool startInteractiveSessionNow)
 	// requestRayTracedRenderNow(), and otherwise starting the continuous
 	// interactive accumulator immediately for GPU or falling through to the
 	// idle-then-settle countdown for CPU/Embree.
+	dropObliqueForRayTracing();
 	_rtInteractionCtrl->arm(startInteractiveSessionNow);
 }
 
@@ -17381,6 +17444,9 @@ bool ViewportWidget::renderRayTracedOffline(int width, int height,
 
 	if (width <= 0 || height <= 0)
 		return false;
+
+	// The offline path also builds its camera from the current view; see dropObliqueForRayTracing().
+	dropObliqueForRayTracing();
 
 	// Stop whichever interactive session might currently be running - same
 	// "never run two PT backends at once" discipline resetRayTracedIdleTimer()/

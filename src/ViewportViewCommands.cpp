@@ -63,8 +63,13 @@ QVariantMap ViewportWidget::viewMenuState() const
     state["firstPerson"] = cameraMode() == Camera::CameraMode::FirstPerson;
     state["zUp"] = isCameraUpAxisZUp();
     state["yUp"] = !isCameraUpAxisZUp();
-    state["ortho"] = projection() == ViewProjection::ORTHOGRAPHIC;
+    state["ortho"] = projection() == ViewProjection::ORTHOGRAPHIC && obliqueMode() == ObliqueMode::NONE;
     state["perspective"] = projection() == ViewProjection::PERSPECTIVE;
+    state["cavalier"] = obliqueMode() == ObliqueMode::CAVALIER;
+    state["cabinet"] = obliqueMode() == ObliqueMode::CABINET;
+    // The parallel projection a click on the projection button returns to from Perspective.
+    state["lastParallel.cavalier"] = _viewCtrl.lastParallelOblique() == ObliqueMode::CAVALIER;
+    state["lastParallel.cabinet"] = _viewCtrl.lastParallelOblique() == ObliqueMode::CABINET;
     state["multi"] = isMultiViewActive();
     // Axonometric type and corner, for the View menu's radio items (all off in a standard view or free orbit).
     const ViewMode currentMode = _viewCtrl.viewMode();
@@ -86,6 +91,10 @@ QVariantMap ViewportWidget::viewMenuState() const
     state["ads"] = !rayTraced && getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
     state["pbr"] = !rayTraced && getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING;
     state["rayTraced"] = rayTraced;
+    // Oblique needs an orbit camera and the raster renderer (the ray tracer cannot render the shear).
+    const bool obliqueAvailable = !rayTraced && cameraMode() == Camera::CameraMode::Orbit;
+    state["available.cavalier"] = obliqueAvailable;
+    state["available.cabinet"] = obliqueAvailable;
     state["smooth"] = shadingNormalMode() == ShadingNormalMode::SMOOTH;
     state["flat"] = shadingNormalMode() == ShadingNormalMode::FLAT;
     state["realistic"] = isRealismEnabled();
@@ -152,6 +161,17 @@ void ViewportWidget::executeViewCommand(const QString& command, bool checked)
     else if (command == "zUp" || command == "yUp") setCameraUpAxisZUp(command == "zUp");
     else if (command == "ortho" || command == "perspective") {
         setProjection(command == "ortho" ? ViewProjection::ORTHOGRAPHIC : ViewProjection::PERSPECTIVE);
+        fitAll(); update();
+    }
+    else if (command == "lastParallel") {
+        // From Perspective: back to whichever parallel projection (orthographic, Cavalier, Cabinet) was used last.
+        const ObliqueMode last = _viewCtrl.lastParallelOblique();
+        if (last == ObliqueMode::NONE || !setObliqueMode(last))
+            setProjection(ViewProjection::ORTHOGRAPHIC);   // plain orthographic, or oblique refused (e.g. ray tracing)
+        fitAll(); update();
+    }
+    else if (command == "cavalier" || command == "cabinet") {
+        setObliqueMode(command == "cavalier" ? ObliqueMode::CAVALIER : ObliqueMode::CABINET);
         fitAll(); update();
     }
     else if (command == "multi") { setMultiView(checked); if (checked) setViewMode(ViewMode::ISOMETRIC); fitAll(); update(); }

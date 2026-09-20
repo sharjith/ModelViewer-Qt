@@ -44,4 +44,13 @@ enum class ViewMode          { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK,
 enum class IsoCorner         { SE, NE, NW, SW };
 inline bool isAxonometricMode(ViewMode m) { return m == ViewMode::ISOMETRIC || m == ViewMode::DIMETRIC || m == ViewMode::TRIMETRIC; }
 enum class ViewProjection    { ORTHOGRAPHIC, PERSPECTIVE };
+// Oblique flavour of the ORTHOGRAPHIC projection (Cavalier / Cabinet). NONE is the ordinary perpendicular
+// orthographic projection. Only ever set together with ViewProjection::ORTHOGRAPHIC. It is a property of
+// the projection, not of the view: it persists through orbiting, panning, zooming and every view change,
+// and the face parallel to the screen keeps its true shape while depth recedes along a slanted axis.
+enum class ObliqueMode       { NONE, CAVALIER, CABINET };
+// Depth scale (rho) of an oblique mode: Cavalier draws depth at full scale, Cabinet at half scale.
+inline float obliqueDepthScale(ObliqueMode m) { return m == ObliqueMode::CAVALIER ? 1.0f : m == ObliqueMode::CABINET ? 0.5f : 0.0f; }
+// Screen angle of the receding depth axis, measured from screen-right (the classic 45 degrees).
+constexpr float kObliqueAngleDegrees = 45.0f;
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };

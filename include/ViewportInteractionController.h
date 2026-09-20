@@ -77,7 +77,26 @@ public:
     void setZoomInLimit(float limit)                     { _zoomInLimit = limit; }
 
     ViewProjection projection() const                    { return _projection; }
-    void setProjection(ViewProjection projection)        { _projection = projection; }
+    // Any explicit projection assignment resets the oblique flavour, so a caller that restores plain
+    // ORTHOGRAPHIC/PERSPECTIVE (a glTF camera, leaving fly mode, ...) never leaves a stale shear behind.
+    // Oblique modes are applied afterwards through setObliqueMode().
+    void setProjection(ViewProjection projection)
+    {
+        _projection = projection;
+        _obliqueMode = ObliqueMode::NONE;
+        if (projection == ViewProjection::ORTHOGRAPHIC)
+            _lastParallelOblique = ObliqueMode::NONE;
+    }
+    ObliqueMode obliqueMode() const                      { return _obliqueMode; }
+    void setObliqueMode(ObliqueMode mode)
+    {
+        _obliqueMode = mode;
+        if (mode != ObliqueMode::NONE)
+            _lastParallelOblique = mode;
+    }
+    // The parallel projection (plain orthographic, Cavalier or Cabinet) used last: what a click on the
+    // projection button returns to from Perspective.
+    ObliqueMode lastParallelOblique() const              { return _lastParallelOblique; }
 
     Camera::ProjectionType previousProjection() const  { return _previousProjection; }
     void setPreviousProjection(Camera::ProjectionType projection)
@@ -410,6 +429,8 @@ private:
     IsoCorner    _isoCorner                  = IsoCorner::SE;
     ViewMode     _lastAxonometricMode        = ViewMode::ISOMETRIC;
     ViewProjection _projection               = ViewProjection::PERSPECTIVE;
+    ObliqueMode _obliqueMode                 = ObliqueMode::NONE;
+    ObliqueMode _lastParallelOblique         = ObliqueMode::NONE;
     Camera::ProjectionType _previousProjection = Camera::ProjectionType::PERSPECTIVE;
     bool         _multiViewActive            = false;
     int          _viewCubeHoveredRegionId    = -1;

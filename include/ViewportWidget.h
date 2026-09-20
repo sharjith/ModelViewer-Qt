@@ -151,6 +151,16 @@ public:
 	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
 	void setProjection(ViewProjection proj);
 	ViewProjection projection() const { return _viewCtrl.projection(); }
+	// Cavalier/Cabinet flavour of the orthographic projection (NONE = plain orthographic, same as
+	// setProjection(ORTHOGRAPHIC)). Like Perspective/Orthographic it is independent of the view: it stays
+	// in effect while orbiting, panning, zooming and changing views. Refused (returns false) in
+	// Fly/First-person mode or while ray tracing is armed.
+	bool setObliqueMode(ObliqueMode mode);
+	ObliqueMode obliqueMode() const { return _viewCtrl.obliqueMode(); }
+	// The ray tracer builds its camera from a symmetric orthographic/pinhole projection and cannot
+	// render the shear, so arming it (or an offline render) drops an active oblique projection back to
+	// plain orthographic and says so in the status bar.
+	void dropObliqueForRayTracing();
 	void setCameraMode(Camera::CameraMode mode);
 	Camera::CameraMode cameraMode() const;
 

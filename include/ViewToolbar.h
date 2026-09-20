@@ -76,6 +76,8 @@ signals:
     void renderingModeSelected(const QString& mode);
     void shadingNormalModeSelected(const QString& mode);
     void projectionToggled(bool isOrtho);
+    // A projection picked explicitly from the flyout: "perspective", "ortho", "cavalier" or "cabinet".
+    void projectionSelected(const QString& command);
     void fitToViewRequested();
     void zoomViewRequested();
     void panViewRequested();
@@ -248,6 +250,8 @@ private:
     ViewModeActions _currentViewModeAction = ViewModeActions::ISOMETRIC;   // type shown on the type button
     QAction* _perspectiveAction;                // projection flyout entries
     QAction* _orthographicAction;
+    QAction* _cavalierAction;
+    QAction* _cabinetAction;
     static QString cornerActionText(IsoCorner corner);
     QMap<ViewModeActions, QAction*> _viewModeActions;
 

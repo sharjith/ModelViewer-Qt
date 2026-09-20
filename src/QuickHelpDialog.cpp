@@ -560,8 +560,9 @@ void QuickHelpDialog::setupViewToolbarTab()
 		{tr("Axonometric Views"), tr("3D standard views"),
 		 tr("Choose Isometric, Dimetric or Trimetric, and (next button) the compass corner it is seen from: SE, NE, NW or SW. Clicking either button steps to the next type or corner while the view is axonometric (from another view it enters the last-used one); hold to pick directly; Home enters the last-used type<br/>"
 				"Shortcuts: Ctrl+1/2/3=Isometric/Dimetric/Trimetric, Ctrl+4/5/6/7=SE/NE/NW/SW corner, Ctrl+Shift+Left/Right=previous/next corner")},
-		{tr("Projection Toggle"), tr("Ortho ↔ Perspective"),
-		 tr("Switch between orthographic and perspective projection (click toggles; hold to open the list and pick one)")},
+		{tr("Projection"), tr("Perspective, Ortho, Cavalier, Cabinet"),
+		 tr("Click toggles between Perspective and the parallel projection used last (Orthographic until you pick another); hold to open the list and pick Perspective, Orthographic, Cavalier or Cabinet<br/>"
+				"Cavalier and Cabinet are oblique projections: the face parallel to the screen keeps its true shape while depth recedes up and to the right (full depth for Cavalier, half depth for Cabinet). Like Perspective and Orthographic they stay in effect while you orbit, pan, zoom or change views. Not available with ray tracing")},
 		{tr("Multi-View"), tr("Four viewport layout"),
 		 tr("Show Top, Front, Right, and Isometric views simultaneously")},
 		{tr("Realistic Rendering"), tr("Toggle full PBR look"),

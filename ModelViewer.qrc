@@ -29,6 +29,8 @@
         <file>res/clip_none.png</file>
         <file>res/Ortho.png</file>
         <file>res/Perspective.png</file>
+        <file>res/Cavalier.png</file>
+        <file>res/Cabinet.png</file>
         <file>res/shaded.png</file>
         <file>res/wireframe.png</file>
         <file>res/back.png</file>

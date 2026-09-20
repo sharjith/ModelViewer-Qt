@@ -104,6 +104,21 @@ Camera::ProjectionType Camera::getProjectionType() const
 	return _projectionType;
 }
 
+void Camera::setOblique(float depthScale, float angleDegrees)
+{
+	_obliqueDepthScale = std::max(depthScale, 0.0f);
+	_obliqueAngleDegrees = angleDegrees;
+	updateProjectionMatrix();
+}
+
+QVector2D Camera::getObliqueShift() const
+{
+	if (_obliqueDepthScale <= 0.0f)
+		return QVector2D(0.0f, 0.0f);
+	const float radians = qDegreesToRadians(_obliqueAngleDegrees);
+	return QVector2D(_obliqueDepthScale * std::cos(radians), _obliqueDepthScale * std::sin(radians));
+}
+
 void Camera::resetAll(void)
 {
 	//Init with standard OGL values:
@@ -206,6 +221,24 @@ void Camera::updateProjectionMatrix(void)
 				-halfRange, halfRange,
 				nearPlane, farPlane
 			);
+		}
+
+		// Oblique (Cavalier/Cabinet): shear view space so depth recedes along a slanted axis while the
+		// face perpendicular to the view direction keeps its true shape and scale. In view space the
+		// camera looks down -z and the orbit target sits at z = -depthCenter, so a point t units behind
+		// the target has z = -depthCenter - t. Shifting x, y by +shift * t (receding up and to the right,
+		// the classic drawing convention) pivots the shear on the target, leaving it fixed at the centre
+		// of the view. Clip-space z is untouched, so the near/far planes above are unaffected.
+		if (_obliqueDepthScale > 0.0f && _cameraMode == CameraMode::Orbit)
+		{
+			const QVector2D shift = getObliqueShift();
+			const float depthCenter = getOrthoViewDistance();
+			QMatrix4x4 shear;                       // identity
+			shear(0, 2) = -shift.x();               // x' = x - shift.x * (z + depthCenter)
+			shear(1, 2) = -shift.y();
+			shear(0, 3) = -shift.x() * depthCenter;
+			shear(1, 3) = -shift.y() * depthCenter;
+			_projectionMatrix *= shear;
 		}
 	}
 	else // Perspective

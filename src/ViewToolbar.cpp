@@ -719,9 +719,10 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     prevCornerShortcut->setContext(Qt::WidgetWithChildrenShortcut);
     connect(prevCornerShortcut, &QShortcut::activated, this, [this]() { emit isoCornerSelected(QStringLiteral("Prev")); });
 
-    // Projection. A flyout now, so it can grow beyond Perspective/Orthographic (e.g. oblique projections):
-    // clicking the button or Shift+P still toggles between the two exactly as before, while hold opens
-    // the list to pick one explicitly. The button always shows the CURRENT projection.
+    // Projection flyout: Perspective, Orthographic and the oblique Cavalier/Cabinet. Clicking the button or
+    // Shift+P toggles between Perspective and the parallel projection used last (Orthographic until an
+    // oblique one has been picked), while hold opens the list to pick one explicitly. The button always
+    // shows the CURRENT projection.
     _projToggleButton = new FlyOutViewButton(this);
     _projToggleButton->setCheckable(true);
     _projToggleButton->setChecked(false);
@@ -750,16 +751,20 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     QMenu* projectionMenu = new QMenu;
     projectionMenu->setStyleSheet(flyoutStyleSheet);
+    // The flyout opens upward from the button, so the everyday Perspective/Orthographic pair sits next to
+    // it and the oblique projections are set apart above a separator.
+    _cavalierAction = projectionMenu->addAction(QIcon(":/icons/res/Cavalier.png"), tr("Cavalier"));
+    _cabinetAction = projectionMenu->addAction(QIcon(":/icons/res/Cabinet.png"), tr("Cabinet"));
+    projectionMenu->addSeparator();
     _perspectiveAction = projectionMenu->addAction(QIcon(":/icons/res/Perspective.png"), tr("Perspective"));
     _orthographicAction = projectionMenu->addAction(QIcon(":/icons/res/Ortho.png"), tr("Orthographic"));
-    // _projectionAction is checked while the projection is Perspective; choosing the projection that is
-    // already active does nothing, otherwise it takes the same path as a click on the button.
-    connect(_perspectiveAction, &QAction::triggered, this, [this]() {
-        if (!_projectionAction->isChecked()) _projectionAction->trigger();
-        });
-    connect(_orthographicAction, &QAction::triggered, this, [this]() {
-        if (_projectionAction->isChecked()) _projectionAction->trigger();
-        });
+    // Explicit picks go straight to the viewport by name (a click on the button only toggles); picking the
+    // projection that is already active is harmless. The Cavalier/Cabinet entries are disabled while the
+    // ray tracer is armed (see syncMenuState()).
+    connect(_perspectiveAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("perspective")); });
+    connect(_orthographicAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("ortho")); });
+    connect(_cavalierAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("cavalier")); });
+    connect(_cabinetAction, &QAction::triggered, this, [this]() { emit projectionSelected(QStringLiteral("cabinet")); });
     _projToggleButton->setMenu(projectionMenu);
 
     // Multi View
@@ -1158,8 +1163,19 @@ void ViewToolbar::syncMenuState(const QVariantMap& state)
     _rotateViewAction->setChecked(checked("rotate"));
     _panViewAction->setChecked(checked("pan"));
     _zoomViewAction->setChecked(checked("zoom"));
-    _projectionAction->setIcon(QIcon(checked("perspective") ? ":/icons/res/Perspective.png" : ":/icons/res/Ortho.png"));
-    _projectionAction->setToolTip(checked("perspective") ? tr("Switch to Orthographic") : tr("Switch to Perspective"));
+    // The button shows the CURRENT projection; clicking it toggles to Perspective, or from Perspective back
+    // to the parallel projection used last.
+    const bool perspective = checked("perspective");
+    const char* currentIcon = perspective ? ":/icons/res/Perspective.png"
+        : checked("cavalier") ? ":/icons/res/Cavalier.png"
+        : checked("cabinet") ? ":/icons/res/Cabinet.png" : ":/icons/res/Ortho.png";
+    QString parallelName = tr("Orthographic");
+    if (checked("lastParallel.cavalier")) parallelName = tr("Cavalier");
+    else if (checked("lastParallel.cabinet")) parallelName = tr("Cabinet");
+    _projectionAction->setIcon(QIcon(currentIcon));
+    _projectionAction->setToolTip(perspective ? tr("Switch to %1").arg(parallelName) : tr("Switch to Perspective"));
+    _cavalierAction->setEnabled(state.value(QStringLiteral("available.cavalier"), true).toBool());
+    _cabinetAction->setEnabled(state.value(QStringLiteral("available.cabinet"), true).toBool());
     _axisAction->setIcon(QIcon(checked("axis") ? ":/icons/res/showAxis.png" : ":/icons/res/hideAxis.png"));
     _axisAction->setToolTip(checked("axis") ? tr("Hide the trihedron") : tr("Show the trihedron"));
     if (checked("rotate")) _toolButtonNavigation->setDefaultAction(_rotateViewAction);
@@ -1514,6 +1530,8 @@ void ViewToolbar::retranslateUI()
 	_cornerNextAction->setText(tr("Next Corner"));
 	_perspectiveAction->setText(tr("Perspective"));
 	_orthographicAction->setText(tr("Orthographic"));
+	_cavalierAction->setText(tr("Cavalier"));
+	_cabinetAction->setText(tr("Cabinet"));
 	_dimAction->setText(tr("Dimetric"));
 	_triAction->setText(tr("Trimetric"));
 	setDefaultViewModeAction(_currentViewModeAction);   // refresh the type button's translated tooltip

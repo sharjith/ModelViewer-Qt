@@ -44,6 +44,8 @@ void MainWindow::setupViewMenus()
     _viewActions.insert(QStringLiteral("yUp"), ui->actionViewYUp);
     _viewActions.insert(QStringLiteral("perspective"), ui->actionViewPerspective);
     _viewActions.insert(QStringLiteral("ortho"), ui->actionViewOrtho);
+    _viewActions.insert(QStringLiteral("cavalier"), ui->actionViewCavalier);
+    _viewActions.insert(QStringLiteral("cabinet"), ui->actionViewCabinet);
     _viewActions.insert(QStringLiteral("shaded"), ui->actionViewShaded);
     _viewActions.insert(QStringLiteral("hollow"), ui->actionViewHollow);
     _viewActions.insert(QStringLiteral("meshEdges"), ui->actionViewMeshEdges);
@@ -69,7 +71,7 @@ void MainWindow::setupViewMenus()
     exclusive({"cornerSE", "cornerNE", "cornerNW", "cornerSW"}, true);
     exclusive({"orbit", "fly", "firstPerson"});
     exclusive({"zUp", "yUp"});
-    exclusive({"ortho", "perspective"});
+    exclusive({"ortho", "perspective", "cavalier", "cabinet"});
     exclusive({"shaded", "hollow", "meshEdges", "wireframe", "shadedEdges"});
     exclusive({"ads", "pbr", "rayTraced"});
     exclusive({"smooth", "flat"});

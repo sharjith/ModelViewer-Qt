@@ -114,6 +114,9 @@
     <widget class="QMenu" name="menuViewProjection"><property name="title"><string>Projection</string></property>
     <addaction name="actionViewPerspective"/>
     <addaction name="actionViewOrtho"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewCavalier"/>
+    <addaction name="actionViewCabinet"/>
     </widget>
     <widget class="QMenu" name="menuViewDisplayMode"><property name="title"><string>Display Mode</string></property>
     <addaction name="actionViewShaded"/>
@@ -398,6 +401,16 @@
    <property name="checkable"><bool>true</bool></property>
    <property name="text"><string>Orthographic</string></property>
    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Ortho.png</normaloff>:/icons/res/Ortho.png</iconset></property>
+  </action>
+  <action name="actionViewCavalier">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Cavalier</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Cavalier.png</normaloff>:/icons/res/Cavalier.png</iconset></property>
+  </action>
+  <action name="actionViewCabinet">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="text"><string>Cabinet</string></property>
+   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/Cabinet.png</normaloff>:/icons/res/Cabinet.png</iconset></property>
   </action>
   <action name="actionViewShaded">
    <property name="checkable"><bool>true</bool></property>
