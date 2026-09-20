@@ -457,6 +457,156 @@ sólido, si el degradado está desactivado)</translation>
     </message>
 </context>
 <context>
+    <name>BatchRenderViewsDialog</name>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="63"/>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="356"/>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="364"/>
+        <source>Batch Render Views</source>
+        <translation>Renderizar vistas por lotes</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="70"/>
+        <source>Renders every checked captured view as a high-quality offline path-traced image, one file per view.</source>
+        <translation>Renderiza cada vista capturada marcada como una imagen de alta calidad con trazado de trayectorias sin conexión, un archivo por vista.</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="80"/>
+        <source>Captured Views</source>
+        <translation>Vistas capturadas</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="85"/>
+        <source>No captured views yet - use the Cameras tab&apos;s &quot;Capture View&quot; first.</source>
+        <translation>Aún no hay vistas capturadas - use primero «Capturar vista» en la pestaña Cámaras.</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="103"/>
+        <source>Render Settings</source>
+        <translation>Configuración de renderizado</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="107"/>
+        <source>Resolution:</source>
+        <translation>Resolución:</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="113"/>
+        <source>Width:</source>
+        <translation>Ancho:</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="118"/>
+        <source>Height:</source>
+        <translation>Alto:</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="129"/>
+        <source>Format:</source>
+        <translation>Formato:</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="131"/>
+        <source>PNG</source>
+        <translation>PNG</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="132"/>
+        <source>JPEG</source>
+        <translation>JPEG</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="133"/>
+        <source>BMP</source>
+        <translation>BMP</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="134"/>
+        <source>TIFF</source>
+        <translation>TIFF</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="135"/>
+        <source>OpenEXR</source>
+        <translation>OpenEXR</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="140"/>
+        <source>Output Folder:</source>
+        <translation>Carpeta de salida:</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="152"/>
+        <source>Browse...</source>
+        <translation>Examinar...</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="159"/>
+        <source>Overall: %v / %m views</source>
+        <translation>Total: %v / %m vistas</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="163"/>
+        <source>Current view: %p%</source>
+        <translation>Vista actual: %p%</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="172"/>
+        <source>Start</source>
+        <translation>Iniciar</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="174"/>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="272"/>
+        <source>Output Folder</source>
+        <translation>Carpeta de salida</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="298"/>
+        <source>View %1</source>
+        <translation>Vista %1</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="356"/>
+        <source>Choose an existing output folder first.</source>
+        <translation>Elija primero una carpeta de salida existente.</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="364"/>
+        <source>No views are checked to render.</source>
+        <translation>No hay vistas marcadas para renderizar.</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="410"/>
+        <source>View %1 of %2: %3</source>
+        <translation>Vista %1 de %2: %3</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="424"/>
+        <source>View %1 of %2: %3 - %4 / %5 samples</source>
+        <translation>Vista %1 de %2: %3 - %4 / %5 muestras</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="482"/>
+        <source>Cancelled after %1 of %2 view(s).</source>
+        <translation>Cancelado tras %1 de %2 vista(s).</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="484"/>
+        <source>Done, but %1 of %2 view(s) failed: %3</source>
+        <translation>Terminado, pero %1 de %2 vista(s) fallaron: %3</translation>
+    </message>
+    <message>
+        <location filename="../src/BatchRenderViewsDialog.cpp" line="487"/>
+        <source>Done - %1 view(s) rendered.</source>
+        <translation>Terminado - %1 vista(s) renderizada(s).</translation>
+    </message>
+</context>
+<context>
     <name>CamerasPanel</name>
     <message>
         <location filename="../src/CamerasPanel.cpp" line="335"/>
@@ -638,211 +788,295 @@ sólido, si el degradado está desactivado)</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="195"/>
-        <source>Clip the model with a plane along the ZX axes</source>
-        <translation>Recortar el modelo con un plano a lo largo de los ejes ZX</translation>
+        <source>Clip the model with a plane along the XZ axes</source>
+        <translation>Recorta el modelo con un plano a lo largo de los ejes XZ</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="198"/>
-        <source>ZX</source>
-        <translation>ZX</translation>
+        <source>XZ</source>
+        <translation>XZ</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="243"/>
-        <source>Position of the ZX clipping plane along its normal</source>
-        <translation>Posición del plano de recorte ZX a lo largo de su normal</translation>
+        <source>Position of the XZ clipping plane along its normal</source>
+        <translation>Posición del plano de corte XZ a lo largo de su normal</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="260"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="266"/>
+        <source>Clip the model with a box: all six planes (min and max on each axis) at once. Replaces the XY/YZ/XZ planes while on.</source>
+        <translation>Recorta el modelo con una caja: los seis planos (mín. y máx. en cada eje) a la vez. Sustituye los planos XY/YZ/XZ mientras está activada.</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="269"/>
+        <source>Box</source>
+        <translation>Caja</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="285"/>
+        <source>Keep only what is inside the box (crop to the box).
+Unchecked: cut a box-shaped hole and keep everything outside.</source>
+        <translation>Conserva solo lo que está dentro de la caja (recortar a la caja).
+Sin marcar: corta un hueco con forma de caja y conserva todo lo de fuera.</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="289"/>
+        <source>Keep inside</source>
+        <translation>Conservar interior</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="329"/>
+        <source>Min</source>
+        <translation>Mín</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="339"/>
+        <source>Max</source>
+        <translation>Máx</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="349"/>
+        <source>X</source>
+        <translation>X</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="365"/>
+        <source>Lower X limit of the clipping box (world coordinates)</source>
+        <translation>Límite inferior de X de la caja de corte (coordenadas del mundo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="393"/>
+        <source>Upper X limit of the clipping box (world coordinates)</source>
+        <translation>Límite superior de X de la caja de corte (coordenadas del mundo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="412"/>
+        <source>Y</source>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="428"/>
+        <source>Lower Y limit of the clipping box (world coordinates)</source>
+        <translation>Límite inferior de Y de la caja de corte (coordenadas del mundo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="456"/>
+        <source>Upper Y limit of the clipping box (world coordinates)</source>
+        <translation>Límite superior de Y de la caja de corte (coordenadas del mundo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="475"/>
+        <source>Z</source>
+        <translation>Z</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="491"/>
+        <source>Lower Z limit of the clipping box (world coordinates)</source>
+        <translation>Límite inferior de Z de la caja de corte (coordenadas del mundo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="519"/>
+        <source>Upper Z limit of the clipping box (world coordinates)</source>
+        <translation>Límite superior de Z de la caja de corte (coordenadas del mundo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="538"/>
+        <source>Reset the clipping box to half the scene size, centered on the scene center</source>
+        <translation>Restablece la caja de corte a la mitad del tamaño de la escena, centrada en el centro de la escena</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="541"/>
+        <source>Reset Box</source>
+        <translation>Restablecer caja</translation>
+    </message>
+    <message>
+        <source>Clip the model with a plane along the ZX axes</source>
+        <translation type="vanished">Recortar el modelo con un plano a lo largo de los ejes ZX</translation>
+    </message>
+    <message>
+        <source>ZX</source>
+        <translation type="vanished">ZX</translation>
+    </message>
+    <message>
+        <source>Position of the ZX clipping plane along its normal</source>
+        <translation type="vanished">Posición del plano de recorte ZX a lo largo de su normal</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="553"/>
         <source>Fill the cut cross-section with a solid cap</source>
         <translation>Rellenar la sección de corte con una tapa sólida</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="263"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="556"/>
         <source>Capping</source>
         <translation>Tapa</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="270"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="566"/>
         <source>Hide caps while orbiting/zooming, for smoother
 performance, then restore them once idle</source>
         <translation>Ocultar las tapas al orbitar/hacer zoom, para un rendimiento
 más fluido, y restaurarlas al quedar inactivo</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="274"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="570"/>
         <source>Disable For Interaction</source>
         <translation>Desactivar para la interacción</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="281"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="577"/>
+        <source>Show draggable handles in the viewport for each enabled clipping plane</source>
+        <translation>Muestra en la vista controladores arrastrables para cada plano de corte activado</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="580"/>
+        <source>Show Gizmo</source>
+        <translation>Mostrar gizmo</translation>
+    </message>
+    <message>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="590"/>
         <source>Reset all three plane positions to zero</source>
         <translation>Restablecer las tres posiciones de plano a cero</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="284"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="593"/>
         <source>Reset Coefficients</source>
         <translation>Coeficientes de Reinicio</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="299"/>
         <source>Fill caps with a procedural hatch pattern
 instead of an image</source>
-        <translation>Rellenar las tapas con un patrón de rayado procedural
+        <translation type="vanished">Rellenar las tapas con un patrón de rayado procedural
 en lugar de una imagen</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="303"/>
         <source>Procedural</source>
-        <translation>Procedimental</translation>
+        <translation type="vanished">Procedimental</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="313"/>
         <source>Procedural Hatch Settings</source>
-        <translation>Configuración de Rayado Procedimental</translation>
+        <translation type="vanished">Configuración de Rayado Procedimental</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="333"/>
         <source>Pick the hatch line color</source>
-        <translation>Elegir el color de las líneas de rayado</translation>
+        <translation type="vanished">Elegir el color de las líneas de rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="343"/>
         <source>How many times the hatch pattern repeats across the cap</source>
-        <translation>Cuántas veces se repite el patrón de rayado a lo largo de la tapa</translation>
+        <translation type="vanished">Cuántas veces se repite el patrón de rayado a lo largo de la tapa</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="359"/>
         <source>Width of the hatch lines</source>
-        <translation>Ancho de las líneas de rayado</translation>
+        <translation type="vanished">Ancho de las líneas de rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="381"/>
         <source>Opacity of the hatch pattern over the cap</source>
-        <translation>Opacidad del patrón de rayado sobre la tapa</translation>
+        <translation type="vanished">Opacidad del patrón de rayado sobre la tapa</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="407"/>
         <source>Hatch Thickness</source>
-        <translation>Grosor del Rayado</translation>
+        <translation type="vanished">Grosor del Rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="414"/>
         <source>Direction/pattern of the hatch lines</source>
-        <translation>Dirección/patrón de las líneas de rayado</translation>
+        <translation type="vanished">Dirección/patrón de las líneas de rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="465"/>
         <source>Reset the procedural hatch settings to their defaults</source>
-        <translation>Restablecer los ajustes de rayado procedural a sus valores predeterminados</translation>
+        <translation type="vanished">Restablecer los ajustes de rayado procedural a sus valores predeterminados</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="484"/>
         <source>Fill caps with an image texture instead
 of a procedural hatch pattern</source>
-        <translation>Rellenar las tapas con una textura de imagen en lugar
+        <translation type="vanished">Rellenar las tapas con una textura de imagen en lugar
 de un patrón de rayado procedural</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="507"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="618"/>
         <source>Pick (or drag &amp; drop) an image
 to use as the cap texture</source>
         <translation>Elegir (o arrastrar y soltar) una imagen
 para usar como textura de la tapa</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="537"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="646"/>
         <source>Reset every clipping plane setting to its default</source>
         <translation>Restablecer todos los ajustes del plano de recorte a sus valores predeterminados</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="540"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="649"/>
         <source>Reset All</source>
         <translation>Restablecer todo</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="400"/>
         <source>Hatch Intensity</source>
-        <translation>Intensidad del Rayado</translation>
+        <translation type="vanished">Intensidad del Rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="418"/>
         <source>Diagonal 45</source>
-        <translation>Diagonal 45°</translation>
+        <translation type="vanished">Diagonal 45°</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="423"/>
         <source>Diagonal 135</source>
-        <translation>Diagonal 135°</translation>
+        <translation type="vanished">Diagonal 135°</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="428"/>
         <source>Horizontal</source>
-        <translation>Horizontal</translation>
+        <translation type="vanished">Horizontal</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="433"/>
         <source>Vertical</source>
-        <translation>Vertical</translation>
+        <translation type="vanished">Vertical</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="438"/>
         <source>Grid</source>
-        <translation>Cuadrícula</translation>
+        <translation type="vanished">Cuadrícula</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="443"/>
         <source>Cross Hatch</source>
-        <translation>Rayado Cruzado</translation>
+        <translation type="vanished">Rayado Cruzado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="458"/>
         <source>Hatch Line Color</source>
-        <translation>Color de Línea de Rayado</translation>
+        <translation type="vanished">Color de Línea de Rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="336"/>
         <source>Select Color</source>
-        <translation>Seleccionar Color</translation>
+        <translation type="vanished">Seleccionar Color</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="321"/>
         <source>Hatch Mode</source>
-        <translation>Modo de Rayado</translation>
+        <translation type="vanished">Modo de Rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="451"/>
         <source>Hatch Tiling</source>
-        <translation>Mosaico de Rayado</translation>
+        <translation type="vanished">Mosaico de Rayado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="488"/>
         <source>Textured</source>
-        <translation>Texturizado</translation>
+        <translation type="vanished">Texturizado</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="511"/>
-        <location filename="../src/ClippingPlanesEditor.cpp" line="451"/>
-        <location filename="../src/ClippingPlanesEditor.cpp" line="475"/>
+        <location filename="../ui/ClippingPlanesEditor.ui" line="622"/>
+        <location filename="../src/ClippingPlanesEditor.cpp" line="540"/>
+        <location filename="../src/ClippingPlanesEditor.cpp" line="574"/>
         <source>Select Texture</source>
         <translation>Seleccionar Textura</translation>
     </message>
     <message>
-        <location filename="../ui/ClippingPlanesEditor.ui" line="468"/>
         <source>Default Values</source>
-        <translation>Valores Predeterminados</translation>
+        <translation type="vanished">Valores Predeterminados</translation>
     </message>
     <message>
-        <location filename="../src/ClippingPlanesEditor.cpp" line="408"/>
         <source>Select Hatch Color</source>
-        <translation>Seleccionar Color de Rayado</translation>
+        <translation type="vanished">Seleccionar Color de Rayado</translation>
     </message>
     <message>
-        <location filename="../src/ClippingPlanesEditor.cpp" line="425"/>
+        <location filename="../src/ClippingPlanesEditor.cpp" line="514"/>
         <source>Select Hatch Texture</source>
         <translation>Seleccionar Textura de Rayado</translation>
     </message>
     <message>
-        <location filename="../src/ClippingPlanesEditor.cpp" line="426"/>
+        <location filename="../src/ClippingPlanesEditor.cpp" line="515"/>
         <source>Image Files (*.png *.jpg *.bmp)</source>
         <translation>Archivos de Imagen (*.png *.jpg *.bmp)</translation>
     </message>
@@ -1912,29 +2146,158 @@ para añadir desde la escena/árbol</translation>
     </message>
 </context>
 <context>
+    <name>FilterByBoundingBoxDialog</name>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="73"/>
+        <source>Filter by Bounding Box</source>
+        <translation>Filtrar por cuadro delimitador</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="84"/>
+        <source>Set world-space X/Y/Z limits to preview every mesh in the scene whose bounding box matches, then Show Only or Hide the result:</source>
+        <translation>Defina límites X/Y/Z en el espacio del mundo para previsualizar cada malla de la escena cuyo cuadro delimitador coincida y, después, use Mostrar solo u Ocultar con el resultado:</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="90"/>
+        <source>Limits</source>
+        <translation>Límites</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="92"/>
+        <source>Min</source>
+        <translation>Mín</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="93"/>
+        <source>Max</source>
+        <translation>Máx</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="95"/>
+        <source>X</source>
+        <translation>X</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="105"/>
+        <source>Y</source>
+        <translation>Y</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="105"/>
+        <source>Y (Height)</source>
+        <translation>Y (Altura)</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="112"/>
+        <source>Z (Height)</source>
+        <translation>Z (Altura)</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="112"/>
+        <source>Z</source>
+        <translation>Z</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="123"/>
+        <source>Use Current Selection&apos;s Bounds</source>
+        <translation>Usar los límites de la selección actual</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="124"/>
+        <source>Fill the six limits above with the combined bounding box of whatever is currently selected in the viewport.</source>
+        <translation>Rellena los seis límites anteriores con el cuadro delimitador combinado de lo que esté seleccionado en la vista.</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="128"/>
+        <source>Match When</source>
+        <translation>Coincidir cuando</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="130"/>
+        <source>Any Overlap</source>
+        <translation>Cualquier solapamiento</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="131"/>
+        <source>Select every mesh whose bounding box overlaps the limits at all.</source>
+        <translation>Selecciona todas las mallas cuyo cuadro delimitador se solape de algún modo con los límites.</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="132"/>
+        <source>Fully Inside</source>
+        <translation>Completamente dentro</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="133"/>
+        <source>Select only meshes whose bounding box is fully enclosed by the limits.</source>
+        <translation>Selecciona solo las mallas cuyo cuadro delimitador queda totalmente dentro de los límites.</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="146"/>
+        <source>Show Only</source>
+        <translation>Mostrar solo</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="147"/>
+        <source>Hide</source>
+        <translation>Ocultar</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="321"/>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="322"/>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="323"/>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="324"/>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="325"/>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="326"/>
+        <source>Drag Bounding Box Face</source>
+        <translation>Arrastrar cara del cuadro delimitador</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="477"/>
+        <source>%1 mesh(es) match.</source>
+        <translation>%1 malla(s) coinciden.</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByBoundingBoxDialog.cpp" line="478"/>
+        <source>No meshes match the current limits.</source>
+        <translation>Ninguna malla coincide con los límites actuales.</translation>
+    </message>
+</context>
+<context>
     <name>FilterByColorDialog</name>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="71"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="77"/>
         <source>Filter by Color</source>
         <translation>Filtrar por color</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="79"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="85"/>
         <source>Add one or more target colors to preview every mesh in the scene that matches any of them, within a tolerance, then Show Only or Hide the result:</source>
         <translation>Añada uno o más colores objetivo para previsualizar cada malla de la escena que coincida con alguno de ellos, dentro de una tolerancia, y luego Mostrar solo u Ocultar el resultado:</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="85"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="91"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="444"/>
         <source>Target Colors</source>
         <translation>Colores objetivo</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="94"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="96"/>
+        <source>Sort by matches</source>
+        <translation>Ordenar por coincidencias</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByColorDialog.cpp" line="97"/>
+        <source>Sort by mesh match count (most matches first) instead of the order added</source>
+        <translation>Ordena por número de mallas coincidentes (más coincidencias primero) en lugar del orden de adición</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByColorDialog.cpp" line="111"/>
         <source>+ Add Color...</source>
         <translation>+ Añadir color...</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="100"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="117"/>
         <source>Pick colors from meshes in the viewport.
 Click one or more meshes to add their exact color.
 Click this button again (or press Esc) when done.</source>
@@ -1943,109 +2306,155 @@ Haga clic en una o más mallas para añadir su color exacto.
 Haga clic en este botón de nuevo (o pulse Esc) cuando termine.</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="112"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="129"/>
         <source>Auto-Detect Colors in Scene</source>
         <translation>Detectar automáticamente colores en la escena</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="113"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="130"/>
         <source>Add every distinct color found in the scene.
 Then remove the ones you don&apos;t want with each row&apos;s × button.</source>
         <translation>Añadir cada color distinto encontrado en la escena.
 Luego elimine los que no desee con el botón × de cada fila.</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="119"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="136"/>
         <source>Match Tolerance</source>
         <translation>Tolerancia de coincidencia</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="138"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="155"/>
         <source>Show Only</source>
         <translation>Mostrar solo</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="139"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="156"/>
         <source>Hide</source>
         <translation>Ocultar</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="229"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="279"/>
         <source>Add Target Color</source>
         <translation>Añadir color objetivo</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="338"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="414"/>
         <source>%1 (%2 mesh(es))</source>
         <translation>%1 (%2 malla(s))</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="345"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="421"/>
         <source>Remove this color</source>
         <translation>Eliminar este color</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="395"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="445"/>
+        <source>Target Colors (%1)</source>
+        <translation>Colores objetivo (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByColorDialog.cpp" line="481"/>
         <source>Add a color to start filtering.</source>
         <translation>Añada un color para empezar a filtrar.</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="397"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="483"/>
         <source>%1 mesh(es) match.</source>
         <translation>%1 malla(s) coinciden.</translation>
     </message>
     <message>
-        <location filename="../src/FilterByColorDialog.cpp" line="398"/>
+        <location filename="../src/FilterByColorDialog.cpp" line="484"/>
         <source>No meshes match any listed color within the current tolerance.</source>
         <translation>Ninguna malla coincide con ningún color listado dentro de la tolerancia actual.</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByColorDialog.cpp" line="566"/>
+        <source>Copy Hex Color</source>
+        <translation>Copiar color hexadecimal</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByColorDialog.cpp" line="567"/>
+        <source>Remove Color</source>
+        <translation>Quitar color</translation>
     </message>
 </context>
 <context>
     <name>FilterByMaterialDialog</name>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="72"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="131"/>
         <source>Filter by Material</source>
         <translation>Filtrar por material</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="80"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="139"/>
         <source>Select a material to preview every mesh in the scene that uses it, then Show Only or Hide the result:</source>
         <translation>Seleccione un material para previsualizar cada malla de la escena que lo utiliza, y luego Mostrar solo u Ocultar el resultado:</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="85"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="144"/>
         <source>Materials in Scene</source>
         <translation>Materiales en la escena</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="89"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="149"/>
         <source>Search materials...</source>
         <translation>Buscar materiales...</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="102"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="153"/>
+        <source>Sort by usage</source>
+        <translation>Ordenar por uso</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="154"/>
+        <source>Sort by mesh count (most used first) instead of alphabetically</source>
+        <translation>Ordena por número de mallas (más usadas primero) en lugar de alfabéticamente</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="182"/>
         <source>Show Only</source>
         <translation>Mostrar solo</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="103"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="183"/>
         <source>Hide</source>
         <translation>Ocultar</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="216"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="391"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="734"/>
         <source>Unnamed Material</source>
         <translation>Material sin nombre</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="219"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="394"/>
         <source>%1 (1 mesh)</source>
         <translation>%1 (1 malla)</translation>
     </message>
     <message>
-        <location filename="../src/FilterByMaterialDialog.cpp" line="220"/>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="395"/>
         <source>%1 (%2 meshes)</source>
         <translation>%1 (%2 mallas)</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="495"/>
+        <source>Materials in Scene (%1)</source>
+        <translation>Materiales en la escena (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="496"/>
+        <source>Materials in Scene (%1 of %2)</source>
+        <translation>Materiales en la escena (%1 de %2)</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="708"/>
+        <source>Edit Material...</source>
+        <translation>Editar material...</translation>
+    </message>
+    <message>
+        <location filename="../src/FilterByMaterialDialog.cpp" line="717"/>
+        <source>Replace With</source>
+        <translation>Reemplazar por</translation>
     </message>
 </context>
 <context>
@@ -2271,6 +2680,19 @@ El modelo se puede cargar parcialmente</translation>
     </message>
 </context>
 <context>
+    <name>ImportUnitsDialog</name>
+    <message>
+        <location filename="../src/ImportUnitsDialog.cpp" line="32"/>
+        <source>Import Units</source>
+        <translation>Unidades de importación</translation>
+    </message>
+    <message>
+        <location filename="../src/ImportUnitsDialog.cpp" line="39"/>
+        <source>Real-world length unit for &quot;%1&quot; - used to convert Mass Properties/Surface Analysis results (volume, area, distances) into millimetres internally. Only affects this one imported file.</source>
+        <translation>Unidad de longitud real para &quot;%1&quot;: se usa para convertir internamente a milímetros los resultados de Propiedades de masa/Análisis de superficie (volumen, área, distancias). Solo afecta a este archivo importado.</translation>
+    </message>
+</context>
+<context>
     <name>LogViewer</name>
     <message>
         <location filename="../ui/LogViewer.ui" line="14"/>
@@ -2372,36 +2794,86 @@ El modelo se puede cargar parcialmente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="83"/>
+        <source>Navigation</source>
+        <translation>Navegación</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="88"/>
+        <source>Standard Views</source>
+        <translation>Vistas estándar</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="96"/>
+        <source>Axonometric Views</source>
+        <translation>Vistas axonométricas</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="106"/>
+        <source>Camera</source>
+        <translation>Cámara</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="114"/>
+        <source>Projection</source>
+        <translation>Proyección</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="121"/>
+        <source>Display Mode</source>
+        <translation>Modo de visualización</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="128"/>
+        <source>Rendering Mode</source>
+        <translation>Modo de renderizado</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="133"/>
+        <source>Shading Normals</source>
+        <translation>Normales de sombreado</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="137"/>
+        <source>Debug Overlays</source>
+        <translation>Superposiciones de depuración</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="144"/>
+        <source>Panels</source>
+        <translation>Paneles</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="170"/>
         <source>Selection</source>
         <translation>Selección</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="92"/>
+        <location filename="../ui/MainWindow.ui" line="185"/>
         <source>Tools</source>
         <translation>Herramientas</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="107"/>
+        <location filename="../ui/MainWindow.ui" line="203"/>
         <source>Visualization</source>
         <translation>Visualización</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="127"/>
+        <location filename="../ui/MainWindow.ui" line="225"/>
         <source>Exit</source>
         <translation>Exit</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="130"/>
+        <location filename="../ui/MainWindow.ui" line="228"/>
         <source>Exit the application</source>
         <translation>Exit the application</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="138"/>
+        <location filename="../ui/MainWindow.ui" line="237"/>
         <source>About</source>
         <translation>Acerca de</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="141"/>
+        <location filename="../ui/MainWindow.ui" line="240"/>
         <source>About the application</source>
         <translation>Acerca de la aplicación</translation>
     </message>
@@ -2414,478 +2886,785 @@ El modelo se puede cargar parcialmente</translation>
         <translation type="vanished">Acerca de la Biblioteca Qt</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="149"/>
+        <location filename="../ui/MainWindow.ui" line="244"/>
+        <source>Fit All</source>
+        <translation>Ajustar todo</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="248"/>
+        <source>Window Zoom</source>
+        <translation>Zoom de Ventana</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="253"/>
+        <source>Multi-View</source>
+        <translation>Multi-View</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="258"/>
+        <source>Realistic Rendering</source>
+        <translation>Renderizado realista</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="263"/>
+        <source>Clipping Planes</source>
+        <translation>Planos de corte</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="268"/>
+        <source>Exploded View</source>
+        <translation>Vista explosionada</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="273"/>
+        <source>Turntable</source>
+        <translation>Plato giratorio</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="278"/>
+        <source>Show Axis</source>
+        <translation>Mostrar ejes</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="283"/>
+        <source>Lasso Select</source>
+        <translation>Selección con lazo</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="288"/>
+        <source>Swap Visible</source>
+        <translation>Intercambiar visibles</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="293"/>
+        <source>Keep Toolbar Visible</source>
+        <translation>Mantener visible la barra de herramientas</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="298"/>
+        <source>Rotate</source>
+        <translation>Rotar</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="303"/>
+        <source>Pan</source>
+        <translation>Desplazar</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="308"/>
+        <source>Zoom</source>
+        <translation>Zoom</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="312"/>
+        <source>Top</source>
+        <translation>Superior</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="316"/>
+        <source>Bottom</source>
+        <translation>Inferior</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="320"/>
+        <source>Front</source>
+        <translation>Frontal</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="324"/>
+        <source>Rear</source>
+        <translation>Trasero</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="328"/>
+        <source>Left</source>
+        <translation>Izquierda</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="332"/>
+        <source>Right</source>
+        <translation>Derecha</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="337"/>
+        <source>Isometric</source>
+        <translation>Isométrico</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="342"/>
+        <source>Dimetric</source>
+        <translation>Dimétrico</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="347"/>
+        <source>Trimetric</source>
+        <translation>Trimétrico</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="352"/>
+        <source>SE Corner</source>
+        <translation>Esquina sureste</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="357"/>
+        <source>NE Corner</source>
+        <translation>Esquina noreste</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="362"/>
+        <source>NW Corner</source>
+        <translation>Esquina noroeste</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="367"/>
+        <source>SW Corner</source>
+        <translation>Esquina suroeste</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="372"/>
+        <source>Orbit</source>
+        <translation>Órbita</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="377"/>
+        <source>Fly</source>
+        <translation>Volar</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="382"/>
+        <source>First Person</source>
+        <translation>Primera Persona</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="387"/>
+        <source>Z-Up</source>
+        <translation>Z-Arriba</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="392"/>
+        <source>Y-Up</source>
+        <translation>Y-Arriba</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="397"/>
+        <source>Perspective</source>
+        <translation>Perspectiva</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="402"/>
+        <source>Orthographic</source>
+        <translation>Ortográfica</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="407"/>
+        <source>Cavalier</source>
+        <translation>Caballera</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="412"/>
+        <source>Cabinet</source>
+        <translation>Gabinete</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="417"/>
+        <source>Shaded</source>
+        <translation>Sombreado</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="422"/>
+        <source>Hollow Mesh</source>
+        <translation>Malla hueca</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="427"/>
+        <source>Mesh Edges</source>
+        <translation>Bordes de malla</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="432"/>
+        <source>Wireframe</source>
+        <translation>Estructura alámbrica</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="437"/>
+        <source>Shaded with Edges</source>
+        <translation>Sombreado con bordes</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="442"/>
+        <source>ADS (Blinn-Phong)</source>
+        <translation>ADS (Blinn-Phong)</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="447"/>
+        <source>PBR (Metallic-Roughness)</source>
+        <translation>PBR (Metálico-Rugosidad)</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="452"/>
+        <source>Ray Traced</source>
+        <translation>Trazado por rayos</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="457"/>
+        <source>Smooth</source>
+        <translation>Suave</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="462"/>
+        <source>Flat</source>
+        <translation>Plano</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="467"/>
+        <source>Enable Overlay</source>
+        <translation>Activar superposición</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="472"/>
+        <source>Bounding Box</source>
+        <translation>Cuadro delimitador</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="477"/>
+        <source>Vertex Normals</source>
+        <translation>Normales de vértices</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="482"/>
+        <source>Face Normals</source>
+        <translation>Normales de caras</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="491"/>
         <source>New</source>
         <translation>Nuevo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="152"/>
+        <location filename="../ui/MainWindow.ui" line="494"/>
         <source>Create a new document window</source>
         <translation>Crear una nueva ventana de documento</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="155"/>
+        <location filename="../ui/MainWindow.ui" line="497"/>
         <source>Ctrl+N</source>
         <translation>Ctrl+N</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="160"/>
+        <location filename="../ui/MainWindow.ui" line="506"/>
         <source>Tile Horizontally</source>
         <translation>Azulejos</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="163"/>
+        <location filename="../ui/MainWindow.ui" line="509"/>
         <source>Tile sub windows horizontally</source>
         <translation>Ventanas sub de azulejo horizontalmente</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="168"/>
+        <location filename="../ui/MainWindow.ui" line="518"/>
         <source>Tile Vertically</source>
         <translation>Azulejos verticalmente</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="171"/>
+        <location filename="../ui/MainWindow.ui" line="521"/>
         <source>Tile sub windows vertically</source>
         <translation>Ventanas submarinas verticalmente</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="176"/>
+        <location filename="../ui/MainWindow.ui" line="530"/>
         <source>Cascade</source>
         <translation>Cascada</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="179"/>
+        <location filename="../ui/MainWindow.ui" line="533"/>
         <source>Cascade sub windows</source>
         <translation>Subventanas en cascada</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="184"/>
+        <location filename="../ui/MainWindow.ui" line="542"/>
         <source>Tile</source>
         <translation>Teja</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="187"/>
+        <location filename="../ui/MainWindow.ui" line="545"/>
         <source>Tile sub windows</source>
         <translation>Subventanas de mosaico</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="195"/>
-        <location filename="../ui/MainWindow.ui" line="329"/>
+        <location filename="../ui/MainWindow.ui" line="554"/>
+        <location filename="../ui/MainWindow.ui" line="698"/>
         <source>Close</source>
         <translation>Cerca</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="198"/>
+        <location filename="../ui/MainWindow.ui" line="557"/>
         <source>Close the current document window</source>
         <translation>Cerrar la ventana del documento actual</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="206"/>
+        <location filename="../ui/MainWindow.ui" line="566"/>
         <source>Close All</source>
         <translation>Cerrar todo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="209"/>
+        <location filename="../ui/MainWindow.ui" line="569"/>
         <source>Close all document windows</source>
         <translation>Cerrar todas las ventanas de documentos</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="217"/>
+        <location filename="../ui/MainWindow.ui" line="578"/>
         <source>Next</source>
         <translation>Siguiente</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="220"/>
+        <location filename="../ui/MainWindow.ui" line="581"/>
         <source>Activate the next sub window</source>
         <translation>Activar la siguiente subventana</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="228"/>
+        <location filename="../ui/MainWindow.ui" line="590"/>
         <source>Previous</source>
         <translation>Anterior</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="231"/>
+        <location filename="../ui/MainWindow.ui" line="593"/>
         <source>Activate the next previous window</source>
         <translation>Activar la ventana anterior</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="239"/>
+        <location filename="../ui/MainWindow.ui" line="602"/>
         <source>Open</source>
         <translation>Abierto</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="242"/>
+        <location filename="../ui/MainWindow.ui" line="605"/>
         <source>Open an existing model</source>
         <translation>Abrir un modelo existente</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="245"/>
+        <location filename="../ui/MainWindow.ui" line="608"/>
         <source>Ctrl+O</source>
         <translation>Ctrl+O</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="253"/>
+        <location filename="../ui/MainWindow.ui" line="617"/>
         <source>Import</source>
         <translation>Importar</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="256"/>
+        <location filename="../ui/MainWindow.ui" line="620"/>
         <source>Import a model into the current document</source>
         <translation>Importar un modelo en el documento actual</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="259"/>
+        <location filename="../ui/MainWindow.ui" line="623"/>
         <source>Ctrl+I</source>
         <translation>Ctrl+I</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="267"/>
+        <location filename="../ui/MainWindow.ui" line="632"/>
         <source>Save</source>
         <translation>Guardar</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="270"/>
+        <location filename="../ui/MainWindow.ui" line="635"/>
         <source>Save the current document</source>
         <translation>Guardar el documento actual</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="273"/>
+        <location filename="../ui/MainWindow.ui" line="638"/>
         <source>Ctrl+S</source>
         <translation>Ctrl+S</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="281"/>
+        <location filename="../ui/MainWindow.ui" line="647"/>
         <source>Save As</source>
         <translation>Guardar como</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="284"/>
+        <location filename="../ui/MainWindow.ui" line="650"/>
         <source>Save the current document as another file name</source>
         <translation>Guardar el documento actual como otro nombre de archivo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="287"/>
+        <location filename="../ui/MainWindow.ui" line="653"/>
         <source>Ctrl+Shift+S</source>
         <translation>Ctrl+Mayús+S</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="295"/>
+        <location filename="../ui/MainWindow.ui" line="662"/>
         <source>Undo</source>
         <translation>Deshacer</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="298"/>
+        <location filename="../ui/MainWindow.ui" line="665"/>
         <source>Undo the last action</source>
         <translation>Deshacer la última acción</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="301"/>
+        <location filename="../ui/MainWindow.ui" line="668"/>
         <source>Ctrl+Z</source>
         <translation>Ctrl+Z</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="312"/>
+        <location filename="../ui/MainWindow.ui" line="680"/>
         <source>Redo</source>
         <translation>Rehacer</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="315"/>
+        <location filename="../ui/MainWindow.ui" line="683"/>
         <source>Redo the last action</source>
         <translation>Rehacer la última acción</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="318"/>
+        <location filename="../ui/MainWindow.ui" line="686"/>
         <source>Ctrl+Y</source>
         <translation>Ctrl+Y</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="332"/>
+        <location filename="../ui/MainWindow.ui" line="701"/>
         <source>Close the current file</source>
         <translation>Cerrar el archivo actual</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="337"/>
+        <location filename="../ui/MainWindow.ui" line="710"/>
         <source>Export</source>
         <translation>Exportar</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="340"/>
+        <location filename="../ui/MainWindow.ui" line="713"/>
         <source>Export the scene</source>
         <translation>Exportar la escena</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="343"/>
+        <location filename="../ui/MainWindow.ui" line="716"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="348"/>
+        <location filename="../ui/MainWindow.ui" line="721"/>
         <source>Clear UV Prompt Settings</source>
         <translation>Ajustes de Prompta UV Clara</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="353"/>
+        <location filename="../ui/MainWindow.ui" line="730"/>
         <source>Settings</source>
         <translation>Ajustes</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="356"/>
+        <location filename="../ui/MainWindow.ui" line="733"/>
         <source>Open the settings dialog</source>
         <translation>Abrir el diálogo de configuración</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="361"/>
+        <location filename="../ui/MainWindow.ui" line="742"/>
         <source>Texture Debugger</source>
         <translation>Depurador de texturas</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="364"/>
+        <location filename="../ui/MainWindow.ui" line="745"/>
         <source>Open the texture debug panel for the selected mesh</source>
         <translation>Abrir el panel de depuración de texturas para la malla seleccionada</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="369"/>
+        <location filename="../ui/MainWindow.ui" line="754"/>
         <source>Ray Tracing...</source>
         <translation>Trazado de rayos...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="372"/>
+        <location filename="../ui/MainWindow.ui" line="757"/>
         <source>Open ray tracing settings and start a render</source>
         <translation>Abrir la configuración de trazado de rayos e iniciar un renderizado</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="377"/>
+        <location filename="../ui/MainWindow.ui" line="766"/>
         <source>Measure...</source>
         <translation>Medir...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="380"/>
+        <location filename="../ui/MainWindow.ui" line="769"/>
         <source>Open the measurement tool - point, distance, and arc-radius tools</source>
         <translation>Abrir la herramienta de medición - herramientas de punto, distancia y radio de arco</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="385"/>
+        <location filename="../ui/MainWindow.ui" line="778"/>
         <source>Filter by Material...</source>
         <translation>Filtrar por material...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="388"/>
+        <location filename="../ui/MainWindow.ui" line="781"/>
         <source>Select every mesh in the scene that uses a chosen material</source>
         <translation>Seleccionar cada malla de la escena que utiliza un material elegido</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="391"/>
+        <location filename="../ui/MainWindow.ui" line="784"/>
         <source>Select every mesh in the scene that uses a chosen material
 (import a model first)</source>
         <translation>Seleccionar cada malla de la escena que utiliza un material elegido
 (importe primero un modelo)</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="397"/>
+        <location filename="../ui/MainWindow.ui" line="794"/>
         <source>Filter by Color...</source>
         <translation>Filtrar por color...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="400"/>
+        <location filename="../ui/MainWindow.ui" line="797"/>
         <source>Select every mesh in the scene whose color matches a chosen target, within a tolerance</source>
         <translation>Seleccionar cada malla de la escena cuyo color coincida con un objetivo elegido, dentro de una tolerancia</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="403"/>
+        <location filename="../ui/MainWindow.ui" line="800"/>
         <source>Select every mesh in the scene whose color matches a chosen target
 (import a model first)</source>
         <translation>Seleccionar cada malla de la escena cuyo color coincida con un objetivo elegido
 (importe primero un modelo)</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="409"/>
+        <location filename="../ui/MainWindow.ui" line="810"/>
+        <source>Filter by Bounding Box...</source>
+        <translation>Filtrar por cuadro delimitador...</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="813"/>
+        <source>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits</source>
+        <translation>Selecciona todas las mallas de la escena cuyo cuadro delimitador coincide con un conjunto de límites X/Y/Z en el espacio del mundo</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="816"/>
+        <source>Select every mesh in the scene whose bounding box matches a set of world-space X/Y/Z limits
+(import a model first)</source>
+        <translation>Selecciona todas las mallas de la escena cuyo cuadro delimitador coincide con un conjunto de límites X/Y/Z en el espacio del mundo
+(primero importe un modelo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="826"/>
         <source>Save Selection Set...</source>
         <translation>Guardar conjunto de selección...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="412"/>
+        <location filename="../ui/MainWindow.ui" line="829"/>
         <source>Save the current selection under a name, for quick recall later</source>
         <translation>Guardar la selección actual con un nombre, para recuperarla rápidamente más tarde</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="417"/>
+        <location filename="../ui/MainWindow.ui" line="838"/>
+        <source>Save Scene State...</source>
+        <translation>Guardar estado de escena...</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="841"/>
+        <source>Save the current camera view, visibility, and selection together under a name, for one-click recall later</source>
+        <translation>Guarda la vista de cámara, la visibilidad y la selección actuales bajo un nombre, para recuperarlas después con un clic</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="850"/>
         <source>Annotate...</source>
         <translation>Anotar...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="420"/>
+        <location filename="../ui/MainWindow.ui" line="853"/>
         <source>Open the annotation tool - place text notes anchored to points on the model</source>
         <translation>Abrir la herramienta de anotación - colocar notas de texto ancladas a puntos del modelo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="425"/>
+        <location filename="../ui/MainWindow.ui" line="862"/>
         <source>Export Report...</source>
         <translation>Exportar informe...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="428"/>
+        <location filename="../ui/MainWindow.ui" line="865"/>
         <source>Export captured views and the measurement/annotation list as a PDF report</source>
         <translation>Exportar las vistas capturadas y la lista de mediciones/anotaciones como informe en PDF</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="433"/>
+        <location filename="../ui/MainWindow.ui" line="874"/>
+        <source>Batch Render Views...</source>
+        <translation>Renderizar vistas por lotes...</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="877"/>
+        <source>Render every captured view (or a checked subset) as a high-quality offline path-traced image, one per file</source>
+        <translation>Renderiza cada vista capturada (o un subconjunto marcado) como una imagen de alta calidad con trazado de trayectorias sin conexión, una por archivo</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="886"/>
+        <source>Mass Properties...</source>
+        <translation>Propiedades de masa...</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="889"/>
+        <source>Volume, surface area, mass, and center of mass for the current selection</source>
+        <translation>Volumen, área de superficie, masa y centro de masa de la selección actual</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="898"/>
+        <source>Surface Analysis...</source>
+        <translation>Análisis de superficie...</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="901"/>
+        <source>Curvature, wall-thickness/draft-angle, and deviation inspection, painted directly on the mesh surface</source>
+        <translation>Inspección de curvatura, espesor de pared/ángulo de desmoldeo y desviación, pintada directamente sobre la superficie de la malla</translation>
+    </message>
+    <message>
+        <location filename="../ui/MainWindow.ui" line="910"/>
         <source>Shrink Wrap...</source>
         <translation>Envoltura retráctil...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="436"/>
+        <location filename="../ui/MainWindow.ui" line="913"/>
         <source>Combine the selected meshes into one new watertight approximating shell (CGAL alpha wrapping), added as a new node</source>
         <translation>Combinar las mallas seleccionadas en una nueva envoltura aproximada estanca (envoltura alfa de CGAL), añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="441"/>
+        <location filename="../ui/MainWindow.ui" line="922"/>
         <source>Subdivide Surface...</source>
         <translation>Subdividir superficie...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="444"/>
+        <location filename="../ui/MainWindow.ui" line="925"/>
         <source>Smooth the selected meshes via CGAL Loop/Catmull-Clark subdivision, each added as a new node</source>
         <translation>Suavizar las mallas seleccionadas mediante subdivisión CGAL Loop/Catmull-Clark, cada una añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="449"/>
+        <location filename="../ui/MainWindow.ui" line="934"/>
         <source>Reconstruct Surface...</source>
         <translation>Reconstruir superficie...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="452"/>
+        <location filename="../ui/MainWindow.ui" line="937"/>
         <source>Reconstruct a triangulated surface from the selected point cloud(s) via CGAL advancing-front reconstruction, added as a new node</source>
         <translation>Reconstruir una superficie triangulada a partir de la(s) nube(s) de puntos seleccionada(s) mediante la reconstrucción de frente avanzante de CGAL, añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="457"/>
+        <location filename="../ui/MainWindow.ui" line="946"/>
         <source>Repair Mesh...</source>
         <translation>Reparar malla...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="460"/>
+        <location filename="../ui/MainWindow.ui" line="949"/>
         <source>Fix duplicate/degenerate geometry, non-manifold vertices, inconsistent winding, and self-intersections on the selected meshes (CGAL repair toolkit), each added as a new node</source>
         <translation>Corregir geometría duplicada/degenerada, vértices no variedad, devanado inconsistente y autointersecciones en las mallas seleccionadas (kit de reparación de CGAL), cada una añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="465"/>
+        <location filename="../ui/MainWindow.ui" line="958"/>
         <source>Fill Holes...</source>
         <translation>Rellenar agujeros...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="468"/>
+        <location filename="../ui/MainWindow.ui" line="961"/>
         <source>Detect boundary-loop holes in the selected meshes and interactively choose which ones to patch (CGAL triangulate_and_refine_hole), each added as a new node</source>
         <translation>Detectar agujeros de bucle de contorno en las mallas seleccionadas y elegir interactivamente cuáles parchear (triangulate_and_refine_hole de CGAL), cada una añadida como nuevo nodo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="473"/>
+        <location filename="../ui/MainWindow.ui" line="970"/>
         <source>Generate UVs...</source>
         <translation>Generar UV...</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="476"/>
+        <location filename="../ui/MainWindow.ui" line="973"/>
         <source>Generate UV coordinates for meshes using a chosen projection method, from a working list you build in the dialog</source>
         <translation>Generar coordenadas UV para mallas usando un método de proyección elegido, a partir de una lista de trabajo que usted crea en el diálogo</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="486"/>
+        <location filename="../ui/MainWindow.ui" line="987"/>
         <source>Quick Help</source>
         <translation>Ayuda Rápida</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="489"/>
+        <location filename="../ui/MainWindow.ui" line="990"/>
         <source>Open the quick help dialog</source>
         <translation>Abrir el diálogo de ayuda rápida</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="492"/>
+        <location filename="../ui/MainWindow.ui" line="993"/>
         <source>F1</source>
         <translation>F1</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="497"/>
+        <location filename="../ui/MainWindow.ui" line="1002"/>
         <source>Tutorial</source>
         <translation>Tutorial</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="500"/>
+        <location filename="../ui/MainWindow.ui" line="1005"/>
         <source>Open the application tutorial</source>
         <translation>Abrir el tutorial de la aplicación</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="503"/>
+        <location filename="../ui/MainWindow.ui" line="1008"/>
         <source>Ctrl+F1</source>
         <translation>Ctrl+F1</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="508"/>
+        <location filename="../ui/MainWindow.ui" line="1017"/>
         <source>View Logs</source>
         <translation>Ver Registros</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="511"/>
+        <location filename="../ui/MainWindow.ui" line="1020"/>
         <source>Open the logs dialog</source>
         <translation>Abrir el diálogo de registros</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="516"/>
+        <location filename="../ui/MainWindow.ui" line="1029"/>
         <source>Open Logs Folder</source>
         <translation>Abrir Carpeta de Registros</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="519"/>
+        <location filename="../ui/MainWindow.ui" line="1032"/>
         <source>Open the logs folder in the system explorer</source>
         <translation>Abrir la carpeta de registros en el explorador del sistema</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="524"/>
+        <location filename="../ui/MainWindow.ui" line="1041"/>
         <source>Show Console</source>
         <translation>Mostrar consola</translation>
     </message>
     <message>
-        <location filename="../ui/MainWindow.ui" line="527"/>
+        <location filename="../ui/MainWindow.ui" line="1044"/>
         <source>Show the live console log window (also enables it in Settings)</source>
         <translation>Mostrar la ventana de registro de consola en vivo (también la activa en Ajustes)</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="497"/>
-        <location filename="../src/MainWindow.cpp" line="797"/>
+        <location filename="../src/MainWindow.cpp" line="556"/>
+        <location filename="../src/MainWindow.cpp" line="886"/>
         <source>Recent...</source>
         <translation>Recientes...</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="511"/>
-        <location filename="../src/MainWindow.cpp" line="805"/>
+        <location filename="../src/MainWindow.cpp" line="570"/>
+        <location filename="../src/MainWindow.cpp" line="894"/>
         <source>Close the active window</source>
         <translation>Cerrar la ventana activa</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="516"/>
-        <location filename="../src/MainWindow.cpp" line="807"/>
+        <location filename="../src/MainWindow.cpp" line="575"/>
+        <location filename="../src/MainWindow.cpp" line="896"/>
         <source>Close the active document</source>
         <translation>Cerrar el documento activo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="521"/>
-        <location filename="../src/MainWindow.cpp" line="809"/>
+        <location filename="../src/MainWindow.cpp" line="580"/>
+        <location filename="../src/MainWindow.cpp" line="898"/>
         <source>Close all the windows</source>
         <translation>Cerrar todas las ventanas</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="526"/>
-        <location filename="../src/MainWindow.cpp" line="811"/>
+        <location filename="../src/MainWindow.cpp" line="585"/>
+        <location filename="../src/MainWindow.cpp" line="900"/>
         <source>Move the focus to the next window</source>
         <translation>Mover el enfoque a la siguiente ventana</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="531"/>
-        <location filename="../src/MainWindow.cpp" line="813"/>
+        <location filename="../src/MainWindow.cpp" line="590"/>
+        <location filename="../src/MainWindow.cpp" line="902"/>
         <source>Move the focus to the previous window</source>
         <translation>Mover el enfoque a la ventana anterior</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="801"/>
+        <location filename="../src/MainWindow.cpp" line="890"/>
         <source>Cancel Loading</source>
         <translation>Cancelar Carga</translation>
     </message>
@@ -2898,42 +3677,42 @@ El modelo se puede cargar parcialmente</translation>
         <translation type="vanished">¿Quieres ahorrar?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1626"/>
+        <location filename="../src/MainWindow.cpp" line="1766"/>
         <source>Tutorial Display Method</source>
         <translation>Método de Visualización del Tutorial</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1627"/>
+        <location filename="../src/MainWindow.cpp" line="1767"/>
         <source>How would you like to view the tutorial?</source>
         <translation>¿Cómo deseas ver el tutorial?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1628"/>
+        <location filename="../src/MainWindow.cpp" line="1768"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation>Elige entre un diálogo integrado o abrirlo en tu navegador web.</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1631"/>
+        <location filename="../src/MainWindow.cpp" line="1771"/>
         <source>Dialog Window</source>
         <translation>Ventana de Diálogo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1632"/>
+        <location filename="../src/MainWindow.cpp" line="1772"/>
         <source>Web Browser</source>
         <translation>Navegador Web</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1635"/>
+        <location filename="../src/MainWindow.cpp" line="1775"/>
         <source>Remember my choice</source>
         <translation>Recordar mi elección</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1683"/>
+        <location filename="../src/MainWindow.cpp" line="1823"/>
         <source>Tutorial Not Found</source>
         <translation>Tutorial No Encontrado</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1684"/>
+        <location filename="../src/MainWindow.cpp" line="1824"/>
         <source>Tutorial file not found at:
 %1
 
@@ -2944,12 +3723,12 @@ Please ensure the tutorial files are installed correctly.</source>
 Asegúrate de que los archivos del tutorial estén instalados correctamente.</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1718"/>
+        <location filename="../src/MainWindow.cpp" line="1858"/>
         <source>Logs Folder Not Found</source>
         <translation>Carpeta de Registros No Encontrada</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1719"/>
+        <location filename="../src/MainWindow.cpp" line="1859"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -2982,154 +3761,363 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation type="vanished">Acerca 3D Modelo Viewer</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="186"/>
+        <location filename="../src/MainWindow.cpp" line="192"/>
         <source>Variants</source>
         <translation>Variantes</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="189"/>
+        <location filename="../src/MainWindow.cpp" line="195"/>
         <source>Animations</source>
         <translation>Animaciones</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="192"/>
+        <location filename="../src/MainWindow.cpp" line="198"/>
         <source>Cameras</source>
         <translation>Cámaras</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="195"/>
+        <location filename="../src/MainWindow.cpp" line="219"/>
         <source>Selections</source>
         <translation>Selecciones</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="202"/>
-        <location filename="../src/MainWindow.cpp" line="203"/>
-        <source>Auto Fit View On Hide/Show</source>
-        <translation>Ajustar vista automáticamente al ocultar/mostrar</translation>
+        <location filename="../src/MainWindow.cpp" line="222"/>
+        <source>States</source>
+        <translation>Estados</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="204"/>
+        <location filename="../src/MainWindow.cpp" line="229"/>
+        <location filename="../src/MainWindow.cpp" line="230"/>
+        <source>Auto Fit View On Hide/Show</source>
+        <translation>Ajustar vista al ocultar/mostrar</translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="231"/>
         <source>Selection Highlighting</source>
         <translation>Resaltado de selección</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="205"/>
+        <location filename="../src/MainWindow.cpp" line="232"/>
         <source>Selection Highlighting in Viewer</source>
         <translation>Resaltado de selección en el visor</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="234"/>
+        <location filename="../src/MainWindow.cpp" line="282"/>
         <source>Document</source>
         <translation>Documento</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="257"/>
+        <location filename="../src/MainWindow.cpp" line="305"/>
         <source>Materials</source>
         <translation>Materiales</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="263"/>
+        <location filename="../src/MainWindow.cpp" line="311"/>
         <source>Transformations</source>
         <translation>Transformaciones</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="267"/>
+        <location filename="../src/MainWindow.cpp" line="315"/>
         <source>Properties</source>
         <translation>Propiedades</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="280"/>
+        <location filename="../src/MainWindow.cpp" line="328"/>
         <source>Environment</source>
         <translation>Entorno</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="486"/>
+        <location filename="../ui/MainWindow.ui" line="82"/>
         <source>View</source>
         <translation>Vista</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="700"/>
+        <location filename="../src/MainWindow.cpp" line="762"/>
         <source>Save Selection Set</source>
         <translation>Guardar conjunto de selección</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="701"/>
+        <location filename="../src/MainWindow.cpp" line="763"/>
         <source>Name for this selection:</source>
         <translation>Nombre para esta selección:</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1909"/>
+        <location filename="../src/MainWindow.cpp" line="777"/>
+        <source>Save Scene State</source>
+        <translation>Guardar estado de escena</translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="778"/>
+        <source>Name for this state:</source>
+        <translation>Nombre de este estado:</translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="2050"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1909"/>
+        <location filename="../src/MainWindow.cpp" line="2050"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato de archivo no compatible: </translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1953"/>
+        <location filename="../src/MainWindow.cpp" line="2094"/>
         <source>Open Model File</source>
         <translation>Abrir archivo modelo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2279"/>
+        <location filename="../src/MainWindow.cpp" line="2443"/>
         <source>&amp;Undo %1</source>
         <translation>&amp;Deshacer %1</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2281"/>
-        <location filename="../src/MainWindow.cpp" line="2293"/>
+        <location filename="../src/MainWindow.cpp" line="2445"/>
+        <location filename="../src/MainWindow.cpp" line="2457"/>
         <source>&amp;Undo</source>
         <translation>&amp;Deshacer</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2284"/>
+        <location filename="../src/MainWindow.cpp" line="2448"/>
         <source>&amp;Redo %1</source>
         <translation>&amp;Rehacer %1</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2286"/>
-        <location filename="../src/MainWindow.cpp" line="2294"/>
+        <location filename="../src/MainWindow.cpp" line="2450"/>
+        <location filename="../src/MainWindow.cpp" line="2458"/>
         <source>&amp;Redo</source>
         <translation>&amp;Rehacer</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2406"/>
+        <location filename="../src/MainWindow.cpp" line="2570"/>
         <source>Confirm Exit</source>
         <translation>Confirmar Salida</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2407"/>
+        <location filename="../src/MainWindow.cpp" line="2571"/>
         <source>Are you sure you want to exit the application?</source>
         <translation>¿Estás seguro de que deseas salir de la aplicación?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2462"/>
+        <location filename="../src/MainWindow.cpp" line="2626"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2464"/>
+        <location filename="../src/MainWindow.cpp" line="2628"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation>%1 -&gt; Mayús-clic para importar al documento activo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2465"/>
+        <location filename="../src/MainWindow.cpp" line="2629"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation>Clic para abrir • Mayús-clic para importar a la ventana activa</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2496"/>
+        <location filename="../src/MainWindow.cpp" line="2660"/>
         <source>File Not Found</source>
         <translation>Archivo no encontrado</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="2497"/>
+        <location filename="../src/MainWindow.cpp" line="2661"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>El archivo &apos;%1&apos; ya no existe. ¿Desea eliminarlo de los archivos recientes?</translation>
+    </message>
+</context>
+<context>
+    <name>MassPropertiesDialog</name>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="29"/>
+        <source>Mass Properties</source>
+        <translation>Propiedades de masa</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
+        <source>Volume, surface area, and mass for the current selection - recomputed fresh each time this dialog opens.</source>
+        <translation>Volumen, área de superficie y masa de la selección actual: se recalcula cada vez que se abre este cuadro de diálogo.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="51"/>
+        <source>Nothing selected - select one or more meshes first.</source>
+        <translation>Nada seleccionado: seleccione primero una o más mallas.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <source>Mesh</source>
+        <translation>Malla</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <source>Volume (mm³)</source>
+        <translation>Volumen (mm³)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <source>Surface Area (mm²)</source>
+        <translation>Área de superficie (mm²)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="82"/>
+        <source>Mass (kg)</source>
+        <translation>Masa (kg)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="77"/>
+        <source>Mass by Material:</source>
+        <translation>Masa por material:</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="82"/>
+        <source>Material</source>
+        <translation>Material</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="136"/>
+        <source>Close</source>
+        <translation>Cerrar</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="136"/>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="342"/>
+        <source>mesh no longer available</source>
+        <translation>malla ya no disponible</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="343"/>
+        <source>(deleted)</source>
+        <translation>(eliminada)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="344"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="345"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="346"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="375"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="376"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="377"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="425"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="441"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="469"/>
+        <source>N/A (%1)</source>
+        <translation>N/D (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="374"/>
+        <source>geometry changed during computation</source>
+        <translation>la geometría cambió durante el cálculo</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="494"/>
+        <source>%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-based results as provisional until this can be corrected per-import. </source>
+        <translation>%1 de %2 malla(s) usan una unidad predeterminada sin confirmar (milímetro): trate los resultados basados en longitudes como provisionales hasta que se pueda corregir por importación. </translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="498"/>
+        <source>Density comes from each mesh&apos;s assigned material; library-supplied values are typical/nominal figures for a generic grade, not an exact spec - verify before relying on Mass for an engineering-critical calculation.</source>
+        <translation>La densidad procede del material asignado a cada malla; los valores de la biblioteca son cifras típicas/nominales de un grado genérico, no una especificación exacta: verifíquelos antes de confiar en la masa para un cálculo crítico de ingeniería.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="511"/>
+        <source>Surface Area: %1 mm²
+</source>
+        <translation>Área de superficie: %1 mm²
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="513"/>
+        <source>Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)
+</source>
+        <translation>Área de superficie: %1 mm² conocida (%2 de %3 malla(s) excluidas - %4)
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="518"/>
+        <source>Volume: %1 mm³
+</source>
+        <translation>Volumen: %1 mm³
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="520"/>
+        <source>Volume: %1 mm³ known (%2 of %3 mesh(es) excluded - %4)
+</source>
+        <translation>Volumen: %1 mm³ conocido (%2 de %3 malla(s) excluidas - %4)
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="531"/>
+        <source>Mass: %1 kg
+</source>
+        <translation>Masa: %1 kg
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="533"/>
+        <source>Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)
+</source>
+        <translation>Masa: %1 kg conocida (%2 de %3 malla(s) excluidas - %4)
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="559"/>
+        <source>%1 kg</source>
+        <translation>%1 kg</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="560"/>
+        <source>%1 kg known (%2 of %3 mesh(es) excluded - %4)</source>
+        <translation>%1 kg conocida (%2 de %3 malla(s) excluidas - %4)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="580"/>
+        <source>Geometric Centroid: X %1, Y %2, Z %3
+</source>
+        <translation>Centroide geométrico: X %1, Y %2, Z %3
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="585"/>
+        <source>Geometric Centroid: N/A (%1)
+</source>
+        <translation>Centroide geométrico: N/D (%1)
+</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="586"/>
+        <source>selection has zero total volume</source>
+        <translation>la selección tiene volumen total cero</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="586"/>
+        <source>not every mesh has a valid volume</source>
+        <translation>no todas las mallas tienen un volumen válido</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="601"/>
+        <source>Mass-Weighted Center of Mass: X %1, Y %2, Z %3</source>
+        <translation>Centro de masa ponderado por masa: X %1, Y %2, Z %3</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="606"/>
+        <source>Mass-Weighted Center of Mass: N/A (%1)</source>
+        <translation>Centro de masa ponderado por masa: N/D (%1)</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="607"/>
+        <source>not every mesh has a known mass</source>
+        <translation>no todas las mallas tienen una masa conocida</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="607"/>
+        <source>selection has zero total mass</source>
+        <translation>la selección tiene masa total cero</translation>
     </message>
 </context>
 <context>
@@ -3540,7 +4528,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="271"/>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="2735"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1413"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1497"/>
         <source>Roughness</source>
         <translation>Rugosidad</translation>
     </message>
@@ -3553,7 +4541,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="281"/>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="872"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1414"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1498"/>
         <source>Ambient Occlusion</source>
         <translation>Oclusión ambiental</translation>
     </message>
@@ -3566,7 +4554,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="291"/>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="1725"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1415"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1499"/>
         <source>Opacity</source>
         <translation>Opacidad</translation>
     </message>
@@ -3738,7 +4726,7 @@ Formato de archivo no compatible: </translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="585"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4291"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4375"/>
         <source>Delete</source>
         <translation>Eliminar</translation>
     </message>
@@ -4347,7 +5335,7 @@ para esta textura</translation>
     </message>
     <message>
         <location filename="../ui/MaterialPropertiesPanel.ui" line="2185"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1412"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1496"/>
         <source>Metallic</source>
         <translation>Metálico</translation>
     </message>
@@ -4581,295 +5569,340 @@ Trans. Color</source>
 Color Trans.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="472"/>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5299"/>
+        <source>Physical Properties</source>
+        <translation>Propiedades físicas</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5347"/>
+        <source>Bulk density feeds Tools -&gt; Mass Properties&apos; weight calculation. Left as Unknown, this material contributes no mass rather than an assumed value. Values pre-filled from the material library are typical/nominal figures for a generic grade - actual density varies by alloy, grade, and treatment, so verify against a real spec sheet before relying on it for an engineering-critical calculation.</source>
+        <translation>La densidad aparente alimenta el cálculo de peso de Herramientas -&gt; Propiedades de masa. Si se deja como Desconocido, este material no aporta masa en lugar de usar un valor supuesto. Los valores rellenados desde la biblioteca de materiales son cifras típicas/nominales de un grado genérico: la densidad real varía según la aleación, el grado y el tratamiento, así que verifíquela con una hoja de especificaciones real antes de confiar en ella para un cálculo crítico de ingeniería.</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5357"/>
+        <source>Check for thin-film/decorative materials (e.g. clear coat, sheen) where a bulk density is not physically meaningful</source>
+        <translation>Marcar para materiales de película fina/decorativos (p. ej., barniz transparente, brillo satinado) en los que una densidad aparente no tiene sentido físico</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5360"/>
+        <source>Not applicable (thin-film/decorative material)</source>
+        <translation>No aplicable (material de película fina/decorativo)</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5367"/>
+        <source>Density (kg/m³):</source>
+        <translation>Densidad (kg/m³):</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5374"/>
+        <source>Bulk density in kg/m³ - used to compute mass from volume in the Mass Properties dialog. Library-supplied values are typical/nominal for a generic grade, not an exact spec.</source>
+        <translation>Densidad aparente en kg/m³: se usa para calcular la masa a partir del volumen en el cuadro de diálogo Propiedades de masa. Los valores de la biblioteca son típicos/nominales de un grado genérico, no una especificación exacta.</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5377"/>
+        <source>Unknown</source>
+        <translation>Desconocido</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5399"/>
+        <source>Reset density to Unknown</source>
+        <translation>Restablecer la densidad a Desconocido</translation>
+    </message>
+    <message>
+        <location filename="../ui/MaterialPropertiesPanel.ui" line="5402"/>
+        <source>Clear (set Unknown)</source>
+        <translation>Borrar (Desconocido)</translation>
+    </message>
+    <message>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="478"/>
         <source>Unsaved Materials</source>
         <translation>Materiales sin guardar</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="473"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="479"/>
         <source>You have %1 unsaved material(s) in the library. Would you like to save them before closing?</source>
         <translation>Tiene %1 material(es) sin guardar en la biblioteca. ¿Desea guardarlos antes de cerrar?</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="488"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="494"/>
         <source>Manual Save Required</source>
         <translation>Se requiere guardado manual</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="489"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="495"/>
         <source>Please save each unsaved material individually by selecting it and clicking &apos;Save&apos;.</source>
         <translation>Guarde cada material sin guardar individualmente seleccionándolo y haciendo clic en «Guardar».</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="698"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="710"/>
         <source>Select Albedo Color</source>
         <translation>Seleccionar color de albedo</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="736"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="811"/>
         <source>Select Emissive Color</source>
         <translation>Seleccionar color emisivo</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="754"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="829"/>
         <source>Select Sheen Color</source>
         <translation>Seleccionar color de brillo</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="779"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="854"/>
         <source>Select Diffuse Transmission Color</source>
         <translation>Seleccionar color de transmisión difusa</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="795"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="870"/>
         <source>Select Specular Color</source>
         <translation>Seleccionar color especular</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="811"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="886"/>
         <source>Select Attenuation Color</source>
         <translation>Seleccionar color de atenuación</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="948"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1023"/>
         <source>Channel Packing...</source>
         <translation>Empaquetado de canales...</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="953"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1028"/>
         <source>Replace...</source>
         <translation>Reemplazar...</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="956"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1031"/>
         <source>Clear</source>
         <translation>Borrar</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1366"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1450"/>
         <source>UV-</source>
         <translation>UV-</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1372"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1456"/>
         <source>UV%1</source>
         <translation>UV%1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1416"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="1500"/>
         <source>Texture</source>
         <translation>Textura</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1958"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2042"/>
         <source>Select Texture</source>
         <translation>Seleccionar textura</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1959"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2043"/>
         <source>Image Files (*.png *.jpg *.jpeg *.bmp *.tga);;All Files (*)</source>
         <translation>Archivos de imagen (*.png *.jpg *.jpeg *.bmp *.tga);;Todos los archivos (*)</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1967"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4299"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2051"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4383"/>
         <source>Clear All Textures</source>
         <translation>Borrar todas las texturas</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="1968"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2052"/>
         <source>Are you sure you want to clear all textures?</source>
         <translation>¿Está seguro de que desea borrar todas las texturas?</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2188"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3059"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3908"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2272"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3143"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3992"/>
         <source>No Material</source>
         <translation>Sin material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2188"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3059"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2272"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3143"/>
         <source>No material is currently bound to save.</source>
         <translation>Actualmente no hay ningún material vinculado para guardar.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2217"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2761"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2782"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3090"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2301"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2845"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2866"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3174"/>
         <source>Material Name</source>
         <translation>Nombre del material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2218"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2302"/>
         <source>Enter name for material:</source>
         <translation>Introduzca el nombre del material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2240"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3980"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2324"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4064"/>
         <source>Choose Category</source>
         <translation>Elegir categoría</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2241"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2325"/>
         <source>Select a category to save into:</source>
         <translation>Seleccione una categoría en la que guardar:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2263"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2813"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3156"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2347"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2897"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3240"/>
         <source>Folder Creation Failed</source>
         <translation>Error al crear la carpeta</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2264"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2814"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3157"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2348"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2898"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3241"/>
         <source>Could not create material folder: %1</source>
         <translation>No se pudo crear la carpeta de materiales: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2318"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2912"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3254"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2402"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2996"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3338"/>
         <source>Save Material Failed</source>
         <translation>Error al guardar el material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2437"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2615"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3048"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3365"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2521"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2699"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3132"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3449"/>
         <source>Material Saved</source>
         <translation>Material guardado</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2438"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2522"/>
         <source>New user material &apos;%1&apos; has been created in category &apos;%2&apos;.</source>
         <translation>Se ha creado el nuevo material de usuario «%1» en la categoría «%2».</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2615"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2699"/>
         <source>User material &apos;%1&apos; has been updated.</source>
         <translation>El material de usuario «%1» se ha actualizado.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2623"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2799"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2707"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2883"/>
         <source>Save Failed</source>
         <translation>Error al guardar</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2623"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2707"/>
         <source>Failed to save material: %1</source>
         <translation>No se pudo guardar el material: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2729"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3136"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2813"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3220"/>
         <source>Choose Group</source>
         <translation>Elegir grupo</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2730"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3137"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2814"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3221"/>
         <source>Select a group to save into:</source>
         <translation>Seleccione un grupo en el que guardar:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2751"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2835"/>
         <source>Save As New User Material</source>
         <translation>Guardar como nuevo material de usuario</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2752"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2836"/>
         <source>You are saving changes to a factory material. A new user material will be created instead of modifying the factory material.</source>
         <translation>Está guardando cambios en un material de fábrica. Se creará un nuevo material de usuario en lugar de modificar el material de fábrica.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2762"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2783"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2846"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2867"/>
         <source>Display name for material:</source>
         <translation>Nombre de visualización del material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="2799"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="2883"/>
         <source>Invalid material name/key/group.</source>
         <translation>Nombre/clave/grupo de material no válido.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3049"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3133"/>
         <source>Material &apos;%1&apos; successfully saved to your library under category &apos;%2&apos;.</source>
         <translation>El material «%1» se guardó correctamente en su biblioteca en la categoría «%2».</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3091"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3175"/>
         <source>Enter name for new material:</source>
         <translation>Introduzca el nombre del nuevo material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3366"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3450"/>
         <source>New user material &apos;%1&apos; has been created.</source>
         <translation>Se ha creado el nuevo material de usuario «%1».</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3436"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3624"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3915"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3520"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3708"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3999"/>
         <source>No Library</source>
         <translation>Sin biblioteca</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3436"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3624"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3915"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3520"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3708"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3999"/>
         <source>Material library not available.</source>
         <translation>Biblioteca de materiales no disponible.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3443"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3631"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3527"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3715"/>
         <source>No Selection</source>
         <translation>Sin selección</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3443"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3527"/>
         <source>Please select a material to delete.</source>
         <translation>Seleccione un material para eliminar.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3453"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3638"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3537"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3722"/>
         <source>Invalid Selection</source>
         <translation>Selección no válida</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3453"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3638"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3537"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3722"/>
         <source>Could not determine material key.</source>
         <translation>No se pudo determinar la clave del material.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3463"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3547"/>
         <source>Cannot Delete Factory Material</source>
         <translation>No se puede eliminar el material de fábrica</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3464"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3548"/>
         <source>Factory materials cannot be deleted. Only user-created or unsaved materials can be removed.</source>
         <translation>Los materiales de fábrica no se pueden eliminar. Solo se pueden quitar los materiales creados por el usuario o sin guardar.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3471"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3555"/>
         <source>Delete Material?</source>
         <translation>¿Eliminar material?</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3472"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3556"/>
         <source>Are you sure you want to remove &apos;%1&apos; from your library?
 
 This cannot be undone.</source>
@@ -4878,173 +5911,173 @@ This cannot be undone.</source>
 Esto no se puede deshacer.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3485"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3667"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3569"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3751"/>
         <source>Invalid Material</source>
         <translation>Material no válido</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3485"/>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3667"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3569"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3751"/>
         <source>Could not determine material group.</source>
         <translation>No se pudo determinar el grupo del material.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3560"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3644"/>
         <source>Delete Failed</source>
         <translation>Error al eliminar</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3561"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3645"/>
         <source>Failed to delete material from library:
 %1</source>
         <translation>No se pudo eliminar el material de la biblioteca:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3578"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3662"/>
         <source>Folder Deletion Failed</source>
         <translation>Error al eliminar la carpeta</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3579"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3663"/>
         <source>Could not delete material folder. The material was removed from the library, but texture files remain at:
 %1</source>
         <translation>No se pudo eliminar la carpeta de materiales. El material se eliminó de la biblioteca, pero quedan archivos de textura en:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3614"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3698"/>
         <source>Material Deleted</source>
         <translation>Material eliminado</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3615"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3699"/>
         <source>Material &apos;%1&apos; has been removed from your library.</source>
         <translation>El material «%1» se ha quitado de su biblioteca.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3631"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3715"/>
         <source>Please select a material to rename.</source>
         <translation>Seleccione un material para renombrar.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3649"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3733"/>
         <source>Cannot Rename</source>
         <translation>No se puede renombrar</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3650"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3734"/>
         <source>Only user-created and unsaved materials can be renamed. Factory materials cannot be renamed.</source>
         <translation>Solo se pueden renombrar los materiales creados por el usuario y no guardados. Los materiales de fábrica no se pueden renombrar.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3675"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3759"/>
         <source>Rename Material</source>
         <translation>Renombrar material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3676"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3760"/>
         <source>Enter new name for material:</source>
         <translation>Introduzca el nuevo nombre del material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3711"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3795"/>
         <source>Duplicate Name</source>
         <translation>Nombre duplicado</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3712"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3796"/>
         <source>A material with name &apos;%1&apos; already exists in this group.</source>
         <translation>Ya existe un material con el nombre «%1» en este grupo.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3748"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3832"/>
         <source>File Not Found</source>
         <translation>Archivo no encontrado</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3749"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3833"/>
         <source>User materials file does not exist: %1</source>
         <translation>El archivo de materiales de usuario no existe: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3758"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3842"/>
         <source>Read Failed</source>
         <translation>Error de lectura</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3759"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3843"/>
         <source>Failed to open user materials file for reading: %1</source>
         <translation>No se pudo abrir el archivo de materiales de usuario para lectura: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3771"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3855"/>
         <source>Parse Failed</source>
         <translation>Error de análisis</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3772"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3856"/>
         <source>Failed to parse user materials JSON: %1</source>
         <translation>No se pudo analizar el JSON de materiales de usuario: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3834"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3918"/>
         <source>Rename Failed</source>
         <translation>Error al renombrar</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3835"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3919"/>
         <source>Material with key &apos;%1&apos; not found in group &apos;%2&apos;. Check the debug log for details.</source>
         <translation>No se encontró el material con clave «%1» en el grupo «%2». Consulte el registro de depuración para más detalles.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3845"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3929"/>
         <source>Write Failed</source>
         <translation>Error de escritura</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3846"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3930"/>
         <source>Failed to open user materials file for writing: %1</source>
         <translation>No se pudo abrir el archivo de materiales de usuario para escritura: %1</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3898"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3982"/>
         <source>Material Renamed</source>
         <translation>Material renombrado</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3899"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3983"/>
         <source>Material has been renamed to &apos;%1&apos;.</source>
         <translation>El material se ha renombrado a «%1».</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3908"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="3992"/>
         <source>No material is currently loaded to create from.</source>
         <translation>Actualmente no hay ningún material cargado a partir del cual crear.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3936"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4020"/>
         <source>New Material Name</source>
         <translation>Nuevo nombre del material</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3937"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4021"/>
         <source>Enter a name for the new material:</source>
         <translation>Introduzca un nombre para el nuevo material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="3981"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4065"/>
         <source>Select a category for this material:</source>
         <translation>Seleccione una categoría para este material:</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4099"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4183"/>
         <source>Material Created</source>
         <translation>Material creado</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4100"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4184"/>
         <source>New material &apos;%1&apos; created in category &apos;%2&apos;.
 
 Modify it and then click &apos;Save&apos; to persist it to your library.</source>
@@ -5053,17 +6086,17 @@ Modify it and then click &apos;Save&apos; to persist it to your library.</source
 Modifíquelo y luego haga clic en «Guardar» para conservarlo en su biblioteca.</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4267"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4351"/>
         <source>Copy Name</source>
         <translation>Copiar nombre</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4271"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4355"/>
         <source>Copy Key</source>
         <translation>Copiar clave</translation>
     </message>
     <message>
-        <location filename="../src/MaterialPropertiesPanel.cpp" line="4284"/>
+        <location filename="../src/MaterialPropertiesPanel.cpp" line="4368"/>
         <source>Rename</source>
         <translation>Renombrar</translation>
     </message>
@@ -5084,7 +6117,7 @@ Modifíquelo y luego haga clic en «Guardar» para conservarlo en su biblioteca.
         <location filename="../src/MaterialVariantsPanel.cpp" line="65"/>
         <location filename="../src/MaterialVariantsPanel.cpp" line="301"/>
         <source>Set as Default</source>
-        <translation>Establecer como predeterminado</translation>
+        <translation>Hacer predeterminada</translation>
     </message>
     <message>
         <location filename="../src/MaterialVariantsPanel.cpp" line="66"/>
@@ -5567,6 +6600,12 @@ distancia en línea recta. Ambos puntos deben caer en la misma malla.</translati
         <location filename="../ui/ModelViewer.ui" line="113"/>
         <source>Filter the scene tree by name</source>
         <translation>Filtrar el árbol de la escena por nombre</translation>
+    </message>
+    <message>
+        <location filename="../ui/ModelViewer.ui" line="132"/>
+        <location filename="../src/ModelViewer.cpp" line="1196"/>
+        <source>Keep navigation panel visible</source>
+        <translation>Mantener visible el panel de navegación</translation>
     </message>
     <message>
         <source>3D View</source>
@@ -6287,7 +7326,7 @@ Vistaal Ocultar/Mostrar</translation>
         <translation type="vanished">Las transformaciones aplicadas se han incorporado a los vértices de la malla</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="676"/>
+        <location filename="../src/ModelViewer.cpp" line="756"/>
         <source>Reset Transform</source>
         <translation>Restablecer Transformación</translation>
     </message>
@@ -6320,444 +7359,471 @@ Vistaal Ocultar/Mostrar</translation>
         <translation type="vanished">Cámaras</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1476"/>
+        <location filename="../src/ModelViewer.cpp" line="1815"/>
         <source>Saved %1 of %2 material(s). %3 failed to save.</source>
         <translation>Se guardaron %1 de %2 material(es). %3 no se pudieron guardar.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1480"/>
+        <location filename="../src/ModelViewer.cpp" line="1819"/>
         <source>Save Materials - Partial Success</source>
         <translation>Guardar materiales: éxito parcial</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1485"/>
+        <location filename="../src/ModelViewer.cpp" line="1824"/>
         <source>Successfully saved %1 material(s) to library.</source>
         <translation>Se guardaron correctamente %1 material(es) en la biblioteca.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1486"/>
+        <location filename="../src/ModelViewer.cpp" line="1825"/>
         <source>Materials Saved</source>
         <translation>Materiales guardados</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1609"/>
+        <location filename="../src/ModelViewer.cpp" line="1948"/>
         <source>objects</source>
         <translation>objetos</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1609"/>
+        <location filename="../src/ModelViewer.cpp" line="1948"/>
         <source>object</source>
         <translation>objeto</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1610"/>
+        <location filename="../src/ModelViewer.cpp" line="1949"/>
         <source>Selected %1 %2</source>
         <translation>Seleccionado %1 %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1613"/>
+        <location filename="../src/ModelViewer.cpp" line="1952"/>
         <source>No selection</source>
         <translation>Sin selección</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1776"/>
-        <location filename="../src/ModelViewer.cpp" line="1804"/>
-        <location filename="../src/ModelViewer.cpp" line="1972"/>
-        <location filename="../src/ModelViewer.cpp" line="4645"/>
-        <location filename="../src/ModelViewer.cpp" line="4821"/>
-        <location filename="../src/ModelViewer.cpp" line="4878"/>
-        <location filename="../src/ModelViewer.cpp" line="5586"/>
+        <location filename="../src/ModelViewer.cpp" line="2151"/>
+        <location filename="../src/ModelViewer.cpp" line="2179"/>
+        <location filename="../src/ModelViewer.cpp" line="2347"/>
+        <location filename="../src/ModelViewer.cpp" line="5390"/>
+        <location filename="../src/ModelViewer.cpp" line="5566"/>
+        <location filename="../src/ModelViewer.cpp" line="5623"/>
+        <location filename="../src/ModelViewer.cpp" line="6453"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1776"/>
+        <location filename="../src/ModelViewer.cpp" line="2151"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato de archivo no compatible: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1804"/>
+        <location filename="../src/ModelViewer.cpp" line="2179"/>
         <source>Failed to load model: </source>
         <translation>Error al Cargar el Modelo: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1836"/>
+        <location filename="../src/ModelViewer.cpp" line="2211"/>
         <source>You have %1 unsaved material(s). Do you want to save them?</source>
         <translation>Tiene %1 material(es) sin guardar. ¿Desea guardarlos?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1840"/>
+        <location filename="../src/ModelViewer.cpp" line="2215"/>
         <source>Unsaved Materials</source>
         <translation>Materiales sin guardar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1856"/>
+        <location filename="../src/ModelViewer.cpp" line="2231"/>
         <source>Save Failed</source>
         <translation>Error al guardar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1857"/>
+        <location filename="../src/ModelViewer.cpp" line="2232"/>
         <source>Failed to save some materials. Close anyway?</source>
         <translation>No se pudieron guardar algunos materiales. ¿Cerrar de todos modos?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1874"/>
+        <location filename="../src/ModelViewer.cpp" line="2249"/>
         <source>Unsaved Changes</source>
         <translation>Cambios No Guardados</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1875"/>
+        <location filename="../src/ModelViewer.cpp" line="2250"/>
         <source>The document has unsaved changes. Do you want to save before closing?</source>
         <translation>El documento tiene cambios no guardados. ¿Deseas guardar antes de cerrar?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1999"/>
+        <location filename="../src/ModelViewer.cpp" line="2374"/>
         <source>%1</source>
         <translation>%1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2121"/>
+        <location filename="../src/ModelViewer.cpp" line="2513"/>
         <source>Select Parent</source>
         <translation>Seleccionar padre</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2156"/>
+        <location filename="../src/ModelViewer.cpp" line="2561"/>
+        <source>Import Units...</source>
+        <translation>Unidades de importación...</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="2574"/>
         <source>Edit Material</source>
         <translation>Editar material</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2171"/>
-        <location filename="../src/ModelViewer.cpp" line="3011"/>
-        <location filename="../src/ModelViewer.cpp" line="3022"/>
+        <location filename="../src/ModelViewer.cpp" line="2593"/>
+        <location filename="../src/ModelViewer.cpp" line="3433"/>
+        <location filename="../src/ModelViewer.cpp" line="3444"/>
         <source>Split by Connectivity</source>
         <translation>Dividir por conectividad</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2172"/>
-        <location filename="../src/ModelViewer.cpp" line="3209"/>
-        <location filename="../src/ModelViewer.cpp" line="3319"/>
-        <location filename="../src/ModelViewer.cpp" line="3330"/>
-        <location filename="../src/ModelViewer.cpp" line="3336"/>
+        <location filename="../src/ModelViewer.cpp" line="2594"/>
+        <location filename="../src/ModelViewer.cpp" line="3631"/>
+        <location filename="../src/ModelViewer.cpp" line="3741"/>
+        <location filename="../src/ModelViewer.cpp" line="3752"/>
+        <location filename="../src/ModelViewer.cpp" line="3758"/>
         <source>Merge by Adjacency</source>
         <translation>Fusionar por adyacencia</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2173"/>
-        <location filename="../src/ModelViewer.cpp" line="3565"/>
+        <location filename="../src/ModelViewer.cpp" line="2595"/>
+        <location filename="../src/ModelViewer.cpp" line="3987"/>
         <source>Merge Selected</source>
         <translation>Fusionar seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2174"/>
-        <location filename="../src/ModelViewer.cpp" line="3583"/>
+        <location filename="../src/ModelViewer.cpp" line="2596"/>
+        <location filename="../src/ModelViewer.cpp" line="4005"/>
         <source>Mesh Union</source>
         <translation>Unión de mallas</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2175"/>
-        <location filename="../src/ModelViewer.cpp" line="3632"/>
+        <location filename="../src/ModelViewer.cpp" line="2597"/>
+        <location filename="../src/ModelViewer.cpp" line="4054"/>
         <source>Group</source>
         <translation>Agrupar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2759"/>
+        <location filename="../src/ModelViewer.cpp" line="3181"/>
         <source>Paste failed: the document this was cut from has since been closed.</source>
         <translation>Error al pegar: el documento del que se cortó esto se ha cerrado desde entonces.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2853"/>
+        <location filename="../src/ModelViewer.cpp" line="3275"/>
         <source>Paste (moved from another document)</source>
         <translation>Pegar (movido desde otro documento)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2857"/>
+        <location filename="../src/ModelViewer.cpp" line="3279"/>
         <source>Cut (moved to another document)</source>
         <translation>Cortar (movido a otro documento)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2874"/>
+        <location filename="../src/ModelViewer.cpp" line="3296"/>
         <source>Pasted group as a copy - moving a whole group into a different document isn&apos;t supported yet, so the original was left in place.</source>
         <translation>Grupo pegado como copia - mover un grupo completo a otro documento aún no es compatible, por lo que el original se dejó en su lugar.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3024"/>
+        <location filename="../src/ModelViewer.cpp" line="3446"/>
         <source>The selected mesh is already a single connected piece - nothing to split.</source>
         <translation>La malla seleccionada ya es una sola pieza conectada - nada que dividir.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3025"/>
+        <location filename="../src/ModelViewer.cpp" line="3447"/>
         <source>All %1 selected meshes are already single connected pieces - nothing to split.</source>
         <translation>Las %1 mallas seleccionadas ya son piezas individuales conectadas - nada que dividir.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3029"/>
+        <location filename="../src/ModelViewer.cpp" line="3451"/>
         <source>Split %1 mesh(es) into %2 piece(s); %3 mesh(es) were already a single connected piece.</source>
         <translation>%1 malla(s) dividida(s) en %2 pieza(s); %3 malla(s) ya eran una sola pieza conectada.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3034"/>
+        <location filename="../src/ModelViewer.cpp" line="3456"/>
         <source>Split %1 mesh(es) into %2 piece(s).</source>
         <translation>%1 malla(s) dividida(s) en %2 pieza(s).</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3211"/>
+        <location filename="../src/ModelViewer.cpp" line="3633"/>
         <source>One touching group of selected meshes has different materials.</source>
         <translation>Un grupo de mallas seleccionadas en contacto tiene materiales diferentes.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3212"/>
+        <location filename="../src/ModelViewer.cpp" line="3634"/>
         <source>%1 touching groups of selected meshes have different materials.</source>
         <translation>%1 grupos de mallas seleccionadas en contacto tienen materiales diferentes.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3213"/>
+        <location filename="../src/ModelViewer.cpp" line="3635"/>
         <source>&quot;Keep Materials Separate&quot; splits each group into one merge per material instead of merging everything in it into one, using the first mesh&apos;s material.</source>
         <translation>«Mantener materiales separados» divide cada grupo en una fusión por material en lugar de fusionar todo en uno, usando el material de la primera malla.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3216"/>
-        <location filename="../src/ModelViewer.cpp" line="3436"/>
+        <location filename="../src/ModelViewer.cpp" line="3638"/>
+        <location filename="../src/ModelViewer.cpp" line="3858"/>
         <source>Keep Materials Separate</source>
         <translation>Mantener materiales separados</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3217"/>
+        <location filename="../src/ModelViewer.cpp" line="3639"/>
         <source>Merge Anyway</source>
         <translation>Fusionar de todos modos</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3331"/>
+        <location filename="../src/ModelViewer.cpp" line="3753"/>
         <source>Found %1 touching group(s) of selected meshes with different materials, left unmerged.</source>
         <translation>Se encontraron %1 grupo(s) de mallas seleccionadas en contacto con materiales diferentes, dejados sin fusionar.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3337"/>
+        <location filename="../src/ModelViewer.cpp" line="3759"/>
         <source>None of the selected meshes are touching - nothing to merge.</source>
         <translation>Ninguna de las mallas seleccionadas está en contacto - nada que fusionar.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3341"/>
+        <location filename="../src/ModelViewer.cpp" line="3763"/>
         <source>Merged %1 group(s) (%2 meshes total) into %1 mesh(es).</source>
         <translation>%1 grupo(s) (%2 mallas en total) fusionado(s) en %1 malla(s).</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3345"/>
+        <location filename="../src/ModelViewer.cpp" line="3767"/>
         <source>%1 mixed-material group(s) used a cascaded material</source>
         <translation>%1 grupo(s) de material mixto usaron un material en cascada</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3348"/>
+        <location filename="../src/ModelViewer.cpp" line="3770"/>
         <source>%1 mixed-material group(s) split into %2 per-material merge(s)%3</source>
         <translation>%1 grupo(s) de material mixto divididos en %2 fusión(es) por material%3</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3351"/>
+        <location filename="../src/ModelViewer.cpp" line="3773"/>
         <source> (%1 mesh(es) left unmerged - unique material within their group)</source>
         <translation> (%1 malla(s) dejadas sin fusionar - material único dentro de su grupo)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3355"/>
+        <location filename="../src/ModelViewer.cpp" line="3777"/>
         <source>%1 mixed-material group(s) left unmerged</source>
         <translation>%1 grupo(s) de material mixto dejados sin fusionar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3357"/>
-        <location filename="../src/ModelViewer.cpp" line="3554"/>
+        <location filename="../src/ModelViewer.cpp" line="3779"/>
+        <location filename="../src/ModelViewer.cpp" line="3976"/>
         <source> (%1)</source>
         <translation> (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3357"/>
-        <location filename="../src/ModelViewer.cpp" line="3554"/>
+        <location filename="../src/ModelViewer.cpp" line="3779"/>
+        <location filename="../src/ModelViewer.cpp" line="3976"/>
         <source>; </source>
         <translation>; </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3432"/>
+        <location filename="../src/ModelViewer.cpp" line="3854"/>
         <source>The selected meshes have different materials.</source>
         <translation>Las mallas seleccionadas tienen materiales diferentes.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3433"/>
+        <location filename="../src/ModelViewer.cpp" line="3855"/>
         <source>&quot;Keep Materials Separate&quot; combines each material&apos;s own meshes into its own result instead of combining everything into one, using the first mesh&apos;s material.</source>
         <translation>«Mantener materiales separados» combina las mallas propias de cada material en su propio resultado en lugar de combinar todo en uno, usando el material de la primera malla.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3437"/>
+        <location filename="../src/ModelViewer.cpp" line="3859"/>
         <source> Anyway</source>
         <translation> De todos modos</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3456"/>
+        <location filename="../src/ModelViewer.cpp" line="3878"/>
         <source>The selected meshes have different materials - nothing merged.</source>
         <translation>Las mallas seleccionadas tienen materiales diferentes - nada fusionado.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3541"/>
+        <location filename="../src/ModelViewer.cpp" line="3963"/>
         <source>Combined %1 selected meshes into 1.</source>
         <translation>%1 mallas seleccionadas combinadas en 1.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3542"/>
-        <location filename="../src/ModelViewer.cpp" line="3580"/>
+        <location filename="../src/ModelViewer.cpp" line="3964"/>
+        <location filename="../src/ModelViewer.cpp" line="4002"/>
         <source> (geometry couldn&apos;t be unioned - used plain concatenation instead)</source>
         <translation> (no se pudo unir la geometría - se usó concatenación simple en su lugar)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3546"/>
+        <location filename="../src/ModelViewer.cpp" line="3968"/>
         <source>Combined %1 of %2 selected mesh(es) into %3 result(s), grouped by material.</source>
         <translation>%1 de %2 malla(s) seleccionada(s) combinadas en %3 resultado(s), agrupados por material.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3550"/>
+        <location filename="../src/ModelViewer.cpp" line="3972"/>
         <source>%1 group(s) couldn&apos;t be unioned - used plain concatenation instead</source>
         <translation>%1 grupo(s) no se pudieron unir - se usó concatenación simple en su lugar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3552"/>
+        <location filename="../src/ModelViewer.cpp" line="3974"/>
         <source>%1 mesh(es) left uncombined - unique material within the selection</source>
         <translation>%1 malla(s) dejadas sin combinar - material único dentro de la selección</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3650"/>
+        <location filename="../src/ModelViewer.cpp" line="4072"/>
         <source>Grouped %1 mesh(es).</source>
         <translation>%1 malla(s) agrupada(s).</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3702"/>
+        <location filename="../src/ModelViewer.cpp" line="4144"/>
         <source>Subdivide</source>
         <translation>Subdividir</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3727"/>
+        <location filename="../src/ModelViewer.cpp" line="4170"/>
         <source>Reconstruct Surface</source>
         <translation>Reconstruir superficie</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3758"/>
+        <location filename="../src/ModelViewer.cpp" line="4202"/>
         <source>Repair Mesh (%1)</source>
         <translation>Reparar malla (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3766"/>
+        <location filename="../src/ModelViewer.cpp" line="4210"/>
         <source>Repair Mesh</source>
         <translation>Reparar malla</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3797"/>
+        <location filename="../src/ModelViewer.cpp" line="4242"/>
         <source>Fill Holes (%1)</source>
         <translation>Rellenar agujeros (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3805"/>
+        <location filename="../src/ModelViewer.cpp" line="4250"/>
         <source>Fill Holes</source>
         <translation>Rellenar agujeros</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3890"/>
+        <location filename="../src/ModelViewer.cpp" line="4336"/>
         <source>Generate UVs (%1)</source>
         <translation>Generar UV (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3919"/>
+        <location filename="../src/ModelViewer.cpp" line="4365"/>
         <source>Hide All Measurements</source>
         <translation>Ocultar todas las mediciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3921"/>
+        <location filename="../src/ModelViewer.cpp" line="4367"/>
         <source>Hide All Annotations</source>
         <translation>Ocultar todas las anotaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4105"/>
+        <location filename="../src/ModelViewer.cpp" line="4630"/>
         <source>Recall Selection Set</source>
         <translation>Recuperar conjunto de selección</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4155"/>
+        <location filename="../src/ModelViewer.cpp" line="4881"/>
+        <source>Recall Scene State</source>
+        <translation>Recuperar estado de escena</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="4929"/>
         <source>Show All Measurements</source>
         <translation>Mostrar todas las mediciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4161"/>
+        <location filename="../src/ModelViewer.cpp" line="4935"/>
         <source>Show All Annotations</source>
         <translation>Mostrar todas las anotaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4396"/>
+        <location filename="../src/ModelViewer.cpp" line="5141"/>
         <source>Rename &quot;%1&quot; to &quot;%2&quot;</source>
         <translation>Renombrar «%1» a «%2»</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4819"/>
+        <location filename="../src/ModelViewer.cpp" line="5564"/>
         <source>Exported %1</source>
         <translation>%1 exportado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4892"/>
+        <location filename="../src/ModelViewer.cpp" line="5637"/>
         <source>Reading file: </source>
         <translation>Leyendo archivo: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5505"/>
+        <location filename="../src/ModelViewer.cpp" line="6372"/>
         <source>Loading mesh %1 / %2</source>
         <translation>Cargando malla %1 / %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5587"/>
+        <location filename="../src/ModelViewer.cpp" line="6454"/>
         <source>Unrecognized file format: %1</source>
         <translation>Formato de archivo no reconocido: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6469"/>
+        <location filename="../src/ModelViewer.cpp" line="7474"/>
         <source>Apply Material (Eyedropper)</source>
         <translation>Aplicar material (cuentagotas)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6560"/>
+        <location filename="../src/ModelViewer.cpp" line="7486"/>
+        <source>Replace Material</source>
+        <translation>Reemplazar material</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="7577"/>
         <source>Deselect</source>
         <translation>Deseleccionar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6560"/>
+        <location filename="../src/ModelViewer.cpp" line="7577"/>
         <source>Select</source>
         <translation>Seleccionar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6647"/>
+        <location filename="../src/ModelViewer.cpp" line="7664"/>
         <source>No of Meshes: %1</source>
         <translation>N.º de mallas: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6771"/>
+        <location filename="../src/ModelViewer.cpp" line="7793"/>
         <source>Editing material of %1 (Apply will affect all %2 selected meshes)</source>
         <translation>Editando el material de %1 (Aplicar afectará a las %2 mallas seleccionadas)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6774"/>
+        <location filename="../src/ModelViewer.cpp" line="7796"/>
         <source>Editing material of %1</source>
         <translation>Editando el material de %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1932"/>
-        <location filename="../src/ModelViewer.cpp" line="2003"/>
+        <location filename="../src/ModelViewer.cpp" line="2307"/>
+        <location filename="../src/ModelViewer.cpp" line="2378"/>
         <source>%1*</source>
         <translation>%1*</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="974"/>
+        <location filename="../src/ModelViewer.cpp" line="922"/>
+        <location filename="../src/ModelViewer.cpp" line="1082"/>
+        <source>Auto-hides after a few seconds when unpinned</source>
+        <translation>Se oculta automáticamente tras unos segundos cuando no está fijado</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="923"/>
+        <location filename="../src/ModelViewer.cpp" line="1131"/>
+        <source>Hover to show the navigation panel</source>
+        <translation>Pase el cursor para mostrar el panel de navegación</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="1311"/>
         <source>Delete Variant</source>
         <translation>Eliminar variante</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="983"/>
+        <location filename="../src/ModelViewer.cpp" line="1320"/>
         <source>Delete Animation</source>
         <translation>Eliminar animación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="992"/>
+        <location filename="../src/ModelViewer.cpp" line="1329"/>
         <source>Delete Camera</source>
         <translation>Eliminar cámara</translation>
     </message>
@@ -6766,109 +7832,110 @@ Formato de archivo no compatible: </translation>
         <translation type="vanished">Separar del panel</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="627"/>
+        <location filename="../src/ModelViewer.cpp" line="707"/>
         <source>Transform Selection</source>
         <translation>Transformar selección</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="806"/>
-        <location filename="../src/ModelViewer.cpp" line="856"/>
         <source>Expand the model navigation panel</source>
-        <translation>Expandir el panel de navegación del modelo</translation>
+        <translation type="vanished">Expandir el panel de navegación del modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="807"/>
-        <location filename="../src/ModelViewer.cpp" line="857"/>
         <source>Collapse the model navigation panel</source>
-        <translation>Contraer el panel de navegación del modelo</translation>
+        <translation type="vanished">Contraer el panel de navegación del modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="820"/>
+        <location filename="../src/ModelViewer.cpp" line="953"/>
         <source>Drag to resize the navigation panel</source>
         <translation>Arrastre para redimensionar el panel de navegación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1041"/>
+        <location filename="../src/ModelViewer.cpp" line="1195"/>
+        <source>Allow navigation panel to hide automatically</source>
+        <translation>Permitir que el panel de navegación se oculte automáticamente</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="1378"/>
         <source>Delete %1 Measurements</source>
         <translation>Eliminar %1 mediciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1077"/>
+        <location filename="../src/ModelViewer.cpp" line="1414"/>
         <source>Delete %1 Annotations</source>
         <translation>Eliminar %1 anotaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1193"/>
+        <location filename="../src/ModelViewer.cpp" line="1532"/>
         <source>Hide Measurement</source>
         <translation>Ocultar medición</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1205"/>
+        <location filename="../src/ModelViewer.cpp" line="1544"/>
         <source>Show Measurement</source>
         <translation>Mostrar medición</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1248"/>
+        <location filename="../src/ModelViewer.cpp" line="1587"/>
         <source>Hide Annotation</source>
         <translation>Ocultar anotación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1260"/>
+        <location filename="../src/ModelViewer.cpp" line="1599"/>
         <source>Show Annotation</source>
         <translation>Mostrar anotación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1967"/>
+        <location filename="../src/ModelViewer.cpp" line="2342"/>
         <source>File saved</source>
         <translation>Archivo guardado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1972"/>
+        <location filename="../src/ModelViewer.cpp" line="2347"/>
         <source>Failed to save file: %1</source>
         <translation>Fallado para guardar el archivo: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1980"/>
+        <location filename="../src/ModelViewer.cpp" line="2355"/>
         <source>Model Viewer Files (*.mvf)</source>
         <translation>Modelo de archivos Viewer (.*mvf)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1981"/>
+        <location filename="../src/ModelViewer.cpp" line="2356"/>
         <source>Save Model</source>
         <translation>Guardar Modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2079"/>
+        <location filename="../src/ModelViewer.cpp" line="2471"/>
         <source>Expand/Collapse to 1st Level</source>
         <translation>Expandir/Contraer al 1er nivel</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2083"/>
+        <location filename="../src/ModelViewer.cpp" line="2475"/>
         <source>Expand All Children</source>
         <translation>Expandir todos los elementos secundarios</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2089"/>
+        <location filename="../src/ModelViewer.cpp" line="2481"/>
         <source>Collapse All Children</source>
         <translation>Contraer todos los elementos secundarios</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2130"/>
+        <location filename="../src/ModelViewer.cpp" line="2522"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2135"/>
+        <location filename="../src/ModelViewer.cpp" line="2527"/>
         <source>Cut</source>
         <translation>Cortar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2143"/>
+        <location filename="../src/ModelViewer.cpp" line="2535"/>
         <source>Paste</source>
         <translation>Pegar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2154"/>
+        <location filename="../src/ModelViewer.cpp" line="2572"/>
         <source>Center Screen</source>
         <translation>Pantalla Centrar</translation>
     </message>
@@ -6877,37 +7944,38 @@ Formato de archivo no compatible: </translation>
         <translation type="vanished">Ajustes de Visualización</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2155"/>
+        <location filename="../src/ModelViewer.cpp" line="2573"/>
         <source>Transformations</source>
         <translation>Transformaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2158"/>
-        <location filename="../src/ModelViewer.cpp" line="3953"/>
+        <location filename="../src/ModelViewer.cpp" line="2576"/>
+        <location filename="../src/ModelViewer.cpp" line="4399"/>
         <source>Hide</source>
         <translation>Escóndete</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2159"/>
-        <location filename="../src/ModelViewer.cpp" line="4106"/>
-        <location filename="../src/ModelViewer.cpp" line="4194"/>
+        <location filename="../src/ModelViewer.cpp" line="2577"/>
+        <location filename="../src/ModelViewer.cpp" line="4631"/>
+        <location filename="../src/ModelViewer.cpp" line="4882"/>
+        <location filename="../src/ModelViewer.cpp" line="4968"/>
         <source>Show</source>
         <translation>Espectáculo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2160"/>
-        <location filename="../src/ModelViewer.cpp" line="3975"/>
+        <location filename="../src/ModelViewer.cpp" line="2578"/>
+        <location filename="../src/ModelViewer.cpp" line="4421"/>
         <source>Show Only</source>
         <translation>Mostrar Sólo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2170"/>
+        <location filename="../src/ModelViewer.cpp" line="2592"/>
         <source>Duplicate</source>
         <translation>Duplicar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2176"/>
-        <location filename="../src/ModelViewer.cpp" line="3826"/>
+        <location filename="../src/ModelViewer.cpp" line="2598"/>
+        <location filename="../src/ModelViewer.cpp" line="4271"/>
         <source>Delete</source>
         <translation>Suprimir</translation>
     </message>
@@ -6932,74 +8000,70 @@ Formato de archivo no compatible: </translation>
         <translation type="vanished">¿Borrar selección?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4204"/>
+        <location filename="../src/ModelViewer.cpp" line="4978"/>
         <source>Selection Required</source>
         <translation>Selección Requerida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4204"/>
+        <location filename="../src/ModelViewer.cpp" line="4978"/>
         <source>Please select an object first</source>
         <translation>Por favor seleccione un objeto primero</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4282"/>
+        <location filename="../src/ModelViewer.cpp" line="5039"/>
         <source>Points: %1
 </source>
         <translation>Puntos: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4283"/>
+        <location filename="../src/ModelViewer.cpp" line="5040"/>
         <source>Triangles: %1
 </source>
         <translation>Triángulos: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4306"/>
+        <location filename="../src/ModelViewer.cpp" line="5063"/>
         <source>Memory: %1 </source>
         <translation>Memoria: %1 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4309"/>
         <source>Mesh Volume: %1mm^3
 Surface Area: %2mm^2
 Density: %3kg/m^3
 Weight: %4kg
 </source>
-        <translation>Volumen de malla: %1mm^3
+        <translation type="vanished">Volumen de malla: %1mm^3
 Superficie: %2mm^2
 Densidad: %3kg/m^3
 Peso: %4kg
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4312"/>
         <source>Mesh Center of Mass: X%1, Y%2, Z%3
 </source>
-        <translation>Centro de Masa de la Malla: X%1, Y%2, Z%3
+        <translation type="vanished">Centro de Masa de la Malla: X%1, Y%2, Z%3
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4314"/>
         <source>Bounding Limits:
 	XMin %1  XMax %2
 	YMin %3  YMax %4
 	ZMin %5  ZMax %6
 </source>
-        <translation>Límites:
+        <translation type="vanished">Límites:
 	XMín %1  XMáx %2
 	YMín %3  YMáx %4
 	ZMín %5  ZMáx %6
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4317"/>
         <source>Bounding Size:
 	X %1
 	Y %2
 	Z %3</source>
-        <translation>Tamaño límite:
+        <translation type="vanished">Tamaño límite:
 	X %1
 	Y %2
 	Z %3</translation>
@@ -7011,8 +8075,8 @@ Do you want to proceed?</source>
 ¿Desea continuar?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2178"/>
-        <location filename="../src/ModelViewer.cpp" line="4321"/>
+        <location filename="../src/ModelViewer.cpp" line="2600"/>
+        <location filename="../src/ModelViewer.cpp" line="5066"/>
         <source>Mesh Info</source>
         <translation>Información de la Malla</translation>
     </message>
@@ -7053,48 +8117,48 @@ Do you want to proceed?</source>
         <translation type="vanished">Realista</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4452"/>
+        <location filename="../src/ModelViewer.cpp" line="5197"/>
         <source>Import Model File</source>
         <translation>Importar Archivo Modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4550"/>
+        <location filename="../src/ModelViewer.cpp" line="5295"/>
         <source>Select Scene to Export</source>
         <translation>Seleccionar escena para exportar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4555"/>
+        <location filename="../src/ModelViewer.cpp" line="5300"/>
         <source>Multiple scenes are loaded. Select one to export:</source>
         <translation>Hay varias escenas cargadas. Seleccione una para exportar:</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4587"/>
+        <location filename="../src/ModelViewer.cpp" line="5332"/>
         <source>Export Model</source>
         <translation>Modelo de Exportación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4612"/>
-        <location filename="../src/ModelViewer.cpp" line="4652"/>
+        <location filename="../src/ModelViewer.cpp" line="5357"/>
+        <location filename="../src/ModelViewer.cpp" line="5397"/>
         <source>Nothing Selected</source>
         <translation>Nada seleccionado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4613"/>
+        <location filename="../src/ModelViewer.cpp" line="5358"/>
         <source>Select one or more meshes in the scene tree before exporting selected meshes.</source>
         <translation>Seleccione una o más mallas en el árbol de la escena antes de exportar las mallas seleccionadas.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4645"/>
+        <location filename="../src/ModelViewer.cpp" line="5390"/>
         <source>Failed to build export scene.</source>
         <translation>No se pudo construir la escena de exportación.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4653"/>
+        <location filename="../src/ModelViewer.cpp" line="5398"/>
         <source>None of the selected items are exportable meshes.</source>
         <translation>Ninguno de los elementos seleccionados es una malla exportable.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4819"/>
+        <location filename="../src/ModelViewer.cpp" line="5564"/>
         <source>Information</source>
         <translation>Información</translation>
     </message>
@@ -7103,17 +8167,17 @@ Do you want to proceed?</source>
         <translation type="vanished">Exportado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4821"/>
+        <location filename="../src/ModelViewer.cpp" line="5566"/>
         <source>Export failed!</source>
         <translation>¡Exportación fallida!</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4866"/>
+        <location filename="../src/ModelViewer.cpp" line="5611"/>
         <source>File loaded</source>
         <translation>Archivo cargado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4878"/>
+        <location filename="../src/ModelViewer.cpp" line="5623"/>
         <source>Failed to load model %1</source>
         <translation>Failed to load model %1</translation>
     </message>
@@ -7166,19 +8230,19 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
 ¿Quieres proceder?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3827"/>
+        <location filename="../src/ModelViewer.cpp" line="4272"/>
         <source>Delete selected item(s)?</source>
         <translation>¿Eliminar elemento(s) seleccionado(s)?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3908"/>
-        <location filename="../src/ModelViewer.cpp" line="3912"/>
+        <location filename="../src/ModelViewer.cpp" line="4354"/>
+        <location filename="../src/ModelViewer.cpp" line="4358"/>
         <source>Hide All</source>
         <translation>Ocultar Todo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4131"/>
-        <location filename="../src/ModelViewer.cpp" line="4145"/>
+        <location filename="../src/ModelViewer.cpp" line="4905"/>
+        <location filename="../src/ModelViewer.cpp" line="4919"/>
         <source>Show All</source>
         <translation>Mostrar Todos</translation>
     </message>
@@ -7189,6 +8253,41 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     <message>
         <source>Specular map texture not set</source>
         <translation type="vanished">Textura del mapa especular no establecida</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="21"/>
+        <source>Some selected meshes are not available yet.</source>
+        <translation>Algunas mallas seleccionadas aún no están disponibles.</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="22"/>
+        <source>Select at least one mesh.</source>
+        <translation>Seleccione al menos una malla.</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="23"/>
+        <source>Select at least two meshes.</source>
+        <translation>Seleccione al menos dos mallas.</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="25"/>
+        <source>Select meshes with the same primitive type.</source>
+        <translation>Seleccione mallas con el mismo tipo de primitiva.</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="27"/>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="29"/>
+        <source>Select only triangle meshes
+with indexed geometry.</source>
+        <translation>Seleccione solo mallas de triángulos
+con geometría indexada.</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewerMeshTools.cpp" line="45"/>
+        <source>Select mesh leaves or single-mesh assemblies.
+Use Copy and Paste for a multi-mesh assembly.</source>
+        <translation>Seleccione hojas de malla o ensamblajes de una sola malla.
+Use Copiar y Pegar para un ensamblaje de varias mallas.</translation>
     </message>
 </context>
 <context>
@@ -7376,14 +8475,14 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">%1 mallas fueron fijadas - deshacer transformación omitido</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="1463"/>
-        <location filename="../src/MainWindow.cpp" line="1489"/>
-        <location filename="../src/MainWindow.cpp" line="1528"/>
+        <location filename="../src/MainWindow.cpp" line="1578"/>
+        <location filename="../src/MainWindow.cpp" line="1604"/>
+        <location filename="../src/MainWindow.cpp" line="1643"/>
         <source>Cancel Loading</source>
         <translation>Cancelar carga</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4994"/>
+        <location filename="../src/ModelViewer.cpp" line="5740"/>
         <source>Preparing meshes: </source>
         <translation>Preparando mallas: </translation>
     </message>
@@ -7569,6 +8668,66 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <source>Split by Connectivity</source>
         <translation>Dividir por conectividad</translation>
     </message>
+    <message>
+        <location filename="../include/DeleteSceneStateCommand.h" line="19"/>
+        <source>Delete Scene State</source>
+        <translation>Eliminar estado de escena</translation>
+    </message>
+    <message>
+        <location filename="../include/SaveSceneStateCommand.h" line="15"/>
+        <source>Save Scene State</source>
+        <translation>Guardar estado de escena</translation>
+    </message>
+    <message>
+        <location filename="../src/CurvatureAnalyzer.cpp" line="192"/>
+        <source>Mesh was already valid - no repair needed.</source>
+        <translation>La malla ya era válida: no se necesita reparación.</translation>
+    </message>
+    <message>
+        <location filename="../src/CurvatureAnalyzer.cpp" line="193"/>
+        <source>Repair adjusted the mesh before analysis: %1 soup point(s) removed, %2 soup face(s) removed, %3 non-manifold vertex/vertices fixed%4.</source>
+        <translation>La reparación ajustó la malla antes del análisis: %1 punto(s) de sopa eliminado(s), %2 cara(s) de sopa eliminada(s), %3 vértice(s) no múltiple(s) corregido(s)%4.</translation>
+    </message>
+    <message>
+        <location filename="../src/CurvatureAnalyzer.cpp" line="200"/>
+        <source>, self-intersections resolved</source>
+        <translation>, autointersecciones resueltas</translation>
+    </message>
+    <message>
+        <location filename="../src/CurvatureAnalyzer.cpp" line="201"/>
+        <source>, self-intersections could NOT be fully resolved</source>
+        <translation>, las autointersecciones NO se pudieron resolver por completo</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshProperties.cpp" line="94"/>
+        <source>invalid geometry</source>
+        <translation>geometría no válida</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshProperties.cpp" line="95"/>
+        <source>open surface</source>
+        <translation>superficie abierta</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshProperties.cpp" line="96"/>
+        <source>self-intersecting</source>
+        <translation>con autointersecciones</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshProperties.cpp" line="97"/>
+        <source>unresolved orientation</source>
+        <translation>orientación sin resolver</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshProperties.cpp" line="98"/>
+        <source>no density assigned</source>
+        <translation>sin densidad asignada</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshProperties.cpp" line="100"/>
+        <source>unknown</source>
+        <translation>desconocido</translation>
+    </message>
 </context>
 <context>
     <name>QuickHelpDialog</name>
@@ -7592,7 +8751,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="172"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="602"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="604"/>
         <source>View Toolbar</source>
         <translation>Barra de Herramientas de Vista</translation>
     </message>
@@ -7600,28 +8759,28 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <location filename="../src/QuickHelpDialog.cpp" line="173"/>
         <location filename="../src/QuickHelpDialog.cpp" line="507"/>
         <location filename="../src/QuickHelpDialog.cpp" line="555"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="658"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="660"/>
         <source>Camera Modes</source>
         <translation>Modos de Cámara</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="569"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="571"/>
         <source>Display Modes</source>
         <translation>Modos de Visualización</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="178"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1226"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1228"/>
         <source>Menu Shortcuts</source>
         <translation>Atajos de Menú</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1322"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1324"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Settings:&lt;/b&gt; Edit → Settings to configure MSAA, anisotropic filtering, and theme&lt;/li&gt;&lt;li&gt;&lt;b&gt;Background:&lt;/b&gt; Right-click → Background Color to customize viewport background&lt;/li&gt;&lt;li&gt;&lt;b&gt;Theme:&lt;/b&gt; Choose between Light, Dark, or System theme in Settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Language:&lt;/b&gt; Change interface language in Settings dialog&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axis Position:&lt;/b&gt; Configure corner axis triad position in Settings&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Configuración:&lt;/b&gt; Editar → Configuración para configurar MSAA, filtrado anisotrópico y tema&lt;/li&gt;&lt;li&gt;&lt;b&gt;Fondo:&lt;/b&gt; Clic derecho → Color de fondo para personalizar el fondo de la vista&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tema:&lt;/b&gt; Elija entre tema Claro, Oscuro o del Sistema en Configuración&lt;/li&gt;&lt;li&gt;&lt;b&gt;Idioma:&lt;/b&gt; Cambie el idioma de la interfaz en el diálogo de Configuración&lt;/li&gt;&lt;li&gt;&lt;b&gt;Posición del eje:&lt;/b&gt; Configure la posición de la tríada de ejes en la esquina en Configuración&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1330"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1332"/>
         <source>Tips &amp; Tricks</source>
         <translation>Consejos y Trucos</translation>
     </message>
@@ -7668,14 +8827,14 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="439"/>
         <location filename="../src/QuickHelpDialog.cpp" line="472"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1134"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1224"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1136"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1226"/>
         <source>Action</source>
         <translation>Acción</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="439"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1421"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1423"/>
         <source>Mouse Control</source>
         <translation>Control del Ratón</translation>
     </message>
@@ -7822,7 +8981,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="472"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1419"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1421"/>
         <source>Key</source>
         <translation>Tecla</translation>
     </message>
@@ -7893,7 +9052,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="487"/>
         <location filename="../src/QuickHelpDialog.cpp" line="497"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1216"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1218"/>
         <source>F</source>
         <translation>F</translation>
     </message>
@@ -8036,7 +9195,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="511"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1206"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1208"/>
         <source>Delete</source>
         <translation>Suprimir</translation>
     </message>
@@ -8047,7 +9206,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="512"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1200"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1202"/>
         <source>Space</source>
         <translation>Espacio</translation>
     </message>
@@ -8097,7 +9256,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="521"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1140"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1142"/>
         <source>Import model into current scene</source>
         <translation>Modelo de importación en escena actual</translation>
     </message>
@@ -8107,7 +9266,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="522"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1141"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1143"/>
         <source>Export selected objects</source>
         <translation>Exportar objetos seleccionados</translation>
     </message>
@@ -8127,7 +9286,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="543"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1420"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1422"/>
         <source>Button</source>
         <translation>Button</translation>
     </message>
@@ -8138,10 +9297,10 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="543"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="665"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="721"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="737"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1224"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="667"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="723"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="739"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1226"/>
         <source>Description</source>
         <translation>Descripción</translation>
     </message>
@@ -8231,37 +9390,33 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation>Vistas estándar 3D</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="561"/>
         <source>Switch to Isometric, Dimetric, or Trimetric projections</source>
-        <translation>Cambiar a proyecciones Isométricas, Dimétricas o Trimétricas</translation>
+        <translation type="vanished">Cambiar a proyecciones Isométricas, Dimétricas o Trimétricas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="562"/>
         <source>Projection Toggle</source>
-        <translation>Proyección Toggle</translation>
+        <translation type="vanished">Proyección Toggle</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="562"/>
         <source>Ortho ↔ Perspective</source>
-        <translation>Ortho ↔ Perspectiva</translation>
+        <translation type="vanished">Ortho ↔ Perspectiva</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="563"/>
         <source>Switch between orthographic and perspective projection</source>
-        <translation>Interruptor entre proyección ortográfico y perspectiva</translation>
+        <translation type="vanished">Interruptor entre proyección ortográfico y perspectiva</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="564"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="566"/>
         <source>Multi-View</source>
         <translation>Multi-View</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="564"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="566"/>
         <source>Four viewport layout</source>
         <translation>Cuatro diseños de viewport</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="565"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="567"/>
         <source>Show Top, Front, Right, and Isometric views simultaneously</source>
         <translation>Mostrar puntos de vista superior, frontal, derecho e Isométrico simultáneamente</translation>
     </message>
@@ -8274,77 +9429,77 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Elija la pantalla realista, afeitada, Wireframe o WireShaded</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="577"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="579"/>
         <source>Section View</source>
         <translation>Sección Vista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="577"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="579"/>
         <source>Clipping planes</source>
         <translation>Aviones de choque</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="578"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="580"/>
         <source>Enable interactive clipping planes for cross-sections</source>
         <translation>Activar planos interactivos para secciones transversales</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="579"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="581"/>
         <source>Swap Visible</source>
         <translation>Intercambio Visible</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="579"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="581"/>
         <source>Invert visibility</source>
         <translation>Invertir la visibilidad</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="580"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="582"/>
         <source>Show hidden objects and hide visible ones</source>
         <translation>Mostrar objetos ocultos y ocultar los visibles</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="581"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="583"/>
         <source>Show/Hide Axis</source>
         <translation>Mostrar/Ocultar Eje</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="581"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="583"/>
         <source>Toggle axis display</source>
         <translation>Pantalla de eje de movimiento</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="582"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="584"/>
         <source>Show or hide the 3D coordinate axis indicator</source>
         <translation>Mostrar o ocultar el indicador de eje de coordenadas 3D</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="591"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="593"/>
         <source>Toolbar Buttons</source>
         <translation>Botones de barra de herramientas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="593"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="595"/>
         <source>Auto-Hide Behavior</source>
         <translation>Comportamiento automático</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="594"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="596"/>
         <source>&lt;ul&gt;&lt;li&gt;The toolbar automatically appears at the bottom of the viewport&lt;/li&gt;&lt;li&gt;Move mouse to bottom edge to reveal the toolbar&lt;/li&gt;&lt;li&gt;Toolbar hides after 2 seconds of inactivity&lt;/li&gt;&lt;li&gt;Toolbar remains visible when mouse is over it or menus are open&lt;/li&gt;&lt;li&gt;Scroll buttons appear if toolbar is wider than viewport&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;La barra de herramientas aparece automáticamente en la parte inferior de la ventana gráfica&lt;/li&gt;&lt;li&gt;Mueva el ratón al borde inferior para revelar la barra de herramientas&lt;/li&gt;&lt;li&gt;La barra de herramientas se oculta después de 2 segundos de inactividad&lt;/li&gt;&lt;li&gt;La barra de herramientas permanece visible cuando el ratón está sobre ella o los menús están abiertos&lt;/li&gt;&lt;li&gt;Los botones de desplazamiento aparecen si la barra de herramientas es más ancha que la ventana gráfica&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="609"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="611"/>
         <source>Orbit Camera Mode (Key: 1)</source>
         <translation>Modo de cámara de órbita (Key: 1)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="610"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="612"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Examining objects from all angles, CAD-like viewing&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Camera orbits around the model center point&lt;/li&gt;&lt;li&gt;Rotation keeps the model in view&lt;/li&gt;&lt;li&gt;Up direction is always maintained&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/A/S/D:&lt;/b&gt; Pan the view (up/down/left/right)&lt;/li&gt;&lt;li&gt;&lt;b&gt;X/Z:&lt;/b&gt; Zoom in/out&lt;/li&gt;&lt;li&gt;&lt;b&gt;I/K:&lt;/b&gt; Rotate around X-axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;J/L:&lt;/b&gt; Rotate around Y-axis&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;Ideal para:&lt;/b&gt; Examinar objetos desde todos los ángulos, visualización similar a la de un CAD&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamiento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La cámara orbita alrededor del punto central del modelo&lt;/li&gt;&lt;li&gt;La rotación mantiene el modelo a la vista&lt;/li&gt;&lt;li&gt;La dirección ascendente siempre se mantiene&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/A/S/D:&lt;/b&gt; Desplazar la vista (arriba/abajo/izquierda/derecha)&lt;/li&gt;&lt;li&gt;&lt;b&gt;X/Z:&lt;/b&gt; Acercar/alejar&lt;/li&gt;&lt;li&gt;&lt;b&gt;I/K:&lt;/b&gt; Girar alrededor del eje X&lt;/li&gt;&lt;li&gt;&lt;b&gt;J/L:&lt;/b&gt; Girar alrededor del eje Y&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="622"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="624"/>
         <source>Fly Camera Mode (Key: 2)</source>
         <translation>Modo de cámara de vuelo (Key: 2)</translation>
     </message>
@@ -8353,7 +9508,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">&lt;p&gt;&lt;b&gt;Ideal para:&lt;/b&gt; Exploración libre de escenas grandes, recorridos arquitectónicos&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamiento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La cámara se mueve libremente por el espacio 3D&lt;/li&gt;&lt;li&gt;El ratón controla la dirección de la mirada&lt;/li&gt;&lt;li&gt;Sin restricciones en el ángulo de visión&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Avanzar/retroceder en la dirección de visión&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Desplazarse a la izquierda/derecha&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Abajo/arriba verticalmente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ratón:&lt;/b&gt; Mirar alrededor (inclinación limitada a ±89°)&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="636"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="638"/>
         <source>First Person Camera Mode (Key: 3)</source>
         <translation>Modo de cámara de primera persona (Key: 3)</translation>
     </message>
@@ -8362,41 +9517,41 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">&lt;p&gt;&lt;b&gt;Ideal para:&lt;/b&gt; Exploración a nivel del suelo, perspectiva del personaje&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamiento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Similar al modo Volar, pero con restricciones&lt;/li&gt;&lt;li&gt;Inclinación restringida a ±60° (más natural para el movimiento en el suelo)&lt;/li&gt;&lt;li&gt;Normalmente usado para simulaciones de caminata&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Moverse hacia adelante/atrás&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Desplazarse a la izquierda/derecha&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ratón:&lt;/b&gt; Mirar alrededor (inclinación limitada a ±60°)&lt;/li&gt;&lt;li&gt;Nota: No hay movimiento Q/E vertical en este modo&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="650"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="652"/>
         <source>Switching Modes</source>
         <translation>Modos de conmutación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="651"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="653"/>
         <source>&lt;p&gt;You can switch between camera modes in several ways:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Press &lt;b&gt;1&lt;/b&gt;, &lt;b&gt;2&lt;/b&gt;, or &lt;b&gt;3&lt;/b&gt; on keyboard&lt;/li&gt;&lt;li&gt;Use the Camera Modes button on the View Toolbar&lt;/li&gt;&lt;li&gt;The toolbar button updates to show current mode&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Puede cambiar entre los modos de cámara de varias maneras:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Presione &lt;b&gt;1&lt;/b&gt;, &lt;b&gt;2&lt;/b&gt; o &lt;b&gt;3&lt;/b&gt; en el teclado&lt;/li&gt;&lt;li&gt;Use el botón Modos de cámara en la barra de herramientas Ver&lt;/li&gt;&lt;li&gt;El botón de la barra de herramientas se actualiza para mostrar el modo actual&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="665"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="667"/>
         <source>Display Mode</source>
         <translation>Modo de Visualización</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="665"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="737"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1417"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="667"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="739"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1419"/>
         <source>Shortcut Key</source>
         <translation>Llave de acceso directo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="665"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="721"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="737"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="667"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="723"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="739"/>
         <source>Use Case</source>
         <translation>Caso de uso</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="667"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="669"/>
         <source>Realistic</source>
         <translation>Realista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="668"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="670"/>
         <source>Shift + R</source>
         <translation>Cambio + R</translation>
     </message>
@@ -8405,37 +9560,37 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Full PBR rendering con todas las propiedades materiales, texturas, iluminación, sombras y reflejos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="671"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="673"/>
         <source>Final presentation, material evaluation, photorealistic visualization</source>
         <translation>Presentación final, evaluación material, visualización fotorealista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="673"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="675"/>
         <source>Shaded</source>
         <translation>Shaded</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="674"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="676"/>
         <source>Shift + S</source>
         <translation>Shift + S</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="675"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="677"/>
         <source>Solid colored surfaces with basic lighting (Ambient-Diffuse-Specular model)</source>
         <translation>Superficies sólidas de color con iluminación básica (modelo de ambiente-difuso-pecular)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="676"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="678"/>
         <source>General modeling work, performance, shape evaluation</source>
         <translation>Trabajo de modelado general, rendimiento, evaluación de forma</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="688"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="690"/>
         <source>Wireframe</source>
         <translation>Wireframe</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="689"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="691"/>
         <source>Shift + W</source>
         <translation>Cambio + W</translation>
     </message>
@@ -8452,7 +9607,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">WireShaded</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="694"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="696"/>
         <source>Shift + E</source>
         <translation>Cambio + E</translation>
     </message>
@@ -8465,74 +9620,74 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Trabajo de modelado donde usted necesita ver la forma y la topología</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="699"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="701"/>
         <source>Available Display Modes</source>
         <translation>Modos de visualización disponibles</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="701"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="703"/>
         <source>Rendering Features</source>
         <translation>Características de renderización</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="702"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="704"/>
         <source>&lt;p&gt;The Realistic mode includes advanced rendering features:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;PBR Materials:&lt;/b&gt; Physically Based Rendering with metallic/roughness workflow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Image-Based Lighting:&lt;/b&gt; Environmental lighting from HDRI maps&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadows:&lt;/b&gt; Real-time shadow mapping with adjustable quality&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reflections:&lt;/b&gt; Environment reflections on surfaces&lt;/li&gt;&lt;li&gt;&lt;b&gt;Advanced Materials:&lt;/b&gt; Support for transmission, clearcoat, sheen, iridescence, anisotropy&lt;/li&gt;&lt;li&gt;&lt;b&gt;HDR &amp; Tone Mapping:&lt;/b&gt; High dynamic range with multiple tone mapping algorithms&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gamma Correction:&lt;/b&gt; Proper color space handling&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>El modo Realista incluye funciones avanzadas de renderizado:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Materiales PBR:&lt;/b&gt; Renderizado físico con flujo de trabajo metálico/rugoso&lt;/li&gt;&lt;li&gt;&lt;b&gt;Iluminación basada en imágenes:&lt;/b&gt; Iluminación ambiental a partir de mapas HDRI&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sombras:&lt;/b&gt; Mapeo de sombras en tiempo real con calidad ajustable&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reflejos:&lt;/b&gt; Reflejos del entorno en superficies&lt;/li&gt;&lt;li&gt;&lt;b&gt;Materiales avanzados:&lt;/b&gt; Compatibilidad con transmisión, barniz, brillo, iridiscencia y anisotropía&lt;/li&gt;&lt;li&gt;&lt;b&gt;HDR y mapeo de tonos:&lt;/b&gt; Alto rango dinámico con múltiples algoritmos de mapeo de tonos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Corrección gamma:&lt;/b&gt; Manejo adecuado del espacio de color&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="713"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="715"/>
         <source>Performance Considerations</source>
         <translation>Consideraciones de la ejecución</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="714"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="716"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Realistic mode&lt;/b&gt; is most demanding - may be slower on complex scenes&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shaded mode&lt;/b&gt; offers good balance of appearance and performance&lt;/li&gt;&lt;li&gt;&lt;b&gt;Wireframe mode&lt;/b&gt; is fastest but least visually informative&lt;/li&gt;&lt;li&gt;For large models (&gt;50MB), low-resolution preview is automatically enabled during manipulation&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;El modo realista&lt;/b&gt; es el más exigente; puede ser más lento en escenas complejas.&lt;/li&gt;&lt;li&gt;&lt;b&gt;El modo sombreado&lt;/b&gt; ofrece un buen equilibrio entre apariencia y rendimiento.&lt;/li&gt;&lt;li&gt;&lt;b&gt;El modo de estructura alámbrica&lt;/b&gt; es el más rápido, pero el menos informativo visualmente.&lt;/li&gt;&lt;li&gt;Para modelos grandes (&gt;50 MB), la vista previa de baja resolución se habilita automáticamente durante la manipulación.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1134"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1136"/>
         <source>Menu</source>
         <translation>Menú</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1134"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1224"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1418"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1136"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1226"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1420"/>
         <source>Shortcut</source>
         <translation>Atajo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1138"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1140"/>
         <source>File → New</source>
         <translation>Archivo → Nuevo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1138"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1140"/>
         <source>Ctrl+N</source>
         <translation>Ctrl+N</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1138"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1140"/>
         <source>Create new viewer session</source>
         <translation>Crear nueva sesión de audiencia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1139"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1141"/>
         <source>File → Open</source>
         <translation>Archivo → Abierto</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1139"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1141"/>
         <source>Ctrl+O</source>
         <translation>Ctrl+O</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1139"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1141"/>
         <source>Open a 3D model file</source>
         <translation>Abrir un archivo modelo 3D</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1140"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1142"/>
         <source>File → Import</source>
         <translation>Archivo → Importar</translation>
     </message>
@@ -8541,7 +9696,7 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Ctrl+Shift+I</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1141"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1143"/>
         <source>File → Export</source>
         <translation>Archivo → Exportar</translation>
     </message>
@@ -8550,37 +9705,37 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Ctrl+Shift+E</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1142"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1144"/>
         <source>File → Save</source>
         <translation>Archivo → Guardar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1142"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1144"/>
         <source>Ctrl+S</source>
         <translation>Ctrl+S</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1142"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1144"/>
         <source>Save current scene</source>
         <translation>Guarda la escena actual</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1143"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1145"/>
         <source>File → Save As</source>
         <translation>Archivo → Guardar como</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1143"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1145"/>
         <source>Ctrl+Shift+S</source>
         <translation>Ctrl+Mayús+S</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1143"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1145"/>
         <source>Save scene with new name</source>
         <translation>Guardar escena con nuevo nombre</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1144"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1146"/>
         <source>File → Close</source>
         <translation>Archivo → Cerrar</translation>
     </message>
@@ -8589,12 +9744,12 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Ctrl+W</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1144"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1146"/>
         <source>Close current document</source>
         <translation>Documento actualizado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1145"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1147"/>
         <source>File → Exit</source>
         <translation>Archivo → Salida</translation>
     </message>
@@ -8603,62 +9758,62 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Ctrl+Q</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1145"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1147"/>
         <source>Exit application</source>
         <translation>Aplicación de salida</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1147"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1149"/>
         <source>File Menu</source>
         <translation>Menú de archivo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1151"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1153"/>
         <source>Edit → Undo</source>
         <translation>Editar → Deshacer</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1151"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1153"/>
         <source>Ctrl+Z</source>
         <translation>Ctrl+Z</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1151"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1153"/>
         <source>Undo last operation</source>
         <translation>Deshacer la última operación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1152"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1154"/>
         <source>Edit → Redo</source>
         <translation>Editar → Redo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1152"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1154"/>
         <source>Ctrl+Y</source>
         <translation>Ctrl+Y</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1152"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1154"/>
         <source>Redo previously undone operation</source>
         <translation>Redonar la operación previamente deshecho</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1155"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1157"/>
         <source>Edit Menu</source>
         <translation>Editar menú</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1181"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1183"/>
         <source>Visualization → Texture Debugger</source>
         <translation>Visualización → Depurador de texturas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1183"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1185"/>
         <source>Visualization Menu</source>
         <translation>Menú de visualización</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1187"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1189"/>
         <source>Window → Next</source>
         <translation>Ventana → Siguiente</translation>
     </message>
@@ -8667,12 +9822,12 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Ctrl+Tab</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1187"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1189"/>
         <source>Switch to next document window</source>
         <translation>Cambiar a la siguiente ventana de documento</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1188"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1190"/>
         <source>Window → Previous</source>
         <translation>Ventana → Anterior</translation>
     </message>
@@ -8681,39 +9836,37 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Ctrl+Shift+Tab</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1188"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1190"/>
         <source>Switch to previous document window</source>
         <translation>Cambiar a la ventana de documento anterior</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1190"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1192"/>
         <source>Window Menu</source>
         <translation>Menú ventana</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1193"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1195"/>
         <source>Right-Click Context Menu</source>
         <translation>Menú Contexto de clic derecho</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1194"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1196"/>
         <source>&lt;p&gt;Right-clicking in the viewport provides quick access to common operations:&lt;/p&gt;</source>
         <translation>&lt;p&gt;Haga clic con el botón derecho en el viewport proporciona acceso rápido a operaciones comunes:&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1197"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1199"/>
         <source>When object selected:</source>
         <translation>Cuando se selecciona el objeto:</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1144"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1145"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1153"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1159"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1160"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1146"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1147"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1155"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1161"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1167"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1168"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1162"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1163"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1169"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1170"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1171"/>
@@ -8721,29 +9874,30 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <location filename="../src/QuickHelpDialog.cpp" line="1173"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1174"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1175"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1181"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1187"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1188"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1197"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1198"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1176"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1177"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1183"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1189"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1190"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1199"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1202"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1203"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1200"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1201"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1204"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1205"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1206"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1207"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1208"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1209"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1210"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1211"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1212"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1213"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1214"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1214"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1215"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1216"/>
         <location filename="../src/QuickHelpDialog.cpp" line="1217"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1218"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1222"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1219"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1220"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1224"/>
         <source></source>
         <translation></translation>
     </message>
@@ -8842,930 +9996,929 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation>&lt;ul&gt;&lt;li&gt;Mantenga las teclas pulsadas continuamente para una navegación fluida&lt;/li&gt;&lt;li&gt;W/A/S/D y las teclas de flecha admiten la navegación&lt;/li&gt;&lt;li&gt;El modo de cámara afecta al comportamiento de las teclas de movimiento&lt;/li&gt;&lt;li&gt;Mantenga pulsado Mayús en el modo Vuelo o Primera Persona para esprintar&lt;/li&gt;&lt;li&gt;En el modo Primera Persona, la inclinación está limitada a ±60 grados&lt;/li&gt;&lt;li&gt;En el modo Vuelo, la inclinación está limitada a ±89 grados&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="566"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="568"/>
         <source>Realistic Rendering</source>
         <translation>Renderizado realista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="566"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="568"/>
         <source>Toggle full PBR look</source>
         <translation>Alternar aspecto PBR completo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="567"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="569"/>
         <source>Standalone toggle (Shortcut: Shift+R) that layers full material/lighting detail on top of whichever Display Mode is active</source>
         <translation>Alternador independiente (Atajo: Mayús+R) que superpone el detalle completo de material/iluminación sobre el Modo de visualización activo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="569"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="571"/>
         <source>Base rendering style</source>
         <translation>Estilo de renderizado base</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="570"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="572"/>
         <source>Choose Shaded (Shift+S), Hollow Mesh (Shift+H), Mesh Edges (Shift+M, shaded + every triangle edge), Wireframe (Shift+W, feature edges only, no fill), or Shaded with Edges (Shift+E, shaded + feature edges only)</source>
         <translation>Elija Sombreado (Mayús+S), Malla hueca (Mayús+H), Bordes de malla (Mayús+M, sombreado + cada borde de triángulo), Malla de alambre (Mayús+W, solo bordes de característica, sin relleno), o Sombreado con bordes (Mayús+E, sombreado + solo bordes de característica)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="573"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="721"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="731"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="575"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="723"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="733"/>
         <source>Rendering Mode</source>
         <translation>Modo de renderizado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="573"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="575"/>
         <source>Shading model</source>
         <translation>Modelo de sombreado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="574"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="576"/>
         <source>Choose ADS (Blinn-Phong) or PBR (Metallic-Roughness) as the underlying lighting model</source>
         <translation>Elija ADS (Blinn-Phong) o PBR (Metálico-Rugosidad) como modelo de iluminación subyacente</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="575"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="737"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="748"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="577"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="739"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="750"/>
         <source>Shading Normal Mode</source>
         <translation>Modo de normal de sombreado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="575"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="577"/>
         <source>Normal interpolation</source>
         <translation>Interpolación de normales</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="576"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="578"/>
         <source>Choose Flat Shaded (Shift+F) for faceted faces, or Smooth Shaded (Shift+G) for smoothed normals</source>
         <translation>Elija Sombreado plano (Mayús+F) para caras facetadas, o Sombreado suave (Mayús+G) para normales suavizadas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="583"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="585"/>
         <source>Lasso Select</source>
         <translation>Selección por lazo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="583"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="585"/>
         <source>Freeform selection</source>
         <translation>Selección de forma libre</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="584"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="586"/>
         <source>Click to arm, then drag a freeform outline around meshes to select them; stays armed across multiple drags until clicked again</source>
         <translation>Haga clic para activar y luego trace un contorno de forma libre alrededor de las mallas para seleccionarlas; permanece activo durante varios trazos hasta que se vuelva a hacer clic</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="586"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="877"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="588"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="879"/>
         <source>Turntable</source>
         <translation>Plataforma giratoria</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="586"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="588"/>
         <source>Auto-rotate camera</source>
         <translation>Rotación automática de la cámara</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="587"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="589"/>
         <source>Toggles continuous camera rotation for presentation; stops automatically on any manual navigation input</source>
         <translation>Activa/desactiva la rotación continua de la cámara para presentaciones; se detiene automáticamente ante cualquier navegación manual</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="623"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="625"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Free exploration of large scenes, architectural walkthroughs&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Camera moves freely through 3D space&lt;/li&gt;&lt;li&gt;Mouse controls look direction&lt;/li&gt;&lt;li&gt;No restrictions on viewing angle&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; or &lt;b&gt;Up/Down:&lt;/b&gt; Move forward/backward in viewing direction&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; or &lt;b&gt;Left/Right:&lt;/b&gt; Strafe left/right&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Move down/up vertically&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shift:&lt;/b&gt; Move faster while navigating&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Look around (pitch limited to ±89°)&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;Mejor para:&lt;/b&gt; Exploración libre de escenas grandes, recorridos arquitectónicos&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamiento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La cámara se mueve libremente por el espacio 3D&lt;/li&gt;&lt;li&gt;El ratón controla la dirección de la mirada&lt;/li&gt;&lt;li&gt;Sin restricciones en el ángulo de visión&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; o &lt;b&gt;Arriba/Abajo:&lt;/b&gt; Mover adelante/atrás en la dirección de visión&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; o &lt;b&gt;Izquierda/Derecha:&lt;/b&gt; Desplazamiento lateral izquierda/derecha&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Mover verticalmente abajo/arriba&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mayús:&lt;/b&gt; Moverse más rápido al navegar&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ratón:&lt;/b&gt; Mirar alrededor (inclinación limitada a ±89°)&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="637"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="639"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Ground-level exploration, character perspective&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Similar to Fly mode but with constraints&lt;/li&gt;&lt;li&gt;Pitch restricted to ±60° (more natural for ground movement)&lt;/li&gt;&lt;li&gt;Typically used for walking simulations&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; or &lt;b&gt;Up/Down:&lt;/b&gt; Walk forward/backward on the ground plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; or &lt;b&gt;Left/Right:&lt;/b&gt; Strafe left/right on the ground plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shift:&lt;/b&gt; Move faster while navigating&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Look around (pitch limited to ±60°)&lt;/li&gt;&lt;li&gt;Note: No vertical Q/E movement in this mode&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;&lt;b&gt;Mejor para:&lt;/b&gt; Exploración a nivel del suelo, perspectiva de personaje&lt;/p&gt;&lt;p&gt;&lt;b&gt;Comportamiento:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Similar al modo Vuelo pero con restricciones&lt;/li&gt;&lt;li&gt;Inclinación restringida a ±60° (más natural para el movimiento en el suelo)&lt;/li&gt;&lt;li&gt;Se usa normalmente para simulaciones de caminata&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S&lt;/b&gt; o &lt;b&gt;Arriba/Abajo:&lt;/b&gt; Caminar adelante/atrás en el plano del suelo&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D&lt;/b&gt; o &lt;b&gt;Izquierda/Derecha:&lt;/b&gt; Desplazamiento lateral izquierda/derecha en el plano del suelo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mayús:&lt;/b&gt; Moverse más rápido al navegar&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ratón:&lt;/b&gt; Mirar alrededor (inclinación limitada a ±60°)&lt;/li&gt;&lt;li&gt;Nota: Sin movimiento vertical Q/E en este modo&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="669"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="671"/>
         <source>Standalone toggle that layers full PBR material properties, textures, lighting, shadows, and reflections on top of whichever display mode below is active</source>
         <translation>Alternador independiente que superpone propiedades completas de material PBR, texturas, iluminación, sombras y reflejos sobre el modo de visualización activo a continuación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="678"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="680"/>
         <source>Hollow Mesh</source>
         <translation>Malla hueca</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="679"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="681"/>
         <source>Shift + H</source>
         <translation>Mayús + H</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="680"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="682"/>
         <source>Shows faces as translucent/hollow shells without solid shading</source>
         <translation>Muestra las caras como cáscaras translúcidas/huecas sin sombreado sólido</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="681"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="683"/>
         <source>Seeing through outer surfaces to inspect internal structure</source>
         <translation>Ver a través de las superficies exteriores para inspeccionar la estructura interna</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="683"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="685"/>
         <source>Mesh Edges</source>
         <translation>Bordes de malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="684"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="686"/>
         <source>Shift + M</source>
         <translation>Mayús + M</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="685"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="687"/>
         <source>Shows solid filled surfaces with every triangle edge overlaid, revealing the full mesh tessellation</source>
         <translation>Muestra superficies sólidas rellenas con cada borde de triángulo superpuesto, revelando la teselación completa de la malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="686"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="688"/>
         <source>Inspecting tessellation density, triangle-level topology checking</source>
         <translation>Inspección de la densidad de teselación, verificación de topología a nivel de triángulo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="690"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="692"/>
         <source>Shows only true feature edges (crease/boundary edges, or B-Rep edges for CAD formats), no filled surfaces</source>
         <translation>Muestra solo bordes de característica verdaderos (bordes de pliegue/límite, o bordes B-Rep para formatos CAD), sin superficies rellenas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="691"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="693"/>
         <source>Clean edge-only inspection, technical drawings</source>
         <translation>Inspección limpia solo de bordes, dibujos técnicos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="693"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="695"/>
         <source>Shaded with Edges</source>
         <translation>Sombreado con bordes</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="695"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="697"/>
         <source>Combination of shaded surfaces with only true feature edges overlaid (not every triangle edge)</source>
         <translation>Combinación de superficies sombreadas con solo los bordes de característica verdaderos superpuestos (no cada borde de triángulo)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="696"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="698"/>
         <source>Modeling work where you need to see both shape and clean topology</source>
         <translation>Trabajo de modelado donde necesita ver tanto la forma como una topología limpia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="723"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="725"/>
         <source>ADS (Blinn-Phong)</source>
         <translation>ADS (Blinn-Phong)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="724"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="726"/>
         <source>Classic Ambient-Diffuse-Specular lighting model with a single specular highlight term</source>
         <translation>Modelo de iluminación clásico Ambiental-Difuso-Especular con un único término de reflejo especular</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="725"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="727"/>
         <source>Lightweight shading, non-physical stylized looks, quick previews</source>
         <translation>Sombreado ligero, aspectos estilizados no físicos, vistas previas rápidas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="726"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="728"/>
         <source>PBR (Metallic-Roughness)</source>
         <translation>PBR (Metálico-Rugosidad)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="727"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="729"/>
         <source>Physically Based Rendering using the metallic/roughness workflow, driven by material metallic, roughness, and other PBR factors/textures</source>
         <translation>Renderizado basado en física usando el flujo de trabajo metálico/rugosidad, impulsado por la metalicidad, rugosidad y otros factores/texturas PBR del material</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="729"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="731"/>
         <source>Photorealistic materials, glTF-authored assets, IBL-driven lighting</source>
         <translation>Materiales fotorrealistas, activos creados en glTF, iluminación basada en IBL</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="732"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="734"/>
         <source>&lt;p&gt;Selected from the Rendering Mode flyout button on the View Toolbar. This chooses the underlying lighting/shading model used to light every mesh, independent of Display Mode and the Realistic toggle.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Se selecciona desde el botón desplegable de Modo de renderizado en la barra de herramientas de vista. Esto elige el modelo de iluminación/sombreado subyacente usado para iluminar cada malla, independientemente del Modo de visualización y el alternador Realista.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="739"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="741"/>
         <source>Flat Shaded</source>
         <translation>Sombreado plano</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="740"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="742"/>
         <source>Shift + F</source>
         <translation>Mayús + F</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="741"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="743"/>
         <source>Each triangle face uses a single face normal, producing a faceted look with visible edges between faces</source>
         <translation>Cada cara triangular usa una única normal de cara, produciendo un aspecto facetado con bordes visibles entre caras</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="742"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="744"/>
         <source>Inspecting actual mesh facets, low-poly/faceted stylistic looks</source>
         <translation>Inspección de las facetas reales de la malla, aspectos estilísticos de baja poligonización/facetados</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="743"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="745"/>
         <source>Smooth Shaded</source>
         <translation>Sombreado suave</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="744"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="746"/>
         <source>Shift + G</source>
         <translation>Mayús + G</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="745"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="747"/>
         <source>Interpolates vertex normals across each face, producing a smooth, continuous-looking surface</source>
         <translation>Interpola las normales de los vértices a través de cada cara, produciendo una superficie de aspecto suave y continuo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="746"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="748"/>
         <source>Most everyday viewing of organic or curved surfaces</source>
         <translation>La mayoría de las vistas cotidianas de superficies orgánicas o curvas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="749"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="751"/>
         <source>&lt;p&gt;Selected from the Shading Normal Mode flyout button on the View Toolbar. This controls how face normals are interpolated for lighting, independent of Display Mode and Rendering Mode.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Se selecciona desde el botón desplegable de Modo de normal de sombreado en la barra de herramientas de vista. Esto controla cómo se interpolan las normales de cara para la iluminación, independientemente del Modo de visualización y el Modo de renderizado.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="753"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="755"/>
         <source>Rendering &amp; Display Modes</source>
         <translation>Modos de renderizado y visualización</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="760"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="762"/>
         <source>Clipping Planes (Section View)</source>
         <translation>Planos de recorte (Vista de sección)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="761"/>
         <source>&lt;p&gt;Cut through a model with up to three axis-aligned clipping planes to see internal structure, opened via the Section View button on the View Toolbar.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / ZX:&lt;/b&gt; Enable each plane independently; each has its own &apos;Flip&apos; toggle to reverse which side is cut away&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coefficient:&lt;/b&gt; A numeric field per plane that positions it along its axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capping:&lt;/b&gt; Fills the cut cross-section with a solid cap instead of leaving it hollow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Dynamic Capping:&lt;/b&gt; Recomputes the cap as you move or animate the model, rather than only when you release the plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hatch Pattern:&lt;/b&gt; Choose Diagonal 45/135, Horizontal, Vertical, Grid, or Cross Hatch for the capped cross-section, with adjustable tiling, color, and an optional texture&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reset Coefficients / Reset All:&lt;/b&gt; Quickly return planes to their default position or clear all clipping state&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;p&gt;Corte un modelo con hasta tres planos de recorte alineados a los ejes para ver la estructura interna, abierto mediante el botón Vista de sección en la barra de herramientas de vista.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / ZX:&lt;/b&gt; Active cada plano de forma independiente; cada uno tiene su propio interruptor «Invertir» para invertir qué lado se recorta&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coeficiente:&lt;/b&gt; Un campo numérico por plano que lo posiciona a lo largo de su eje&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tapado:&lt;/b&gt; Rellena la sección transversal cortada con una tapa sólida en lugar de dejarla hueca&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tapado dinámico:&lt;/b&gt; Recalcula la tapa mientras mueve o anima el modelo, en lugar de solo al soltar el plano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Patrón de rayado:&lt;/b&gt; Elija Diagonal 45/135, Horizontal, Vertical, Cuadrícula o Rayado cruzado para la sección tapada, con mosaico, color y una textura opcional ajustables&lt;/li&gt;&lt;li&gt;&lt;b&gt;Restablecer coeficientes / Restablecer todo:&lt;/b&gt; Devuelve rápidamente los planos a su posición predeterminada o borra todo el estado de recorte&lt;/li&gt;&lt;/ul&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Corte un modelo con hasta tres planos de recorte alineados a los ejes para ver la estructura interna, abierto mediante el botón Vista de sección en la barra de herramientas de vista.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / ZX:&lt;/b&gt; Active cada plano de forma independiente; cada uno tiene su propio interruptor «Invertir» para invertir qué lado se recorta&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coeficiente:&lt;/b&gt; Un campo numérico por plano que lo posiciona a lo largo de su eje&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tapado:&lt;/b&gt; Rellena la sección transversal cortada con una tapa sólida en lugar de dejarla hueca&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tapado dinámico:&lt;/b&gt; Recalcula la tapa mientras mueve o anima el modelo, en lugar de solo al soltar el plano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Patrón de rayado:&lt;/b&gt; Elija Diagonal 45/135, Horizontal, Vertical, Cuadrícula o Rayado cruzado para la sección tapada, con mosaico, color y una textura opcional ajustables&lt;/li&gt;&lt;li&gt;&lt;b&gt;Restablecer coeficientes / Restablecer todo:&lt;/b&gt; Devuelve rápidamente los planos a su posición predeterminada o borra todo el estado de recorte&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="776"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="778"/>
         <source>Exploded Views</source>
         <translation>Vistas explosionadas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="777"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="779"/>
         <source>&lt;p&gt;Pull an assembly&apos;s parts apart to inspect how components relate, without altering the real model. Opened from the Exploded View panel.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Assembly / Anchor:&lt;/b&gt; Choose which parts explode and which part stays fixed as the anchor&lt;/li&gt;&lt;li&gt;&lt;b&gt;Explosion Mode:&lt;/b&gt; Auto (Radial), Axis X/Y/Z, or a Custom Vector direction&lt;/li&gt;&lt;li&gt;&lt;b&gt;Distance Slider:&lt;/b&gt; Controls how far apart the parts spread, as a percentage&lt;/li&gt;&lt;li&gt;&lt;b&gt;Manual Placement:&lt;/b&gt; Use the on-screen transform gizmo to hand-position specific parts into a staged exploded pose, without changing their real transform&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capture Steps:&lt;/b&gt; Record multiple exploded poses in sequence and reorder them to build a staged, multi-part reveal&lt;/li&gt;&lt;li&gt;&lt;b&gt;Presets:&lt;/b&gt; Save a full exploded configuration by name and switch between layouts instantly&lt;/li&gt;&lt;li&gt;&lt;b&gt;Animation:&lt;/b&gt; Play captured steps in parallel, sequentially, or as separate animation clips; exportable to glTF/GLB&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Separe las piezas de un ensamblaje para inspeccionar cómo se relacionan los componentes, sin alterar el modelo real. Se abre desde el panel Vista explosionada.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Ensamblaje / Ancla:&lt;/b&gt; Elija qué piezas explotan y qué pieza permanece fija como ancla&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modo de explosión:&lt;/b&gt; Automático (Radial), Eje X/Y/Z, o una dirección de Vector personalizado&lt;/li&gt;&lt;li&gt;&lt;b&gt;Control deslizante de distancia:&lt;/b&gt; Controla cuánto se separan las piezas, como porcentaje&lt;/li&gt;&lt;li&gt;&lt;b&gt;Colocación manual:&lt;/b&gt; Use el gizmo de transformación en pantalla para posicionar a mano piezas específicas en una pose explosionada preparada, sin cambiar su transformación real&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capturar pasos:&lt;/b&gt; Registre varias poses explosionadas en secuencia y reordénelas para crear una revelación preparada y de varias partes&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ajustes preestablecidos:&lt;/b&gt; Guarde una configuración explosionada completa por nombre y cambie entre diseños al instante&lt;/li&gt;&lt;li&gt;&lt;b&gt;Animación:&lt;/b&gt; Reproduzca los pasos capturados en paralelo, secuencialmente o como clips de animación separados; exportable a glTF/GLB&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="792"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="794"/>
         <source>Transform Gizmo</source>
         <translation>Gizmo de transformación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="793"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="795"/>
         <source>&lt;p&gt;An interactive on-screen handle for translating, rotating, and scaling a selection directly in the viewport, shown via the right-click context menu or the Transformations panel.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Translate:&lt;/b&gt; Drag an axis arrow (X, Y, or Z) to move along that axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;Rotate:&lt;/b&gt; Drag a rotation ring (XY, YZ, or ZX) to rotate around that plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Scale:&lt;/b&gt; Drag the center handle to resize uniformly&lt;/li&gt;&lt;li&gt;The gizmo scales itself relative to camera distance so its handles stay usable at any zoom level&lt;/li&gt;&lt;li&gt;The same gizmo is reused during Exploded View manual placement to stage poses non-destructively&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Un asa interactiva en pantalla para trasladar, rotar y escalar una selección directamente en la vista, mostrada mediante el menú contextual del clic derecho o el panel Transformaciones.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Trasladar:&lt;/b&gt; Arrastre una flecha de eje (X, Y o Z) para moverse a lo largo de ese eje&lt;/li&gt;&lt;li&gt;&lt;b&gt;Rotar:&lt;/b&gt; Arrastre un anillo de rotación (XY, YZ o ZX) para rotar alrededor de ese plano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Escalar:&lt;/b&gt; Arrastre el asa central para redimensionar uniformemente&lt;/li&gt;&lt;li&gt;El gizmo se escala en función de la distancia de la cámara, de modo que sus asas permanezcan utilizables en cualquier nivel de zoom&lt;/li&gt;&lt;li&gt;El mismo gizmo se reutiliza durante la colocación manual de la Vista explosionada para preparar poses de forma no destructiva&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="803"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="805"/>
         <source>Morph Target (Blend Shape) Animation</source>
         <translation>Animación de morph target (forma combinada)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="804"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="806"/>
         <source>&lt;p&gt;Models imported from glTF/GLB that include morph targets (blend shapes) can smoothly deform between vertex-position variants — commonly used for facial expressions or organic deformation that rigid transforms and skeletal rigs alone can&apos;t produce.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Morph weights are driven by animation clips, played back through the Animations panel (Play/Pause, Loop, Speed) just like any other clip&lt;/li&gt;&lt;li&gt;Morph target data is fully preserved when saving to &lt;b&gt;.mvf&lt;/b&gt;, and re-injected on export back to glTF/GLB&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Los modelos importados desde glTF/GLB que incluyen morph targets (formas combinadas) pueden deformarse suavemente entre variantes de posición de vértices — comúnmente usado para expresiones faciales o deformación orgánica que las transformaciones rígidas y los rigs esqueléticos por sí solos no pueden producir.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Los pesos de morph están controlados por clips de animación, reproducidos a través del panel Animaciones (Reproducir/Pausa, Bucle, Velocidad) como cualquier otro clip&lt;/li&gt;&lt;li&gt;Los datos de morph target se conservan completamente al guardar en &lt;b&gt;.mvf&lt;/b&gt;, y se reinyectan al exportar de vuelta a glTF/GLB&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="814"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="816"/>
         <source>Lasso Selection</source>
         <translation>Selección por lazo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="815"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="817"/>
         <source>&lt;p&gt;A freeform-polygon alternative to click/rubber-band selection, armed via the Lasso Select button on the View Toolbar.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Click the toolbar button to arm it, then drag a freeform outline in the viewport - every mesh whose center falls inside the outline is selected when you release&lt;/li&gt;&lt;li&gt;Stays armed across multiple drags until you click the button again (or press Esc), unlike Window Zoom&apos;s one-shot gesture&lt;/li&gt;&lt;li&gt;Hold Shift while dragging to add to the current selection instead of replacing it&lt;/li&gt;&lt;li&gt;Plain click and rubber-band selection still work normally whenever Lasso isn&apos;t armed&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Una alternativa en polígono de forma libre a la selección por clic/rectángulo elástico, activada mediante el botón Selección por lazo de la barra de herramientas de vista.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Haga clic en el botón de la barra de herramientas para activarlo y luego trace un contorno de forma libre en el visor - toda malla cuyo centro quede dentro del contorno se selecciona al soltar&lt;/li&gt;&lt;li&gt;Permanece activo durante varios trazos hasta que vuelva a hacer clic en el botón (o pulse Esc), a diferencia del gesto de un solo uso del zoom de ventana&lt;/li&gt;&lt;li&gt;Mantenga pulsada Mayús mientras traza para añadir a la selección actual en lugar de reemplazarla&lt;/li&gt;&lt;li&gt;El clic simple y la selección por rectángulo elástico siguen funcionando con normalidad mientras el lazo no esté activo&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="826"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="828"/>
         <source>Filter by Material</source>
         <translation>Filtrar por material</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="827"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="829"/>
         <source>&lt;p&gt;Opened via Selection → Filter by Material..., this lists every distinct material actually in use in the scene and lets you select every mesh using it.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Groups by each mesh&apos;s &lt;b&gt;current&lt;/b&gt; material, not where it was imported from - a mesh re-materialed with the Eyedropper below is grouped by what it looks like now&lt;/li&gt;&lt;li&gt;Multi-select rows with Ctrl/Shift-click - the live viewport selection updates as the union of every checked material&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show Only&lt;/b&gt; / &lt;b&gt;Hide&lt;/b&gt; act immediately on whatever the list currently has selected, so you can isolate or hide a material as soon as you find it&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Abierto desde Selección → Filtrar por material..., esto enumera cada material distinto realmente en uso en la escena y le permite seleccionar cada malla que lo usa.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Agrupa por el material &lt;b&gt;actual&lt;/b&gt; de cada malla, no por su origen de importación - una malla re-materializada con el cuentagotas de abajo se agrupa según su aspecto actual&lt;/li&gt;&lt;li&gt;Selección múltiple de filas con Ctrl/Mayús-clic - la selección en vivo del visor se actualiza como la unión de todos los materiales marcados&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mostrar solo&lt;/b&gt; / &lt;b&gt;Ocultar&lt;/b&gt; actúan de inmediato sobre lo que la lista tenga seleccionado en ese momento, para aislar u ocultar un material en cuanto lo encuentre&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="838"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="840"/>
         <source>Filter by Color</source>
         <translation>Filtrar por color</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="839"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="841"/>
         <source>&lt;p&gt;Opened via Selection → Filter by Color..., this builds a list of target colors and selects every mesh whose color falls within a shared tolerance of any of them.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Three ways to add a color: the &lt;b&gt;+ Add Color...&lt;/b&gt; button opens the OS color picker; the &lt;b&gt;eyedropper&lt;/b&gt; button lets you click meshes directly in the viewport for an exact match (no guessing - screen-sampling a rendered pixel rarely lands close enough to a mesh&apos;s true stored color); &lt;b&gt;Auto-Detect Colors in Scene&lt;/b&gt; seeds the list with every distinct color already in the scene, so you can start from everything and prune what you don&apos;t want with each row&apos;s own × button&lt;/li&gt;&lt;li&gt;Each listed color shows its own live match count, so you can see at a glance whether a color you added is actually catching anything&lt;/li&gt;&lt;li&gt;&lt;b&gt;Match Tolerance&lt;/b&gt; is shared across every listed color - raise it if a picked/sampled color isn&apos;t quite matching&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show Only&lt;/b&gt; / &lt;b&gt;Hide&lt;/b&gt; act on the combined result, same as Filter by Material&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Abierto desde Selección → Filtrar por color..., esto construye una lista de colores objetivo y selecciona cada malla cuyo color quede dentro de una tolerancia compartida respecto a cualquiera de ellos.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Tres formas de añadir un color: el botón &lt;b&gt;+ Añadir color...&lt;/b&gt; abre el selector de color del sistema operativo; el botón &lt;b&gt;cuentagotas&lt;/b&gt; le permite hacer clic directamente sobre mallas en el visor para una coincidencia exacta (sin adivinar - muestrear un píxel renderizado en pantalla rara vez se acerca lo suficiente al color realmente almacenado de una malla); &lt;b&gt;Detectar colores automáticamente en la escena&lt;/b&gt; siembra la lista con cada color distinto ya presente en la escena, para que pueda partir de todo y eliminar lo que no quiera con el botón × propio de cada fila&lt;/li&gt;&lt;li&gt;Cada color listado muestra su propio recuento de coincidencias en vivo, para ver de un vistazo si un color añadido realmente está capturando algo&lt;/li&gt;&lt;li&gt;La &lt;b&gt;tolerancia de coincidencia&lt;/b&gt; se comparte entre todos los colores listados - auméntela si un color elegido/muestreado no coincide del todo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mostrar solo&lt;/b&gt; / &lt;b&gt;Ocultar&lt;/b&gt; actúan sobre el resultado combinado, igual que Filtrar por material&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="855"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="857"/>
         <source>Material Eyedropper / Brush</source>
         <translation>Cuentagotas / Pincel de material</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="856"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="858"/>
         <source>&lt;p&gt;Copies one mesh&apos;s material onto others, armed from the eyedropper button in the Material Properties panel.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Click the button, then click a source mesh to sample its material - the cursor switches to a brush icon&lt;/li&gt;&lt;li&gt;Click or drag across target meshes to apply the sampled material - every mesh touched during one stroke is batched into a single undo step&lt;/li&gt;&lt;li&gt;Stays armed after a stroke finishes, so you can keep applying the same sampled material&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Copia el material de una malla a otras, activado desde el botón cuentagotas del panel Propiedades del material.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Haga clic en el botón y luego en una malla origen para muestrear su material - el cursor cambia a un icono de pincel&lt;/li&gt;&lt;li&gt;Haga clic o arrastre sobre mallas destino para aplicar el material muestreado - cada malla tocada durante un trazo se agrupa en un único paso de deshacer&lt;/li&gt;&lt;li&gt;Permanece activo tras finalizar un trazo, para poder seguir aplicando el mismo material muestreado&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="866"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="868"/>
         <source>Named Selection Sets</source>
         <translation>Conjuntos de selección con nombre</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="867"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="869"/>
         <source>&lt;p&gt;Save the current selection under a name and recall it later, from the Selections panel or Selection → Save Selection Set...&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Recalling a set reveals any of its members that are currently hidden, so the set always shows what you saved even if visibility has changed since&lt;/li&gt;&lt;li&gt;A set that references a since-deleted mesh gracefully skips that entry on recall instead of failing&lt;/li&gt;&lt;li&gt;Saved sets are persisted with the document&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Guarde la selección actual con un nombre y recupérela más tarde, desde el panel Selecciones o Selección → Guardar conjunto de selección...&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Recuperar un conjunto revela cualquiera de sus miembros que esté actualmente oculto, de modo que el conjunto siempre muestre lo que guardó aunque la visibilidad haya cambiado desde entonces&lt;/li&gt;&lt;li&gt;Un conjunto que hace referencia a una malla desde entonces eliminada omite con elegancia esa entrada al recuperarlo, en lugar de fallar&lt;/li&gt;&lt;li&gt;Los conjuntos guardados se conservan con el documento&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="878"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="880"/>
         <source>&lt;p&gt;A standalone View Toolbar toggle for continuous camera auto-rotation, useful for presentation or demo purposes.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Works independently of whichever camera mode (Orbit/Fly/First Person) is active&lt;/li&gt;&lt;li&gt;Stops automatically the instant you rotate, pan, zoom, or otherwise navigate manually&lt;/li&gt;&lt;li&gt;Always off when a document is first opened - it&apos;s a transient presentation setting, not saved with the document&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Un conmutador independiente de la barra de herramientas de vista para la rotación automática continua de la cámara, útil para presentaciones o demostraciones.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Funciona con independencia del modo de cámara activo (Órbita/Vuelo/Primera persona)&lt;/li&gt;&lt;li&gt;Se detiene automáticamente en cuanto rota, desplaza, hace zoom o navega manualmente de cualquier otra forma&lt;/li&gt;&lt;li&gt;Siempre desactivado al abrir un documento por primera vez - es un ajuste de presentación transitorio, no se guarda con el documento&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="894"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="896"/>
         <source>Measure &amp; Annotate</source>
         <translation>Medir &amp;&amp; Anotar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="895"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="897"/>
         <source>&lt;p&gt;Opened via Tools → Measure... and Tools → Annotate... (no toolbar button or keyboard shortcut for either) - the two tools are mutually exclusive, arming one disarms the other.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Creating, deleting, and repositioning a measurement or annotation is undoable; the per-item visibility checkbox in either dialog&apos;s list is not (same convention as mesh visibility in the Scene Tree)&lt;/li&gt;&lt;li&gt;Both are saved only in this app&apos;s native &lt;b&gt;.mvf&lt;/b&gt; session format, not exported to glTF/GLB (neither format has a native concept of a measurement or annotation)&lt;/li&gt;&lt;li&gt;A measurement is resolved live against current mesh geometry, so it stays correct if you move/transform a mesh afterward&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se abre desde Herramientas → Medir... y Herramientas → Anotar... (sin botón de barra de herramientas ni atajo de teclado para ninguna de las dos) - las dos herramientas son mutuamente excluyentes, activar una desactiva la otra.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Crear, eliminar y reposicionar una medición o anotación se puede deshacer; la casilla de visibilidad por elemento en la lista de cualquiera de los diálogos no (misma convención que la visibilidad de mallas en el árbol de escena)&lt;/li&gt;&lt;li&gt;Ambas se guardan solo en el formato de sesión nativo &lt;b&gt;.mvf&lt;/b&gt; de esta aplicación, no se exportan a glTF/GLB (ninguno de los dos formatos tiene un concepto nativo de medición o anotación)&lt;/li&gt;&lt;li&gt;Una medición se resuelve en vivo contra la geometría actual de la malla, por lo que sigue siendo correcta si mueve/transforma una malla después&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="907"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="909"/>
         <source>Tool</source>
         <translation>Herramienta</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="907"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="909"/>
         <source>What It Measures</source>
         <translation>Qué mide</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="907"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="909"/>
         <source>Picks</source>
         <translation>Clics</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="907"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="909"/>
         <source>Notes</source>
         <translation>Notas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="910"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="912"/>
         <source>Point</source>
         <translation>Punto</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="910"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="912"/>
         <source>The 3D coordinates of a single point</source>
         <translation>Las coordenadas 3D de un único punto</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="910"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="929"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="961"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="970"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="912"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="931"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="963"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="972"/>
         <source>1 click</source>
         <translation>1 clic</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="910"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="917"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="923"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="957"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="912"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="919"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="925"/>
         <location filename="../src/QuickHelpDialog.cpp" line="959"/>
         <location filename="../src/QuickHelpDialog.cpp" line="961"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="971"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="963"/>
         <location filename="../src/QuickHelpDialog.cpp" line="973"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="978"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="975"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="980"/>
         <source>Works on any mesh</source>
         <translation>Funciona en cualquier malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="911"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="913"/>
         <source>Distance</source>
         <translation>Distancia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="911"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="913"/>
         <source>Straight-line distance between two points</source>
         <translation>Distancia en línea recta entre dos puntos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="911"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="914"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="934"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="957"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="913"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="916"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="936"/>
         <location filename="../src/QuickHelpDialog.cpp" line="959"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="963"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="973"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="961"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="965"/>
         <location filename="../src/QuickHelpDialog.cpp" line="975"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="978"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="977"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="980"/>
         <source>2 clicks</source>
         <translation>2 clics</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="912"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="914"/>
         <source>Points may be on different meshes/files</source>
         <translation>Los puntos pueden estar en mallas/archivos diferentes</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="913"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="915"/>
         <source>Geodesic Distance</source>
         <translation>Distancia geodésica</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="913"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="915"/>
         <source>Distance measured ALONG the surface between two points (e.g. wrapping around a curved part), not straight-line</source>
         <translation>Distancia medida A LO LARGO de la superficie entre dos puntos (por ejemplo, rodeando una pieza curva), no en línea recta</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="915"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="917"/>
         <source>Both points must land on the SAME mesh</source>
         <translation>Ambos puntos deben caer en la MISMA malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="916"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="918"/>
         <source>3-Point Angle</source>
         <translation>Ángulo de 3 puntos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="916"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="918"/>
         <source>The angle (0-180°) at a picked vertex, between rays to two other picked points</source>
         <translation>El ángulo (0-180°) en un vértice elegido, entre los rayos hacia otros dos puntos elegidos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="917"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="923"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="919"/>
         <location filename="../src/QuickHelpDialog.cpp" line="925"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="927"/>
         <source>3 clicks</source>
         <translation>3 clics</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="919"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="921"/>
         <source>Point &amp; Distance</source>
         <translation>Punto &amp;&amp; Distancia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="922"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="924"/>
         <source>3-Point Arc Radius</source>
         <translation>Radio de arco de 3 puntos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="922"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="924"/>
         <source>Radius/center of a circular arc, fit through three picked points on its rim</source>
         <translation>Radio/centro de un arco circular, ajustado a través de tres puntos elegidos en su borde</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="924"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="926"/>
         <source>Center + 2-Point Arc Radius</source>
         <translation>Radio de arco centro + 2 puntos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="924"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="926"/>
         <source>Radius of an arc/hole from a picked center plus two points on the rim</source>
         <translation>Radio de un arco/agujero a partir de un centro elegido más dos puntos en el borde</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="926"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="928"/>
         <source>STEP/IGES/BREP: center snaps to the exact analytic center (works for through-holes too). glTF/OBJ: center must land on real geometry - won&apos;t work on a through-hole&apos;s center</source>
         <translation>STEP/IGES/BREP: el centro se ajusta al centro analítico exacto (funciona también para agujeros pasantes). glTF/OBJ: el centro debe caer sobre geometría real - no funciona en el centro de un agujero pasante</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="928"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="930"/>
         <source>Edge Radius</source>
         <translation>Radio de arista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="928"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="930"/>
         <source>Exact radius/center/axis of a circular edge (hole or boss rim)</source>
         <translation>Radio/centro/eje exacto de una arista circular (borde de agujero o resalte)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="929"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="935"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="931"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="937"/>
         <source>STEP/IGES/BREP only - not available on glTF/OBJ meshes</source>
         <translation>Solo STEP/IGES/BREP - no disponible en mallas glTF/OBJ</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="930"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="932"/>
         <source>Pitch Circle</source>
         <translation>Círculo primitivo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="930"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="932"/>
         <source>Diameter of the best-fit circle through 3+ hole centers (a bolt-hole pattern), plus the angular gap between adjacent holes</source>
         <translation>Diámetro del círculo de mejor ajuste a través de 3 o más centros de agujeros (un patrón de agujeros de pernos), más el ángulo entre agujeros adyacentes</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="931"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="933"/>
         <source>3+ clicks, then Enter/Finish</source>
         <translation>3 o más clics, luego Intro/Finalizar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="932"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="934"/>
         <source>Center-snapping works best on STEP/IGES/BREP; falls back to a plain surface pick on glTF/OBJ</source>
         <translation>El ajuste al centro funciona mejor en STEP/IGES/BREP; recurre a una simple selección de superficie en glTF/OBJ</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="933"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="935"/>
         <source>Concentricity</source>
         <translation>Concentricidad</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="933"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="935"/>
         <source>Whether two holes/bosses share the same axis - distance between centers and angle between axes</source>
         <translation>Si dos agujeros/resaltes comparten el mismo eje - distancia entre centros y ángulo entre ejes</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="936"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="938"/>
         <source>Cylindrical/Conical Diameter</source>
         <translation>Diámetro cilíndrico/cónico</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="936"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="938"/>
         <source>Diameter of a cylindrical or conical surface at the picked point (varies along a cone&apos;s length)</source>
         <translation>Diámetro de una superficie cilíndrica o cónica en el punto elegido (varía a lo largo de la longitud de un cono)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="937"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="939"/>
         <source>1 click on the curved surface, not its rim</source>
         <translation>1 clic sobre la superficie curva, no sobre su borde</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="938"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="940"/>
         <source>STEP/IGES/BREP uses the exact surface axis; glTF/OBJ uses a validated local fit. Has its own options panel - see below</source>
         <translation>STEP/IGES/BREP usa el eje exacto de la superficie; glTF/OBJ usa un ajuste local validado. Tiene su propio panel de opciones - vea más abajo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="941"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="943"/>
         <source>Arcs &amp; Circles</source>
         <translation>Arcos &amp;&amp; Círculos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="943"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="945"/>
         <source>Cylindrical Diameter Options</source>
         <translation>Opciones de diámetro cilíndrico</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="944"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="946"/>
         <source>&lt;p&gt;Shown only while Cylindrical/Conical Diameter is the active tool - tunes the mesh-fit/region-growing path used on non-CAD or fit-based cases (session-only, not saved with the document):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Angle tolerance:&lt;/b&gt; max angle between a candidate point&apos;s normal and the fitted cylinder&apos;s radial direction to join the region (app default 35°, CGAL&apos;s own default is 25°)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Min region size:&lt;/b&gt; minimum accepted point count for a fitted region (app default 24, CGAL&apos;s own default is 3)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Min/Max diameter (0 = no limit):&lt;/b&gt; reject a fit smaller/larger than these bounds&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se muestra solo mientras Diámetro cilíndrico/cónico es la herramienta activa - ajusta la vía de ajuste de malla/crecimiento de región usada en casos no CAD o basados en ajuste (solo de la sesión, no se guarda con el documento):&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Tolerancia de ángulo:&lt;/b&gt; ángulo máximo entre la normal de un punto candidato y la dirección radial del cilindro ajustado para unirse a la región (predeterminado de la app 35°, predeterminado propio de CGAL 25°)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tamaño mínimo de región:&lt;/b&gt; número mínimo de puntos aceptado para una región ajustada (predeterminado de la app 24, predeterminado propio de CGAL 3)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Diámetro mín./máx. (0 = sin límite):&lt;/b&gt; rechaza un ajuste más pequeño/grande que estos límites&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="956"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="958"/>
         <source>Face to Face</source>
         <translation>Cara a cara</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="956"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="958"/>
         <source>Perpendicular distance between two near-parallel faces, or the angle (0-90°) between them otherwise</source>
         <translation>Distancia perpendicular entre dos caras casi paralelas, o el ángulo (0-90°) entre ellas en caso contrario</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="958"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="960"/>
         <source>Point to Face</source>
         <translation>Punto a cara</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="958"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="960"/>
         <source>Perpendicular distance from a picked point to a picked face&apos;s (infinite) plane</source>
         <translation>Distancia perpendicular de un punto elegido al plano (infinito) de una cara elegida</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="960"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="962"/>
         <source>Face Area</source>
         <translation>Área de la cara</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="960"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="962"/>
         <source>Surface area of a face - the picked triangle plus every triangle connected to it and coplanar with it</source>
         <translation>Área de superficie de una cara - el triángulo elegido más todos los triángulos conectados a él y coplanarios con él</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="962"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="964"/>
         <source>Minimum Distance</source>
         <translation>Distancia mínima</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="962"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="964"/>
         <source>True closest-point distance between two faces/surfaces - each pick expands to its whole smooth region</source>
         <translation>Distancia real de punto más cercano entre dos caras/superficies - cada selección se expande a toda su región suave</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="964"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="966"/>
         <source>May be picked on the same mesh (e.g. a wall-thickness check) or two different ones; can take a moment on a very large, finely-tessellated face</source>
         <translation>Puede elegirse en la misma malla (por ejemplo, una comprobación de espesor de pared) o en dos distintas; puede tardar un momento en una cara muy grande y finamente teselada</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="967"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="969"/>
         <source>Faces</source>
         <translation>Caras</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="970"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="972"/>
         <source>Edge Length</source>
         <translation>Longitud de arista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="970"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="972"/>
         <source>Length of a single edge (straight or curved)</source>
         <translation>Longitud de una sola arista (recta o curva)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="972"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="974"/>
         <source>Edge to Vertex</source>
         <translation>Arista a vértice</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="972"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="974"/>
         <source>Perpendicular distance from a picked vertex/point to a picked edge&apos;s (infinite) line</source>
         <translation>Distancia perpendicular de un vértice/punto elegido a la línea (infinita) de una arista elegida</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="974"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="976"/>
         <source>Edge to Edge</source>
         <translation>Arista a arista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="974"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="976"/>
         <source>Perpendicular distance between two near-parallel edges, or the angle (0-90°) between them otherwise</source>
         <translation>Distancia perpendicular entre dos aristas casi paralelas, o el ángulo (0-90°) entre ellas en caso contrario</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="976"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="978"/>
         <source>Also handles skew, non-intersecting edges (angle-only result)</source>
         <translation>También gestiona aristas oblicuas que no se cruzan (resultado solo de ángulo)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="977"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="979"/>
         <source>Edge to Face</source>
         <translation>Arista a cara</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="977"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="979"/>
         <source>Perpendicular distance from an edge to a face&apos;s plane, or the angle (0-90°) between them otherwise</source>
         <translation>Distancia perpendicular de una arista al plano de una cara, o el ángulo (0-90°) entre ellos en caso contrario</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="979"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="981"/>
         <source>Chain Length</source>
         <translation>Longitud de cadena</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="979"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="981"/>
         <source>Total length of a connected run of edges - an open chain (e.g. a weld seam) or a closed perimeter/loop</source>
         <translation>Longitud total de una serie conectada de aristas - una cadena abierta (por ejemplo, un cordón de soldadura) o un perímetro/bucle cerrado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="980"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="982"/>
         <source>2+ clicks, then Enter/Finish</source>
         <translation>2 o más clics, luego Intro/Finalizar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="981"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="983"/>
         <source>Each new pick must share an endpoint with the chain so far - a disconnected edge is rejected</source>
         <translation>Cada nueva selección debe compartir un extremo con la cadena existente hasta el momento - se rechaza una arista no conectada</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="983"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="985"/>
         <source>Edges</source>
         <translation>Aristas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="985"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="987"/>
         <source>Annotation</source>
         <translation>Anotación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="986"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="988"/>
         <source>&lt;p&gt;A free-text sticky note anchored to a point on a mesh surface, connected to a draggable text label by a leader line.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Opens unarmed (still useful for reviewing/editing existing notes) - click &lt;b&gt;Place Note&lt;/b&gt; to arm it&lt;/li&gt;&lt;li&gt;Click a point on the model to place a note there - it&apos;s auto-selected with default text &quot;New Note&quot; so you can immediately type over it; stays armed for placing more notes in a row&lt;/li&gt;&lt;li&gt;Select a note from the results list (or click it in the viewport) to edit its text, or &lt;b&gt;Delete&lt;/b&gt; it - multi-select delete batches into one undo step&lt;/li&gt;&lt;li&gt;Drag a note&apos;s text frame to reposition just the label/leader, independent of its anchor point&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Una nota adhesiva de texto libre anclada a un punto de una superficie de malla, conectada a una etiqueta de texto arrastrable mediante una línea guía.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Se abre desactivada (útil de todos modos para revisar/editar notas existentes) - haga clic en &lt;b&gt;Colocar nota&lt;/b&gt; para activarla&lt;/li&gt;&lt;li&gt;Haga clic en un punto del modelo para colocar allí una nota - se selecciona automáticamente con el texto predeterminado «Nueva nota» para que pueda escribir sobre él de inmediato; permanece activa para colocar más notas seguidas&lt;/li&gt;&lt;li&gt;Seleccione una nota de la lista de resultados (o haga clic en ella en el visor) para editar su texto, o &lt;b&gt;elimínela&lt;/b&gt; - la eliminación con selección múltiple se agrupa en un único paso de deshacer&lt;/li&gt;&lt;li&gt;Arrastre el marco de texto de una nota para reposicionar solo la etiqueta/línea guía, independientemente de su punto de anclaje&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1000"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1002"/>
         <source>Export Report</source>
         <translation>Exportar informe</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1001"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1003"/>
         <source>&lt;p&gt;Opened via Tools → Export Report..., produces a PDF built from captured camera views plus an optional measurement/annotation summary table.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;The views list is pulled from the Cameras panel&apos;s own &lt;b&gt;Capture View&lt;/b&gt; button - capture a view there first, it then appears here automatically&lt;/li&gt;&lt;li&gt;&lt;b&gt;Include measurement/annotation table&lt;/b&gt; appends an HTML table listing every measurement and annotation&apos;s text to the PDF&lt;/li&gt;&lt;li&gt;Double-click a captured view to override which specific measurements/annotations THAT view&apos;s screenshot shows, independent of the document&apos;s real visibility - &lt;b&gt;Use Current Visibility&lt;/b&gt; clears the override&lt;/li&gt;&lt;li&gt;Export restores the document&apos;s real visibility and the viewport&apos;s camera exactly as they were before, once finished - nothing is left toggled or parked on a captured view&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se abre desde Herramientas → Exportar informe..., genera un PDF construido a partir de las vistas de cámara capturadas más una tabla resumen opcional de mediciones/anotaciones.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;La lista de vistas se obtiene del propio botón &lt;b&gt;Capturar vista&lt;/b&gt; del panel Cámaras - capture allí una vista primero y luego aparecerá aquí automáticamente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Incluir tabla de mediciones/anotaciones&lt;/b&gt; añade al PDF una tabla HTML con el texto de cada medición y anotación&lt;/li&gt;&lt;li&gt;Haga doble clic en una vista capturada para anular qué mediciones/anotaciones específicas muestra la captura de ESA vista, independientemente de la visibilidad real del documento - &lt;b&gt;Usar visibilidad actual&lt;/b&gt; borra la anulación&lt;/li&gt;&lt;li&gt;Al finalizar, la exportación restaura la visibilidad real del documento y la cámara del visor exactamente como estaban antes - nada queda alternado o fijado en una vista capturada&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1015"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1017"/>
         <source>Measurement &amp; Annotation</source>
         <translation>Medición &amp;&amp; Anotación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1022"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1024"/>
         <source>Shrink Wrap</source>
         <translation>Envoltura ajustada</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1023"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1025"/>
         <source>&lt;p&gt;Opened via Tools → Shrink Wrap..., combines one or more selected meshes into a single new watertight, 2-manifold shell using CGAL&apos;s alpha wrapping - the inputs don&apos;t need to share a material or even be manifold themselves.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alpha&lt;/b&gt; / &lt;b&gt;Offset:&lt;/b&gt; the two numeric fields controlling how tightly the shell wraps and how far it&apos;s offset from the input surface; &lt;b&gt;Reset to Suggested&lt;/b&gt; computes sensible starting values from the selection&apos;s bounding box&lt;/li&gt;&lt;li&gt;Always produces a brand-new mesh node - the original selection is left untouched&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se abre desde Herramientas → Envoltura ajustada..., combina una o varias mallas seleccionadas en una única cáscara nueva estanca y 2-variedad mediante el alpha wrapping de CGAL - las entradas no necesitan compartir material ni ser ellas mismas variedades.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Alfa&lt;/b&gt; / &lt;b&gt;Desplazamiento:&lt;/b&gt; los dos campos numéricos que controlan cuán ajustada envuelve la cáscara y a qué distancia se desplaza de la superficie de entrada; &lt;b&gt;Restablecer a lo sugerido&lt;/b&gt; calcula valores iniciales razonables a partir del cuadro delimitador de la selección&lt;/li&gt;&lt;li&gt;Siempre produce un nodo de malla completamente nuevo - la selección original queda intacta&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1033"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1035"/>
         <source>Reconstruct Surface</source>
         <translation>Reconstruir superficie</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1034"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1036"/>
         <source>&lt;p&gt;Opened via Tools → Reconstruct Surface..., builds a new triangulated surface from the point positions of one or more selected meshes/point clouds via CGAL&apos;s advancing-front reconstruction - existing faces are ignored, only point positions matter.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sharpness:&lt;/b&gt; lower is smoother/rounder, higher preserves sharper edges&lt;/li&gt;&lt;li&gt;&lt;b&gt;Boundary Tolerance:&lt;/b&gt; how large a gap the reconstruction may bridge&lt;/li&gt;&lt;li&gt;&lt;b&gt;Simplify point cloud before reconstruction:&lt;/b&gt; optional, reveals a &lt;b&gt;Target Spacing&lt;/b&gt; field that merges points closer than that distance first - speeds up large/noisy scans at the cost of fine detail&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se abre desde Herramientas → Reconstruir superficie..., construye una nueva superficie triangulada a partir de las posiciones de los puntos de una o varias mallas/nubes de puntos seleccionadas mediante la reconstrucción de frente avanzante de CGAL - las caras existentes se ignoran, solo importan las posiciones de los puntos.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Nitidez:&lt;/b&gt; más bajo es más suave/redondeado, más alto conserva bordes más nítidos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tolerancia de contorno:&lt;/b&gt; qué tan grande puede ser el hueco que la reconstrucción puede salvar&lt;/li&gt;&lt;li&gt;&lt;b&gt;Simplificar la nube de puntos antes de reconstruir:&lt;/b&gt; opcional, revela un campo &lt;b&gt;Espaciado objetivo&lt;/b&gt; que primero fusiona los puntos más cercanos que esa distancia - acelera escaneos grandes/ruidosos a costa del detalle fino&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1045"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1047"/>
         <source>Repair Mesh</source>
         <translation>Reparar malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1046"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1048"/>
         <source>&lt;p&gt;Opened via Tools → Repair Mesh..., runs each mesh in the working list independently through CGAL&apos;s repair toolkit: duplicate/degenerate geometry, non-manifold vertices, inconsistent winding, and self-intersections. It&apos;s defect cleanup only - it never fills holes or forces closure, so an intentionally open panel stays open.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;A mesh already reported valid is skipped, no new node is created for it&lt;/li&gt;&lt;li&gt;&lt;b&gt;Self-intersection resolution attempts:&lt;/b&gt; how many smoothing/hole-refill rounds to try (CGAL&apos;s own default is 7)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Try smoothing-based resolution too:&lt;/b&gt; adds a slower smoothing-based strategy alongside the default hole-filling-based one&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se abre desde Herramientas → Reparar malla..., ejecuta cada malla de la lista de trabajo de forma independiente a través del kit de reparación de CGAL: geometría duplicada/degenerada, vértices no variedad, orientación inconsistente y autointersecciones. Es solo limpieza de defectos - nunca rellena agujeros ni fuerza el cierre, por lo que un panel intencionadamente abierto permanece abierto.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Una malla ya reportada como válida se omite, no se crea ningún nodo nuevo para ella&lt;/li&gt;&lt;li&gt;&lt;b&gt;Intentos de resolución de autointersecciones:&lt;/b&gt; cuántas rondas de suavizado/relleno de agujeros probar (el predeterminado propio de CGAL es 7)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Probar también resolución basada en suavizado:&lt;/b&gt; añade una estrategia más lenta basada en suavizado junto a la predeterminada basada en relleno de agujeros&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1058"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1060"/>
         <source>Fill Holes</source>
         <translation>Rellenar agujeros</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1059"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1061"/>
         <source>&lt;p&gt;Opened via Tools → Fill Holes..., detects every boundary loop (potential hole) across the meshes in the working list and lets you interactively choose which loops are genuine defects vs. an intentionally open edge, before patching only the checked ones via CGAL&apos;s triangulate-and-refine-hole.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Selecting a detected-hole row highlights that loop in orange in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Patch density:&lt;/b&gt; how fine the new patch&apos;s triangulation is relative to the surrounding mesh&lt;/li&gt;&lt;li&gt;Shares the same self-intersection resolution options as Repair Mesh above&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Se abre desde Herramientas → Rellenar agujeros..., detecta cada bucle de contorno (agujero potencial) en las mallas de la lista de trabajo y le permite elegir interactivamente qué bucles son defectos genuinos frente a un borde intencionadamente abierto, antes de parchear solo los marcados mediante el triangulate-and-refine-hole de CGAL.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Seleccionar una fila de agujero detectado resalta ese bucle en naranja en el visor&lt;/li&gt;&lt;li&gt;&lt;b&gt;Densidad del parche:&lt;/b&gt; cuán fina es la triangulación del nuevo parche en relación con la malla circundante&lt;/li&gt;&lt;li&gt;Comparte las mismas opciones de resolución de autointersecciones que Reparar malla más arriba&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1070"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1072"/>
         <source>Subdivide Surface</source>
         <translation>Subdividir superficie</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1071"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1073"/>
         <source>&lt;p&gt;Opened via Tools → Subdivide Surface..., this smooths one or more selected meshes using CGAL&apos;s Loop or Catmull-Clark subdivision — each selected mesh is refined independently, added as a new mesh alongside the original (which is left untouched), and becomes undoable once the dialog closes.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Method:&lt;/b&gt; Loop stays triangle-based throughout; Catmull-Clark produces quads internally and is triangulated back afterward — both usually look similarly smooth&lt;/li&gt;&lt;li&gt;&lt;b&gt;Iterations:&lt;/b&gt; each step roughly quadruples the triangle count, so higher values get expensive fast; 1-2 is enough to see the effect&lt;/li&gt;&lt;li&gt;&lt;b&gt;Preserve sharp edges&lt;/b&gt; (on by default): keeps any edge with a 30-degree-or-greater bend infinitely sharp instead of smoothing it away — a cylinder&apos;s flat end caps and a block&apos;s corners stay crisp while the rest of the surface still smooths normally. Turn it off for the classic fully-smooth subdivision-surface look (the same way subdividing a cube yields a rounded blob, not a cube with a finer mesh) - useful on coarse/organic meshes where an all-over rounding effect is what&apos;s actually wanted&lt;/li&gt;&lt;li&gt;&lt;b&gt;Replace previous result:&lt;/b&gt; when checked, each Generate click replaces the prior preview; unchecked, results accumulate side by side&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;p&gt;Abierto vía Herramientas → Subdividir superficie..., esto suaviza una o más mallas seleccionadas usando la subdivisión Loop o Catmull-Clark de CGAL — cada malla seleccionada se refina de forma independiente, añadida como una nueva malla junto a la original (que queda intacta), y se vuelve reversible una vez cerrado el diálogo.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;Método:&lt;/b&gt; Loop permanece basado en triángulos en todo momento; Catmull-Clark produce cuadriláteros internamente y se retriangula después — ambos suelen verse de forma similarmente suave&lt;/li&gt;&lt;li&gt;&lt;b&gt;Iteraciones:&lt;/b&gt; cada paso cuadruplica aproximadamente el recuento de triángulos, por lo que valores más altos se vuelven costosos rápidamente; 1-2 es suficiente para ver el efecto&lt;/li&gt;&lt;li&gt;&lt;b&gt;Preservar aristas afiladas&lt;/b&gt; (activado por defecto): mantiene infinitamente afilada cualquier arista con un pliegue de 30 grados o más en lugar de suavizarla — las tapas planas de un cilindro y las esquinas de un bloque permanecen nítidas mientras el resto de la superficie sigue suavizándose normalmente. Desactívelo para el aspecto clásico de superficie de subdivisión totalmente suave (de la misma forma que subdividir un cubo produce una forma redondeada, no un cubo con una malla más fina) - útil en mallas toscas/orgánicas donde en realidad se desea un efecto de redondeo general&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reemplazar resultado anterior:&lt;/b&gt; cuando está marcado, cada clic en Generar reemplaza la vista previa anterior; desmarcado, los resultados se acumulan uno al lado del otro&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1090"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1092"/>
         <source>Shared &quot;Replace Previous Result&quot; Convention</source>
         <translation>Convención compartida «Reemplazar resultado anterior»</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1091"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1093"/>
         <source>&lt;p&gt;Shrink Wrap, Reconstruct Surface, Repair Mesh, Fill Holes, and Subdivide Surface all share one checkbox, checked by default: when checked, each Generate click undoably deletes the prior click&apos;s result before creating the new one, so at most one live result accumulates per source mesh. Unchecked, results accumulate side by side instead.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Envoltura ajustada, Reconstruir superficie, Reparar malla, Rellenar agujeros y Subdividir superficie comparten todas una casilla, marcada de forma predeterminada: cuando está marcada, cada clic en Generar elimina de forma reversible el resultado del clic anterior antes de crear el nuevo, de modo que como máximo se acumula un resultado activo por malla de origen. Desmarcada, los resultados se acumulan uno al lado del otro en su lugar.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1096"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1098"/>
         <source>Mesh Operations (Right-Click Menu)</source>
         <translation>Operaciones de malla (menú de clic derecho)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1097"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1099"/>
         <source>&lt;p&gt;Available from the tree/viewport right-click context menu when meshes are selected - all add new mesh node(s) and remove the originals, and are undoable except Select Parent (a pure navigation helper).&lt;/p&gt;</source>
         <translation>&lt;p&gt;Disponible en el menú contextual de clic derecho del árbol/visor cuando hay mallas seleccionadas - todas añaden nuevos nodos de malla y eliminan los originales, y se pueden deshacer excepto Seleccionar padre (una ayuda de navegación pura).&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1101"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1103"/>
         <source>Operation</source>
         <translation>Operación</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1101"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1103"/>
         <source>What It Does</source>
         <translation>Qué hace</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1101"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1103"/>
         <source>Selection Requirement</source>
         <translation>Requisito de selección</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1103"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1105"/>
         <source>Split by Connectivity</source>
         <translation>Dividir por conectividad</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1103"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1105"/>
         <source>Splits each selected mesh into its disconnected pieces, one new mesh per piece. A mesh already a single connected piece is left untouched</source>
         <translation>Divide cada malla seleccionada en sus piezas desconectadas, una malla nueva por pieza. Una malla que ya es una sola pieza conectada queda intacta</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1105"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1107"/>
         <source>One or more meshes, each evaluated independently</source>
         <translation>Una o varias mallas, cada una evaluada de forma independiente</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1106"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1108"/>
         <source>Merge by Adjacency</source>
         <translation>Fusionar por adyacencia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1106"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1108"/>
         <source>Groups the selection into touching clusters (by shared vertex position) and merges each touching cluster into one mesh; non-touching meshes are left alone</source>
         <translation>Agrupa la selección en clústeres que se tocan (por posición de vértice compartida) y fusiona cada clúster que se toca en una sola malla; las mallas que no se tocan quedan intactas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1108"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1110"/>
         <source>2+ meshes; only touching subgroups are merged</source>
         <translation>2 o más mallas; solo se fusionan los subgrupos que se tocan</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1109"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1111"/>
         <source>Merge Selected</source>
         <translation>Fusionar seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1109"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1111"/>
         <source>Combines the whole selection into one new mesh by plain concatenation, regardless of whether the meshes are touching</source>
         <translation>Combina toda la selección en una nueva malla mediante simple concatenación, independientemente de si las mallas se tocan</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1110"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1113"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1112"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1115"/>
         <source>2+ meshes</source>
         <translation>2 o más mallas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1111"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1113"/>
         <source>Mesh Union</source>
         <translation>Unión de mallas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1111"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1113"/>
         <source>Attempts a real CGAL boolean union across the selection&apos;s repaired geometry; silently falls back to plain concatenation (same as Merge Selected) if repair or corefinement fails</source>
         <translation>Intenta una unión booleana real de CGAL sobre la geometría reparada de la selección; recurre silenciosamente a una simple concatenación (igual que Fusionar seleccionados) si falla la reparación o el corefinement</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1114"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1116"/>
         <source>Group</source>
         <translation>Agrupar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1114"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1116"/>
         <source>Pure scene-graph reorganization - creates a new Group node and moves the selected meshes into it. No geometry is touched</source>
         <translation>Reorganización pura del grafo de escena - crea un nuevo nodo Grupo y traslada a él las mallas seleccionadas. No se modifica ninguna geometría</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1115"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1117"/>
         <source>One or more meshes</source>
         <translation>Una o varias mallas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1116"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1118"/>
         <source>Select Parent</source>
         <translation>Seleccionar padre</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1116"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1118"/>
         <source>Selects the tree parent of the right-clicked item - navigation only, no geometry change</source>
         <translation>Selecciona el padre en el árbol del elemento en el que se hizo clic derecho - solo navegación, sin cambios de geometría</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1117"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1119"/>
         <source>The single right-clicked item</source>
         <translation>El único elemento en el que se hizo clic derecho</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1121"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1123"/>
         <source>Mixed-Material Merges</source>
         <translation>Fusiones con materiales mixtos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1122"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1124"/>
         <source>&lt;p&gt;Merge by Adjacency, Merge Selected, and Mesh Union all prompt when a touching group/selection has more than one material: &lt;b&gt;Keep Materials Separate&lt;/b&gt; splits that group into one merge per material instead of combining everything into one with the first mesh&apos;s material, or choose &lt;b&gt;Merge Anyway&lt;/b&gt; to combine regardless.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Fusionar por adyacencia, Fusionar seleccionados y Unión de mallas preguntan cuando un grupo/selección en contacto tiene más de un material: &lt;b&gt;Mantener materiales separados&lt;/b&gt; divide ese grupo en una fusión por material en lugar de combinar todo en uno con el material de la primera malla, o elija &lt;b&gt;Fusionar de todos modos&lt;/b&gt; para combinar de todas formas.&lt;/p&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1140"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1142"/>
         <source>Ctrl+I</source>
         <translation>Ctrl+I</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1141"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1143"/>
         <source>Ctrl+E</source>
         <translation>Ctrl+E</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1153"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1155"/>
         <source>Edit → Settings</source>
         <translation>Editar → Configuración</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1153"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1155"/>
         <source>Open the settings dialog</source>
         <translation>Abrir el diálogo de configuración</translation>
     </message>
@@ -9774,12 +10927,12 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">Herramientas → Depurador de texturas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1181"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1183"/>
         <source>Open the texture debugger panel</source>
         <translation>Abrir el panel del depurador de texturas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1177"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1179"/>
         <source>Tools Menu</source>
         <translation>Menú Herramientas</translation>
     </message>
@@ -9790,402 +10943,427 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="177"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1127"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1129"/>
         <source>Mesh Editing</source>
         <translation>Edición de malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1159"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="561"/>
+        <source>Choose Isometric, Dimetric or Trimetric, and (next button) the compass corner it is seen from: SE, NE, NW or SW. Clicking either button steps to the next type or corner while the view is axonometric (from another view it enters the last-used one); hold to pick directly; Home enters the last-used type&lt;br/&gt;Shortcuts: Ctrl+1/2/3=Isometric/Dimetric/Trimetric, Ctrl+4/5/6/7=SE/NE/NW/SW corner, Ctrl+Shift+Left/Right=previous/next corner</source>
+        <translation>Elija Isométrico, Dimétrico o Trimétrico y (botón siguiente) la esquina de la brújula desde la que se ve: SE, NE, NO o SO. Al hacer clic en cualquiera de los botones se pasa al siguiente tipo o esquina mientras la vista es axonométrica (desde otra vista se entra en el último usado); mantenga pulsado para elegir directamente; Inicio entra en el último tipo usado&lt;br/&gt;Atajos: Ctrl+1/2/3=Isométrico/Dimétrico/Trimétrico, Ctrl+4/5/6/7=esquina SE/NE/NO/SO, Ctrl+Mayús+Izquierda/Derecha=esquina anterior/siguiente</translation>
+    </message>
+    <message>
+        <location filename="../src/QuickHelpDialog.cpp" line="563"/>
+        <source>Projection</source>
+        <translation>Proyección</translation>
+    </message>
+    <message>
+        <location filename="../src/QuickHelpDialog.cpp" line="563"/>
+        <source>Perspective, Ortho, Cavalier, Cabinet</source>
+        <translation>Perspectiva, Ortográfica, Caballera, Gabinete</translation>
+    </message>
+    <message>
+        <location filename="../src/QuickHelpDialog.cpp" line="564"/>
+        <source>Click toggles between Perspective and the parallel projection used last (Orthographic until you pick another); hold to open the list and pick Perspective, Orthographic, Cavalier or Cabinet&lt;br/&gt;Cavalier and Cabinet are oblique projections: the face parallel to the screen keeps its true shape while depth recedes up and to the right (full depth for Cavalier, half depth for Cabinet). Like Perspective and Orthographic they stay in effect while you orbit, pan, zoom or change views. Not available with ray tracing</source>
+        <translation>Un clic alterna entre Perspectiva y la última proyección paralela utilizada (Ortográfica hasta que elija otra); mantenga pulsado para abrir la lista y elegir Perspectiva, Ortográfica, Caballera o Gabinete&lt;br/&gt;Caballera y Gabinete son proyecciones oblicuas: la cara paralela a la pantalla conserva su forma real mientras la profundidad se aleja hacia arriba y a la derecha (profundidad completa en Caballera, mitad en Gabinete). Como Perspectiva y Ortográfica, permanecen activas al orbitar, desplazar, hacer zoom o cambiar de vista. No disponible con trazado por rayos</translation>
+    </message>
+    <message>
+        <location filename="../src/QuickHelpDialog.cpp" line="763"/>
+        <source>&lt;p&gt;Cut through a model with up to three axis-aligned clipping planes to see internal structure, opened via the Section View button on the View Toolbar.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / XZ:&lt;/b&gt; Enable each plane independently; by default each cuts away the half facing you in its matching standard view (Top, Right or Front), so the cut face is visible, and each has its own &apos;Flip&apos; toggle to reverse which side is cut away&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coefficient:&lt;/b&gt; A numeric field per plane that positions it along its axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capping:&lt;/b&gt; Fills the cut cross-section with a solid cap instead of leaving it hollow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Dynamic Capping:&lt;/b&gt; Recomputes the cap as you move or animate the model, rather than only when you release the plane&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hatch Pattern:&lt;/b&gt; Choose Diagonal 45/135, Horizontal, Vertical, Grid, or Cross Hatch for the capped cross-section, with adjustable tiling, color, and an optional texture&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reset Coefficients / Reset All:&lt;/b&gt; Quickly return planes to their default position or clear all clipping state&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation>&lt;p&gt;Corte un modelo con hasta tres planos de corte alineados con los ejes para ver la estructura interna; se abre con el botón Vista de sección de la barra de herramientas Vista.&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;XY / YZ / XZ:&lt;/b&gt; Active cada plano de forma independiente; por defecto cada uno elimina la mitad que queda de cara a usted en su vista estándar correspondiente (Superior, Derecha o Frontal), de modo que la cara de corte queda visible, y cada uno tiene su propio interruptor «Invertir» para cambiar el lado eliminado&lt;/li&gt;&lt;li&gt;&lt;b&gt;Coeficiente:&lt;/b&gt; Un campo numérico por plano que lo sitúa a lo largo de su eje&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tapa:&lt;/b&gt; Rellena la sección transversal cortada con una tapa sólida en lugar de dejarla hueca&lt;/li&gt;&lt;li&gt;&lt;b&gt;Tapa dinámica:&lt;/b&gt; Recalcula la tapa mientras mueve o anima el modelo, y no solo al soltar el plano&lt;/li&gt;&lt;li&gt;&lt;b&gt;Patrón de rayado:&lt;/b&gt; Elija Diagonal 45/135, Horizontal, Vertical, Cuadrícula o Rayado cruzado para la sección con tapa, con mosaico, color y textura opcional ajustables&lt;/li&gt;&lt;li&gt;&lt;b&gt;Restablecer coeficientes / Restablecer todo:&lt;/b&gt; Devuelve rápidamente los planos a su posición predeterminada o borra todo el estado de corte&lt;/li&gt;&lt;/ul&gt;</translation>
+    </message>
+    <message>
+        <location filename="../src/QuickHelpDialog.cpp" line="1161"/>
         <source>Selection → Filter by Material...</source>
         <translation>Selección → Filtrar por material...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1159"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1161"/>
         <source>Select every mesh in the scene using a chosen material</source>
         <translation>Seleccionar cada malla de la escena que use un material elegido</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1160"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1162"/>
         <source>Selection → Filter by Color...</source>
         <translation>Selección → Filtrar por color...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1160"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1162"/>
         <source>Select every mesh whose color matches a chosen target, within a tolerance</source>
         <translation>Seleccionar cada malla cuyo color coincida con un objetivo elegido, dentro de una tolerancia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1161"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1163"/>
         <source>Selection → Save Selection Set...</source>
         <translation>Selección → Guardar conjunto de selección...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1161"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1163"/>
         <source>Save the current selection under a name, for quick recall later</source>
         <translation>Guardar la selección actual con un nombre, para recuperarla rápidamente más tarde</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1163"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1165"/>
         <source>Selection Menu</source>
         <translation>Menú Selección</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1167"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1169"/>
         <source>Tools → Measure...</source>
         <translation>Herramientas → Medir...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1167"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1169"/>
         <source>Open the measurement tool - point, distance, and arc-radius tools among others</source>
         <translation>Abrir la herramienta de medición - herramientas de punto, distancia y radio de arco, entre otras</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1168"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1170"/>
         <source>Tools → Annotate...</source>
         <translation>Herramientas → Anotar...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1168"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1170"/>
         <source>Open the annotation tool - place text notes anchored to points on the model</source>
         <translation>Abrir la herramienta de anotación - colocar notas de texto ancladas a puntos del modelo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1169"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1171"/>
         <source>Tools → Export Report...</source>
         <translation>Herramientas → Exportar informe...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1169"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1171"/>
         <source>Export captured views and the measurement/annotation list as a PDF report</source>
         <translation>Exportar las vistas capturadas y la lista de mediciones/anotaciones como informe PDF</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1170"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1172"/>
         <source>Tools → Shrink Wrap...</source>
         <translation>Herramientas → Envoltura ajustada...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1170"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1172"/>
         <source>Combine the selected meshes into one new watertight shell</source>
         <translation>Combinar las mallas seleccionadas en una nueva cáscara estanca</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1171"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1173"/>
         <source>Tools → Subdivide Surface...</source>
         <translation>Herramientas → Subdividir superficie...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1171"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1173"/>
         <source>Smooth the selected meshes via CGAL subdivision</source>
         <translation>Suavizar las mallas seleccionadas mediante subdivisión de CGAL</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1172"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1174"/>
         <source>Tools → Reconstruct Surface...</source>
         <translation>Herramientas → Reconstruir superficie...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1172"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1174"/>
         <source>Reconstruct a triangulated surface from the selected point cloud(s)</source>
         <translation>Reconstruir una superficie triangulada a partir de la(s) nube(s) de puntos seleccionada(s)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1173"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1175"/>
         <source>Tools → Repair Mesh...</source>
         <translation>Herramientas → Reparar malla...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1173"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1175"/>
         <source>Fix defects (non-manifold vertices, self-intersections, etc.) on the selected meshes</source>
         <translation>Corregir defectos (vértices no variedad, autointersecciones, etc.) en las mallas seleccionadas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1174"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1176"/>
         <source>Tools → Fill Holes...</source>
         <translation>Herramientas → Rellenar agujeros...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1174"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1176"/>
         <source>Detect and interactively patch boundary-loop holes in the selected meshes</source>
         <translation>Detectar y parchear interactivamente los agujeros de bucle de contorno en las mallas seleccionadas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1175"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1177"/>
         <source>Tools → Generate UVs...</source>
         <translation>Herramientas → Generar UVs...</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1175"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1177"/>
         <source>Generate UV coordinates for meshes using a chosen projection method</source>
         <translation>Generar coordenadas UV para mallas usando un método de proyección elegido</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1198"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1200"/>
         <source>  Center Screen</source>
         <translation>  Pantalla central</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1198"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1200"/>
         <source>Center view on selected object</source>
         <translation>Vista del centro sobre el objeto seleccionado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1199"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1201"/>
         <source>  Center Object List</source>
         <translation>  Lista de objetos del centro</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1199"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1201"/>
         <source>Scroll object list to selected item</source>
         <translation>Lista de objetos de desplazamiento para el artículo seleccionado</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1200"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1202"/>
         <source>  Hide/Show</source>
         <translation>  Ocultar/Mostrar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1200"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1202"/>
         <source>Toggle visibility of selected objects</source>
         <translation>Toggle visibilidad de objetos seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1201"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1203"/>
         <source>  Show Only</source>
         <translation>  Mostrar sólo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1201"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1203"/>
         <source>Shift+Space</source>
         <translation>Espacio</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1201"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1203"/>
         <source>Show only selected, hide all others</source>
         <translation>Mostrar sólo seleccionado, ocultar todos los demás</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1202"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1204"/>
         <source>  Visualization Settings</source>
         <translation>  Ajustes de visualización</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1202"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1204"/>
         <source>Open material/appearance settings</source>
         <translation>Configuración de material abierto/apariencia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1203"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1205"/>
         <source>  Transformations</source>
         <translation>  Transformaciones</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1203"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1205"/>
         <source>Open transformation panel (move/rotate/scale)</source>
         <translation>Panel de transformación abierta (move/rotate/scale)</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1204"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1206"/>
         <source>  Generate UVs</source>
         <translation>  Generar UV</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1204"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1206"/>
         <source>Auto-generate texture coordinates</source>
         <translation>Coordenadas de textura autogenerada</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1205"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1207"/>
         <source>  Duplicate</source>
         <translation>  Duplicar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1205"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1207"/>
         <source>Create copy of selected objects</source>
         <translation>Crear copia de objetos seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1206"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1208"/>
         <source>  Delete</source>
         <translation>  Eliminar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1206"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1208"/>
         <source>Remove selected objects</source>
         <translation>Eliminar objetos seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1207"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1209"/>
         <source>  Mesh Info</source>
         <translation>  Mesh Info</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1207"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1209"/>
         <source>Display detailed mesh information</source>
         <translation>Mostrar información detallada de malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1208"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1210"/>
         <source>  Select Parent</source>
         <translation>  Seleccionar padre</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1208"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1210"/>
         <source>Select the tree parent of the right-clicked item</source>
         <translation>Seleccionar el padre en el árbol del elemento en el que se hizo clic derecho</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1209"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1211"/>
         <source>  Split by Connectivity</source>
         <translation>  Dividir por conectividad</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1209"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1211"/>
         <source>Split each selected mesh into its disconnected pieces</source>
         <translation>Dividir cada malla seleccionada en sus piezas desconectadas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1210"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1212"/>
         <source>  Merge by Adjacency</source>
         <translation>  Fusionar por adyacencia</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1210"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1212"/>
         <source>Merge only the touching clusters within the selection</source>
         <translation>Fusionar solo los clústeres que se tocan dentro de la selección</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1211"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1213"/>
         <source>  Merge Selected</source>
         <translation>  Fusionar seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1211"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1213"/>
         <source>Combine the whole selection into one mesh</source>
         <translation>Combinar toda la selección en una sola malla</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1212"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1214"/>
         <source>  Mesh Union</source>
         <translation>  Unión de mallas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1212"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1214"/>
         <source>Combine the selection via a real CGAL boolean union</source>
         <translation>Combinar la selección mediante una unión booleana real de CGAL</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1213"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1215"/>
         <source>  Group</source>
         <translation>  Agrupar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1213"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1215"/>
         <source>Move the selected meshes into a new group node</source>
         <translation>Mover las mallas seleccionadas a un nuevo nodo de grupo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1215"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1217"/>
         <source>When no selection:</source>
         <translation>Cuando no hay selección:</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1216"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1218"/>
         <source>  Fit All</source>
         <translation>  Fit All</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1216"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1218"/>
         <source>Frame entire scene</source>
         <translation>Frame escena completa</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1217"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1219"/>
         <source>  Zoom Area</source>
         <translation>  Zona de zoom</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1217"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1219"/>
         <source>Enable window zoom mode</source>
         <translation>Modo de zoom de ventana</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1218"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1220"/>
         <source>  Select/Zoom/Pan/Rotate</source>
         <translation>  Select/Zoom/Pan/Rotate</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1218"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1220"/>
         <source>Activate view manipulation modes</source>
         <translation>Activar modos de manipulación de la vista</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1219"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1221"/>
         <source>  Show All</source>
         <translation>  Mostrar todos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1219"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1221"/>
         <source>Shift+A</source>
         <translation>Mayús+A</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1219"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1221"/>
         <source>Make all objects visible</source>
         <translation>Hacer visibles todos los objetos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1220"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1222"/>
         <source>  Hide All</source>
         <translation>  Escóndete</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1220"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1222"/>
         <source>Alt+A</source>
         <translation>Alt+A</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1220"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1222"/>
         <source>Hide all objects</source>
         <translation>Ocultar todos los objetos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1221"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1223"/>
         <source>  Swap Visible</source>
         <translation>  Swap Visible</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1221"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1223"/>
         <source>Alt+S</source>
         <translation>Alt+S</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1221"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1223"/>
         <source>Invert visibility of all objects</source>
         <translation>Invertir la visibilidad de todos los objetos</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1222"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1224"/>
         <source>  Background Color</source>
         <translation>  Color de Fondo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1222"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1224"/>
         <source>Change viewport background color</source>
         <translation>Cambiar vistaport color de fondo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1233"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1235"/>
         <source>Getting Started</source>
         <translation>Comienzo</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1234"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1236"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Opening Files:&lt;/b&gt; Drag and drop files directly onto the window, or use File → Open&lt;/li&gt;&lt;li&gt;&lt;b&gt;First View:&lt;/b&gt; Press &apos;F&apos; to frame your model perfectly in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Quick Navigation:&lt;/b&gt; Use Middle Mouse for rotation, Mouse Wheel for zoom, Right Mouse for pan&lt;/li&gt;&lt;li&gt;&lt;b&gt;Recent Files:&lt;/b&gt; Access recently opened files from File → Recent menu&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Abrir archivos:&lt;/b&gt; Arrastre y suelte los archivos directamente en la ventana o use Archivo → Abrir&lt;/li&gt;&lt;li&gt;&lt;b&gt;Primera vista:&lt;/b&gt; Presione &apos;F&apos; para encuadrar su modelo perfectamente en la ventana gráfica&lt;/li&gt;&lt;li&gt;&lt;b&gt;Navegación rápida:&lt;/b&gt; Use el botón central del mouse para rotar, la rueda del mouse para hacer zoom, el botón derecho del mouse para desplazarse&lt;/li&gt;&lt;li&gt;&lt;b&gt;Archivos recientes:&lt;/b&gt; Acceda a los archivos abiertos recientemente desde el menú Archivo → Reciente&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1241"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1243"/>
         <source>Selection Techniques</source>
         <translation>Técnicas de selección</translation>
     </message>
@@ -10194,37 +11372,36 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
         <translation type="vanished">&lt;ul&gt;&lt;li&gt;&lt;b&gt;Selección única:&lt;/b&gt; Haga clic con el botón izquierdo en un objeto en la ventana gráfica.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Selección múltiple:&lt;/b&gt; Arrastre un rectángulo con forma de banda elástica alrededor de varios objetos.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Alternar selección:&lt;/b&gt; Haga clic en un objeto ya seleccionado para deseleccionarlo.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Seleccionar de la lista:&lt;/b&gt; Use el panel de lista de objetos en el lado izquierdo.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Buscar objetos:&lt;/b&gt; Use el cuadro de búsqueda sobre la lista de objetos para filtrar por nombre.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1255"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1257"/>
         <source>Working with Visibility</source>
         <translation>Trabajar con Visibilidad</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1256"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1258"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Hide Selected:&lt;/b&gt; Press Space to temporarily hide objects you don&apos;t need&lt;/li&gt;&lt;li&gt;&lt;b&gt;Isolate:&lt;/b&gt; Press Shift+Space to focus on selected objects only&lt;/li&gt;&lt;li&gt;&lt;b&gt;Swap Visible:&lt;/b&gt; Press Alt+S to see what&apos;s hidden (and hide what&apos;s visible)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show All:&lt;/b&gt; Press Shift+A to bring everything back&lt;/li&gt;&lt;li&gt;&lt;b&gt;Visual Indicator:&lt;/b&gt; Hidden objects are grayed out in the object list&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Ocultar seleccionados:&lt;/b&gt; Presione la barra espaciadora para ocultar temporalmente los objetos que no necesita.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Aislar:&lt;/b&gt; Presione Mayús+Espacio para enfocarse solo en los objetos seleccionados.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Intercambiar visibles:&lt;/b&gt; Presione Alt+S para ver lo que está oculto (y ocultar lo que está visible).&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mostrar todo:&lt;/b&gt; Presione Mayús+A para recuperar todo.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Indicador visual:&lt;/b&gt; Los objetos ocultos aparecen en gris en la lista de objetos.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1264"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1266"/>
         <source>View Organization</source>
         <translation>View Organization</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1265"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Multiple Sessions:&lt;/b&gt; File → New creates additional viewer windows&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Layouts:&lt;/b&gt; Use Window menu to tile or cascade multiple documents&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-View Mode:&lt;/b&gt; Enable from toolbar to see four viewports simultaneously&lt;/li&gt;&lt;li&gt;&lt;b&gt;Standard Views:&lt;/b&gt; Use toolbar buttons for instant Top/Front/Side views&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axonometric Views:&lt;/b&gt; Choose Isometric/Dimetric/Trimetric for technical drawings&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sesiones múltiples:&lt;/b&gt; Archivo → Nuevo crea ventanas de visualización adicionales&lt;/li&gt;&lt;li&gt;&lt;b&gt;Diseños de ventana:&lt;/b&gt; Use el menú Ventana para organizar en mosaico o en cascada varios documentos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modo de vista múltiple:&lt;/b&gt; Habilite desde la barra de herramientas para ver cuatro ventanas gráficas simultáneamente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Vistas estándar:&lt;/b&gt; Use los botones de la barra de herramientas para vistas instantáneas Superior/Frontal/Lateral&lt;/li&gt;&lt;li&gt;&lt;b&gt;Vistas axonométricas:&lt;/b&gt; Elija Isométrica/Dimétrica/Trimétrica para dibujos técnicos&lt;/li&gt;&lt;/ul&gt;</translation>
+        <translation type="vanished">&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sesiones múltiples:&lt;/b&gt; Archivo → Nuevo crea ventanas de visualización adicionales&lt;/li&gt;&lt;li&gt;&lt;b&gt;Diseños de ventana:&lt;/b&gt; Use el menú Ventana para organizar en mosaico o en cascada varios documentos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modo de vista múltiple:&lt;/b&gt; Habilite desde la barra de herramientas para ver cuatro ventanas gráficas simultáneamente&lt;/li&gt;&lt;li&gt;&lt;b&gt;Vistas estándar:&lt;/b&gt; Use los botones de la barra de herramientas para vistas instantáneas Superior/Frontal/Lateral&lt;/li&gt;&lt;li&gt;&lt;b&gt;Vistas axonométricas:&lt;/b&gt; Elija Isométrica/Dimétrica/Trimétrica para dibujos técnicos&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1273"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1275"/>
         <source>Performance Tips</source>
         <translation>Consejos de rendimiento</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1274"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1276"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Large Models:&lt;/b&gt; Automatic low-res preview during manipulation for models &gt;50MB&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Mode:&lt;/b&gt; Switch to Shaded or Wireframe for better performance&lt;/li&gt;&lt;li&gt;&lt;b&gt;Progressive Loading:&lt;/b&gt; Large files load progressively with status updates&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadow Quality:&lt;/b&gt; Adjust in Environment settings if shadows are slow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hidden Objects:&lt;/b&gt; Hidden objects are still in memory but not rendered&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Modelos grandes:&lt;/b&gt; Vista previa automática de baja resolución durante la manipulación para modelos de más de 50 MB&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modo de visualización:&lt;/b&gt; Cambiar a Sombreado o Estructura alámbrica para un mejor rendimiento&lt;/li&gt;&lt;li&gt;&lt;b&gt;Carga progresiva:&lt;/b&gt; Los archivos grandes se cargan progresivamente con las actualizaciones de estado&lt;/li&gt;&lt;li&gt;&lt;b&gt;Calidad de las sombras:&lt;/b&gt; Ajustar en la configuración del entorno si las sombras son lentas&lt;/li&gt;&lt;li&gt;&lt;b&gt;Objetos ocultos:&lt;/b&gt; Los objetos ocultos siguen en la memoria, pero no se renderizan&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1282"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1284"/>
         <source>Materials and Appearance</source>
         <translation>Materiales y apariencia</translation>
     </message>
@@ -10234,48 +11411,53 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="175"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="887"/>
-        <location filename="../src/QuickHelpDialog.cpp" line="1293"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="889"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1295"/>
         <source>Advanced Features</source>
         <translation>Características avanzadas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1242"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1244"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Single Select:&lt;/b&gt; Left-click on an object in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-Select:&lt;/b&gt; Drag a rubber band rectangle around multiple objects&lt;/li&gt;&lt;li&gt;&lt;b&gt;Toggle Selection:&lt;/b&gt; Click on an already selected object to deselect it&lt;/li&gt;&lt;li&gt;&lt;b&gt;Select from List:&lt;/b&gt; Use the object list panel on the left side&lt;/li&gt;&lt;li&gt;&lt;b&gt;Search Objects:&lt;/b&gt; Use the search box above the object list to filter by name&lt;/li&gt;&lt;li&gt;&lt;b&gt;Lasso Select:&lt;/b&gt; Arm it from the View Toolbar for a freeform selection outline&lt;/li&gt;&lt;li&gt;&lt;b&gt;Filter by Material/Color:&lt;/b&gt; Use the Selection menu to select every mesh matching a material or color across the whole scene&lt;/li&gt;&lt;li&gt;&lt;b&gt;Named Selection Sets:&lt;/b&gt; Save a selection under a name from the Selections panel to recall it instantly later&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Selección única:&lt;/b&gt; Clic izquierdo sobre un objeto en el visor&lt;/li&gt;&lt;li&gt;&lt;b&gt;Selección múltiple:&lt;/b&gt; Arrastrar un rectángulo elástico alrededor de varios objetos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Alternar selección:&lt;/b&gt; Hacer clic en un objeto ya seleccionado para deseleccionarlo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Seleccionar desde la lista:&lt;/b&gt; Usar el panel de lista de objetos en el lado izquierdo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Buscar objetos:&lt;/b&gt; Usar el cuadro de búsqueda encima de la lista de objetos para filtrar por nombre&lt;/li&gt;&lt;li&gt;&lt;b&gt;Selección por lazo:&lt;/b&gt; Actívela desde la barra de herramientas de vista para un contorno de selección de forma libre&lt;/li&gt;&lt;li&gt;&lt;b&gt;Filtrar por material/color:&lt;/b&gt; Usar el menú Selección para seleccionar cada malla que coincida con un material o color en toda la escena&lt;/li&gt;&lt;li&gt;&lt;b&gt;Conjuntos de selección con nombre:&lt;/b&gt; Guardar una selección con un nombre desde el panel Selecciones para recuperarla al instante más tarde&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1283"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1267"/>
+        <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Multiple Sessions:&lt;/b&gt; File → New creates additional viewer windows&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Layouts:&lt;/b&gt; Use Window menu to tile or cascade multiple documents&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-View Mode:&lt;/b&gt; Enable from toolbar to see four viewports simultaneously&lt;/li&gt;&lt;li&gt;&lt;b&gt;Standard Views:&lt;/b&gt; Use toolbar buttons for instant Top/Front/Side views&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axonometric Views:&lt;/b&gt; Choose Isometric, Dimetric or Trimetric, and the compass corner (SE/NE/NW/SW) it is seen from, for technical drawings&lt;/li&gt;&lt;/ul&gt;</source>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Sesiones múltiples:&lt;/b&gt; Archivo → Nuevo crea ventanas de visor adicionales&lt;/li&gt;&lt;li&gt;&lt;b&gt;Disposiciones de ventana:&lt;/b&gt; Use el menú Ventana para organizar en mosaico o en cascada varios documentos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modo multivista:&lt;/b&gt; Actívelo desde la barra de herramientas para ver cuatro vistas a la vez&lt;/li&gt;&lt;li&gt;&lt;b&gt;Vistas estándar:&lt;/b&gt; Use los botones de la barra de herramientas para vistas Superior/Frontal/Lateral al instante&lt;/li&gt;&lt;li&gt;&lt;b&gt;Vistas axonométricas:&lt;/b&gt; Elija Isométrico, Dimétrico o Trimétrico y la esquina de la brújula (SE/NE/NO/SO) desde la que se ve, para dibujos técnicos&lt;/li&gt;&lt;/ul&gt;</translation>
+    </message>
+    <message>
+        <location filename="../src/QuickHelpDialog.cpp" line="1285"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Visualization Settings:&lt;/b&gt; Right-click object → Visualization Settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Material Editor:&lt;/b&gt; Use the left panel to edit colors, roughness, metallic properties&lt;/li&gt;&lt;li&gt;&lt;b&gt;Texture Mapping:&lt;/b&gt; Apply textures through the Texture Mapping panel&lt;/li&gt;&lt;li&gt;&lt;b&gt;Environment:&lt;/b&gt; Enable SkyBox and IBL for realistic lighting&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Modes:&lt;/b&gt; Switch to Realistic mode to see full PBR materials&lt;/li&gt;&lt;li&gt;&lt;b&gt;Eyedropper:&lt;/b&gt; Sample one mesh&apos;s material and brush it onto others from the Material Properties panel&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Ajustes de visualización:&lt;/b&gt; Clic derecho en el objeto → Ajustes de visualización&lt;/li&gt;&lt;li&gt;&lt;b&gt;Editor de materiales:&lt;/b&gt; Usar el panel izquierdo para editar colores, rugosidad y propiedades metálicas&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mapeo de texturas:&lt;/b&gt; Aplicar texturas a través del panel de mapeo de texturas&lt;/li&gt;&lt;li&gt;&lt;b&gt;Entorno:&lt;/b&gt; Activar SkyBox e IBL para una iluminación realista&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modos de visualización:&lt;/b&gt; Cambiar al modo Realista para ver materiales PBR completos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cuentagotas:&lt;/b&gt; Muestrear el material de una malla y aplicarlo sobre otras desde el panel Propiedades del material&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1294"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1296"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Clipping Planes:&lt;/b&gt; Use Section View to cut through models and see internals&lt;/li&gt;&lt;li&gt;&lt;b&gt;Transformations:&lt;/b&gt; Move, rotate, scale objects individually or in groups&lt;/li&gt;&lt;li&gt;&lt;b&gt;Floor Plane:&lt;/b&gt; Enable in Environment settings for shadow casting and reflections&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadows:&lt;/b&gt; Toggle real-time shadows in Environment settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Zoom:&lt;/b&gt; Zoom precisely into a specific region of interest&lt;/li&gt;&lt;li&gt;&lt;b&gt;UV Generation:&lt;/b&gt; Auto-generate texture coordinates for objects without UVs&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Planos de recorte:&lt;/b&gt; Use la vista de sección para cortar modelos y ver las partes internas.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Transformaciones:&lt;/b&gt; Mueva, gire y escale objetos individualmente o en grupos.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Plano de piso:&lt;/b&gt; Habilite en la configuración del entorno para la proyección de sombras y los reflejos.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sombras:&lt;/b&gt; Active o desactive las sombras en tiempo real en la configuración del entorno.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Zoom de ventana:&lt;/b&gt; Acerque con precisión una región de interés específica.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Generación de UV:&lt;/b&gt; Genere automáticamente las coordenadas de textura para objetos sin UV.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1303"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1305"/>
         <source>Measuring &amp; Documenting</source>
         <translation>Medir &amp;&amp; Documentar</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1304"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1306"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Measure:&lt;/b&gt; Tools → Measure... for point, distance, arc-radius, and other precision CAD measurements&lt;/li&gt;&lt;li&gt;&lt;b&gt;Annotate:&lt;/b&gt; Tools → Annotate... to pin text notes to specific points on the model&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capture Views First:&lt;/b&gt; Capture camera views on the Cameras tab before Export Report needs them - the report&apos;s view list is pulled from there&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Medir:&lt;/b&gt; Herramientas → Medir... para mediciones CAD de precisión de punto, distancia, radio de arco y otras&lt;/li&gt;&lt;li&gt;&lt;b&gt;Anotar:&lt;/b&gt; Herramientas → Anotar... para fijar notas de texto en puntos específicos del modelo&lt;/li&gt;&lt;li&gt;&lt;b&gt;Capturar vistas primero:&lt;/b&gt; Capture vistas de cámara en la pestaña Cámaras antes de que Exportar informe las necesite - la lista de vistas del informe se obtiene de ahí&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1312"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1314"/>
         <source>Troubleshooting</source>
         <translation>Solución de problemas</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1313"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1315"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Lost Objects:&lt;/b&gt; Press &apos;F&apos; to fit all, or check if objects are hidden&lt;/li&gt;&lt;li&gt;&lt;b&gt;Stuck in Mode:&lt;/b&gt; Press Esc to cancel any active operation&lt;/li&gt;&lt;li&gt;&lt;b&gt;Can&apos;t Select:&lt;/b&gt; Make sure you&apos;re not in a view manipulation mode (check cursor)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Black Screen:&lt;/b&gt; Check display mode and lighting settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Slow Performance:&lt;/b&gt; Try switching to Shaded mode or hiding some objects&lt;/li&gt;&lt;/ul&gt;</source>
         <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Objetos perdidos:&lt;/b&gt; Presione &apos;F&apos; para ajustar todo o verificar si los objetos están ocultos&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modo bloqueado:&lt;/b&gt; Presione Esc para cancelar cualquier operación activa&lt;/li&gt;&lt;li&gt;&lt;b&gt;No se puede seleccionar:&lt;/b&gt; Asegúrese de no estar en un modo de manipulación de vista (verifique el cursor)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Pantalla negra:&lt;/b&gt; Verifique el modo de visualización y la configuración de iluminación&lt;/li&gt;&lt;li&gt;&lt;b&gt;Rendimiento lento:&lt;/b&gt; Intente cambiar al modo sombreado u ocultar algunos objetos&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
-        <location filename="../src/QuickHelpDialog.cpp" line="1321"/>
+        <location filename="../src/QuickHelpDialog.cpp" line="1323"/>
         <source>Customization</source>
         <translation>Personalización</translation>
     </message>
@@ -10973,13 +12155,13 @@ reduciendo el ruido de la iluminación HDRI</translation>
     </message>
     <message>
         <location filename="../ui/RtRenderDialog.ui" line="757"/>
-        <location filename="../src/RtRenderDialog.cpp" line="641"/>
+        <location filename="../src/RtRenderDialog.cpp" line="603"/>
         <source>Stop</source>
         <translation>Detener</translation>
     </message>
     <message>
         <location filename="../ui/RtRenderDialog.ui" line="779"/>
-        <location filename="../src/RtRenderDialog.cpp" line="942"/>
+        <location filename="../src/RtRenderDialog.cpp" line="893"/>
         <source>Idle</source>
         <translation>Inactivo</translation>
     </message>
@@ -10998,19 +12180,19 @@ reduciendo el ruido de la iluminación HDRI</translation>
         <translation type="vanished">El propio reductor de ruido con IA de NVIDIA. Funciona con cualquiera de los motores de renderizado; recurre al filtro bilateral si no hay disponible ninguna GPU NVIDIA compatible con OptiX.</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="169"/>
+        <location filename="../src/RtRenderDialog.cpp" line="131"/>
         <source>NVIDIA&apos;s own AI denoiser. Works with either render engine - falls back
 to the bilateral filter if no OptiX-capable NVIDIA GPU is available.</source>
         <translation>El propio eliminador de ruido con IA de NVIDIA. Funciona con cualquiera de los motores de renderizado - recurre
 al filtro bilateral si no hay una GPU NVIDIA compatible con OptiX disponible.</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="500"/>
+        <location filename="../src/RtRenderDialog.cpp" line="462"/>
         <source>Offline Render Required</source>
         <translation>Se requiere renderizado sin conexión</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="501"/>
+        <location filename="../src/RtRenderDialog.cpp" line="463"/>
         <source>The requested export resolution (%1x%2) exceeds the current viewport size (%3x%4).
 
 This will run a fresh offline render at the requested resolution, which may take a while - you can cancel it at any time using the Cancel button that replaces Stop for the duration.
@@ -11023,147 +12205,175 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
 ¿Continuar?</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="520"/>
+        <location filename="../src/RtRenderDialog.cpp" line="482"/>
         <source>render</source>
         <translation>renderizado</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="543"/>
+        <location filename="../src/RtRenderDialog.cpp" line="505"/>
         <source>Export Ray-Traced Image</source>
         <translation>Exportar imagen trazada por rayos</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="544"/>
+        <location filename="../src/RtRenderDialog.cpp" line="506"/>
         <source>PNG Image (*.png);;JPEG Image (*.jpg *.jpeg);;BMP Image (*.bmp);;TIFF Image (*.tif *.tiff);;OpenEXR Image (*.exr)</source>
         <translation>Imagen PNG (*.png);;Imagen JPEG (*.jpg *.jpeg);;Imagen BMP (*.bmp);;Imagen TIFF (*.tif *.tiff);;Imagen OpenEXR (*.exr)</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="613"/>
+        <location filename="../src/RtRenderDialog.cpp" line="575"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="634"/>
+        <location filename="../src/RtRenderDialog.cpp" line="596"/>
         <source>Offline rendering... %1 / %2 samples (Cancel to stop)</source>
         <translation>Renderizado sin conexión... %1 / %2 muestras (Cancelar para detener)</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="671"/>
+        <location filename="../src/RtRenderDialog.cpp" line="633"/>
         <source>Export cancelled.</source>
         <translation>Exportación cancelada.</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="677"/>
-        <location filename="../src/RtRenderDialog.cpp" line="734"/>
-        <location filename="../src/RtRenderDialog.cpp" line="759"/>
+        <location filename="../src/RtRenderDialog.cpp" line="639"/>
+        <location filename="../src/RtRenderDialog.cpp" line="680"/>
+        <location filename="../src/RtRenderDialog.cpp" line="710"/>
         <source>Export Failed</source>
         <translation>Error de exportación</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="677"/>
+        <location filename="../src/RtRenderDialog.cpp" line="639"/>
         <source>Could not render at the requested resolution.</source>
         <translation>No se pudo renderizar a la resolución solicitada.</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="735"/>
+        <location filename="../src/RtRenderDialog.cpp" line="681"/>
         <source>No live ray-traced frame is available yet. Wait a moment for rendering to produce a frame, then try again.</source>
         <translation>Aún no hay ningún fotograma trazado por rayos en vivo disponible. Espere un momento a que el renderizado produzca un fotograma y vuelva a intentarlo.</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="759"/>
+        <location filename="../src/RtRenderDialog.cpp" line="710"/>
         <source>Could not write the image file. See the log for details.</source>
         <translation>No se pudo escribir el archivo de imagen. Consulte el registro para más detalles.</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="768"/>
+        <location filename="../src/RtRenderDialog.cpp" line="719"/>
         <source>Export Complete</source>
         <translation>Exportación completa</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="769"/>
+        <location filename="../src/RtRenderDialog.cpp" line="720"/>
         <source>Image exported successfully to:
 %1</source>
         <translation>Imagen exportada correctamente a:
 %1</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="770"/>
+        <location filename="../src/RtRenderDialog.cpp" line="721"/>
         <source>Open File</source>
         <translation>Abrir archivo</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="771"/>
+        <location filename="../src/RtRenderDialog.cpp" line="722"/>
         <source>Open Containing Folder</source>
         <translation>Abrir carpeta contenedora</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="941"/>
+        <location filename="../src/RtRenderDialog.cpp" line="892"/>
         <source>Rendering... %1 / %2 samples</source>
         <translation>Renderizando... %1 / %2 muestras</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="942"/>
+        <location filename="../src/RtRenderDialog.cpp" line="893"/>
         <source>Converged: %1 / %2 samples</source>
         <translation>Convergido: %1 / %2 muestras</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1052"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1003"/>
         <source>Elapsed: %1:%2</source>
         <translation>Transcurrido: %1:%2</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1066"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1070"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1074"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1105"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1106"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1109"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1017"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1021"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1025"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1056"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1057"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1060"/>
         <source>N/A</source>
         <translation>N/D</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1068"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1077"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1078"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1079"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1019"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1028"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1029"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1030"/>
         <source>N/A (CPU engine)</source>
         <translation>N/D (motor CPU)</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1069"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1020"/>
         <source>Hardware RT</source>
         <translation>RT por hardware</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1069"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1020"/>
         <source>Software (megakernel)</source>
         <translation>Software (megakernel)</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1073"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1024"/>
         <source>%1 x %2</source>
         <translation>%1 x %2</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1078"/>
-        <location filename="../src/RtRenderDialog.cpp" line="1079"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1029"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1030"/>
         <source>%1 ms</source>
         <translation>%1 ms</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1093"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1044"/>
         <source>%1 M</source>
         <translation>%1 M</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1101"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1052"/>
         <source>~%1</source>
         <translation>~%1</translation>
     </message>
     <message>
-        <location filename="../src/RtRenderDialog.cpp" line="1109"/>
+        <location filename="../src/RtRenderDialog.cpp" line="1060"/>
         <source>%1 s</source>
         <translation>%1 s</translation>
+    </message>
+</context>
+<context>
+    <name>SceneStatesPanel</name>
+    <message>
+        <location filename="../src/SceneStatesPanel.cpp" line="17"/>
+        <source>Saved scene states for this document:</source>
+        <translation>Estados de escena guardados para este documento:</translation>
+    </message>
+    <message>
+        <location filename="../src/SceneStatesPanel.cpp" line="23"/>
+        <source>Save Current State...</source>
+        <translation>Guardar estado actual...</translation>
+    </message>
+    <message>
+        <location filename="../src/SceneStatesPanel.cpp" line="24"/>
+        <source>Delete</source>
+        <translation>Eliminar</translation>
+    </message>
+    <message>
+        <location filename="../src/SceneStatesPanel.cpp" line="70"/>
+        <source>Save Scene State</source>
+        <translation>Guardar estado de escena</translation>
+    </message>
+    <message>
+        <location filename="../src/SceneStatesPanel.cpp" line="71"/>
+        <source>Name for this state:</source>
+        <translation>Nombre de este estado:</translation>
     </message>
 </context>
 <context>
@@ -11330,89 +12540,89 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation>Animar ajuste progresivo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="313"/>
+        <location filename="../ui/SettingsDialog.ui" line="336"/>
         <source>Camera</source>
         <translation>Cámara</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="321"/>
+        <location filename="../ui/SettingsDialog.ui" line="344"/>
         <source>Projection</source>
         <translation>Proyección</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="328"/>
+        <location filename="../ui/SettingsDialog.ui" line="351"/>
         <source>Select projection mode</source>
         <translation>Seleccionar el modo de proyección</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="332"/>
+        <location filename="../ui/SettingsDialog.ui" line="355"/>
         <source>Orthographic</source>
         <translation>Ortográfico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="337"/>
+        <location filename="../ui/SettingsDialog.ui" line="360"/>
         <source>Perspective</source>
         <translation>Perspectiva</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="349"/>
+        <location filename="../ui/SettingsDialog.ui" line="372"/>
         <source>View</source>
         <translation>Ver</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="356"/>
-        <location filename="../ui/SettingsDialog.ui" line="409"/>
+        <location filename="../ui/SettingsDialog.ui" line="379"/>
+        <location filename="../ui/SettingsDialog.ui" line="432"/>
         <source>Select default camera view</source>
         <translation>Seleccionar la vista de cámara predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="360"/>
-        <location filename="../ui/SettingsDialog.ui" line="413"/>
+        <location filename="../ui/SettingsDialog.ui" line="383"/>
+        <location filename="../ui/SettingsDialog.ui" line="436"/>
         <source>Isometric</source>
         <translation>Isométrico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="365"/>
+        <location filename="../ui/SettingsDialog.ui" line="388"/>
         <source>Top</source>
         <translation>Top</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="370"/>
+        <location filename="../ui/SettingsDialog.ui" line="393"/>
         <source>Front</source>
         <translation>Frente</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="375"/>
+        <location filename="../ui/SettingsDialog.ui" line="398"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="380"/>
+        <location filename="../ui/SettingsDialog.ui" line="403"/>
         <source>Bottom</source>
         <translation>Del fondo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="385"/>
+        <location filename="../ui/SettingsDialog.ui" line="408"/>
         <source>Rear</source>
         <translation>Trasero</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="390"/>
+        <location filename="../ui/SettingsDialog.ui" line="413"/>
         <source>Right</source>
         <translation>Bien</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="402"/>
+        <location filename="../ui/SettingsDialog.ui" line="425"/>
         <source>Axonometric Mode</source>
         <translation>Modo Axonométrico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="418"/>
+        <location filename="../ui/SettingsDialog.ui" line="441"/>
         <source>Dimetric</source>
         <translation>Dimétrico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="423"/>
+        <location filename="../ui/SettingsDialog.ui" line="446"/>
         <source>Trimetric</source>
         <translation>Trimétrico</translation>
     </message>
@@ -11421,7 +12631,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Habilitar la Rotación del Trackball</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="433"/>
+        <location filename="../ui/SettingsDialog.ui" line="456"/>
         <source>Invert Zoom Direction</source>
         <translation>Invertir Dirección de Zoom</translation>
     </message>
@@ -11434,83 +12644,86 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="805"/>
+        <location filename="../ui/SettingsDialog.ui" line="877"/>
         <source>Background</source>
         <translation>Antecedentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="811"/>
+        <location filename="../ui/SettingsDialog.ui" line="883"/>
         <source>Background Style</source>
         <translation>Estilo de Fondo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="825"/>
+        <location filename="../ui/SettingsDialog.ui" line="897"/>
         <source>Gradient</source>
         <translation>Gradiente</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="830"/>
+        <location filename="../ui/SettingsDialog.ui" line="902"/>
         <source>Solid</source>
         <translation>Sólido</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="838"/>
+        <location filename="../ui/SettingsDialog.ui" line="910"/>
         <source>Top Color</source>
         <translation>Color Superior</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="854"/>
-        <location filename="../ui/SettingsDialog.ui" line="878"/>
+        <location filename="../ui/SettingsDialog.ui" line="926"/>
+        <location filename="../ui/SettingsDialog.ui" line="950"/>
+        <location filename="../ui/SettingsDialog.ui" line="1610"/>
         <source>Choose...</source>
         <translation>Elegir...</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="861"/>
+        <location filename="../ui/SettingsDialog.ui" line="933"/>
         <source>Bottom Color</source>
         <translation>Color de Fondo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="885"/>
+        <location filename="../ui/SettingsDialog.ui" line="957"/>
         <source>Gradient Style</source>
         <translation>Estilo Elegante</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="899"/>
+        <location filename="../ui/SettingsDialog.ui" line="971"/>
+        <location filename="../ui/SettingsDialog.ui" line="1498"/>
         <source>Vertical</source>
         <translation>Vertical</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="904"/>
+        <location filename="../ui/SettingsDialog.ui" line="976"/>
+        <location filename="../ui/SettingsDialog.ui" line="1493"/>
         <source>Horizontal</source>
         <translation>Horizontal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="909"/>
+        <location filename="../ui/SettingsDialog.ui" line="981"/>
         <source>Top Left to Bottom Right</source>
         <translation>Parte superior izquierda a derecha inferior</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="914"/>
+        <location filename="../ui/SettingsDialog.ui" line="986"/>
         <source>Top Rightto Bottom Left</source>
         <translation>De arriba a la derecha a abajo a la izquierda</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="592"/>
+        <location filename="../ui/SettingsDialog.ui" line="615"/>
         <source>Display</source>
         <translation>Mostrar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="598"/>
+        <location filename="../ui/SettingsDialog.ui" line="639"/>
         <source>Viewport</source>
         <translation>Ventana Gráfica</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="664"/>
+        <location filename="../ui/SettingsDialog.ui" line="705"/>
         <source>Show Bounding Box</source>
         <translation>Mostrar Cuadro Delimitador</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="713"/>
+        <location filename="../ui/SettingsDialog.ui" line="754"/>
         <source>Show Corner Trihedron</source>
         <translation>Triedro de Esquina de Exhibición</translation>
     </message>
@@ -11519,7 +12732,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Plano Lejano:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="604"/>
+        <location filename="../ui/SettingsDialog.ui" line="645"/>
         <source>Field of View:</source>
         <translation>Campo de Vista:</translation>
     </message>
@@ -11532,12 +12745,12 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Mostrar Cuadrícula</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="723"/>
+        <location filename="../ui/SettingsDialog.ui" line="764"/>
         <source>Show Wireframe</source>
         <translation>Mostrar Wireframe</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="611"/>
+        <location filename="../ui/SettingsDialog.ui" line="652"/>
         <source>Show Center Trihedron</source>
         <translation>Triedro del Centro de Exposiciones</translation>
     </message>
@@ -11582,52 +12795,52 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation></translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="442"/>
+        <location filename="../ui/SettingsDialog.ui" line="465"/>
         <source>Default Up Axis</source>
         <translation>Eje vertical predeterminado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="449"/>
+        <location filename="../ui/SettingsDialog.ui" line="472"/>
         <source>Select default camera up axis for new views</source>
         <translation>Seleccione el eje vertical predeterminado de la cámara para las nuevas vistas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="453"/>
+        <location filename="../ui/SettingsDialog.ui" line="476"/>
         <source>Z-Up</source>
         <translation>Z-Arriba</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="458"/>
+        <location filename="../ui/SettingsDialog.ui" line="481"/>
         <source>Y-Up</source>
         <translation>Y-Arriba</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="529"/>
+        <location filename="../ui/SettingsDialog.ui" line="552"/>
         <source>Wheel Sensitivity:</source>
         <translation>Sensibilidad de la rueda:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="654"/>
+        <location filename="../ui/SettingsDialog.ui" line="695"/>
         <source>Show View Cube</source>
         <translation>Mostrar cubo de vista</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="677"/>
+        <location filename="../ui/SettingsDialog.ui" line="718"/>
         <source>Show Vertex Normals</source>
         <translation>Mostrar normales de vértices</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="690"/>
+        <location filename="../ui/SettingsDialog.ui" line="731"/>
         <source>Show Face Normals</source>
         <translation>Mostrar normales de caras</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="749"/>
+        <location filename="../ui/SettingsDialog.ui" line="790"/>
         <source>Position</source>
         <translation>Posición</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="631"/>
+        <location filename="../ui/SettingsDialog.ui" line="672"/>
         <source>Top Left</source>
         <translation>Arriba a la Izquierda</translation>
     </message>
@@ -11637,42 +12850,42 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation>Límite de Deshacer</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="636"/>
+        <location filename="../ui/SettingsDialog.ui" line="677"/>
         <source>Top Right</source>
         <translation>Arriba a la Derecha</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="641"/>
+        <location filename="../ui/SettingsDialog.ui" line="682"/>
         <source>Bottom Left</source>
         <translation>Abajo a la Izquierda</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="646"/>
+        <location filename="../ui/SettingsDialog.ui" line="687"/>
         <source>Bottom Right</source>
         <translation>Abajo a la Derecha</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="468"/>
+        <location filename="../ui/SettingsDialog.ui" line="491"/>
         <source>Navigation</source>
         <translation>Navegación</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="474"/>
+        <location filename="../ui/SettingsDialog.ui" line="497"/>
         <source>Navigation Mode:</source>
         <translation>Modo de Navegación:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="485"/>
+        <location filename="../ui/SettingsDialog.ui" line="508"/>
         <source>Orbit</source>
         <translation>Órbita</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="490"/>
+        <location filename="../ui/SettingsDialog.ui" line="513"/>
         <source>Fly</source>
         <translation>Volar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="495"/>
+        <location filename="../ui/SettingsDialog.ui" line="518"/>
         <source>First Person</source>
         <translation>Primera Persona</translation>
     </message>
@@ -11681,7 +12894,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Camina</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="503"/>
+        <location filename="../ui/SettingsDialog.ui" line="526"/>
         <source>Mouse Sensitivity:</source>
         <translation>Sensibilidad del Ratón:</translation>
     </message>
@@ -11690,66 +12903,67 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Sensibilidad del Zoom:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="555"/>
+        <location filename="../ui/SettingsDialog.ui" line="578"/>
         <source>Invert Y-Axis</source>
         <translation>Invertir el eje Y</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="565"/>
+        <location filename="../ui/SettingsDialog.ui" line="588"/>
         <source>Smooth Navigation</source>
         <translation>Navegación fluida</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="756"/>
+        <location filename="../ui/SettingsDialog.ui" line="797"/>
         <source>Hover Highlight Mode:</source>
         <translation>Modo de resaltado al pasar el ratón:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="774"/>
+        <location filename="../ui/SettingsDialog.ui" line="815"/>
         <source>Ray-cast Preview</source>
         <translation>Vista previa por lanzamiento de rayos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="779"/>
+        <location filename="../ui/SettingsDialog.ui" line="820"/>
         <source>Accurate</source>
         <translation>Preciso</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="784"/>
+        <location filename="../ui/SettingsDialog.ui" line="825"/>
         <source>Disabled</source>
         <translation>Desactivado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="922"/>
+        <location filename="../ui/SettingsDialog.ui" line="994"/>
         <source>Default Skybox</source>
         <translation>Skybox predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="931"/>
+        <location filename="../ui/SettingsDialog.ui" line="1003"/>
         <source>HDRI:</source>
         <translation>HDRI:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="951"/>
+        <location filename="../ui/SettingsDialog.ui" line="1023"/>
         <source>LDRI:</source>
         <translation>LDRI:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="990"/>
+        <location filename="../ui/SettingsDialog.ui" line="1066"/>
         <source>Rendering</source>
         <translation>Representación</translation>
     </message>
     <message>
+        <location filename="../ui/SettingsDialog.ui" line="1448"/>
         <source>Default Mode</source>
-        <translation type="vanished">Modo Predeterminado</translation>
+        <translation>Modo Predeterminado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1007"/>
+        <location filename="../ui/SettingsDialog.ui" line="1101"/>
         <source>Shaded</source>
         <translation>Sombreado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1022"/>
+        <location filename="../ui/SettingsDialog.ui" line="1116"/>
         <source>Wireframe</source>
         <translation>Estructura alámbrica</translation>
     </message>
@@ -11758,7 +12972,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Sombreado por Cables</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1038"/>
+        <location filename="../ui/SettingsDialog.ui" line="1132"/>
         <source>Enable Backface Culling</source>
         <translation>Habilitar la Eeliminación de Cara Posterior</translation>
     </message>
@@ -11767,7 +12981,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Activar Soporte de Mapa Normal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1045"/>
+        <location filename="../ui/SettingsDialog.ui" line="1139"/>
         <source>Shader Settings</source>
         <translation>Ajustes de Afeitado</translation>
     </message>
@@ -11788,107 +13002,107 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">PBR (basado físicamente)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1091"/>
+        <location filename="../ui/SettingsDialog.ui" line="1185"/>
         <source>Flat</source>
         <translation>Piso</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1099"/>
+        <location filename="../ui/SettingsDialog.ui" line="1193"/>
         <source>MSAA Samples:</source>
         <translation>MSAA Muestras:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1110"/>
+        <location filename="../ui/SettingsDialog.ui" line="1204"/>
         <source>1 (No MSAA)</source>
         <translation>1 (No MSAA)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1115"/>
+        <location filename="../ui/SettingsDialog.ui" line="1209"/>
         <source>2</source>
         <translation>2</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1120"/>
+        <location filename="../ui/SettingsDialog.ui" line="1214"/>
         <source>4</source>
         <translation>4</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1125"/>
+        <location filename="../ui/SettingsDialog.ui" line="1219"/>
         <source>8</source>
         <translation>8</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1130"/>
+        <location filename="../ui/SettingsDialog.ui" line="1224"/>
         <source>16</source>
         <translation>16</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1138"/>
+        <location filename="../ui/SettingsDialog.ui" line="1232"/>
         <source>Anisotropic Filtering:</source>
         <translation>Filtrado Anisotrópico:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1149"/>
+        <location filename="../ui/SettingsDialog.ui" line="1243"/>
         <source>1x (Off)</source>
         <translation>1x (Off)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1154"/>
+        <location filename="../ui/SettingsDialog.ui" line="1248"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1159"/>
+        <location filename="../ui/SettingsDialog.ui" line="1253"/>
         <source>4x</source>
         <translation>4x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1164"/>
+        <location filename="../ui/SettingsDialog.ui" line="1258"/>
         <source>8x</source>
         <translation>8x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1169"/>
+        <location filename="../ui/SettingsDialog.ui" line="1263"/>
         <source>16x</source>
         <translation>16x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1182"/>
+        <location filename="../ui/SettingsDialog.ui" line="1276"/>
         <source>Lighting</source>
         <translation>Iluminación</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1188"/>
+        <location filename="../ui/SettingsDialog.ui" line="1282"/>
         <source>Enable Lighting</source>
         <translation>Habilitar Iluminación</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1198"/>
+        <location filename="../ui/SettingsDialog.ui" line="1292"/>
         <source>Enable Shadows</source>
         <translation>Habilitar Sombras</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1205"/>
+        <location filename="../ui/SettingsDialog.ui" line="1299"/>
         <source>Ambient Light:</source>
         <translation>Luz Ambiente:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1231"/>
+        <location filename="../ui/SettingsDialog.ui" line="1325"/>
         <source>Diffuse Light:</source>
         <translation>Luz Difusa:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1257"/>
+        <location filename="../ui/SettingsDialog.ui" line="1351"/>
         <source>Specular Light:</source>
         <translation>Luz Especular:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1286"/>
+        <location filename="../ui/SettingsDialog.ui" line="1380"/>
         <source>Materials</source>
         <translation>Materiales</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1295"/>
+        <location filename="../ui/SettingsDialog.ui" line="1389"/>
         <source>Default Texture Directory</source>
         <translation>Directorio de la Textura Predeterminada</translation>
     </message>
@@ -11901,7 +13115,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Metal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1318"/>
+        <location filename="../ui/SettingsDialog.ui" line="1412"/>
         <source>Glass</source>
         <translation>Cristal</translation>
     </message>
@@ -11910,67 +13124,67 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Aduanas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1336"/>
+        <location filename="../ui/SettingsDialog.ui" line="1430"/>
         <source>Default Material</source>
         <translation>Material Predeterminado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1362"/>
+        <location filename="../ui/SettingsDialog.ui" line="1638"/>
         <source>UV Generation</source>
         <translation>Generación UV</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1373"/>
+        <location filename="../ui/SettingsDialog.ui" line="1649"/>
         <source>Angle-Based Smart UV</source>
         <translation>UV Inteligente Basado en ángulos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1378"/>
+        <location filename="../ui/SettingsDialog.ui" line="1654"/>
         <source>Angle-Based</source>
         <translation>Basado en ángulos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1383"/>
+        <location filename="../ui/SettingsDialog.ui" line="1659"/>
         <source>Hybrid</source>
         <translation>Híbrido</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1388"/>
+        <location filename="../ui/SettingsDialog.ui" line="1664"/>
         <source>Planar</source>
         <translation>Planar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1393"/>
+        <location filename="../ui/SettingsDialog.ui" line="1669"/>
         <source>Cylindrical</source>
         <translation>Cilíndrico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1398"/>
+        <location filename="../ui/SettingsDialog.ui" line="1674"/>
         <source>Spherical</source>
         <translation>Esférico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1409"/>
+        <location filename="../ui/SettingsDialog.ui" line="1685"/>
         <source>Angle: </source>
         <translation>Ángulo: </translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1412"/>
+        <location filename="../ui/SettingsDialog.ui" line="1688"/>
         <source>°</source>
         <translation>°</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1428"/>
+        <location filename="../ui/SettingsDialog.ui" line="1704"/>
         <source>Preserve Existing UVs</source>
         <translation>Preservar los UV Existentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1441"/>
+        <location filename="../ui/SettingsDialog.ui" line="1717"/>
         <source>Auto Pack UVs</source>
         <translation>UV de Empaque Automático</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1455"/>
+        <location filename="../ui/SettingsDialog.ui" line="1731"/>
         <source>Relax UVs</source>
         <translation>Relájese con los Rrayos UV</translation>
     </message>
@@ -11983,28 +13197,28 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Utilice xatlas solo para Empacar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1462"/>
+        <location filename="../ui/SettingsDialog.ui" line="1738"/>
         <source>Remember Last Used UV Method</source>
         <translation>Recordar el último Método UV Utilizado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1473"/>
+        <location filename="../ui/SettingsDialog.ui" line="1749"/>
         <source>Reset UV Prompt Setting</source>
         <translation>Restablecer Configuración del Indicador UV</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1494"/>
+        <location filename="../ui/SettingsDialog.ui" line="1770"/>
         <source>Import Export</source>
         <translation>Importación Exportación</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1515"/>
+        <location filename="../ui/SettingsDialog.ui" line="1791"/>
         <source>OpenCascade Import Settings</source>
         <translation>Configuración de importación de OpenCascade</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1521"/>
-        <location filename="../ui/SettingsDialog.ui" line="1608"/>
+        <location filename="../ui/SettingsDialog.ui" line="1797"/>
+        <location filename="../ui/SettingsDialog.ui" line="1884"/>
         <source>Supported Formats:</source>
         <translation>Formatos compatibles:</translation>
     </message>
@@ -12017,12 +13231,12 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Calidad de Teselación:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1544"/>
+        <location filename="../ui/SettingsDialog.ui" line="1820"/>
         <source>Linear Deflection:</source>
         <translation>Desviación Lineal:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1570"/>
+        <location filename="../ui/SettingsDialog.ui" line="1846"/>
         <source>Angular Deflection:</source>
         <translation>Desviación Angular:</translation>
     </message>
@@ -12039,12 +13253,12 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Construir Curvas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1602"/>
+        <location filename="../ui/SettingsDialog.ui" line="1878"/>
         <source>Assimp Import Settings</source>
         <translation>Configuración de Importación de Assimp</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1615"/>
+        <location filename="../ui/SettingsDialog.ui" line="1891"/>
         <source>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</source>
         <translation>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</translation>
     </message>
@@ -12053,27 +13267,27 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Caras Triangulares</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1628"/>
+        <location filename="../ui/SettingsDialog.ui" line="1904"/>
         <source>Generate Normals</source>
         <translation>Generar Normales</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1641"/>
+        <location filename="../ui/SettingsDialog.ui" line="1917"/>
         <source>Smooth Normals</source>
         <translation>Normales Suaves</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1654"/>
+        <location filename="../ui/SettingsDialog.ui" line="1930"/>
         <source>Calculate Tangents</source>
         <translation>Calcular Tangentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1667"/>
+        <location filename="../ui/SettingsDialog.ui" line="1943"/>
         <source>Optimize Mesh</source>
         <translation>Optimizar Malla</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1677"/>
+        <location filename="../ui/SettingsDialog.ui" line="1953"/>
         <source>Remove Duplicate Vertices</source>
         <translation>Eliminar Vértices Duplicados</translation>
     </message>
@@ -12086,12 +13300,12 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Modelos de escala automática</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1691"/>
+        <location filename="../ui/SettingsDialog.ui" line="1967"/>
         <source>Auto Orient Models</source>
         <translation>Modelos de uso automático</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1704"/>
+        <location filename="../ui/SettingsDialog.ui" line="1980"/>
         <source>Export Settings</source>
         <translation>Configuración de Exportación</translation>
     </message>
@@ -12133,7 +13347,7 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Max FPS:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="792"/>
+        <location filename="../ui/SettingsDialog.ui" line="833"/>
         <source>Enable V-Sync</source>
         <translation>Activar V-Sync</translation>
     </message>
@@ -12214,13 +13428,13 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Compatibilidad de la Fuerza Legado OpenGL Modo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1752"/>
-        <location filename="../ui/SettingsDialog.ui" line="1786"/>
+        <location filename="../ui/SettingsDialog.ui" line="2028"/>
+        <location filename="../ui/SettingsDialog.ui" line="2062"/>
         <source>Debug</source>
         <translation>Depurar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1758"/>
+        <location filename="../ui/SettingsDialog.ui" line="2034"/>
         <source>Debug Information</source>
         <translation>Información de Depuración</translation>
     </message>
@@ -12237,22 +13451,22 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Mostrar Información de OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1764"/>
+        <location filename="../ui/SettingsDialog.ui" line="2040"/>
         <source>Enable Debug Logging</source>
         <translation>Habilitar el Registro de Depuración</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1778"/>
+        <location filename="../ui/SettingsDialog.ui" line="2054"/>
         <source>Log Level:</source>
         <translation>Nivel de Registro:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1801"/>
+        <location filename="../ui/SettingsDialog.ui" line="2077"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1771"/>
+        <location filename="../ui/SettingsDialog.ui" line="2047"/>
         <source>Enable Console Output</source>
         <translation>Activación de consolas</translation>
     </message>
@@ -12283,306 +13497,420 @@ todos a la vez</translation>
         <translation>Animar el ajuste de cámara a medida que llegan mallas cargadas progresivamente</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="481"/>
+        <location filename="../ui/SettingsDialog.ui" line="297"/>
+        <source>Navigation Tree Font Size</source>
+        <translation>Tamaño de fuente del árbol de navegación</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="304"/>
+        <source>Point size of the Scene Tree / Navigation panel&apos;s text</source>
+        <translation>Tamaño en puntos del texto del árbol de escena / panel de navegación</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="504"/>
         <source>Default camera control scheme (Orbit, Fly, First Person, etc.)</source>
         <translation>Esquema de control de cámara predeterminado (Órbita, Vuelo, Primera persona, etc.)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="510"/>
+        <location filename="../ui/SettingsDialog.ui" line="533"/>
         <source>How fast the camera responds to mouse movement</source>
         <translation>Qué tan rápido responde la cámara al movimiento del ratón</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="536"/>
+        <location filename="../ui/SettingsDialog.ui" line="559"/>
         <source>How fast the camera responds to zoom input</source>
         <translation>Qué tan rápido responde la cámara a la entrada de zoom</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="562"/>
+        <location filename="../ui/SettingsDialog.ui" line="585"/>
         <source>Ease camera movement with inertia instead of moving instantly</source>
         <translation>Suavizar el movimiento de la cámara con inercia en lugar de moverse instantáneamente</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="674"/>
+        <location filename="../ui/SettingsDialog.ui" line="715"/>
         <source>Debug overlay: draw a line per vertex normal</source>
         <translation>Superposición de depuración: dibujar una línea por normal de vértice</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="687"/>
+        <location filename="../ui/SettingsDialog.ui" line="728"/>
         <source>Debug overlay: draw a line per face normal</source>
         <translation>Superposición de depuración: dibujar una línea por normal de cara</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="733"/>
+        <location filename="../ui/SettingsDialog.ui" line="774"/>
         <source>Default camera field of view, in degrees</source>
         <translation>Campo de visión de cámara predeterminado, en grados</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="763"/>
+        <location filename="../ui/SettingsDialog.ui" line="804"/>
         <source>How hovering highlights a mesh: fast ray-cast preview, full
 accurate render, or off</source>
         <translation>Cómo el desplazamiento resalta una malla: vista previa rápida por raycast, renderizado
 completo preciso, o desactivado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="845"/>
+        <location filename="../ui/SettingsDialog.ui" line="843"/>
+        <source>Overlay Text Scale:</source>
+        <translation>Escala del texto superpuesto:</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="850"/>
+        <source>Size multiplier for in-viewport text: Measurement/Annotation
+labels, the plane-gizmo drag readout, and the Surface Analysis
+hover readout</source>
+        <translation>Multiplicador de tamaño del texto en la vista: etiquetas de
+medición/anotación, la lectura de arrastre del gizmo de plano y la
+lectura al pasar el cursor de Análisis de superficie</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="917"/>
         <source>Pick the background&apos;s top (or solid) color</source>
         <translation>Elegir el color superior (o sólido) del fondo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="868"/>
+        <location filename="../ui/SettingsDialog.ui" line="940"/>
         <source>Pick the background&apos;s bottom color (used when Gradient is
 on)</source>
         <translation>Elegir el color inferior del fondo (usado cuando el degradado está
 activado)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="938"/>
+        <location filename="../ui/SettingsDialog.ui" line="1010"/>
         <source>Default HDRI environment map for new documents</source>
         <translation>Mapa de entorno HDRI predeterminado para documentos nuevos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="958"/>
+        <location filename="../ui/SettingsDialog.ui" line="1030"/>
         <source>Default plain skybox image for new documents</source>
         <translation>Imagen de skybox liso predeterminada para documentos nuevos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="996"/>
+        <location filename="../ui/SettingsDialog.ui" line="1090"/>
         <source>Display Mode</source>
         <translation>Modo de visualización</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1003"/>
+        <location filename="../ui/SettingsDialog.ui" line="1097"/>
         <source>Default shading mode for new viewports</source>
         <translation>Modo de sombreado predeterminado para nuevos viewports</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1012"/>
+        <location filename="../ui/SettingsDialog.ui" line="1106"/>
         <source>Hollow Mesh</source>
         <translation>Malla hueca</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1017"/>
+        <location filename="../ui/SettingsDialog.ui" line="1111"/>
         <source>Mesh Edges</source>
         <translation>Bordes de malla</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1027"/>
+        <location filename="../ui/SettingsDialog.ui" line="1121"/>
         <source>Shaded with Edges</source>
         <translation>Sombreado con bordes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1035"/>
+        <location filename="../ui/SettingsDialog.ui" line="1129"/>
         <source>Hide the back faces of surfaces by default</source>
         <translation>Ocultar las caras traseras de las superficies por defecto</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1051"/>
+        <location filename="../ui/SettingsDialog.ui" line="1145"/>
         <source>Rendering Model:</source>
         <translation>Modelo de renderizado:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1058"/>
+        <location filename="../ui/SettingsDialog.ui" line="1152"/>
         <source>Default lighting model used to render materials</source>
         <translation>Modelo de iluminación predeterminado usado para renderizar materiales</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1062"/>
+        <location filename="../ui/SettingsDialog.ui" line="1156"/>
         <source>Blinn-Phong (ADS)</source>
         <translation>Blinn-Phong (ADS)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1067"/>
+        <location filename="../ui/SettingsDialog.ui" line="1161"/>
         <source>Physically Based (PBR)</source>
         <translation>Basado en física (PBR)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1075"/>
+        <location filename="../ui/SettingsDialog.ui" line="1169"/>
         <source>Shading Normal:</source>
         <translation>Normal de sombreado:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1082"/>
+        <location filename="../ui/SettingsDialog.ui" line="1176"/>
         <source>Default normal interpolation: smooth or flat shading</source>
         <translation>Interpolación normal predeterminada: sombreado suave o plano</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1086"/>
+        <location filename="../ui/SettingsDialog.ui" line="1180"/>
         <source>Smooth</source>
         <translation>Suave</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1106"/>
+        <location filename="../ui/SettingsDialog.ui" line="1200"/>
         <source>Default multisample anti-aliasing level</source>
         <translation>Nivel de antialiasing multimuestra predeterminado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1145"/>
+        <location filename="../ui/SettingsDialog.ui" line="1239"/>
         <source>Default anisotropic texture filtering level</source>
         <translation>Nivel predeterminado de filtrado anisotrópico de texturas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1212"/>
+        <location filename="../ui/SettingsDialog.ui" line="1306"/>
         <source>Default ambient light contribution</source>
         <translation>Contribución de luz ambiental predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1238"/>
+        <location filename="../ui/SettingsDialog.ui" line="1332"/>
         <source>Default diffuse light contribution</source>
         <translation>Contribución de luz difusa predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1264"/>
+        <location filename="../ui/SettingsDialog.ui" line="1358"/>
         <source>Default specular light contribution</source>
         <translation>Contribución de luz especular predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1303"/>
+        <location filename="../ui/SettingsDialog.ui" line="1397"/>
         <source>Default (Neutral)</source>
         <translation>Predeterminado (Neutro)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1308"/>
+        <location filename="../ui/SettingsDialog.ui" line="1402"/>
         <source>Plastic (White)</source>
         <translation>Plástico (Blanco)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1313"/>
+        <location filename="../ui/SettingsDialog.ui" line="1407"/>
         <source>Metal (Aluminum)</source>
         <translation>Metal (Aluminio)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1323"/>
+        <location filename="../ui/SettingsDialog.ui" line="1417"/>
         <source>Rubber (Black)</source>
         <translation>Goma (Negro)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1328"/>
+        <location filename="../ui/SettingsDialog.ui" line="1422"/>
         <source>Wood</source>
         <translation>Madera</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1368"/>
+        <location filename="../ui/SettingsDialog.ui" line="1442"/>
+        <source>Section Capping</source>
+        <translation>Tapa de sección</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1455"/>
+        <source>Default cap fill for new documents: a procedural hatch pattern, or an image texture</source>
+        <translation>Relleno de tapa predeterminado para documentos nuevos: un patrón de rayado procedimental o una textura de imagen</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1459"/>
+        <source>Procedural</source>
+        <translation>Procedimental</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1464"/>
+        <source>Textured</source>
+        <translation>Texturizado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1472"/>
+        <source>Hatch Pattern</source>
+        <translation>Patrón de rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1479"/>
+        <source>Default direction/pattern of the procedural hatch lines</source>
+        <translation>Dirección/patrón predeterminado de las líneas de rayado procedimental</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1483"/>
+        <source>Diagonal 45</source>
+        <translation>Diagonal 45°</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1488"/>
+        <source>Diagonal 135</source>
+        <translation>Diagonal 135°</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1503"/>
+        <source>Grid</source>
+        <translation>Cuadrícula</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1508"/>
+        <source>Cross Hatch</source>
+        <translation>Rayado Cruzado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1516"/>
+        <source>Hatch Tiling</source>
+        <translation>Mosaico de Rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1523"/>
+        <source>Default number of times the hatch pattern repeats across a cap</source>
+        <translation>Número predeterminado de veces que el patrón de rayado se repite a lo largo de una tapa</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1539"/>
+        <source>Hatch Thickness</source>
+        <translation>Grosor del Rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1546"/>
+        <source>Default width of the hatch lines</source>
+        <translation>Ancho predeterminado de las líneas de rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1568"/>
+        <source>Hatch Intensity</source>
+        <translation>Intensidad del Rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1575"/>
+        <source>Default opacity of the hatch pattern over a cap</source>
+        <translation>Opacidad predeterminada del patrón de rayado sobre una tapa</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1594"/>
+        <source>Hatch Line Color</source>
+        <translation>Color de Línea de Rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1601"/>
+        <source>Pick the default hatch line color</source>
+        <translation>Elegir el color predeterminado de las líneas de rayado</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="1644"/>
         <source>Default UV generation method offered when a mesh has
 no UVs</source>
         <translation>Método de generación UV predeterminado ofrecido cuando una malla no
 tiene UV</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1406"/>
+        <location filename="../ui/SettingsDialog.ui" line="1682"/>
         <source>Default angle threshold for the angle-based UV methods</source>
         <translation>Umbral de ángulo predeterminado para los métodos UV basados en ángulo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1425"/>
+        <location filename="../ui/SettingsDialog.ui" line="1701"/>
         <source>Don&apos;t overwrite UV sets a mesh already has</source>
         <translation>No sobrescribir los conjuntos UV que una malla ya tiene</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1438"/>
+        <location filename="../ui/SettingsDialog.ui" line="1714"/>
         <source>Automatically pack generated UV islands into 0-1 space</source>
         <translation>Empaquetar automáticamente las islas UV generadas en el espacio 0-1</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1451"/>
+        <location filename="../ui/SettingsDialog.ui" line="1727"/>
         <source>Run a relaxation pass on generated UVs to reduce
 distortion</source>
         <translation>Ejecutar una pasada de relajación sobre las UV generadas para reducir
 la distorsión</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1469"/>
+        <location filename="../ui/SettingsDialog.ui" line="1745"/>
         <source>Forget the remembered UV method choice, so the picker
 asks again next time</source>
         <translation>Olvidar la elección de método UV recordada, para que el selector
 pregunte de nuevo la próxima vez</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1528"/>
+        <location filename="../ui/SettingsDialog.ui" line="1804"/>
         <source>STEP, IGES, BREP</source>
         <translation>STEP, IGES, BREP</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1538"/>
+        <location filename="../ui/SettingsDialog.ui" line="1814"/>
         <source>Tessellation Quality</source>
         <translation>Calidad de teselación</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1551"/>
+        <location filename="../ui/SettingsDialog.ui" line="1827"/>
         <source>Tessellation tolerance for curved surfaces (STEP/IGES import)</source>
         <translation>Tolerancia de teselación para superficies curvas (importación STEP/IGES)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1577"/>
+        <location filename="../ui/SettingsDialog.ui" line="1853"/>
         <source>Tessellation angular tolerance for curved surfaces (STEP/IGES import)</source>
         <translation>Tolerancia angular de teselación para superficies curvas (importación STEP/IGES)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1625"/>
+        <location filename="../ui/SettingsDialog.ui" line="1901"/>
         <source>Generate vertex normals if the imported file has none</source>
         <translation>Generar normales de vértice si el archivo importado no tiene ninguna</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1638"/>
+        <location filename="../ui/SettingsDialog.ui" line="1914"/>
         <source>Smooth generated normals across adjacent faces</source>
         <translation>Suavizar las normales generadas entre caras adyacentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1651"/>
+        <location filename="../ui/SettingsDialog.ui" line="1927"/>
         <source>Compute tangent vectors, needed for normal mapping</source>
         <translation>Calcular vectores tangentes, necesarios para el mapeo normal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1664"/>
+        <location filename="../ui/SettingsDialog.ui" line="1940"/>
         <source>Merge/optimize meshes on import for better performance</source>
         <translation>Fusionar/optimizar mallas al importar para un mejor rendimiento</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1687"/>
+        <location filename="../ui/SettingsDialog.ui" line="1963"/>
         <source>Automatically reorient the model to match this app&apos;s up
 axis</source>
         <translation>Reorientar automáticamente el modelo para coincidir con el eje vertical
 de esta app</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1712"/>
+        <location filename="../ui/SettingsDialog.ui" line="1988"/>
         <source>Export Whole Scene</source>
         <translation>Exportar escena completa</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1722"/>
+        <location filename="../ui/SettingsDialog.ui" line="1998"/>
         <source>Export Selected Meshes</source>
         <translation>Exportar mallas seleccionadas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1796"/>
+        <location filename="../ui/SettingsDialog.ui" line="2072"/>
         <source>Warning</source>
         <translation>Advertencia</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1809"/>
+        <location filename="../ui/SettingsDialog.ui" line="2085"/>
         <source>Console Buffer Lines:</source>
         <translation>Líneas de búfer de consola:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1816"/>
+        <location filename="../ui/SettingsDialog.ui" line="2092"/>
         <source>Maximum number of lines kept in the console window&apos;s scrollback</source>
         <translation>Número máximo de líneas mantenidas en el desplazamiento hacia atrás de la ventana de consola</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1844"/>
+        <location filename="../ui/SettingsDialog.ui" line="2120"/>
         <source>Log per-frame rendering timings for performance profiling</source>
         <translation>Registrar los tiempos de renderizado por fotograma para el perfilado de rendimiento</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1854"/>
+        <location filename="../ui/SettingsDialog.ui" line="2130"/>
         <source>Adds a Texture Debugger entry to the Tools menu.
 The panel shows GPU-side texture bindings for the selected mesh.</source>
         <translation>Añade una entrada Depurador de texturas al menú Herramientas.
 El panel muestra las vinculaciones de textura del lado de la GPU para la malla seleccionada.</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1791"/>
+        <location filename="../ui/SettingsDialog.ui" line="2067"/>
         <source>Info</source>
         <translation>Info</translation>
     </message>
@@ -12591,7 +13919,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Verboso</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1838"/>
+        <location filename="../ui/SettingsDialog.ui" line="2114"/>
         <source>Diagnostics</source>
         <translation>Diagnóstico</translation>
     </message>
@@ -12604,7 +13932,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Validar Shaders</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1847"/>
+        <location filename="../ui/SettingsDialog.ui" line="2123"/>
         <source>Profile Rendering</source>
         <translation>Renderizado de Perfiles</translation>
     </message>
@@ -12613,17 +13941,17 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Añade una entrada de Depurador de texturas al menú Herramientas. El panel muestra las vinculaciones de texturas del lado de la GPU para la malla seleccionada.</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1858"/>
+        <location filename="../ui/SettingsDialog.ui" line="2134"/>
         <source>Enable Texture Debugger in Tools menu</source>
         <translation>Activar el Depurador de texturas en el menú Herramientas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1865"/>
+        <location filename="../ui/SettingsDialog.ui" line="2141"/>
         <source>Free GPU texture memory cached across all open documents</source>
         <translation>Liberar memoria de textura de GPU almacenada en caché en todos los documentos abiertos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1868"/>
+        <location filename="../ui/SettingsDialog.ui" line="2144"/>
         <source>Clear All Caches</source>
         <translation>Borrar Todos los Cachés</translation>
     </message>
@@ -12637,67 +13965,72 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation>Algunas configuraciones tendrán efecto solo después de reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="153"/>
+        <location filename="../src/SettingsDialog.cpp" line="154"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="155"/>
+        <location filename="../src/SettingsDialog.cpp" line="156"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="157"/>
+        <location filename="../src/SettingsDialog.cpp" line="158"/>
         <source>Apply</source>
         <translation>Aplicar</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="159"/>
+        <location filename="../src/SettingsDialog.cpp" line="160"/>
         <source>Defaults</source>
         <translation>El defecto</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="240"/>
+        <location filename="../src/SettingsDialog.cpp" line="241"/>
         <source>Defaults Staged</source>
         <translation>Valores predeterminados preparados</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="240"/>
+        <location filename="../src/SettingsDialog.cpp" line="241"/>
         <source>Default settings are loaded in the dialog. Click Apply or OK to save them.</source>
         <translation>Los valores predeterminados están cargados en el diálogo. Haga clic en Aplicar o Aceptar para guardarlos.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="550"/>
+        <location filename="../src/SettingsDialog.cpp" line="585"/>
         <source>Some settings apply immediately. Others take effect only for newly opened documents or after restarting the application.</source>
         <translation>Algunos ajustes se aplican de inmediato. Otros surten efecto solo en documentos recién abiertos o después de reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="556"/>
+        <location filename="../src/SettingsDialog.cpp" line="591"/>
         <source>Most settings on this tab apply immediately. MSAA and some graphics options may still require restarting the application.</source>
         <translation>La mayoría de los ajustes de esta pestaña se aplican de inmediato. MSAA y algunas opciones gráficas pueden requerir reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="561"/>
+        <location filename="../src/SettingsDialog.cpp" line="596"/>
         <source>These settings are primarily used for newly opened documents and future imports/exports. They may not affect models that are already loaded.</source>
         <translation>Estos ajustes se usan principalmente para documentos recién abiertos y futuras importaciones/exportaciones. Es posible que no afecten a los modelos ya cargados.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="566"/>
+        <location filename="../src/SettingsDialog.cpp" line="601"/>
         <source>These settings are mainly used as defaults for future actions and newly opened documents.</source>
         <translation>Estos ajustes se usan principalmente como valores predeterminados para futuras acciones y documentos recién abiertos.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1021"/>
+        <location filename="../src/SettingsDialog.cpp" line="1096"/>
         <source>Select Top Color</source>
         <translation>Seleccionar color superior</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1033"/>
+        <location filename="../src/SettingsDialog.cpp" line="1108"/>
         <source>Select Bottom Color</source>
         <translation>Seleccionar color inferior</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1228"/>
+        <location filename="../src/SettingsDialog.cpp" line="1257"/>
+        <source>Select Hatch Line Color</source>
+        <translation>Seleccionar color de línea de rayado</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="1341"/>
         <source>Settings Reset</source>
         <translation>Ajustes Reset</translation>
     </message>
@@ -12714,12 +14047,12 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Por favor reinicie la solicitud para que el cambio de idioma surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1145"/>
+        <location filename="../src/SettingsDialog.cpp" line="1220"/>
         <source>MSAA Change</source>
         <translation>MSAA Cambio</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1145"/>
+        <location filename="../src/SettingsDialog.cpp" line="1220"/>
         <source>Please restart the application for the MSAA change to take effect.</source>
         <translation>Por favor reinicie la solicitud para que el cambio MSAA surta efecto.</translation>
     </message>
@@ -12732,7 +14065,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Por favor reinicie la aplicación para que el cambio de anisotropía surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1228"/>
+        <location filename="../src/SettingsDialog.cpp" line="1341"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation>Los ajustes UV Prompt han sido despejados.</translation>
     </message>
@@ -12912,6 +14245,284 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <location filename="../src/SubdivisionDialog.cpp" line="248"/>
         <source>%1 mesh(es) subdivided: %2 vertices, %3 triangles total.</source>
         <translation>%1 malla(s) subdivididas: %2 vértices, %3 triángulos en total.</translation>
+    </message>
+</context>
+<context>
+    <name>SurfaceAnalysisDialog</name>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="41"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="680"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="709"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="798"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="830"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="854"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="953"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="988"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1007"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1092"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1182"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1188"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1204"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1248"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1260"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1268"/>
+        <source>Surface Analysis</source>
+        <translation>Análisis de superficie</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="48"/>
+        <source>Analyzes the current selection and paints the result directly on the mesh surface.</source>
+        <translation>Analiza la selección actual y pinta el resultado directamente sobre la superficie de la malla.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="93"/>
+        <source>Curvature</source>
+        <translation>Curvatura</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="94"/>
+        <source>Wall-Thickness</source>
+        <translation>Espesor de pared</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="95"/>
+        <source>Deviation</source>
+        <translation>Desviación</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="114"/>
+        <source>Zebra Stripe reveals surface continuity as a live, view-dependent reflection pattern - no legend, since it isn&apos;t a fixed color scale.</source>
+        <translation>Rayas de cebra muestra la continuidad de la superficie como un patrón de reflexión en vivo que depende de la vista; sin leyenda, ya que no es una escala de color fija.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="118"/>
+        <source>Zebra Stripe</source>
+        <translation>Rayas de cebra</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="123"/>
+        <source>Mean Curvature colors each vertex by how sharply the surface bends there - blue is concave, red is convex, white is flat. Gaussian/principal curvature modes are not yet available. Computed on a repaired copy of the mesh (real connectivity is required); any repair made is disclosed below after Apply.</source>
+        <translation>Curvatura media colorea cada vértice según lo pronunciada que sea la curvatura de la superficie en ese punto: azul es cóncavo, rojo es convexo y blanco es plano. Los modos de curvatura gaussiana/principal aún no están disponibles. Se calcula sobre una copia reparada de la malla (se requiere conectividad real); cualquier reparación realizada se indica abajo tras aplicar.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="130"/>
+        <source>Apply Mean Curvature</source>
+        <translation>Aplicar curvatura media</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="148"/>
+        <source>Draft Angle colors each face by its signed angle to the chosen pull direction - red/positive is an ordinary moldable wall, blue/negative is an undercut, white is parallel to the pull direction (zero draft).</source>
+        <translation>Ángulo de desmoldeo colorea cada cara según su ángulo con signo respecto a la dirección de desmoldeo elegida: rojo/positivo es una pared moldeable normal, azul/negativo es una contrasalida y blanco es paralelo a la dirección de desmoldeo (desmoldeo cero).</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="155"/>
+        <source>Pull direction:</source>
+        <translation>Dirección de desmoldeo:</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="157"/>
+        <source>+X</source>
+        <translation>+X</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="158"/>
+        <source>-X</source>
+        <translation>-X</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="159"/>
+        <source>+Y</source>
+        <translation>+Y</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="160"/>
+        <source>-Y</source>
+        <translation>-Y</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="161"/>
+        <source>+Z</source>
+        <translation>+Z</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="162"/>
+        <source>-Z</source>
+        <translation>-Z</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="174"/>
+        <source>Apply Draft Angle</source>
+        <translation>Aplicar ángulo de desmoldeo</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="178"/>
+        <source>Wall-Thickness colors each face by an inward-ray distance to the opposite wall - blue is thin, red is thick. This is an ESTIMATE, not a guaranteed true minimum (the true minimum can occur along a direction other than the surface normal). Requires a closed, non-self-intersecting mesh that bounds a volume - the whole mesh is rejected with a reason if it doesn&apos;t, not partially colored.</source>
+        <translation>Espesor de pared colorea cada cara según la distancia de un rayo hacia el interior hasta la pared opuesta: azul es delgado, rojo es grueso. Es una ESTIMACIÓN, no un mínimo real garantizado (el mínimo real puede darse en una dirección distinta de la normal de la superficie). Requiere una malla cerrada y sin autointersecciones que delimite un volumen; si no lo cumple, se rechaza toda la malla indicando el motivo, sin colorearla parcialmente.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="186"/>
+        <source>Apply Wall-Thickness</source>
+        <translation>Aplicar espesor de pared</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="203"/>
+        <source>Colors the selected mesh by its unsigned distance to a reference mesh&apos;s surface - dark blue is a close match, red is the largest deviation found. Both meshes must already be aligned in the same coordinate frame and use the same units; a plain offset between them will read as a false deviation. This is a sampled result (measured per vertex), not exhaustive coverage.</source>
+        <translation>Colorea la malla seleccionada según su distancia sin signo a la superficie de una malla de referencia: azul oscuro es una buena coincidencia y rojo es la mayor desviación encontrada. Ambas mallas deben estar ya alineadas en el mismo sistema de coordenadas y usar las mismas unidades; un simple desplazamiento entre ellas se leerá como una falsa desviación. Es un resultado muestreado (medido por vértice), no una cobertura exhaustiva.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="212"/>
+        <source>Reference mesh:</source>
+        <translation>Malla de referencia:</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="217"/>
+        <source>Apply</source>
+        <translation>Aplicar</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="235"/>
+        <source>Show Readout on Hover</source>
+        <translation>Mostrar lectura al pasar el cursor</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="252"/>
+        <source>Clear Overlay</source>
+        <translation>Borrar superposición</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="256"/>
+        <source>Close</source>
+        <translation>Cerrar</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="414"/>
+        <source>Draft: %1°</source>
+        <translation>Desmoldeo: %1°</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="419"/>
+        <source>Curvature: %1</source>
+        <translation>Curvatura: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="421"/>
+        <source>Thickness: %1</source>
+        <translation>Espesor: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="423"/>
+        <source>Deviation: %1</source>
+        <translation>Desviación: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="553"/>
+        <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
+        <translation>Superposición borrada para %1 malla(s): la transformación cambió, haga clic en Aplicar para recalcular.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="567"/>
+        <source>No mesh selected - select one or more meshes in the scene tree first.</source>
+        <translation>Ninguna malla seleccionada: seleccione primero una o más mallas en el árbol de escena.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="573"/>
+        <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
+        <translation>%1 mallas seleccionadas: Desviación necesita exactamente una (el lado de escaneo/comparación).</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="590"/>
+        <source>Comparing: %1</source>
+        <translation>Comparando: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="595"/>
+        <source>Selected: %1</source>
+        <translation>Seleccionado: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="596"/>
+        <source>Selected (%1): %2</source>
+        <translation>Seleccionadas (%1): %2</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="680"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="709"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="854"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1007"/>
+        <source>Select one or more meshes first.</source>
+        <translation>Seleccione primero una o más mallas.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="725"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="870"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1028"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1226"/>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="799"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="954"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1093"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1249"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1261"/>
+        <source>Selection changed during computation - re-run Apply.</source>
+        <translation>La selección cambió durante el cálculo: vuelva a ejecutar Aplicar.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="831"/>
+        <source>Could not compute a usable curvature result for the current selection.</source>
+        <translation>No se pudo calcular un resultado de curvatura utilizable para la selección actual.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="989"/>
+        <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
+        <translation>No se pudo calcular el espesor de pared: ninguna cara encontró un impacto válido en la pared opuesta.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1183"/>
+        <source>Select exactly one mesh to compare (the scan/comparison side).</source>
+        <translation>Seleccione exactamente una malla para comparar (el lado de escaneo/comparación).</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1189"/>
+        <source>No other loaded mesh is available to compare against.</source>
+        <translation>No hay ninguna otra malla cargada con la que comparar.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1205"/>
+        <source>The chosen reference mesh is no longer available - pick another one.</source>
+        <translation>La malla de referencia elegida ya no está disponible: elija otra.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1269"/>
+        <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
+        <translation>No se pudo calcular la desviación: la malla de referencia no tiene triángulos utilizables.</translation>
+    </message>
+</context>
+<context>
+    <name>TabbedViewportToolbar</name>
+    <message>
+        <location filename="../src/TabbedViewportToolbar.cpp" line="45"/>
+        <location filename="../src/TabbedViewportToolbar.cpp" line="87"/>
+        <source>Standard</source>
+        <translation>Estándar</translation>
+    </message>
+    <message>
+        <location filename="../src/TabbedViewportToolbar.cpp" line="46"/>
+        <location filename="../src/TabbedViewportToolbar.cpp" line="88"/>
+        <source>Tools</source>
+        <translation>Herramientas</translation>
+    </message>
+    <message>
+        <location filename="../src/TabbedViewportToolbar.cpp" line="186"/>
+        <source>Allow toolbar to hide automatically</source>
+        <translation>Permitir que la barra de herramientas se oculte automáticamente</translation>
+    </message>
+    <message>
+        <location filename="../src/TabbedViewportToolbar.cpp" line="186"/>
+        <source>Keep toolbar visible</source>
+        <translation>Mantener visible la barra de herramientas</translation>
     </message>
 </context>
 <context>
@@ -13891,6 +15502,140 @@ Roughness</translation>
     </message>
 </context>
 <context>
+    <name>ToolsToolbar</name>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="70"/>
+        <source>Measure</source>
+        <translation>Medir</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="71"/>
+        <source>Annotate</source>
+        <translation>Anotar</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="72"/>
+        <source>Mass Properties</source>
+        <translation>Propiedades de masa</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="73"/>
+        <source>Mesh Info</source>
+        <translation>Información de malla</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="75"/>
+        <source>Surface Analysis</source>
+        <translation>Análisis de superficie</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="82"/>
+        <source>Curvature / Zebra Stripe</source>
+        <translation>Curvatura / Rayas de cebra</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="82"/>
+        <source>Wall Thickness / Draft Angle</source>
+        <translation>Espesor de pared / Ángulo de desmoldeo</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="82"/>
+        <source>Deviation</source>
+        <translation>Desviación</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="101"/>
+        <source>Split by Connectivity</source>
+        <translation>Dividir por conectividad</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="102"/>
+        <source>Merge Selected</source>
+        <translation>Fusionar seleccionados</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="107"/>
+        <location filename="../src/ToolsToolbar.cpp" line="111"/>
+        <source>Merge by Adjacency</source>
+        <translation>Fusionar por adyacencia</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="116"/>
+        <source>Mesh Union</source>
+        <translation>Unión de mallas</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="118"/>
+        <source>Group</source>
+        <translation>Agrupar</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="119"/>
+        <source>Duplicate</source>
+        <translation>Duplicar</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="121"/>
+        <source>Shrink Wrap</source>
+        <translation>Envolvente ajustada</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="122"/>
+        <source>Subdivide Surface</source>
+        <translation>Subdividir superficie</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="123"/>
+        <source>Reconstruct Surface</source>
+        <translation>Reconstruir superficie</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="124"/>
+        <source>Repair Mesh</source>
+        <translation>Reparar malla</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="125"/>
+        <source>Fill Holes</source>
+        <translation>Rellenar agujeros</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="126"/>
+        <source>Generate UVs</source>
+        <translation>Generar UV</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="128"/>
+        <source>Export Report</source>
+        <translation>Exportar informe</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="129"/>
+        <source>Batch Render Views</source>
+        <translation>Renderizar vistas por lotes</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="132"/>
+        <source>Texture Debugger</source>
+        <translation>Depurador de texturas</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="148"/>
+        <source>Scroll left</source>
+        <translation>Desplazar a la izquierda</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="149"/>
+        <source>Scroll right</source>
+        <translation>Desplazar a la derecha</translation>
+    </message>
+    <message>
+        <location filename="../src/ToolsToolbar.cpp" line="208"/>
+        <source>Select at least one mesh.</source>
+        <translation>Seleccione al menos una malla.</translation>
+    </message>
+</context>
+<context>
     <name>TutorialDialog</name>
     <message>
         <location filename="../src/TutorialDialog.cpp" line="50"/>
@@ -14493,56 +16238,58 @@ Roughness</translation>
 <context>
     <name>ViewToolbar</name>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="260"/>
-        <location filename="../src/ViewToolbar.cpp" line="1269"/>
+        <location filename="../src/ViewToolbar.cpp" line="339"/>
+        <location filename="../src/ViewToolbar.cpp" line="1524"/>
         <source>Rotate View</source>
         <translation>Vista giratoria</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="264"/>
-        <location filename="../src/ViewToolbar.cpp" line="1270"/>
+        <location filename="../src/ViewToolbar.cpp" line="343"/>
+        <location filename="../src/ViewToolbar.cpp" line="1525"/>
         <source>Pan View</source>
         <translation>Vista Panorámica</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="268"/>
-        <location filename="../src/ViewToolbar.cpp" line="1271"/>
+        <location filename="../src/ViewToolbar.cpp" line="347"/>
+        <location filename="../src/ViewToolbar.cpp" line="1526"/>
         <source>Zoom View</source>
         <translation>Vista Zoom</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="318"/>
-        <location filename="../src/ViewToolbar.cpp" line="1264"/>
+        <location filename="../src/ViewToolbar.cpp" line="397"/>
+        <location filename="../src/ViewToolbar.cpp" line="1499"/>
+        <location filename="../src/ViewToolbar.cpp" line="1519"/>
         <source>Fit All</source>
         <translation>Adjustar Todo</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="328"/>
-        <location filename="../src/ViewToolbar.cpp" line="1265"/>
+        <location filename="../src/ViewToolbar.cpp" line="408"/>
+        <location filename="../src/ViewToolbar.cpp" line="1500"/>
+        <location filename="../src/ViewToolbar.cpp" line="1520"/>
         <source>Window Zoom</source>
         <translation>Zoom de Ventana</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="350"/>
-        <location filename="../src/ViewToolbar.cpp" line="1274"/>
+        <location filename="../src/ViewToolbar.cpp" line="453"/>
+        <location filename="../src/ViewToolbar.cpp" line="1529"/>
         <source>Camera Modes</source>
         <translation>Modos de Cámara</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="357"/>
-        <location filename="../src/ViewToolbar.cpp" line="1275"/>
+        <location filename="../src/ViewToolbar.cpp" line="460"/>
+        <location filename="../src/ViewToolbar.cpp" line="1530"/>
         <source>Orbit</source>
         <translation>Órbita</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="360"/>
-        <location filename="../src/ViewToolbar.cpp" line="1276"/>
+        <location filename="../src/ViewToolbar.cpp" line="463"/>
+        <location filename="../src/ViewToolbar.cpp" line="1531"/>
         <source>Fly</source>
         <translation>Volar</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="363"/>
-        <location filename="../src/ViewToolbar.cpp" line="1277"/>
+        <location filename="../src/ViewToolbar.cpp" line="466"/>
+        <location filename="../src/ViewToolbar.cpp" line="1532"/>
         <source>First Person</source>
         <translation>Primera Persona</translation>
     </message>
@@ -14551,8 +16298,8 @@ Roughness</translation>
         <translation type="vanished">Vista Superior</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="445"/>
-        <location filename="../src/ViewToolbar.cpp" line="1284"/>
+        <location filename="../src/ViewToolbar.cpp" line="550"/>
+        <location filename="../src/ViewToolbar.cpp" line="1539"/>
         <source>Top</source>
         <translation>Top</translation>
     </message>
@@ -14561,8 +16308,8 @@ Roughness</translation>
         <translation type="vanished">Vista Frontal</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="448"/>
-        <location filename="../src/ViewToolbar.cpp" line="1285"/>
+        <location filename="../src/ViewToolbar.cpp" line="553"/>
+        <location filename="../src/ViewToolbar.cpp" line="1540"/>
         <source>Front</source>
         <translation>Frente</translation>
     </message>
@@ -14571,8 +16318,8 @@ Roughness</translation>
         <translation type="vanished">Vista Izquierda</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="451"/>
-        <location filename="../src/ViewToolbar.cpp" line="1286"/>
+        <location filename="../src/ViewToolbar.cpp" line="556"/>
+        <location filename="../src/ViewToolbar.cpp" line="1541"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
@@ -14581,8 +16328,8 @@ Roughness</translation>
         <translation type="vanished">Punto de Vista</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="454"/>
-        <location filename="../src/ViewToolbar.cpp" line="1287"/>
+        <location filename="../src/ViewToolbar.cpp" line="559"/>
+        <location filename="../src/ViewToolbar.cpp" line="1542"/>
         <source>Bottom</source>
         <translation>Del fondo</translation>
     </message>
@@ -14591,8 +16338,8 @@ Roughness</translation>
         <translation type="vanished">Vista Trasero</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="457"/>
-        <location filename="../src/ViewToolbar.cpp" line="1288"/>
+        <location filename="../src/ViewToolbar.cpp" line="562"/>
+        <location filename="../src/ViewToolbar.cpp" line="1543"/>
         <source>Rear</source>
         <translation>Trasero</translation>
     </message>
@@ -14601,204 +16348,372 @@ Roughness</translation>
         <translation type="vanished">Vista Derecha</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="253"/>
-        <location filename="../src/ViewToolbar.cpp" line="1268"/>
+        <location filename="../src/ViewToolbar.cpp" line="70"/>
+        <source>No Clipping</source>
+        <translation>Sin corte</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="71"/>
+        <source>XY Plane</source>
+        <translation>Plano XY</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="72"/>
+        <source>YZ Plane</source>
+        <translation>Plano YZ</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="73"/>
+        <source>XZ Plane</source>
+        <translation>Plano XZ</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="74"/>
+        <source>YZ + XZ</source>
+        <translation>YZ + XZ</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="75"/>
+        <source>XY + XZ</source>
+        <translation>XY + XZ</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="76"/>
+        <source>XY + YZ</source>
+        <translation>XY + YZ</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="77"/>
+        <source>XY + YZ + XZ</source>
+        <translation>XY + YZ + XZ</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="78"/>
+        <source>Box</source>
+        <translation>Caja</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="103"/>
+        <source>NE Corner</source>
+        <translation>Esquina noreste</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="104"/>
+        <source>NW Corner</source>
+        <translation>Esquina noroeste</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="105"/>
+        <source>SW Corner</source>
+        <translation>Esquina suroeste</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="106"/>
+        <source>SE Corner</source>
+        <translation>Esquina sureste</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="116"/>
+        <source>NE</source>
+        <comment>compass corner abbreviation</comment>
+        <translation>NE</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="117"/>
+        <source>NW</source>
+        <comment>compass corner abbreviation</comment>
+        <translation>NO</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="118"/>
+        <source>SW</source>
+        <comment>compass corner abbreviation</comment>
+        <translation>SO</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="119"/>
+        <source>SE</source>
+        <comment>compass corner abbreviation</comment>
+        <translation>SE</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="332"/>
+        <location filename="../src/ViewToolbar.cpp" line="1523"/>
         <source>Navigation</source>
         <translation>Navegación</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="340"/>
+        <location filename="../src/ViewToolbar.cpp" line="421"/>
+        <location filename="../src/ViewToolbar.cpp" line="1501"/>
+        <location filename="../src/ViewToolbar.cpp" line="1502"/>
         <source>Lasso Select</source>
         <translation>Selección de lazo</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="398"/>
-        <location filename="../src/ViewToolbar.cpp" line="1278"/>
+        <location filename="../src/ViewToolbar.cpp" line="440"/>
+        <location filename="../src/ViewToolbar.cpp" line="1503"/>
+        <source>Filter by Material...</source>
+        <translation>Filtrar por material...</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="441"/>
+        <location filename="../src/ViewToolbar.cpp" line="1504"/>
+        <source>Filter by Color...</source>
+        <translation>Filtrar por color...</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="442"/>
+        <location filename="../src/ViewToolbar.cpp" line="1505"/>
+        <source>Filter by Bounding Box...</source>
+        <translation>Filtrar por cuadro delimitador...</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="501"/>
+        <location filename="../src/ViewToolbar.cpp" line="1533"/>
         <source>Camera Up Axis</source>
         <translation>Eje vertical de la cámara</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="405"/>
-        <location filename="../src/ViewToolbar.cpp" line="1279"/>
+        <location filename="../src/ViewToolbar.cpp" line="508"/>
+        <location filename="../src/ViewToolbar.cpp" line="1534"/>
         <source>Z-Up</source>
         <translation>Z-Arriba</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="406"/>
-        <location filename="../src/ViewToolbar.cpp" line="1280"/>
+        <location filename="../src/ViewToolbar.cpp" line="509"/>
+        <location filename="../src/ViewToolbar.cpp" line="1535"/>
         <source>Y-Up</source>
         <translation>Y-Arriba</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="428"/>
+        <location filename="../src/ViewToolbar.cpp" line="531"/>
+        <location filename="../src/ViewToolbar.cpp" line="1508"/>
+        <location filename="../src/ViewToolbar.cpp" line="1509"/>
         <source>Turntable</source>
         <translation>Mesa giratoria</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="438"/>
-        <location filename="../src/ViewToolbar.cpp" line="1283"/>
+        <location filename="../src/ViewToolbar.cpp" line="543"/>
+        <location filename="../src/ViewToolbar.cpp" line="1538"/>
         <source>Standard Views</source>
         <translation>Vistas estándar</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="460"/>
-        <location filename="../src/ViewToolbar.cpp" line="1289"/>
+        <location filename="../src/ViewToolbar.cpp" line="565"/>
+        <location filename="../src/ViewToolbar.cpp" line="1544"/>
         <source>Right</source>
         <translation>Bien</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="520"/>
-        <location filename="../src/ViewToolbar.cpp" line="1292"/>
+        <location filename="../src/ViewToolbar.cpp" line="625"/>
+        <location filename="../src/ViewToolbar.cpp" line="1547"/>
         <source>Axonometric View</source>
         <translation>Vista Axonométrica</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="542"/>
-        <location filename="../src/ViewToolbar.cpp" line="1293"/>
+        <location filename="../src/ViewToolbar.cpp" line="651"/>
+        <location filename="../src/ViewToolbar.cpp" line="695"/>
+        <location filename="../src/ViewToolbar.cpp" line="1548"/>
         <source>Isometric</source>
         <translation>Isométrico</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="545"/>
-        <location filename="../src/ViewToolbar.cpp" line="1294"/>
+        <location filename="../src/ViewToolbar.cpp" line="654"/>
+        <location filename="../src/ViewToolbar.cpp" line="1560"/>
         <source>Dimetric</source>
         <translation>Dimétrico</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="548"/>
-        <location filename="../src/ViewToolbar.cpp" line="1295"/>
+        <location filename="../src/ViewToolbar.cpp" line="657"/>
+        <location filename="../src/ViewToolbar.cpp" line="1561"/>
         <source>Trimetric</source>
         <translation>Trimétrico</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="593"/>
-        <location filename="../src/ViewToolbar.cpp" line="1298"/>
+        <location filename="../src/ViewToolbar.cpp" line="731"/>
+        <location filename="../src/ViewToolbar.cpp" line="1555"/>
+        <source>Next Corner</source>
+        <translation>Esquina siguiente</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="755"/>
+        <location filename="../src/ViewToolbar.cpp" line="1510"/>
+        <location filename="../src/ViewToolbar.cpp" line="1565"/>
         <source>Toggle Projection</source>
         <translation>Alternar Proyección</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="601"/>
+        <location filename="../src/ViewToolbar.cpp" line="766"/>
+        <location filename="../src/ViewToolbar.cpp" line="1200"/>
         <source>Switch to Perspective</source>
         <translation>Cambiar a Perspectiva</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="605"/>
+        <location filename="../src/ViewToolbar.cpp" line="770"/>
         <source>Switch to Orthographic</source>
         <translation>Cambiar a Ortográfico</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="616"/>
-        <location filename="../src/ViewToolbar.cpp" line="1301"/>
+        <location filename="../src/ViewToolbar.cpp" line="780"/>
+        <location filename="../src/ViewToolbar.cpp" line="1197"/>
+        <location filename="../src/ViewToolbar.cpp" line="1558"/>
+        <source>Cavalier</source>
+        <translation>Caballera</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="781"/>
+        <location filename="../src/ViewToolbar.cpp" line="1198"/>
+        <location filename="../src/ViewToolbar.cpp" line="1559"/>
+        <source>Cabinet</source>
+        <translation>Gabinete</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="783"/>
+        <location filename="../src/ViewToolbar.cpp" line="1556"/>
+        <source>Perspective</source>
+        <translation>Perspectiva</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="784"/>
+        <location filename="../src/ViewToolbar.cpp" line="1196"/>
+        <location filename="../src/ViewToolbar.cpp" line="1557"/>
+        <source>Orthographic</source>
+        <translation>Ortográfica</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="799"/>
+        <location filename="../src/ViewToolbar.cpp" line="1511"/>
+        <location filename="../src/ViewToolbar.cpp" line="1568"/>
         <source>Toggle Multi-View</source>
         <translation>Activar/Desactivar Vista Múltiple</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="627"/>
-        <location filename="../src/ViewToolbar.cpp" line="1304"/>
+        <location filename="../src/ViewToolbar.cpp" line="812"/>
+        <location filename="../src/ViewToolbar.cpp" line="1571"/>
         <source>Display Modes</source>
         <translation>Modos de Visualización</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="637"/>
-        <location filename="../src/ViewToolbar.cpp" line="1305"/>
+        <location filename="../src/ViewToolbar.cpp" line="822"/>
+        <location filename="../src/ViewToolbar.cpp" line="1572"/>
         <source>Realistic Rendering (Shift+R)</source>
         <translation>Renderizado realista (Mayús+R)</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="660"/>
-        <location filename="../src/ViewToolbar.cpp" line="1313"/>
+        <location filename="../src/ViewToolbar.cpp" line="845"/>
+        <location filename="../src/ViewToolbar.cpp" line="1580"/>
         <source>Shaded with Edges</source>
         <translation>Sombreado con bordes</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="712"/>
-        <location filename="../src/ViewToolbar.cpp" line="1326"/>
+        <location filename="../src/ViewToolbar.cpp" line="897"/>
+        <location filename="../src/ViewToolbar.cpp" line="1593"/>
         <source>Rendering Mode</source>
         <translation>Modo de renderizado</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="719"/>
-        <location filename="../src/ViewToolbar.cpp" line="1327"/>
+        <location filename="../src/ViewToolbar.cpp" line="904"/>
+        <location filename="../src/ViewToolbar.cpp" line="1594"/>
         <source>ADS (Blinn-Phong)</source>
         <translation>ADS (Blinn-Phong)</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="720"/>
-        <location filename="../src/ViewToolbar.cpp" line="1328"/>
+        <location filename="../src/ViewToolbar.cpp" line="905"/>
+        <location filename="../src/ViewToolbar.cpp" line="1595"/>
         <source>PBR (Metallic-Roughness)</source>
         <translation>PBR (Metálico-Rugosidad)</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="721"/>
+        <location filename="../src/ViewToolbar.cpp" line="906"/>
         <source>Ray Traced</source>
         <translation>Trazado por rayos</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="755"/>
-        <location filename="../src/ViewToolbar.cpp" line="1308"/>
+        <location filename="../src/ViewToolbar.cpp" line="940"/>
+        <location filename="../src/ViewToolbar.cpp" line="1575"/>
         <source>Shading Normal</source>
         <translation>Normal de sombreado</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="762"/>
-        <location filename="../src/ViewToolbar.cpp" line="1309"/>
+        <location filename="../src/ViewToolbar.cpp" line="947"/>
+        <location filename="../src/ViewToolbar.cpp" line="1576"/>
         <source>Flat Shaded</source>
         <translation>Sombreado plano</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="765"/>
+        <location filename="../src/ViewToolbar.cpp" line="950"/>
         <source>Smooth Shaded</source>
         <translation>Sombreado suave</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="850"/>
-        <location filename="../src/ViewToolbar.cpp" line="1317"/>
+        <location filename="../src/ViewToolbar.cpp" line="1070"/>
+        <location filename="../src/ViewToolbar.cpp" line="1584"/>
         <source>Debug Overlays</source>
         <translation>Superposiciones de depuración</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="857"/>
-        <location filename="../src/ViewToolbar.cpp" line="1319"/>
+        <location filename="../src/ViewToolbar.cpp" line="1077"/>
+        <location filename="../src/ViewToolbar.cpp" line="1586"/>
         <source>Bounding Box</source>
         <translation>Cuadro delimitador</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="859"/>
-        <location filename="../src/ViewToolbar.cpp" line="1321"/>
+        <location filename="../src/ViewToolbar.cpp" line="1079"/>
+        <location filename="../src/ViewToolbar.cpp" line="1588"/>
         <source>Vertex Normals</source>
         <translation>Normales de vértices</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="861"/>
-        <location filename="../src/ViewToolbar.cpp" line="1323"/>
+        <location filename="../src/ViewToolbar.cpp" line="1081"/>
+        <location filename="../src/ViewToolbar.cpp" line="1590"/>
         <source>Face Normals</source>
         <translation>Normales de caras</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="1200"/>
+        <source>Switch to %1</source>
+        <translation>Cambiar a %1</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="1248"/>
+        <source>%1 - click for the next axonometric type</source>
+        <translation>%1: haga clic para el siguiente tipo axonométrico</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="129"/>
+        <source>Isometric corner %1 - click for the next corner</source>
+        <translation>Esquina isométrica %1: haga clic para la siguiente esquina</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="1512"/>
+        <source>Realistic Rendering</source>
+        <translation>Renderizado realista</translation>
     </message>
     <message>
         <source>Realistic</source>
         <translation type="vanished">Realista</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="648"/>
-        <location filename="../src/ViewToolbar.cpp" line="1306"/>
+        <location filename="../src/ViewToolbar.cpp" line="833"/>
+        <location filename="../src/ViewToolbar.cpp" line="1573"/>
         <source>Shaded</source>
         <translation>Sombreado</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="651"/>
-        <location filename="../src/ViewToolbar.cpp" line="1310"/>
+        <location filename="../src/ViewToolbar.cpp" line="836"/>
+        <location filename="../src/ViewToolbar.cpp" line="1577"/>
         <source>Hollow Mesh</source>
         <translation>Malla hueca</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="654"/>
-        <location filename="../src/ViewToolbar.cpp" line="1311"/>
+        <location filename="../src/ViewToolbar.cpp" line="839"/>
+        <location filename="../src/ViewToolbar.cpp" line="1578"/>
         <source>Mesh Edges</source>
         <translation>Bordes de malla</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="657"/>
-        <location filename="../src/ViewToolbar.cpp" line="1312"/>
+        <location filename="../src/ViewToolbar.cpp" line="842"/>
+        <location filename="../src/ViewToolbar.cpp" line="1579"/>
         <source>Wireframe</source>
         <translation>Estructura Alámbrica</translation>
     </message>
@@ -14807,36 +16722,42 @@ Roughness</translation>
         <translation type="vanished">Sombreado por Cables</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="791"/>
-        <location filename="../src/ViewToolbar.cpp" line="1331"/>
+        <location filename="../src/ViewToolbar.cpp" line="984"/>
+        <location filename="../src/ViewToolbar.cpp" line="1513"/>
+        <location filename="../src/ViewToolbar.cpp" line="1598"/>
         <source>Clipping Planes</source>
         <translation>Planes de Deslizamiento</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="802"/>
-        <location filename="../src/ViewToolbar.cpp" line="1334"/>
+        <location filename="../src/ViewToolbar.cpp" line="1018"/>
+        <location filename="../src/ViewToolbar.cpp" line="1514"/>
+        <location filename="../src/ViewToolbar.cpp" line="1603"/>
         <source>Exploded View</source>
         <translation>Vista explosionada</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="813"/>
-        <location filename="../src/ViewToolbar.cpp" line="1337"/>
+        <location filename="../src/ViewToolbar.cpp" line="1030"/>
+        <location filename="../src/ViewToolbar.cpp" line="1515"/>
+        <location filename="../src/ViewToolbar.cpp" line="1606"/>
         <source>Swap Visible</source>
         <translation>Intercambio Visible</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="824"/>
-        <location filename="../src/ViewToolbar.cpp" line="1340"/>
+        <location filename="../src/ViewToolbar.cpp" line="1043"/>
+        <location filename="../src/ViewToolbar.cpp" line="1516"/>
+        <location filename="../src/ViewToolbar.cpp" line="1609"/>
         <source>Show/Hide Axis</source>
         <translation>Mostrar/Ocultar Eje</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="833"/>
+        <location filename="../src/ViewToolbar.cpp" line="1053"/>
+        <location filename="../src/ViewToolbar.cpp" line="1204"/>
         <source>Show the trihedron</source>
         <translation>Mostrar el Triedro</translation>
     </message>
     <message>
-        <location filename="../src/ViewToolbar.cpp" line="838"/>
+        <location filename="../src/ViewToolbar.cpp" line="1058"/>
+        <location filename="../src/ViewToolbar.cpp" line="1204"/>
         <source>Hide the trihedron</source>
         <translation>Ocultar el Triedro</translation>
     </message>
@@ -14844,47 +16765,47 @@ Roughness</translation>
 <context>
     <name>ViewportWidget</name>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="935"/>
+        <location filename="../src/ViewportWidget.cpp" line="1025"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="936"/>
+        <location filename="../src/ViewportWidget.cpp" line="1026"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="937"/>
+        <location filename="../src/ViewportWidget.cpp" line="1027"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="940"/>
+        <location filename="../src/ViewportWidget.cpp" line="1030"/>
         <source>Top</source>
         <translation>Superior</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="941"/>
+        <location filename="../src/ViewportWidget.cpp" line="1031"/>
         <source>Front</source>
         <translation>Frontal</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="942"/>
+        <location filename="../src/ViewportWidget.cpp" line="1032"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="943"/>
+        <location filename="../src/ViewportWidget.cpp" line="1033"/>
         <source>Isometric</source>
         <translation>Isométrico</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="944"/>
+        <location filename="../src/ViewportWidget.cpp" line="1034"/>
         <source>Dimetric</source>
         <translation>Dimétrico</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="945"/>
+        <location filename="../src/ViewportWidget.cpp" line="1035"/>
         <source>Trimetric</source>
         <translation>Trimétrico</translation>
     </message>
@@ -14893,64 +16814,64 @@ Roughness</translation>
         <translation type="vanished">N.º de mallas: %1</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="1744"/>
-        <location filename="../src/ViewportWidget.cpp" line="1792"/>
-        <location filename="../src/ViewportWidget.cpp" line="1798"/>
-        <location filename="../src/ViewportWidget.cpp" line="1812"/>
-        <location filename="../src/ViewportWidget.cpp" line="1861"/>
+        <location filename="../src/ViewportWidget.cpp" line="1854"/>
+        <location filename="../src/ViewportWidget.cpp" line="1902"/>
+        <location filename="../src/ViewportWidget.cpp" line="1908"/>
+        <location filename="../src/ViewportWidget.cpp" line="1922"/>
+        <location filename="../src/ViewportWidget.cpp" line="1971"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="1744"/>
+        <location filename="../src/ViewportWidget.cpp" line="1854"/>
         <source>No files found in selected folder.</source>
         <translation>No se encontraron archivos en la carpeta seleccionada.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="1793"/>
+        <location filename="../src/ViewportWidget.cpp" line="1903"/>
         <source>Failed to load fallback HDR cubemap from:
 </source>
         <translation>No se pudo cargar el cubemap HDR de reserva desde:
 </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="1799"/>
+        <location filename="../src/ViewportWidget.cpp" line="1909"/>
         <source>No valid 6-face skybox images or fallback HDR file found in folder.</source>
         <translation>No se encontraron imágenes válidas de skybox de 6 caras ni un archivo HDR de reserva en la carpeta.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="1813"/>
+        <location filename="../src/ViewportWidget.cpp" line="1923"/>
         <source>Missing skybox face: %1
 Expected files should include identifiers like posx/negx or right/left, etc.</source>
         <translation>Falta la cara de skybox: %1
 Los archivos esperados deben incluir identificadores como posx/negx o right/left, etc.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="1861"/>
+        <location filename="../src/ViewportWidget.cpp" line="1971"/>
         <source>Failed to load skybox face:
 </source>
         <translation>No se pudo cargar la cara de skybox:
 </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2143"/>
-        <location filename="../src/ViewportWidget.cpp" line="2154"/>
+        <location filename="../src/ViewportWidget.cpp" line="2253"/>
+        <location filename="../src/ViewportWidget.cpp" line="2264"/>
         <source>Z-Up</source>
         <translation>Z-Arriba</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2143"/>
-        <location filename="../src/ViewportWidget.cpp" line="2154"/>
+        <location filename="../src/ViewportWidget.cpp" line="2253"/>
+        <location filename="../src/ViewportWidget.cpp" line="2264"/>
         <source>Y-Up</source>
         <translation>Y-Arriba</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2159"/>
+        <location filename="../src/ViewportWidget.cpp" line="2269"/>
         <source>Camera Up-Axis Mismatch</source>
         <translation>Discrepancia de eje vertical de la cámara</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2160"/>
+        <location filename="../src/ViewportWidget.cpp" line="2270"/>
         <source>The imported model &quot;%1&quot; uses %2, but this view is currently %3.
 
 The active camera convention was left unchanged because this view already contains content.</source>
@@ -14959,181 +16880,203 @@ The active camera convention was left unchanged because this view already contai
 La convención de cámara activa se dejó sin cambios porque esta vista ya contiene contenido.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2752"/>
+        <location filename="../src/ViewportWidget.cpp" line="2754"/>
+        <source>Oblique projections are not available in ray-traced mode.</source>
+        <translation>Las proyecciones oblicuas no están disponibles en el modo de trazado por rayos.</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewportWidget.cpp" line="2772"/>
+        <source>Ray tracing does not support oblique projections yet - switched to Orthographic.</source>
+        <translation>El trazado por rayos aún no admite proyecciones oblicuas: se cambió a Ortográfica.</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewportWidget.cpp" line="2941"/>
         <source>Press Esc to deactivate rotation mode</source>
         <translation>Pulse Esc para desactivar el modo de rotación</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2759"/>
+        <location filename="../src/ViewportWidget.cpp" line="2949"/>
         <source>Press Esc to deactivate panning mode</source>
         <translation>Pulse Esc para desactivar el modo de desplazamiento</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="2766"/>
+        <location filename="../src/ViewportWidget.cpp" line="2957"/>
         <source>Press Esc to deactivate zooming mode</source>
         <translation>Pulse Esc para desactivar el modo de zoom</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="3831"/>
+        <location filename="../src/ViewportWidget.cpp" line="4457"/>
         <source>Manual exploded placement active: translate or rotate the selected meshes to refine the staged pose</source>
         <translation>Colocación explosionada manual activa: traslade o rote las mallas seleccionadas para refinar la pose preparada</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="3832"/>
+        <location filename="../src/ViewportWidget.cpp" line="4458"/>
         <source>Transform gizmo active: drag the corner box handle to scale uniformly</source>
         <translation>Gizmo de transformación activo: arrastre el asa de la esquina para escalar uniformemente</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4375"/>
+        <location filename="../src/ViewportWidget.cpp" line="5018"/>
         <source>Reading file: </source>
         <translation>Leyendo archivo: </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4499"/>
+        <location filename="../src/ViewportWidget.cpp" line="5147"/>
         <source>Model loading did not finish correctly.</source>
         <translation>La carga del modelo no finalizó correctamente.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4661"/>
+        <location filename="../src/ViewportWidget.cpp" line="5309"/>
         <source>Model loading cancelled</source>
         <translation>Carga del modelo cancelada</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4666"/>
+        <location filename="../src/ViewportWidget.cpp" line="5314"/>
         <source>Model loading cancelled after importing %1 meshes</source>
         <translation>Carga del modelo cancelada tras importar %1 mallas</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4691"/>
+        <location filename="../src/ViewportWidget.cpp" line="5340"/>
         <source>Generating UVs for %1 meshes</source>
         <translation>Generando UV para %1 mallas</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4743"/>
+        <location filename="../src/ViewportWidget.cpp" line="5392"/>
         <source>Updating mesh: </source>
         <translation>Actualizando malla: </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4774"/>
+        <location filename="../src/ViewportWidget.cpp" line="5423"/>
         <source>%1 of %2 marked seams could not be resolved.</source>
         <translation>%1 de %2 costuras marcadas no se pudieron resolver.</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4796"/>
+        <location filename="../src/ViewportWidget.cpp" line="5445"/>
         <source>Generating UVs... </source>
         <translation>Generando UV... </translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4797"/>
+        <location filename="../src/ViewportWidget.cpp" line="5446"/>
         <source>Processing node: %1/%2  Mesh: %3/%4</source>
         <translation>Procesando nodo: %1/%2  Malla: %3/%4</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4832"/>
+        <location filename="../src/ViewportWidget.cpp" line="5481"/>
         <source>Cancelling...</source>
         <translation>Cancelando...</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="4833"/>
+        <location filename="../src/ViewportWidget.cpp" line="5482"/>
         <source>Cancelling model load...</source>
         <translation>Cancelando la carga del modelo...</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="8070"/>
+        <location filename="../src/ViewportWidget.cpp" line="5734"/>
+        <location filename="../src/ViewportWidget.cpp" line="5735"/>
+        <location filename="../src/ViewportWidget.cpp" line="5736"/>
+        <source>Drag Clipping Plane</source>
+        <translation>Arrastrar plano de corte</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewportWidget.cpp" line="5767"/>
+        <source>Drag Clipping Box Face</source>
+        <translation>Arrastrar cara de la caja de corte</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewportWidget.cpp" line="9364"/>
         <source>Translate Exploded Placement</source>
         <translation>Trasladar colocación explosionada</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="8082"/>
+        <location filename="../src/ViewportWidget.cpp" line="9376"/>
         <source>Translate Selection</source>
         <translation>Trasladar selección</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="8331"/>
+        <location filename="../src/ViewportWidget.cpp" line="9625"/>
         <source>Scale Selection</source>
         <translation>Escalar selección</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="8599"/>
+        <location filename="../src/ViewportWidget.cpp" line="9893"/>
         <source>Rotate Exploded Placement</source>
         <translation>Rotar colocación explosionada</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="8614"/>
+        <location filename="../src/ViewportWidget.cpp" line="9908"/>
         <source>Rotate Selection</source>
         <translation>Rotar selección</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="9086"/>
-        <location filename="../src/ViewportWidget.cpp" line="9275"/>
+        <location filename="../src/ViewportWidget.cpp" line="10382"/>
+        <location filename="../src/ViewportWidget.cpp" line="10571"/>
         <source>Bottom</source>
         <translation>Inferior</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="9086"/>
-        <location filename="../src/ViewportWidget.cpp" line="9275"/>
+        <location filename="../src/ViewportWidget.cpp" line="10382"/>
+        <location filename="../src/ViewportWidget.cpp" line="10571"/>
         <source>Rear</source>
         <translation>Trasero</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="9086"/>
-        <location filename="../src/ViewportWidget.cpp" line="9275"/>
+        <location filename="../src/ViewportWidget.cpp" line="10382"/>
+        <location filename="../src/ViewportWidget.cpp" line="10571"/>
         <source>Right</source>
         <translation>Derecha</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="11466"/>
+        <location filename="../src/ViewportWidget.cpp" line="12885"/>
         <source>Performance Warning!</source>
         <translation>¡Advertencia de rendimiento!</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="11467"/>
+        <location filename="../src/ViewportWidget.cpp" line="12886"/>
         <source>The model contains more than %1 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
         <translation>El modelo contiene más de %1 triángulos y el método actual de generación de UV es «Smart UV», que consume mucho tiempo.
 ¿Desea continuar generando el UV?</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="11473"/>
+        <location filename="../src/ViewportWidget.cpp" line="12892"/>
         <source>Change Settings</source>
         <translation>Cambiar configuración</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16647"/>
+        <location filename="../src/ViewportWidget.cpp" line="18174"/>
         <source>Center Screen</source>
         <translation>Centrar pantalla</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16654"/>
+        <location filename="../src/ViewportWidget.cpp" line="18181"/>
         <source>Center Object List</source>
         <translation>Centrar lista de objetos</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16621"/>
-        <location filename="../src/ViewportWidget.cpp" line="16636"/>
-        <location filename="../src/ViewportWidget.cpp" line="16658"/>
+        <location filename="../src/ViewportWidget.cpp" line="18148"/>
+        <location filename="../src/ViewportWidget.cpp" line="18163"/>
+        <location filename="../src/ViewportWidget.cpp" line="18185"/>
         <source>Show</source>
         <translation>Mostrar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16623"/>
-        <location filename="../src/ViewportWidget.cpp" line="16638"/>
-        <location filename="../src/ViewportWidget.cpp" line="16660"/>
+        <location filename="../src/ViewportWidget.cpp" line="18150"/>
+        <location filename="../src/ViewportWidget.cpp" line="18165"/>
+        <location filename="../src/ViewportWidget.cpp" line="18187"/>
         <source>Hide</source>
         <translation>Ocultar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16662"/>
+        <location filename="../src/ViewportWidget.cpp" line="18189"/>
         <source>Show Only</source>
         <translation>Mostrar solo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16664"/>
+        <location filename="../src/ViewportWidget.cpp" line="18191"/>
         <source>Transformations</source>
         <translation>Transformaciones</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16665"/>
+        <location filename="../src/ViewportWidget.cpp" line="18192"/>
         <source>Edit Material</source>
         <translation>Editar material</translation>
     </message>
@@ -15142,114 +17085,114 @@ Do you want to continue generating the UV?</source>
         <translation type="vanished">Generar UV</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16673"/>
+        <location filename="../src/ViewportWidget.cpp" line="18200"/>
         <source>Copy</source>
         <translation>Copiar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16674"/>
+        <location filename="../src/ViewportWidget.cpp" line="18201"/>
         <source>Cut</source>
         <translation>Cortar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16624"/>
-        <location filename="../src/ViewportWidget.cpp" line="16639"/>
-        <location filename="../src/ViewportWidget.cpp" line="16675"/>
+        <location filename="../src/ViewportWidget.cpp" line="18151"/>
+        <location filename="../src/ViewportWidget.cpp" line="18166"/>
+        <location filename="../src/ViewportWidget.cpp" line="18202"/>
         <source>Delete</source>
         <translation>Eliminar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16667"/>
+        <location filename="../src/ViewportWidget.cpp" line="18194"/>
         <source>Split by Connectivity</source>
         <translation>Dividir por conectividad</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16668"/>
+        <location filename="../src/ViewportWidget.cpp" line="18195"/>
         <source>Merge by Adjacency</source>
         <translation>Fusionar por adyacencia</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16669"/>
+        <location filename="../src/ViewportWidget.cpp" line="18196"/>
         <source>Merge Selected</source>
         <translation>Fusionar seleccionados</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16670"/>
+        <location filename="../src/ViewportWidget.cpp" line="18197"/>
         <source>Mesh Union</source>
         <translation>Unión de mallas</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16671"/>
+        <location filename="../src/ViewportWidget.cpp" line="18198"/>
         <source>Group</source>
         <translation>Agrupar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16677"/>
+        <location filename="../src/ViewportWidget.cpp" line="18204"/>
         <source>Mesh Info</source>
         <translation>Información de malla</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16684"/>
+        <location filename="../src/ViewportWidget.cpp" line="18211"/>
         <source>Fit All</source>
         <translation>Ajustar todo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16689"/>
+        <location filename="../src/ViewportWidget.cpp" line="18216"/>
         <source>Zoom Area</source>
         <translation>Zoom de área</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16703"/>
+        <location filename="../src/ViewportWidget.cpp" line="18230"/>
         <source>Select</source>
         <translation>Seleccionar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16711"/>
+        <location filename="../src/ViewportWidget.cpp" line="18238"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16719"/>
+        <location filename="../src/ViewportWidget.cpp" line="18246"/>
         <source>Pan</source>
         <translation>Desplazar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16727"/>
+        <location filename="../src/ViewportWidget.cpp" line="18254"/>
         <source>Rotate</source>
         <translation>Rotar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16740"/>
+        <location filename="../src/ViewportWidget.cpp" line="18267"/>
         <source>Show All</source>
         <translation>Mostrar todo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16747"/>
+        <location filename="../src/ViewportWidget.cpp" line="18274"/>
         <source>Hide All</source>
         <translation>Ocultar todo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16754"/>
+        <location filename="../src/ViewportWidget.cpp" line="18281"/>
         <source>Swap Visible</source>
         <translation>Intercambiar visible</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16773"/>
+        <location filename="../src/ViewportWidget.cpp" line="18300"/>
         <source>Paste</source>
         <translation>Pegar</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16780"/>
+        <location filename="../src/ViewportWidget.cpp" line="18307"/>
         <source>Environment Settings</source>
         <translation>Configuración del entorno</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="16781"/>
+        <location filename="../src/ViewportWidget.cpp" line="18308"/>
         <source>Background Color</source>
         <translation>Color de fondo</translation>
     </message>
     <message>
-        <location filename="../src/ViewportWidget.cpp" line="17207"/>
+        <location filename="../src/ViewportWidget.cpp" line="18734"/>
         <source>Uploading mesh %1 / %2</source>
         <translation>Subiendo malla %1 / %2</translation>
     </message>
