@@ -24,6 +24,7 @@
 #include "ModelViewer.h"
 #include "ThemeManager.h"
 #include "LanguageManager.h"
+#include "TextShrink.h"
 #include "ViewportWidget.h"
 #include "ToolsToolbar.h"
 #include <QtOpenGL>
@@ -285,6 +286,9 @@ MainWindow::MainWindow(QWidget* parent)
 		// not any dock-specific API.
 		documentDock->setWindowIcon(QIcon(":/icons/res/document-root.png"));
 		documentDock->setWidget(documentTabContainer);
+		// Not wrapped in a scroll area like the other docks, so without this a long translation of any label,
+		// button or check box in here sets the dock's minimum width and pushes it into the viewport.
+		allowTextToShrink(documentTabContainer);
 		addDockWidget(Qt::RightDockWidgetArea, documentDock);
 		_documentDock = documentDock;
 
@@ -880,6 +884,41 @@ MainWindow::MainWindow(QWidget* parent)
 void MainWindow::retranslateUI()
 {
 	updateCornerIcons();
+
+	// Right-hand docks: titles, tab labels and the shared document check boxes are all created once with tr(),
+	// so they have to be re-applied here (the panels inside retranslate themselves).
+	if (_documentDock)
+		_documentDock->setWindowTitle(tr("Document"));
+	if (_propertiesDock)
+		_propertiesDock->setWindowTitle(tr("Properties"));
+	if (_environmentDock)
+		_environmentDock->setWindowTitle(tr("Environment"));
+	if (_documentTabWidget)
+	{
+		_documentTabWidget->setTabText(_documentTabWidget->indexOf(_materialVariantsPanel), tr("Variants"));
+		_documentTabWidget->setTabText(_documentTabWidget->indexOf(_animationsPanel), tr("Animations"));
+		_documentTabWidget->setTabText(_documentTabWidget->indexOf(_camerasPanel), tr("Cameras"));
+	}
+	if (_documentSecondaryTabWidget)
+	{
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_selectionSetsPanel), tr("Selections"));
+		_documentSecondaryTabWidget->setTabText(_documentSecondaryTabWidget->indexOf(_sceneStatesPanel), tr("States"));
+	}
+	if (_propertiesTabWidget && _propertiesTabWidget->count() >= 2)
+	{
+		_propertiesTabWidget->setTabText(0, tr("Materials"));
+		_propertiesTabWidget->setTabText(1, tr("Transformations"));
+	}
+	if (_checkBoxAutoFitView)
+	{
+		_checkBoxAutoFitView->setText(tr("Auto Fit View On Hide/Show"));
+		_checkBoxAutoFitView->setToolTip(tr("Auto Fit View On Hide/Show"));
+	}
+	if (_checkBoxSelectionHighlight)
+	{
+		_checkBoxSelectionHighlight->setText(tr("Selection Highlighting"));
+		_checkBoxSelectionHighlight->setToolTip(tr("Selection Highlighting in Viewer"));
+	}
 
 	// Recent files submenu
 	if (recentFileSubMenuAct && recentFileSubMenuAct->menu())

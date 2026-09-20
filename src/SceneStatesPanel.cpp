@@ -1,4 +1,5 @@
 #include "SceneStatesPanel.h"
+#include "LanguageManager.h"
 #include "SceneGraph.h"
 
 #include <QVBoxLayout>
@@ -14,7 +15,9 @@ SceneStatesPanel::SceneStatesPanel(QWidget* parent)
 {
 	auto* layout = new QVBoxLayout(this);
 
-	layout->addWidget(new QLabel(tr("Saved scene states for this document:"), this));
+	_headerLabel = new QLabel(tr("Saved scene states for this document:"), this);
+	_headerLabel->setWordWrap(true);   // a long translation wraps instead of widening the dock
+	layout->addWidget(_headerLabel);
 
 	_list = new QListWidget(this);
 	layout->addWidget(_list, 1);
@@ -32,6 +35,15 @@ SceneStatesPanel::SceneStatesPanel(QWidget* parent)
 	connect(_list, &QListWidget::itemSelectionChanged, this, &SceneStatesPanel::onSelectionChanged);
 	connect(_saveButton, &QPushButton::clicked, this, &SceneStatesPanel::onSaveButtonClicked);
 	connect(_deleteButton, &QPushButton::clicked, this, &SceneStatesPanel::onDeleteButtonClicked);
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &SceneStatesPanel::retranslateUI);
+}
+
+void SceneStatesPanel::retranslateUI()
+{
+	_headerLabel->setText(tr("Saved scene states for this document:"));
+	_saveButton->setText(tr("Save Current State..."));
+	_deleteButton->setText(tr("Delete"));
+	refresh();   // row labels are built with tr() too
 }
 
 void SceneStatesPanel::setSceneGraph(SceneGraph* sg)

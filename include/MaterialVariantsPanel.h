@@ -53,6 +53,9 @@ public:
     // Rebuild the tree from the current SceneGraph variant data.
     void refresh();
 
+    // Re-applies every translated string (buttons, tooltips, rows) after a UI language change.
+    void retranslateUI();
+
     // Enable / disable the frosted-glass rendering used when the navigation
     // panel is floating as a ViewportWidget overlay. Styling only - does NOT
     // reparent. Unlike SceneTreeWidget's per-document instances, this class

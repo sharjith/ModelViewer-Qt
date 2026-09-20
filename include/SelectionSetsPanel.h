@@ -4,6 +4,7 @@
 #include <QUuid>
 #include <QSet>
 
+class QLabel;
 class QListWidget;
 class QListWidgetItem;
 class QPushButton;
@@ -46,6 +47,9 @@ public:
 	// out from under any existing highlight).
 	void refresh();
 
+	// Re-applies every translated string (labels, buttons, list rows) after a UI language change.
+	void retranslateUI();
+
 	// Called whenever the document's live selection changes - highlights
 	// the row (if any) whose saved meshUuids exactly equal
 	// currentSelectionUuids, clearing the highlight if none match.
@@ -77,6 +81,7 @@ private:
 	// selectionSetDeselectRequested, only real clicks do that).
 	void updateActiveHighlight();
 
+	QLabel* _headerLabel = nullptr;
 	QListWidget* _list = nullptr;
 	QPushButton* _saveButton = nullptr;
 	QPushButton* _deleteButton = nullptr;

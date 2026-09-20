@@ -30,6 +30,9 @@ public:
 	void setSceneGraph(SceneGraph* sg);
 	void setViewportWidget(ViewportWidget* viewportWidget);
 	void refresh();
+
+	// Re-applies every translated string (controls, tooltips, rows) after a UI language change.
+	void retranslateUI();
 	// Styling only - does NOT reparent. Unlike SceneTreeWidget's per-document
 	// instances, this class is one of MainWindow's shared/singleton panels
 	// (see MainWindow.h); it must stay parented under MainWindow for its

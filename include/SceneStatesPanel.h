@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QUuid>
 
+class QLabel;
 class QListWidget;
 class QListWidgetItem;
 class QPushButton;
@@ -42,6 +43,9 @@ public:
 	// Rebuild the list from the current SceneGraph scene-state data.
 	void refresh();
 
+	// Re-applies every translated string (labels, buttons, list rows) after a UI language change.
+	void retranslateUI();
+
 signals:
 	// Emitted on single-click of any row - always an immediate recall (see
 	// this class's doc comment for why there's no toggle-off case here,
@@ -60,6 +64,7 @@ private slots:
 	void onSelectionChanged();
 
 private:
+	QLabel* _headerLabel = nullptr;
 	QListWidget* _list = nullptr;
 	QPushButton* _saveButton = nullptr;
 	QPushButton* _deleteButton = nullptr;

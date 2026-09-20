@@ -1,4 +1,5 @@
 #include "MaterialVariantsPanel.h"
+#include "LanguageManager.h"
 #include "SceneGraph.h"
 
 #include <QFileInfo>
@@ -66,6 +67,7 @@ MaterialVariantsPanel::MaterialVariantsPanel(QWidget* parent)
     _setDefaultButton->setToolTip(tr("Make the active variant's material the file's fallback/default"));
     _deleteButton = new QPushButton(tr("Delete"), this);
     _deleteButton->setToolTip(tr("Delete the active variant"));
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &MaterialVariantsPanel::retranslateUI);
 
     auto* buttonRow = new QHBoxLayout();
     buttonRow->setContentsMargins(8, 0, 8, 8);
@@ -135,6 +137,17 @@ void MaterialVariantsPanel::refresh()
     }
 
     updateButtonStates();
+}
+
+void MaterialVariantsPanel::retranslateUI()
+{
+    _captureButton->setText(tr("Add Variant..."));
+    _captureButton->setToolTip(tr("Capture the current file's live material state as a new variant"));
+    _setDefaultButton->setText(tr("Set as Default"));
+    _setDefaultButton->setToolTip(tr("Make the active variant's material the file's fallback/default"));
+    _deleteButton->setText(tr("Delete"));
+    _deleteButton->setToolTip(tr("Delete the active variant"));
+    refresh();   // the "Default" row is built with tr()
 }
 
 void MaterialVariantsPanel::setDetachedOverlayMode(bool enabled)

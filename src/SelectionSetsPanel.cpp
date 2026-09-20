@@ -1,4 +1,5 @@
 #include "SelectionSetsPanel.h"
+#include "LanguageManager.h"
 #include "SceneGraph.h"
 
 #include <QVBoxLayout>
@@ -14,7 +15,9 @@ SelectionSetsPanel::SelectionSetsPanel(QWidget* parent)
 {
 	auto* layout = new QVBoxLayout(this);
 
-	layout->addWidget(new QLabel(tr("Saved selections for this document:"), this));
+	_headerLabel = new QLabel(tr("Saved selections for this document:"), this);
+	_headerLabel->setWordWrap(true);   // a long translation wraps instead of widening the dock
+	layout->addWidget(_headerLabel);
 
 	_list = new QListWidget(this);
 	layout->addWidget(_list, 1);
@@ -32,6 +35,15 @@ SelectionSetsPanel::SelectionSetsPanel(QWidget* parent)
 	connect(_list, &QListWidget::itemSelectionChanged, this, &SelectionSetsPanel::onSelectionChanged);
 	connect(_saveButton, &QPushButton::clicked, this, &SelectionSetsPanel::onSaveButtonClicked);
 	connect(_deleteButton, &QPushButton::clicked, this, &SelectionSetsPanel::onDeleteButtonClicked);
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, &SelectionSetsPanel::retranslateUI);
+}
+
+void SelectionSetsPanel::retranslateUI()
+{
+	_headerLabel->setText(tr("Saved selections for this document:"));
+	_saveButton->setText(tr("Save Current Selection..."));
+	_deleteButton->setText(tr("Delete"));
+	refresh();   // row labels are built with tr() too
 }
 
 void SelectionSetsPanel::setSceneGraph(SceneGraph* sg)
