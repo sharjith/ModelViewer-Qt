@@ -1,5 +1,6 @@
 
 #include "ViewToolbar.h"
+#include "IsoCornerIcons.h"
 #include "FlyOutViewButton.h"
 #include "LanguageManager.h"
 #include <QHBoxLayout>
@@ -79,21 +80,6 @@ QString clippingPresetText(int index)
 }
 }
 
-namespace
-{
-// Compass code ("SE") of a corner.
-const char* cornerActionCode(IsoCorner corner)
-{
-    switch (corner)
-    {
-    case IsoCorner::NE: return "NE";
-    case IsoCorner::NW: return "NW";
-    case IsoCorner::SW: return "SW";
-    default:            return "SE";
-    }
-}
-}
-
 // Flyout label of a corner; a translatable string so it can be localised.
 QString ViewToolbar::cornerActionText(IsoCorner corner)
 {
@@ -103,6 +89,29 @@ QString ViewToolbar::cornerActionText(IsoCorner corner)
     case IsoCorner::NW: return tr("NW Corner");
     case IsoCorner::SW: return tr("SW Corner");
     default:            return tr("SE Corner");
+    }
+}
+
+// Compass abbreviation of a corner in the UI language (SO/NO/NW/SW in German, SE/NE/NO/SO in Spanish, ...);
+// what the corner button's tooltip shows.
+QString ViewToolbar::cornerActionAbbreviation(IsoCorner corner)
+{
+    switch (corner)
+    {
+    case IsoCorner::NE: return tr("NE", "compass corner abbreviation");
+    case IsoCorner::NW: return tr("NW", "compass corner abbreviation");
+    case IsoCorner::SW: return tr("SW", "compass corner abbreviation");
+    default:            return tr("SE", "compass corner abbreviation");
+    }
+}
+
+// The corner button mirrors the current corner: its icon is the flyout entry's and its tooltip names the corner.
+void ViewToolbar::updateCornerButton()
+{
+    if (QAction* cornerAction = _cornerActions.value(_currentCorner, nullptr))
+    {
+        _cornerNextAction->setIcon(cornerAction->icon());
+        _cornerNextAction->setToolTip(tr("Isometric corner %1 - click for the next corner").arg(cornerActionAbbreviation(_currentCorner)));
     }
 }
 
@@ -685,17 +694,17 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     QMenu* cornerMenu = new QMenu;
     cornerMenu->setStyleSheet(flyoutStyleSheet);
-    struct CornerEntry { IsoCorner corner; const char* code; const char* icon; };
+    struct CornerEntry { IsoCorner corner; const char* code; };
     const CornerEntry cornerEntries[] = {
-        { IsoCorner::SE, "SE", ":/icons/res/isometric_se.png" },
-        { IsoCorner::NE, "NE", ":/icons/res/isometric_ne.png" },
-        { IsoCorner::NW, "NW", ":/icons/res/isometric_nw.png" },
-        { IsoCorner::SW, "SW", ":/icons/res/isometric_sw.png" },
+        { IsoCorner::SE, "SE" },
+        { IsoCorner::NE, "NE" },
+        { IsoCorner::NW, "NW" },
+        { IsoCorner::SW, "SW" },
     };
     const Qt::Key cornerShortcutKeys[] = { Qt::Key_4, Qt::Key_5, Qt::Key_6, Qt::Key_7 };   // Ctrl+4..7 pick a corner directly (Ctrl+1..3 pick the type)
     int cornerIndex = 0;
     for (const CornerEntry& entry : cornerEntries) {
-        QAction* action = cornerMenu->addAction(QIcon(QString::fromLatin1(entry.icon)), cornerActionText(entry.corner));
+        QAction* action = cornerMenu->addAction(QIcon(isoCornerIconPath(entry.corner)), cornerActionText(entry.corner));
         action->setShortcut(QKeySequence(Qt::CTRL | cornerShortcutKeys[cornerIndex++]));
         scopeShortcutToViewport(action);
         const QString code = QString::fromLatin1(entry.code);
@@ -704,7 +713,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     }
     // The button's own (default) action: step to the next corner. Its look is kept in sync with the
     // current corner by setAxonometricState().
-    _cornerNextAction = new QAction(QIcon(":/icons/res/isometric_se.png"), tr("Next Corner"), this);
+    _cornerNextAction = new QAction(QIcon(isoCornerIconPath(IsoCorner::SE)), tr("Next Corner"), this);
     connect(_cornerNextAction, &QAction::triggered, this, [this]() { emit isoCornerSelected(QStringLiteral("Next")); });
     _toolButtonCorner->setMenu(cornerMenu);
     _toolButtonCorner->setDefaultAction(_cornerNextAction);
@@ -1230,11 +1239,8 @@ void ViewToolbar::setAxonometricState(ViewMode type, IsoCorner corner, bool acti
 	setDefaultViewModeAction(type == ViewMode::DIMETRIC ? ViewModeActions::DIMETRIC
 		: type == ViewMode::TRIMETRIC ? ViewModeActions::TRIMETRIC : ViewModeActions::ISOMETRIC);
 	// ...and the corner button shows the current corner.
-	if (QAction* cornerAction = _cornerActions.value(corner, nullptr))
-	{
-		_cornerNextAction->setIcon(cornerAction->icon());
-		_cornerNextAction->setToolTip(tr("Isometric corner %1 - click for the next corner").arg(QString::fromLatin1(cornerActionCode(corner))));
-	}
+	_currentCorner = corner;
+	updateCornerButton();
 	// Both buttons are highlighted only while the view really is axonometric; a standard view or a free
 	// orbit leaves them neutral, but they keep the last type/corner so a click continues from there.
 	QToolButton* buttons[] = { _toolButtonViewModes, _toolButtonCorner };
@@ -1526,7 +1532,11 @@ void ViewToolbar::retranslateUI()
 	_toolButtonViewModes->setToolTip(tr("Axonometric View"));
 	_isoAction->setText(tr("Isometric"));
 	for (auto it = _cornerActions.cbegin(); it != _cornerActions.cend(); ++it)
+	{
 		it.value()->setText(cornerActionText(it.key()));
+		it.value()->setIcon(QIcon(isoCornerIconPath(it.key())));   // the letters on the icon follow the language
+	}
+	updateCornerButton();
 	_cornerNextAction->setText(tr("Next Corner"));
 	_perspectiveAction->setText(tr("Perspective"));
 	_orthographicAction->setText(tr("Orthographic"));

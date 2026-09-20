@@ -158,6 +158,7 @@ private slots:
 	bool loadFile(const QString& fileName);
 	void updateMenus();
     void setupViewMenus();
+    void updateCornerIcons();   // View > Axonometric Views corner icons (letters follow the UI language)
     void updateViewMenus();
 	void updateRecentFileActions();
     void removeFromRecentFiles(const QString& fileName);

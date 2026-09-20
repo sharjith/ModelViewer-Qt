@@ -253,6 +253,9 @@ private:
     QAction* _cavalierAction;
     QAction* _cabinetAction;
     static QString cornerActionText(IsoCorner corner);
+    static QString cornerActionAbbreviation(IsoCorner corner);
+    void updateCornerButton();                  // icon + tooltip of the corner button for _currentCorner
+    IsoCorner _currentCorner = IsoCorner::SE;
     QMap<ViewModeActions, QAction*> _viewModeActions;
 
     FlyOutViewButton* _toolButtonDisplayModes;

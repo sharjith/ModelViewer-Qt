@@ -3,6 +3,7 @@
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "TabbedViewportToolbar.h"
+#include "IsoCornerIcons.h"
 #include <QActionGroup>
 #include <QMenu>
 #include <QSettings>
@@ -86,10 +87,19 @@ void MainWindow::setupViewMenus()
             updateViewMenus();
         });
     }
+    updateCornerIcons();
     connect(ui->menuView, &QMenu::aboutToShow, this, &MainWindow::updateViewMenus);
     connect(ui->menuSelection, &QMenu::aboutToShow, this, &MainWindow::updateViewMenus);
     for (QMenu* menu : ui->menuView->findChildren<QMenu*>())
         connect(menu, &QMenu::aboutToShow, this, &MainWindow::updateViewMenus);
+}
+
+void MainWindow::updateCornerIcons()
+{
+    ui->actionViewCornerSE->setIcon(QIcon(isoCornerIconPath(IsoCorner::SE)));
+    ui->actionViewCornerNE->setIcon(QIcon(isoCornerIconPath(IsoCorner::NE)));
+    ui->actionViewCornerNW->setIcon(QIcon(isoCornerIconPath(IsoCorner::NW)));
+    ui->actionViewCornerSW->setIcon(QIcon(isoCornerIconPath(IsoCorner::SW)));
 }
 
 void MainWindow::updateViewMenus()

@@ -14,6 +14,14 @@
         <file>res/isometric_ne.png</file>
         <file>res/isometric_nw.png</file>
         <file>res/isometric_sw.png</file>
+        <file>res/isometric_se_de.png</file>
+        <file>res/isometric_ne_de.png</file>
+        <file>res/isometric_nw_de.png</file>
+        <file>res/isometric_sw_de.png</file>
+        <file>res/isometric_se_o.png</file>
+        <file>res/isometric_ne_o.png</file>
+        <file>res/isometric_nw_o.png</file>
+        <file>res/isometric_sw_o.png</file>
         <file>res/dimetric.png</file>
         <file>res/trimetric.png</file>
         <file>res/multiview.png</file>

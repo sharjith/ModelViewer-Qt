@@ -879,6 +879,8 @@ MainWindow::MainWindow(QWidget* parent)
 
 void MainWindow::retranslateUI()
 {
+	updateCornerIcons();
+
 	// Recent files submenu
 	if (recentFileSubMenuAct && recentFileSubMenuAct->menu())
 		recentFileSubMenuAct->menu()->setTitle(tr("Recent..."));
