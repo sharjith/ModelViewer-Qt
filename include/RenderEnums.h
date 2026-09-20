@@ -38,5 +38,10 @@ enum class GroundMode        { None = 0, Floor = 1, Grid = 2, InfinitePlane = 3 
 // with #include "RenderEnums.h" for all of these).
 enum class ViewMode          { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK,
                                ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
+// The compass corner an axonometric view (isometric, dimetric or trimetric) is seen from. SE is the
+// default; the others are the same view turned in 90-degree steps about the up axis. Independent of
+// the axonometric type. Compass names as in engineering drawings: North = +Y in the Top view, East = +X.
+enum class IsoCorner         { SE, NE, NW, SW };
+inline bool isAxonometricMode(ViewMode m) { return m == ViewMode::ISOMETRIC || m == ViewMode::DIMETRIC || m == ViewMode::TRIMETRIC; }
 enum class ViewProjection    { ORTHOGRAPHIC, PERSPECTIVE };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };

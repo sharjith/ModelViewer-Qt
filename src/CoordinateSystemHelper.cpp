@@ -18,6 +18,7 @@ void orthonormalizeViewBasis(const QVector3D& viewDirection,
 }
 
 void canonicalStandardViewBasis(ViewMode mode,
+                                IsoCorner corner,
                                 QVector3D& viewDir,
                                 QVector3D& upDir,
                                 QVector3D& rightDir)
@@ -68,6 +69,17 @@ void canonicalStandardViewBasis(ViewMode mode,
         break;
     }
 
+    // The compass corner turns the axonometric views in 90-degree steps about the (canonical, Z-up)
+    // up axis: SE is the canonical view above, NE +90, NW +180, SW +270 degrees (counter-clockwise seen
+    // from above; e.g. SE's (-1, 1, -1) becomes NE's (-1, -1, -1)). The up hint turns with it. Applied
+    // here, before the up-axis convention rotation, so every corner looks the same in Z-up and Y-up.
+    if (isAxonometricMode(mode) && corner != IsoCorner::SE)
+    {
+        const QQuaternion turn = QQuaternion::fromAxisAndAngle(0.0f, 0.0f, 1.0f, 90.0f * static_cast<float>(corner));
+        viewDirection = turn.rotatedVector(viewDirection);
+        upHint = turn.rotatedVector(upHint);
+    }
+
     orthonormalizeViewBasis(viewDirection, upHint, viewDir, upDir, rightDir);
 }
 }
@@ -90,9 +102,10 @@ void standardViewBasis(bool cameraUpAxisZUp,
                        ViewMode mode,
                        QVector3D& viewDir,
                        QVector3D& upDir,
-                       QVector3D& rightDir)
+                       QVector3D& rightDir,
+                       IsoCorner corner)
 {
-    canonicalStandardViewBasis(mode, viewDir, upDir, rightDir);
+    canonicalStandardViewBasis(mode, corner, viewDir, upDir, rightDir);
 
     const QQuaternion axisRotation = cameraUpAxisConventionRotation(cameraUpAxisZUp);
     viewDir = axisRotation.rotatedVector(viewDir).normalized();
@@ -100,12 +113,12 @@ void standardViewBasis(bool cameraUpAxisZUp,
     rightDir = axisRotation.rotatedVector(rightDir).normalized();
 }
 
-QQuaternion standardViewRotation(bool cameraUpAxisZUp, ViewMode mode)
+QQuaternion standardViewRotation(bool cameraUpAxisZUp, ViewMode mode, IsoCorner corner)
 {
     QVector3D viewDir;
     QVector3D upDir;
     QVector3D rightDir;
-    standardViewBasis(cameraUpAxisZUp, mode, viewDir, upDir, rightDir);
+    standardViewBasis(cameraUpAxisZUp, mode, viewDir, upDir, rightDir, corner);
 
     QMatrix4x4 targetMatrix;
     targetMatrix.setToIdentity();

@@ -87,6 +87,13 @@ public:
 
     ViewMode viewMode() const                            { return _viewMode; }
     void setViewMode(ViewMode mode)                      { _viewMode = mode; }
+    // Compass corner of the axonometric views and the last axonometric type chosen. Both persist while
+    // the view is not axonometric (a standard view, a free orbit), so choosing a corner or a type later
+    // combines it with whatever was picked last; defaults are the SE isometric.
+    IsoCorner isoCorner() const                          { return _isoCorner; }
+    void setIsoCorner(IsoCorner corner)                  { _isoCorner = corner; }
+    ViewMode lastAxonometricMode() const                 { return _lastAxonometricMode; }
+    void setLastAxonometricMode(ViewMode mode)           { _lastAxonometricMode = mode; }
 
     const QVector3D& currentTranslation() const          { return _currentTranslation; }
     void setCurrentTranslation(const QVector3D& translation)
@@ -400,6 +407,8 @@ private:
 
     // ---- View mode ---------------------------------------------------------
     ViewMode     _viewMode                   = ViewMode::NONE;
+    IsoCorner    _isoCorner                  = IsoCorner::SE;
+    ViewMode     _lastAxonometricMode        = ViewMode::ISOMETRIC;
     ViewProjection _projection               = ViewProjection::PERSPECTIVE;
     Camera::ProjectionType _previousProjection = Camera::ProjectionType::PERSPECTIVE;
     bool         _multiViewActive            = false;

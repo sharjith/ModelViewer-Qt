@@ -309,6 +309,15 @@ _floorPlane(nullptr),
 		 if (type == "Isometric") setViewMode(ViewMode::ISOMETRIC);
 		 else if (type == "Dimetric") setViewMode(ViewMode::DIMETRIC);
 		 else if (type == "Trimetric") setViewMode(ViewMode::TRIMETRIC);
+		 // Click on the type button steps to the next type; Home enters the last-used one.
+		 else if (type == "Step") executeViewCommand(QStringLiteral("axoStep"), false);
+		 else if (type == "Enter") executeViewCommand(QStringLiteral("axoEnter"), false);
+		 });
+
+	 // The compass corner is a separate choice from the axonometric type: SE/NE/NW/SW pick it directly,
+	 // Next/Prev step around. Routed through the menu-command path so every entry point behaves alike.
+	 connect(_viewToolbar, &ViewToolbar::isoCornerSelected, this, [this](const QString& corner) {
+		 executeViewCommand(QStringLiteral("corner") + corner, false);
 		 });
 
 	 connect(_viewToolbar, &ViewToolbar::displayModeSelected, this, [this](const QString& type) {
@@ -432,6 +441,9 @@ _floorPlane(nullptr),
 	_viewCtrl.setFOV(45.0f);
 	_viewCtrl.setCurrentViewRange(1.0f);
 	_viewCtrl.setViewMode(initialView.mode);
+	if (isAxonometricMode(initialView.mode))
+		_viewCtrl.setLastAxonometricMode(initialView.mode);
+	updateViewSelectorState();
 	_viewCtrl.setProjection(initialProjection);
 	_viewCtrl.setPreviousProjection(initialCameraProjection);
 
@@ -2318,7 +2330,7 @@ void ViewportWidget::setViewMode(ViewMode mode)
 	{
 		_keyboardNavTimer->stop();
 
-		const QQuaternion q = CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), mode);
+		const QQuaternion q = CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), mode, _viewCtrl.isoCorner());
 		const QMatrix4x4  m(q.toRotationMatrix());
 
 		// Compute fit + projected visual centre from the *target* orientation so
@@ -2347,8 +2359,40 @@ void ViewportWidget::setViewMode(ViewMode mode)
 		_viewCtrl.setCustomViewAnimationActive(true);
 		_animateViewTimer->start(5);
 		_viewCtrl.setViewMode(mode);
+		if (isAxonometricMode(mode))
+			_viewCtrl.setLastAxonometricMode(mode);
+		updateViewSelectorState();
 		_viewCtrl.resetSlerpStep();
 	}
+}
+
+void ViewportWidget::setIsoCorner(IsoCorner corner)
+{
+	// Like setViewMode(), ignore the request while a view animation is still running, so the stored corner
+	// never gets ahead of the view actually shown.
+	if (_animateViewTimer && _animateViewTimer->isActive())
+		return;
+	_viewCtrl.setIsoCorner(corner);
+	// Re-apply the axonometric view at the new corner; from a standard view or a free orbit, use the
+	// last axonometric type chosen (SE isometric until one has been).
+	setViewMode(isAxonometricMode(_viewCtrl.viewMode()) ? _viewCtrl.viewMode() : _viewCtrl.lastAxonometricMode());
+	updateViewSelectorState();
+}
+
+void ViewportWidget::updateViewSelectorState()
+{
+	if (!_viewToolbar)
+		return;
+	const ViewMode mode = _viewCtrl.viewMode();
+	const bool active = isAxonometricMode(mode);
+	const ViewMode type = active ? mode : _viewCtrl.lastAxonometricMode();
+	const IsoCorner corner = _viewCtrl.isoCorner();
+	// A free orbit calls this on every mouse move, so only touch the toolbar when something changed.
+	const int key = (static_cast<int>(type) << 4) | (static_cast<int>(corner) << 1) | (active ? 1 : 0);
+	if (key == _lastViewSelectorKey)
+		return;
+	_lastViewSelectorKey = key;
+	_viewToolbar->setAxonometricState(type, corner, active);
 }
 
 void ViewportWidget::fitAll()
@@ -6624,6 +6668,17 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	case ViewMode::TRIMETRIC: viewLabel = _labelTrimetric; break;
 	default: viewLabel = _labelIsometric; break;
 	}
+	// Axonometric views name their compass corner (language-neutral codes; SE is the default, unlabelled).
+	if (isAxonometricMode(_viewCtrl.viewMode()))
+	{
+		switch (_viewCtrl.isoCorner())
+		{
+		case IsoCorner::NE: viewLabel += QStringLiteral(" NE"); break;
+		case IsoCorner::NW: viewLabel += QStringLiteral(" NW"); break;
+		case IsoCorner::SW: viewLabel += QStringLiteral(" SW"); break;
+		default: break;
+		}
+	}
 	_textRenderer->RenderText(viewLabel.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// draw screen partitioning lines
@@ -10180,6 +10235,8 @@ bool ViewportWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal
 		_viewCtrl.setCustomViewTargetRotation(QQuaternion::fromRotationMatrix(targetMatrix.toGenericMatrix<3, 3>()).normalized());
 		_viewCtrl.setViewMode(ViewMode::NONE);
 	}
+
+	updateViewSelectorState();
 
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (!_sceneRuntime.meshStore().empty() && !visibleIds.empty())
@@ -14498,6 +14555,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_viewCtrl.setLeftButtonPoint(downPoint);
 			setCursor(makeIconCursor(":/icons/res/rotatecursor.png", 33, devicePixelRatioF()));
 			_viewCtrl.setViewMode(ViewMode::NONE);
+			updateViewSelectorState();
 
 			const float maxInertiaVelocity = 10.0f; // Adjust as needed
 			if (dt > 0) {

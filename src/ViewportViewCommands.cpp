@@ -4,6 +4,47 @@
 #include "ModelViewer.h"
 #include "TabbedViewportToolbar.h"
 #include <QEvent>
+#include <iterator>
+
+namespace
+{
+// The axonometric TYPES. The compass corner is a separate setting (see setIsoCorner()), so choosing a
+// type keeps the current corner and choosing a corner keeps the current type.
+struct AxonometricType
+{
+    const char* command;
+    ViewMode    mode;
+};
+constexpr AxonometricType kAxonometricTypes[] = {
+    { "iso",       ViewMode::ISOMETRIC },
+    { "dimetric",  ViewMode::DIMETRIC },
+    { "trimetric", ViewMode::TRIMETRIC },
+};
+
+const AxonometricType* axonometricType(const QString& command)
+{
+    for (const AxonometricType& entry : kAxonometricTypes)
+        if (command == QLatin1String(entry.command))
+            return &entry;
+    return nullptr;
+}
+
+constexpr int kIsoCornerCount = 4;
+
+// Menu/toolbar command name for a corner: "cornerSE", "cornerNE", ... ("cornerNext"/"cornerPrev" step around).
+bool cornerFromCommand(const QString& command, IsoCorner current, IsoCorner& corner)
+{
+    const int index = static_cast<int>(current);
+    if (command == QLatin1String("cornerSE")) corner = IsoCorner::SE;
+    else if (command == QLatin1String("cornerNE")) corner = IsoCorner::NE;
+    else if (command == QLatin1String("cornerNW")) corner = IsoCorner::NW;
+    else if (command == QLatin1String("cornerSW")) corner = IsoCorner::SW;
+    else if (command == QLatin1String("cornerNext")) corner = static_cast<IsoCorner>((index + 1) % kIsoCornerCount);
+    else if (command == QLatin1String("cornerPrev")) corner = static_cast<IsoCorner>((index + kIsoCornerCount - 1) % kIsoCornerCount);
+    else return false;
+    return true;
+}
+}
 
 ToolsToolbar* ViewportWidget::getToolsToolbar() const
 {
@@ -25,6 +66,16 @@ QVariantMap ViewportWidget::viewMenuState() const
     state["ortho"] = projection() == ViewProjection::ORTHOGRAPHIC;
     state["perspective"] = projection() == ViewProjection::PERSPECTIVE;
     state["multi"] = isMultiViewActive();
+    // Axonometric type and corner, for the View menu's radio items (all off in a standard view or free orbit).
+    const ViewMode currentMode = _viewCtrl.viewMode();
+    const bool axonometric = isAxonometricMode(currentMode);
+    state["iso"] = currentMode == ViewMode::ISOMETRIC;
+    state["dimetric"] = currentMode == ViewMode::DIMETRIC;
+    state["trimetric"] = currentMode == ViewMode::TRIMETRIC;
+    state["cornerSE"] = axonometric && _viewCtrl.isoCorner() == IsoCorner::SE;
+    state["cornerNE"] = axonometric && _viewCtrl.isoCorner() == IsoCorner::NE;
+    state["cornerNW"] = axonometric && _viewCtrl.isoCorner() == IsoCorner::NW;
+    state["cornerSW"] = axonometric && _viewCtrl.isoCorner() == IsoCorner::SW;
     state["shaded"] = getDisplayMode() == DisplayMode::SHADED;
     state["hollow"] = getDisplayMode() == DisplayMode::HOLLOW_MESH;
     state["meshEdges"] = getDisplayMode() == DisplayMode::MESH_EDGES;
@@ -71,9 +122,28 @@ void ViewportWidget::executeViewCommand(const QString& command, bool checked)
     else if (command == "rear") { setViewMode(ViewMode::BACK); _viewToolbar->setDefaultStandardViewAction(StandardViewActions::REAR); }
     else if (command == "left") { setViewMode(ViewMode::LEFT); _viewToolbar->setDefaultStandardViewAction(StandardViewActions::LEFT); }
     else if (command == "right") { setViewMode(ViewMode::RIGHT); _viewToolbar->setDefaultStandardViewAction(StandardViewActions::RIGHT); }
-    else if (command == "iso" || command == "dimetric" || command == "trimetric") {
-        setViewMode(command == "iso" ? ViewMode::ISOMETRIC : command == "dimetric" ? ViewMode::DIMETRIC : ViewMode::TRIMETRIC);
-        _viewToolbar->setDefaultViewModeAction(command == "iso" ? ViewModeActions::ISOMETRIC : command == "dimetric" ? ViewModeActions::DIMETRIC : ViewModeActions::TRIMETRIC);
+    else if (const AxonometricType* axo = axonometricType(command)) {
+        // Applies at the remembered corner; setViewMode() also updates the toolbar's type/corner buttons.
+        setViewMode(axo->mode);
+        _viewToolbar->setDefaultStandardViewAction(StandardViewActions::TOP);
+    }
+    else if (IsoCorner corner = _viewCtrl.isoCorner(); cornerFromCommand(command, _viewCtrl.isoCorner(), corner)) {
+        setIsoCorner(corner);
+        _viewToolbar->setDefaultStandardViewAction(StandardViewActions::TOP);
+    }
+    else if (command == "axoStep" || command == "axoEnter") {
+        // From an axonometric view a click steps Isometric -> Dimetric -> Trimetric -> Isometric; from any other view
+        // (a standard view, a free orbit) it enters the last-used type instead of advancing. Home ("axoEnter") never steps.
+        const ViewMode current = _viewCtrl.viewMode();
+        ViewMode target = _viewCtrl.lastAxonometricMode();
+        if (command == "axoStep" && isAxonometricMode(current)) {
+            int index = 0;
+            for (int i = 0; i < static_cast<int>(std::size(kAxonometricTypes)); ++i)
+                if (kAxonometricTypes[i].mode == current)
+                    index = i;
+            target = kAxonometricTypes[(index + 1) % static_cast<int>(std::size(kAxonometricTypes))].mode;
+        }
+        setViewMode(target);
         _viewToolbar->setDefaultStandardViewAction(StandardViewActions::TOP);
     }
     else if (command == "orbit") setCameraMode(Camera::CameraMode::Orbit);

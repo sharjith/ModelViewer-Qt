@@ -97,6 +97,11 @@
     <addaction name="actionViewIso"/>
     <addaction name="actionViewDimetric"/>
     <addaction name="actionViewTrimetric"/>
+    <addaction name="separator"/>
+    <addaction name="actionViewCornerSE"/>
+    <addaction name="actionViewCornerNE"/>
+    <addaction name="actionViewCornerNW"/>
+    <addaction name="actionViewCornerSW"/>
     </widget>
     <widget class="QMenu" name="menuViewCamera"><property name="title"><string>Camera</string></property>
     <addaction name="actionViewOrbit"/>
@@ -325,16 +330,39 @@
    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/right.png</normaloff>:/icons/res/right.png</iconset></property>
   </action>
   <action name="actionViewIso">
-   <property name="text"><string>Isometric</string></property>
-   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric.png</normaloff>:/icons/res/isometric.png</iconset></property>
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>Isometric</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric.png</normaloff>:/icons/res/isometric.png</iconset></property>
   </action>
   <action name="actionViewDimetric">
-   <property name="text"><string>Dimetric</string></property>
-   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/dimetric.png</normaloff>:/icons/res/dimetric.png</iconset></property>
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>Dimetric</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/dimetric.png</normaloff>:/icons/res/dimetric.png</iconset></property>
   </action>
   <action name="actionViewTrimetric">
-   <property name="text"><string>Trimetric</string></property>
-   <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/trimetric.png</normaloff>:/icons/res/trimetric.png</iconset></property>
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>Trimetric</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/trimetric.png</normaloff>:/icons/res/trimetric.png</iconset></property>
+  </action>
+  <action name="actionViewCornerSE">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>SE Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_se.png</normaloff>:/icons/res/isometric_se.png</iconset></property>
+  </action>
+  <action name="actionViewCornerNE">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>NE Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_ne.png</normaloff>:/icons/res/isometric_ne.png</iconset></property>
+  </action>
+  <action name="actionViewCornerNW">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>NW Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_nw.png</normaloff>:/icons/res/isometric_nw.png</iconset></property>
+  </action>
+  <action name="actionViewCornerSW">
+    <property name="checkable"><bool>true</bool></property>
+    <property name="text"><string>SW Corner</string></property>
+    <property name="icon"><iconset resource="../ModelViewer.qrc"><normaloff>:/icons/res/isometric_sw.png</normaloff>:/icons/res/isometric_sw.png</iconset></property>
   </action>
   <action name="actionViewOrbit">
    <property name="checkable"><bool>true</bool></property>

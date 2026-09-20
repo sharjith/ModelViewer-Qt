@@ -7,6 +7,7 @@
 #include <QPropertyAnimation>
 #include <QHBoxLayout>
 #include <QScrollArea>
+#include "RenderEnums.h"
 
 class FlyOutViewButton;
 
@@ -33,6 +34,9 @@ public:
     void setDefaultCameraModeAction(CameraModeActions mode);
     void setDefaultStandardViewAction(StandardViewActions view);
     void setDefaultViewModeAction(ViewModeActions mode);
+    // Shows the axonometric type and compass corner on the two axonometric buttons; `active` is whether the
+    // view currently IS an axonometric one (the buttons are highlighted only then).
+    void setAxonometricState(ViewMode type, IsoCorner corner, bool active);
     void setDefaultDisplayModeAction(DisplayModeActions mode);
     void setDefaultRenderingModeAction(RenderingModeActions mode);
     void setFeatureEdgeModesVisible(bool visible);
@@ -66,6 +70,8 @@ signals:
     void cameraUpAxisToggled(bool zUp);
     void viewSelected(const QString& viewName);
     void axonometricSelected(const QString& type);
+    // "SE", "NE", "NW", "SW" pick a compass corner; "Next" / "Prev" step around.
+    void isoCornerSelected(const QString& corner);
     void displayModeSelected(const QString& type);
     void renderingModeSelected(const QString& mode);
     void shadingNormalModeSelected(const QString& mode);
@@ -234,6 +240,15 @@ private:
     QMap<ShadingNormalModeActions, QAction*> _shadingNormalActions;
 
     FlyOutViewButton* _toolButtonViewModes;
+    // Compass corner of the axonometric views: click steps to the next corner, the flyout picks one.
+    FlyOutViewButton* _toolButtonCorner;
+    QAction* _cornerNextAction;                 // the button's default action; mirrors the current corner
+    QMap<IsoCorner, QAction*> _cornerActions;   // the four flyout entries
+    QAction* _axoStepAction;                    // the type button's default action: click steps to the next type
+    ViewModeActions _currentViewModeAction = ViewModeActions::ISOMETRIC;   // type shown on the type button
+    QAction* _perspectiveAction;                // projection flyout entries
+    QAction* _orthographicAction;
+    static QString cornerActionText(IsoCorner corner);
     QMap<ViewModeActions, QAction*> _viewModeActions;
 
     FlyOutViewButton* _toolButtonDisplayModes;

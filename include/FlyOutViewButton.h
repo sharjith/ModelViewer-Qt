@@ -71,6 +71,13 @@ public:
 			"    padding: 5px;"
 			"    border-radius: 4px;"
 			"}"
+			// Set from code (dynamic property) while the view matches what the button represents,
+			// e.g. the axonometric type/corner buttons while the view is axonometric. Listed before
+			// :hover/:pressed so their feedback still shows on top of it.
+			"QToolButton[viewActive=\"true\"] {"
+			"    background-color: rgba(0, 150, 100, 100);"
+			"    border: 1px solid #008000;"
+			"}"
 			"QToolButton:hover {"
 			"    background-color: rgba(0, 120, 215, 50);"
 			"    border: 1px solid #0078D7;"

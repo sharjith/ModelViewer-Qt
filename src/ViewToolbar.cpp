@@ -5,6 +5,7 @@
 #include <QHBoxLayout>
 #include <QFrame>
 #include <QToolButton>
+#include <QStyle>
 #include <QMenu>
 #include <QAction>
 #include <QPushButton>
@@ -76,6 +77,33 @@ QString clippingPresetText(int index)
     default: return ViewToolbar::tr("Box");
     }
 }
+}
+
+namespace
+{
+// Compass code ("SE") of a corner.
+const char* cornerActionCode(IsoCorner corner)
+{
+    switch (corner)
+    {
+    case IsoCorner::NE: return "NE";
+    case IsoCorner::NW: return "NW";
+    case IsoCorner::SW: return "SW";
+    default:            return "SE";
+    }
+}
+}
+
+// Flyout label of a corner; a translatable string so it can be localised.
+QString ViewToolbar::cornerActionText(IsoCorner corner)
+{
+    switch (corner)
+    {
+    case IsoCorner::NE: return tr("NE Corner");
+    case IsoCorner::NW: return tr("NW Corner");
+    case IsoCorner::SW: return tr("SW Corner");
+    default:            return tr("SE Corner");
+    }
 }
 
 void ViewToolbar::scopeShortcutToViewport(QAction* action)
@@ -586,12 +614,16 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     // fire while focus sat on one of the toolbar's own buttons.
     QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), _viewport);
     defaultShortcut->setContext(Qt::WidgetWithChildrenShortcut);
-    connect(defaultShortcut, &QShortcut::activated, _toolButtonViewModes, &QToolButton::click);
+    // Home = "go to my axonometric view": enters the last-used type and never steps to the next one
+    // (a click on the button steps, see _axoStepAction below).
+    connect(defaultShortcut, &QShortcut::activated, this, [this]() { emit axonometricSelected(QStringLiteral("Enter")); });
 
     _mainLayout->addWidget(_toolButtonViewModes);
 
     QMenu* axoMenu = new QMenu;
     axoMenu->setStyleSheet(flyoutStyleSheet);
+    // The axonometric TYPE. The compass corner it is seen from is a separate choice (the corner button
+    // right after this one), so this flyout is a plain last-used list of three.
     _isoAction = axoMenu->addAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"));
     _isoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
     scopeShortcutToViewport(_isoAction);
@@ -604,7 +636,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     connect(_isoAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonViewModes->setDefaultAction(_isoAction);
+            setDefaultViewModeAction(ViewModeActions::ISOMETRIC);
             // Reset standard views to Top when switching to axonometric
             _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Isometric");
@@ -613,7 +645,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     connect(_dimAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonViewModes->setDefaultAction(_dimAction);
+            setDefaultViewModeAction(ViewModeActions::DIMETRIC);
             // Reset standard views to Top when switching to axonometric
             _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Dimetric");
@@ -622,7 +654,7 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
 
     connect(_triAction, &QAction::triggered, this,
         [this]() {
-            _toolButtonViewModes->setDefaultAction(_triAction);
+            setDefaultViewModeAction(ViewModeActions::TRIMETRIC);
             // Reset standard views to Top when switching to axonometric
             _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Trimetric");
@@ -633,17 +665,71 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
     _viewModeActions[ViewModeActions::DIMETRIC] = _dimAction;
     _viewModeActions[ViewModeActions::TRIMETRIC] = _triAction;
 
+    // The button's own (default) action: a click steps to the next type (Isometric -> Dimetric -> Trimetric)
+    // while the view is axonometric, or enters the last-used type from any other view. Its icon and tooltip
+    // always mirror the current type (see setDefaultViewModeAction()); the flyout still picks one directly.
+    _axoStepAction = new QAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"), this);
+    connect(_axoStepAction, &QAction::triggered, this, [this]() { emit axonometricSelected(QStringLiteral("Step")); });
     _toolButtonViewModes->setMenu(axoMenu);
-    _toolButtonViewModes->setDefaultAction(_isoAction);
+    _toolButtonViewModes->setDefaultAction(_axoStepAction);
+    setDefaultViewModeAction(ViewModeActions::ISOMETRIC);
 
-    // Ortho/Perspective Projections
-    _projToggleButton = new QToolButton(this);
-    _projToggleButton->setStyleSheet(buttonStyleSheet);
+    // Compass corner of the axonometric views (SE / NE / NW / SW), independent of the type above.
+    // Click = step to the next corner; hold opens the flyout for a direct pick. The button's icon and
+    // tooltip always show the CURRENT corner (see setAxonometricState()), and it is highlighted while
+    // the view actually is an axonometric one.
+    _toolButtonCorner = new FlyOutViewButton(this);
+    _toolButtonCorner->setIconSize(QSize(40, 40));
+    _toolButtonCorner->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonCorner->setAutoRaise(true);
+
+    QMenu* cornerMenu = new QMenu;
+    cornerMenu->setStyleSheet(flyoutStyleSheet);
+    struct CornerEntry { IsoCorner corner; const char* code; const char* icon; };
+    const CornerEntry cornerEntries[] = {
+        { IsoCorner::SE, "SE", ":/icons/res/isometric_se.png" },
+        { IsoCorner::NE, "NE", ":/icons/res/isometric_ne.png" },
+        { IsoCorner::NW, "NW", ":/icons/res/isometric_nw.png" },
+        { IsoCorner::SW, "SW", ":/icons/res/isometric_sw.png" },
+    };
+    const Qt::Key cornerShortcutKeys[] = { Qt::Key_4, Qt::Key_5, Qt::Key_6, Qt::Key_7 };   // Ctrl+4..7 pick a corner directly (Ctrl+1..3 pick the type)
+    int cornerIndex = 0;
+    for (const CornerEntry& entry : cornerEntries) {
+        QAction* action = cornerMenu->addAction(QIcon(QString::fromLatin1(entry.icon)), cornerActionText(entry.corner));
+        action->setShortcut(QKeySequence(Qt::CTRL | cornerShortcutKeys[cornerIndex++]));
+        scopeShortcutToViewport(action);
+        const QString code = QString::fromLatin1(entry.code);
+        connect(action, &QAction::triggered, this, [this, code]() { emit isoCornerSelected(code); });
+        _cornerActions[entry.corner] = action;
+    }
+    // The button's own (default) action: step to the next corner. Its look is kept in sync with the
+    // current corner by setAxonometricState().
+    _cornerNextAction = new QAction(QIcon(":/icons/res/isometric_se.png"), tr("Next Corner"), this);
+    connect(_cornerNextAction, &QAction::triggered, this, [this]() { emit isoCornerSelected(QStringLiteral("Next")); });
+    _toolButtonCorner->setMenu(cornerMenu);
+    _toolButtonCorner->setDefaultAction(_cornerNextAction);
+    _mainLayout->addWidget(_toolButtonCorner);
+
+    // Step to the next/previous corner from the keyboard (SE -> NE -> NW -> SW -> SE). Same scoping as
+    // the Home shortcut above.
+    QShortcut* nextCornerShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Right), _viewport);
+    nextCornerShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(nextCornerShortcut, &QShortcut::activated, this, [this]() { emit isoCornerSelected(QStringLiteral("Next")); });
+    QShortcut* prevCornerShortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Left), _viewport);
+    prevCornerShortcut->setContext(Qt::WidgetWithChildrenShortcut);
+    connect(prevCornerShortcut, &QShortcut::activated, this, [this]() { emit isoCornerSelected(QStringLiteral("Prev")); });
+
+    // Projection. A flyout now, so it can grow beyond Perspective/Orthographic (e.g. oblique projections):
+    // clicking the button or Shift+P still toggles between the two exactly as before, while hold opens
+    // the list to pick one explicitly. The button always shows the CURRENT projection.
+    _projToggleButton = new FlyOutViewButton(this);
     _projToggleButton->setCheckable(true);
     _projToggleButton->setChecked(false);
     _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
     _projToggleButton->setIconSize(QSize(40, 40));
     _projToggleButton->setToolTip(tr("Toggle Projection"));
+    _projToggleButton->setPopupMode(QToolButton::DelayedPopup);
+    _projToggleButton->setAutoRaise(true);
     scopeButtonShortcutToViewport(_projToggleButton, QKeySequence(Qt::SHIFT | Qt::Key_P));
     _mainLayout->addWidget(_projToggleButton);
 
@@ -661,6 +747,20 @@ ViewToolbar::ViewToolbar(QWidget* viewport, QWidget* parent)
         }
         emit projectionToggled(!checked);
         });
+
+    QMenu* projectionMenu = new QMenu;
+    projectionMenu->setStyleSheet(flyoutStyleSheet);
+    _perspectiveAction = projectionMenu->addAction(QIcon(":/icons/res/Perspective.png"), tr("Perspective"));
+    _orthographicAction = projectionMenu->addAction(QIcon(":/icons/res/Ortho.png"), tr("Orthographic"));
+    // _projectionAction is checked while the projection is Perspective; choosing the projection that is
+    // already active does nothing, otherwise it takes the same path as a click on the button.
+    connect(_perspectiveAction, &QAction::triggered, this, [this]() {
+        if (!_projectionAction->isChecked()) _projectionAction->trigger();
+        });
+    connect(_orthographicAction, &QAction::triggered, this, [this]() {
+        if (_projectionAction->isChecked()) _projectionAction->trigger();
+        });
+    _projToggleButton->setMenu(projectionMenu);
 
     // Multi View
     _multiBtn = new QToolButton(this);
@@ -1033,6 +1133,8 @@ bool ViewToolbar::isFlyoutMenuVisible() const
         (_toolButtonDebugOverlays &&
             _toolButtonDebugOverlays->menu() &&
             _toolButtonDebugOverlays->menu()->isVisible()) ||
+        (_toolButtonCorner && _toolButtonCorner->menu() && _toolButtonCorner->menu()->isVisible()) ||
+        (_projToggleButton && _projToggleButton->menu() && _projToggleButton->menu()->isVisible()) ||
 		(_toolButtonDisplayModes &&
 			_toolButtonDisplayModes->menu() &&
 			_toolButtonDisplayModes->menu()->isVisible());
@@ -1096,8 +1198,39 @@ void ViewToolbar::setDefaultStandardViewAction(StandardViewActions view)
 
 void ViewToolbar::setDefaultViewModeAction(ViewModeActions mode)
 {
-	if (_viewModeActions.contains(mode))
-		_toolButtonViewModes->setDefaultAction(_viewModeActions[mode]);
+	// Only the button's look follows the type; its action is always "step" (see _axoStepAction).
+	QAction* typeAction = _viewModeActions.value(mode, nullptr);
+	if (!typeAction)
+		return;
+	_currentViewModeAction = mode;
+	_axoStepAction->setIcon(typeAction->icon());
+	_axoStepAction->setText(typeAction->text());
+	_axoStepAction->setToolTip(tr("%1 - click for the next axonometric type").arg(typeAction->text()));
+}
+
+void ViewToolbar::setAxonometricState(ViewMode type, IsoCorner corner, bool active)
+{
+	// The type button shows the last type chosen (icon/tooltip come from its default action)...
+	setDefaultViewModeAction(type == ViewMode::DIMETRIC ? ViewModeActions::DIMETRIC
+		: type == ViewMode::TRIMETRIC ? ViewModeActions::TRIMETRIC : ViewModeActions::ISOMETRIC);
+	// ...and the corner button shows the current corner.
+	if (QAction* cornerAction = _cornerActions.value(corner, nullptr))
+	{
+		_cornerNextAction->setIcon(cornerAction->icon());
+		_cornerNextAction->setToolTip(tr("Isometric corner %1 - click for the next corner").arg(QString::fromLatin1(cornerActionCode(corner))));
+	}
+	// Both buttons are highlighted only while the view really is axonometric; a standard view or a free
+	// orbit leaves them neutral, but they keep the last type/corner so a click continues from there.
+	QToolButton* buttons[] = { _toolButtonViewModes, _toolButtonCorner };
+	for (QToolButton* button : buttons)
+	{
+		if (button->property("viewActive").toBool() == active)
+			continue;
+		button->setProperty("viewActive", active);
+		button->style()->unpolish(button);   // a dynamic-property change needs a re-polish to restyle
+		button->style()->polish(button);
+		button->update();
+	}
 }
 
 void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
@@ -1376,8 +1509,14 @@ void ViewToolbar::retranslateUI()
 	// Axonometric Views
 	_toolButtonViewModes->setToolTip(tr("Axonometric View"));
 	_isoAction->setText(tr("Isometric"));
+	for (auto it = _cornerActions.cbegin(); it != _cornerActions.cend(); ++it)
+		it.value()->setText(cornerActionText(it.key()));
+	_cornerNextAction->setText(tr("Next Corner"));
+	_perspectiveAction->setText(tr("Perspective"));
+	_orthographicAction->setText(tr("Orthographic"));
 	_dimAction->setText(tr("Dimetric"));
 	_triAction->setText(tr("Trimetric"));
+	setDefaultViewModeAction(_currentViewModeAction);   // refresh the type button's translated tooltip
 
 	// Projection toggle
 	_projectionAction->setToolTip(tr("Toggle Projection"));

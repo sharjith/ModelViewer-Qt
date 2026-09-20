@@ -33,6 +33,10 @@ void MainWindow::setupViewMenus()
     _viewActions.insert(QStringLiteral("iso"), ui->actionViewIso);
     _viewActions.insert(QStringLiteral("dimetric"), ui->actionViewDimetric);
     _viewActions.insert(QStringLiteral("trimetric"), ui->actionViewTrimetric);
+    _viewActions.insert(QStringLiteral("cornerSE"), ui->actionViewCornerSE);
+    _viewActions.insert(QStringLiteral("cornerNE"), ui->actionViewCornerNE);
+    _viewActions.insert(QStringLiteral("cornerNW"), ui->actionViewCornerNW);
+    _viewActions.insert(QStringLiteral("cornerSW"), ui->actionViewCornerSW);
     _viewActions.insert(QStringLiteral("orbit"), ui->actionViewOrbit);
     _viewActions.insert(QStringLiteral("fly"), ui->actionViewFly);
     _viewActions.insert(QStringLiteral("firstPerson"), ui->actionViewFirstPerson);
@@ -60,6 +64,9 @@ void MainWindow::setupViewMenus()
         for (const char* key : keys) group->addAction(_viewActions.value(QLatin1String(key)));
     };
     exclusive({"rotate", "pan", "zoom"}, true);
+    // Axonometric type and compass corner: radio items, both groups can be empty (a standard view or a free orbit).
+    exclusive({"iso", "dimetric", "trimetric"}, true);
+    exclusive({"cornerSE", "cornerNE", "cornerNW", "cornerSW"}, true);
     exclusive({"orbit", "fly", "firstPerson"});
     exclusive({"zUp", "yUp"});
     exclusive({"ortho", "perspective"});

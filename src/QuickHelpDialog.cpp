@@ -558,9 +558,10 @@ void QuickHelpDialog::setupViewToolbarTab()
 		{tr("Orthographic Views"), tr("Standard views"),
 		 tr("Quick access to Top, Front, Left, Bottom, Rear, Right views")},
 		{tr("Axonometric Views"), tr("3D standard views"),
-		 tr("Switch to Isometric, Dimetric, or Trimetric projections")},
+		 tr("Choose Isometric, Dimetric or Trimetric, and (next button) the compass corner it is seen from: SE, NE, NW or SW. Clicking either button steps to the next type or corner while the view is axonometric (from another view it enters the last-used one); hold to pick directly; Home enters the last-used type<br/>"
+				"Shortcuts: Ctrl+1/2/3=Isometric/Dimetric/Trimetric, Ctrl+4/5/6/7=SE/NE/NW/SW corner, Ctrl+Shift+Left/Right=previous/next corner")},
 		{tr("Projection Toggle"), tr("Ortho ↔ Perspective"),
-		 tr("Switch between orthographic and perspective projection")},
+		 tr("Switch between orthographic and perspective projection (click toggles; hold to open the list and pick one)")},
 		{tr("Multi-View"), tr("Four viewport layout"),
 		 tr("Show Top, Front, Right, and Isometric views simultaneously")},
 		{tr("Realistic Rendering"), tr("Toggle full PBR look"),
@@ -1267,7 +1268,7 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 			"<li><b>Window Layouts:</b> Use Window menu to tile or cascade multiple documents</li>"
 			"<li><b>Multi-View Mode:</b> Enable from toolbar to see four viewports simultaneously</li>"
 			"<li><b>Standard Views:</b> Use toolbar buttons for instant Top/Front/Side views</li>"
-			"<li><b>Axonometric Views:</b> Choose Isometric/Dimetric/Trimetric for technical drawings</li>"
+			"<li><b>Axonometric Views:</b> Choose Isometric, Dimetric or Trimetric, and the compass corner (SE/NE/NW/SW) it is seen from, for technical drawings</li>"
 			"</ul>"));
 
 	content += createSection(tr("Performance Tips"),

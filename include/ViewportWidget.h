@@ -138,6 +138,12 @@ public:
 
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
+	// Compass corner (SE/NE/NW/SW) the axonometric views are seen from, independent of the axonometric
+	// type. Re-applies the current axonometric view at the new corner; when the view is not axonometric
+	// (a standard view, a free orbit) it switches to the last-used axonometric type at that corner.
+	void setIsoCorner(IsoCorner corner);
+	// Pushes the axonometric type/corner/active state to the View toolbar's flyout buttons.
+	void updateViewSelectorState();
     QVariantMap viewMenuState() const;
     void executeViewCommand(const QString& command, bool checked);
     void clearViewNavigation();
@@ -2563,6 +2569,8 @@ private:
 	float _mouseSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
 	float _wheelSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
 	QTimer* _wheelZoomCursorTimer = nullptr;
+	// Last axonometric type/corner/active state pushed to the View toolbar (see updateViewSelectorState()).
+	int     _lastViewSelectorKey = -1;
 	QCursor _wheelZoomCursor;
 	QCursor _cursorBeforeWheelZoom;
 	bool    _hadExplicitCursorBeforeWheelZoom = false;
