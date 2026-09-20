@@ -157,6 +157,8 @@ private:
 	// Millimetres-per-unit scale for a mesh: multiplies its native-unit distances into millimetres, via the
 	// same import-unit resolution Mass Properties uses.
 	double lengthScaleForMesh(SceneMesh* mesh) const;
+	// The "Clear Overlay" button: clears every overlay this dialog applied (see clearAllOverlays()) and hides the
+	// legend/summary. Not scoped to the selection - see its definition for why.
 	void clearSelectionOverlays();
 	// Repopulates _referenceMeshCombo from the document's currently loaded
 	// meshes, excluding the current selection - called whenever the

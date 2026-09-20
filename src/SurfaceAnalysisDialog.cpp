@@ -1585,15 +1585,11 @@ void SurfaceAnalysisDialog::clearSelectionOverlays()
 	if (!viewport)
 		return;
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
-	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
-	for (int id : selected)
-	{
-		SceneMesh* mesh = meshStore.at(id);
-		mesh->setZebraStripeActive(false);
-		_zebraStripeMeshes.remove(mesh);
-		_overlay.clearOverlay(mesh);
-	}
+	// Every mesh showing a result from this dialog, not only the currently selected ones: clicking in the viewport
+	// to inspect a result changes the selection, and a Clear that then skipped the deselected meshes left their
+	// overlay on screen. (clearAllOverlays() also drops the zebra-stripe state, the wall-thickness hover log
+	// bookkeeping and the cached hover readout.)
+	clearAllOverlays();
 
 	_zebraStripeToggle->blockSignals(true);
 	_zebraStripeToggle->setChecked(false);
@@ -1603,9 +1599,8 @@ void SurfaceAnalysisDialog::clearSelectionOverlays()
 		_curvatureRepairNote->setVisible(false);
 	if (_thicknessRejectionNote)
 		_thicknessRejectionNote->setVisible(false);
-
-	viewport->clearSurfaceAnalysisHoverReadout();
-	viewport->update();
+	if (_thicknessSummaryLabel)
+		_thicknessSummaryLabel->setVisible(false);
 }
 
 void SurfaceAnalysisDialog::clearAllOverlays()
