@@ -22,11 +22,12 @@ MeshSelectionBox::MeshSelectionBox(ModelViewer* modelViewer, QWidget* parent)
 	auto* row = new QHBoxLayout(this);
 	row->setContentsMargins(0, 0, 0, 0);
 
-	row->addWidget(new QLabel(tr("Selection:"), this));
+	_label = new QLabel(tr("Selection:"), this);
+	row->addWidget(_label);
 
 	_field = new QLineEdit(this);
 	_field->setReadOnly(true);
-	_field->setPlaceholderText(tr("Select meshes..."));
+	_field->setPlaceholderText(emptyPlaceholder());
 	_field->setToolTip(tr("The selected meshes. Right-click to edit or clear."));
 	_field->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(_field, &QWidget::customContextMenuRequested, this, &MeshSelectionBox::showContextMenu);
@@ -80,12 +81,14 @@ void MeshSelectionBox::setMeshUuids(const QVector<QUuid>& uuids)
 	QVector<QUuid> cleaned;
 	for (const QUuid& uuid : uuids)
 	{
-		if (uuid.isNull() || cleaned.contains(uuid))
+		if (uuid.isNull() || cleaned.contains(uuid) || _excluded.contains(uuid))
 			continue;
 		if (viewport && viewport->getIndexByUuid(uuid) < 0)
 			continue; // no longer in the scene
 		cleaned.append(uuid);
 	}
+	if (_single && cleaned.size() > 1)
+		cleaned.resize(1);
 	_uuids = cleaned;
 	updateDisplay();
 	emit meshUuidsChanged();
@@ -105,6 +108,41 @@ void MeshSelectionBox::seedFromViewportSelection()
 	}
 	if (!uuids.isEmpty())
 		setMeshUuids(uuids);
+}
+
+void MeshSelectionBox::setSingleMeshMode(bool single)
+{
+	_single = single;
+	_editButton->setVisible(!single);
+	_pickButton->setToolTip(single
+		? tr("Pick a mesh from the scene or tree, then click again to confirm")
+		: tr("Add meshes from the scene or tree, then click again to confirm"));
+	_field->setPlaceholderText(emptyPlaceholder());
+	if (single && _uuids.size() > 1)
+		setMeshUuids(_uuids);
+}
+
+void MeshSelectionBox::setExcludedUuids(const QVector<QUuid>& excluded)
+{
+	_excluded = excluded;
+	QVector<QUuid> kept;
+	for (const QUuid& uuid : std::as_const(_uuids))
+	{
+		if (!_excluded.contains(uuid))
+			kept.append(uuid);
+	}
+	if (kept.size() != _uuids.size())
+		setMeshUuids(kept);
+}
+
+void MeshSelectionBox::setLabelText(const QString& text)
+{
+	_label->setText(text);
+}
+
+QString MeshSelectionBox::emptyPlaceholder() const
+{
+	return _single ? tr("Select a mesh...") : tr("Select meshes...");
 }
 
 void MeshSelectionBox::setFieldToolTip(const QString& text)
@@ -149,7 +187,7 @@ void MeshSelectionBox::stopPicking()
 		return;
 	QSignalBlocker blocker(_pickButton);
 	_pickButton->setChecked(false);
-	_field->setPlaceholderText(tr("Select meshes..."));
+	_field->setPlaceholderText(emptyPlaceholder());
 }
 
 void MeshSelectionBox::onPickToggled(bool checked)
@@ -157,20 +195,31 @@ void MeshSelectionBox::onPickToggled(bool checked)
 	if (checked)
 	{
 		// Picking happens in the viewport/tree, which stay usable because the tool dialogs are non-modal.
-		_field->setPlaceholderText(tr("Add meshes, then click again to confirm..."));
+		_field->setPlaceholderText(_single ? tr("Pick a mesh, then click again to confirm...")
+		                                   : tr("Add meshes, then click again to confirm..."));
 		return;
 	}
 
-	_field->setPlaceholderText(tr("Select meshes..."));
+	_field->setPlaceholderText(emptyPlaceholder());
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
-	QVector<QUuid> merged = _uuids;
+	QVector<QUuid> picked;
 	for (int id : _modelViewer->getSelectedIDs())
 	{
 		const QUuid uuid = viewport->getUuidByIndex(id);
-		if (!uuid.isNull() && !merged.contains(uuid))
-			merged.append(uuid);
+		if (!uuid.isNull() && !picked.contains(uuid) && !_excluded.contains(uuid))
+			picked.append(uuid);
+	}
+	// Single-mesh mode: the picked mesh replaces the current one (if nothing usable was picked, it stays).
+	QVector<QUuid> merged = _single ? (picked.isEmpty() ? _uuids : QVector<QUuid>{ picked.first() }) : _uuids;
+	if (!_single)
+	{
+		for (const QUuid& uuid : std::as_const(picked))
+		{
+			if (!merged.contains(uuid))
+				merged.append(uuid);
+		}
 	}
 	// The picked meshes now live in the list - clear the viewport selection so the next pick starts fresh.
 	_modelViewer->setSelectionWithoutUndo(QSet<int>());
@@ -228,9 +277,12 @@ void MeshSelectionBox::showContextMenu(const QPoint& pos)
 	if (_uuids.isEmpty())
 		return;
 	QMenu menu(this);
-	connect(menu.addAction(QIcon(QStringLiteral(":/icons/res/edit_selection.png")), tr("Edit Selection...")),
-		&QAction::triggered, this, &MeshSelectionBox::editSelection);
-	menu.addSeparator();
+	if (!_single)
+	{
+		connect(menu.addAction(QIcon(QStringLiteral(":/icons/res/edit_selection.png")), tr("Edit Selection...")),
+			&QAction::triggered, this, &MeshSelectionBox::editSelection);
+		menu.addSeparator();
+	}
 	connect(menu.addAction(QIcon(QStringLiteral(":/icons/res/clear.png")), tr("Clear Selection")),
 		&QAction::triggered, this, &MeshSelectionBox::clearSelection);
 	menu.exec(_field->mapToGlobal(pos));

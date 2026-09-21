@@ -6,6 +6,7 @@
 #include <QWidget>
 #include <vector>
 
+class QLabel;
 class QLineEdit;
 class QPushButton;
 class ModelViewer;
@@ -27,6 +28,10 @@ class SceneMesh;
 // seeded from the viewer's selection when a dialog opens (seedFromViewportSelection()). Entries whose mesh is
 // deleted while the box exists are dropped automatically.
 //
+// Single-mesh mode (setSingleMeshMode()) turns it into a one-mesh picker - Pick replaces the mesh, no Edit button -
+// for "choose the reference mesh" style inputs, where a combo box of every mesh in the scene does not scale.
+// setExcludedUuids() keeps meshes that are already used elsewhere (the other box's list) out of it.
+//
 // meshUuidsChanged() is emitted whenever the list changes, whether by the user or by setMeshUuids()/seeding.
 // ---------------------------------------------------------------------------
 class MeshSelectionBox : public QWidget
@@ -45,7 +50,13 @@ public:
 	// Replaces the list with the viewer's current selection; does nothing if nothing is selected there.
 	void seedFromViewportSelection();
 
-	// Wording that fits the tool: the field's tooltip and the Edit Selection dialog's two labels.
+	// At most one mesh: Pick replaces it, the Edit button is hidden, and a longer list is cut to its first mesh.
+	void setSingleMeshMode(bool single);
+	// Meshes that may not be in the list (dropped now, refused later). Emits meshUuidsChanged() if that removed any.
+	void setExcludedUuids(const QVector<QUuid>& excluded);
+
+	// Wording that fits the tool: the label, the field's tooltip and the Edit Selection dialog's two labels.
+	void setLabelText(const QString& text);
 	void setFieldToolTip(const QString& text);
 	void setEditorTexts(const QString& intro, const QString& members);
 
@@ -65,13 +76,17 @@ private:
 	void updateDisplay();
 	QString describe() const;
 	void stopPicking();
+	QString emptyPlaceholder() const;
 
 	ModelViewer* _modelViewer; // not owned
 	QVector<QUuid> _uuids;
+	QLabel* _label = nullptr;
 	QLineEdit* _field = nullptr;
 	QPushButton* _pickButton = nullptr;
 	QPushButton* _editButton = nullptr;
 	QPushButton* _clearButton = nullptr;
+	QVector<QUuid> _excluded;
+	bool _single = false;
 	QString _editorIntro;
 	QString _editorMembers;
 };

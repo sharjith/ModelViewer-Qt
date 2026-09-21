@@ -163,11 +163,9 @@ private:
 	// The "Clear Overlay" button: clears every overlay this dialog applied (see clearAllOverlays()) and hides the
 	// legend/summary. Not scoped to the selection - see its definition for why.
 	void clearSelectionOverlays();
-	// Repopulates _referenceMeshCombo from the document's currently loaded
-	// meshes, excluding the current selection - called whenever the
-	// Deviation page becomes active, since the loaded-mesh list can change
-	// between visits (import, delete) while the dialog stays open.
-	void refreshReferenceMeshCombo();
+	// Keeps the meshes being analyzed out of the Deviation reference picker - a mesh is not a valid reference for
+	// itself. Called whenever the analyzed list changes.
+	void syncReferenceExclusions();
 	// Clears every overlay this dialog ever applied, regardless of what's
 	// currently selected - used on close (see this class's doc comment),
 	// since by then there's no button left to scope a selection-based clear.
@@ -278,7 +276,7 @@ private:
 	static QString thicknessStatusText(WallThicknessSampleStatus status);
 
 	// Deviation page
-	QComboBox* _referenceMeshCombo = nullptr;
+	MeshSelectionBox* _referenceBox = nullptr; // Deviation: the single reference mesh
 	QPushButton* _applyDeviationButton = nullptr;
 
 	QLabel* _legendLabel = nullptr;

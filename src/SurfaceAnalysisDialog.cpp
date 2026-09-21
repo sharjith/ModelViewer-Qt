@@ -333,11 +333,13 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 			   "the same units; a plain offset between them will read as a false deviation. "
 			   "This is a sampled result (measured per vertex), not exhaustive coverage.")));
 
-		auto* refRow = new QHBoxLayout();
-		refRow->addWidget(new QLabel(tr("Reference mesh:"), page));
-		_referenceMeshCombo = new QComboBox(page);
-		refRow->addWidget(_referenceMeshCombo, 1);
-		pageLayout->addLayout(refRow);
+		// The reference mesh: the same selection control as the meshes above, in its one-mesh form (a combo of every
+		// mesh in the scene does not scale to a large assembly).
+		_referenceBox = new MeshSelectionBox(_modelViewer, page);
+		_referenceBox->setLabelText(tr("Reference mesh:"));
+		_referenceBox->setSingleMeshMode(true);
+		_referenceBox->setFieldToolTip(tr("The reference mesh the selected mesh is compared against. Right-click to clear."));
+		pageLayout->addWidget(_referenceBox);
 
 		_applyDeviationButton = new QPushButton(tr("Apply"), page);
 		connect(_applyDeviationButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyDeviationClicked);
@@ -391,6 +393,7 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	// keep the hint and the Deviation reference choices in step with the list.
 	_selectionBox->seedFromViewportSelection();
 	connect(_selectionBox, &MeshSelectionBox::meshUuidsChanged, this, &SurfaceAnalysisDialog::onSelectionChanged);
+	syncReferenceExclusions();
 
 	_curvatureButton->setChecked(true);
 	onModeChanged();
@@ -461,7 +464,7 @@ void SurfaceAnalysisDialog::setComputationInFlight(bool inFlight, QPushButton* a
 	if (_thicknessButton) _thicknessButton->setEnabled(enabled);
 	if (_deviationButton) _deviationButton->setEnabled(enabled);
 	if (_pullDirectionCombo) _pullDirectionCombo->setEnabled(enabled);
-	if (_referenceMeshCombo) _referenceMeshCombo->setEnabled(enabled);
+	if (_referenceBox) _referenceBox->setEnabled(enabled);
 	if (_zebraStripeToggle) _zebraStripeToggle->setEnabled(enabled);
 	if (_clearButton) _clearButton->setEnabled(enabled);
 	if (_selectionBox) _selectionBox->setEnabled(enabled);
@@ -694,19 +697,13 @@ void SurfaceAnalysisDialog::onModeChanged()
 	if (_thicknessSummaryLabel)
 		_thicknessSummaryLabel->setVisible(false);
 
-	if (mode == Mode::Deviation)
-		refreshReferenceMeshCombo();
-
 	updateSelectionStatusLabel();
 }
 
 void SurfaceAnalysisDialog::onSelectionChanged()
 {
-	// The Deviation page's reference-mesh choices exclude whatever's
-	// selected (see refreshReferenceMeshCombo()'s doc comment) - that set
-	// changes whenever the selection does, so it needs the same refresh.
-	if (currentMode() == Mode::Deviation)
-		refreshReferenceMeshCombo();
+	// The Deviation reference picker must not offer the meshes being analyzed - that list just changed.
+	syncReferenceExclusions();
 
 	updateSelectionStatusLabel();
 }
@@ -1559,46 +1556,10 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	viewport->update();
 }
 
-void SurfaceAnalysisDialog::refreshReferenceMeshCombo()
+void SurfaceAnalysisDialog::syncReferenceExclusions()
 {
-	if (!_referenceMeshCombo || !_modelViewer)
-		return;
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	if (!viewport)
-		return;
-
-	// Preserve the previously chosen reference mesh across a refresh, where
-	// it's still a valid choice - by UUID, not mesh-store index: an index
-	// captured here can point at a different mesh entirely by the time
-	// applyDeviationToSelection() reads it back (an import/delete reindexes
-	// the store in between), silently comparing against the wrong mesh
-	// while the combo still shows the original name.
-	const QUuid previousUuid = _referenceMeshCombo->count() > 0
-		? _referenceMeshCombo->currentData().toUuid() : QUuid();
-
-	_referenceMeshCombo->clear();
-
-	const std::vector<int> selected = selectedMeshIds();
-	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
-	for (size_t id = 0; id < meshStore.size(); ++id)
-	{
-		SceneMesh* mesh = meshStore[id];
-		if (!mesh)
-			continue;
-		// Excludes whatever's currently selected - that's the scan/
-		// comparison side being measured, not a valid reference for itself.
-		if (std::find(selected.begin(), selected.end(), static_cast<int>(id)) != selected.end())
-			continue;
-		_referenceMeshCombo->addItem(mesh->getName(), QVariant(mesh->uuid()));
-	}
-
-	if (!previousUuid.isNull())
-	{
-		const int idx = _referenceMeshCombo->findData(QVariant(previousUuid));
-		if (idx >= 0)
-			_referenceMeshCombo->setCurrentIndex(idx);
-	}
+	if (_referenceBox && _selectionBox)
+		_referenceBox->setExcludedUuids(_selectionBox->meshUuids());
 }
 
 void SurfaceAnalysisDialog::applyDeviationToSelection()
@@ -1618,21 +1579,19 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 			tr("Select exactly one mesh to compare (the scan/comparison side)."));
 		return;
 	}
-	if (!_referenceMeshCombo || _referenceMeshCombo->count() == 0)
+	const QVector<QUuid> referenceList = _referenceBox ? _referenceBox->meshUuids() : QVector<QUuid>();
+	if (referenceList.isEmpty())
 	{
 		QMessageBox::information(this, tr("Surface Analysis"),
-			tr("No other loaded mesh is available to compare against."));
+			tr("Pick a reference mesh with the Reference mesh box first."));
 		return;
 	}
 
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	SceneMesh* sampledMesh = meshStore.at(selected.front());
-	// Resolved by UUID, not the mesh-store index the combo used to store -
-	// see refreshReferenceMeshCombo()'s doc comment. getMeshByUuid() returns
-	// nullptr if the chosen mesh was deleted since the combo was populated,
-	// which the empty-selection message below covers well enough (no need
-	// for a separate error string for this specific case).
-	const QUuid referenceUuid = _referenceMeshCombo->currentData().toUuid();
+	// Resolved by UUID, never a mesh-store index (an import/delete reindexes the store). getMeshByUuid() returns
+	// nullptr if the chosen mesh was deleted since it was picked, which the message below covers.
+	const QUuid referenceUuid = referenceList.first();
 	SceneMesh* referenceMesh = referenceUuid.isNull() ? nullptr : viewport->getMeshByUuid(referenceUuid);
 	if (!referenceMesh || referenceMesh == sampledMesh)
 	{
