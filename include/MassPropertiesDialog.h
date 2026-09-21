@@ -9,7 +9,7 @@
 
 class QTableWidget;
 class QLabel;
-class QLineEdit;
+class MeshSelectionBox;
 class QPushButton;
 class QProgressBar;
 class QCloseEvent;
@@ -81,12 +81,8 @@ private slots:
 	// doc comment.
 	void onMeshAboutToBeDeleted(SceneMesh* mesh);
 
-	// Selection box. Pick: toggled on, meshes selected in the viewport/tree are gathered; toggled off, they are
-	// added to the list ("Add meshes, then click again to confirm" - the Exploded View convention).
-	void onPickToggled(bool checked);
-	void editSelection();
-	void clearSelection();
-	void showSelectionContextMenu(const QPoint& pos);
+	// The selection box's list changed - recompute the report for it.
+	void onSelectionListChanged();
 	// Right-click on a row of the results table.
 	void showTableContextMenu(const QPoint& pos);
 	// Selecting rows selects the same meshes in the viewer (and scene tree). One way only: selecting in the viewer
@@ -97,11 +93,6 @@ private slots:
 private:
 	void populate();
 
-	// The list of meshes reported on. Order = table row order. Entries whose mesh no longer exists are dropped
-	// when the list is applied and skipped by populate().
-	void applyMeshUuids(const QVector<QUuid>& uuids);
-	void updateSelectionDisplay();
-	QString describeSelection() const;
 	// The meshes behind the currently selected table rows (the right-clicked row if it was not selected).
 	QVector<QUuid> meshesOfSelectedRows() const;
 
@@ -130,13 +121,9 @@ private:
 
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
 
-	QVector<QUuid> _meshUuids;       // the meshes this report covers
+	MeshSelectionBox* _selectionBox = nullptr; // the meshes this report covers (its list order = table row order)
 	QVector<QUuid> _rowUuids;        // the mesh behind each table row of the last populate() (row order)
 	bool _suppressRowSync = false;   // true while populate() rebuilds the table - see onTableRowSelectionChanged()
-	QLineEdit* _selectionEdit = nullptr;
-	QPushButton* _pickButton = nullptr;
-	QPushButton* _editSelectionButton = nullptr;
-	QPushButton* _clearSelectionButton = nullptr;
 	QPushButton* _recalculateButton = nullptr;
 
 	QLabel* _unitsNoteLabel = nullptr; // text refreshed per populate() - see its own doc comment

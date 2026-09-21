@@ -22,6 +22,7 @@ class QPushButton;
 class QCloseEvent;
 class QTimer;
 class ModelViewer;
+class MeshSelectionBox;
 class SceneMesh;
 class AnalysisComputeSession;
 
@@ -65,6 +66,10 @@ class SurfaceAnalysisDialog : public QDialog
 	Q_OBJECT
 public:
 	explicit SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+
+	// Re-seeds the list of meshes from the viewer's current selection (used when the tool is invoked again while
+	// this dialog is already open). Does nothing if nothing is selected in the viewer.
+	void seedFromViewportSelection();
     void selectMode(const QString& mode);
 
 	// True only while this dialog is open AND its "Show Readout on Hover"
@@ -117,10 +122,8 @@ private slots:
 	// The "highlight walls thinner than" checkbox / limit changed: re-colour the existing Wall-Thickness result
 	// (threshold map or the continuous ramp) without recomputing anything.
 	void onThicknessDisplayChanged();
-	// Connected to ViewportWidget::selectionChanged - keeps _selectionStatusLabel
-	// live as the user selects/deselects in the scene tree while this
-	// non-modal dialog stays open, rather than only ever surfacing "nothing
-	// selected" as an error after the fact when Apply is clicked.
+	// Connected to MeshSelectionBox::meshUuidsChanged - the list of meshes this dialog acts on changed: refreshes
+	// the Deviation reference choices and _selectionStatusLabel.
 	void onSelectionChanged();
 	// Connected to ViewportWidget::meshAboutToBeDeleted - both _overlay and
 	// _zebraStripeMeshes hold raw SceneMesh* across event-loop turns (this
@@ -169,11 +172,12 @@ private:
 	// currently selected - used on close (see this class's doc comment),
 	// since by then there's no button left to scope a selection-based clear.
 	void clearAllOverlays();
-	// Recomputes _selectionStatusLabel's text from the viewport's current
-	// selection AND the currently active mode - Deviation's "exactly one
-	// mesh" requirement reads differently from the other modes' "whole
-	// selection" convention, so the wording depends on both.
+	// Recomputes _selectionStatusLabel - a HINT only ("nothing selected", "Deviation needs exactly one"); the
+	// meshes themselves are shown by _selectionBox, compactly. Depends on the list AND the active mode.
 	void updateSelectionStatusLabel();
+	// The mesh-store indices of the meshes this dialog acts on (the selection box's list) - what every Apply
+	// handler reads instead of the viewer's live selection.
+	std::vector<int> selectedMeshIds() const;
 
 	// Disables every OTHER interactive control in the dialog and repurposes
 	// `activeButton` into a Cancel button (label swapped to `buttonText`) -
@@ -215,7 +219,8 @@ private:
 
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
 
-	QLabel* _selectionStatusLabel = nullptr;
+	MeshSelectionBox* _selectionBox = nullptr; // the meshes this dialog acts on
+	QLabel* _selectionStatusLabel = nullptr;   // hint / notice line under it; hidden when empty
 
 	QButtonGroup* _modeGroup = nullptr;
 	QToolButton* _curvatureButton = nullptr;

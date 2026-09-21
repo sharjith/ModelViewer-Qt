@@ -3923,39 +3923,39 @@ Format de fichier non pris en charge : </translation>
         <translation type="vanished">Volume, aire de surface et masse de la sélection actuelle - recalculés à chaque ouverture de cette boîte de dialogue.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="91"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="55"/>
         <source>Nothing selected - select one or more meshes first.</source>
         <translation>Aucune sélection - sélectionnez d&apos;abord un ou plusieurs maillages.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
         <source>Mesh</source>
         <translation>Maillage</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
         <source>Volume (mm³)</source>
         <translation>Volume (mm³)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
         <source>Surface Area (mm²)</source>
         <translation>Aire de surface (mm²)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="133"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="98"/>
         <source>Mass (kg)</source>
         <translation>Masse (kg)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="128"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="93"/>
         <source>Mass by Material:</source>
         <translation>Masse par matériau :</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="133"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="98"/>
         <source>Material</source>
         <translation>Matériau</translation>
     </message>
@@ -3965,254 +3965,243 @@ Format de fichier non pris en charge : </translation>
         <translation>Volume, surface et masse des maillages sélectionnés - recalculés lorsque la sélection change ou avec Recalculer.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="51"/>
         <source>Selection:</source>
-        <translation>Sélection :</translation>
+        <translation type="vanished">Sélection :</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="54"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="255"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="317"/>
         <source>Select meshes...</source>
-        <translation>Sélectionner des maillages...</translation>
+        <translation type="vanished">Sélectionner des maillages...</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="55"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="51"/>
         <source>The meshes this report covers. Right-click to edit or clear.</source>
         <translation>Les maillages couverts par ce rapport. Clic droit pour modifier ou effacer.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="69"/>
         <source>Add meshes from the scene or tree, then click again to confirm</source>
-        <translation>Ajoutez des maillages depuis la scène ou l&apos;arbre, puis cliquez de nouveau pour confirmer</translation>
+        <translation type="vanished">Ajoutez des maillages depuis la scène ou l&apos;arbre, puis cliquez de nouveau pour confirmer</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="72"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="327"/>
         <source>Edit Selection...</source>
-        <translation>Modifier la sélection...</translation>
+        <translation type="vanished">Modifier la sélection...</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="75"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="330"/>
         <source>Clear Selection</source>
-        <translation>Effacer la sélection</translation>
+        <translation type="vanished">Effacer la sélection</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="148"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="428"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="113"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="265"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="153"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="118"/>
         <source>Recalculate</source>
         <translation>Recalculer</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="154"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="119"/>
         <source>Recompute the report - after editing a material, moving or changing a mesh</source>
         <translation>Recalculer le rapport - après modification d&apos;un matériau, ou déplacement ou modification d&apos;un maillage</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="227"/>
         <source>%1 meshes</source>
-        <translation>%1 maillages</translation>
+        <translation type="vanished">%1 maillages</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="251"/>
         <source>Add meshes, then click again to confirm...</source>
-        <translation>Ajouter des maillages, puis cliquer à nouveau pour confirmer...</translation>
+        <translation type="vanished">Ajouter des maillages, puis cliquer à nouveau pour confirmer...</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="278"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="52"/>
         <source>Review and refine the meshes in this report.</source>
         <translation>Vérifiez et affinez les maillages de ce rapport.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="279"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="52"/>
         <source>Meshes</source>
         <translation>Maillages</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="383"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="220"/>
         <source>Center Screen</source>
         <translation>Centrer l&apos;Écran</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="386"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="390"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="223"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="227"/>
         <source>Hide</source>
         <translation>Masquer</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="392"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="396"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="229"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="233"/>
         <source>Show</source>
         <translation>Montrer</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="399"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="401"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="236"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="238"/>
         <source>Show Only</source>
         <translation>Afficher uniquement</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="428"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="265"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="656"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="504"/>
         <source>mesh no longer available</source>
         <translation>maillage plus disponible</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="657"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="505"/>
         <source>(deleted)</source>
         <translation>(supprimé)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="659"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="660"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="661"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="697"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="698"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="699"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="751"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="779"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="807"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="507"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="508"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="509"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="545"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="546"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="547"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="599"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="627"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="655"/>
         <source>N/A (%1)</source>
         <translation>N/D (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="696"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="544"/>
         <source>geometry changed during computation</source>
         <translation>la géométrie a changé pendant le calcul</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="763"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="611"/>
         <source>%1 (incl. shell)</source>
         <translation>%1 (dont coque)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="764"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="612"/>
         <source>%1 mm³ of this volume is open surface area x the material&apos;s shell thickness (%2 open piece(s)).</source>
         <translation>%1 mm³ de ce volume proviennent de la surface ouverte × l&apos;épaisseur de coque du matériau (%2 pièce(s) ouverte(s)).</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="832"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="680"/>
         <source>%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-based results as provisional until this can be corrected per-import. </source>
         <translation>%1 maillage(s) sur %2 utilisent une unité par défaut non confirmée (millimètre) - considérez les résultats basés sur les longueurs comme provisoires tant que cela ne peut pas être corrigé par import. </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="836"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="684"/>
         <source>Density comes from each mesh&apos;s assigned material; library-supplied values are typical/nominal figures for a generic grade, not an exact spec - verify before relying on Mass for an engineering-critical calculation.</source>
         <translation>La masse volumique provient du matériau attribué à chaque maillage ; les valeurs de la bibliothèque sont des chiffres typiques/nominaux pour une nuance générique, non une spécification exacte - vérifiez-les avant de vous fier à la masse pour un calcul d&apos;ingénierie critique.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="841"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="689"/>
         <source>%1 mesh(es) include open surfaces counted as area x the material&apos;s shell thickness - a pseudo volume, not an enclosed one.</source>
         <translation>%1 maillage(s) comportent des surfaces ouvertes comptées comme aire × l&apos;épaisseur de coque du matériau - un pseudo-volume, non un volume fermé.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="846"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="694"/>
         <source>%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their material (Materials &gt; Physical Properties) to include them.</source>
         <translation>%1 maillage(s) sont des surfaces ouvertes et ont été exclus - définissez une épaisseur de coque sur leur matériau (Matériaux &gt; Propriétés physiques) pour les inclure.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="859"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="707"/>
         <source>Surface Area: %1 mm²
 </source>
         <translation>Aire de surface : %1 mm²
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="861"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="709"/>
         <source>Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Aire de surface : %1 mm² connue (%2 maillage(s) sur %3 exclus - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="866"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="714"/>
         <source>Volume: %1 mm³
 </source>
         <translation>Volume : %1 mm³
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="868"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="716"/>
         <source>Volume: %1 mm³ known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Volume : %1 mm³ connu (%2 maillage(s) sur %3 exclus - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="879"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="727"/>
         <source>Mass: %1 kg
 </source>
         <translation>Masse : %1 kg
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="881"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="729"/>
         <source>Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Masse : %1 kg connue (%2 maillage(s) sur %3 exclus - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="907"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="755"/>
         <source>%1 kg</source>
         <translation>%1 kg</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="908"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="756"/>
         <source>%1 kg known (%2 of %3 mesh(es) excluded - %4)</source>
         <translation>%1 kg connue (%2 maillage(s) sur %3 exclus - %4)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="928"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="776"/>
         <source>Geometric Centroid: X %1, Y %2, Z %3
 </source>
         <translation>Centroïde géométrique : X %1, Y %2, Z %3
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="933"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="781"/>
         <source>Geometric Centroid: N/A (%1)
 </source>
         <translation>Centroïde géométrique : N/D (%1)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="934"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="782"/>
         <source>selection has zero total volume</source>
         <translation>la sélection a un volume total nul</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="934"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="782"/>
         <source>not every mesh has a valid volume</source>
         <translation>tous les maillages n&apos;ont pas un volume valide</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="949"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="797"/>
         <source>Mass-Weighted Center of Mass: X %1, Y %2, Z %3</source>
         <translation>Centre de masse pondéré par la masse : X %1, Y %2, Z %3</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="954"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="802"/>
         <source>Mass-Weighted Center of Mass: N/A (%1)</source>
         <translation>Centre de masse pondéré par la masse : N/D (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="955"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="803"/>
         <source>not every mesh has a known mass</source>
         <translation>tous les maillages n&apos;ont pas une masse connue</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="955"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="803"/>
         <source>selection has zero total mass</source>
         <translation>la sélection a une masse totale nulle</translation>
     </message>
@@ -6710,6 +6699,53 @@ distance en ligne droite. Les deux points doivent se trouver sur le même mailla
     </message>
 </context>
 <context>
+    <name>MeshSelectionBox</name>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="24"/>
+        <source>Selection:</source>
+        <translation>Sélection :</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="28"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="151"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="163"/>
+        <source>Select meshes...</source>
+        <translation>Sélectionner des maillages...</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="29"/>
+        <source>The selected meshes. Right-click to edit or clear.</source>
+        <translation>Les maillages sélectionnés. Clic droit pour modifier ou effacer.</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="43"/>
+        <source>Add meshes from the scene or tree, then click again to confirm</source>
+        <translation>Ajoutez des maillages depuis la scène ou l&apos;arbre, puis cliquez de nouveau pour confirmer</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="46"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="230"/>
+        <source>Edit Selection...</source>
+        <translation>Modifier la sélection...</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="49"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="233"/>
+        <source>Clear Selection</source>
+        <translation>Effacer la sélection</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="135"/>
+        <source>%1 meshes</source>
+        <translation>%1 maillages</translation>
+    </message>
+    <message>
+        <location filename="../src/MeshSelectionBox.cpp" line="159"/>
+        <source>Add meshes, then click again to confirm...</source>
+        <translation>Ajouter des maillages, puis cliquer à nouveau pour confirmer...</translation>
+    </message>
+</context>
+<context>
     <name>MeshSelectionEditor</name>
     <message>
         <location filename="../ui/MeshSelectionEditor.ui" line="14"/>
@@ -7589,10 +7625,10 @@ la Vue sur Masquer/Afficher</translation>
         <location filename="../src/ModelViewer.cpp" line="2151"/>
         <location filename="../src/ModelViewer.cpp" line="2179"/>
         <location filename="../src/ModelViewer.cpp" line="2347"/>
-        <location filename="../src/ModelViewer.cpp" line="5409"/>
-        <location filename="../src/ModelViewer.cpp" line="5585"/>
-        <location filename="../src/ModelViewer.cpp" line="5642"/>
-        <location filename="../src/ModelViewer.cpp" line="6472"/>
+        <location filename="../src/ModelViewer.cpp" line="5411"/>
+        <location filename="../src/ModelViewer.cpp" line="5587"/>
+        <location filename="../src/ModelViewer.cpp" line="5644"/>
+        <location filename="../src/ModelViewer.cpp" line="6474"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
@@ -7857,127 +7893,127 @@ Format de fichier non pris en charge : </translation>
         <translation>%1 maillage(s) groupé(s).</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4163"/>
+        <location filename="../src/ModelViewer.cpp" line="4165"/>
         <source>Subdivide</source>
         <translation>Subdiviser</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4189"/>
+        <location filename="../src/ModelViewer.cpp" line="4191"/>
         <source>Reconstruct Surface</source>
         <translation>Reconstruire la surface</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4221"/>
+        <location filename="../src/ModelViewer.cpp" line="4223"/>
         <source>Repair Mesh (%1)</source>
         <translation>Réparer le maillage (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4229"/>
+        <location filename="../src/ModelViewer.cpp" line="4231"/>
         <source>Repair Mesh</source>
         <translation>Réparer le maillage</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4261"/>
+        <location filename="../src/ModelViewer.cpp" line="4263"/>
         <source>Fill Holes (%1)</source>
         <translation>Combler les trous (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4269"/>
+        <location filename="../src/ModelViewer.cpp" line="4271"/>
         <source>Fill Holes</source>
         <translation>Combler les trous</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4355"/>
+        <location filename="../src/ModelViewer.cpp" line="4357"/>
         <source>Generate UVs (%1)</source>
         <translation>Générer les UV (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4384"/>
+        <location filename="../src/ModelViewer.cpp" line="4386"/>
         <source>Hide All Measurements</source>
         <translation>Masquer toutes les mesures</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4386"/>
+        <location filename="../src/ModelViewer.cpp" line="4388"/>
         <source>Hide All Annotations</source>
         <translation>Masquer toutes les annotations</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4649"/>
+        <location filename="../src/ModelViewer.cpp" line="4651"/>
         <source>Recall Selection Set</source>
         <translation>Rappeler l&apos;ensemble de sélection</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4900"/>
+        <location filename="../src/ModelViewer.cpp" line="4902"/>
         <source>Recall Scene State</source>
         <translation>Rappeler l&apos;état de la scène</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4948"/>
+        <location filename="../src/ModelViewer.cpp" line="4950"/>
         <source>Show All Measurements</source>
         <translation>Afficher toutes les mesures</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4954"/>
+        <location filename="../src/ModelViewer.cpp" line="4956"/>
         <source>Show All Annotations</source>
         <translation>Afficher toutes les annotations</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5160"/>
+        <location filename="../src/ModelViewer.cpp" line="5162"/>
         <source>Rename &quot;%1&quot; to &quot;%2&quot;</source>
         <translation>Renommer « %1 » en « %2 »</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5583"/>
+        <location filename="../src/ModelViewer.cpp" line="5585"/>
         <source>Exported %1</source>
         <translation>%1 exporté</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5656"/>
+        <location filename="../src/ModelViewer.cpp" line="5658"/>
         <source>Reading file: </source>
         <translation>Lecture du fichier : </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6391"/>
+        <location filename="../src/ModelViewer.cpp" line="6393"/>
         <source>Loading mesh %1 / %2</source>
         <translation>Chargement du maillage %1 / %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6473"/>
+        <location filename="../src/ModelViewer.cpp" line="6475"/>
         <source>Unrecognized file format: %1</source>
         <translation>Format de fichier non reconnu : %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7493"/>
+        <location filename="../src/ModelViewer.cpp" line="7495"/>
         <source>Apply Material (Eyedropper)</source>
         <translation>Appliquer le matériau (pipette)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7505"/>
+        <location filename="../src/ModelViewer.cpp" line="7507"/>
         <source>Replace Material</source>
         <translation>Remplacer le matériau</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7596"/>
+        <location filename="../src/ModelViewer.cpp" line="7598"/>
         <source>Deselect</source>
         <translation>Désélectionner</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7596"/>
+        <location filename="../src/ModelViewer.cpp" line="7598"/>
         <source>Select</source>
         <translation>Sélectionner</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7683"/>
+        <location filename="../src/ModelViewer.cpp" line="7685"/>
         <source>No of Meshes: %1</source>
         <translation>Nombre de maillages : %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7812"/>
+        <location filename="../src/ModelViewer.cpp" line="7814"/>
         <source>Editing material of %1 (Apply will affect all %2 selected meshes)</source>
         <translation>Modification du matériau de %1 (Appliquer affectera les %2 maillages sélectionnés)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7815"/>
+        <location filename="../src/ModelViewer.cpp" line="7817"/>
         <source>Editing material of %1</source>
         <translation>Modification du matériau de %1</translation>
     </message>
@@ -8137,21 +8173,21 @@ Format de fichier non pris en charge : </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2576"/>
-        <location filename="../src/ModelViewer.cpp" line="4418"/>
+        <location filename="../src/ModelViewer.cpp" line="4420"/>
         <source>Hide</source>
         <translation>Masquer</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2577"/>
-        <location filename="../src/ModelViewer.cpp" line="4650"/>
-        <location filename="../src/ModelViewer.cpp" line="4901"/>
-        <location filename="../src/ModelViewer.cpp" line="4987"/>
+        <location filename="../src/ModelViewer.cpp" line="4652"/>
+        <location filename="../src/ModelViewer.cpp" line="4903"/>
+        <location filename="../src/ModelViewer.cpp" line="4989"/>
         <source>Show</source>
         <translation>Montrer</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2578"/>
-        <location filename="../src/ModelViewer.cpp" line="4440"/>
+        <location filename="../src/ModelViewer.cpp" line="4442"/>
         <source>Show Only</source>
         <translation>Afficher Uniquement</translation>
     </message>
@@ -8162,7 +8198,7 @@ Format de fichier non pris en charge : </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2598"/>
-        <location filename="../src/ModelViewer.cpp" line="4290"/>
+        <location filename="../src/ModelViewer.cpp" line="4292"/>
         <source>Delete</source>
         <translation>Supprimer</translation>
     </message>
@@ -8187,31 +8223,31 @@ Format de fichier non pris en charge : </translation>
         <translation type="vanished">Supprimer la sélection ?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4997"/>
+        <location filename="../src/ModelViewer.cpp" line="4999"/>
         <source>Selection Required</source>
         <translation>Sélection requise</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4997"/>
+        <location filename="../src/ModelViewer.cpp" line="4999"/>
         <source>Please select an object first</source>
         <translation>Veuillez d&apos;abord sélectionner un objet</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5058"/>
+        <location filename="../src/ModelViewer.cpp" line="5060"/>
         <source>Points: %1
 </source>
         <translation>Points : %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5059"/>
+        <location filename="../src/ModelViewer.cpp" line="5061"/>
         <source>Triangles: %1
 </source>
         <translation>Triangles : %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5082"/>
+        <location filename="../src/ModelViewer.cpp" line="5084"/>
         <source>Memory: %1 </source>
         <translation>Mémoire : %1 </translation>
     </message>
@@ -8263,7 +8299,7 @@ Voulez-vous continuer&#xa0;?</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2600"/>
-        <location filename="../src/ModelViewer.cpp" line="5085"/>
+        <location filename="../src/ModelViewer.cpp" line="5087"/>
         <source>Mesh Info</source>
         <translation>Informations sur le Maillage</translation>
     </message>
@@ -8304,48 +8340,48 @@ Voulez-vous continuer&#xa0;?</translation>
         <translation type="vanished">Réaliste</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5216"/>
+        <location filename="../src/ModelViewer.cpp" line="5218"/>
         <source>Import Model File</source>
         <translation>Importer un Fichier de Modèle</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5314"/>
+        <location filename="../src/ModelViewer.cpp" line="5316"/>
         <source>Select Scene to Export</source>
         <translation>Sélectionner la scène à exporter</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5319"/>
+        <location filename="../src/ModelViewer.cpp" line="5321"/>
         <source>Multiple scenes are loaded. Select one to export:</source>
         <translation>Plusieurs scènes sont chargées. Sélectionnez-en une à exporter :</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5351"/>
+        <location filename="../src/ModelViewer.cpp" line="5353"/>
         <source>Export Model</source>
         <translation>Modèle d&apos;Exportation</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5376"/>
-        <location filename="../src/ModelViewer.cpp" line="5416"/>
+        <location filename="../src/ModelViewer.cpp" line="5378"/>
+        <location filename="../src/ModelViewer.cpp" line="5418"/>
         <source>Nothing Selected</source>
         <translation>Rien de sélectionné</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5377"/>
+        <location filename="../src/ModelViewer.cpp" line="5379"/>
         <source>Select one or more meshes in the scene tree before exporting selected meshes.</source>
         <translation>Sélectionnez un ou plusieurs maillages dans l&apos;arborescence de la scène avant d&apos;exporter les maillages sélectionnés.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5409"/>
+        <location filename="../src/ModelViewer.cpp" line="5411"/>
         <source>Failed to build export scene.</source>
         <translation>Échec de la construction de la scène d&apos;exportation.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5417"/>
+        <location filename="../src/ModelViewer.cpp" line="5419"/>
         <source>None of the selected items are exportable meshes.</source>
         <translation>Aucun des éléments sélectionnés n&apos;est un maillage exportable.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5583"/>
+        <location filename="../src/ModelViewer.cpp" line="5585"/>
         <source>Information</source>
         <translation>Information</translation>
     </message>
@@ -8354,17 +8390,17 @@ Voulez-vous continuer&#xa0;?</translation>
         <translation type="vanished">Exporté</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5585"/>
+        <location filename="../src/ModelViewer.cpp" line="5587"/>
         <source>Export failed!</source>
         <translation>L&apos;exportation a échoué !</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5630"/>
+        <location filename="../src/ModelViewer.cpp" line="5632"/>
         <source>File loaded</source>
         <translation>Fichier chargé</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5642"/>
+        <location filename="../src/ModelViewer.cpp" line="5644"/>
         <source>Failed to load model %1</source>
         <translation>Échec du chargement du modèle %1</translation>
     </message>
@@ -8417,19 +8453,19 @@ D&apos;autres opérations d&apos;annulation (sélection, visibilité, etc.) fonc
 Tu veux poursuivre ?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4291"/>
+        <location filename="../src/ModelViewer.cpp" line="4293"/>
         <source>Delete selected item(s)?</source>
         <translation>Supprimer le(s) élément(s) sélectionné(s) ?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4373"/>
-        <location filename="../src/ModelViewer.cpp" line="4377"/>
+        <location filename="../src/ModelViewer.cpp" line="4375"/>
+        <location filename="../src/ModelViewer.cpp" line="4379"/>
         <source>Hide All</source>
         <translation>Masquer Tout</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4924"/>
-        <location filename="../src/ModelViewer.cpp" line="4938"/>
+        <location filename="../src/ModelViewer.cpp" line="4926"/>
+        <location filename="../src/ModelViewer.cpp" line="4940"/>
         <source>Show All</source>
         <translation>Afficher Tout</translation>
     </message>
@@ -8669,7 +8705,7 @@ Utilisez Copier et Coller pour un assemblage multi-maillage.</translation>
         <translation>Annuler le chargement</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5759"/>
+        <location filename="../src/ModelViewer.cpp" line="5761"/>
         <source>Preparing meshes: </source>
         <translation>Préparation des maillages : </translation>
     </message>
@@ -14461,134 +14497,158 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
 <context>
     <name>SurfaceAnalysisDialog</name>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="49"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="926"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="955"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1044"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1076"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1100"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1239"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1290"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1448"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1533"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="50"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="920"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="949"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1038"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1070"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1094"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1233"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1284"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1442"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1527"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1617"/>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="1623"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1629"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1645"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1689"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1701"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1709"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1639"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1683"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1695"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1703"/>
         <source>Surface Analysis</source>
         <translation>Analyse de surface</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="56"/>
         <source>Analyzes the current selection and paints the result directly on the mesh surface.</source>
-        <translation>Analyse la sélection actuelle et peint le résultat directement sur la surface du maillage.</translation>
+        <translation type="vanished">Analyse la sélection actuelle et peint le résultat directement sur la surface du maillage.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="101"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="105"/>
         <source>Curvature</source>
         <translation>Courbure</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="102"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="231"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="106"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="235"/>
         <source>Wall-Thickness</source>
         <translation>Épaisseur de paroi</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="103"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="325"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="107"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="329"/>
         <source>Deviation</source>
         <translation>Écart</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="169"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="173"/>
         <source>Zebra Stripe reveals surface continuity as a live, view-dependent reflection pattern - no legend, since it isn&apos;t a fixed color scale.</source>
         <translation>Zébrure révèle la continuité de la surface sous la forme d&apos;un motif de réflexion en direct, dépendant de la vue - pas de légende, car ce n&apos;est pas une échelle de couleurs fixe.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="168"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="171"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="172"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="175"/>
         <source>Zebra Stripe</source>
         <translation>Zébrure</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="178"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="182"/>
         <source>Mean Curvature colors each vertex by how sharply the surface bends there - blue is concave, red is convex, white is flat. Gaussian/principal curvature modes are not yet available. Computed on a repaired copy of the mesh (real connectivity is required); any repair made is disclosed below after Apply.</source>
         <translation>Courbure moyenne colore chaque sommet selon la brusquerie avec laquelle la surface s&apos;y courbe - le bleu est concave, le rouge est convexe, le blanc est plat. Les modes de courbure gaussienne/principale ne sont pas encore disponibles. Calculée sur une copie réparée du maillage (une connectivité réelle est requise) ; toute réparation effectuée est indiquée ci-dessous après Appliquer.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="183"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="187"/>
         <source>Apply Mean Curvature</source>
         <translation>Appliquer la courbure moyenne</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="121"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="125"/>
         <source>What does this show?</source>
         <translation>Que montre ceci ?</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="177"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="57"/>
+        <source>Analyzes the selected meshes and paints the result directly on the mesh surface.</source>
+        <translation>Analyse les maillages sélectionnés et peint le résultat directement sur la surface du maillage.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="66"/>
+        <source>The meshes to analyze. Right-click to edit or clear.</source>
+        <translation>Les maillages à analyser. Clic droit pour modifier ou effacer.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="67"/>
+        <source>Review and refine the meshes to analyze.</source>
+        <translation>Vérifiez et affinez les maillages à analyser.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="67"/>
+        <source>Meshes</source>
+        <translation>Maillages</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="181"/>
         <source>Mean Curvature</source>
         <translation>Courbure moyenne</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="201"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="205"/>
         <source>Draft Angle</source>
         <translation>Angle de dépouille</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="202"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="206"/>
         <source>Draft Angle colors each face by its signed angle to the chosen pull direction - red/positive is an ordinary moldable wall, blue/negative is an undercut, white is parallel to the pull direction (zero draft).</source>
         <translation>Angle de dépouille colore chaque face selon son angle signé par rapport à la direction de démoulage choisie - le rouge/positif est une paroi moulable ordinaire, le bleu/négatif est une contre-dépouille, le blanc est parallèle à la direction de démoulage (dépouille nulle).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="207"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="211"/>
         <source>Pull direction:</source>
         <translation>Direction de démoulage :</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="209"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
         <source>+X</source>
         <translation>+X</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="210"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="214"/>
         <source>-X</source>
         <translation>-X</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="211"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="215"/>
         <source>+Y</source>
         <translation>+Y</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="212"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="216"/>
         <source>-Y</source>
         <translation>-Y</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="217"/>
         <source>+Z</source>
         <translation>+Z</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="214"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="218"/>
         <source>-Z</source>
         <translation>-Z</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="226"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="230"/>
         <source>Apply Draft Angle</source>
         <translation>Appliquer l&apos;angle de dépouille</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="833"/>
+        <source>No mesh selected - add meshes with the selection box above.</source>
+        <translation>Aucun maillage sélectionné - ajoutez des maillages avec la zone de sélection ci-dessus.</translation>
     </message>
     <message>
         <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Local thickness samples many points per face and casts a cone of rays into the material, so thin ribs and slots are found and the result does not depend on how the surface was triangulated; Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored.</source>
         <translation type="vanished">Épaisseur de paroi estime l&apos;épaisseur de matière derrière chaque point de la surface - le bleu est mince, le rouge est épais. L&apos;épaisseur locale échantillonne de nombreux points par face et lance un cône de rayons dans la matière : les nervures et fentes fines sont détectées et le résultat ne dépend pas de la triangulation de la surface ; Rayon normal est l&apos;ancienne estimation à un seul rayon, plus rapide. Les deux sont des ESTIMATIONS, non des minima exacts. Nécessite un maillage fermé, sans auto-intersections, qui délimite un volume - sinon le maillage entier est rejeté avec un motif, jamais coloré partiellement.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="247"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="251"/>
         <source>Method:</source>
         <translation>Méthode :</translation>
     </message>
@@ -14597,12 +14657,12 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation type="vanished">Épaisseur locale (recommandé)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="251"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="255"/>
         <source>Normal ray (fast)</source>
         <translation>Rayon normal (rapide)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="548"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="558"/>
         <source>Thickness: %1 mm</source>
         <translation>Épaisseur : %1 mm</translation>
     </message>
@@ -14611,58 +14671,58 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation type="vanished">Épaisseur de paroi colore chaque face selon la distance d&apos;un rayon dirigé vers l&apos;intérieur jusqu&apos;à la paroi opposée - le bleu est mince, le rouge est épais. Il s&apos;agit d&apos;une ESTIMATION, non d&apos;un vrai minimum garanti (le vrai minimum peut se trouver dans une direction autre que la normale à la surface). Nécessite un maillage fermé, sans auto-intersections, qui délimite un volume - sinon, le maillage entier est rejeté avec un motif, sans être coloré partiellement.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="286"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="290"/>
         <source>Apply Wall-Thickness</source>
         <translation>Appliquer l&apos;épaisseur de paroi</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="293"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="297"/>
         <source>Highlight walls thinner than:</source>
         <translation>Mettre en évidence les parois plus minces que :</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="296"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1422"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="300"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1416"/>
         <source> mm</source>
         <translation> mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="326"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="330"/>
         <source>Colors the selected mesh by its unsigned distance to a reference mesh&apos;s surface - dark blue is a close match, red is the largest deviation found. Both meshes must already be aligned in the same coordinate frame and use the same units; a plain offset between them will read as a false deviation. This is a sampled result (measured per vertex), not exhaustive coverage.</source>
         <translation>Colore le maillage sélectionné selon sa distance non signée à la surface d&apos;un maillage de référence - le bleu foncé indique une bonne correspondance, le rouge l&apos;écart le plus important trouvé. Les deux maillages doivent déjà être alignés dans le même repère et utiliser les mêmes unités ; un simple décalage entre eux sera interprété comme un faux écart. Il s&apos;agit d&apos;un résultat échantillonné (mesuré par sommet), non d&apos;une couverture exhaustive.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="333"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="337"/>
         <source>Reference mesh:</source>
         <translation>Maillage de référence :</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="338"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="342"/>
         <source>Apply</source>
         <translation>Appliquer</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="356"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="360"/>
         <source>Show Readout on Hover</source>
         <translation>Afficher la valeur au survol</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="373"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="377"/>
         <source>Clear Overlay</source>
         <translation>Effacer la superposition</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="377"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="381"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="544"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="554"/>
         <source>Draft: %1°</source>
         <translation>Dépouille : %1°</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="546"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="556"/>
         <source>Curvature: %1</source>
         <translation>Courbure : %1</translation>
     </message>
@@ -14679,177 +14739,173 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation type="vanished">Épaisseur de paroi estime l&apos;épaisseur de matière derrière chaque point de la surface - le bleu est mince, le rouge est épais. La sphère inscrite cherche, pour chaque point, la plus grande sphère qui tient dans la pièce en touchant la surface à cet endroit ; son diamètre est l&apos;épaisseur de paroi. Elle lit correctement les parois inclinées et courbes, donne toujours une valeur et repère les zones épaisses aux angles et aux pieds de nervures. Le long d&apos;une arête vive convexe, aucune grande sphère ne peut toucher la surface : un liseré mince peut donc y apparaître - une arête arrondie se lit normalement. L&apos;épaisseur locale lance des rayons dans la matière depuis de nombreux points par face (la dispersion des rayons fixe de combien ils peuvent s&apos;ouvrir ; 0 = droit vers l&apos;intérieur uniquement) et Rayon normal est l&apos;ancienne estimation à un seul rayon, plus rapide ; les deux mesurent le long d&apos;un rayon et peuvent donc surestimer là où la paroi opposée est inclinée et laisser des trous là où elle est trop inclinée. Toutes les méthodes sont des ESTIMATIONS, non des minima exacts. Nécessite un maillage fermé, sans auto-intersections, qui délimite un volume - sinon le maillage entier est rejeté avec un motif, jamais coloré partiellement. Survoler une valeur écrit dans le journal comment elle a été mesurée.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="232"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="236"/>
         <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Inscribed sphere finds, for each point, the largest sphere that fits inside the part while touching the surface there; its diameter is the wall thickness. It reads slanted and curved walls correctly, always gives a value, and finds thick spots at corners and rib roots. Along a sharp convex edge no large sphere can touch the surface, so a thin border would appear there; &quot;Ignore sharp-edge effect&quot; (on by default) gives those points the value of the nearest interior point of the face instead. Local thickness casts rays into the material from many points per face (the ray spread sets how far they may fan out; 0 = straight in only) and Normal ray is the older, faster single-ray estimate; both measure along a ray, so they can over-read where the far wall is slanted and leave gaps where it is too steep. All methods are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes how it was measured to the log.</source>
         <translation>Épaisseur de paroi estime l&apos;épaisseur de matière derrière chaque point de la surface - le bleu est mince, le rouge est épais. La sphère inscrite cherche, pour chaque point, la plus grande sphère qui tient dans la pièce en touchant la surface à cet endroit ; son diamètre est l&apos;épaisseur de paroi. Elle lit correctement les parois inclinées et courbes, donne toujours une valeur et repère les zones épaisses aux angles et aux pieds de nervures. Le long d&apos;une arête vive convexe, aucune grande sphère ne peut toucher la surface : un liseré mince y apparaîtrait ; « Ignorer l&apos;effet d&apos;arête vive » (activé par défaut) donne à ces points la valeur du point intérieur le plus proche de la face. L&apos;épaisseur locale lance des rayons dans la matière depuis de nombreux points par face (la dispersion des rayons fixe de combien ils peuvent s&apos;ouvrir ; 0 = droit vers l&apos;intérieur uniquement) et Rayon normal est l&apos;ancienne estimation à un seul rayon, plus rapide ; les deux mesurent le long d&apos;un rayon et peuvent donc surestimer là où la paroi opposée est inclinée et laisser des trous là où elle est trop inclinée. Toutes les méthodes sont des ESTIMATIONS, non des minima exacts. Nécessite un maillage fermé, sans auto-intersections, qui délimite un volume - sinon le maillage entier est rejeté avec un motif, jamais coloré partiellement. Survoler une valeur écrit dans le journal comment elle a été mesurée.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="249"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="253"/>
         <source>Inscribed sphere (recommended)</source>
         <translation>Sphère inscrite (recommandé)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="250"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="254"/>
         <source>Local thickness (rays)</source>
         <translation>Épaisseur locale (rayons)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="257"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="261"/>
         <source>Ray spread:</source>
         <translation>Dispersion des rayons :</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="264"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="268"/>
         <source>0 measures straight in from each sample (the wall directly behind it). Larger values also probe obliquely, which finds thin features beside a sample but reads a flat face&apos;s sloped neighbours as thinner.</source>
         <translation>0 mesure droit vers l&apos;intérieur depuis chaque échantillon (la paroi juste derrière). Des valeurs plus grandes sondent aussi en oblique, ce qui trouve des détails minces à côté d&apos;un échantillon mais lit les voisins inclinés d&apos;une face plane comme plus minces.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="271"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="275"/>
         <source>Ignore sharp-edge effect</source>
         <translation>Ignorer l&apos;effet d&apos;arête vive</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="273"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="277"/>
         <source>Along a sharp convex edge (or the rim of a hole) the largest sphere that touches the surface is small, which would read as a thin wall there. With this on, such points take the value of the nearest interior point of the face. Points squeezed between two walls (such as the end of a thin rib) keep their small value.</source>
         <translation>Le long d&apos;une arête vive convexe (ou du bord d&apos;un perçage), la plus grande sphère qui touche la surface est petite, ce qui se lirait comme une paroi mince. Lorsque cette option est activée, ces points prennent la valeur du point intérieur le plus proche de la face. Les points pris entre deux parois (comme l&apos;extrémité d&apos;une nervure mince) gardent leur petite valeur.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="550"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="560"/>
         <source>Deviation: %1</source>
         <translation>Écart : %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="579"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="589"/>
         <source>no wall found behind the surface</source>
         <translation>aucune paroi trouvée derrière la surface</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="581"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="591"/>
         <source>the wall behind belongs to a different body</source>
         <translation>la paroi derrière appartient à un autre corps</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="583"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="593"/>
         <source>the ray meets a surface from outside (touching or overlapping bodies)</source>
         <translation>le rayon rencontre une surface par l&apos;extérieur (corps en contact ou qui se chevauchent)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="585"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="595"/>
         <source>the wall behind is too steep to measure straight through</source>
         <translation>la paroi derrière est trop inclinée pour être mesurée en ligne droite</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="587"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="597"/>
         <source>the wall behind is a degenerate triangle</source>
         <translation>la paroi derrière est un triangle dégénéré</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="602"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="612"/>
         <source>No value: %1</source>
         <translation>Aucune valeur : %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="799"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="809"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation>Superposition effacée pour %1 maillage(s) - la transformation a changé, cliquez sur Appliquer pour recalculer.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="813"/>
         <source>No mesh selected - select one or more meshes in the scene tree first.</source>
-        <translation>Aucun maillage sélectionné - sélectionnez d&apos;abord un ou plusieurs maillages dans l&apos;arborescence de la scène.</translation>
+        <translation type="vanished">Aucun maillage sélectionné - sélectionnez d&apos;abord un ou plusieurs maillages dans l&apos;arborescence de la scène.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="819"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="835"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation>%1 maillages sélectionnés - Écart en nécessite exactement un (le côté scan/comparaison).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="836"/>
         <source>Comparing: %1</source>
-        <translation>Comparaison : %1</translation>
+        <translation type="vanished">Comparaison : %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="841"/>
         <source>Selected: %1</source>
-        <translation>Sélectionné : %1</translation>
+        <translation type="vanished">Sélectionné : %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="842"/>
         <source>Selected (%1): %2</source>
-        <translation>Sélectionnés (%1) : %2</translation>
+        <translation type="vanished">Sélectionnés (%1) : %2</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="926"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="955"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1100"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1448"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="920"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="949"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1094"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1442"/>
         <source>Select one or more meshes first.</source>
         <translation>Sélectionnez d&apos;abord un ou plusieurs maillages.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="971"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1128"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1469"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1667"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="965"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1122"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1463"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1661"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1045"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1240"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1534"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1690"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1702"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1039"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1234"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1528"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1684"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1696"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation>La sélection a changé pendant le calcul - relancez Appliquer.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1077"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1071"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation>Impossible de calculer un résultat de courbure exploitable pour la sélection actuelle.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1291"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1285"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation>Impossible de calculer l&apos;épaisseur de paroi - aucune face n&apos;a trouvé d&apos;impact valide sur la paroi opposée.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1417"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1411"/>
         <source>&lt; %1 mm</source>
         <translation>&lt; %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1417"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1411"/>
         <source>&gt;= %1 mm</source>
         <translation>&gt;= %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1428"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1422"/>
         <source>Thinnest wall found: %1 mm.</source>
         <translation>Paroi la plus mince trouvée : %1 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1431"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1425"/>
         <source>%1% of the analysed surface is thinner than %2 mm.</source>
         <translation>%1 % de la surface analysée est plus mince que %2 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1624"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1618"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation>Sélectionnez exactement un maillage à comparer (le côté scan/comparaison).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1630"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1624"/>
         <source>No other loaded mesh is available to compare against.</source>
         <translation>Aucun autre maillage chargé n&apos;est disponible pour la comparaison.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1640"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation>Le maillage de référence choisi n&apos;est plus disponible - choisissez-en un autre.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1710"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1704"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation>Impossible de calculer l&apos;écart - le maillage de référence n&apos;a aucun triangle exploitable.</translation>
     </message>

@@ -7,7 +7,7 @@
 #include "LengthUnits.h"
 #include "AnalysisMeshSnapshot.h"
 #include "AnalysisComputeSession.h"
-#include "MeshSelectionEditor.h"
+#include "MeshSelectionBox.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -44,49 +44,13 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
 
-	// Selection box: the same pick / edit / clear affordances as the Exploded View panel's "Select assembly or
-	// meshes" box. The dialog is non-modal so meshes can be picked in the viewport while it is open.
-	{
-		auto* selectionRow = new QHBoxLayout();
-		selectionRow->addWidget(new QLabel(tr("Selection:"), this));
-		_selectionEdit = new QLineEdit(this);
-		_selectionEdit->setReadOnly(true);
-		_selectionEdit->setPlaceholderText(tr("Select meshes..."));
-		_selectionEdit->setToolTip(tr("The meshes this report covers. Right-click to edit or clear."));
-		_selectionEdit->setContextMenuPolicy(Qt::CustomContextMenu);
-		connect(_selectionEdit, &QWidget::customContextMenuRequested, this, &MassPropertiesDialog::showSelectionContextMenu);
-		selectionRow->addWidget(_selectionEdit, 1);
-
-		const auto makeIconButton = [this](const QString& iconPath, const QString& tip, bool checkable) {
-			auto* button = new QPushButton(this);
-			button->setIcon(QIcon(iconPath));
-			button->setFixedSize(28, 28);
-			button->setCheckable(checkable);
-			button->setToolTip(tip);
-			return button;
-		};
-		_pickButton = makeIconButton(QStringLiteral(":/icons/res/select.png"),
-			tr("Add meshes from the scene or tree, then click again to confirm"), true);
-		connect(_pickButton, &QPushButton::toggled, this, &MassPropertiesDialog::onPickToggled);
-		selectionRow->addWidget(_pickButton);
-		_editSelectionButton = makeIconButton(QStringLiteral(":/icons/res/edit_selection.png"), tr("Edit Selection..."), false);
-		connect(_editSelectionButton, &QPushButton::clicked, this, &MassPropertiesDialog::editSelection);
-		selectionRow->addWidget(_editSelectionButton);
-		_clearSelectionButton = makeIconButton(QStringLiteral(":/icons/res/clear.png"), tr("Clear Selection"), false);
-		connect(_clearSelectionButton, &QPushButton::clicked, this, &MassPropertiesDialog::clearSelection);
-		selectionRow->addWidget(_clearSelectionButton);
-		layout->addLayout(selectionRow);
-	}
-
-	// A real per-document/per-import unit policy now exists (LengthUnits.h) -
-	// text is refreshed per populate() once it knows whether any selected
-	// mesh actually needed the Unknown->Millimeter fallback (see
-	// resolveEffectiveImportUnit()'s own doc comment); this constructor-time
-	// text is just a placeholder shown before the first populate() call
-	// fills it in properly.
-	_unitsNoteLabel = new QLabel(this);
-	_unitsNoteLabel->setWordWrap(true);
-	layout->addWidget(_unitsNoteLabel);
+	// The meshes this report covers: the shared pick / edit / clear selection box (the same control the other tool
+	// dialogs and the Exploded View panel use). The dialog is non-modal so meshes can be picked in the viewport
+	// while it is open. Seeded and connected at the end of the constructor.
+	_selectionBox = new MeshSelectionBox(_modelViewer, this);
+	_selectionBox->setFieldToolTip(tr("The meshes this report covers. Right-click to edit or clear."));
+	_selectionBox->setEditorTexts(tr("Review and refine the meshes in this report."), tr("Meshes"));
+	layout->addWidget(_selectionBox);
 
 	_noSelectionLabel = new QLabel(tr("Nothing selected - select one or more meshes first."), this);
 	_noSelectionLabel->setWordWrap(true);
@@ -166,18 +130,10 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 			this, &MassPropertiesDialog::onMeshAboutToBeDeleted);
 	}
 
-	// Seed the mesh list from the viewport selection at the moment the dialog opens.
-	if (_modelViewer && _modelViewer->getViewportWidget())
-	{
-		ViewportWidget* viewport = _modelViewer->getViewportWidget();
-		for (int id : _modelViewer->getSelectedIDs())
-		{
-			const QUuid uuid = viewport->getUuidByIndex(id);
-			if (!uuid.isNull() && !_meshUuids.contains(uuid))
-				_meshUuids.append(uuid);
-		}
-	}
-	updateSelectionDisplay();
+	// Seed the mesh list from the viewport selection at the moment the dialog opens - before connecting, so this
+	// does not trigger a second computation.
+	_selectionBox->seedFromViewportSelection();
+	connect(_selectionBox, &MeshSelectionBox::meshUuidsChanged, this, &MassPropertiesDialog::onSelectionListChanged);
 
 	populate();
 	loadSettings();
@@ -185,152 +141,16 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 
 void MassPropertiesDialog::seedFromViewportSelection()
 {
-	if (_activeSession || !_modelViewer || !_modelViewer->getViewportWidget())
-		return;
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	QVector<QUuid> uuids;
-	for (int id : _modelViewer->getSelectedIDs())
-	{
-		const QUuid uuid = viewport->getUuidByIndex(id);
-		if (!uuid.isNull() && !uuids.contains(uuid))
-			uuids.append(uuid);
-	}
-	if (!uuids.isEmpty())
-		applyMeshUuids(uuids);
+	if (!_activeSession)
+		_selectionBox->seedFromViewportSelection(); // recomputes through onSelectionListChanged()
 }
 
-void MassPropertiesDialog::applyMeshUuids(const QVector<QUuid>& uuids)
+void MassPropertiesDialog::onSelectionListChanged()
 {
-	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
-	_meshUuids.clear();
-	for (const QUuid& uuid : uuids)
-	{
-		if (uuid.isNull() || _meshUuids.contains(uuid))
-			continue;
-		if (viewport && viewport->getIndexByUuid(uuid) < 0)
-			continue; // no longer in the scene
-		_meshUuids.append(uuid);
-	}
-	updateSelectionDisplay();
-	populate();
-}
-
-QString MassPropertiesDialog::describeSelection() const
-{
-	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
-	if (_meshUuids.isEmpty() || !viewport)
-		return QString();
-	if (_meshUuids.size() == 1)
-	{
-		if (SceneMesh* mesh = viewport->getMeshByUuid(_meshUuids.first()))
-			return mesh->getName();
-	}
-	return tr("%1 meshes").arg(_meshUuids.size());
-}
-
-void MassPropertiesDialog::updateSelectionDisplay()
-{
-	if (_selectionEdit)
-		_selectionEdit->setText(describeSelection());
-	if (_editSelectionButton)
-		_editSelectionButton->setEnabled(!_meshUuids.isEmpty());
-	if (_clearSelectionButton)
-		_clearSelectionButton->setEnabled(!_meshUuids.isEmpty());
-}
-
-void MassPropertiesDialog::onPickToggled(bool checked)
-{
-	if (_activeSession)
-	{
-		QSignalBlocker blocker(_pickButton);
-		_pickButton->setChecked(false);
-		return;
-	}
-	if (checked)
-	{
-		// Picking happens in the viewport/tree: the dialog is non-modal so both stay usable.
-		_selectionEdit->setPlaceholderText(tr("Add meshes, then click again to confirm..."));
-		return;
-	}
-
-	_selectionEdit->setPlaceholderText(tr("Select meshes..."));
-	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
-	if (!viewport)
-		return;
-	QVector<QUuid> merged = _meshUuids;
-	for (int id : _modelViewer->getSelectedIDs())
-	{
-		const QUuid uuid = viewport->getUuidByIndex(id);
-		if (!uuid.isNull() && !merged.contains(uuid))
-			merged.append(uuid);
-	}
-	// The picked meshes now live in the list - clear the viewport selection so the next pick starts fresh.
-	_modelViewer->setSelectionWithoutUndo(QSet<int>());
-	applyMeshUuids(merged);
-}
-
-void MassPropertiesDialog::editSelection()
-{
-	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
-	if (_activeSession || !viewport || _meshUuids.isEmpty())
-		return;
-
-	MeshSelectionEditor editor(this);
-	editor.setIntroText(tr("Review and refine the meshes in this report."));
-	editor.setMembersText(tr("Meshes"));
-	QVector<MeshSelectionEditor::Entry> entries;
-	for (const QUuid& uuid : std::as_const(_meshUuids))
-	{
-		if (SceneMesh* mesh = viewport->getMeshByUuid(uuid))
-			entries.append({ uuid, mesh->getName() });
-	}
-	editor.setEntries(entries);
-
-	// Highlighting the entry under the cursor shows where that mesh is; the previous selection is put back afterwards.
-	QSet<int> previousSelection;
-	for (int id : _modelViewer->getSelectedIDs())
-		previousSelection.insert(id);
-	connect(&editor, &MeshSelectionEditor::previewEntryRequested, this, [this](const QUuid& uuid) {
-		_modelViewer->setSelectionWithoutUndo(QSet<QUuid>{ uuid });
-	});
-
-	const int result = editor.exec();
-	_modelViewer->setSelectionWithoutUndo(previousSelection);
-	if (result != QDialog::Accepted && result != MeshSelectionEditor::AddMoreResult)
-		return;
-
-	QVector<QUuid> updated;
-	for (const MeshSelectionEditor::Entry& entry : editor.entries())
-		updated.append(entry.uuid);
-	applyMeshUuids(updated);
-	if (result == MeshSelectionEditor::AddMoreResult && _pickButton)
-		_pickButton->setChecked(true);
-}
-
-void MassPropertiesDialog::clearSelection()
-{
-	if (_activeSession)
-		return;
-	if (_pickButton && _pickButton->isChecked())
-	{
-		QSignalBlocker blocker(_pickButton);
-		_pickButton->setChecked(false);
-		_selectionEdit->setPlaceholderText(tr("Select meshes..."));
-	}
-	applyMeshUuids(QVector<QUuid>());
-}
-
-void MassPropertiesDialog::showSelectionContextMenu(const QPoint& pos)
-{
-	if (_meshUuids.isEmpty())
-		return;
-	QMenu menu(this);
-	connect(menu.addAction(QIcon(QStringLiteral(":/icons/res/edit_selection.png")), tr("Edit Selection...")),
-		&QAction::triggered, this, &MassPropertiesDialog::editSelection);
-	menu.addSeparator();
-	connect(menu.addAction(QIcon(QStringLiteral(":/icons/res/clear.png")), tr("Clear Selection")),
-		&QAction::triggered, this, &MassPropertiesDialog::clearSelection);
-	menu.exec(_selectionEdit->mapToGlobal(pos));
+	// A change while a computation is running (a mesh deleted in the middle of it) is picked up by that run's own
+	// deleted-mesh handling; a fresh populate() must not start inside it.
+	if (!_activeSession)
+		populate();
 }
 
 QVector<QUuid> MassPropertiesDialog::meshesOfSelectedRows() const
@@ -351,7 +171,7 @@ QVector<QUuid> MassPropertiesDialog::meshesOfSelectedRows() const
 void MassPropertiesDialog::onTableRowSelectionChanged()
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
-	if (_suppressRowSync || _activeSession || !viewport || (_pickButton && _pickButton->isChecked()))
+	if (_suppressRowSync || _activeSession || !viewport || _selectionBox->isPicking())
 		return;
 
 	QSet<int> ids;
@@ -443,11 +263,12 @@ void MassPropertiesDialog::setComputationInFlight(bool inFlight)
 {
 	if (_closeButton)
 		_closeButton->setText(inFlight ? tr("Cancel") : tr("Close"));
-	for (QPushButton* button : { _pickButton, _editSelectionButton, _clearSelectionButton, _recalculateButton })
-	{
-		if (button)
-			button->setEnabled(!inFlight && (button == _pickButton || button == _recalculateButton || !_meshUuids.isEmpty()));
-	}
+	// The selection controls and Recalculate are inert while a computation runs (its nested event loop would let
+	// them start a second one).
+	if (_selectionBox)
+		_selectionBox->setEnabled(!inFlight);
+	if (_recalculateButton)
+		_recalculateButton->setEnabled(!inFlight);
 	if (_progressBar)
 	{
 		_progressBar->setVisible(inFlight);
@@ -523,7 +344,7 @@ void MassPropertiesDialog::populate()
 	// The dialog's own list (not the live viewport selection): the table rows follow it, in order.
 	std::vector<int> selected;
 	_rowUuids.clear();
-	for (const QUuid& uuid : std::as_const(_meshUuids))
+	for (const QUuid& uuid : _selectionBox->meshUuids())
 	{
 		const int id = viewport->getIndexByUuid(uuid);
 		if (id < 0)

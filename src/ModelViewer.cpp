@@ -4094,14 +4094,16 @@ void ModelViewer::openShrinkWrapDialog()
 void ModelViewer::openSurfaceAnalysisDialog(const QString& mode)
 {
 	SurfaceAnalysisDialog* dialog = findChild<SurfaceAnalysisDialog*>(QString(), Qt::FindDirectChildrenOnly);
-	if (!dialog)
+	if (dialog)
 	{
+		dialog->seedFromViewportSelection();
+	}
+	else
+	{
+		// The constructor seeds the dialog's mesh list from the current viewport selection.
 		dialog = new SurfaceAnalysisDialog(this, this);
 		dialog->setAttribute(Qt::WA_DeleteOnClose);
 	}
-	// No tree-selection seeding - see this function's declaration comment
-	// in ModelViewer.h for why (acts on the live viewport selection at
-	// Apply-click time, not a fixed working list).
     if (!mode.isEmpty()) dialog->selectMode(mode);
     _viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("analysis"), dialog);
 	dialog->show();

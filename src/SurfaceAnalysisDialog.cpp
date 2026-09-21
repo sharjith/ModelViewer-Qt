@@ -1,6 +1,7 @@
 #include "SurfaceAnalysisDialog.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
+#include "MeshSelectionBox.h"
 #include "SceneMesh.h"
 #include "RenderableMesh.h"
 #include "DraftAngleAnalyzer.h"
@@ -53,23 +54,26 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	layout->setContentsMargins(16, 16, 16, 16);
 	layout->setSpacing(12);
 
-	auto* introLabel = new QLabel(tr("Analyzes the current selection and paints the result directly on the mesh surface."), this);
+	auto* introLabel = new QLabel(tr("Analyzes the selected meshes and paints the result directly on the mesh surface."), this);
 	introLabel->setWordWrap(true);
 	layout->addWidget(introLabel);
 
-	// Live selection status - this dialog acts on whatever's selected in the
-	// scene tree/viewport (not an independent picker of its own), so this
-	// reflects that selection directly rather than only ever surfacing
-	// "nothing selected" as an error message after the fact when Apply is
-	// clicked. Wording depends on the active mode too (Deviation wants
-	// exactly one mesh; every other mode acts on the whole selection).
+	// The meshes this dialog acts on: the shared pick / edit / clear selection box (compact - "3 meshes", never a
+	// list of names), seeded from the viewer's selection when the dialog opens. Every Apply reads this list, not the
+	// viewer's live selection, so the viewer can be used freely while the dialog stays open. Seeded and connected
+	// at the end of the constructor, once every widget exists.
+	_selectionBox = new MeshSelectionBox(_modelViewer, this);
+	_selectionBox->setFieldToolTip(tr("The meshes to analyze. Right-click to edit or clear."));
+	_selectionBox->setEditorTexts(tr("Review and refine the meshes to analyze."), tr("Meshes"));
+	layout->addWidget(_selectionBox);
+
+	// Hint line under it ("nothing selected", "Deviation needs exactly one", stale-overlay notice); hidden when empty.
 	_selectionStatusLabel = new QLabel(this);
 	_selectionStatusLabel->setWordWrap(true);
+	_selectionStatusLabel->setVisible(false);
 	layout->addWidget(_selectionStatusLabel);
 	if (_modelViewer && _modelViewer->getViewportWidget())
 	{
-		connect(_modelViewer->getViewportWidget(), &ViewportWidget::selectionChanged,
-			this, &SurfaceAnalysisDialog::onSelectionChanged);
 		connect(_modelViewer->getViewportWidget(), &ViewportWidget::meshAboutToBeDeleted,
 			this, &SurfaceAnalysisDialog::onMeshAboutToBeDeleted);
 	}
@@ -383,6 +387,11 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	bottomRow->addWidget(closeButton);
 	layout->addLayout(bottomRow);
 
+	// Seed the mesh list from the viewer's selection (before connecting, so it does not trigger a refresh), then
+	// keep the hint and the Deviation reference choices in step with the list.
+	_selectionBox->seedFromViewportSelection();
+	connect(_selectionBox, &MeshSelectionBox::meshUuidsChanged, this, &SurfaceAnalysisDialog::onSelectionChanged);
+
 	_curvatureButton->setChecked(true);
 	onModeChanged();
 
@@ -455,6 +464,7 @@ void SurfaceAnalysisDialog::setComputationInFlight(bool inFlight, QPushButton* a
 	if (_referenceMeshCombo) _referenceMeshCombo->setEnabled(enabled);
 	if (_zebraStripeToggle) _zebraStripeToggle->setEnabled(enabled);
 	if (_clearButton) _clearButton->setEnabled(enabled);
+	if (_selectionBox) _selectionBox->setEnabled(enabled);
 	for (QPushButton* button : { _applyCurvatureButton, _applyDraftButton, _applyThicknessButton, _applyDeviationButton })
 	{
 		if (button && button != activeButton)
@@ -797,50 +807,34 @@ void SurfaceAnalysisDialog::checkForStaleOverlays()
 	if (_selectionStatusLabel)
 	{
 		_selectionStatusLabel->setText(tr("Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.").arg(staleCount));
+		_selectionStatusLabel->setVisible(true);
 	}
+}
+
+void SurfaceAnalysisDialog::seedFromViewportSelection()
+{
+	if (!_activeSession && _selectionBox)
+		_selectionBox->seedFromViewportSelection(); // refreshes through onSelectionChanged()
+}
+
+std::vector<int> SurfaceAnalysisDialog::selectedMeshIds() const
+{
+	return _selectionBox ? _selectionBox->meshIds() : std::vector<int>();
 }
 
 void SurfaceAnalysisDialog::updateSelectionStatusLabel()
 {
-	if (!_selectionStatusLabel || !_modelViewer)
+	if (!_selectionStatusLabel)
 		return;
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
-	const Mode mode = currentMode();
-
-	if (selected.empty())
-	{
-		_selectionStatusLabel->setText(tr("No mesh selected - select one or more meshes in the scene tree first."));
-		return;
-	}
-
-	if (mode == Mode::Deviation && selected.size() != 1)
-	{
-		_selectionStatusLabel->setText(tr("%1 meshes selected - Deviation needs exactly one (the scan/comparison side).")
-			.arg(static_cast<int>(selected.size())));
-		return;
-	}
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	const std::vector<SceneMesh*> meshStore = viewport ? viewport->getMeshStore() : std::vector<SceneMesh*>();
-	QStringList names;
-	names.reserve(static_cast<int>(selected.size()));
-	for (int id : selected)
-	{
-		if (id >= 0 && static_cast<size_t>(id) < meshStore.size() && meshStore[id])
-			names.append(meshStore[id]->getName());
-	}
-
-	if (mode == Mode::Deviation)
-	{
-		_selectionStatusLabel->setText(tr("Comparing: %1").arg(names.value(0)));
-	}
-	else
-	{
-		_selectionStatusLabel->setText(selected.size() == 1
-			? tr("Selected: %1").arg(names.value(0))
-			: tr("Selected (%1): %2").arg(static_cast<int>(selected.size())).arg(names.join(QStringLiteral(", "))));
-	}
+	const size_t count = selectedMeshIds().size();
+	QString text;
+	if (count == 0)
+		text = tr("No mesh selected - add meshes with the selection box above.");
+	else if (currentMode() == Mode::Deviation && count != 1)
+		text = tr("%1 meshes selected - Deviation needs exactly one (the scan/comparison side).").arg(static_cast<int>(count));
+	_selectionStatusLabel->setText(text);
+	_selectionStatusLabel->setVisible(!text.isEmpty());
 }
 
 QVector3D SurfaceAnalysisDialog::currentPullDirection() const
@@ -918,7 +912,7 @@ void SurfaceAnalysisDialog::applyZebraStripeToSelection(bool active)
 	if (!viewport)
 		return;
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const std::vector<int> selected = selectedMeshIds();
 	if (selected.empty())
 	{
 		if (active)
@@ -949,7 +943,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 	if (!viewport)
 		return;
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const std::vector<int> selected = selectedMeshIds();
 	if (selected.empty())
 	{
 		QMessageBox::information(this, tr("Surface Analysis"), tr("Select one or more meshes first."));
@@ -1094,7 +1088,7 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	if (!viewport)
 		return;
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const std::vector<int> selected = selectedMeshIds();
 	if (selected.empty())
 	{
 		QMessageBox::information(this, tr("Surface Analysis"), tr("Select one or more meshes first."));
@@ -1442,7 +1436,7 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	if (!viewport)
 		return;
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const std::vector<int> selected = selectedMeshIds();
 	if (selected.empty())
 	{
 		QMessageBox::information(this, tr("Surface Analysis"), tr("Select one or more meshes first."));
@@ -1585,7 +1579,7 @@ void SurfaceAnalysisDialog::refreshReferenceMeshCombo()
 
 	_referenceMeshCombo->clear();
 
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const std::vector<int> selected = selectedMeshIds();
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	for (size_t id = 0; id < meshStore.size(); ++id)
 	{
@@ -1617,7 +1611,7 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 	// deviation is inherently pairwise (one scan/comparison mesh against one
 	// reference), so "compare A vs B" doesn't generalize to a multi-mesh
 	// selection the way a per-mesh-independent analysis does.
-	const std::vector<int> selected = _modelViewer->getSelectedIDs();
+	const std::vector<int> selected = selectedMeshIds();
 	if (selected.size() != 1)
 	{
 		QMessageBox::information(this, tr("Surface Analysis"),

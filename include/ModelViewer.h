@@ -613,11 +613,11 @@ public slots:
 
 	// Surface Analysis: opens the non-modal SurfaceAnalysisDialog (Tools ->
 	// Surface Analysis...), same findChild-reuse-or-create/show/raise
-	// pattern as openShrinkWrapDialog() above - but NOT seeded with the
-	// current tree selection the way the mesh-generating tools above are:
-	// this dialog acts on the LIVE viewport selection at the moment Apply is
-	// clicked (same convention MassPropertiesDialog already uses), not a
-	// fixed working list, so there's nothing to seed at open time.
+	// pattern as openShrinkWrapDialog() above. The dialog keeps its own list of
+	// meshes (a MeshSelectionBox, like MassPropertiesDialog): seeded from the
+	// current viewport selection when it opens - or again when this is called
+	// while it is already open - and edited there, so it does not follow the
+	// viewer's live selection afterwards.
 	void openSurfaceAnalysisDialog(const QString& mode = QString());
 
 	// Mass Properties: opens the non-modal MassPropertiesDialog, reusing one that is already open (re-seeded from
