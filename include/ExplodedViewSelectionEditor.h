@@ -26,6 +26,11 @@ public:
     void setEntries(const QVector<Entry>& entries);
     QVector<Entry> entries() const;
 
+    // Lets another tool (Mass Properties) reuse this editor with wording that fits it - the defaults talk about an
+    // "assembly".
+    void setIntroText(const QString& text);
+    void setMembersText(const QString& text);
+
 signals:
     void previewEntryRequested(const QUuid& uuid);
 

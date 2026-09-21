@@ -619,6 +619,10 @@ public slots:
 	// clicked (same convention MassPropertiesDialog already uses), not a
 	// fixed working list, so there's nothing to seed at open time.
 	void openSurfaceAnalysisDialog(const QString& mode = QString());
+
+	// Mass Properties: opens the non-modal MassPropertiesDialog, reusing one that is already open (re-seeded from
+	// the current viewport selection) - same findChild-reuse-or-create/show/raise pattern as above.
+	void openMassPropertiesDialog();
     void executeToolCommand(const QString& command);
     void updateMeshTools();
     QMap<QString, QString> meshToolDisabledReasons() const;

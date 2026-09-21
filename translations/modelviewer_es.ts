@@ -1947,8 +1947,8 @@ deben guardarse con el documento.</translation>
     <message>
         <location filename="../ui/ExplodedViewSelectionEditor.ui" line="50"/>
         <location filename="../src/ExplodedViewSelectionEditor.cpp" line="53"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="97"/>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="124"/>
+        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="107"/>
+        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="134"/>
         <source>Selected: None</source>
         <translation>Seleccionado: Ninguno</translation>
     </message>
@@ -1980,12 +1980,12 @@ para añadir desde la escena/árbol</translation>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="131"/>
+        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="141"/>
         <source>Selected: %1</source>
         <translation>Seleccionado: %1</translation>
     </message>
     <message>
-        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="135"/>
+        <location filename="../src/ExplodedViewSelectionEditor.cpp" line="145"/>
         <source>Selected: %1 items</source>
         <translation>Seleccionado: %1 elementos</translation>
     </message>
@@ -3966,214 +3966,299 @@ Formato de archivo no compatible: </translation>
 <context>
     <name>MassPropertiesDialog</name>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="29"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="35"/>
         <source>Mass Properties</source>
         <translation>Propiedades de masa</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
         <source>Volume, surface area, and mass for the current selection - recomputed fresh each time this dialog opens.</source>
-        <translation>Volumen, área de superficie y masa de la selección actual: se recalcula cada vez que se abre este cuadro de diálogo.</translation>
+        <translation type="vanished">Volumen, área de superficie y masa de la selección actual: se recalcula cada vez que se abre este cuadro de diálogo.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="51"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="91"/>
         <source>Nothing selected - select one or more meshes first.</source>
         <translation>Nada seleccionado: seleccione primero una o más mallas.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
         <source>Mesh</source>
         <translation>Malla</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
         <source>Volume (mm³)</source>
         <translation>Volumen (mm³)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
         <source>Surface Area (mm²)</source>
         <translation>Área de superficie (mm²)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="89"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="133"/>
         <source>Mass (kg)</source>
         <translation>Masa (kg)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="84"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="128"/>
         <source>Mass by Material:</source>
         <translation>Masa por material:</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="57"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="89"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="97"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="133"/>
         <source>Material</source>
         <translation>Material</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="104"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="143"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="42"/>
+        <source>Volume, surface area, and mass for the selected meshes - recomputed when the selection changes or on Recalculate.</source>
+        <translation>Volumen, superficie y masa de las mallas seleccionadas: se recalculan al cambiar la selección o con Recalcular.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="51"/>
+        <source>Selection:</source>
+        <translation>Selección:</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="54"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="255"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="317"/>
+        <source>Select meshes...</source>
+        <translation>Seleccionar mallas...</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="55"/>
+        <source>The meshes this report covers. Right-click to edit or clear.</source>
+        <translation>Las mallas que abarca este informe. Clic derecho para editar o borrar.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="69"/>
+        <source>Add meshes from the scene or tree, then click again to confirm</source>
+        <translation>Añada mallas desde la escena o el árbol y haga clic de nuevo para confirmar</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="72"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="327"/>
+        <source>Edit Selection...</source>
+        <translation>Editar selección...</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="75"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="330"/>
+        <source>Clear Selection</source>
+        <translation>Borrar selección</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="148"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="420"/>
         <source>Close</source>
         <translation>Cerrar</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="143"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="153"/>
+        <source>Recalculate</source>
+        <translation>Recalcular</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="154"/>
+        <source>Recompute the report - after editing a material, moving or changing a mesh</source>
+        <translation>Recalcular el informe: tras editar un material o mover o cambiar una malla</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="227"/>
+        <source>%1 meshes</source>
+        <translation>%1 mallas</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="251"/>
+        <source>Add meshes, then click again to confirm...</source>
+        <translation>Añadir mallas, luego haga clic de nuevo para confirmar...</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="278"/>
+        <source>Review and refine the meshes in this report.</source>
+        <translation>Revise y ajuste las mallas de este informe.</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="279"/>
+        <source>Meshes</source>
+        <translation>Mallas</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="383"/>
+        <source>Center Screen</source>
+        <translation>Pantalla Centrar</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="386"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="390"/>
+        <source>Hide</source>
+        <translation>Ocultar</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="392"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="396"/>
+        <source>Show</source>
+        <translation>Espectáculo</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="420"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="357"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="648"/>
         <source>mesh no longer available</source>
         <translation>malla ya no disponible</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="358"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="649"/>
         <source>(deleted)</source>
         <translation>(eliminada)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="360"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="361"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="362"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="398"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="399"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="400"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="452"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="480"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="508"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="651"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="652"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="653"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="689"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="690"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="691"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="743"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="771"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="799"/>
         <source>N/A (%1)</source>
         <translation>N/D (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="397"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="688"/>
         <source>geometry changed during computation</source>
         <translation>la geometría cambió durante el cálculo</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="464"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="755"/>
         <source>%1 (incl. shell)</source>
         <translation>%1 (incl. lámina)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="465"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="756"/>
         <source>%1 mm³ of this volume is open surface area x the material&apos;s shell thickness (%2 open piece(s)).</source>
         <translation>%1 mm³ de este volumen proceden de la superficie abierta × el espesor de lámina del material (%2 pieza(s) abierta(s)).</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="533"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="824"/>
         <source>%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-based results as provisional until this can be corrected per-import. </source>
         <translation>%1 de %2 malla(s) usan una unidad predeterminada sin confirmar (milímetro): trate los resultados basados en longitudes como provisionales hasta que se pueda corregir por importación. </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="537"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="828"/>
         <source>Density comes from each mesh&apos;s assigned material; library-supplied values are typical/nominal figures for a generic grade, not an exact spec - verify before relying on Mass for an engineering-critical calculation.</source>
         <translation>La densidad procede del material asignado a cada malla; los valores de la biblioteca son cifras típicas/nominales de un grado genérico, no una especificación exacta: verifíquelos antes de confiar en la masa para un cálculo crítico de ingeniería.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="542"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="833"/>
         <source>%1 mesh(es) include open surfaces counted as area x the material&apos;s shell thickness - a pseudo volume, not an enclosed one.</source>
         <translation>%1 malla(s) incluyen superficies abiertas contadas como área × el espesor de lámina del material: un pseudovolumen, no un volumen cerrado.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="547"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="838"/>
         <source>%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their material (Materials &gt; Physical Properties) to include them.</source>
         <translation>%1 malla(s) son superficies abiertas y se excluyeron: defina un espesor de lámina en su material (Materiales &gt; Propiedades físicas) para incluirlas.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="560"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="851"/>
         <source>Surface Area: %1 mm²
 </source>
         <translation>Área de superficie: %1 mm²
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="562"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="853"/>
         <source>Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Área de superficie: %1 mm² conocida (%2 de %3 malla(s) excluidas - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="567"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="858"/>
         <source>Volume: %1 mm³
 </source>
         <translation>Volumen: %1 mm³
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="569"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="860"/>
         <source>Volume: %1 mm³ known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Volumen: %1 mm³ conocido (%2 de %3 malla(s) excluidas - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="580"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="871"/>
         <source>Mass: %1 kg
 </source>
         <translation>Masa: %1 kg
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="582"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="873"/>
         <source>Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Masa: %1 kg conocida (%2 de %3 malla(s) excluidas - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="608"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="899"/>
         <source>%1 kg</source>
         <translation>%1 kg</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="609"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="900"/>
         <source>%1 kg known (%2 of %3 mesh(es) excluded - %4)</source>
         <translation>%1 kg conocida (%2 de %3 malla(s) excluidas - %4)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="629"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="920"/>
         <source>Geometric Centroid: X %1, Y %2, Z %3
 </source>
         <translation>Centroide geométrico: X %1, Y %2, Z %3
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="634"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="925"/>
         <source>Geometric Centroid: N/A (%1)
 </source>
         <translation>Centroide geométrico: N/D (%1)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="635"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="926"/>
         <source>selection has zero total volume</source>
         <translation>la selección tiene volumen total cero</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="635"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="926"/>
         <source>not every mesh has a valid volume</source>
         <translation>no todas las mallas tienen un volumen válido</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="650"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="941"/>
         <source>Mass-Weighted Center of Mass: X %1, Y %2, Z %3</source>
         <translation>Centro de masa ponderado por masa: X %1, Y %2, Z %3</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="655"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="946"/>
         <source>Mass-Weighted Center of Mass: N/A (%1)</source>
         <translation>Centro de masa ponderado por masa: N/D (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="656"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="947"/>
         <source>not every mesh has a known mass</source>
         <translation>no todas las mallas tienen una masa conocida</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="656"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="947"/>
         <source>selection has zero total mass</source>
         <translation>la selección tiene masa total cero</translation>
     </message>
@@ -7483,10 +7568,10 @@ Vistaal Ocultar/Mostrar</translation>
         <location filename="../src/ModelViewer.cpp" line="2151"/>
         <location filename="../src/ModelViewer.cpp" line="2179"/>
         <location filename="../src/ModelViewer.cpp" line="2347"/>
-        <location filename="../src/ModelViewer.cpp" line="5390"/>
-        <location filename="../src/ModelViewer.cpp" line="5566"/>
-        <location filename="../src/ModelViewer.cpp" line="5623"/>
-        <location filename="../src/ModelViewer.cpp" line="6453"/>
+        <location filename="../src/ModelViewer.cpp" line="5409"/>
+        <location filename="../src/ModelViewer.cpp" line="5585"/>
+        <location filename="../src/ModelViewer.cpp" line="5642"/>
+        <location filename="../src/ModelViewer.cpp" line="6472"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
@@ -7751,127 +7836,127 @@ Formato de archivo no compatible: </translation>
         <translation>%1 malla(s) agrupada(s).</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4144"/>
+        <location filename="../src/ModelViewer.cpp" line="4163"/>
         <source>Subdivide</source>
         <translation>Subdividir</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4170"/>
+        <location filename="../src/ModelViewer.cpp" line="4189"/>
         <source>Reconstruct Surface</source>
         <translation>Reconstruir superficie</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4202"/>
+        <location filename="../src/ModelViewer.cpp" line="4221"/>
         <source>Repair Mesh (%1)</source>
         <translation>Reparar malla (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4210"/>
+        <location filename="../src/ModelViewer.cpp" line="4229"/>
         <source>Repair Mesh</source>
         <translation>Reparar malla</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4242"/>
+        <location filename="../src/ModelViewer.cpp" line="4261"/>
         <source>Fill Holes (%1)</source>
         <translation>Rellenar agujeros (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4250"/>
+        <location filename="../src/ModelViewer.cpp" line="4269"/>
         <source>Fill Holes</source>
         <translation>Rellenar agujeros</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4336"/>
+        <location filename="../src/ModelViewer.cpp" line="4355"/>
         <source>Generate UVs (%1)</source>
         <translation>Generar UV (%1)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4365"/>
+        <location filename="../src/ModelViewer.cpp" line="4384"/>
         <source>Hide All Measurements</source>
         <translation>Ocultar todas las mediciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4367"/>
+        <location filename="../src/ModelViewer.cpp" line="4386"/>
         <source>Hide All Annotations</source>
         <translation>Ocultar todas las anotaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4630"/>
+        <location filename="../src/ModelViewer.cpp" line="4649"/>
         <source>Recall Selection Set</source>
         <translation>Recuperar conjunto de selección</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4881"/>
+        <location filename="../src/ModelViewer.cpp" line="4900"/>
         <source>Recall Scene State</source>
         <translation>Recuperar estado de escena</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4929"/>
+        <location filename="../src/ModelViewer.cpp" line="4948"/>
         <source>Show All Measurements</source>
         <translation>Mostrar todas las mediciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4935"/>
+        <location filename="../src/ModelViewer.cpp" line="4954"/>
         <source>Show All Annotations</source>
         <translation>Mostrar todas las anotaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5141"/>
+        <location filename="../src/ModelViewer.cpp" line="5160"/>
         <source>Rename &quot;%1&quot; to &quot;%2&quot;</source>
         <translation>Renombrar «%1» a «%2»</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5564"/>
+        <location filename="../src/ModelViewer.cpp" line="5583"/>
         <source>Exported %1</source>
         <translation>%1 exportado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5637"/>
+        <location filename="../src/ModelViewer.cpp" line="5656"/>
         <source>Reading file: </source>
         <translation>Leyendo archivo: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6372"/>
+        <location filename="../src/ModelViewer.cpp" line="6391"/>
         <source>Loading mesh %1 / %2</source>
         <translation>Cargando malla %1 / %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="6454"/>
+        <location filename="../src/ModelViewer.cpp" line="6473"/>
         <source>Unrecognized file format: %1</source>
         <translation>Formato de archivo no reconocido: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7474"/>
+        <location filename="../src/ModelViewer.cpp" line="7493"/>
         <source>Apply Material (Eyedropper)</source>
         <translation>Aplicar material (cuentagotas)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7486"/>
+        <location filename="../src/ModelViewer.cpp" line="7505"/>
         <source>Replace Material</source>
         <translation>Reemplazar material</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7577"/>
+        <location filename="../src/ModelViewer.cpp" line="7596"/>
         <source>Deselect</source>
         <translation>Deseleccionar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7577"/>
+        <location filename="../src/ModelViewer.cpp" line="7596"/>
         <source>Select</source>
         <translation>Seleccionar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7664"/>
+        <location filename="../src/ModelViewer.cpp" line="7683"/>
         <source>No of Meshes: %1</source>
         <translation>N.º de mallas: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7793"/>
+        <location filename="../src/ModelViewer.cpp" line="7812"/>
         <source>Editing material of %1 (Apply will affect all %2 selected meshes)</source>
         <translation>Editando el material de %1 (Aplicar afectará a las %2 mallas seleccionadas)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="7796"/>
+        <location filename="../src/ModelViewer.cpp" line="7815"/>
         <source>Editing material of %1</source>
         <translation>Editando el material de %1</translation>
     </message>
@@ -8031,21 +8116,21 @@ Formato de archivo no compatible: </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2576"/>
-        <location filename="../src/ModelViewer.cpp" line="4399"/>
+        <location filename="../src/ModelViewer.cpp" line="4418"/>
         <source>Hide</source>
         <translation>Escóndete</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2577"/>
-        <location filename="../src/ModelViewer.cpp" line="4631"/>
-        <location filename="../src/ModelViewer.cpp" line="4882"/>
-        <location filename="../src/ModelViewer.cpp" line="4968"/>
+        <location filename="../src/ModelViewer.cpp" line="4650"/>
+        <location filename="../src/ModelViewer.cpp" line="4901"/>
+        <location filename="../src/ModelViewer.cpp" line="4987"/>
         <source>Show</source>
         <translation>Espectáculo</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2578"/>
-        <location filename="../src/ModelViewer.cpp" line="4421"/>
+        <location filename="../src/ModelViewer.cpp" line="4440"/>
         <source>Show Only</source>
         <translation>Mostrar Sólo</translation>
     </message>
@@ -8056,7 +8141,7 @@ Formato de archivo no compatible: </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2598"/>
-        <location filename="../src/ModelViewer.cpp" line="4271"/>
+        <location filename="../src/ModelViewer.cpp" line="4290"/>
         <source>Delete</source>
         <translation>Suprimir</translation>
     </message>
@@ -8081,31 +8166,31 @@ Formato de archivo no compatible: </translation>
         <translation type="vanished">¿Borrar selección?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4978"/>
+        <location filename="../src/ModelViewer.cpp" line="4997"/>
         <source>Selection Required</source>
         <translation>Selección Requerida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4978"/>
+        <location filename="../src/ModelViewer.cpp" line="4997"/>
         <source>Please select an object first</source>
         <translation>Por favor seleccione un objeto primero</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5039"/>
+        <location filename="../src/ModelViewer.cpp" line="5058"/>
         <source>Points: %1
 </source>
         <translation>Puntos: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5040"/>
+        <location filename="../src/ModelViewer.cpp" line="5059"/>
         <source>Triangles: %1
 </source>
         <translation>Triángulos: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5063"/>
+        <location filename="../src/ModelViewer.cpp" line="5082"/>
         <source>Memory: %1 </source>
         <translation>Memoria: %1 </translation>
     </message>
@@ -8157,7 +8242,7 @@ Do you want to proceed?</source>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2600"/>
-        <location filename="../src/ModelViewer.cpp" line="5066"/>
+        <location filename="../src/ModelViewer.cpp" line="5085"/>
         <source>Mesh Info</source>
         <translation>Información de la Malla</translation>
     </message>
@@ -8198,48 +8283,48 @@ Do you want to proceed?</source>
         <translation type="vanished">Realista</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5197"/>
+        <location filename="../src/ModelViewer.cpp" line="5216"/>
         <source>Import Model File</source>
         <translation>Importar Archivo Modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5295"/>
+        <location filename="../src/ModelViewer.cpp" line="5314"/>
         <source>Select Scene to Export</source>
         <translation>Seleccionar escena para exportar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5300"/>
+        <location filename="../src/ModelViewer.cpp" line="5319"/>
         <source>Multiple scenes are loaded. Select one to export:</source>
         <translation>Hay varias escenas cargadas. Seleccione una para exportar:</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5332"/>
+        <location filename="../src/ModelViewer.cpp" line="5351"/>
         <source>Export Model</source>
         <translation>Modelo de Exportación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5357"/>
-        <location filename="../src/ModelViewer.cpp" line="5397"/>
+        <location filename="../src/ModelViewer.cpp" line="5376"/>
+        <location filename="../src/ModelViewer.cpp" line="5416"/>
         <source>Nothing Selected</source>
         <translation>Nada seleccionado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5358"/>
+        <location filename="../src/ModelViewer.cpp" line="5377"/>
         <source>Select one or more meshes in the scene tree before exporting selected meshes.</source>
         <translation>Seleccione una o más mallas en el árbol de la escena antes de exportar las mallas seleccionadas.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5390"/>
+        <location filename="../src/ModelViewer.cpp" line="5409"/>
         <source>Failed to build export scene.</source>
         <translation>No se pudo construir la escena de exportación.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5398"/>
+        <location filename="../src/ModelViewer.cpp" line="5417"/>
         <source>None of the selected items are exportable meshes.</source>
         <translation>Ninguno de los elementos seleccionados es una malla exportable.</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5564"/>
+        <location filename="../src/ModelViewer.cpp" line="5583"/>
         <source>Information</source>
         <translation>Información</translation>
     </message>
@@ -8248,17 +8333,17 @@ Do you want to proceed?</source>
         <translation type="vanished">Exportado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5566"/>
+        <location filename="../src/ModelViewer.cpp" line="5585"/>
         <source>Export failed!</source>
         <translation>¡Exportación fallida!</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5611"/>
+        <location filename="../src/ModelViewer.cpp" line="5630"/>
         <source>File loaded</source>
         <translation>Archivo cargado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5623"/>
+        <location filename="../src/ModelViewer.cpp" line="5642"/>
         <source>Failed to load model %1</source>
         <translation>Failed to load model %1</translation>
     </message>
@@ -8311,19 +8396,19 @@ Otras operaciones de deshacer (selección, visibilidad, etc.) todavía funcionar
 ¿Quieres proceder?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4272"/>
+        <location filename="../src/ModelViewer.cpp" line="4291"/>
         <source>Delete selected item(s)?</source>
         <translation>¿Eliminar elemento(s) seleccionado(s)?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4354"/>
-        <location filename="../src/ModelViewer.cpp" line="4358"/>
+        <location filename="../src/ModelViewer.cpp" line="4373"/>
+        <location filename="../src/ModelViewer.cpp" line="4377"/>
         <source>Hide All</source>
         <translation>Ocultar Todo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="4905"/>
-        <location filename="../src/ModelViewer.cpp" line="4919"/>
+        <location filename="../src/ModelViewer.cpp" line="4924"/>
+        <location filename="../src/ModelViewer.cpp" line="4938"/>
         <source>Show All</source>
         <translation>Mostrar Todos</translation>
     </message>
@@ -8563,7 +8648,7 @@ Use Copiar y Pegar para un ensamblaje de varias mallas.</translation>
         <translation>Cancelar carga</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="5740"/>
+        <location filename="../src/ModelViewer.cpp" line="5759"/>
         <source>Preparing meshes: </source>
         <translation>Preparando mallas: </translation>
     </message>

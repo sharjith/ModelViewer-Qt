@@ -55,6 +55,16 @@ void ExplodedViewSelectionEditor::setEntries(const QVector<Entry>& entries)
     updateSelectionUi();
 }
 
+void ExplodedViewSelectionEditor::setIntroText(const QString& text)
+{
+    labelIntro->setText(text);
+}
+
+void ExplodedViewSelectionEditor::setMembersText(const QString& text)
+{
+    labelMembers->setText(text);
+}
+
 QVector<ExplodedViewSelectionEditor::Entry> ExplodedViewSelectionEditor::entries() const
 {
     QVector<Entry> out;

@@ -1,10 +1,15 @@
 #pragma once
 
 #include <QDialog>
+#include <QPoint>
 #include <QSet>
+#include <QUuid>
+#include <QVector>
+#include <vector>
 
 class QTableWidget;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 class QProgressBar;
 class QCloseEvent;
@@ -36,15 +41,21 @@ class AnalysisComputeSession;
 // visually verified without Designer, while plain C++ construction is
 // exactly the same code either way and stays fully inspectable).
 //
-// Modal, one-shot report - recomputed fresh every time it's opened (same
-// "snapshot, not a live-tracking panel" shape as the old context-menu
-// dialog it replaces), not a persistent dockable tool.
+// Non-modal, so meshes can be picked in the viewport while it is open. The set of meshes it reports on is its own
+// list (seeded from the viewport selection when it opens), edited through the selection box at the top - the same
+// pick / edit / clear affordances as the Exploded View panel's "Select assembly or meshes" box - and the report is
+// recomputed whenever that list changes (or on Recalculate): a snapshot of the moment, not a live-tracking panel.
+// Right-clicking a row of the table offers Center Screen / Hide / Show for the meshes on the selected rows.
 // ---------------------------------------------------------------------------
 class MassPropertiesDialog : public QDialog
 {
 	Q_OBJECT
 public:
 	explicit MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
+
+	// Re-seeds the mesh list from the viewport's current selection (used when the tool is invoked again while this
+	// dialog is already open) and recomputes. Does nothing if nothing is selected in the viewport.
+	void seedFromViewportSelection();
 
 protected:
 	void closeEvent(QCloseEvent* event) override;
@@ -70,8 +81,25 @@ private slots:
 	// doc comment.
 	void onMeshAboutToBeDeleted(SceneMesh* mesh);
 
+	// Selection box. Pick: toggled on, meshes selected in the viewport/tree are gathered; toggled off, they are
+	// added to the list ("Add meshes, then click again to confirm" - the Exploded View convention).
+	void onPickToggled(bool checked);
+	void editSelection();
+	void clearSelection();
+	void showSelectionContextMenu(const QPoint& pos);
+	// Right-click on a row of the results table.
+	void showTableContextMenu(const QPoint& pos);
+
 private:
 	void populate();
+
+	// The list of meshes reported on. Order = table row order. Entries whose mesh no longer exists are dropped
+	// when the list is applied and skipped by populate().
+	void applyMeshUuids(const QVector<QUuid>& uuids);
+	void updateSelectionDisplay();
+	QString describeSelection() const;
+	// The meshes behind the currently selected table rows (the right-clicked row if it was not selected).
+	QVector<QUuid> meshesOfSelectedRows() const;
 
 	// Window geometry persistence - same QSettings("<key>/geometry") pattern
 	// every other dialog in this app already uses.
@@ -97,6 +125,14 @@ private:
 	QSet<SceneMesh*> _deletedWhileComputing;
 
 	ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
+
+	QVector<QUuid> _meshUuids;       // the meshes this report covers
+	QVector<QUuid> _rowUuids;        // the mesh behind each table row of the last populate() (row order)
+	QLineEdit* _selectionEdit = nullptr;
+	QPushButton* _pickButton = nullptr;
+	QPushButton* _editSelectionButton = nullptr;
+	QPushButton* _clearSelectionButton = nullptr;
+	QPushButton* _recalculateButton = nullptr;
 
 	QLabel* _unitsNoteLabel = nullptr; // text refreshed per populate() - see its own doc comment
 	QLabel* _noSelectionLabel = nullptr;

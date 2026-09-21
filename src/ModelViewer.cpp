@@ -4109,6 +4109,25 @@ void ModelViewer::openSurfaceAnalysisDialog(const QString& mode)
 	dialog->activateWindow();
 }
 
+void ModelViewer::openMassPropertiesDialog()
+{
+	MassPropertiesDialog* dialog = findChild<MassPropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
+	{
+		dialog->seedFromViewportSelection();
+	}
+	else
+	{
+		// The constructor seeds its mesh list from the current viewport selection and computes the first report.
+		dialog = new MassPropertiesDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	_viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("mass"), dialog);
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
 void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
                                     const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
 {
@@ -7820,7 +7839,7 @@ void ModelViewer::executeToolCommand(const QString& command)
     else if (command == QLatin1String("repair")) openRepairMeshDialog();
     else if (command == QLatin1String("fill")) openFillHolesDialog();
     else if (command == QLatin1String("uv")) openUVGenerationDialog();
-    else if (command == QLatin1String("mass")) { MassPropertiesDialog dialog(this, this); dialog.exec(); }
+    else if (command == QLatin1String("mass")) openMassPropertiesDialog();
     else if (command == QLatin1String("report")) { ReportExportDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("batch")) { BatchRenderViewsDialog dialog(this, this); dialog.exec(); }
     else if (command == QLatin1String("texture_debug")) showTextureDebugPanel();
