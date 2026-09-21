@@ -6704,7 +6704,7 @@ distance en ligne droite. Les deux points doivent se trouver sur le même mailla
         <translation>Sélection :</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="155"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="167"/>
         <source>Select meshes...</source>
         <translation>Sélectionner des maillages...</translation>
     </message>
@@ -6714,49 +6714,49 @@ distance en ligne droite. Les deux points doivent se trouver sur le même mailla
         <translation>Les maillages sélectionnés. Clic droit pour modifier ou effacer.</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="222"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="242"/>
         <source>Add meshes from the scene or tree, then click again to confirm</source>
         <translation>Ajoutez des maillages depuis la scène ou l&apos;arbre, puis cliquez de nouveau pour confirmer</translation>
     </message>
     <message>
         <location filename="../src/MeshSelectionBox.cpp" line="54"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="327"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="354"/>
         <source>Edit Selection...</source>
         <translation>Modifier la sélection...</translation>
     </message>
     <message>
         <location filename="../src/MeshSelectionBox.cpp" line="57"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="331"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="358"/>
         <source>Clear Selection</source>
         <translation>Effacer la sélection</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="221"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="241"/>
         <source>Pick a mesh from the scene or tree, then click again to confirm</source>
         <translation>Choisissez un maillage dans la scène ou l&apos;arbre, puis cliquez de nouveau pour confirmer</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="155"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="167"/>
         <source>Select a mesh...</source>
         <translation>Sélectionner un maillage...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="205"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="225"/>
         <source>%1 meshes</source>
         <translation>%1 maillages</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="220"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="240"/>
         <source>Adjust scene or tree selection, then click again to confirm</source>
         <translation>Ajuster la sélection de la scène ou de l&apos;arborescence, puis cliquer à nouveau pour confirmer</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="243"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="263"/>
         <source>Pick a mesh, then click again to confirm...</source>
         <translation>Choisissez un maillage, puis cliquez de nouveau pour confirmer...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="244"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="264"/>
         <source>Add meshes, then click again to confirm...</source>
         <translation>Ajouter des maillages, puis cliquer à nouveau pour confirmer...</translation>
     </message>
@@ -8532,22 +8532,22 @@ Utilisez Copier et Coller pour un assemblage multi-maillage.</translation>
 <context>
     <name>NotesListBox</name>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="41"/>
+        <location filename="../src/NotesListBox.cpp" line="42"/>
         <source>Copy All</source>
         <translation>Tout copier</translation>
     </message>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="107"/>
+        <location filename="../src/NotesListBox.cpp" line="108"/>
         <source>%1: %2</source>
         <translation>%1 : %2</translation>
     </message>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="112"/>
+        <location filename="../src/NotesListBox.cpp" line="113"/>
         <source>%1 meshes: %2</source>
         <translation>%1 maillages : %2</translation>
     </message>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="126"/>
+        <location filename="../src/NotesListBox.cpp" line="127"/>
         <source>Notes (%1)</source>
         <translation>Remarques (%1)</translation>
     </message>
@@ -14529,21 +14529,22 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
     <name>SurfaceAnalysisDialog</name>
     <message>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="51"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="914"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1032"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1064"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1085"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1221"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1272"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1430"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1515"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1569"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1576"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1589"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1633"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1645"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1653"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="915"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="944"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1033"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1065"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1086"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1222"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1273"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1431"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1516"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1554"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1577"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1584"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1597"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1658"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1666"/>
         <source>Surface Analysis</source>
         <translation>Analyse de surface</translation>
     </message>
@@ -14675,12 +14676,17 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation>Le maillage de référence auquel le maillage sélectionné est comparé. Clic droit pour effacer.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="827"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="828"/>
         <source>No mesh selected - add meshes with the selection box above.</source>
         <translation>Aucun maillage sélectionné - ajoutez des maillages avec la zone de sélection ci-dessus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1577"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1555"/>
+        <source>The reference mesh must be a different mesh from the one being compared - a mesh cannot be compared with itself.</source>
+        <translation>Le maillage de référence doit être différent du maillage comparé - un maillage ne peut pas être comparé à lui-même.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1585"/>
         <source>Pick a reference mesh with the Reference mesh box first.</source>
         <translation>Choisissez d&apos;abord un maillage de référence avec la zone « Maillage de référence ».</translation>
     </message>
@@ -14703,7 +14709,7 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation>Rayon normal (rapide)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="558"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="559"/>
         <source>Thickness: %1 mm</source>
         <translation>Épaisseur : %1 mm</translation>
     </message>
@@ -14723,7 +14729,7 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
     </message>
     <message>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="299"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1404"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1405"/>
         <source> mm</source>
         <translation> mm</translation>
     </message>
@@ -14738,32 +14744,32 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation>Maillage de référence :</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="341"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="342"/>
         <source>Apply</source>
         <translation>Appliquer</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="359"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="360"/>
         <source>Show Readout on Hover</source>
         <translation>Afficher la valeur au survol</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="376"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="377"/>
         <source>Clear Overlay</source>
         <translation>Effacer la superposition</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="380"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="381"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="554"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="555"/>
         <source>Draft: %1°</source>
         <translation>Dépouille : %1°</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="556"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="557"/>
         <source>Curvature: %1</source>
         <translation>Courbure : %1</translation>
     </message>
@@ -14815,42 +14821,42 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation>Le long d&apos;une arête vive convexe (ou du bord d&apos;un perçage), la plus grande sphère qui touche la surface est petite, ce qui se lirait comme une paroi mince. Lorsque cette option est activée, ces points prennent la valeur du point intérieur le plus proche de la face. Les points pris entre deux parois (comme l&apos;extrémité d&apos;une nervure mince) gardent leur petite valeur.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="560"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="561"/>
         <source>Deviation: %1</source>
         <translation>Écart : %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="589"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="590"/>
         <source>no wall found behind the surface</source>
         <translation>aucune paroi trouvée derrière la surface</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="591"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="592"/>
         <source>the wall behind belongs to a different body</source>
         <translation>la paroi derrière appartient à un autre corps</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="593"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="594"/>
         <source>the ray meets a surface from outside (touching or overlapping bodies)</source>
         <translation>le rayon rencontre une surface par l&apos;extérieur (corps en contact ou qui se chevauchent)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="595"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="596"/>
         <source>the wall behind is too steep to measure straight through</source>
         <translation>la paroi derrière est trop inclinée pour être mesurée en ligne droite</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="597"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="598"/>
         <source>the wall behind is a degenerate triangle</source>
         <translation>la paroi derrière est un triangle dégénéré</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="612"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="613"/>
         <source>No value: %1</source>
         <translation>Aucune valeur : %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="803"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="804"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation>Superposition effacée pour %1 maillage(s) - la transformation a changé, cliquez sur Appliquer pour recalculer.</translation>
     </message>
@@ -14859,7 +14865,7 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation type="vanished">Aucun maillage sélectionné - sélectionnez d&apos;abord un ou plusieurs maillages dans l&apos;arborescence de la scène.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="829"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="830"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation>%1 maillages sélectionnés - Écart en nécessite exactement un (le côté scan/comparaison).</translation>
     </message>
@@ -14876,62 +14882,62 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation type="vanished">Sélectionnés (%1) : %2</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="914"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1085"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1430"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="915"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="944"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1086"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1431"/>
         <source>Select one or more meshes first.</source>
         <translation>Sélectionnez d&apos;abord un ou plusieurs maillages.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="959"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1113"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1451"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1611"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="960"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1114"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1452"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1624"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1033"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1222"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1516"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1634"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1034"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1223"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1517"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1647"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1659"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation>La sélection a changé pendant le calcul - relancez Appliquer.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1065"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1066"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation>Impossible de calculer un résultat de courbure exploitable pour la sélection actuelle.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1273"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1274"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation>Impossible de calculer l&apos;épaisseur de paroi - aucune face n&apos;a trouvé d&apos;impact valide sur la paroi opposée.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1399"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1400"/>
         <source>&lt; %1 mm</source>
         <translation>&lt; %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1399"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1400"/>
         <source>&gt;= %1 mm</source>
         <translation>&gt;= %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1410"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1411"/>
         <source>Thinnest wall found: %1 mm.</source>
         <translation>Paroi la plus mince trouvée : %1 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1413"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1414"/>
         <source>%1% of the analysed surface is thinner than %2 mm.</source>
         <translation>%1 % de la surface analysée est plus mince que %2 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1570"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1578"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation>Sélectionnez exactement un maillage à comparer (le côté scan/comparaison).</translation>
     </message>
@@ -14940,12 +14946,12 @@ Le panneau affiche les liaisons de texture côté GPU pour le maillage sélectio
         <translation type="vanished">Aucun autre maillage chargé n&apos;est disponible pour la comparaison.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1590"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1598"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation>Le maillage de référence choisi n&apos;est plus disponible - choisissez-en un autre.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1654"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1667"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation>Impossible de calculer l&apos;écart - le maillage de référence n&apos;a aucun triangle exploitable.</translation>
     </message>

@@ -91,12 +91,18 @@ void MeshSelectionBox::setMeshUuids(const QVector<QUuid>& uuids)
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	QVector<QUuid> cleaned;
+	int rejectedExcluded = 0;
 	for (const QUuid& uuid : uuids)
 	{
-		if (uuid.isNull() || cleaned.contains(uuid) || _excluded.contains(uuid))
+		if (uuid.isNull() || cleaned.contains(uuid))
 			continue;
 		if (viewport && viewport->getIndexByUuid(uuid) < 0)
 			continue; // no longer in the scene
+		if (_excluded.contains(uuid))
+		{
+			++rejectedExcluded;
+			continue;
+		}
 		cleaned.append(uuid);
 	}
 	if (_single && cleaned.size() > 1)
@@ -104,6 +110,8 @@ void MeshSelectionBox::setMeshUuids(const QVector<QUuid>& uuids)
 	_uuids = cleaned;
 	updateDisplay();
 	emit meshUuidsChanged();
+	if (rejectedExcluded > 0)
+		emit excludedMeshesRejected(rejectedExcluded);
 }
 
 void MeshSelectionBox::seedFromViewportSelection()
@@ -142,7 +150,11 @@ void MeshSelectionBox::setExcludedUuids(const QVector<QUuid>& excluded)
 			kept.append(uuid);
 	}
 	if (kept.size() != _uuids.size())
+	{
+		const int removed = _uuids.size() - kept.size();
 		setMeshUuids(kept);
+		emit excludedMeshesRejected(removed);
+	}
 }
 
 void MeshSelectionBox::setLabelText(const QString& text)
@@ -161,11 +173,17 @@ void MeshSelectionBox::addViewportSelection()
 	if (!viewport)
 		return;
 	QVector<QUuid> merged = _uuids;
+	int rejectedExcluded = 0;
 	for (int id : _modelViewer->getSelectedIDs())
 	{
 		const QUuid uuid = viewport->getUuidByIndex(id);
-		if (uuid.isNull() || _excluded.contains(uuid) || merged.contains(uuid))
+		if (uuid.isNull() || merged.contains(uuid))
 			continue;
+		if (_excluded.contains(uuid))
+		{
+			++rejectedExcluded;
+			continue;
+		}
 		if (_single)
 			merged.clear(); // the picked mesh replaces the current one
 		merged.append(uuid);
@@ -174,6 +192,8 @@ void MeshSelectionBox::addViewportSelection()
 	}
 	if (merged != _uuids)
 		setMeshUuids(merged);
+	if (rejectedExcluded > 0)
+		emit excludedMeshesRejected(rejectedExcluded);
 }
 
 void MeshSelectionBox::setFieldToolTip(const QString& text)
@@ -250,10 +270,15 @@ void MeshSelectionBox::onPickToggled(bool checked)
 	if (!viewport)
 		return;
 	QVector<QUuid> picked;
+	int rejectedExcluded = 0;
 	for (int id : _modelViewer->getSelectedIDs())
 	{
 		const QUuid uuid = viewport->getUuidByIndex(id);
-		if (!uuid.isNull() && !picked.contains(uuid) && !_excluded.contains(uuid))
+		if (uuid.isNull() || picked.contains(uuid))
+			continue;
+		if (_excluded.contains(uuid))
+			++rejectedExcluded;
+		else
 			picked.append(uuid);
 	}
 	// Single-mesh mode: the picked mesh replaces the current one (if nothing usable was picked, it stays).
@@ -269,6 +294,8 @@ void MeshSelectionBox::onPickToggled(bool checked)
 	// The picked meshes now live in the list - clear the viewport selection so the next pick starts fresh.
 	_modelViewer->setSelectionWithoutUndo(QSet<int>());
 	setMeshUuids(merged);
+	if (rejectedExcluded > 0)
+		emit excludedMeshesRejected(rejectedExcluded);
 }
 
 void MeshSelectionBox::editSelection()

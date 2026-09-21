@@ -71,6 +71,10 @@ public:
 
 signals:
 	void meshUuidsChanged();
+	// The user tried to put excluded meshes (setExcludedUuids()) into the list - by picking or adding them - or
+	// the list already held one that became excluded and was removed. The mesh is NOT added; the count says how many.
+	// Emitted so the owner can tell the user why, instead of the box silently ignoring them.
+	void excludedMeshesRejected(int count);
 
 private slots:
 	void onPickToggled(bool checked);

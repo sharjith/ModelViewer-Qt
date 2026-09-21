@@ -6703,7 +6703,7 @@ geradlinigen Abstand. Beide Punkte müssen auf demselben Mesh liegen.</translati
         <translation>Auswahl:</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="155"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="167"/>
         <source>Select meshes...</source>
         <translation>Meshes auswählen ...</translation>
     </message>
@@ -6713,49 +6713,49 @@ geradlinigen Abstand. Beide Punkte müssen auf demselben Mesh liegen.</translati
         <translation>Die ausgewählten Meshes. Rechtsklick zum Bearbeiten oder Leeren.</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="222"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="242"/>
         <source>Add meshes from the scene or tree, then click again to confirm</source>
         <translation>Meshes aus der Szene oder dem Baum hinzufügen, dann zur Bestätigung erneut klicken</translation>
     </message>
     <message>
         <location filename="../src/MeshSelectionBox.cpp" line="54"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="327"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="354"/>
         <source>Edit Selection...</source>
         <translation>Auswahl bearbeiten...</translation>
     </message>
     <message>
         <location filename="../src/MeshSelectionBox.cpp" line="57"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="331"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="358"/>
         <source>Clear Selection</source>
         <translation>Auswahl löschen</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="221"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="241"/>
         <source>Pick a mesh from the scene or tree, then click again to confirm</source>
         <translation>Ein Mesh aus der Szene oder dem Baum wählen, dann zur Bestätigung erneut klicken</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="155"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="167"/>
         <source>Select a mesh...</source>
         <translation>Mesh auswählen ...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="205"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="225"/>
         <source>%1 meshes</source>
         <translation>%1 Meshes</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="220"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="240"/>
         <source>Adjust scene or tree selection, then click again to confirm</source>
         <translation>Szenen- oder Baumauswahl anpassen, dann erneut klicken zum Bestätigen</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="243"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="263"/>
         <source>Pick a mesh, then click again to confirm...</source>
         <translation>Mesh wählen, dann erneut klicken zum Bestätigen ...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="244"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="264"/>
         <source>Add meshes, then click again to confirm...</source>
         <translation>Meshes hinzufügen, dann erneut klicken zum Bestätigen...</translation>
     </message>
@@ -8533,22 +8533,22 @@ Verwenden Sie Kopieren und Einfügen für eine Baugruppe mit mehreren Meshes.</t
 <context>
     <name>NotesListBox</name>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="41"/>
+        <location filename="../src/NotesListBox.cpp" line="42"/>
         <source>Copy All</source>
         <translation>Alle kopieren</translation>
     </message>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="107"/>
+        <location filename="../src/NotesListBox.cpp" line="108"/>
         <source>%1: %2</source>
         <translation>%1: %2</translation>
     </message>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="112"/>
+        <location filename="../src/NotesListBox.cpp" line="113"/>
         <source>%1 meshes: %2</source>
         <translation>%1 Meshes: %2</translation>
     </message>
     <message>
-        <location filename="../src/NotesListBox.cpp" line="126"/>
+        <location filename="../src/NotesListBox.cpp" line="127"/>
         <source>Notes (%1)</source>
         <translation>Hinweise (%1)</translation>
     </message>
@@ -14531,21 +14531,22 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
     <name>SurfaceAnalysisDialog</name>
     <message>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="51"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="914"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1032"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1064"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1085"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1221"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1272"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1430"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1515"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1569"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1576"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1589"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1633"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1645"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1653"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="915"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="944"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1033"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1065"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1086"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1222"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1273"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1431"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1516"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1554"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1577"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1584"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1597"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1658"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1666"/>
         <source>Surface Analysis</source>
         <translation>Oberflächenanalyse</translation>
     </message>
@@ -14677,12 +14678,17 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation>Das Referenz-Mesh, mit dem das ausgewählte Mesh verglichen wird. Rechtsklick zum Leeren.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="827"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="828"/>
         <source>No mesh selected - add meshes with the selection box above.</source>
         <translation>Kein Mesh ausgewählt – fügen Sie mit dem Auswahlfeld oben Meshes hinzu.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1577"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1555"/>
+        <source>The reference mesh must be a different mesh from the one being compared - a mesh cannot be compared with itself.</source>
+        <translation>Das Referenz-Mesh muss ein anderes Mesh sein als das verglichene – ein Mesh kann nicht mit sich selbst verglichen werden.</translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1585"/>
         <source>Pick a reference mesh with the Reference mesh box first.</source>
         <translation>Wählen Sie zuerst mit dem Feld „Referenz-Mesh“ ein Referenz-Mesh.</translation>
     </message>
@@ -14705,7 +14711,7 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation>Normalenstrahl (schnell)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="558"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="559"/>
         <source>Thickness: %1 mm</source>
         <translation>Dicke: %1 mm</translation>
     </message>
@@ -14725,7 +14731,7 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
     </message>
     <message>
         <location filename="../src/SurfaceAnalysisDialog.cpp" line="299"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1404"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1405"/>
         <source> mm</source>
         <translation> mm</translation>
     </message>
@@ -14740,32 +14746,32 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation>Referenz-Mesh:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="341"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="342"/>
         <source>Apply</source>
         <translation>Anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="359"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="360"/>
         <source>Show Readout on Hover</source>
         <translation>Anzeige beim Überfahren einblenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="376"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="377"/>
         <source>Clear Overlay</source>
         <translation>Overlay löschen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="380"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="381"/>
         <source>Close</source>
         <translation>Schließen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="554"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="555"/>
         <source>Draft: %1°</source>
         <translation>Entformungsschräge: %1°</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="556"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="557"/>
         <source>Curvature: %1</source>
         <translation>Krümmung: %1</translation>
     </message>
@@ -14817,42 +14823,42 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation>An einer scharfen konvexen Kante (oder am Rand einer Bohrung) ist die größte Kugel, die die Oberfläche berührt, klein, was dort als dünne Wand gelesen würde. Ist dies aktiv, übernehmen solche Punkte den Wert des nächsten Innenpunkts der Fläche. Punkte, die zwischen zwei Wänden eingeklemmt sind (etwa das Ende einer dünnen Rippe), behalten ihren kleinen Wert.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="560"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="561"/>
         <source>Deviation: %1</source>
         <translation>Abweichung: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="589"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="590"/>
         <source>no wall found behind the surface</source>
         <translation>keine Wand hinter der Oberfläche gefunden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="591"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="592"/>
         <source>the wall behind belongs to a different body</source>
         <translation>die Wand dahinter gehört zu einem anderen Körper</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="593"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="594"/>
         <source>the ray meets a surface from outside (touching or overlapping bodies)</source>
         <translation>der Strahl trifft eine Fläche von außen (sich berührende oder überlappende Körper)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="595"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="596"/>
         <source>the wall behind is too steep to measure straight through</source>
         <translation>die Wand dahinter ist zu steil, um geradeaus hindurch zu messen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="597"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="598"/>
         <source>the wall behind is a degenerate triangle</source>
         <translation>die Wand dahinter ist ein degeneriertes Dreieck</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="612"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="613"/>
         <source>No value: %1</source>
         <translation>Kein Wert: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="803"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="804"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation>Overlay für %1 Mesh(es) gelöscht – Transformation geändert, klicken Sie auf Anwenden, um neu zu berechnen.</translation>
     </message>
@@ -14861,7 +14867,7 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Kein Mesh ausgewählt – wählen Sie zuerst ein oder mehrere Meshes im Szenenbaum aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="829"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="830"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation>%1 Meshes ausgewählt – Abweichung benötigt genau eines (die Scan-/Vergleichsseite).</translation>
     </message>
@@ -14878,62 +14884,62 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Ausgewählt (%1): %2</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="914"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1085"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1430"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="915"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="944"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1086"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1431"/>
         <source>Select one or more meshes first.</source>
         <translation>Wählen Sie zuerst ein oder mehrere Meshes aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="959"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1113"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1451"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1611"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="960"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1114"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1452"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1624"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1033"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1222"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1516"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1634"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1034"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1223"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1517"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1647"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1659"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation>Auswahl hat sich während der Berechnung geändert – Anwenden erneut ausführen.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1065"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1066"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation>Für die aktuelle Auswahl konnte kein brauchbares Krümmungsergebnis berechnet werden.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1273"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1274"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation>Wandstärke konnte nicht berechnet werden – keine Fläche fand einen gültigen Treffer an der gegenüberliegenden Wand.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1399"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1400"/>
         <source>&lt; %1 mm</source>
         <translation>&lt; %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1399"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1400"/>
         <source>&gt;= %1 mm</source>
         <translation>&gt;= %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1410"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1411"/>
         <source>Thinnest wall found: %1 mm.</source>
         <translation>Dünnste Wand: %1 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1413"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1414"/>
         <source>%1% of the analysed surface is thinner than %2 mm.</source>
         <translation>%1 % der analysierten Fläche sind dünner als %2 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1570"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1578"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation>Wählen Sie genau ein Mesh zum Vergleichen aus (die Scan-/Vergleichsseite).</translation>
     </message>
@@ -14942,12 +14948,12 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Es ist kein anderes geladenes Mesh zum Vergleich verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1590"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1598"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation>Das gewählte Referenz-Mesh ist nicht mehr verfügbar – wählen Sie ein anderes aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1654"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1667"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation>Abweichung konnte nicht berechnet werden – das Referenz-Mesh hat keine verwendbaren Dreiecke.</translation>
     </message>

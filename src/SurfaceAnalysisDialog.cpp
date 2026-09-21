@@ -336,6 +336,7 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		_referenceBox->setLabelText(tr("Reference mesh:"));
 		_referenceBox->setSingleMeshMode(true);
 		_referenceBox->setFieldToolTip(tr("The reference mesh the selected mesh is compared against. Right-click to clear."));
+		connect(_referenceBox, &MeshSelectionBox::excludedMeshesRejected, this, [this](int) { onReferenceMeshRejected(); });
 		pageLayout->addWidget(_referenceBox);
 
 		_applyDeviationButton = new QPushButton(tr("Apply"), page);
@@ -1547,6 +1548,13 @@ void SurfaceAnalysisDialog::applyDraftAngleToSelection()
 	viewport->update();
 }
 
+void SurfaceAnalysisDialog::onReferenceMeshRejected()
+{
+	// Not silent: a mesh cannot be compared with itself, and the picker did not take it.
+	QMessageBox::warning(this, tr("Surface Analysis"),
+		tr("The reference mesh must be a different mesh from the one being compared - a mesh cannot be compared with itself."));
+}
+
 void SurfaceAnalysisDialog::syncReferenceExclusions()
 {
 	if (_referenceBox && _selectionBox)
@@ -1584,10 +1592,15 @@ void SurfaceAnalysisDialog::applyDeviationToSelection()
 	// nullptr if the chosen mesh was deleted since it was picked, which the message below covers.
 	const QUuid referenceUuid = referenceList.first();
 	SceneMesh* referenceMesh = referenceUuid.isNull() ? nullptr : viewport->getMeshByUuid(referenceUuid);
-	if (!referenceMesh || referenceMesh == sampledMesh)
+	if (!referenceMesh)
 	{
 		QMessageBox::information(this, tr("Surface Analysis"),
 			tr("The chosen reference mesh is no longer available - pick another one."));
+		return;
+	}
+	if (referenceMesh == sampledMesh)
+	{
+		onReferenceMeshRejected();
 		return;
 	}
 

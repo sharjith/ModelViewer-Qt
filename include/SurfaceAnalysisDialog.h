@@ -167,6 +167,8 @@ private:
 	// Keeps the meshes being analyzed out of the Deviation reference picker - a mesh is not a valid reference for
 	// itself. Called whenever the analyzed list changes.
 	void syncReferenceExclusions();
+	// The reference picker refused (or dropped) a mesh that is also being analyzed - tell the user why.
+	void onReferenceMeshRejected();
 	// Clears every overlay this dialog ever applied, regardless of what's
 	// currently selected - used on close (see this class's doc comment),
 	// since by then there's no button left to scope a selection-based clear.
