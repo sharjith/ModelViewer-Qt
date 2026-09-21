@@ -1,7 +1,8 @@
 #pragma once
 
 // OCCT 8.0.0 deprecated several old short-name typedef headers
-// (TDF_LabelSequence.hxx, TDF_LabelDataMap.hxx, TopTools_IndexedMapOfShape.hxx)
+// (TDF_LabelSequence.hxx, TDF_LabelDataMap.hxx, TopTools_IndexedMapOfShape.hxx,
+// TopTools_IndexedDataMapOfShapeListOfShape.hxx)
 // in favor of spelling out the underlying NCollection template directly at
 // every use site. This codebase uses those old short names in a number of
 // places (XCAFDocProcessor, XCAFSTEPProcessor, XCAFIGESProcessor,
@@ -20,7 +21,9 @@
 
 #if OCC_VERSION_MAJOR >= 8
 #include <NCollection_DataMap.hxx>
+#include <NCollection_IndexedDataMap.hxx>
 #include <NCollection_IndexedMap.hxx>
+#include <NCollection_List.hxx>
 #include <NCollection_Sequence.hxx>
 #include <TDF_Label.hxx>
 #include <TopoDS_Shape.hxx>
@@ -29,8 +32,11 @@
 using TDF_LabelSequence = NCollection_Sequence<TDF_Label>;
 using TDF_LabelDataMap = NCollection_DataMap<TDF_Label, TDF_Label>;
 using TopTools_IndexedMapOfShape = NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher>;
+using TopTools_IndexedDataMapOfShapeListOfShape =
+    NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher>;
 #else
 #include <TDF_LabelSequence.hxx>
 #include <TDF_LabelDataMap.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #endif

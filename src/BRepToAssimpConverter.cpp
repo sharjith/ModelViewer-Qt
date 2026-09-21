@@ -20,6 +20,7 @@
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <IMeshTools_Parameters.hxx>
 #include <BRepTools.hxx>
 #include <cmath>
 #include <unordered_set>
@@ -32,7 +33,6 @@
 #include <TDF_ChildIterator.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
-#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
@@ -168,6 +168,21 @@ Standard_Real BRepToAssimpConverter::resolveDeflectionFraction()
 	                            .toDouble();
 
 	return std::clamp(fraction, 0.0, 1.0);
+}
+
+void BRepToAssimpConverter::preTessellate(const TopoDS_Shape& shape)
+{
+	if (shape.IsNull())
+		return;
+
+	IMeshTools_Parameters meshParams;
+	meshParams.Deflection           = resolveDeflectionFraction(); // user-configurable, default 10 %
+	meshParams.Angle                = resolveAngularDeflection();  // radians, user-configurable, default 0.3
+	meshParams.Relative             = true;                        // deflection is relative to each face's bbox
+	meshParams.InParallel           = true;                        // use all available CPU cores
+	meshParams.AllowQualityDecrease = true;                        // avoid stalling on difficult faces
+
+	BRepMesh_IncrementalMesh(shape, meshParams);
 }
 
 /**
@@ -1145,6 +1160,19 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	// many of those were rebuilt from their boundary - see FaceFallbackTriangulator. A part with a face missing is
 	// not watertight, so this is reported once per part below.
 	const bool healFaces = healUntessellatedFacesEnabled();
+
+	// The readers pre-tessellate the whole shape (preTessellate()), which is what leaves neighbours' edge points to build
+	// a failed face from. A caller that did not (nothing in the group is tessellated) meshes face by face right here,
+	// where every face is untessellated at first - that keeps the ordinary per-face meshing, and the neighbour-based
+	// rebuild below stays out of it.
+	bool meshedByPrepass = false;
+	for (int i = 1; i <= faceCount && !meshedByPrepass; ++i)
+	{
+		TopLoc_Location probeLoc;
+		const TopoDS_Shape& probe = faceGroup(i);
+		meshedByPrepass = !probe.IsNull() && !BRep_Tool::Triangulation(TopoDS::Face(probe), probeLoc).IsNull();
+	}
+	const bool rebuildFromNeighbours = healFaces && meshedByPrepass;
 	TopTools_IndexedDataMapOfShapeListOfShape edgeToFaces; // built lazily, only if a face needs it
 	bool edgeToFacesBuilt = false;
 	int unmeshedFaces = 0;
@@ -1197,7 +1225,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			// solid. With healing on, the face is therefore built first from the points its neighbours already carry on
 			// the shared edges (this must happen before BRepTools::Clean() below, which removes them), and the ordinary
 			// per-face meshing / healing is only the fallback when that is not possible.
-			if (healFaces)
+			if (rebuildFromNeighbours)
 			{
 				std::string fallbackFailure;
 				triangulation = buildFromNeighbours(face, fallbackFailure);
@@ -1261,7 +1289,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 		// A triangulation the mesher returned can still have holes in it. Rebuild such a face from its neighbours' edges
 		// (keeping the mesher's triangulation if that is not possible).
-		if (healFaces && !builtFromNeighbours && processedFace.IsSame(face) && faceTriangulationHasGaps(face, triangulation))
+		if (rebuildFromNeighbours && !builtFromNeighbours && processedFace.IsSame(face) && faceTriangulationHasGaps(face, triangulation))
 		{
 			std::string gapFailure;
 			const Handle(Poly_Triangulation) rebuilt = buildFromNeighbours(face, gapFailure);

@@ -3,7 +3,7 @@
 #include <gp_Pnt.hxx>
 #include <Poly_Triangulation.hxx>
 #include <TopoDS_Face.hxx>
-#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include "OcctDeprecatedAliases.h"
 
 #include <string>
 #include <utility>

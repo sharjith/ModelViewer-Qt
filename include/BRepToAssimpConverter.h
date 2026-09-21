@@ -185,6 +185,13 @@ public:
 	// per-face fallback in convertFaceGroupToMesh().
 	static Standard_Real resolveDeflectionFraction();
 
+	// Tessellates `shape` (a compound of everything to import, or a single shape) in ONE parallel BRepMesh_IncrementalMesh
+	// call, using the deflection settings above. Every reader (STEP, IGES, BREP) calls this before converting: meshing the
+	// whole shape at once discretizes every shared edge exactly once, so neighbouring faces end up with the same points on
+	// it (a part meshed face by face does not), and the later steps - reading each face's triangulation, rebuilding a
+	// face the mesher failed on from its neighbours' edge points - all rely on that.
+	static void preTessellate(const TopoDS_Shape& shape);
+
 	// Returns the angular deflection (radians) to use for STEP tessellation.
 	// Reads the "angularDeflectionSpinBox" QSettings key written by SettingsDialog.
 	static Standard_Real resolveAngularDeflection();

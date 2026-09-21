@@ -9,6 +9,9 @@
 #include "XCAFApp_Application.hxx"
 #include "XCAFIGESProcessor.hxx"
 #include "XCAFReadProgressIndicator.hxx"
+#include <BRep_Builder.hxx>
+#include <TopoDS_Compound.hxx>
+#include <TopoDS_Shape.hxx>
 #include <QFileInfo>
 #include <QString>
 
@@ -65,6 +68,24 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     // Collect free shapes (top-level shapes)
     TDF_LabelSequence labels;
     shapeTool->GetFreeShapes(labels);
+
+    // Pre-tessellate everything in one parallel pass (as the STEP reader does), so shared edges are discretized once
+    // and the converter can rely on the neighbouring faces' edge points - see BRepToAssimpConverter::preTessellate().
+    if (!labels.IsEmpty())
+    {
+        MainWindow::showStatusMessage(tr("Pre-tessellating geometry (parallel)..."));
+
+        TopoDS_Compound compound;
+        BRep_Builder builder;
+        builder.MakeCompound(compound);
+        for (Standard_Integer i = 1; i <= labels.Length(); ++i)
+        {
+            TopoDS_Shape shape;
+            if (shapeTool->GetShape(labels.Value(i), shape) && !shape.IsNull())
+                builder.Add(compound, shape);
+        }
+        BRepToAssimpConverter::preTessellate(compound);
+    }
 
     // Precompute the total number of meshes for progress bar updates
 	int totalMeshes = countMeshes(shapeTool, labels.Value(1));
