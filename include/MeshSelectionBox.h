@@ -38,7 +38,10 @@ class MeshSelectionBox : public QWidget
 {
 	Q_OBJECT
 public:
-	explicit MeshSelectionBox(ModelViewer* modelViewer, QWidget* parent = nullptr);
+	// For a box placed in a .ui file (promoted widget): call setModelViewer() once the owner is known.
+	explicit MeshSelectionBox(QWidget* parent = nullptr);
+	MeshSelectionBox(ModelViewer* modelViewer, QWidget* parent);
+	void setModelViewer(ModelViewer* modelViewer);
 
 	const QVector<QUuid>& meshUuids() const { return _uuids; }
 	bool isEmpty() const { return _uuids.isEmpty(); }
@@ -49,6 +52,9 @@ public:
 	void setMeshUuids(const QVector<QUuid>& uuids);
 	// Replaces the list with the viewer's current selection; does nothing if nothing is selected there.
 	void seedFromViewportSelection();
+	// Adds the viewer's current selection to the list (in single-mesh mode it replaces the mesh); does nothing if
+	// that adds no mesh.
+	void addViewportSelection();
 
 	// At most one mesh: Pick replaces it, the Edit button is hidden, and a longer list is cut to its first mesh.
 	void setSingleMeshMode(bool single);
@@ -78,7 +84,7 @@ private:
 	void stopPicking();
 	QString emptyPlaceholder() const;
 
-	ModelViewer* _modelViewer; // not owned
+	ModelViewer* _modelViewer = nullptr; // not owned
 	QVector<QUuid> _uuids;
 	QLabel* _label = nullptr;
 	QLineEdit* _field = nullptr;

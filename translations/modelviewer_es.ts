@@ -1945,157 +1945,155 @@ deben guardarse con el documento.</translation>
         <translation>Rellenar agujeros</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="20"/>
+        <location filename="../src/FillHolesDialog.cpp" line="75"/>
         <source>Meshes to check for holes:</source>
         <translation>Mallas a comprobar en busca de agujeros:</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="36"/>
         <source>Add Selected</source>
-        <translation>Añadir seleccionados</translation>
+        <translation type="vanished">Añadir seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="46"/>
         <source>Remove Selected</source>
-        <translation>Eliminar seleccionados</translation>
+        <translation type="vanished">Eliminar seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="55"/>
+        <location filename="../ui/FillHolesDialog.ui" line="23"/>
         <source>Detected holes (checked ones will be filled):</source>
         <translation>Agujeros detectados (los marcados se rellenarán):</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="62"/>
+        <location filename="../ui/FillHolesDialog.ui" line="30"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Every boundary loop found, including a genuinely open mesh&apos;s own outer edge - uncheck anything that is not an actual defect gap you want closed. Selecting a row highlights its loop (orange) in the viewport.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Cada bucle de contorno encontrado, incluido el borde exterior propio de una malla genuinamente abierta - desmarque cualquier cosa que no sea una brecha defectuosa real que desee cerrar. Seleccionar una fila resalta su bucle (naranja) en el viewport.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="77"/>
+        <location filename="../ui/FillHolesDialog.ui" line="45"/>
         <source>Select All</source>
         <translation>Seleccionar todo</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="87"/>
+        <location filename="../ui/FillHolesDialog.ui" line="55"/>
         <source>Deselect All</source>
         <translation>Deseleccionar todo</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="98"/>
+        <location filename="../ui/FillHolesDialog.ui" line="66"/>
         <source>Patch density:</source>
         <translation>Densidad del parche:</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="105"/>
+        <location filename="../ui/FillHolesDialog.ui" line="73"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Controls how fine the new patch&apos;s triangulation is relative to the surrounding mesh (CGAL&apos;s triangulate_and_refine_hole density_control_factor) - larger values produce a denser patch. CGAL&apos;s own default is sqrt(2) &amp;#8776; 1.41.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Controla la finura de la triangulación del nuevo parche en relación con la malla circundante (density_control_factor de triangulate_and_refine_hole de CGAL) - valores mayores producen un parche más denso. El valor predeterminado de CGAL es sqrt(2) &amp;#8776; 1.41.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="127"/>
+        <location filename="../ui/FillHolesDialog.ui" line="95"/>
         <source>Self-intersection resolution attempts:</source>
         <translation>Intentos de resolución de autointersección:</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="134"/>
+        <location filename="../ui/FillHolesDialog.ui" line="102"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How many smoothing/hole-refill rounds to try when resolving self-intersections (CGAL&apos;s remove_self_intersections number_of_iterations). CGAL&apos;s own default is 7.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Cuántas rondas de suavizado/relleno de agujeros probar al resolver autointersecciones (number_of_iterations de remove_self_intersections de CGAL). El valor predeterminado de CGAL es 7.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="150"/>
+        <location filename="../ui/FillHolesDialog.ui" line="118"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Also try a slower, smoothing-based repair strategy for self-intersections, in addition to the hole-filling-based strategy already tried by default. CGAL does not attempt this by default.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Probar también una estrategia de reparación más lenta basada en suavizado para las autointersecciones, además de la estrategia basada en relleno de agujeros ya probada por defecto. CGAL no lo intenta por defecto.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="153"/>
+        <location filename="../ui/FillHolesDialog.ui" line="121"/>
         <source>Try smoothing-based resolution too</source>
         <translation>Probar también la resolución basada en suavizado</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="165"/>
+        <location filename="../ui/FillHolesDialog.ui" line="133"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Undoably delete the previous Generate click&apos;s filled result(s) before running this one, so at most one filled result per source mesh accumulates in the scene.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Eliminar de forma reversible el/los resultado(s) rellenado(s) del clic anterior en Generar antes de ejecutar este, de modo que se acumule como máximo un resultado rellenado por malla de origen en la escena.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="168"/>
+        <location filename="../ui/FillHolesDialog.ui" line="136"/>
         <source>Replace previous result</source>
         <translation>Reemplazar resultado anterior</translation>
     </message>
     <message>
-        <location filename="../ui/FillHolesDialog.ui" line="181"/>
+        <location filename="../ui/FillHolesDialog.ui" line="149"/>
         <source>Generate</source>
         <translation>Generar</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="188"/>
+        <location filename="../src/FillHolesDialog.cpp" line="153"/>
         <source>%1 - Hole #%2 (%3 edges)</source>
         <translation>%1 - Agujero n.º%2 (%3 aristas)</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="277"/>
+        <location filename="../src/FillHolesDialog.cpp" line="242"/>
         <source>Check at least one detected hole first.</source>
         <translation>Marque primero al menos un agujero detectado.</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="281"/>
+        <location filename="../src/FillHolesDialog.cpp" line="246"/>
         <source>Filling holes...</source>
         <translation>Rellenando agujeros...</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="291"/>
+        <location filename="../src/FillHolesDialog.cpp" line="256"/>
         <source>Replace Fill Holes Result</source>
         <translation>Reemplazar resultado de rellenar agujeros</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="380"/>
+        <location filename="../src/FillHolesDialog.cpp" line="345"/>
         <source>%1 of %2 mesh(es) had holes filled</source>
         <translation>%1 de %2 malla(s) tuvieron agujeros rellenados</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="382"/>
+        <location filename="../src/FillHolesDialog.cpp" line="347"/>
         <source>%1 hole(s) filled</source>
         <translation>%1 agujero(s) rellenado(s)</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="384"/>
+        <location filename="../src/FillHolesDialog.cpp" line="349"/>
         <source>%1 non-manifold vertex(es) fixed along the way</source>
         <translation>%1 vértice(s) no variedad corregido(s) en el proceso</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="386"/>
+        <location filename="../src/FillHolesDialog.cpp" line="351"/>
         <source>%1 mesh(es) had self-intersections removed</source>
         <translation>%1 malla(s) tuvieron autointersecciones eliminadas</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="388"/>
+        <location filename="../src/FillHolesDialog.cpp" line="353"/>
         <source>%1 mesh(es) still have unresolved self-intersections</source>
         <translation>%1 malla(s) aún tienen autointersecciones sin resolver</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="389"/>
+        <location filename="../src/FillHolesDialog.cpp" line="354"/>
         <source> (%1).</source>
         <translation> (%1).</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="389"/>
+        <location filename="../src/FillHolesDialog.cpp" line="354"/>
         <source>, </source>
         <translation>, </translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="391"/>
+        <location filename="../src/FillHolesDialog.cpp" line="356"/>
         <source> %1 skipped (stale selection).</source>
         <translation> %1 omitido(s) (selección obsoleta).</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="393"/>
+        <location filename="../src/FillHolesDialog.cpp" line="358"/>
         <source> %1 could not be repaired.</source>
         <translation> %1 no se pudo/pudieron reparar.</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="397"/>
+        <location filename="../src/FillHolesDialog.cpp" line="362"/>
         <source>Nothing filled - the checked hole(s) no longer matched their mesh(es).</source>
         <translation>Nada rellenado - el/los agujero(s) marcado(s) ya no coincidía(n) con su(s) malla(s).</translation>
     </message>
     <message>
-        <location filename="../src/FillHolesDialog.cpp" line="401"/>
+        <location filename="../src/FillHolesDialog.cpp" line="366"/>
         <source>No mesh could be filled (%1 failed).</source>
         <translation>No se pudo rellenar ninguna malla (%1 fallida(s)).</translation>
     </message>
@@ -6700,60 +6698,60 @@ distancia en línea recta. Ambos puntos deben caer en la misma malla.</translati
 <context>
     <name>MeshSelectionBox</name>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="25"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="30"/>
         <source>Selection:</source>
         <translation>Selección:</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="145"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="155"/>
         <source>Select meshes...</source>
         <translation>Seleccionar mallas...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="31"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="36"/>
         <source>The selected meshes. Right-click to edit or clear.</source>
         <translation>Las mallas seleccionadas. Clic derecho para editar o borrar.</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="45"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="119"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="50"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="129"/>
         <source>Add meshes from the scene or tree, then click again to confirm</source>
         <translation>Añada mallas desde la escena o el árbol y haga clic de nuevo para confirmar</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="48"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="282"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="53"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="313"/>
         <source>Edit Selection...</source>
         <translation>Editar selección...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="51"/>
-        <location filename="../src/MeshSelectionBox.cpp" line="286"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="56"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="317"/>
         <source>Clear Selection</source>
         <translation>Borrar selección</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="118"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="128"/>
         <source>Pick a mesh from the scene or tree, then click again to confirm</source>
         <translation>Elija una malla de la escena o el árbol y haga clic de nuevo para confirmar</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="145"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="155"/>
         <source>Select a mesh...</source>
         <translation>Seleccionar una malla...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="174"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="205"/>
         <source>%1 meshes</source>
         <translation>%1 mallas</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="198"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="229"/>
         <source>Pick a mesh, then click again to confirm...</source>
         <translation>Elija una malla y haga clic de nuevo para confirmar...</translation>
     </message>
     <message>
-        <location filename="../src/MeshSelectionBox.cpp" line="199"/>
+        <location filename="../src/MeshSelectionBox.cpp" line="230"/>
         <source>Add meshes, then click again to confirm...</source>
         <translation>Añadir mallas, luego haga clic de nuevo para confirmar...</translation>
     </message>
@@ -11724,103 +11722,101 @@ Use Copiar y Pegar para un ensamblaje de varias mallas.</translation>
         <translation>Reconstruir superficie</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="20"/>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="65"/>
         <source>Point clouds (or meshes) to reconstruct from:</source>
         <translation>Nubes de puntos (o mallas) a partir de las cuales reconstruir:</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="36"/>
         <source>Add Selected</source>
-        <translation>Añadir seleccionados</translation>
+        <translation type="vanished">Añadir seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="46"/>
         <source>Remove Selected</source>
-        <translation>Eliminar seleccionados</translation>
+        <translation type="vanished">Eliminar seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="57"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="25"/>
         <source>Sharpness:</source>
         <translation>Nitidez:</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="64"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="32"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Lower = smoother/rounder surface; higher = sharper edges preserved.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Más bajo = superficie más suave/redondeada; más alto = aristas más afiladas preservadas.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="67"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="35"/>
         <source>°</source>
         <translation>°</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="89"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="57"/>
         <source>Boundary Tolerance:</source>
         <translation>Tolerancia de contorno:</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="96"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="64"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How large a gap the reconstruction may bridge. Lower leaves more open holes on sparse/incomplete scans; higher is more likely to close holes but can bridge unrelated surfaces.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Qué tan grande hueco puede salvar la reconstrucción. Más bajo deja más agujeros abiertos en escaneos dispersos/incompletos; más alto es más probable que cierre agujeros pero puede unir superficies no relacionadas.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="120"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="88"/>
         <source>Simplify point cloud before reconstruction</source>
         <translation>Simplificar la nube de puntos antes de la reconstrucción</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="132"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="100"/>
         <source>Target Spacing:</source>
         <translation>Espaciado objetivo:</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="142"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="110"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Merges points closer than this distance before reconstructing - speeds up large/noisy scans, at the cost of fine detail.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Fusiona puntos más cercanos que esta distancia antes de reconstruir - acelera escaneos grandes/ruidosos, a costa del detalle fino.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="166"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="134"/>
         <source>Reset to Suggested</source>
         <translation>Restablecer a lo sugerido</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="173"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="141"/>
         <source>Replace previous result</source>
         <translation>Reemplazar resultado anterior</translation>
     </message>
     <message>
-        <location filename="../ui/ReconstructSurfaceDialog.ui" line="186"/>
+        <location filename="../ui/ReconstructSurfaceDialog.ui" line="154"/>
         <source>Generate</source>
         <translation>Generar</translation>
     </message>
     <message>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="152"/>
         <location filename="../src/ReconstructSurfaceDialog.cpp" line="183"/>
-        <location filename="../src/ReconstructSurfaceDialog.cpp" line="214"/>
         <source>Add at least one mesh to the list first.</source>
         <translation>Añada primero al menos una malla a la lista.</translation>
     </message>
     <message>
-        <location filename="../src/ReconstructSurfaceDialog.cpp" line="224"/>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="193"/>
         <source>Reconstructing %1 points - this may take a while...</source>
         <translation>Reconstruyendo %1 puntos - esto puede tardar un momento...</translation>
     </message>
     <message>
-        <location filename="../src/ReconstructSurfaceDialog.cpp" line="225"/>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="194"/>
         <source>Generating...</source>
         <translation>Generando...</translation>
     </message>
     <message>
-        <location filename="../src/ReconstructSurfaceDialog.cpp" line="236"/>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="205"/>
         <source>Replace Reconstructed Surface</source>
         <translation>Reemplazar superficie reconstruida</translation>
     </message>
     <message>
-        <location filename="../src/ReconstructSurfaceDialog.cpp" line="255"/>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="224"/>
         <source>Reconstruction failed - no geometry was produced.</source>
         <translation>Reconstrucción fallida - no se produjo geometría.</translation>
     </message>
     <message>
-        <location filename="../src/ReconstructSurfaceDialog.cpp" line="284"/>
+        <location filename="../src/ReconstructSurfaceDialog.cpp" line="253"/>
         <source>%1: %2 point(s) -&gt; %3 vertices, %4 triangles.</source>
         <translation>%1: %2 punto(s) -&gt; %3 vértices, %4 triángulos.</translation>
     </message>
@@ -11833,122 +11829,120 @@ Use Copiar y Pegar para un ensamblaje de varias mallas.</translation>
         <translation>Reparar malla</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="20"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="68"/>
         <source>Meshes to repair:</source>
         <translation>Mallas a reparar:</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="36"/>
         <source>Add Selected</source>
-        <translation>Añadir seleccionados</translation>
+        <translation type="vanished">Añadir seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="46"/>
         <source>Remove Selected</source>
-        <translation>Eliminar seleccionados</translation>
+        <translation type="vanished">Eliminar seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="57"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="25"/>
         <source>Self-intersection resolution attempts:</source>
         <translation>Intentos de resolución de autointersección:</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="64"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="32"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;How many smoothing/hole-refill rounds to try when resolving self-intersections (CGAL&apos;s remove_self_intersections number_of_iterations). CGAL&apos;s own default is 7.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Cuántas rondas de suavizado/relleno de agujeros probar al resolver autointersecciones (number_of_iterations de remove_self_intersections de CGAL). El valor predeterminado de CGAL es 7.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="80"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="48"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Also try a slower, smoothing-based repair strategy for self-intersections, in addition to the hole-filling-based strategy already tried by default. CGAL does not attempt this by default.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Probar también una estrategia de reparación más lenta basada en suavizado para las autointersecciones, además de la estrategia basada en relleno de agujeros ya probada por defecto. CGAL no lo intenta por defecto.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="83"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="51"/>
         <source>Try smoothing-based resolution too</source>
         <translation>Probar también la resolución basada en suavizado</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="95"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="63"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Undoably delete the previous Generate click&apos;s repaired result(s) before running this one, so at most one repaired result per source mesh accumulates in the scene.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Eliminar de forma reversible el/los resultado(s) reparado(s) del clic anterior en Generar antes de ejecutar este, de modo que se acumule como máximo un resultado reparado por malla de origen en la escena.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="98"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="66"/>
         <source>Replace previous result</source>
         <translation>Reemplazar resultado anterior</translation>
     </message>
     <message>
-        <location filename="../ui/RepairMeshDialog.ui" line="111"/>
+        <location filename="../ui/RepairMeshDialog.ui" line="79"/>
         <source>Generate</source>
         <translation>Generar</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="167"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="136"/>
         <source>Add at least one mesh to the list first.</source>
         <translation>Añada primero al menos una malla a la lista.</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="171"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="140"/>
         <source>Repairing...</source>
         <translation>Reparando...</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="181"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="150"/>
         <source>Replace Repair Mesh Result</source>
         <translation>Reemplazar resultado de reparar malla</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="264"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="233"/>
         <source>%1 of %2 mesh(es) repaired</source>
         <translation>%1 de %2 malla(s) reparadas</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="267"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="236"/>
         <source>%1 non-manifold vertex(es) fixed</source>
         <translation>%1 vértice(s) no variedad corregido(s)</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="269"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="238"/>
         <source>%1 mesh(es) had self-intersections removed</source>
         <translation>%1 malla(s) tuvieron autointersecciones eliminadas</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="271"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="240"/>
         <source>%1 mesh(es) still have unresolved self-intersections</source>
         <translation>%1 malla(s) aún tienen autointersecciones sin resolver</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="273"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="242"/>
         <source> (%1)</source>
         <translation> (%1)</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="273"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="242"/>
         <source>, </source>
         <translation>, </translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="274"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="243"/>
         <source>.</source>
         <translation>.</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="276"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="245"/>
         <source> %1 already valid.</source>
         <translation> %1 ya válido(s).</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="278"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="247"/>
         <source> %1 could not be repaired.</source>
         <translation> %1 no se pudo/pudieron reparar.</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="282"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="251"/>
         <source>All %1 mesh(es) already valid - nothing to repair.</source>
         <translation>Todas las %1 malla(s) ya válidas - nada que reparar.</translation>
     </message>
     <message>
-        <location filename="../src/RepairMeshDialog.cpp" line="286"/>
+        <location filename="../src/RepairMeshDialog.cpp" line="255"/>
         <source>No mesh could be repaired (%1 failed).</source>
         <translation>No se pudo reparar ninguna malla (%1 fallida(s)).</translation>
     </message>
@@ -14334,68 +14328,66 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation>Envoltura retráctil</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="20"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="66"/>
         <source>Meshes to wrap:</source>
         <translation>Mallas a envolver:</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="36"/>
         <source>Add Selected</source>
-        <translation>Añadir seleccionados</translation>
+        <translation type="vanished">Añadir seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="46"/>
         <source>Remove Selected</source>
-        <translation>Eliminar seleccionados</translation>
+        <translation type="vanished">Eliminar seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="57"/>
+        <location filename="../ui/ShrinkWrapDialog.ui" line="25"/>
         <source>Alpha:</source>
         <translation>Alfa:</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="80"/>
+        <location filename="../ui/ShrinkWrapDialog.ui" line="48"/>
         <source>Offset:</source>
         <translation>Desplazamiento:</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="108"/>
+        <location filename="../ui/ShrinkWrapDialog.ui" line="76"/>
         <source>Reset to Suggested</source>
         <translation>Restablecer a lo sugerido</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="115"/>
+        <location filename="../ui/ShrinkWrapDialog.ui" line="83"/>
         <source>Replace previous result</source>
         <translation>Reemplazar resultado anterior</translation>
     </message>
     <message>
-        <location filename="../ui/ShrinkWrapDialog.ui" line="128"/>
+        <location filename="../ui/ShrinkWrapDialog.ui" line="96"/>
         <source>Generate</source>
         <translation>Generar</translation>
     </message>
     <message>
-        <location filename="../src/ShrinkWrapDialog.cpp" line="176"/>
-        <location filename="../src/ShrinkWrapDialog.cpp" line="205"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="145"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="174"/>
         <source>Add at least one mesh to the list first.</source>
         <translation>Añada primero al menos una malla a la lista.</translation>
     </message>
     <message>
-        <location filename="../src/ShrinkWrapDialog.cpp" line="214"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="183"/>
         <source>Generating...</source>
         <translation>Generando...</translation>
     </message>
     <message>
-        <location filename="../src/ShrinkWrapDialog.cpp" line="227"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="196"/>
         <source>Replace Shrink Wrap Result</source>
         <translation>Reemplazar resultado de envoltura retráctil</translation>
     </message>
     <message>
-        <location filename="../src/ShrinkWrapDialog.cpp" line="243"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="212"/>
         <source>Shrink Wrap failed - no geometry was produced.</source>
         <translation>Envoltura retráctil fallida - no se produjo geometría.</translation>
     </message>
     <message>
-        <location filename="../src/ShrinkWrapDialog.cpp" line="271"/>
+        <location filename="../src/ShrinkWrapDialog.cpp" line="240"/>
         <source>%1: %2 mesh(es), %3 vertices, %4 triangles.</source>
         <translation>%1: %2 malla(s), %3 vértices, %4 triángulos.</translation>
     </message>
@@ -14416,97 +14408,95 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation>Subdividir superficie</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="20"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="51"/>
         <source>Meshes to subdivide:</source>
         <translation>Mallas a subdividir:</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="36"/>
         <source>Add Selected</source>
-        <translation>Añadir seleccionados</translation>
+        <translation type="vanished">Añadir seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="46"/>
         <source>Remove Selected</source>
-        <translation>Eliminar seleccionados</translation>
+        <translation type="vanished">Eliminar seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="57"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="25"/>
         <source>Method:</source>
         <translation>Método:</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="65"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="33"/>
         <source>Loop</source>
         <translation>Loop</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="70"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="38"/>
         <source>Catmull-Clark</source>
         <translation>Catmull-Clark</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="78"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="46"/>
         <source>Iterations:</source>
         <translation>Iteraciones:</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="98"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="66"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Keep edges with a 30 degree or greater bend sharp. Disable for a fully smooth subdivision surface.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Mantener afiladas las aristas con un pliegue de 30 grados o más. Desactivar para una superficie de subdivisión totalmente suave.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="101"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="69"/>
         <source>Preserve sharp edges</source>
         <translation>Preservar aristas afiladas</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="111"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="79"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Regularize triangle shape/valence before subdividing - prevents a known crash/distortion on meshes with irregular vertex valence (e.g. a fan-triangulated cylinder cap), but can change the face count before Iterations applies, so N levels no longer cleanly multiplies the original mesh&apos;s face count. Disable for predictable N-level subdivision of your mesh&apos;s own topology - only safe when you know it doesn&apos;t have that pathology.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Regularizar la forma/valencia de los triángulos antes de subdividir - evita un fallo/distorsión conocido en mallas con valencia de vértice irregular (p. ej. una tapa de cilindro triangulada en abanico), pero puede cambiar el recuento de caras antes de que se aplique Iteraciones, por lo que N niveles ya no multiplica limpiamente el recuento de caras de la malla original. Desactivar para una subdivisión de N niveles predecible de la topología propia de su malla - solo seguro cuando sepa que no tiene esa patología.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="114"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="82"/>
         <source>Regularize mesh before subdividing</source>
         <translation>Regularizar la malla antes de subdividir</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="126"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="94"/>
         <source>Replace previous result</source>
         <translation>Reemplazar resultado anterior</translation>
     </message>
     <message>
-        <location filename="../ui/SubdivisionDialog.ui" line="139"/>
+        <location filename="../ui/SubdivisionDialog.ui" line="107"/>
         <source>Generate</source>
         <translation>Generar</translation>
     </message>
     <message>
-        <location filename="../src/SubdivisionDialog.cpp" line="147"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="116"/>
         <source>Add at least one mesh to the list first.</source>
         <translation>Añada primero al menos una malla a la lista.</translation>
     </message>
     <message>
-        <location filename="../src/SubdivisionDialog.cpp" line="151"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="120"/>
         <source>Generating...</source>
         <translation>Generando...</translation>
     </message>
     <message>
-        <location filename="../src/SubdivisionDialog.cpp" line="164"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="133"/>
         <source>Replace Subdivision Result</source>
         <translation>Reemplazar resultado de subdivisión</translation>
     </message>
     <message>
-        <location filename="../src/SubdivisionDialog.cpp" line="233"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="202"/>
         <source>Subdivision failed for all %1 mesh(es) - no geometry was produced.</source>
         <translation>La subdivisión falló para todas las %1 malla(s) - no se produjo geometría.</translation>
     </message>
     <message>
-        <location filename="../src/SubdivisionDialog.cpp" line="239"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="208"/>
         <source>%1 of %2 mesh(es) subdivided (%3 failed): %4 vertices, %5 triangles total.</source>
         <translation>%1 de %2 malla(s) subdivididas (%3 fallida(s)): %4 vértices, %5 triángulos en total.</translation>
     </message>
     <message>
-        <location filename="../src/SubdivisionDialog.cpp" line="248"/>
+        <location filename="../src/SubdivisionDialog.cpp" line="217"/>
         <source>%1 mesh(es) subdivided: %2 vertices, %3 triangles total.</source>
         <translation>%1 malla(s) subdivididas: %2 vértices, %3 triángulos en total.</translation>
     </message>
@@ -16212,461 +16202,459 @@ Roughness</translation>
         <translation>Generar Coordenadas UV</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="26"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="42"/>
         <source>Meshes to generate UVs for:</source>
         <translation>Mallas para las que generar UV:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="48"/>
         <source>Add Selected</source>
-        <translation>Añadir seleccionados</translation>
+        <translation type="vanished">Añadir seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="58"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="101"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="63"/>
         <source>Remove Selected</source>
         <translation>Eliminar seleccionados</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="67"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="29"/>
         <source>Seams (Angle-Based / Angle-Based Smart UV / ARAP)</source>
         <translation>Costuras (basado en ángulo / UV inteligente basado en ángulo / ARAP)</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="73"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="35"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Click mesh edges in the viewport to force them into the seam set - click a marked edge again to unmark it. Cleared when this dialog closes.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Haga clic en las aristas de la malla en el viewport para forzarlas al conjunto de costuras - haga clic de nuevo en una arista marcada para desmarcarla. Se borra al cerrar este diálogo.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="76"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="38"/>
         <source>Mark Seams</source>
         <translation>Marcar costuras</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="108"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="70"/>
         <source>Clear All</source>
         <translation>Borrar todo</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="120"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="82"/>
         <source>UV Mapping Method</source>
         <translation>Método de Mapeo UV</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="127"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="89"/>
         <source>Planar</source>
         <translation>Planar</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="132"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="94"/>
         <source>Cylindrical</source>
         <translation>Cilíndrico</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="137"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="99"/>
         <source>Spherical</source>
         <translation>Esférico</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="142"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="104"/>
         <source>Torus</source>
         <translation>Toroide</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="147"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="109"/>
         <source>Angle-Based</source>
         <translation>Basado en ángulos</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="152"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="114"/>
         <source>Hybrid</source>
         <translation>Híbrido</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="157"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="119"/>
         <source>Angle-Based Smart UV</source>
         <translation>UV Inteligente Basado en ángulos</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="162"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="124"/>
         <source>Smart Project (Blender-style)</source>
         <translation>Proyección inteligente (estilo Blender)</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="167"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="129"/>
         <source>ARAP (As-Rigid-As-Possible)</source>
         <translation>ARAP (Lo más rígido posible)</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="172"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="134"/>
         <source>LSCM (Conformal)</source>
         <translation>LSCM (Conforme)</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="180"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="142"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Reset every method&apos;s settings back to their default values (does not change the currently selected method or the mesh list)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Restablecer los ajustes de cada método a sus valores predeterminados (no cambia el método actualmente seleccionado ni la lista de mallas)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="183"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="145"/>
         <source>Reset to Defaults</source>
         <translation>Restablecer valores predeterminados</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="215"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="177"/>
         <source>Scale X:</source>
         <translation>Escala X:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="238"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="200"/>
         <source>Scale Y:</source>
         <translation>Escala Y:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="261"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="365"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="567"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="775"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1259"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1378"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1540"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="223"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="327"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="529"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="737"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1221"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1340"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1502"/>
         <source>Flip V:</source>
         <translation>Flip V:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="279"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="484"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="686"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="241"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="446"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="648"/>
         <source>Scale:</source>
         <translation>Escala:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="302"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="264"/>
         <source>Offset:</source>
         <translation>Offset:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="309"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="271"/>
         <source>Shifts the cylindrical projection along its axis</source>
         <translation>Desplaza la proyección cilíndrica a lo largo de su eje</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="325"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="735"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="287"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="697"/>
         <source>Seam Rotation (degrees):</source>
         <translation>Rotación de costura (de acuerdo):</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="352"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="554"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="314"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="516"/>
         <source>Wrap U continuously to avoid a visible seam</source>
         <translation>Envolver U de forma continua para evitar una costura visible</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="379"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="581"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="789"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="341"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="543"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="751"/>
         <source>Auto-detect Axis (PCA):</source>
         <translation>Detección automática de eje (PCA):</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="386"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="348"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the cylinder&apos;s axis automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detectar automáticamente el eje del cilindro a partir de su geometría. Desmarque para introducir el eje manualmente a continuación.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="402"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="364"/>
         <source>Cylinder Axis</source>
         <translation>Eje del cilindro</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="408"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="610"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="818"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="370"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="572"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="780"/>
         <source>X:</source>
         <translation>X:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="431"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="633"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="841"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="393"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="595"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="803"/>
         <source>Y:</source>
         <translation>Y:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="454"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="656"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="864"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="416"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="618"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="826"/>
         <source>Z:</source>
         <translation>Z:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="507"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="469"/>
         <source>UV Rotation (degrees):</source>
         <translation>Rotación UV (de acuerdo):</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="527"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="489"/>
         <source>Duplicate Pole Vertices:</source>
         <translation>Vertices de Polo Duplicado:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1187"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1149"/>
         <source>Angle Limit (degrees):</source>
         <translation>Límite de ángulo (grados):</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1194"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1156"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Lower for more projection groups (less distortion, more islands), higher for fewer projection groups&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Más bajo para más grupos de proyección (menos distorsión, más islas), más alto para menos grupos de proyección&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1213"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1175"/>
         <source>Area Weight:</source>
         <translation>Peso de área:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1220"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1182"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Weight projection direction clustering by face area; 0 treats all faces equally, 1 lets large faces dominate&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Pondera la agrupación de dirección de proyección por área de cara; 0 trata todas las caras por igual, 1 permite que las caras grandes dominen&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1277"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1468"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1239"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1430"/>
         <source>Seam Angle Threshold:</source>
         <translation>Umbral de ángulo de costura:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1284"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1475"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1246"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1437"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Dihedral angle (degrees) above which an edge is treated as a seam, same as Angle-Based&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Ángulo diedro (grados) por encima del cual una arista se trata como costura, igual que Basado en ángulo&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1303"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1265"/>
         <source>Rigidity:</source>
         <translation>Rigidez:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1310"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1272"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balances local shape preservation against the free-boundary solve. Higher biases toward preserving the boundary shape; lower toward local rigidity.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Equilibra la preservación de la forma local frente a la resolución de contorno libre. Más alto favorece preservar la forma del contorno; más bajo favorece la rigidez local.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1339"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1501"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1301"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1463"/>
         <source>Padding around packed UV islands</source>
         <translation>Relleno alrededor de las islas UV empaquetadas</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1412"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1374"/>
         <source>Iterations:</source>
         <translation>Iteraciones:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1419"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1381"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Maximum number of local/global energy-minimization passes. CGAL&apos;s own default is 50.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Número máximo de pasadas de minimización de energía local/global. El valor predeterminado de CGAL es 50.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1435"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1397"/>
         <source>Convergence Tolerance:</source>
         <translation>Tolerancia de convergencia:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1442"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1404"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Minimal energy difference between passes before the minimization loop exits early. CGAL&apos;s own default is 0.000001.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Diferencia de energía mínima entre pasadas antes de que el bucle de minimización termine anticipadamente. El valor predeterminado de CGAL es 0.000001.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1585"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1547"/>
         <source>Generate</source>
         <translation>Generar</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="345"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="547"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="755"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="307"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="509"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="717"/>
         <source>Seamless:</source>
         <translation>Seamless:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="534"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="496"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Duplicate vertices at the poles to avoid UV pinching/distortion&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Duplicar vértices en los polos para evitar pellizcos/distorsión UV&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="588"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="550"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the sphere&apos;s polar axis automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detectar automáticamente el eje polar de la esfera a partir de su geometría. Desmarque para introducir el eje manualmente a continuación.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="604"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="566"/>
         <source>Sphere Axis</source>
         <translation>Eje de la esfera</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="709"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="671"/>
         <source>Minor (V) Scale:</source>
         <translation>Escala menor (V):</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="716"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="678"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Manual V-axis multiplier to correct texture stretch for a thin-tube torus (tube radius much smaller than the ring radius)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Multiplicador manual del eje V para corregir el estiramiento de textura en un toroide de tubo delgado (radio del tubo mucho menor que el radio del anillo)&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="762"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="724"/>
         <source>Wrap both U and V continuously to avoid visible seams</source>
         <translation>Envolver tanto U como V de forma continua para evitar costuras visibles</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="796"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="758"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detect the torus&apos;s axis of revolution automatically from its geometry. Uncheck to enter the axis manually below.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Detectar automáticamente el eje de revolución del toroide a partir de su geometría. Desmarque para introducir el eje manualmente a continuación.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="812"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="774"/>
         <source>Torus Axis</source>
         <translation>Eje del toroide</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="894"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1100"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="856"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1062"/>
         <source>Angle Threshold (degrees):</source>
         <translation>Umbral angosto (de acuerdo):</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="901"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1107"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="863"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1069"/>
         <source>Face-angle difference above which a hard UV seam is cut</source>
         <translation>Diferencia de ángulo de cara por encima de la cual se corta una costura UV dura</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="917"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="879"/>
         <source>Distortion Weight:</source>
         <translation>Peso de la distorsión:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="924"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="886"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Balance between angle-preserving and area-preserving unwrapping&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Equilibrio entre desenvolvimiento que conserva ángulos y que conserva áreas&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="943"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="905"/>
         <source>Preserve Aspect Ratio:</source>
         <translation>Preserve Aspect Ratio:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="950"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="912"/>
         <source>Keep UV proportions matching the 3D geometry</source>
         <translation>Mantener las proporciones UV coincidentes con la geometría 3D</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="963"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1332"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1494"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="925"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1294"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1456"/>
         <source>Seam Padding:</source>
         <translation>Seam Padding:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="970"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="932"/>
         <source>Gap left around UV island edges to prevent texture bleeding</source>
         <translation>Espacio dejado alrededor de los bordes de las islas UV para evitar el sangrado de textura</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="989"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1123"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="951"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1085"/>
         <source>Enable Relaxation:</source>
         <translation>Habilitar la relajación:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="996"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1130"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="958"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1092"/>
         <source>Smooth UV islands after unwrapping to reduce stretching</source>
         <translation>Suavizar las islas UV después de desenvolver para reducir el estiramiento</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1006"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1140"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="968"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1102"/>
         <source>Relaxation Iterations:</source>
         <translation>Relajación Iteraciones:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1013"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1147"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="975"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1109"/>
         <source>How many relaxation passes to run</source>
         <translation>Cuántas pasadas de relajación ejecutar</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1029"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1239"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1358"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1520"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="991"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1201"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1320"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1482"/>
         <source>Enable Packing:</source>
         <translation>Enable Packing:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1036"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1246"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1365"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1527"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="998"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1208"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1327"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1489"/>
         <source>Automatically pack UV islands into 0-1 space</source>
         <translation>Empaquetar automáticamente las islas UV en el espacio 0-1</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1049"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1163"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1392"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1554"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1011"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1125"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1354"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1516"/>
         <source>Use Marked Seams:</source>
         <translation>Usar costuras marcadas:</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1056"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1170"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1399"/>
-        <location filename="../ui/UVGenerationDialog.ui" line="1561"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1018"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1132"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1361"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1523"/>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Force manually-marked edges (Mark Seams above) into the seam set, in addition to the automatic angle-threshold detection&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
         <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Forzar las aristas marcadas manualmente (Marcar costuras arriba) en el conjunto de costuras, además de la detección automática por umbral de ángulo&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
-        <location filename="../ui/UVGenerationDialog.ui" line="1073"/>
+        <location filename="../ui/UVGenerationDialog.ui" line="1035"/>
         <source>Hybrid method automatically selects the best UV mapping based on mesh analysis. No additional parameters required.</source>
         <translation>El método híbrido selecciona automáticamente el mejor mapeo UV basado en el análisis de malla. No se necesitan parámetros adicionales.</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="719"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="688"/>
         <source>All methods reset to default settings.</source>
         <translation>Todos los métodos restablecidos a los ajustes predeterminados.</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="769"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="738"/>
         <source>&lt;unknown mesh&gt;</source>
         <translation>&lt;malla desconocida&gt;</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="771"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="740"/>
         <source>%1: Edge %2</source>
         <translation>%1: arista %2</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="838"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="807"/>
         <source>Add at least one mesh to the list first.</source>
         <translation>Añada primero al menos una malla a la lista.</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="854"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="823"/>
         <source>Failed to generate UVs: %1</source>
         <translation>No se pudieron generar las UV: %1</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="868"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="837"/>
         <source>Generate UVs (%1)</source>
         <translation>Generar UV (%1)</translation>
     </message>
     <message>
-        <location filename="../src/UVGenerationDialog.cpp" line="874"/>
+        <location filename="../src/UVGenerationDialog.cpp" line="843"/>
         <source>UVs generated using %1 method.</source>
         <translation>UV generadas usando el método %1.</translation>
     </message>

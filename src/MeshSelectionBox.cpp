@@ -16,8 +16,13 @@
 #include <utility>
 
 MeshSelectionBox::MeshSelectionBox(ModelViewer* modelViewer, QWidget* parent)
+	: MeshSelectionBox(parent)
+{
+	setModelViewer(modelViewer);
+}
+
+MeshSelectionBox::MeshSelectionBox(QWidget* parent)
 	: QWidget(parent)
-	, _modelViewer(modelViewer)
 {
 	auto* row = new QHBoxLayout(this);
 	row->setContentsMargins(0, 0, 0, 0);
@@ -52,12 +57,17 @@ MeshSelectionBox::MeshSelectionBox(ModelViewer* modelViewer, QWidget* parent)
 	connect(_clearButton, &QPushButton::clicked, this, &MeshSelectionBox::clearSelection);
 	row->addWidget(_clearButton);
 
+	updateDisplay();
+}
+
+void MeshSelectionBox::setModelViewer(ModelViewer* modelViewer)
+{
+	_modelViewer = modelViewer;
 	if (_modelViewer && _modelViewer->getViewportWidget())
 	{
 		connect(_modelViewer->getViewportWidget(), &ViewportWidget::meshAboutToBeDeleted,
-			this, &MeshSelectionBox::onMeshAboutToBeDeleted);
+			this, &MeshSelectionBox::onMeshAboutToBeDeleted, Qt::UniqueConnection);
 	}
-	updateDisplay();
 }
 
 std::vector<int> MeshSelectionBox::meshIds() const
@@ -143,6 +153,27 @@ void MeshSelectionBox::setLabelText(const QString& text)
 QString MeshSelectionBox::emptyPlaceholder() const
 {
 	return _single ? tr("Select a mesh...") : tr("Select meshes...");
+}
+
+void MeshSelectionBox::addViewportSelection()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (!viewport)
+		return;
+	QVector<QUuid> merged = _uuids;
+	for (int id : _modelViewer->getSelectedIDs())
+	{
+		const QUuid uuid = viewport->getUuidByIndex(id);
+		if (uuid.isNull() || _excluded.contains(uuid) || merged.contains(uuid))
+			continue;
+		if (_single)
+			merged.clear(); // the picked mesh replaces the current one
+		merged.append(uuid);
+		if (_single)
+			break;
+	}
+	if (merged != _uuids)
+		setMeshUuids(merged);
 }
 
 void MeshSelectionBox::setFieldToolTip(const QString& text)

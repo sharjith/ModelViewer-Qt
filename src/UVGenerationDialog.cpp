@@ -18,16 +18,6 @@
 
 namespace
 {
-    bool listContainsUuid(QListWidget* list, const QUuid& uuid)
-    {
-        for (int i = 0; i < list->count(); ++i)
-        {
-            if (list->item(i)->data(Qt::UserRole).toUuid() == uuid)
-                return true;
-        }
-        return false;
-    }
-
     // Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
     // same helper as RtRenderDialog.cpp, redeclared locally per that file's own convention.
     QMdiArea* findMdiArea(QWidget* widget)
@@ -47,6 +37,10 @@ UVGenerationDialog::UVGenerationDialog(ModelViewer* modelViewer, QWidget* parent
     , ui(new Ui::UVGenerationDialog)
 {
     ui->setupUi(this);
+    // The mesh list is the shared selection box; its label keeps this dialog's own wording.
+    ui->meshSelectionBox->setModelViewer(_modelViewer);
+    ui->meshSelectionBox->setLabelText(tr("Meshes to generate UVs for:"));
+    connect(ui->meshSelectionBox, &MeshSelectionBox::meshUuidsChanged, this, &UVGenerationDialog::onMeshListChanged);
     setAttribute(Qt::WA_DeleteOnClose);
 
     // See ExplodedViewPanel's/ClippingPlanesEditor's identical connection -
@@ -59,10 +53,7 @@ UVGenerationDialog::UVGenerationDialog(ModelViewer* modelViewer, QWidget* parent
 
     setupConnections();
 
-    connect(ui->addSelectedButton, &QPushButton::clicked, this, &UVGenerationDialog::addCurrentTreeSelection);
-    connect(ui->removeSelectedButton, &QPushButton::clicked, this, &UVGenerationDialog::onRemoveSelectedClicked);
     connect(ui->generateButton, &QPushButton::clicked, this, &UVGenerationDialog::onGenerateClicked);
-    connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &UVGenerationDialog::onListSelectionChanged);
     connect(ui->resetDefaultsButton, &QPushButton::clicked, this, &UVGenerationDialog::onResetDefaultsClicked);
 
     connect(ui->markSeamsButton, &QPushButton::toggled, this, &UVGenerationDialog::onMarkSeamsToggled);
@@ -188,7 +179,7 @@ void UVGenerationDialog::adjustDialogSize()
 
     // Calculate required height
     // Base height includes: mesh list + seams groupbox + method groupbox + generate button + margins
-    int baseHeight = ui->meshList->sizeHint().height()
+    int baseHeight = ui->meshSelectionBox->sizeHint().height()
         + ui->groupBox_Seams->sizeHint().height()
         + ui->groupBox_Method->sizeHint().height()
         + ui->generateButton->sizeHint().height()
@@ -676,37 +667,15 @@ void UVGenerationDialog::reject()
     QDialog::reject();
 }
 
+void UVGenerationDialog::onMeshListChanged()
+{
+    // The list of meshes changed (added, removed or cleared through the selection box).
+    updateGenerateButtonEnabled();
+}
+
 void UVGenerationDialog::addCurrentTreeSelection()
 {
-    SceneTreeWidget* tree = _modelViewer->getTreeModel();
-    if (!tree || !tree->hasMeshSelection())
-        return;
-
-    ViewportWidget* viewport = _modelViewer->getViewportWidget();
-    for (const QUuid& uuid : tree->selectedMeshUuids())
-    {
-        if (listContainsUuid(ui->meshList, uuid))
-            continue;
-        SceneMesh* mesh = viewport ? viewport->getMeshByUuid(uuid) : nullptr;
-        if (!mesh)
-            continue;
-
-        QListWidgetItem* item = new QListWidgetItem(mesh->getName(), ui->meshList);
-        item->setData(Qt::UserRole, uuid);
-    }
-
-    updateGenerateButtonEnabled();
-}
-
-void UVGenerationDialog::onRemoveSelectedClicked()
-{
-    qDeleteAll(ui->meshList->selectedItems());
-    updateGenerateButtonEnabled();
-}
-
-void UVGenerationDialog::onListSelectionChanged()
-{
-    ui->removeSelectedButton->setEnabled(!ui->meshList->selectedItems().isEmpty());
+    ui->meshSelectionBox->addViewportSelection();
 }
 
 void UVGenerationDialog::onResetDefaultsClicked()
@@ -794,7 +763,7 @@ void UVGenerationDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow
 
 void UVGenerationDialog::updateGenerateButtonEnabled()
 {
-    ui->generateButton->setEnabled(ui->meshList->count() > 0);
+    ui->generateButton->setEnabled(!ui->meshSelectionBox->isEmpty());
 }
 
 void UVGenerationDialog::onGenerateClicked()
@@ -816,10 +785,10 @@ void UVGenerationDialog::onGenerateClicked()
         std::vector<unsigned int> beforeIndices;
     };
     std::vector<Target> targets;
-    targets.reserve(ui->meshList->count());
-    for (int i = 0; i < ui->meshList->count(); ++i)
+    targets.reserve(ui->meshSelectionBox->meshUuids().size());
+    for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
     {
-        const QUuid uuid = ui->meshList->item(i)->data(Qt::UserRole).toUuid();
+        const QUuid uuid = listedUuid;
         const int id = viewport->getIndexByUuid(uuid);
         SceneMesh* mesh = viewport->getMeshByUuid(uuid);
         if (id < 0 || !mesh)

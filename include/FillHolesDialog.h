@@ -53,10 +53,8 @@ public:
 	explicit FillHolesDialog(ModelViewer* modelViewer, QWidget* parent = nullptr);
 	~FillHolesDialog();
 
-	// Adds whatever's currently selected in the tree to the working list (same logic the Add
-	// Selected button runs) - public so ModelViewer::openFillHolesDialog() can seed the list
-	// immediately with an existing tree selection when the dialog is (re)opened. Mirrors
-	// RepairMeshDialog::addCurrentTreeSelection() exactly.
+	// Adds the viewer's current selection to the mesh list (the selection box) - public so
+	// ModelViewer can seed the list when the dialog is (re)opened.
 	void addCurrentTreeSelection();
 
 protected:
@@ -68,9 +66,8 @@ protected:
 	void reject() override;
 
 private slots:
-	void onRemoveSelectedClicked();
+	void onMeshListChanged();
 	void onGenerateClicked();
-	void onListSelectionChanged();
 	void onHolesListSelectionChanged();
 	void onHolesListItemChanged(QListWidgetItem* item);
 	void onSelectAllHolesClicked();
@@ -87,7 +84,7 @@ private:
 	// would otherwise be a silent no-op with nothing checked.
 	void updateActionButtonsEnabled();
 
-	// Re-detects holes for every mesh currently in meshList and repopulates holesList - called
+	// Re-detects holes for every mesh currently in the mesh list and repopulates holesList - called
 	// whenever the mesh list changes (add/remove). Each row's Qt::UserRole holds the owning
 	// mesh's QUuid, Qt::UserRole + 1 holds its DetectedHole::loopId (see SceneMesh.h) - together
 	// they identify the hole for both the checked-set fillHoles() needs and the highlight

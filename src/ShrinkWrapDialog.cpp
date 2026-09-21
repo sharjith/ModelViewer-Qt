@@ -22,16 +22,6 @@
 
 namespace
 {
-	bool listContainsUuid(QListWidget* list, const QUuid& uuid)
-	{
-		for (int i = 0; i < list->count(); ++i)
-		{
-			if (list->item(i)->data(Qt::UserRole).toUuid() == uuid)
-				return true;
-		}
-		return false;
-	}
-
 	// Walks up the parent chain from a widget inside the MDI area to find the QMdiArea itself -
 	// same helper as RtRenderDialog.cpp, redeclared locally per that file's own convention.
 	QMdiArea* findMdiArea(QWidget* widget)
@@ -71,13 +61,14 @@ ShrinkWrapDialog::ShrinkWrapDialog(ModelViewer* modelViewer, QWidget* parent)
 	, ui(std::make_unique<Ui::ShrinkWrapDialog>())
 {
 	ui->setupUi(this);
+	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
+	ui->meshSelectionBox->setModelViewer(_modelViewer);
+	ui->meshSelectionBox->setLabelText(tr("Meshes to wrap:"));
+	connect(ui->meshSelectionBox, &MeshSelectionBox::meshUuidsChanged, this, &ShrinkWrapDialog::onMeshListChanged);
 	setAttribute(Qt::WA_DeleteOnClose);
 
-	connect(ui->addSelectedButton, &QPushButton::clicked, this, &ShrinkWrapDialog::addCurrentTreeSelection);
-	connect(ui->removeSelectedButton, &QPushButton::clicked, this, &ShrinkWrapDialog::onRemoveSelectedClicked);
 	connect(ui->resetToleranceButton, &QPushButton::clicked, this, &ShrinkWrapDialog::onResetToleranceClicked);
 	connect(ui->generateButton, &QPushButton::clicked, this, &ShrinkWrapDialog::onGenerateClicked);
-	connect(ui->meshList, &QListWidget::itemSelectionChanged, this, &ShrinkWrapDialog::onListSelectionChanged);
 
 	if (_modelViewer->sceneGraph())
 		_nextWrapIndex = highestExistingWrapIndex(_modelViewer->sceneGraph()->root()) + 1;
@@ -108,46 +99,24 @@ void ShrinkWrapDialog::onActiveSubWindowChanged(QMdiSubWindow* activeSubWindow)
 	setVisible(isOwnDocumentActive);
 }
 
+void ShrinkWrapDialog::onMeshListChanged()
+{
+	// The list of meshes changed (added, removed or cleared through the selection box).
+	const bool hasMeshes = !ui->meshSelectionBox->isEmpty();
+	if (!_hadMeshes && hasMeshes)
+		refreshSuggestedTolerance();
+	_hadMeshes = hasMeshes;
+	updateActionButtonsEnabled();
+}
+
 void ShrinkWrapDialog::addCurrentTreeSelection()
 {
-	SceneTreeWidget* tree = _modelViewer->getTreeModel();
-	if (!tree || !tree->hasMeshSelection())
-		return;
-
-	const bool wasEmpty = (ui->meshList->count() == 0);
-
-	ViewportWidget* viewport = _modelViewer->getViewportWidget();
-	for (const QUuid& uuid : tree->selectedMeshUuids())
-	{
-		if (listContainsUuid(ui->meshList, uuid))
-			continue;
-		SceneMesh* mesh = viewport ? viewport->getMeshByUuid(uuid) : nullptr;
-		if (!mesh)
-			continue;
-
-		QListWidgetItem* item = new QListWidgetItem(mesh->getName(), ui->meshList);
-		item->setData(Qt::UserRole, uuid);
-	}
-
-	if (wasEmpty && ui->meshList->count() > 0)
-		refreshSuggestedTolerance();
-	updateActionButtonsEnabled();
-}
-
-void ShrinkWrapDialog::onRemoveSelectedClicked()
-{
-	qDeleteAll(ui->meshList->selectedItems());
-	updateActionButtonsEnabled();
-}
-
-void ShrinkWrapDialog::onListSelectionChanged()
-{
-	ui->removeSelectedButton->setEnabled(!ui->meshList->selectedItems().isEmpty());
+	ui->meshSelectionBox->addViewportSelection();
 }
 
 void ShrinkWrapDialog::updateActionButtonsEnabled()
 {
-	const bool hasMeshes = ui->meshList->count() > 0;
+	const bool hasMeshes = !ui->meshSelectionBox->isEmpty();
 	ui->generateButton->setEnabled(hasMeshes);
 	ui->resetToleranceButton->setEnabled(hasMeshes);
 }
@@ -164,9 +133,9 @@ void ShrinkWrapDialog::refreshSuggestedTolerance()
 		return;
 
 	QVector<SceneMesh*> meshes;
-	for (int i = 0; i < ui->meshList->count(); ++i)
+	for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
 	{
-		SceneMesh* mesh = viewport->getMeshByUuid(ui->meshList->item(i)->data(Qt::UserRole).toUuid());
+		SceneMesh* mesh = viewport->getMeshByUuid(listedUuid);
 		if (mesh)
 			meshes.append(mesh);
 	}
@@ -193,9 +162,9 @@ void ShrinkWrapDialog::onGenerateClicked()
 		return;
 
 	QVector<SceneMesh*> meshes;
-	for (int i = 0; i < ui->meshList->count(); ++i)
+	for (const QUuid& listedUuid : ui->meshSelectionBox->meshUuids())
 	{
-		SceneMesh* mesh = viewport->getMeshByUuid(ui->meshList->item(i)->data(Qt::UserRole).toUuid());
+		SceneMesh* mesh = viewport->getMeshByUuid(listedUuid);
 		if (mesh)
 			meshes.append(mesh);
 	}
