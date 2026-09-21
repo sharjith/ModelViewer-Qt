@@ -486,7 +486,18 @@ QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor,
 	float value = 0.0f;
 	AnalysisKind kind = AnalysisKind::Curvature;
 	if (!_overlay.scalarAt(mesh, anchor.triangleIndex, anchor.barycentric, value, kind))
+	{
+		// No value here. For wall thickness say why (the gap is a measurement outcome, not a rendering fault).
+		AnalysisKind overlayKind;
+		if (_overlay.kindOf(mesh, overlayKind) && overlayKind == AnalysisKind::WallThickness)
+		{
+			const QString text = thicknessNoValueText(mesh, anchor);
+			if (!text.isEmpty())
+				outTextColor = Qt::white;
+			return text;
+		}
 		return QString();
+	}
 	if (kind == AnalysisKind::WallThickness)
 		logThicknessWitness(mesh, anchor, value);
 
@@ -525,42 +536,96 @@ QString SurfaceAnalysisDialog::hoverReadoutText(const MeshSurfaceAnchor& anchor,
 	return QString();
 }
 
+const WallThicknessWitness* SurfaceAnalysisDialog::thicknessWitnessAt(SceneMesh* mesh, const MeshSurfaceAnchor& anchor,
+                                                                      int& outGrid, int& outSample, float& outToMm) const
+{
+	const auto it = _thicknessWitness.constFind(mesh);
+	if (it == _thicknessWitness.constEnd() || anchor.triangleIndex < 0)
+		return nullptr;
+	const ThicknessWitnessSet& set = it.value();
+	const size_t triangle = static_cast<size_t>(anchor.triangleIndex);
+	if (triangle >= set.gridN.size() || triangle >= set.offset.size() || set.gridN[triangle] == 0)
+		return nullptr;
+	outGrid = set.gridN[triangle];
+	outSample = SubTriangleGrid::indexAt(outGrid, anchor.barycentric.y(), anchor.barycentric.z());
+	const size_t index = static_cast<size_t>(set.offset[triangle]) + static_cast<size_t>(outSample);
+	if (index >= set.witness.size())
+		return nullptr;
+	outToMm = set.toMm;
+	return &set.witness[index];
+}
+
+QString SurfaceAnalysisDialog::thicknessStatusText(WallThicknessSampleStatus status)
+{
+	switch (status)
+	{
+	case WallThicknessSampleStatus::NoHit:
+		return tr("no wall found behind the surface");
+	case WallThicknessSampleStatus::OtherSolid:
+		return tr("the wall behind belongs to a different body");
+	case WallThicknessSampleStatus::EnteringFace:
+		return tr("the ray meets a surface from outside (touching or overlapping bodies)");
+	case WallThicknessSampleStatus::GlancingExit:
+		return tr("the wall behind is too steep to measure straight through");
+	case WallThicknessSampleStatus::DegenerateHit:
+		return tr("the wall behind is a degenerate triangle");
+	case WallThicknessSampleStatus::Valid:
+		break;
+	}
+	return QString();
+}
+
+QString SurfaceAnalysisDialog::thicknessNoValueText(SceneMesh* mesh, const MeshSurfaceAnchor& anchor) const
+{
+	int grid = 0, sample = 0;
+	float toMm = 1.0f;
+	const WallThicknessWitness* w = thicknessWitnessAt(mesh, anchor, grid, sample, toMm);
+	if (!w || w->status == WallThicknessSampleStatus::Valid)
+		return QString();
+	logThicknessWitness(mesh, anchor, std::numeric_limits<float>::quiet_NaN());
+	return tr("No value: %1").arg(thicknessStatusText(w->status));
+}
+
 void SurfaceAnalysisDialog::logThicknessWitness(SceneMesh* mesh, const MeshSurfaceAnchor& anchor, float valueMm) const
 {
 	// Writes the ray behind the hovered sub-triangle's value to the log - once per sample, not once per mouse move -
 	// so a value that looks wrong can be checked against the geometry: where the ray started, where it left the
-	// material, how far it went and at what angle.
-	const auto it = _thicknessWitness.constFind(mesh);
-	if (it == _thicknessWitness.constEnd())
+	// material, how far it went and at what angle. For a sample without a value (valueMm is NaN) it logs the axis ray
+	// and why it was ruled out.
+	int n = 0, sample = 0;
+	float toMm = 1.0f;
+	const WallThicknessWitness* witness = thicknessWitnessAt(mesh, anchor, n, sample, toMm);
+	if (!witness)
 		return;
-	const ThicknessWitnessSet& set = it.value();
-	const size_t triangle = static_cast<size_t>(anchor.triangleIndex);
-	if (triangle >= set.gridN.size() || triangle >= set.offset.size() || set.gridN[triangle] == 0)
-		return;
-	const int n = set.gridN[triangle];
-	const int sample = SubTriangleGrid::indexAt(n, anchor.barycentric.y(), anchor.barycentric.z());
 	if (mesh == _lastLoggedThicknessMesh && anchor.triangleIndex == _lastLoggedThicknessTriangle && sample == _lastLoggedThicknessSample)
 		return;
 	_lastLoggedThicknessMesh = mesh;
 	_lastLoggedThicknessTriangle = anchor.triangleIndex;
 	_lastLoggedThicknessSample = sample;
 
-	const size_t index = static_cast<size_t>(set.offset[triangle]) + static_cast<size_t>(sample);
-	if (index >= set.witness.size())
-		return;
-	const WallThicknessWitness& w = set.witness[index];
-	if (w.hitTriangle < 0)
-		return;
+	const WallThicknessWitness& w = *witness;
+	const double lengthMm = static_cast<double>(w.distance) * toMm;
+	const QString origin = QStringLiteral("(%1, %2, %3)").arg(w.origin[0], 0, 'g', 7).arg(w.origin[1], 0, 'g', 7).arg(w.origin[2], 0, 'g', 7);
+	const QString hitPoint = w.hitTriangle >= 0
+		? QStringLiteral("(%1, %2, %3)").arg(w.hit[0], 0, 'g', 7).arg(w.hit[1], 0, 'g', 7).arg(w.hit[2], 0, 'g', 7)
+		: QStringLiteral("none");
 
-	const double lengthMm = static_cast<double>(w.distance) * set.toMm;
+	if (std::isnan(valueMm))
+	{
+		qInfo().noquote() << QStringLiteral("[WallThickness] '%1' triangle %2 (%3x%3 samples), sample %4: NO VALUE - %5 | axis ray from %6, "
+			"last wall met: point %7 at %8 mm, triangle %9, facing %10 | points in model units, lengths in mm")
+			.arg(mesh->getName()).arg(anchor.triangleIndex).arg(n).arg(sample)
+			.arg(thicknessStatusText(w.status)).arg(origin).arg(hitPoint).arg(lengthMm, 0, 'f', 3)
+			.arg(w.hitTriangle).arg(w.facing, 0, 'f', 3);
+		return;
+	}
+
 	qInfo().noquote() << QStringLiteral("[WallThickness] '%1' triangle %2 (%3x%3 samples), sample %4: %5 mm | ray angle %6 deg, "
-		"length %7 mm, from (%8, %9, %10) to (%11, %12, %13), leaves through triangle %14 | length / cos(angle) = %15 mm "
+		"length %7 mm, from %8 to %9, leaves through triangle %10 (facing %11) | length / cos(angle) = %12 mm "
 		"| points in model units, lengths in mm")
 		.arg(mesh->getName()).arg(anchor.triangleIndex).arg(n).arg(sample)
 		.arg(valueMm, 0, 'f', 3).arg(w.angleDegrees, 0, 'f', 1).arg(lengthMm, 0, 'f', 3)
-		.arg(w.origin[0], 0, 'g', 7).arg(w.origin[1], 0, 'g', 7).arg(w.origin[2], 0, 'g', 7)
-		.arg(w.hit[0], 0, 'g', 7).arg(w.hit[1], 0, 'g', 7).arg(w.hit[2], 0, 'g', 7)
-		.arg(w.hitTriangle)
+		.arg(origin).arg(hitPoint).arg(w.hitTriangle).arg(w.facing, 0, 'f', 3)
 		.arg(lengthMm / std::max(1.0e-6, std::cos(static_cast<double>(w.angleDegrees) * 3.14159265358979323846 / 180.0)), 0, 'f', 3);
 }
 

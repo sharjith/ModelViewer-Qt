@@ -258,7 +258,17 @@ private:
 	mutable SceneMesh* _lastLoggedThicknessMesh = nullptr;
 	mutable int _lastLoggedThicknessTriangle = -1;
 	mutable int _lastLoggedThicknessSample = -1;
+	// The witness of the sub-triangle sample under `anchor` (null if this mesh has none), with that sample's grid
+	// resolution, index and the mesh-units -> mm factor.
+	const WallThicknessWitness* thicknessWitnessAt(SceneMesh* mesh, const MeshSurfaceAnchor& anchor,
+	                                               int& outGrid, int& outSample, float& outToMm) const;
+	// Writes the ray behind the hovered sample to the log (once per sample). valueMm is NaN for a sample without
+	// a value, which is then logged with the reason instead.
 	void logThicknessWitness(SceneMesh* mesh, const MeshSurfaceAnchor& anchor, float valueMm) const;
+	// Hover text for a sample that has no value - the reason, so a gap in the display explains itself. Empty if
+	// the sample has a value or the mesh has no witness data.
+	QString thicknessNoValueText(SceneMesh* mesh, const MeshSurfaceAnchor& anchor) const;
+	static QString thicknessStatusText(WallThicknessSampleStatus status);
 
 	// Deviation page
 	QComboBox* _referenceMeshCombo = nullptr;

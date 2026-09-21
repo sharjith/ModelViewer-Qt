@@ -22,6 +22,8 @@
 #include <thread>
 #include <variant>
 
+#include <QDebug>
+
 namespace
 {
 	using WtKernel = CGAL::Exact_predicates_inexact_constructions_kernel;
@@ -106,6 +108,7 @@ namespace
 			double oa[3]{}, ob[3]{}, oc[3]{};   // ORIGINAL-order vertices (define the sample grid)
 			double n[3]{};                      // outward unit normal
 			double area = 0.0;
+			double longestEdge = 0.0;
 			bool ok = false;
 		};
 
@@ -155,6 +158,9 @@ namespace
 			{
 				g.n[0] = nx / len; g.n[1] = ny / len; g.n[2] = nz / len;
 				g.area = 0.5 * len;
+				const double e3[3] = { g.c[0] - g.b[0], g.c[1] - g.b[1], g.c[2] - g.b[2] };
+				g.longestEdge = std::sqrt(std::max({ e1[0] * e1[0] + e1[1] * e1[1] + e1[2] * e1[2],
+					e2[0] * e2[0] + e2[1] * e2[1] + e2[2] * e2[2], e3[0] * e3[0] + e3[1] * e3[1] + e3[2] * e3[2] }));
 				g.ok = true;
 			}
 
@@ -182,15 +188,21 @@ namespace
 		double spacing = diag / static_cast<double>(std::max(1, params.samplesAcrossBoundingBox));
 		if (!(spacing > 0.0) || !std::isfinite(spacing))
 			spacing = 1.0;
-		constexpr int kMaxSubdivisions = 8;
+		constexpr int kMaxSubdivisions = 12;
 		std::vector<int> subdivisions(faceCount, 1);
 		for (int attempt = 0; attempt < 8; ++attempt)
 		{
 			size_t total = 0;
 			for (size_t i = 0; i < faceCount; ++i)
 			{
+				// The triangle's size for sampling purposes: the geometric mean of its "equivalent side"
+				// (sqrt(2 * area)) and its longest edge. Area alone under-samples a long thin CAD triangle along its
+				// length (its cells stay long slivers, which shows as sawtooth edges wherever the value changes);
+				// the longest edge alone would over-sample it across its width. For a well-shaped triangle the two
+				// agree, so nothing changes there.
+				const double size = geom[i].ok ? std::sqrt(std::sqrt(2.0 * geom[i].area) * geom[i].longestEdge) : 0.0;
 				const int n = geom[i].ok
-					? std::clamp(static_cast<int>(std::ceil(std::sqrt(2.0 * geom[i].area) / spacing)), 1, kMaxSubdivisions)
+					? std::clamp(static_cast<int>(std::ceil(size / spacing)), 1, kMaxSubdivisions)
 					: 1;
 				subdivisions[i] = n;
 				total += static_cast<size_t>(n) * static_cast<size_t>(n);
@@ -247,6 +259,8 @@ namespace
 
 		const double minAlignment = params.minExitAlignment;
 		std::vector<unsigned char> validFlags(faceCount, 0);
+		// How many hits along one ray may be stepped over before the sample is given up on.
+		constexpr int kMaxHitWalk = 8;
 
 		const auto processFace = [&](size_t i)
 		{
@@ -270,6 +284,9 @@ namespace
 			for (double& v : t) v /= tLen;
 			const double b[3] = { in[1] * t[2] - in[2] * t[1], in[2] * t[0] - in[0] * t[2], in[0] * t[1] - in[1] * t[0] };
 
+			std::vector<FaceDescriptor> skipped; // faces the current ray must not report (reused across rays)
+			skipped.reserve(kMaxHitWalk + 1);
+
 			const int n = subdivisions[i];
 			float* sampleValues = out.samples.values.data() + sampleBase[i];
 			WallThicknessWitness* sampleWitnesses = out.sampleWitness.data() + sampleBase[i];
@@ -286,34 +303,89 @@ namespace
 				double sampleMin = 0.0;
 				bool sampleValid = false;
 				WallThicknessWitness sampleWitness;
-				for (const ConeRay& cr : cone)
+				WallThicknessWitness axisOutcome; // the axis ray's outcome - what a sample with no value reports
+				for (size_t rayIndex = 0; rayIndex < cone.size(); ++rayIndex)
 				{
+					const ConeRay& cr = cone[rayIndex];
 					const double d[3] = {
 						t[0] * cr.x + b[0] * cr.y + in[0] * cr.z,
 						t[1] * cr.x + b[1] * cr.y + in[1] * cr.z,
 						t[2] * cr.x + b[2] * cr.y + in[2] * cr.z };
 					const WtRay3 ray(WtPoint3(origin[0], origin[1], origin[2]), WtKernel::Vector_3(d[0], d[1], d[2]));
 
-					// Nearest hit, never the origin face itself (the origin lies strictly inside it).
-					const auto hit = tree.first_intersection(ray, [self](const FaceDescriptor& id) { return id == self; });
-					if (!hit)
-						continue;
-					double hitPoint[3] = { 0, 0, 0 };
-					double distance = 0.0;
-					if (!hitPointFrom(hit->first, origin, hitPoint, distance))
-						continue;
+					WallThicknessWitness outcome;
+					for (int axis = 0; axis < 3; ++axis)
+						outcome.origin[axis] = static_cast<float>(origin[axis]);
+					outcome.angleDegrees = static_cast<float>(std::acos(std::clamp(cr.z, -1.0, 1.0)) * 180.0 / pi);
 
-					const FaceDescriptor hitFace = hit->second;
-					if (volumeIds[hitFace] != ownVolume)
-						continue; // a different solid region (a separate body sharing this mesh)
-					const size_t hitIndex = static_cast<size_t>(hitFace.idx());
-					const FaceGeom& hg = geom[hitIndex];
-					if (!hg.ok)
-						continue;
-					// The ray must EXIT the material through a wall that faces back at the surface.
-					const double leaving = hg.n[0] * d[0] + hg.n[1] * d[1] + hg.n[2] * d[2];
-					const double facingBack = hg.n[0] * in[0] + hg.n[1] * in[1] + hg.n[2] * in[2];
-					if (leaving <= 0.0 || facingBack < minAlignment)
+					// Walk the hits along the ray from the nearest outwards, never the origin face itself (the origin
+					// lies strictly inside it). A hit that cannot be the wall behind - another body, a face met from
+					// outside (touching/overlapping bodies put such faces exactly on top of the true wall, and which
+					// of the coincident pair is "nearest" is arbitrary), a degenerate triangle - is stepped over.
+					// The first genuine EXIT ends the walk: accepted if it is a wall facing back at the surface,
+					// otherwise the ray has left the material through an edge or a steep wall and has no value.
+					skipped.clear();
+					skipped.push_back(self);
+					bool accepted = false;
+					double distance = 0.0;
+					for (int step = 0; step < kMaxHitWalk; ++step)
+					{
+						const auto hit = tree.first_intersection(ray, [&skipped](const FaceDescriptor& id)
+						{
+							return std::find(skipped.begin(), skipped.end(), id) != skipped.end();
+						});
+						if (!hit)
+							break; // outcome keeps the reason of whatever was stepped over (NoHit if nothing was)
+						double hitPoint[3] = { 0, 0, 0 };
+						if (!hitPointFrom(hit->first, origin, hitPoint, distance))
+							break;
+
+						const FaceDescriptor hitFace = hit->second;
+						const size_t hitIndex = static_cast<size_t>(hitFace.idx());
+						const FaceGeom& hg = geom[hitIndex];
+						const double leaving = hg.n[0] * d[0] + hg.n[1] * d[1] + hg.n[2] * d[2];
+						const double facingBack = hg.n[0] * in[0] + hg.n[1] * in[1] + hg.n[2] * in[2];
+
+						const auto record = [&](WallThicknessSampleStatus status)
+						{
+							outcome.status = status;
+							for (int axis = 0; axis < 3; ++axis)
+								outcome.hit[axis] = static_cast<float>(hitPoint[axis]);
+							outcome.distance = static_cast<float>(distance);
+							outcome.facing = static_cast<float>(facingBack);
+							outcome.hitTriangle = hitIndex < origFaceIndex.size() ? static_cast<int>(origFaceIndex[hitIndex]) : -1;
+						};
+
+						if (volumeIds[hitFace] != ownVolume)
+						{
+							record(WallThicknessSampleStatus::OtherSolid);
+							skipped.push_back(hitFace);
+							continue;
+						}
+						if (!hg.ok)
+						{
+							record(WallThicknessSampleStatus::DegenerateHit);
+							skipped.push_back(hitFace);
+							continue;
+						}
+						if (leaving <= 0.0)
+						{
+							record(WallThicknessSampleStatus::EnteringFace);
+							skipped.push_back(hitFace);
+							continue;
+						}
+						if (facingBack < minAlignment)
+						{
+							record(WallThicknessSampleStatus::GlancingExit);
+							break;
+						}
+						record(WallThicknessSampleStatus::Valid);
+						accepted = true;
+						break;
+					}
+					if (rayIndex == 0)
+						axisOutcome = outcome;
+					if (!accepted)
 						continue;
 
 					// The largest sphere TANGENT to the surface at this sample that a wall point at `distance`
@@ -328,20 +400,13 @@ namespace
 					{
 						sampleMin = diameter;
 						sampleValid = true;
-						for (int axis = 0; axis < 3; ++axis)
-						{
-							sampleWitness.origin[axis] = static_cast<float>(origin[axis]);
-							sampleWitness.hit[axis] = static_cast<float>(hitPoint[axis]);
-						}
-						sampleWitness.angleDegrees = static_cast<float>(std::acos(std::clamp(cr.z, -1.0, 1.0)) * 180.0 / pi);
-						sampleWitness.distance = static_cast<float>(distance);
-						sampleWitness.hitTriangle = hitIndex < origFaceIndex.size() ? static_cast<int>(origFaceIndex[hitIndex]) : -1;
+						sampleWitness = outcome;
 					}
 				}
+				sampleWitnesses[sampleIndex] = sampleValid ? sampleWitness : axisOutcome;
 				if (!sampleValid)
 					return;
 				sampleValues[sampleIndex] = static_cast<float>(sampleMin);
-				sampleWitnesses[sampleIndex] = sampleWitness;
 				if (!faceValid || sampleMin < faceMin)
 				{
 					faceMin = sampleMin;
@@ -386,6 +451,21 @@ namespace
 		out.valid.assign(origFaceCount, false);
 		for (size_t i = 0; i < faceCount; ++i)
 			out.valid[origFaceIndex[i]] = validFlags[i] != 0;
+
+		// One line saying how the samples fared - the quickest way to see whether gaps in the display are a few
+		// stray samples or a systematic problem, and why.
+		size_t statusCount[6] = { 0, 0, 0, 0, 0, 0 };
+		for (size_t k2 = 0; k2 < out.samples.values.size(); ++k2)
+		{
+			if (!std::isnan(out.samples.values[k2]))
+				++statusCount[0];
+			else
+				++statusCount[std::min<size_t>(5, static_cast<size_t>(out.sampleWitness[k2].status))];
+		}
+		qInfo().noquote() << QStringLiteral("[WallThickness] %1 samples on %2 triangles (spread %3 deg): %4 valid, no value: %5 no wall found, "
+			"%6 other body, %7 entering face, %8 steep/edge-on wall, %9 degenerate wall")
+			.arg(totalSamples).arg(faceCount).arg(coneDegrees, 0, 'f', 0)
+			.arg(statusCount[0]).arg(statusCount[1]).arg(statusCount[2]).arg(statusCount[3]).arg(statusCount[4]).arg(statusCount[5]);
 		return true;
 	}
 }

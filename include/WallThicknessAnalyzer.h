@@ -75,17 +75,31 @@ struct WallThicknessParams
 	double minExitAlignment = 0.5;
 };
 
-// The ray that produced one sample's value - "where was this measured" - in the same (world-space) units as the
-// mesh points. angleDegrees is the ray's angle from the inward normal, distance the length from origin to hit; the
-// sample's reported value is distance / cos(angle). hitTriangle is the triangle (index into the mesh's own index
-// buffer) the ray exited through, -1 if the sample has no value.
+// How a sample's ray(s) ended - Valid, or why the sample has no value.
+enum class WallThicknessSampleStatus : unsigned char
+{
+	Valid = 0,
+	NoHit,          // the ray met nothing (or nothing usable) behind the surface
+	OtherSolid,     // every hit belonged to a different solid body of the mesh
+	EnteringFace,   // the ray met a surface from outside (overlapping / touching bodies)
+	GlancingExit,   // the ray leaves through a wall too steep to measure straight through (edge, curved wall)
+	DegenerateHit   // the wall behind is a degenerate triangle
+};
+
+// The ray behind one sample - "where was this measured" - in the same (world-space) units as the mesh points.
+// For a valid sample it is the ray that produced the value (the value is distance / cos(angleDegrees)); for a sample
+// without a value it is the axis ray and the last hit that ruled it out, which is what explains the gap.
+// hitTriangle is the triangle (index into the mesh's own index buffer) that was hit, -1 if none. facing is the dot
+// product of the hit wall's outward normal and the inward direction (1 = wall squarely behind, 0 = edge-on).
 struct WallThicknessWitness
 {
 	float origin[3] = { 0, 0, 0 };
 	float hit[3] = { 0, 0, 0 };
 	float angleDegrees = 0.0f;
 	float distance = 0.0f;
+	float facing = 0.0f;
 	int hitTriangle = -1;
+	WallThicknessSampleStatus status = WallThicknessSampleStatus::NoHit;
 };
 
 struct WallThicknessResult
@@ -98,8 +112,8 @@ struct WallThicknessResult
 	// display can show where within a large triangle the thickness changes instead of one colour per triangle.
 	// thicknessPerFace[t] is the minimum of triangle t's samples.
 	SubTriangleField samples;
-	// LocalThickness only: for each entry of samples.values, the ray that produced it (same indexing). Empty for
-	// NormalRay.
+	// LocalThickness only: for each entry of samples.values, the ray behind it (same indexing) - for a sample
+	// without a value, the ray that ruled it out and why. Empty for NormalRay.
 	std::vector<WallThicknessWitness> sampleWitness;
 	// Non-empty only when the whole mesh was rejected (succeeded == false) -
 	// the specific reason (open boundary / self-intersecting / unresolved
