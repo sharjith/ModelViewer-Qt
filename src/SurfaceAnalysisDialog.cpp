@@ -16,6 +16,9 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QToolButton>
+#include <QFrame>
+#include <QStyle>
+#include <QScreen>
 #include <QButtonGroup>
 #include <QStackedWidget>
 #include <QLabel>
@@ -107,6 +110,52 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	// ---- Mode-specific pages ----------------------------------------------
 	_stack = new QStackedWidget(this);
 
+	// The long explanations live behind a small info button (a click-away popup) instead of taking up
+	// dialog space permanently.
+	const auto makeInfoButton = [this](QWidget* parent, const QString& text) -> QToolButton*
+	{
+		auto* button = new QToolButton(parent);
+		button->setIcon(style()->standardIcon(QStyle::SP_MessageBoxInformation));
+		button->setAutoRaise(true);
+		button->setCursor(Qt::PointingHandCursor);
+		button->setToolTip(tr("What does this show?"));
+		connect(button, &QToolButton::clicked, button, [button, text]()
+		{
+			auto* popup = new QFrame(button->window(), Qt::Popup);
+			popup->setAttribute(Qt::WA_DeleteOnClose);
+			popup->setFrameShape(QFrame::StyledPanel);
+			auto* popupLayout = new QVBoxLayout(popup);
+			auto* label = new QLabel(text, popup);
+			label->setWordWrap(true);
+			label->setFixedWidth(380);
+			popupLayout->addWidget(label);
+			popup->adjustSize();
+			// Right edge aligned with the button, kept on the screen.
+			QPoint pos = button->mapToGlobal(QPoint(button->width() - popup->width(), button->height()));
+			if (const QScreen* screen = button->screen())
+			{
+				const QRect available = screen->availableGeometry();
+				pos.setX(std::clamp(pos.x(), available.left(), std::max(available.left(), available.right() - popup->width())));
+				pos.setY(std::clamp(pos.y(), available.top(), std::max(available.top(), available.bottom() - popup->height())));
+			}
+			popup->move(pos);
+			popup->show();
+		});
+		return button;
+	};
+	const auto makeSectionHeader = [&makeInfoButton](QWidget* parent, const QString& title, const QString& help) -> QHBoxLayout*
+	{
+		auto* row = new QHBoxLayout();
+		auto* titleLabel = new QLabel(title, parent);
+		QFont titleFont = titleLabel->font();
+		titleFont.setBold(true);
+		titleLabel->setFont(titleFont);
+		row->addWidget(titleLabel);
+		row->addStretch(1);
+		row->addWidget(makeInfoButton(parent, help));
+		return row;
+	};
+
 	// Curvature page - two independent sub-modes sharing one panel: Zebra
 	// Stripe (a live view-dependent shader effect, no legend/color scale)
 	// and Mean Curvature (a fixed colormap, like Draft Angle/Deviation).
@@ -116,22 +165,21 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	{
 		auto* page = new QWidget();
 		auto* pageLayout = new QVBoxLayout(page);
-		auto* zebraNote = new QLabel(tr("Zebra Stripe reveals surface continuity as a live, view-dependent "
-		                                 "reflection pattern - no legend, since it isn't a fixed color scale."), page);
-		zebraNote->setWordWrap(true);
-		pageLayout->addWidget(zebraNote);
+		pageLayout->addLayout(makeSectionHeader(page, tr("Zebra Stripe"),
+			tr("Zebra Stripe reveals surface continuity as a live, view-dependent "
+			   "reflection pattern - no legend, since it isn't a fixed color scale.")));
 		_zebraStripeToggle = new QPushButton(tr("Zebra Stripe"), page);
 		_zebraStripeToggle->setCheckable(true);
 		connect(_zebraStripeToggle, &QPushButton::toggled, this, &SurfaceAnalysisDialog::onZebraStripeToggled);
 		pageLayout->addWidget(_zebraStripeToggle);
 
-		auto* curvatureNote = new QLabel(tr("Mean Curvature colors each vertex by how sharply the surface "
-		                                     "bends there - blue is concave, red is convex, white is flat. "
-		                                     "Gaussian/principal curvature modes are not yet available. "
-		                                     "Computed on a repaired copy of the mesh (real connectivity is "
-		                                     "required); any repair made is disclosed below after Apply."), page);
-		curvatureNote->setWordWrap(true);
-		pageLayout->addWidget(curvatureNote);
+		pageLayout->addSpacing(8);
+		pageLayout->addLayout(makeSectionHeader(page, tr("Mean Curvature"),
+			tr("Mean Curvature colors each vertex by how sharply the surface "
+			   "bends there - blue is concave, red is convex, white is flat. "
+			   "Gaussian/principal curvature modes are not yet available. "
+			   "Computed on a repaired copy of the mesh (real connectivity is "
+			   "required); any repair made is disclosed below after Apply.")));
 		_applyCurvatureButton = new QPushButton(tr("Apply Mean Curvature"), page);
 		connect(_applyCurvatureButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyCurvatureClicked);
 		pageLayout->addWidget(_applyCurvatureButton);
@@ -150,11 +198,10 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	{
 		auto* page = new QWidget();
 		auto* pageLayout = new QVBoxLayout(page);
-		auto* draftNote = new QLabel(tr("Draft Angle colors each face by its signed angle to the chosen pull "
-		                            "direction - red/positive is an ordinary moldable wall, blue/negative "
-		                            "is an undercut, white is parallel to the pull direction (zero draft)."), page);
-		draftNote->setWordWrap(true);
-		pageLayout->addWidget(draftNote);
+		pageLayout->addLayout(makeSectionHeader(page, tr("Draft Angle"),
+			tr("Draft Angle colors each face by its signed angle to the chosen pull "
+			   "direction - red/positive is an ordinary moldable wall, blue/negative "
+			   "is an undercut, white is parallel to the pull direction (zero draft).")));
 
 		auto* pullRow = new QHBoxLayout();
 		pullRow->addWidget(new QLabel(tr("Pull direction:"), page));
@@ -180,18 +227,18 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		connect(_applyDraftButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyDraftAngleClicked);
 		pageLayout->addWidget(_applyDraftButton);
 
-		auto* thicknessNote = new QLabel(tr("Wall-Thickness estimates how thick the material is behind each point of "
-		                            "the surface - blue is thin, red is thick. Local thickness samples many points "
-		                            "per face and casts rays into the material from each, so thin ribs and slots are "
-		                            "found, the result does not depend on how the surface was triangulated, and the "
-		                            "colours show where WITHIN a large face the value changes; the ray spread sets how "
-		                            "far off the straight-in direction those rays may fan out (0 = straight in only). "
-		                            "Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact "
-		                            "minima. Requires a closed, non-self-intersecting mesh that bounds a volume - "
-		                            "otherwise the whole mesh is rejected with a reason, never partially colored. "
-		                            "Hovering a value writes the ray behind it to the log."), page);
-		thicknessNote->setWordWrap(true);
-		pageLayout->addWidget(thicknessNote);
+		pageLayout->addSpacing(8);
+		pageLayout->addLayout(makeSectionHeader(page, tr("Wall-Thickness"),
+			tr("Wall-Thickness estimates how thick the material is behind each point of "
+			   "the surface - blue is thin, red is thick. Local thickness samples many points "
+			   "per face and casts rays into the material from each, so thin ribs and slots are "
+			   "found, the result does not depend on how the surface was triangulated, and the "
+			   "colours show where WITHIN a large face the value changes; the ray spread sets how "
+			   "far off the straight-in direction those rays may fan out (0 = straight in only). "
+			   "Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact "
+			   "minima. Requires a closed, non-self-intersecting mesh that bounds a volume - "
+			   "otherwise the whole mesh is rejected with a reason, never partially colored. "
+			   "Hovering a value writes the ray behind it to the log.")));
 
 		auto* methodRow = new QHBoxLayout();
 		methodRow->addWidget(new QLabel(tr("Method:"), page));
@@ -259,13 +306,12 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 	{
 		auto* page = new QWidget();
 		auto* pageLayout = new QVBoxLayout(page);
-		auto* note = new QLabel(tr("Colors the selected mesh by its unsigned distance to a reference mesh's "
-		                            "surface - dark blue is a close match, red is the largest deviation found. "
-		                            "Both meshes must already be aligned in the same coordinate frame and use "
-		                            "the same units; a plain offset between them will read as a false deviation. "
-		                            "This is a sampled result (measured per vertex), not exhaustive coverage."), page);
-		note->setWordWrap(true);
-		pageLayout->addWidget(note);
+		pageLayout->addLayout(makeSectionHeader(page, tr("Deviation"),
+			tr("Colors the selected mesh by its unsigned distance to a reference mesh's "
+			   "surface - dark blue is a close match, red is the largest deviation found. "
+			   "Both meshes must already be aligned in the same coordinate frame and use "
+			   "the same units; a plain offset between them will read as a false deviation. "
+			   "This is a sampled result (measured per vertex), not exhaustive coverage.")));
 
 		auto* refRow = new QHBoxLayout();
 		refRow->addWidget(new QLabel(tr("Reference mesh:"), page));

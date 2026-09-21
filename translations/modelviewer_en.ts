@@ -12036,308 +12036,326 @@ The panel shows GPU-side texture bindings for the selected mesh.</source>
 <context>
     <name>SurfaceAnalysisDialog</name>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="46"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="778"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="807"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="896"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="928"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="952"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1086"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1137"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1295"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1380"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1470"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1476"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1492"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1536"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1548"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1556"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="49"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="824"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="853"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="942"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="974"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="998"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1132"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1183"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1341"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1426"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1516"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1522"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1538"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1582"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1594"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1602"/>
         <source>Surface Analysis</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="53"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="56"/>
         <source>Analyzes the current selection and paints the result directly on the mesh surface.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="98"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="101"/>
         <source>Curvature</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="99"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="102"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="231"/>
         <source>Wall-Thickness</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="100"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="103"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="309"/>
         <source>Deviation</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="119"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="169"/>
         <source>Zebra Stripe reveals surface continuity as a live, view-dependent reflection pattern - no legend, since it isn&apos;t a fixed color scale.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="123"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="168"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="171"/>
         <source>Zebra Stripe</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="128"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="178"/>
         <source>Mean Curvature colors each vertex by how sharply the surface bends there - blue is concave, red is convex, white is flat. Gaussian/principal curvature modes are not yet available. Computed on a repaired copy of the mesh (real connectivity is required); any repair made is disclosed below after Apply.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="135"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="183"/>
         <source>Apply Mean Curvature</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="153"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="202"/>
         <source>Draft Angle colors each face by its signed angle to the chosen pull direction - red/positive is an ordinary moldable wall, blue/negative is an undercut, white is parallel to the pull direction (zero draft).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="160"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="207"/>
         <source>Pull direction:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="162"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="209"/>
         <source>+X</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="163"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="210"/>
         <source>-X</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="164"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="211"/>
         <source>+Y</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="165"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="212"/>
         <source>-Y</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="166"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
         <source>+Z</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="167"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="214"/>
         <source>-Z</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="179"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="226"/>
         <source>Apply Draft Angle</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="197"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="244"/>
         <source>Method:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="199"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="246"/>
         <source>Local thickness (recommended)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="200"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="247"/>
         <source>Normal ray (fast)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="475"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="521"/>
         <source>Thickness: %1 mm</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="223"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="270"/>
         <source>Apply Wall-Thickness</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="183"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="121"/>
+        <source>What does this show?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="177"/>
+        <source>Mean Curvature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="201"/>
+        <source>Draft Angle</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="232"/>
         <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Local thickness samples many points per face and casts rays into the material from each, so thin ribs and slots are found, the result does not depend on how the surface was triangulated, and the colours show where WITHIN a large face the value changes; the ray spread sets how far off the straight-in direction those rays may fan out (0 = straight in only). Normal ray is the older, faster single-ray estimate. Both are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes the ray behind it to the log.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="206"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="253"/>
         <source>Ray spread:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="260"/>
         <source>0 measures straight in from each sample (the wall directly behind it). Larger values also probe obliquely, which finds thin features beside a sample but reads a flat face&apos;s sloped neighbours as thinner.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="230"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="277"/>
         <source>Highlight walls thinner than:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="233"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1269"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="280"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1315"/>
         <source> mm</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="262"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="310"/>
         <source>Colors the selected mesh by its unsigned distance to a reference mesh&apos;s surface - dark blue is a close match, red is the largest deviation found. Both meshes must already be aligned in the same coordinate frame and use the same units; a plain offset between them will read as a false deviation. This is a sampled result (measured per vertex), not exhaustive coverage.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="271"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="317"/>
         <source>Reference mesh:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="276"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="322"/>
         <source>Apply</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="294"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="340"/>
         <source>Show Readout on Hover</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="311"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="357"/>
         <source>Clear Overlay</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="315"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="361"/>
         <source>Close</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="471"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="517"/>
         <source>Draft: %1°</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="473"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="519"/>
         <source>Curvature: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="477"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="523"/>
         <source>Deviation: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="651"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="697"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="665"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="711"/>
         <source>No mesh selected - select one or more meshes in the scene tree first.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="671"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="717"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="688"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="734"/>
         <source>Comparing: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="693"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="739"/>
         <source>Selected: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="694"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="740"/>
         <source>Selected (%1): %2</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="778"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="807"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="952"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1295"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="824"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="853"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="998"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1341"/>
         <source>Select one or more meshes first.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="823"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="976"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1316"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1514"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="869"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1022"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1362"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1560"/>
         <source>Cancel</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="897"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1087"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1381"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1537"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1549"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1133"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1427"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1583"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1595"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="929"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="975"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1138"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1184"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1264"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1310"/>
         <source>&lt; %1 mm</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1264"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1310"/>
         <source>&gt;= %1 mm</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1275"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1321"/>
         <source>Thinnest wall found: %1 mm.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1278"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1324"/>
         <source>%1% of the analysed surface is thinner than %2 mm.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1471"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1517"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1477"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1523"/>
         <source>No other loaded mesh is available to compare against.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1493"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1539"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1557"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1603"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation type="unfinished"></translation>
     </message>
