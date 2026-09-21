@@ -1,4 +1,5 @@
 #include "FilterByBoundingBoxDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "SceneMesh.h"
@@ -85,6 +86,7 @@ FilterByBoundingBoxDialog::FilterByBoundingBoxDialog(ModelViewer* modelViewer,
 	                                  "scene whose bounding box matches, then Show Only or Hide "
 	                                  "the result:"), this);
 	introLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(introLabel);
 	layout->addWidget(introLabel);
 
 	auto* limitsGroup = new QGroupBox(tr("Limits"), this);
@@ -139,7 +141,9 @@ FilterByBoundingBoxDialog::FilterByBoundingBoxDialog(ModelViewer* modelViewer,
 	_matchCountLabel = new QLabel(this);
 	_matchCountLabel->setAlignment(Qt::AlignCenter);
 	_matchCountLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(_matchCountLabel);
 	layout->addWidget(_matchCountLabel);
+	layout->addStretch(1); // nothing here grows: the controls stay at the top when the dialog is taller than they need
 
 	auto* buttonRow = new QHBoxLayout();
 	buttonRow->addStretch();

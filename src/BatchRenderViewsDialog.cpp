@@ -1,4 +1,5 @@
 #include "BatchRenderViewsDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "SceneGraph.h"
@@ -70,6 +71,7 @@ BatchRenderViewsDialog::BatchRenderViewsDialog(ModelViewer* modelViewer, QWidget
 	auto* introLabel = new QLabel(tr("Renders every checked captured view as a high-quality offline "
 	                                  "path-traced image, one file per view."), this);
 	introLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(introLabel);
 	layout->addWidget(introLabel);
 
 	SceneGraph* sceneGraph = _modelViewer ? _modelViewer->sceneGraph() : nullptr;
@@ -84,7 +86,8 @@ BatchRenderViewsDialog::BatchRenderViewsDialog(ModelViewer* modelViewer, QWidget
 	// state, for consistency between the two "act on captured views" tools.
 	_noViewsLabel = new QLabel(tr("No captured views yet - use the Cameras tab's \"Capture View\" first."), viewsGroup);
 	_noViewsLabel->setWordWrap(true);
-	viewsLayout->addWidget(_noViewsLabel);
+	DialogLayout::makeCentredHint(_noViewsLabel);
+	viewsLayout->addWidget(_noViewsLabel, 1);
 
 	_viewsList = new QListWidget(viewsGroup);
 	for (const GltfCameraEntry& entry : capturedViews)
@@ -165,6 +168,7 @@ BatchRenderViewsDialog::BatchRenderViewsDialog(ModelViewer* modelViewer, QWidget
 
 	_statusLabel = new QLabel(this);
 	_statusLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(_statusLabel);
 	layout->addWidget(_statusLabel);
 
 	auto* buttonRow = new QHBoxLayout();

@@ -1,4 +1,5 @@
 #include "FilterByColorDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "MeshColorUtils.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
@@ -86,6 +87,7 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 	                                  "scene that matches any of them, within a tolerance, then "
 	                                  "Show Only or Hide the result:"), this);
 	introLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(introLabel);
 	layout->addWidget(introLabel);
 
 	_colorsGroup = new QGroupBox(tr("Target Colors"), this);
@@ -106,6 +108,7 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 	// fix for why the viewport combination silently never fired).
 	_list->setContextMenuPolicy(Qt::CustomContextMenu);
 	colorsLayout->addWidget(_list);
+	DialogLayout::attachEmptyHint(_list, tr("No target colors yet - add one below or auto-detect."));
 
 	auto* addRow = new QHBoxLayout();
 	_addButton = new QPushButton(tr("+ Add Color..."), _colorsGroup);
@@ -148,6 +151,7 @@ FilterByColorDialog::FilterByColorDialog(ModelViewer* modelViewer,
 	_matchCountLabel = new QLabel(this);
 	_matchCountLabel->setAlignment(Qt::AlignCenter);
 	_matchCountLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(_matchCountLabel);
 	layout->addWidget(_matchCountLabel);
 
 	auto* buttonRow = new QHBoxLayout();

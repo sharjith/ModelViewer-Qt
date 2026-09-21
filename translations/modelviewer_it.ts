@@ -320,6 +320,10 @@
         <source>(empty note)</source>
         <translation>(nota vuota)</translation>
     </message>
+    <message>
+        <source>No notes yet.</source>
+        <translation>Ancora nessuna nota.</translation>
+    </message>
 </context>
 <context>
     <name>AssImpModelLoader</name>
@@ -2097,6 +2101,10 @@ devono essere salvati con il documento.</translation>
         <source>No mesh could be filled (%1 failed).</source>
         <translation>Nessuna mesh è stato possibile riempire (%1 fallita/e).</translation>
     </message>
+    <message>
+        <source>No holes detected - pick the meshes to check above.</source>
+        <translation>Nessun foro rilevato: scegli qui sopra le mesh da controllare.</translation>
+    </message>
 </context>
 <context>
     <name>FilterByBoundingBoxDialog</name>
@@ -2329,6 +2337,10 @@ Poi rimuovi quelli indesiderati con il pulsante × di ogni riga.</translation>
         <location filename="../src/FilterByColorDialog.cpp" line="567"/>
         <source>Remove Color</source>
         <translation>Rimuovi colore</translation>
+    </message>
+    <message>
+        <source>No target colors yet - add one below or auto-detect.</source>
+        <translation>Ancora nessun colore target: aggiungine uno qui sotto o usa il rilevamento automatico.</translation>
     </message>
 </context>
 <context>
@@ -6694,6 +6706,10 @@ distanza in linea retta. Entrambi i punti devono trovarsi sulla stessa mesh.</tr
         <location filename="../src/MeasurementDialog.cpp" line="388"/>
         <source>Cancelled - pick a tool to resume</source>
         <translation>Annullato - scegli uno strumento per riprendere</translation>
+    </message>
+    <message>
+        <source>No measurements yet.</source>
+        <translation>Ancora nessuna misurazione.</translation>
     </message>
 </context>
 <context>
@@ -16710,6 +16726,10 @@ Razza</translation>
         <location filename="../src/UVGenerationDialog.cpp" line="843"/>
         <source>UVs generated using %1 method.</source>
         <translation>UV generate usando il metodo %1.</translation>
+    </message>
+    <message>
+        <source>No seams marked.</source>
+        <translation>Nessuna cucitura contrassegnata.</translation>
     </message>
 </context>
 <context>

@@ -1,4 +1,5 @@
 #include "ImportUnitsDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ModelViewer.h"
 #include "SceneNode.h"
 #include "LengthUnits.h"
@@ -40,6 +41,7 @@ ImportUnitsDialog::ImportUnitsDialog(ModelViewer* modelViewer, SceneNode* fileNo
 	                                  "Surface Analysis results (volume, area, distances) into millimetres "
 	                                  "internally. Only affects this one imported file.").arg(fileName), this);
 	introLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(introLabel);
 	layout->addWidget(introLabel);
 
 	_unitCombo = new QComboBox(this);
@@ -61,6 +63,8 @@ ImportUnitsDialog::ImportUnitsDialog(ModelViewer* modelViewer, SceneNode* fileNo
 		_unitCombo->setCurrentIndex(preselectIndex);
 
 	layout->addWidget(_unitCombo);
+
+	layout->addStretch(1);
 
 	auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
 	connect(buttonBox, &QDialogButtonBox::accepted, this, &ImportUnitsDialog::onAccept);

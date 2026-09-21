@@ -213,6 +213,10 @@
         <source>(empty note)</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No notes yet.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>AssImpModelLoader</name>
@@ -1750,6 +1754,10 @@ need to be saved with the document.</source>
         <source>No mesh could be filled (%1 failed).</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>No holes detected - pick the meshes to check above.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>FilterByBoundingBoxDialog</name>
@@ -1978,6 +1986,10 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
     <message>
         <location filename="../src/FilterByColorDialog.cpp" line="567"/>
         <source>Remove Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No target colors yet - add one below or auto-detect.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5730,6 +5742,10 @@ straight-line distance. Both points must land on the same mesh.</source>
     <message>
         <location filename="../src/MeasurementDialog.cpp" line="388"/>
         <source>Cancelled - pick a tool to resume</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No measurements yet.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -13807,6 +13823,10 @@ Switch to PBR now?</source>
     <message>
         <location filename="../src/UVGenerationDialog.cpp" line="843"/>
         <source>UVs generated using %1 method.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No seams marked.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

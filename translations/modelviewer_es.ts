@@ -320,6 +320,10 @@
         <source>(empty note)</source>
         <translation>(nota vacía)</translation>
     </message>
+    <message>
+        <source>No notes yet.</source>
+        <translation>Aún no hay notas.</translation>
+    </message>
 </context>
 <context>
     <name>AssImpModelLoader</name>
@@ -2097,6 +2101,10 @@ deben guardarse con el documento.</translation>
         <source>No mesh could be filled (%1 failed).</source>
         <translation>No se pudo rellenar ninguna malla (%1 fallida(s)).</translation>
     </message>
+    <message>
+        <source>No holes detected - pick the meshes to check above.</source>
+        <translation>No se detectaron agujeros: elija arriba las mallas que desea comprobar.</translation>
+    </message>
 </context>
 <context>
     <name>FilterByBoundingBoxDialog</name>
@@ -2329,6 +2337,10 @@ Luego elimine los que no desee con el botón × de cada fila.</translation>
         <location filename="../src/FilterByColorDialog.cpp" line="567"/>
         <source>Remove Color</source>
         <translation>Quitar color</translation>
+    </message>
+    <message>
+        <source>No target colors yet - add one below or auto-detect.</source>
+        <translation>Aún no hay colores objetivo: añada uno abajo o use la detección automática.</translation>
     </message>
 </context>
 <context>
@@ -6693,6 +6705,10 @@ distancia en línea recta. Ambos puntos deben caer en la misma malla.</translati
         <location filename="../src/MeasurementDialog.cpp" line="388"/>
         <source>Cancelled - pick a tool to resume</source>
         <translation>Cancelado - elija una herramienta para reanudar</translation>
+    </message>
+    <message>
+        <source>No measurements yet.</source>
+        <translation>Aún no hay mediciones.</translation>
     </message>
 </context>
 <context>
@@ -16710,6 +16726,10 @@ Roughness</translation>
         <location filename="../src/UVGenerationDialog.cpp" line="843"/>
         <source>UVs generated using %1 method.</source>
         <translation>UV generadas usando el método %1.</translation>
+    </message>
+    <message>
+        <source>No seams marked.</source>
+        <translation>No hay costuras marcadas.</translation>
     </message>
 </context>
 <context>

@@ -1,4 +1,5 @@
 #include "ReconstructSurfaceDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_ReconstructSurfaceDialog.h"
 
 #include "ModelViewer.h"
@@ -60,6 +61,9 @@ ReconstructSurfaceDialog::ReconstructSurfaceDialog(ModelViewer* modelViewer, QWi
 	, ui(std::make_unique<Ui::ReconstructSurfaceDialog>())
 {
 	ui->setupUi(this);
+	// Default layout: the controls pack to the top, the status text and the Generate button sit at the bottom, and any
+	// leftover height is the gap between them - instead of being spread through the dialog.
+	DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, true);
 	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
 	ui->meshSelectionBox->setModelViewer(_modelViewer);
 	ui->meshSelectionBox->setLabelText(tr("Point clouds (or meshes) to reconstruct from:"));

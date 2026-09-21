@@ -1,4 +1,5 @@
 #include "AnnotationDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_AnnotationDialog.h"
 
 #include "ModelViewer.h"
@@ -121,6 +122,8 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     ui->notesLayout->replaceWidget(ui->resultsList, resultsList);
     delete ui->resultsList;
     ui->resultsList = resultsList;
+    DialogLayout::keepNaturalHeight(ui->statusLabel);
+    DialogLayout::attachEmptyHint(ui->resultsList, tr("No notes yet."));
 
     AnnotationTextEdit* textEdit = new AnnotationTextEdit(this);
     textEdit->setEnabled(ui->textEdit->isEnabled());

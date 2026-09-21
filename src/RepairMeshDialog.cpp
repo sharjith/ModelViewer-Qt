@@ -1,4 +1,5 @@
 #include "RepairMeshDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_RepairMeshDialog.h"
 
 #include "MeshRepair.h"
@@ -63,6 +64,9 @@ RepairMeshDialog::RepairMeshDialog(ModelViewer* modelViewer, QWidget* parent)
 	, ui(std::make_unique<Ui::RepairMeshDialog>())
 {
 	ui->setupUi(this);
+	// Default layout: the controls pack to the top, the status text and the Generate button sit at the bottom, and any
+	// leftover height is the gap between them - instead of being spread through the dialog.
+	DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, true);
 	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
 	ui->meshSelectionBox->setModelViewer(_modelViewer);
 	ui->meshSelectionBox->setLabelText(tr("Meshes to repair:"));

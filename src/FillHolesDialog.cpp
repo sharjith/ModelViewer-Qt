@@ -1,4 +1,5 @@
 #include "FillHolesDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_FillHolesDialog.h"
 
 #include "MeshRepair.h"
@@ -70,6 +71,8 @@ FillHolesDialog::FillHolesDialog(ModelViewer* modelViewer, QWidget* parent)
 	, ui(std::make_unique<Ui::FillHolesDialog>())
 {
 	ui->setupUi(this);
+	DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, false); // the list takes the spare height
+	DialogLayout::attachEmptyHint(ui->holesList, tr("No holes detected - pick the meshes to check above."));
 	// The mesh list is the shared selection box; its label keeps this dialog's own wording.
 	ui->meshSelectionBox->setModelViewer(_modelViewer);
 	ui->meshSelectionBox->setLabelText(tr("Meshes to check for holes:"));

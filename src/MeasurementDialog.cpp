@@ -1,4 +1,5 @@
 #include "MeasurementDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_MeasurementDialog.h"
 
 #include "ModelViewer.h"
@@ -133,6 +134,8 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	ui->verticalLayout->replaceWidget(ui->resultsList, resultsList);
 	delete ui->resultsList;
 	ui->resultsList = resultsList;
+	DialogLayout::keepNaturalHeight(ui->statusLabel);
+	DialogLayout::attachEmptyHint(ui->resultsList, tr("No measurements yet."));
 
 	{
 		// Grouped with non-selectable category headers rather than one flat

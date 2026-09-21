@@ -1,4 +1,5 @@
 #include "UVGenerationDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "ui_UVGenerationDialog.h"
 #include "LanguageManager.h"
 #include "ModelViewer.h"
@@ -37,6 +38,8 @@ UVGenerationDialog::UVGenerationDialog(ModelViewer* modelViewer, QWidget* parent
     , ui(new Ui::UVGenerationDialog)
 {
     ui->setupUi(this);
+    DialogLayout::pinActionToBottom(ui->verticalLayout, ui->statusLabel, ui->generateButton, false); // the scroll area takes the spare height
+    DialogLayout::attachEmptyHint(ui->seamMarkList, tr("No seams marked."));
     // The mesh list is the shared selection box; its label keeps this dialog's own wording.
     ui->meshSelectionBox->setModelViewer(_modelViewer);
     ui->meshSelectionBox->setLabelText(tr("Meshes to generate UVs for:"));

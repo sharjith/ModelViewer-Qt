@@ -1,4 +1,5 @@
 #include "FilterByMaterialDialog.h"
+#include "DialogLayoutHelpers.h"
 #include "MaterialGrouping.h"
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
@@ -139,6 +140,7 @@ FilterByMaterialDialog::FilterByMaterialDialog(ModelViewer* modelViewer, QWidget
 	auto* introLabel = new QLabel(tr("Select a material to preview every mesh in the scene that "
 	                                  "uses it, then Show Only or Hide the result:"), this);
 	introLabel->setWordWrap(true);
+	DialogLayout::keepNaturalHeight(introLabel);
 	layout->addWidget(introLabel);
 
 	_materialsGroup = new QGroupBox(tr("Materials in Scene"), this);

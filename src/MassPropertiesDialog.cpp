@@ -80,6 +80,9 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	auto* introLabel = new QLabel(tr("Volume, surface area, and mass for the selected meshes - "
 	                                  "recomputed when the selection changes or on Recalculate."), this);
 	introLabel->setWordWrap(true);
+	// Word-wrapped labels default to a growable height, and the layout then hands them the slack when the tables below are
+	// hidden (nothing selected) - text floating in the middle of empty space. They keep their natural height instead.
+	introLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	layout->addWidget(introLabel);
 
 	// The meshes this report covers: the shared pick / edit / clear selection box (the same control the other tool
@@ -96,7 +99,11 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 
 	_noSelectionLabel = new QLabel(tr("Nothing selected - select one or more meshes first."), this);
 	_noSelectionLabel->setWordWrap(true);
-	layout->addWidget(_noSelectionLabel);
+	// With nothing selected the hint owns the space the tables would fill and sits centred in it, between the selection
+	// box at the top and the buttons at the bottom.
+	_noSelectionLabel->setAlignment(Qt::AlignCenter);
+	_noSelectionLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+	layout->addWidget(_noSelectionLabel, 1);
 
 	_table = new QTableWidget(this);
 	_table->setColumnCount(5);
@@ -147,6 +154,7 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	// way _table above already does, instead of forcing the dialog itself
 	// to grow to fit every row.
 	_materialBreakdownLabel = new QLabel(tr("Mass by Material:"), this);
+	_materialBreakdownLabel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	layout->addWidget(_materialBreakdownLabel);
 
 	_materialTable = new QTableWidget(this);
