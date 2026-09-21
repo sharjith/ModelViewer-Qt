@@ -5,6 +5,8 @@
 #include <TopoDS_Face.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 
+#include <string>
+#include <utility>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -40,11 +42,18 @@ namespace FaceFallbackTriangulator
 		std::vector<std::vector<gp_Pnt>> loops; // one closed polyline per wire (outer loop first, then holes), global coordinates
 		double diag = 0.0;                      // extent of the loops
 		bool valid = false;
+		// per loop: (index of each piece's first point in the loop, a description of it) - for the import log
+		std::vector<std::vector<std::pair<size_t, std::string>>> pieces;
+		// per loop: indices of the points that start right after a degenerate edge (a cone/sphere pole, where the whole
+		// (u, v) width of the face collapses into one 3D point)
+		std::vector<std::vector<size_t>> poleBreaks;
+		std::string failure;                    // why it is not valid (for the import log)
 	};
 
 	// edgeToFaces: edge -> faces map over the faces of the part being converted (TopExp::MapShapesAndAncestors).
 	Boundary captureBoundary(const TopoDS_Face& face, const TopTools_IndexedDataMapOfShapeListOfShape& edgeToFaces);
 
 	// The triangulation of `face` from its captured boundary (see the file comment); null if it cannot be built.
-	Handle(Poly_Triangulation) triangulate(const TopoDS_Face& face, const Boundary& boundary);
+	// `failure`, if given, receives the reason when the result is null.
+	Handle(Poly_Triangulation) triangulate(const TopoDS_Face& face, const Boundary& boundary, std::string* failure = nullptr);
 }

@@ -125,6 +125,10 @@ private:
 	MeshSelectionBox* _selectionBox = nullptr; // the meshes this report covers (its list order = table row order)
 	QVector<QUuid> _rowUuids;        // the mesh behind each table row of the last populate() (row order)
 	bool _suppressRowSync = false;   // true while populate() rebuilds the table - see onTableRowSelectionChanged()
+	int _sortColumn = -1;            // the column the table is sorted by (-1 = the selection's own order)
+	Qt::SortOrder _sortOrder = Qt::AscendingOrder;
+	int _materialSortColumn = -1;    // the same for the Mass by Material table
+	Qt::SortOrder _materialSortOrder = Qt::AscendingOrder;
 	QPushButton* _recalculateButton = nullptr;
 
 	NotesListBox* _notesBox = nullptr; // units / density / shell footnotes, refreshed per populate() - height-capped, so it never pushes the dialog off-screen

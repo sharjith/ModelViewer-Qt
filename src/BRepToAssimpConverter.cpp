@@ -1032,11 +1032,14 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// triangulation is present (e.g. shapes loaded via a code path that skips the pre-pass).
 		triangulation = BRep_Tool::Triangulation(face, loc);
 
-		FaceFallbackTriangulator::Boundary fallbackBoundary;
 		if (triangulation.IsNull())
 		{
-			// The neighbours' discretization of this face's edges is what the last-resort triangulation below is built
-			// from, and BRepTools::Clean() just after removes it from the shared edges - capture it first.
+			// The mesher produced nothing for this face in the pre-pass. Meshing it on its own now would discretize its
+			// edges independently of the neighbours that share them, and the two sets of points do not match on a curved
+			// edge - the part then has cracks and vertices where triangles meet only at a point, so it is not a valid
+			// solid. With healing on, the face is therefore built first from the points its neighbours already carry on
+			// the shared edges (this must happen before BRepTools::Clean() below, which removes them), and the ordinary
+			// per-face meshing / healing is only the fallback when that is not possible.
 			if (healFaces)
 			{
 				if (!edgeToFacesBuilt)
@@ -1045,9 +1048,25 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 						TopExp::MapShapesAndAncestors(faceGroup(i), TopAbs_EDGE, TopAbs_FACE, edgeToFaces);
 					edgeToFacesBuilt = true;
 				}
-				fallbackBoundary = FaceFallbackTriangulator::captureBoundary(face, edgeToFaces);
+				const FaceFallbackTriangulator::Boundary boundary = FaceFallbackTriangulator::captureBoundary(face, edgeToFaces);
+				std::string fallbackFailure;
+				triangulation = FaceFallbackTriangulator::triangulate(face, boundary, &fallbackFailure);
+				if (!triangulation.IsNull())
+				{
+					processedFace = face;
+					loc = TopLoc_Location(); // the nodes come back already in the part's coordinate frame
+					++rebuiltFaces;
+				}
+				else
+				{
+					qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: could not build an untessellated face from its neighbours' edges (%2) - meshing it on its own")
+						.arg(meshIndex).arg(QString::fromStdString(fallbackFailure));
+				}
 			}
+		}
 
+		if (triangulation.IsNull())
+		{
 			// No pre-computed triangulation — mesh this face individually.
 			BRepTools::Clean(face);
 			BRepLib::BuildCurves3d(face);
@@ -1079,20 +1098,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			}
 			catch (...)
 			{
-				// fall through: the boundary-based fallback below may still be able to build this face
-			}
-
-			if (triangulation.IsNull() && healFaces)
-			{
-				// Last resort: triangulate from the boundary the neighbours discretized (nodes come back already in the
-				// part's coordinate frame, so no location).
-				triangulation = FaceFallbackTriangulator::triangulate(face, fallbackBoundary);
-				if (!triangulation.IsNull())
-				{
-					processedFace = face;
-					loc = TopLoc_Location();
-					++rebuiltFaces;
-				}
+				// leave the face out below
 			}
 		}
 

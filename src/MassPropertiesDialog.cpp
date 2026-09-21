@@ -25,9 +25,46 @@
 #include <QVector3D>
 #include <QMap>
 #include <QCloseEvent>
+#include <QCollator>
 #include <QSettings>
 #include <QJsonObject>
 #include <any>
+
+namespace
+{
+	// A table cell that sorts by what it means rather than by its text: a real number sorts numerically, every
+	// "N/A (reason)" cell sorts after the numbers and groups with the others of the same reason (so the invalid,
+	// open, self-intersecting ... meshes end up together), and names sort naturally ("Part 2" before "Part 10").
+	class SortItem : public QTableWidgetItem
+	{
+	public:
+		explicit SortItem(const QString& text, bool hasNumber = false, double number = 0.0, const QString& sortText = QString())
+			: QTableWidgetItem(text), _hasNumber(hasNumber), _number(number), _sortText(sortText.isNull() ? text : sortText) {}
+
+		bool operator<(const QTableWidgetItem& other) const override
+		{
+			const auto* o = dynamic_cast<const SortItem*>(&other);
+			if (!o)
+				return QTableWidgetItem::operator<(other);
+			if (_hasNumber && o->_hasNumber)
+				return _number < o->_number;
+			if (_hasNumber != o->_hasNumber)
+				return _hasNumber; // numbers before N/A cells
+			static const QCollator collator = [] {
+				QCollator c;
+				c.setNumericMode(true);
+				c.setCaseSensitivity(Qt::CaseInsensitive);
+				return c;
+			}();
+			return collator.compare(_sortText, o->_sortText) < 0;
+		}
+
+	private:
+		bool _hasNumber;
+		double _number;
+		QString _sortText; // what non-numeric cells compare by (defaults to the shown text)
+	};
+}
 
 MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* parent)
 	: QDialog(parent)
@@ -74,6 +111,20 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_table->setColumnWidth(2, 130);
 	_table->setColumnWidth(3, 150);
 	_table->verticalHeader()->setVisible(false);
+	// Clicking a header sorts by that column (again to reverse it): that groups the meshes with the same problem
+	// together - the sort is done here rather than by QTableWidget's own sortingEnabled, because the rows are filled
+	// one by one by index after an asynchronous computation and must not move while that runs.
+	_table->horizontalHeader()->setSectionsClickable(true);
+	_table->horizontalHeader()->setSortIndicatorShown(true);
+	_table->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
+	connect(_table->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int column) {
+		if (_activeSession)
+			return; // rows are still being filled
+		_sortOrder = (column == _sortColumn && _sortOrder == Qt::AscendingOrder) ? Qt::DescendingOrder : Qt::AscendingOrder;
+		_sortColumn = column;
+		_table->horizontalHeader()->setSortIndicator(_sortColumn, _sortOrder);
+		_table->sortItems(_sortColumn, _sortOrder);
+	});
 	_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	// Rows are selectable so the right-click menu (Center Screen / Hide / Show) can act on several meshes at once.
 	_table->setSelectionMode(QAbstractItemView::ExtendedSelection);
@@ -106,6 +157,19 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_materialTable->verticalHeader()->setVisible(false);
 	_materialTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
 	_materialTable->setSelectionMode(QAbstractItemView::NoSelection);
+	// Sortable like the mesh table above: by material name, or by mass - the groups with excluded meshes (and their
+	// reasons) then sit together.
+	_materialTable->horizontalHeader()->setSectionsClickable(true);
+	_materialTable->horizontalHeader()->setSortIndicatorShown(true);
+	_materialTable->horizontalHeader()->setSortIndicator(-1, Qt::AscendingOrder);
+	connect(_materialTable->horizontalHeader(), &QHeaderView::sectionClicked, this, [this](int column) {
+		if (_activeSession)
+			return; // rows are still being filled
+		_materialSortOrder = (column == _materialSortColumn && _materialSortOrder == Qt::AscendingOrder) ? Qt::DescendingOrder : Qt::AscendingOrder;
+		_materialSortColumn = column;
+		_materialTable->horizontalHeader()->setSortIndicator(_materialSortColumn, _materialSortOrder);
+		_materialTable->sortItems(_materialSortColumn, _materialSortOrder);
+	});
 	layout->addWidget(_materialTable, 1);
 
 	// Visible only while populate()'s background computation is in flight -
@@ -166,9 +230,11 @@ QVector<QUuid> MassPropertiesDialog::meshesOfSelectedRows() const
 	const QModelIndexList rows = _table->selectionModel()->selectedRows();
 	for (const QModelIndex& index : rows)
 	{
-		const int row = index.row();
-		if (row >= 0 && row < _rowUuids.size() && !_rowUuids[row].isNull() && !uuids.contains(_rowUuids[row]))
-			uuids.append(_rowUuids[row]);
+		// Read from the row's own item: once the table is sorted a row number no longer says which mesh it is.
+		const QTableWidgetItem* nameItem = _table->item(index.row(), 0);
+		const QUuid uuid = nameItem ? nameItem->data(Qt::UserRole).toUuid() : QUuid();
+		if (!uuid.isNull() && !uuids.contains(uuid))
+			uuids.append(uuid);
 	}
 	return uuids;
 }
@@ -370,6 +436,7 @@ void MassPropertiesDialog::populate()
 
 	const std::vector<SceneMesh*> meshStore = viewport->getMeshStore();
 	_table->setRowCount(static_cast<int>(selected.size()));
+	_table->clearContents();
 
 	// Captured up front (main thread), before dispatch, aligned by index
 	// with the snapshot list below - each mesh's own material density and
@@ -507,11 +574,13 @@ void MassPropertiesDialog::populate()
 			// comment. Nothing safe to show for this row at all (not even a
 			// name), and it can't contribute to any total/group.
 			const QString reason = tr("mesh no longer available");
-			_table->setItem(row, 0, new QTableWidgetItem(tr("(deleted)")));
-			_table->setItem(row, 1, new QTableWidgetItem(QStringLiteral("-")));
-			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
-			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
-			_table->setItem(row, 4, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			auto* deletedItem = new SortItem(tr("(deleted)"));
+			deletedItem->setData(Qt::UserRole, _rowUuids.value(row));
+			_table->setItem(row, 0, deletedItem);
+			_table->setItem(row, 1, new SortItem(QStringLiteral("-")));
+			_table->setItem(row, 2, new SortItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 3, new SortItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 4, new SortItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			++volumeExcludedCount;
 			++massExcludedCount;
@@ -523,11 +592,13 @@ void MassPropertiesDialog::populate()
 			continue;
 		}
 
-		_table->setItem(row, 0, new QTableWidgetItem(mesh->getName()));
+		auto* nameItem = new SortItem(mesh->getName());
+		nameItem->setData(Qt::UserRole, _rowUuids.value(row));
+		_table->setItem(row, 0, nameItem);
 		{
 			// The material applied to this mesh, so its density / shell thickness source is visible right here.
 			const QString materialName = materialNameByIndex[i].isEmpty() ? QStringLiteral("-") : materialNameByIndex[i];
-			auto* materialItem = new QTableWidgetItem(materialName);
+			auto* materialItem = new SortItem(materialName);
 			materialItem->setToolTip(materialName);
 			_table->setItem(row, 1, materialItem);
 		}
@@ -547,9 +618,9 @@ void MassPropertiesDialog::populate()
 		if (!result)
 		{
 			const QString reason = tr("geometry changed during computation");
-			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
-			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
-			_table->setItem(row, 4, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 2, new SortItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 3, new SortItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 4, new SortItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			++volumeExcludedCount;
 			++massExcludedCount;
@@ -595,13 +666,13 @@ void MassPropertiesDialog::populate()
 		// legitimate answer.
 		if (result->hasValidGeometry)
 		{
-			_table->setItem(row, 3, new QTableWidgetItem(QString::number(scaledSurfaceArea, 'f', 2)));
+			_table->setItem(row, 3, new SortItem(QString::number(scaledSurfaceArea, 'f', 2), true, scaledSurfaceArea));
 			knownSurfaceAreaSubtotal += scaledSurfaceArea;
 		}
 		else
 		{
 			const QString reason = describeMeshPropertyUnavailableReason(result->volumeUnavailableReason);
-			_table->setItem(row, 3, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 3, new SortItem(tr("N/A (%1)").arg(reason)));
 			++surfaceAreaExcludedCount;
 			if (!surfaceAreaExclusionReasons.contains(reason))
 				surfaceAreaExclusionReasons.append(reason);
@@ -610,7 +681,7 @@ void MassPropertiesDialog::populate()
 		if (volumeSummary.valid)
 		{
 			QString volumeText = QString::number(scaledVolume, 'f', 2);
-			auto* volumeItem = new QTableWidgetItem();
+			auto* volumeItem = new SortItem(QString(), true, scaledVolume);
 			if (volumeSummary.shellPieceCount > 0)
 			{
 				volumeText = tr("%1 (incl. shell)").arg(volumeText);
@@ -629,7 +700,7 @@ void MassPropertiesDialog::populate()
 			if (volumeSummary.shellCapable)
 				++shellCapableExcludedCount;
 			const QString reason = describeMeshPropertyUnavailableReason(volumeSummary.reason);
-			_table->setItem(row, 2, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 2, new SortItem(tr("N/A (%1)").arg(reason)));
 			++volumeExcludedCount;
 			if (!volumeExclusionReasons.contains(reason))
 				volumeExclusionReasons.append(reason);
@@ -642,7 +713,7 @@ void MassPropertiesDialog::populate()
 		if (meshHasMass(volumeSummary.valid, density))
 		{
 			const float weight = computeMeshWeight(scaledVolume, density);
-			_table->setItem(row, 4, new QTableWidgetItem(QString::number(weight, 'f', 3)));
+			_table->setItem(row, 4, new SortItem(QString::number(weight, 'f', 3), true, weight));
 			knownMassSubtotal += weight;
 			massWeightedCentroidAccum += scaledCenterOfMass * weight;
 			massWeightSum += weight;
@@ -657,7 +728,7 @@ void MassPropertiesDialog::populate()
 			const QString reason = volumeSummary.valid
 				? describeMeshPropertyUnavailableReason(MeshPropertyUnavailableReason::MissingDensity)
 				: describeMeshPropertyUnavailableReason(volumeSummary.reason);
-			_table->setItem(row, 4, new QTableWidgetItem(tr("N/A (%1)").arg(reason)));
+			_table->setItem(row, 4, new SortItem(tr("N/A (%1)").arg(reason)));
 			++massExcludedCount;
 			if (!massExclusionReasons.contains(reason))
 				massExclusionReasons.append(reason);
@@ -668,6 +739,9 @@ void MassPropertiesDialog::populate()
 				group.exclusionReasons.append(reason);
 		}
 	}
+
+	if (_sortColumn >= 0)
+		_table->sortItems(_sortColumn, _sortOrder);
 
 	// Only warn about an unverified unit assumption when at least one
 	// selected mesh actually needed the fallback - a mesh with a real,
@@ -755,7 +829,7 @@ void MassPropertiesDialog::populate()
 	for (auto it = massByMaterial.constBegin(); it != massByMaterial.constEnd(); ++it)
 	{
 		const MaterialMassGroup& group = it.value();
-		auto* nameItem = new QTableWidgetItem(it.key());
+		auto* nameItem = new SortItem(it.key());
 		nameItem->setToolTip(it.key());
 		_materialTable->setItem(materialRow, 0, nameItem);
 		const QString massText = (group.excludedCount == 0)
@@ -764,7 +838,10 @@ void MassPropertiesDialog::populate()
 				.arg(group.knownMassSubtotal, 0, 'f', 3)
 				.arg(group.excludedCount).arg(group.totalCount)
 				.arg(group.exclusionReasons.join(QStringLiteral(", ")));
-		auto* massItem = new QTableWidgetItem(massText);
+		// A fully known mass sorts by its number; a group with excluded meshes sorts after those, by its reasons.
+		auto* massItem = (group.excludedCount == 0)
+			? new SortItem(massText, true, group.knownMassSubtotal)
+			: new SortItem(massText, false, 0.0, group.exclusionReasons.join(QStringLiteral(", ")));
 		// A mixed-validity group's exclusion-reasons list can run longer than
 		// the column is wide (elided text in a fixed-height row silently hides
 		// which reasons are involved) - the tooltip always carries the full,
@@ -773,6 +850,8 @@ void MassPropertiesDialog::populate()
 		_materialTable->setItem(materialRow, 1, massItem);
 		++materialRow;
 	}
+	if (_materialSortColumn >= 0)
+		_materialTable->sortItems(_materialSortColumn, _materialSortOrder);
 
 	// Geometric centroid: uniform-density-assumption centroid, volume-
 	// weighted across the selection - available whenever every mesh has a
