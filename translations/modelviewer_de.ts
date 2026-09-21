@@ -3911,7 +3911,7 @@ Ununterstütztes Dateiformat: </translation>
 <context>
     <name>MassPropertiesDialog</name>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="35"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="36"/>
         <source>Mass Properties</source>
         <translation>Masseneigenschaften</translation>
     </message>
@@ -3920,44 +3920,44 @@ Ununterstütztes Dateiformat: </translation>
         <translation type="vanished">Volumen, Oberfläche und Masse der aktuellen Auswahl – wird bei jedem Öffnen dieses Dialogs neu berechnet.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="55"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="60"/>
         <source>Nothing selected - select one or more meshes first.</source>
         <translation>Nichts ausgewählt – wählen Sie zuerst ein oder mehrere Meshes aus.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="66"/>
         <source>Mesh</source>
         <translation>Mesh</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="66"/>
         <source>Volume (mm³)</source>
         <translation>Volumen (mm³)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="66"/>
         <source>Surface Area (mm²)</source>
         <translation>Oberfläche (mm²)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="98"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="66"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="103"/>
         <source>Mass (kg)</source>
         <translation>Masse (kg)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="93"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="98"/>
         <source>Mass by Material:</source>
         <translation>Masse nach Material:</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="61"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="98"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="66"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="103"/>
         <source>Material</source>
         <translation>Material</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="42"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="43"/>
         <source>Volume, surface area, and mass for the selected meshes - recomputed when the selection changes or on Recalculate.</source>
         <translation>Volumen, Oberfläche und Masse der ausgewählten Meshes – neu berechnet, wenn sich die Auswahl ändert oder bei „Neu berechnen“.</translation>
     </message>
@@ -3970,7 +3970,7 @@ Ununterstütztes Dateiformat: </translation>
         <translation type="vanished">Meshes auswählen ...</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="51"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="52"/>
         <source>The meshes this report covers. Right-click to edit or clear.</source>
         <translation>Die Meshes, die dieser Bericht abdeckt. Rechtsklick zum Bearbeiten oder Leeren.</translation>
     </message>
@@ -3987,18 +3987,18 @@ Ununterstütztes Dateiformat: </translation>
         <translation type="vanished">Auswahl löschen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="113"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="265"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="118"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="270"/>
         <source>Close</source>
         <translation>Schließen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="118"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="123"/>
         <source>Recalculate</source>
         <translation>Neu berechnen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="119"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="124"/>
         <source>Recompute the report - after editing a material, moving or changing a mesh</source>
         <translation>Bericht neu berechnen – nach dem Bearbeiten eines Materials oder dem Verschieben bzw. Ändern eines Meshes</translation>
     </message>
@@ -4011,194 +4011,194 @@ Ununterstütztes Dateiformat: </translation>
         <translation type="vanished">Meshes hinzufügen, dann erneut klicken zum Bestätigen...</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="52"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="53"/>
         <source>Review and refine the meshes in this report.</source>
         <translation>Die Meshes in diesem Bericht prüfen und anpassen.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="52"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="53"/>
         <source>Meshes</source>
         <translation>Meshes</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="220"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="225"/>
         <source>Center Screen</source>
         <translation>Mittlerer Bildschirm</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="223"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="227"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="228"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="232"/>
         <source>Hide</source>
         <translation>Ausblenden</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="229"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="233"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="234"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="238"/>
         <source>Show</source>
         <translation>Zeigen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="236"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="238"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="241"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="243"/>
         <source>Show Only</source>
         <translation>Nur anzeigen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="265"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="270"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="504"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="509"/>
         <source>mesh no longer available</source>
         <translation>Mesh nicht mehr verfügbar</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="505"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="510"/>
         <source>(deleted)</source>
         <translation>(gelöscht)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="507"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="508"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="509"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="545"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="546"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="547"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="599"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="627"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="655"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="512"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="513"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="514"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="550"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="551"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="552"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="604"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="632"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="660"/>
         <source>N/A (%1)</source>
         <translation>k. A. (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="544"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="549"/>
         <source>geometry changed during computation</source>
         <translation>Geometrie hat sich während der Berechnung geändert</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="611"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="616"/>
         <source>%1 (incl. shell)</source>
         <translation>%1 (inkl. Schale)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="612"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="617"/>
         <source>%1 mm³ of this volume is open surface area x the material&apos;s shell thickness (%2 open piece(s)).</source>
         <translation>%1 mm³ dieses Volumens stammen aus offener Oberfläche × Schalendicke des Materials (%2 offene(s) Teil(e)).</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="680"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="686"/>
         <source>%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-based results as provisional until this can be corrected per-import. </source>
         <translation>%1 von %2 Mesh(es) verwenden eine unbestätigte Standardeinheit (Millimeter) – behandeln Sie längenbasierte Ergebnisse als vorläufig, bis dies pro Import korrigiert werden kann. </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="684"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="690"/>
         <source>Density comes from each mesh&apos;s assigned material; library-supplied values are typical/nominal figures for a generic grade, not an exact spec - verify before relying on Mass for an engineering-critical calculation.</source>
         <translation>Die Dichte stammt aus dem jeweils zugewiesenen Material des Meshes; aus der Bibliothek stammende Werte sind typische/nominale Angaben für eine allgemeine Sorte, keine exakte Spezifikation – prüfen Sie sie, bevor Sie sich für eine technisch kritische Berechnung auf die Masse verlassen.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="689"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="695"/>
         <source>%1 mesh(es) include open surfaces counted as area x the material&apos;s shell thickness - a pseudo volume, not an enclosed one.</source>
         <translation>%1 Mesh(es) enthalten offene Flächen, die als Fläche × Schalendicke des Materials gezählt werden – ein Pseudovolumen, kein umschlossenes.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="694"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="700"/>
         <source>%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their material (Materials &gt; Physical Properties) to include them.</source>
         <translation>%1 Mesh(es) sind offene Flächen und wurden ausgeschlossen – legen Sie für deren Material eine Schalendicke fest (Materialien &gt; Physikalische Eigenschaften), um sie einzubeziehen.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="707"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="714"/>
         <source>Surface Area: %1 mm²
 </source>
         <translation>Oberfläche: %1 mm²
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="709"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="716"/>
         <source>Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Oberfläche: %1 mm² bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="714"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="721"/>
         <source>Volume: %1 mm³
 </source>
         <translation>Volumen: %1 mm³
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="716"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="723"/>
         <source>Volume: %1 mm³ known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Volumen: %1 mm³ bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="727"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="734"/>
         <source>Mass: %1 kg
 </source>
         <translation>Masse: %1 kg
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="729"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="736"/>
         <source>Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Masse: %1 kg bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="755"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="762"/>
         <source>%1 kg</source>
         <translation>%1 kg</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="756"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="763"/>
         <source>%1 kg known (%2 of %3 mesh(es) excluded - %4)</source>
         <translation>%1 kg bekannt (%2 von %3 Mesh(es) ausgeschlossen - %4)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="776"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="783"/>
         <source>Geometric Centroid: X %1, Y %2, Z %3
 </source>
         <translation>Geometrischer Schwerpunkt: X %1, Y %2, Z %3
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="781"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="788"/>
         <source>Geometric Centroid: N/A (%1)
 </source>
         <translation>Geometrischer Schwerpunkt: k. A. (%1)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="782"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="789"/>
         <source>selection has zero total volume</source>
         <translation>Auswahl hat das Gesamtvolumen null</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="782"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="789"/>
         <source>not every mesh has a valid volume</source>
         <translation>nicht jedes Mesh hat ein gültiges Volumen</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="797"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="804"/>
         <source>Mass-Weighted Center of Mass: X %1, Y %2, Z %3</source>
         <translation>Massengewichteter Massenschwerpunkt: X %1, Y %2, Z %3</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="802"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="809"/>
         <source>Mass-Weighted Center of Mass: N/A (%1)</source>
         <translation>Massengewichteter Massenschwerpunkt: k. A. (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="803"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="810"/>
         <source>not every mesh has a known mass</source>
         <translation>nicht jedes Mesh hat eine bekannte Masse</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="803"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="810"/>
         <source>selection has zero total mass</source>
         <translation>Auswahl hat die Gesamtmasse null</translation>
     </message>
@@ -8528,6 +8528,29 @@ mit indizierter Geometrie aus.</translation>
 Use Copy and Paste for a multi-mesh assembly.</source>
         <translation>Wählen Sie Mesh-Blätter oder Baugruppen mit einem einzelnen Mesh aus.
 Verwenden Sie Kopieren und Einfügen für eine Baugruppe mit mehreren Meshes.</translation>
+    </message>
+</context>
+<context>
+    <name>NotesListBox</name>
+    <message>
+        <location filename="../src/NotesListBox.cpp" line="41"/>
+        <source>Copy All</source>
+        <translation>Alle kopieren</translation>
+    </message>
+    <message>
+        <location filename="../src/NotesListBox.cpp" line="107"/>
+        <source>%1: %2</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <location filename="../src/NotesListBox.cpp" line="112"/>
+        <source>%1 meshes: %2</source>
+        <translation>%1 Meshes: %2</translation>
+    </message>
+    <message>
+        <location filename="../src/NotesListBox.cpp" line="126"/>
+        <source>Notes (%1)</source>
+        <translation>Hinweise (%1)</translation>
     </message>
 </context>
 <context>
@@ -14507,22 +14530,22 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
 <context>
     <name>SurfaceAnalysisDialog</name>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="50"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="917"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="946"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1035"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1067"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1091"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1230"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1281"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1439"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1524"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1578"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1585"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1598"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1642"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1654"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1662"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="51"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="914"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1032"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1064"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1085"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1221"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1272"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1430"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1515"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1569"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1576"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1589"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1633"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1645"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1653"/>
         <source>Surface Analysis</source>
         <translation>Oberflächenanalyse</translation>
     </message>
@@ -14531,135 +14554,135 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Analysiert die aktuelle Auswahl und malt das Ergebnis direkt auf die Mesh-Oberfläche.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="105"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="106"/>
         <source>Curvature</source>
         <translation>Krümmung</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="106"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="235"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="107"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="234"/>
         <source>Wall-Thickness</source>
         <translation>Wandstärke</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="107"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="329"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="108"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="326"/>
         <source>Deviation</source>
         <translation>Abweichung</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="173"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="174"/>
         <source>Zebra Stripe reveals surface continuity as a live, view-dependent reflection pattern - no legend, since it isn&apos;t a fixed color scale.</source>
         <translation>Zebrastreifen zeigt die Flächenkontinuität als Live-Reflexionsmuster, das von der Ansicht abhängt – keine Legende, da es keine feste Farbskala ist.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="172"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="175"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="173"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="176"/>
         <source>Zebra Stripe</source>
         <translation>Zebrastreifen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="182"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="183"/>
         <source>Mean Curvature colors each vertex by how sharply the surface bends there - blue is concave, red is convex, white is flat. Gaussian/principal curvature modes are not yet available. Computed on a repaired copy of the mesh (real connectivity is required); any repair made is disclosed below after Apply.</source>
         <translation>Mittlere Krümmung färbt jeden Vertex danach, wie stark sich die Fläche dort biegt – blau ist konkav, rot ist konvex, weiß ist eben. Gauß-/Hauptkrümmungsmodi sind noch nicht verfügbar. Berechnet auf einer reparierten Kopie des Meshes (echte Konnektivität ist erforderlich); jede durchgeführte Reparatur wird nach dem Anwenden unten angezeigt.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="187"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="188"/>
         <source>Apply Mean Curvature</source>
         <translation>Mittlere Krümmung anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="125"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="126"/>
         <source>What does this show?</source>
         <translation>Was zeigt das?</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="57"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="58"/>
         <source>Analyzes the selected meshes and paints the result directly on the mesh surface.</source>
         <translation>Analysiert die ausgewählten Meshes und zeichnet das Ergebnis direkt auf die Mesh-Oberfläche.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="66"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="67"/>
         <source>The meshes to analyze. Right-click to edit or clear.</source>
         <translation>Die zu analysierenden Meshes. Rechtsklick zum Bearbeiten oder Leeren.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="67"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="68"/>
         <source>Review and refine the meshes to analyze.</source>
         <translation>Die zu analysierenden Meshes prüfen und anpassen.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="67"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="68"/>
         <source>Meshes</source>
         <translation>Meshes</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="181"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="182"/>
         <source>Mean Curvature</source>
         <translation>Mittlere Krümmung</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="205"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="204"/>
         <source>Draft Angle</source>
         <translation>Entformungsschräge</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="206"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="205"/>
         <source>Draft Angle colors each face by its signed angle to the chosen pull direction - red/positive is an ordinary moldable wall, blue/negative is an undercut, white is parallel to the pull direction (zero draft).</source>
         <translation>Entformungsschräge färbt jede Fläche nach ihrem vorzeichenbehafteten Winkel zur gewählten Entformungsrichtung – rot/positiv ist eine gewöhnliche formbare Wand, blau/negativ ist ein Hinterschnitt, weiß ist parallel zur Entformungsrichtung (keine Schräge).</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="211"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="210"/>
         <source>Pull direction:</source>
         <translation>Entformungsrichtung:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="212"/>
         <source>+X</source>
         <translation>+X</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="214"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="213"/>
         <source>-X</source>
         <translation>-X</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="215"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="214"/>
         <source>+Y</source>
         <translation>+Y</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="216"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="215"/>
         <source>-Y</source>
         <translation>-Y</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="217"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="216"/>
         <source>+Z</source>
         <translation>+Z</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="218"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="217"/>
         <source>-Z</source>
         <translation>-Z</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="230"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="229"/>
         <source>Apply Draft Angle</source>
         <translation>Entformungsschräge anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="341"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="338"/>
         <source>The reference mesh the selected mesh is compared against. Right-click to clear.</source>
         <translation>Das Referenz-Mesh, mit dem das ausgewählte Mesh verglichen wird. Rechtsklick zum Leeren.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="830"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="827"/>
         <source>No mesh selected - add meshes with the selection box above.</source>
         <translation>Kein Mesh ausgewählt – fügen Sie mit dem Auswahlfeld oben Meshes hinzu.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1586"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1577"/>
         <source>Pick a reference mesh with the Reference mesh box first.</source>
         <translation>Wählen Sie zuerst mit dem Feld „Referenz-Mesh“ ein Referenz-Mesh.</translation>
     </message>
@@ -14668,7 +14691,7 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Wandstärke schätzt, wie dick das Material hinter jedem Punkt der Oberfläche ist – blau ist dünn, rot ist dick. Die lokale Dicke tastet viele Punkte pro Fläche ab und schickt einen Strahlenkegel ins Material, sodass dünne Rippen und Schlitze erkannt werden und das Ergebnis nicht von der Triangulierung der Oberfläche abhängt; Normalenstrahl ist die ältere, schnellere Ein-Strahl-Schätzung. Beide sind SCHÄTZUNGEN, keine exakten Minima. Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nie teilweise eingefärbt.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="251"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="250"/>
         <source>Method:</source>
         <translation>Methode:</translation>
     </message>
@@ -14677,12 +14700,12 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Lokale Dicke (empfohlen)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="255"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="254"/>
         <source>Normal ray (fast)</source>
         <translation>Normalenstrahl (schnell)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="561"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="558"/>
         <source>Thickness: %1 mm</source>
         <translation>Dicke: %1 mm</translation>
     </message>
@@ -14691,58 +14714,58 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Wandstärke färbt jede Fläche nach dem Abstand eines nach innen gerichteten Strahls zur gegenüberliegenden Wand – blau ist dünn, rot ist dick. Dies ist eine SCHÄTZUNG, kein garantiertes wahres Minimum (das wahre Minimum kann in einer anderen Richtung als der Flächennormalen auftreten). Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nicht teilweise eingefärbt.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="290"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="289"/>
         <source>Apply Wall-Thickness</source>
         <translation>Wandstärke anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="297"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="296"/>
         <source>Highlight walls thinner than:</source>
         <translation>Wände hervorheben, die dünner sind als:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="300"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1413"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="299"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1404"/>
         <source> mm</source>
         <translation> mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="330"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="327"/>
         <source>Colors the selected mesh by its unsigned distance to a reference mesh&apos;s surface - dark blue is a close match, red is the largest deviation found. Both meshes must already be aligned in the same coordinate frame and use the same units; a plain offset between them will read as a false deviation. This is a sampled result (measured per vertex), not exhaustive coverage.</source>
         <translation>Färbt das ausgewählte Mesh nach seinem vorzeichenlosen Abstand zur Oberfläche eines Referenz-Meshes – dunkelblau ist eine gute Übereinstimmung, rot ist die größte gefundene Abweichung. Beide Meshes müssen bereits im selben Koordinatensystem ausgerichtet sein und dieselben Einheiten verwenden; ein einfacher Versatz zwischen ihnen wird als falsche Abweichung gelesen. Dies ist ein stichprobenartiges Ergebnis (pro Vertex gemessen), keine lückenlose Abdeckung.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="339"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="336"/>
         <source>Reference mesh:</source>
         <translation>Referenz-Mesh:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="344"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="341"/>
         <source>Apply</source>
         <translation>Anwenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="362"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="359"/>
         <source>Show Readout on Hover</source>
         <translation>Anzeige beim Überfahren einblenden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="379"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="376"/>
         <source>Clear Overlay</source>
         <translation>Overlay löschen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="383"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="380"/>
         <source>Close</source>
         <translation>Schließen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="557"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="554"/>
         <source>Draft: %1°</source>
         <translation>Entformungsschräge: %1°</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="559"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="556"/>
         <source>Curvature: %1</source>
         <translation>Krümmung: %1</translation>
     </message>
@@ -14759,77 +14782,77 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Wandstärke schätzt, wie dick das Material hinter jedem Punkt der Oberfläche ist – blau ist dünn, rot ist dick. Die einbeschriebene Kugel findet für jeden Punkt die größte Kugel, die in das Bauteil passt und die Oberfläche dort berührt; ihr Durchmesser ist die Wandstärke. Sie liest schräge und gekrümmte Wände richtig, liefert immer einen Wert und findet Dickstellen an Ecken und Rippenfüßen. An einer scharfen konvexen Kante kann keine große Kugel die Oberfläche berühren, dort kann daher ein dünner Rand erscheinen – eine verrundete Kante wird normal gelesen. Die lokale Dicke schickt von vielen Punkten je Fläche Strahlen ins Material (die Strahlenstreuung legt fest, wie weit sie auffächern dürfen; 0 = nur gerade nach innen), und Normalenstrahl ist die ältere, schnellere Ein-Strahl-Schätzung; beide messen entlang eines Strahls und können daher dort zu viel ablesen, wo die gegenüberliegende Wand schräg ist, und Lücken lassen, wo sie zu steil ist. Alle Methoden sind SCHÄTZUNGEN, keine exakten Minima. Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nie teilweise eingefärbt. Beim Überfahren eines Werts wird ins Protokoll geschrieben, wie er gemessen wurde.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="236"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="235"/>
         <source>Wall-Thickness estimates how thick the material is behind each point of the surface - blue is thin, red is thick. Inscribed sphere finds, for each point, the largest sphere that fits inside the part while touching the surface there; its diameter is the wall thickness. It reads slanted and curved walls correctly, always gives a value, and finds thick spots at corners and rib roots. Along a sharp convex edge no large sphere can touch the surface, so a thin border would appear there; &quot;Ignore sharp-edge effect&quot; (on by default) gives those points the value of the nearest interior point of the face instead. Local thickness casts rays into the material from many points per face (the ray spread sets how far they may fan out; 0 = straight in only) and Normal ray is the older, faster single-ray estimate; both measure along a ray, so they can over-read where the far wall is slanted and leave gaps where it is too steep. All methods are ESTIMATES, not exact minima. Requires a closed, non-self-intersecting mesh that bounds a volume - otherwise the whole mesh is rejected with a reason, never partially colored. Hovering a value writes how it was measured to the log.</source>
         <translation>Wandstärke schätzt, wie dick das Material hinter jedem Punkt der Oberfläche ist – blau ist dünn, rot ist dick. Die einbeschriebene Kugel findet für jeden Punkt die größte Kugel, die in das Bauteil passt und die Oberfläche dort berührt; ihr Durchmesser ist die Wandstärke. Sie liest schräge und gekrümmte Wände richtig, liefert immer einen Wert und findet Dickstellen an Ecken und Rippenfüßen. An einer scharfen konvexen Kante kann keine große Kugel die Oberfläche berühren, dort würde daher ein dünner Rand erscheinen; „Kanteneffekt ignorieren“ (standardmäßig an) gibt diesen Punkten stattdessen den Wert des nächsten Innenpunkts der Fläche. Die lokale Dicke schickt von vielen Punkten je Fläche Strahlen ins Material (die Strahlenstreuung legt fest, wie weit sie auffächern dürfen; 0 = nur gerade nach innen), und Normalenstrahl ist die ältere, schnellere Ein-Strahl-Schätzung; beide messen entlang eines Strahls und können daher dort zu viel ablesen, wo die gegenüberliegende Wand schräg ist, und Lücken lassen, wo sie zu steil ist. Alle Methoden sind SCHÄTZUNGEN, keine exakten Minima. Erfordert ein geschlossenes, selbstdurchdringungsfreies Mesh, das ein Volumen begrenzt – andernfalls wird das gesamte Mesh mit Begründung abgelehnt und nie teilweise eingefärbt. Beim Überfahren eines Werts wird ins Protokoll geschrieben, wie er gemessen wurde.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="253"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="252"/>
         <source>Inscribed sphere (recommended)</source>
         <translation>Einbeschriebene Kugel (empfohlen)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="254"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="253"/>
         <source>Local thickness (rays)</source>
         <translation>Lokale Dicke (Strahlen)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="261"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="260"/>
         <source>Ray spread:</source>
         <translation>Strahlenstreuung:</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="268"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="267"/>
         <source>0 measures straight in from each sample (the wall directly behind it). Larger values also probe obliquely, which finds thin features beside a sample but reads a flat face&apos;s sloped neighbours as thinner.</source>
         <translation>0 misst von jeder Stichprobe aus gerade nach innen (die Wand direkt dahinter). Größere Werte tasten auch schräg ab, was dünne Merkmale neben einer Stichprobe findet, aber schräge Nachbarn einer ebenen Fläche als dünner liest.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="275"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="274"/>
         <source>Ignore sharp-edge effect</source>
         <translation>Kanteneffekt ignorieren</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="277"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="276"/>
         <source>Along a sharp convex edge (or the rim of a hole) the largest sphere that touches the surface is small, which would read as a thin wall there. With this on, such points take the value of the nearest interior point of the face. Points squeezed between two walls (such as the end of a thin rib) keep their small value.</source>
         <translation>An einer scharfen konvexen Kante (oder am Rand einer Bohrung) ist die größte Kugel, die die Oberfläche berührt, klein, was dort als dünne Wand gelesen würde. Ist dies aktiv, übernehmen solche Punkte den Wert des nächsten Innenpunkts der Fläche. Punkte, die zwischen zwei Wänden eingeklemmt sind (etwa das Ende einer dünnen Rippe), behalten ihren kleinen Wert.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="563"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="560"/>
         <source>Deviation: %1</source>
         <translation>Abweichung: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="592"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="589"/>
         <source>no wall found behind the surface</source>
         <translation>keine Wand hinter der Oberfläche gefunden</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="594"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="591"/>
         <source>the wall behind belongs to a different body</source>
         <translation>die Wand dahinter gehört zu einem anderen Körper</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="596"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="593"/>
         <source>the ray meets a surface from outside (touching or overlapping bodies)</source>
         <translation>der Strahl trifft eine Fläche von außen (sich berührende oder überlappende Körper)</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="598"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="595"/>
         <source>the wall behind is too steep to measure straight through</source>
         <translation>die Wand dahinter ist zu steil, um geradeaus hindurch zu messen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="600"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="597"/>
         <source>the wall behind is a degenerate triangle</source>
         <translation>die Wand dahinter ist ein degeneriertes Dreieck</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="615"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="612"/>
         <source>No value: %1</source>
         <translation>Kein Wert: %1</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="806"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="803"/>
         <source>Overlay cleared for %1 mesh(es) - transform changed, click Apply to recompute.</source>
         <translation>Overlay für %1 Mesh(es) gelöscht – Transformation geändert, klicken Sie auf Anwenden, um neu zu berechnen.</translation>
     </message>
@@ -14838,7 +14861,7 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Kein Mesh ausgewählt – wählen Sie zuerst ein oder mehrere Meshes im Szenenbaum aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="832"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="829"/>
         <source>%1 meshes selected - Deviation needs exactly one (the scan/comparison side).</source>
         <translation>%1 Meshes ausgewählt – Abweichung benötigt genau eines (die Scan-/Vergleichsseite).</translation>
     </message>
@@ -14855,62 +14878,62 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Ausgewählt (%1): %2</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="917"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="946"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1091"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1439"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="914"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="943"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1085"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1430"/>
         <source>Select one or more meshes first.</source>
         <translation>Wählen Sie zuerst ein oder mehrere Meshes aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="962"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1119"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1460"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1620"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="959"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1113"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1451"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1611"/>
         <source>Cancel</source>
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1036"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1231"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1525"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1643"/>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1655"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1033"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1222"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1516"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1634"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1646"/>
         <source>Selection changed during computation - re-run Apply.</source>
         <translation>Auswahl hat sich während der Berechnung geändert – Anwenden erneut ausführen.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1068"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1065"/>
         <source>Could not compute a usable curvature result for the current selection.</source>
         <translation>Für die aktuelle Auswahl konnte kein brauchbares Krümmungsergebnis berechnet werden.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1282"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1273"/>
         <source>Could not compute wall thickness - no face found a valid opposite-wall hit.</source>
         <translation>Wandstärke konnte nicht berechnet werden – keine Fläche fand einen gültigen Treffer an der gegenüberliegenden Wand.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1408"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1399"/>
         <source>&lt; %1 mm</source>
         <translation>&lt; %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1408"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1399"/>
         <source>&gt;= %1 mm</source>
         <translation>&gt;= %1 mm</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1419"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1410"/>
         <source>Thinnest wall found: %1 mm.</source>
         <translation>Dünnste Wand: %1 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1422"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1413"/>
         <source>%1% of the analysed surface is thinner than %2 mm.</source>
         <translation>%1 % der analysierten Fläche sind dünner als %2 mm.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1579"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1570"/>
         <source>Select exactly one mesh to compare (the scan/comparison side).</source>
         <translation>Wählen Sie genau ein Mesh zum Vergleichen aus (die Scan-/Vergleichsseite).</translation>
     </message>
@@ -14919,12 +14942,12 @@ Das Panel zeigt GPU-seitige Texturbindungen für das ausgewählte Mesh.</transla
         <translation type="vanished">Es ist kein anderes geladenes Mesh zum Vergleich verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1599"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1590"/>
         <source>The chosen reference mesh is no longer available - pick another one.</source>
         <translation>Das gewählte Referenz-Mesh ist nicht mehr verfügbar – wählen Sie ein anderes aus.</translation>
     </message>
     <message>
-        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1663"/>
+        <location filename="../src/SurfaceAnalysisDialog.cpp" line="1654"/>
         <source>Could not compute deviation - the reference mesh has no usable triangles.</source>
         <translation>Abweichung konnte nicht berechnet werden – das Referenz-Mesh hat keine verwendbaren Dreiecke.</translation>
     </message>

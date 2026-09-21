@@ -2,6 +2,7 @@
 #include "ModelViewer.h"
 #include "ViewportWidget.h"
 #include "MeshSelectionBox.h"
+#include "NotesListBox.h"
 #include "SceneMesh.h"
 #include "RenderableMesh.h"
 #include "DraftAngleAnalyzer.h"
@@ -187,9 +188,7 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		_applyCurvatureButton = new QPushButton(tr("Apply Mean Curvature"), page);
 		connect(_applyCurvatureButton, &QPushButton::clicked, this, &SurfaceAnalysisDialog::onApplyCurvatureClicked);
 		pageLayout->addWidget(_applyCurvatureButton);
-		_curvatureRepairNote = new QLabel(page);
-		_curvatureRepairNote->setWordWrap(true);
-		_curvatureRepairNote->setVisible(false);
+		_curvatureRepairNote = new NotesListBox(page); // repairs made per mesh - grouped, height-capped, hidden while empty
 		pageLayout->addWidget(_curvatureRepairNote);
 
 		pageLayout->addStretch(1);
@@ -312,9 +311,7 @@ SurfaceAnalysisDialog::SurfaceAnalysisDialog(ModelViewer* modelViewer, QWidget* 
 		_thicknessSummaryLabel->setVisible(false);
 		pageLayout->addWidget(_thicknessSummaryLabel);
 
-		_thicknessRejectionNote = new QLabel(page);
-		_thicknessRejectionNote->setWordWrap(true);
-		_thicknessRejectionNote->setVisible(false);
+		_thicknessRejectionNote = new NotesListBox(page); // why a mesh was rejected - grouped, height-capped, hidden while empty
 		pageLayout->addWidget(_thicknessRejectionNote);
 
 		pageLayout->addStretch(1);
@@ -691,9 +688,9 @@ void SurfaceAnalysisDialog::onModeChanged()
 	// one - it's a live view-dependent effect, not a fixed color scale).
 	_legendLabel->setVisible(false);
 	if (_curvatureRepairNote)
-		_curvatureRepairNote->setVisible(false);
+		_curvatureRepairNote->clearNotes();
 	if (_thicknessRejectionNote)
-		_thicknessRejectionNote->setVisible(false);
+		_thicknessRejectionNote->clearNotes();
 	if (_thicknessSummaryLabel)
 		_thicknessSummaryLabel->setVisible(false);
 
@@ -988,7 +985,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 	float bound = 0.0f;
 	bool anyValid = false;
 	bool anyStale = false;
-	QStringList repairNotes;
+	QVector<NotesListBox::Note> repairNotes;
 
 	for (const AnalysisComputeSession::PerMeshOutcome& outcome : outcomes)
 	{
@@ -1015,7 +1012,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 
 		if (result->succeeded)
 		{
-			repairNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), result->repairSummary));
+			repairNotes.append({ mesh->getName(), result->repairSummary, NotesListBox::Severity::Info });
 			for (size_t i = 0; i < result->meanCurvaturePerVertex.size(); ++i)
 			{
 				if (result->validPerVertex[i])
@@ -1073,10 +1070,7 @@ void SurfaceAnalysisDialog::applyCurvatureToSelection()
 	_legendLabel->setVisible(true);
 
 	if (_curvatureRepairNote)
-	{
-		_curvatureRepairNote->setText(repairNotes.join(QStringLiteral("\n")));
-		_curvatureRepairNote->setVisible(true);
-	}
+		_curvatureRepairNote->setNotes(repairNotes);
 }
 
 void SurfaceAnalysisDialog::applyWallThicknessToSelection()
@@ -1147,7 +1141,7 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 	std::vector<float> pooledThickness; // every valid value, in mm, across all meshes - for the robust range
 	bool anyValid = false;
 	bool anyStale = false;
-	QStringList rejectionNotes;
+	QVector<NotesListBox::Note> rejectionNotes;
 
 	for (const AnalysisComputeSession::PerMeshOutcome& outcome : outcomes)
 	{
@@ -1212,16 +1206,13 @@ void SurfaceAnalysisDialog::applyWallThicknessToSelection()
 		}
 		else
 		{
-			rejectionNotes.append(QStringLiteral("%1: %2").arg(mesh->getName(), result->rejectionReason));
+			rejectionNotes.append({ mesh->getName(), result->rejectionReason, NotesListBox::Severity::Warning });
 		}
 		perMesh.push_back({ mesh, scaled, outcome.snapshotKey });
 	}
 
 	if (_thicknessRejectionNote)
-	{
-		_thicknessRejectionNote->setText(rejectionNotes.join(QStringLiteral("\n")));
-		_thicknessRejectionNote->setVisible(!rejectionNotes.isEmpty());
-	}
+		_thicknessRejectionNote->setNotes(rejectionNotes);
 
 	if (perMesh.empty())
 	{
@@ -1702,9 +1693,9 @@ void SurfaceAnalysisDialog::clearSelectionOverlays()
 	_zebraStripeToggle->blockSignals(false);
 	_legendLabel->setVisible(false);
 	if (_curvatureRepairNote)
-		_curvatureRepairNote->setVisible(false);
+		_curvatureRepairNote->clearNotes();
 	if (_thicknessRejectionNote)
-		_thicknessRejectionNote->setVisible(false);
+		_thicknessRejectionNote->clearNotes();
 	if (_thicknessSummaryLabel)
 		_thicknessSummaryLabel->setVisible(false);
 }

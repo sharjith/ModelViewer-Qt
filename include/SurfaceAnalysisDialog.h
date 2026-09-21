@@ -23,6 +23,7 @@ class QCloseEvent;
 class QTimer;
 class ModelViewer;
 class MeshSelectionBox;
+class NotesListBox;
 class SceneMesh;
 class AnalysisComputeSession;
 
@@ -229,7 +230,7 @@ private:
 	// Curvature page
 	QPushButton* _zebraStripeToggle = nullptr; // checkable
 	QPushButton* _applyCurvatureButton = nullptr;
-	QLabel* _curvatureRepairNote = nullptr;
+	NotesListBox* _curvatureRepairNote = nullptr;
 
 	// Wall-Thickness page
 	QComboBox* _pullDirectionCombo = nullptr;
@@ -241,7 +242,7 @@ private:
 	QDoubleSpinBox* _thicknessSpreadSpin = nullptr;   // Local thickness ray spread (cone half angle), degrees
 	QCheckBox* _thicknessEdgeReliefCheck = nullptr;   // Inscribed sphere: ignore the sharp-edge effect
 	QLabel* _thicknessSummaryLabel = nullptr;
-	QLabel* _thicknessRejectionNote = nullptr;
+	NotesListBox* _thicknessRejectionNote = nullptr;
 	// Top of the continuous ramp (mm) for the current result: a robust percentile rather than the maximum, so one
 	// long ray cannot squash everything else into a single colour.
 	float _thicknessRangeMax = 1.0f;

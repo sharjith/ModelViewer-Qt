@@ -8,6 +8,7 @@
 #include "AnalysisMeshSnapshot.h"
 #include "AnalysisComputeSession.h"
 #include "MeshSelectionBox.h"
+#include "NotesListBox.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -51,6 +52,10 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_selectionBox->setFieldToolTip(tr("The meshes this report covers. Right-click to edit or clear."));
 	_selectionBox->setEditorTexts(tr("Review and refine the meshes in this report."), tr("Meshes"));
 	layout->addWidget(_selectionBox);
+
+	// Footnotes about the result (units, density, shell thickness) - a height-capped list, refreshed by populate().
+	_notesBox = new NotesListBox(this);
+	layout->addWidget(_notesBox);
 
 	_noSelectionLabel = new QLabel(tr("Nothing selected - select one or more meshes first."), this);
 	_noSelectionLabel->setWordWrap(true);
@@ -354,7 +359,7 @@ void MassPropertiesDialog::populate()
 	}
 	_noSelectionLabel->setVisible(selected.empty());
 	if (selected.empty())
-		_unitsNoteLabel->clear();
+		_notesBox->clearNotes();
 	_table->setVisible(!selected.empty());
 	_totalsLabel->setVisible(!selected.empty());
 	_materialBreakdownLabel->setVisible(false);
@@ -473,7 +478,7 @@ void MassPropertiesDialog::populate()
 
 	// Counts how many selected meshes resolved via the Unknown->Millimeter
 	// fallback (see resolveEffectiveImportUnit()'s own doc comment) rather
-	// than a real, explicitly-known unit - drives _unitsNoteLabel's text
+	// than a real, explicitly-known unit - drives the unit note in _notesBox
 	// below.
 	int unitFallbackCount = 0;
 
@@ -674,27 +679,29 @@ void MassPropertiesDialog::populate()
 	// units-policy plan - a scene-tree "Import Units..." action - is not
 	// built), so the note only discloses the assumption; it doesn't point
 	// the user at a remedy that doesn't exist.
-	QString unitsNote;
+	// One note per point (not one long paragraph) - NotesListBox keeps them in a height-capped, scrollable list.
+	QVector<NotesListBox::Note> notes;
 	if (unitFallbackCount > 0)
 	{
-		unitsNote = tr("%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-"
-		               "based results as provisional until this can be corrected per-import. ")
-			.arg(unitFallbackCount).arg(outcomes.size());
+		notes.append({ QString(), tr("%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-"
+		                              "based results as provisional until this can be corrected per-import. ")
+		                              .arg(unitFallbackCount).arg(outcomes.size()).trimmed(), NotesListBox::Severity::Warning });
 	}
-	unitsNote += tr("Density comes from each mesh's assigned material; library-supplied values are typical/"
-	                 "nominal figures for a generic grade, not an exact spec - verify before relying on Mass "
-	                 "for an engineering-critical calculation.");
+	notes.append({ QString(), tr("Density comes from each mesh's assigned material; library-supplied values are typical/"
+	                              "nominal figures for a generic grade, not an exact spec - verify before relying on Mass "
+	                              "for an engineering-critical calculation."), NotesListBox::Severity::Info });
 	if (shellMeshCount > 0)
 	{
-		unitsNote += QLatin1Char(' ') + tr("%1 mesh(es) include open surfaces counted as area x the material's shell thickness - "
-		                                    "a pseudo volume, not an enclosed one.").arg(shellMeshCount);
+		notes.append({ QString(), tr("%1 mesh(es) include open surfaces counted as area x the material's shell thickness - "
+		                              "a pseudo volume, not an enclosed one.").arg(shellMeshCount), NotesListBox::Severity::Info });
 	}
 	if (shellCapableExcludedCount > 0)
 	{
-		unitsNote += QLatin1Char(' ') + tr("%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their "
-		                                    "material (Materials > Physical Properties) to include them.").arg(shellCapableExcludedCount);
+		notes.append({ QString(), tr("%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their "
+		                              "material (Materials > Physical Properties) to include them.").arg(shellCapableExcludedCount),
+		               NotesListBox::Severity::Warning });
 	}
-	_unitsNoteLabel->setText(unitsNote);
+	_notesBox->setNotes(notes);
 
 	// Totals convention, applied identically to volume and mass (and to
 	// every future aggregate this app ever adds alongside them): a complete

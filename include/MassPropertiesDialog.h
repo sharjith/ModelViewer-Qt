@@ -10,6 +10,7 @@
 class QTableWidget;
 class QLabel;
 class MeshSelectionBox;
+class NotesListBox;
 class QPushButton;
 class QProgressBar;
 class QCloseEvent;
@@ -126,7 +127,7 @@ private:
 	bool _suppressRowSync = false;   // true while populate() rebuilds the table - see onTableRowSelectionChanged()
 	QPushButton* _recalculateButton = nullptr;
 
-	QLabel* _unitsNoteLabel = nullptr; // text refreshed per populate() - see its own doc comment
+	NotesListBox* _notesBox = nullptr; // units / density / shell footnotes, refreshed per populate() - height-capped, so it never pushes the dialog off-screen
 	QLabel* _noSelectionLabel = nullptr;
 	QTableWidget* _table = nullptr;
 	QLabel* _totalsLabel = nullptr;
