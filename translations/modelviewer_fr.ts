@@ -4000,7 +4000,7 @@ Format de fichier non pris en charge : </translation>
     </message>
     <message>
         <location filename="../src/MassPropertiesDialog.cpp" line="148"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="420"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="428"/>
         <source>Close</source>
         <translation>Fermer</translation>
     </message>
@@ -4052,161 +4052,167 @@ Format de fichier non pris en charge : </translation>
         <translation>Montrer</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="420"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="399"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="401"/>
+        <source>Show Only</source>
+        <translation>Afficher uniquement</translation>
+    </message>
+    <message>
+        <location filename="../src/MassPropertiesDialog.cpp" line="428"/>
         <source>Cancel</source>
         <translation>Annuler</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="648"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="656"/>
         <source>mesh no longer available</source>
         <translation>maillage plus disponible</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="649"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="657"/>
         <source>(deleted)</source>
         <translation>(supprimé)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="651"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="652"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="653"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="689"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="690"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="691"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="743"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="771"/>
-        <location filename="../src/MassPropertiesDialog.cpp" line="799"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="659"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="660"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="661"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="697"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="698"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="699"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="751"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="779"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="807"/>
         <source>N/A (%1)</source>
         <translation>N/D (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="688"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="696"/>
         <source>geometry changed during computation</source>
         <translation>la géométrie a changé pendant le calcul</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="755"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="763"/>
         <source>%1 (incl. shell)</source>
         <translation>%1 (dont coque)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="756"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="764"/>
         <source>%1 mm³ of this volume is open surface area x the material&apos;s shell thickness (%2 open piece(s)).</source>
         <translation>%1 mm³ de ce volume proviennent de la surface ouverte × l&apos;épaisseur de coque du matériau (%2 pièce(s) ouverte(s)).</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="824"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="832"/>
         <source>%1 of %2 mesh(es) use an unconfirmed default unit (millimetre) - treat length-based results as provisional until this can be corrected per-import. </source>
         <translation>%1 maillage(s) sur %2 utilisent une unité par défaut non confirmée (millimètre) - considérez les résultats basés sur les longueurs comme provisoires tant que cela ne peut pas être corrigé par import. </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="828"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="836"/>
         <source>Density comes from each mesh&apos;s assigned material; library-supplied values are typical/nominal figures for a generic grade, not an exact spec - verify before relying on Mass for an engineering-critical calculation.</source>
         <translation>La masse volumique provient du matériau attribué à chaque maillage ; les valeurs de la bibliothèque sont des chiffres typiques/nominaux pour une nuance générique, non une spécification exacte - vérifiez-les avant de vous fier à la masse pour un calcul d&apos;ingénierie critique.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="833"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="841"/>
         <source>%1 mesh(es) include open surfaces counted as area x the material&apos;s shell thickness - a pseudo volume, not an enclosed one.</source>
         <translation>%1 maillage(s) comportent des surfaces ouvertes comptées comme aire × l&apos;épaisseur de coque du matériau - un pseudo-volume, non un volume fermé.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="838"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="846"/>
         <source>%1 mesh(es) are open surfaces and were excluded - set a Shell thickness on their material (Materials &gt; Physical Properties) to include them.</source>
         <translation>%1 maillage(s) sont des surfaces ouvertes et ont été exclus - définissez une épaisseur de coque sur leur matériau (Matériaux &gt; Propriétés physiques) pour les inclure.</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="851"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="859"/>
         <source>Surface Area: %1 mm²
 </source>
         <translation>Aire de surface : %1 mm²
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="853"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="861"/>
         <source>Surface Area: %1 mm² known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Aire de surface : %1 mm² connue (%2 maillage(s) sur %3 exclus - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="858"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="866"/>
         <source>Volume: %1 mm³
 </source>
         <translation>Volume : %1 mm³
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="860"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="868"/>
         <source>Volume: %1 mm³ known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Volume : %1 mm³ connu (%2 maillage(s) sur %3 exclus - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="871"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="879"/>
         <source>Mass: %1 kg
 </source>
         <translation>Masse : %1 kg
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="873"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="881"/>
         <source>Mass: %1 kg known (%2 of %3 mesh(es) excluded - %4)
 </source>
         <translation>Masse : %1 kg connue (%2 maillage(s) sur %3 exclus - %4)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="899"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="907"/>
         <source>%1 kg</source>
         <translation>%1 kg</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="900"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="908"/>
         <source>%1 kg known (%2 of %3 mesh(es) excluded - %4)</source>
         <translation>%1 kg connue (%2 maillage(s) sur %3 exclus - %4)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="920"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="928"/>
         <source>Geometric Centroid: X %1, Y %2, Z %3
 </source>
         <translation>Centroïde géométrique : X %1, Y %2, Z %3
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="925"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="933"/>
         <source>Geometric Centroid: N/A (%1)
 </source>
         <translation>Centroïde géométrique : N/D (%1)
 </translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="926"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="934"/>
         <source>selection has zero total volume</source>
         <translation>la sélection a un volume total nul</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="926"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="934"/>
         <source>not every mesh has a valid volume</source>
         <translation>tous les maillages n&apos;ont pas un volume valide</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="941"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="949"/>
         <source>Mass-Weighted Center of Mass: X %1, Y %2, Z %3</source>
         <translation>Centre de masse pondéré par la masse : X %1, Y %2, Z %3</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="946"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="954"/>
         <source>Mass-Weighted Center of Mass: N/A (%1)</source>
         <translation>Centre de masse pondéré par la masse : N/D (%1)</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="947"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="955"/>
         <source>not every mesh has a known mass</source>
         <translation>tous les maillages n&apos;ont pas une masse connue</translation>
     </message>
     <message>
-        <location filename="../src/MassPropertiesDialog.cpp" line="947"/>
+        <location filename="../src/MassPropertiesDialog.cpp" line="955"/>
         <source>selection has zero total mass</source>
         <translation>la sélection a une masse totale nulle</translation>
     </message>

@@ -111,6 +111,7 @@ MassPropertiesDialog::MassPropertiesDialog(ModelViewer* modelViewer, QWidget* pa
 	_table->setSelectionBehavior(QAbstractItemView::SelectRows);
 	_table->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(_table, &QWidget::customContextMenuRequested, this, &MassPropertiesDialog::showTableContextMenu);
+	connect(_table->selectionModel(), &QItemSelectionModel::selectionChanged, this, &MassPropertiesDialog::onTableRowSelectionChanged);
 	layout->addWidget(_table, 1);
 
 	_totalsLabel = new QLabel(this);
@@ -347,6 +348,22 @@ QVector<QUuid> MassPropertiesDialog::meshesOfSelectedRows() const
 	return uuids;
 }
 
+void MassPropertiesDialog::onTableRowSelectionChanged()
+{
+	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
+	if (_suppressRowSync || _activeSession || !viewport || (_pickButton && _pickButton->isChecked()))
+		return;
+
+	QSet<int> ids;
+	for (const QUuid& uuid : meshesOfSelectedRows())
+	{
+		const int id = viewport->getIndexByUuid(uuid);
+		if (id >= 0)
+			ids.insert(id);
+	}
+	_modelViewer->setSelectionWithoutUndo(ids);
+}
+
 void MassPropertiesDialog::showTableContextMenu(const QPoint& pos)
 {
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
@@ -394,6 +411,14 @@ void MassPropertiesDialog::showTableContextMenu(const QPoint& pos)
 			QSet<QUuid> visible = _modelViewer->getVisibleUuids();
 			visible.unite(targetSet);
 			_modelViewer->setVisibilityWithUndo(visible, tr("Show"));
+		});
+	// Only these meshes stay visible - for a closer look at them without the rest of the scene in the way.
+	connect(menu.addAction(QIcon(QStringLiteral(":/icons/res/show_only.png")), tr("Show Only")), &QAction::triggered, this,
+		[this, viewport, targetSet]() {
+			_modelViewer->setVisibilityWithUndo(targetSet, tr("Show Only"));
+			// Same as the scene tree's Show Only: a swapped (inverted) visibility view would show everything else instead.
+			if (viewport->isVisibleSwapped())
+				viewport->swapVisible(false);
 		});
 	menu.exec(_table->viewport()->mapToGlobal(pos));
 }
@@ -484,6 +509,16 @@ void MassPropertiesDialog::populate()
 	ViewportWidget* viewport = _modelViewer ? _modelViewer->getViewportWidget() : nullptr;
 	if (!viewport)
 		return;
+
+	// Rebuilding the table drops its row selection; that must not clear the viewer's selection (the meshes the user
+	// just picked are the ones being reported on).
+	struct RowSyncGuard
+	{
+		bool& flag;
+		bool previous;
+		explicit RowSyncGuard(bool& f) : flag(f), previous(f) { flag = true; }
+		~RowSyncGuard() { flag = previous; }
+	} rowSyncGuard(_suppressRowSync);
 
 	// The dialog's own list (not the live viewport selection): the table rows follow it, in order.
 	std::vector<int> selected;

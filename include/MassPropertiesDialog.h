@@ -89,6 +89,10 @@ private slots:
 	void showSelectionContextMenu(const QPoint& pos);
 	// Right-click on a row of the results table.
 	void showTableContextMenu(const QPoint& pos);
+	// Selecting rows selects the same meshes in the viewer (and scene tree). One way only: selecting in the viewer
+	// does not change the rows. Ignored while the pick button is on (the viewer selection is then being gathered)
+	// and while the table is being rebuilt.
+	void onTableRowSelectionChanged();
 
 private:
 	void populate();
@@ -128,6 +132,7 @@ private:
 
 	QVector<QUuid> _meshUuids;       // the meshes this report covers
 	QVector<QUuid> _rowUuids;        // the mesh behind each table row of the last populate() (row order)
+	bool _suppressRowSync = false;   // true while populate() rebuilds the table - see onTableRowSelectionChanged()
 	QLineEdit* _selectionEdit = nullptr;
 	QPushButton* _pickButton = nullptr;
 	QPushButton* _editSelectionButton = nullptr;
